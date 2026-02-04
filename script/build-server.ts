@@ -46,6 +46,8 @@ async function buildServer() {
     ...Object.keys(pkg.devDependencies || {}),
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  // Also mark missing optional deps as external
+  externals.push("puppeteer-extra", "puppeteer-extra-plugin-stealth", "puppeteer");
 
   await esbuild({
     entryPoints: ["server/index.ts"],
