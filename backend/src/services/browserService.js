@@ -1,10 +1,23 @@
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import path from 'path';
 import fs from 'fs';
 
-// Plugin pour éviter la détection bot
-puppeteer.use(StealthPlugin());
+// Lazy-load puppeteer (not available on API-only deploys like Render)
+let puppeteer = null;
+let puppeteerInitialized = false;
+
+async function initPuppeteer() {
+  if (puppeteerInitialized) return;
+  puppeteerInitialized = true;
+  try {
+    const pup = await import('puppeteer-extra');
+    const stealth = await import('puppeteer-extra-plugin-stealth');
+    puppeteer = pup.default || pup;
+    puppeteer.use((stealth.default || stealth)());
+    console.log('[BROWSER] puppeteer-extra loaded');
+  } catch {
+    console.warn('[BROWSER] puppeteer-extra not available - browser features disabled');
+  }
+}
 
 // ============ CONFIGURATION ============
 
@@ -45,6 +58,8 @@ let activePage = null;
  * Obtient ou crée une instance de navigateur
  */
 export async function getBrowser() {
+  await initPuppeteer();
+  if (!puppeteer) throw new Error('puppeteer not available on this environment');
   if (!browserInstance || !browserInstance.isConnected()) {
     console.log('[BROWSER] 🌐 Lancement du navigateur...');
     browserInstance = await puppeteer.launch(BROWSER_CONFIG);
