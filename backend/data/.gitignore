@@ -1,0 +1,42 @@
+# ═══════════════════════════════════════════════════════════════
+# GITIGNORE - Dossier data/ des tenants
+# ═══════════════════════════════════════════════════════════════
+#
+# RÈGLE : Ignorer TOUT le contenu des dossiers tenant
+#         Mais conserver la structure du dossier data/
+#
+# Structure par tenant :
+#   {tenant-id}/uploads/    → Images, médias
+#   {tenant-id}/documents/  → Factures, exports
+#   {tenant-id}/temp/       → Fichiers temporaires
+#   {tenant-id}/cache/      → Cache applicatif
+# ═══════════════════════════════════════════════════════════════
+
+# Ignorer tout le contenu des dossiers tenant
+*/uploads/*
+*/documents/*
+*/temp/*
+*/cache/*
+
+# Mais garder les .gitkeep pour la structure
+!*/.gitkeep
+!*/uploads/.gitkeep
+!*/documents/.gitkeep
+!*/temp/.gitkeep
+!*/cache/.gitkeep
+
+# Ignorer les fichiers sensibles
+*.env
+*.key
+*.pem
+*.log
+
+# Ignorer les gros fichiers
+*.zip
+*.tar
+*.tar.gz
+*.bak
+
+# Ne pas ignorer ce fichier
+!.gitignore
+!README.md
