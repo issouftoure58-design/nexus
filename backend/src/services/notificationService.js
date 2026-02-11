@@ -92,6 +92,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
   const results = {
     email: { success: false, error: 'Non envoyé' },
     whatsapp: { success: false, error: 'Non envoyé' },
+    sms: { success: false, error: 'Non envoyé' },
   };
 
   const t = resolveTenant(tenantId);
@@ -117,6 +118,10 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
           <li><strong>Acompte réglé :</strong> ${acompte}€</li>
           ${reste > 0 ? `<li><strong>Reste à payer :</strong> ${reste}€</li>` : ''}
         </ul>
+        <p style="margin-top: 20px;">
+          <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">🔗 Créer votre compte client</a><br>
+          <a href="https://${t.domain}/avis" style="color: #8B5CF6; text-decoration: none;">⭐ Laissez un avis après votre RDV</a>
+        </p>
         <p>À bientôt !<br>${t.gerante} - ${t.salonName}</p>
       `;
 
@@ -143,6 +148,51 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp confirmation:', error.message);
       results.whatsapp = { success: false, error: error.message };
+    }
+  }
+
+  // 3. Envoyer SMS via Twilio
+  if (clientPhone) {
+    try {
+      const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
+      const lieuText = rdv.adresse_client || t.adresse;
+
+      const smsMessage = `${t.salonName}
+Votre RDV est confirmé !
+
+${rdv.date} à ${rdv.heure}
+${rdv.service_nom}
+${total}€
+
+${lieuText}
+
+À bientôt !
+${t.gerante} - ${t.telephone}`;
+
+      // Import dynamique Twilio
+      const twilio = (await import('twilio')).default;
+      const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+      // Formater le numéro
+      let formattedPhone = clientPhone.replace(/\s/g, '').replace(/\./g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+33' + formattedPhone.substring(1);
+      }
+      if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+33' + formattedPhone;
+      }
+
+      const smsResult = await twilioClient.messages.create({
+        body: smsMessage,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: formattedPhone
+      });
+
+      results.sms = { success: true, sid: smsResult.sid };
+      console.log(`[Notification] ✅ SMS confirmation envoyé à ${formattedPhone} (SID: ${smsResult.sid})`);
+    } catch (error) {
+      console.error('[Notification] ❌ Erreur envoi SMS:', error.message);
+      results.sms = { success: false, error: error.message };
     }
   }
 

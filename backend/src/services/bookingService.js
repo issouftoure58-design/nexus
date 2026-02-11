@@ -1622,30 +1622,47 @@ export async function sendConfirmationSMS(phoneNumber, bookingDetails) {
 
     const fraisText = fraisDeplacement > 0
       ? `(dont ${fraisDeplacement}€ déplacement)`
-      : '(déplacement offert)';
+      : '';
 
     const message = `Fat's Hair-Afro
 Votre RDV est confirmé !
 
 ${date} à ${heure}
 ${service}
-${prixTotal}€ ${fraisText}
+${prixTotal}€${fraisText ? ' ' + fraisText : ''}
 
-${adresse ? 'À votre adresse : ' + adresse : ''}
+${adresse ? 'Adresse : ' + adresse : 'Chez Fatou à Franconville'}
 
 À bientôt !
-Fatou - 09 39 24 02 69`;
+Fatou - 07 82 23 50 20`;
 
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
 
-    await client.messages.create({
+    const result = await client.messages.create({
       body: message,
       from: twilioPhone,
       to: formattedPhone
     });
 
-    console.log('[BOOKING] ✅ SMS envoyé');
+    console.log('[BOOKING] ✅ SMS envoyé, SID:', result.sid);
+
+    // 📊 Logger le SMS sortant pour tracking des coûts
+    try {
+      const { supabase } = await import('../config/supabase.js');
+      await supabase.from('twilio_call_logs').insert({
+        channel: 'sms',
+        direction: 'outbound',
+        from_number: twilioPhone,
+        to_number: formattedPhone,
+        message_sid: result.sid,
+        tenant_id: 'fatshairafro',
+      });
+      console.log('[BOOKING] ✅ SMS loggé pour tracking coûts');
+    } catch (logErr) {
+      console.warn('[BOOKING] ⚠️ Erreur logging SMS:', logErr.message);
+    }
+
     return true;
 
   } catch (error) {

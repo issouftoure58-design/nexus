@@ -7,33 +7,39 @@ const router = express.Router();
 // GET /api/admin/stats/dashboard
 router.get('/dashboard', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const now = new Date();
     // Formater les dates en YYYY-MM-DD pour correspondre au format de la colonne date
     const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // CA du mois
+    // CA du mois (🔒 TENANT ISOLATION)
     const { data: rdvMois } = await supabase
       .from('reservations')
       .select('prix_total')
+      .eq('tenant_id', tenantId)
       .gte('date', startOfMonth)
       .in('statut', ['confirme', 'termine']);
 
     const caMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
 
-    // CA du jour - filtre par date de RDV, pas de création
+    // CA du jour (🔒 TENANT ISOLATION)
     const { data: rdvJour } = await supabase
       .from('reservations')
       .select('prix_total')
+      .eq('tenant_id', tenantId)
       .eq('date', today)
       .in('statut', ['confirme', 'termine']);
 
     const caJour = rdvJour?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
 
-    // Nombre de RDV par statut
+    // Nombre de RDV par statut (🔒 TENANT ISOLATION)
     const { data: rdvStats } = await supabase
       .from('reservations')
-      .select('statut');
+      .select('statut')
+      .eq('tenant_id', tenantId);
 
     const rdvParStatut = {
       confirmes: rdvStats?.filter(r => r.statut === 'confirme').length || 0,
@@ -42,10 +48,11 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       termines: rdvStats?.filter(r => r.statut === 'termine').length || 0,
     };
 
-    // Services populaires - utiliser service_nom qui est le nom correct de la colonne
+    // Services populaires (🔒 TENANT ISOLATION)
     const { data: servicesData } = await supabase
       .from('reservations')
       .select('service_nom')
+      .eq('tenant_id', tenantId)
       .in('statut', ['confirme', 'termine']);
 
     const servicesCount = {};
@@ -60,16 +67,18 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .slice(0, 5)
       .map(([service, count]) => ({ service, count }));
 
-    // Nombre total de clients
+    // Nombre total de clients (🔒 TENANT ISOLATION)
     const { count: nbClients } = await supabase
       .from('clients')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
-    // Prochain RDV - exclure les RDV passés (même aujourd'hui si heure dépassée)
+    // Prochain RDV (🔒 TENANT ISOLATION)
     const nowHeure = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const { data: prochainRdvList } = await supabase
       .from('reservations')
       .select('*, clients(nom, prenom, telephone)')
+      .eq('tenant_id', tenantId)
       .in('statut', ['confirme', 'demande', 'en_attente', 'en_attente_paiement'])
       .gte('date', today)
       .order('date', { ascending: true })
@@ -92,10 +101,11 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
 
       const dateStr = date.toISOString().split('T')[0]; // Format YYYY-MM-DD
 
-      // Utiliser eq pour une date exacte au format YYYY-MM-DD
+      // Utiliser eq pour une date exacte au format YYYY-MM-DD (🔒 TENANT ISOLATION)
       const { data: rdvDay } = await supabase
         .from('reservations')
         .select('prix_total')
+        .eq('tenant_id', tenantId)
         .eq('date', dateStr)
         .in('statut', ['confirme', 'termine']);
 

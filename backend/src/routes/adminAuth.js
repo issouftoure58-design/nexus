@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 import { verifyLogin, changePassword } from '../sentinel/security/accountService.js';
 import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordPolicy.js';
+import { loginLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -57,7 +58,7 @@ function resetRateLimit(ip) {
 }
 
 // POST /api/admin/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -213,7 +214,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
 });
 
 // Middleware authentification
-export function authenticateAdmin(req, res, next) {
+export async function authenticateAdmin(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -224,7 +225,22 @@ export function authenticateAdmin(req, res, next) {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
 
-    req.admin = decoded;
+    // Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
+    const { data: adminData, error } = await supabase
+      .from('admin_users')
+      .select('id, email, nom, role, tenant_id')
+      .eq('id', decoded.id)
+      .single();
+
+    if (error || !adminData) {
+      return res.status(401).json({ error: 'Admin non trouvé' });
+    }
+
+    req.admin = {
+      ...decoded,
+      tenant_id: adminData.tenant_id,
+      nom: adminData.nom,
+    };
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token invalide' });

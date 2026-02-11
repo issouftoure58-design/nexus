@@ -12,6 +12,9 @@ const router = express.Router();
 // Liste tous les clients avec pagination et recherche
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const {
       search = '',
       sort = 'created_at',
@@ -24,10 +27,11 @@ router.get('/', authenticateAdmin, async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
-    // Query de base
+    // Query de base (🔒 TENANT ISOLATION)
     let query = supabase
       .from('clients')
-      .select('*', { count: 'exact' });
+      .select('*', { count: 'exact' })
+      .eq('tenant_id', tenantId);
 
     // Recherche par nom, prénom, téléphone ou email
     if (search) {
@@ -44,20 +48,22 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Pour chaque client, récupérer stats RDV
+    // Pour chaque client, récupérer stats RDV (🔒 TENANT ISOLATION)
     const clientsWithStats = await Promise.all(
       clients.map(async (client) => {
         // Count total RDV
         const { count: nbRdv } = await supabase
           .from('reservations')
           .select('*', { count: 'exact', head: true })
-          .eq('client_id', client.id);
+          .eq('client_id', client.id)
+          .eq('tenant_id', tenantId);
 
         // Dernier RDV
         const { data: dernierRdv } = await supabase
           .from('reservations')
           .select('date, heure, service, statut')
           .eq('client_id', client.id)
+          .eq('tenant_id', tenantId)
           .order('date', { ascending: false })
           .limit(1)
           .single();
@@ -85,15 +91,81 @@ router.get('/', authenticateAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/clients
+// Créer un nouveau client
+router.post('/', authenticateAdmin, async (req, res) => {
+  try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    const { prenom, nom, telephone, email } = req.body;
+
+    // Validation
+    if (!prenom?.trim()) {
+      return res.status(400).json({ error: 'Le prénom est requis' });
+    }
+    if (!nom?.trim()) {
+      return res.status(400).json({ error: 'Le nom est requis' });
+    }
+    if (!telephone?.trim()) {
+      return res.status(400).json({ error: 'Le téléphone est requis' });
+    }
+
+    // Vérifier si le téléphone existe déjà (🔒 TENANT ISOLATION)
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('telephone', telephone.trim())
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (existing) {
+      return res.status(409).json({
+        error: 'Un client avec ce numéro de téléphone existe déjà',
+        client: existing
+      });
+    }
+
+    // Créer le client (🔒 TENANT ISOLATION)
+    const { data: client, error } = await supabase
+      .from('clients')
+      .insert({
+        tenant_id: tenantId,
+        prenom: prenom.trim(),
+        nom: nom.trim(),
+        telephone: telephone.trim(),
+        email: email?.trim() || null
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log('[ADMIN CLIENTS] Nouveau client créé:', client.id, `${prenom} ${nom}`);
+
+    res.status(201).json({
+      success: true,
+      client
+    });
+  } catch (error) {
+    console.error('[ADMIN CLIENTS] Erreur création:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/admin/clients/:id
 // Détail complet d'un client
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
-    // Infos client
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Infos client (🔒 TENANT ISOLATION)
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (clientError) throw clientError;
@@ -102,27 +174,30 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Client introuvable' });
     }
 
-    // Historique RDV (10 derniers)
+    // Historique RDV (10 derniers) (🔒 TENANT ISOLATION)
     const { data: historiqueRdv } = await supabase
       .from('reservations')
       .select('*, services(nom)')
       .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId)
       .order('date', { ascending: false })
       .limit(10);
 
-    // Notes privées
+    // Notes privées (🔒 TENANT ISOLATION)
     const { data: notes } = await supabase
       .from('notes_clients')
       .select('*')
       .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
-    // STATISTIQUES
+    // STATISTIQUES (🔒 TENANT ISOLATION)
     // Total RDV
     const { data: allRdv } = await supabase
       .from('reservations')
       .select('statut, prix_total, service, date')
-      .eq('client_id', req.params.id);
+      .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId);
 
     const nbRdvTotal = allRdv?.length || 0;
     const nbRdvHonores = allRdv?.filter(r => r.statut === 'termine').length || 0;
@@ -189,6 +264,9 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 // Modifier les infos d'un client
 router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { nom, prenom, telephone, email, adresse } = req.body;
 
     const updates = {};
@@ -199,17 +277,20 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (adresse !== undefined) updates.adresse = adresse;
     updates.updated_at = new Date().toISOString();
 
+    // 🔒 TENANT ISOLATION
     const { data: client, error } = await supabase
       .from('clients')
       .update(updates)
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'update',
       entite: 'client',
@@ -228,12 +309,16 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 // Supprimer un client
 router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
-    // Vérifier s'il y a des RDV futurs
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Vérifier s'il y a des RDV futurs (🔒 TENANT ISOLATION)
     const today = new Date().toISOString().split('T')[0];
     const { count: rdvFuturs } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId)
       .gte('date', today)
       .neq('statut', 'annule');
 
@@ -243,22 +328,25 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Supprimer les notes d'abord (foreign key)
+    // Supprimer les notes d'abord (foreign key) (🔒 TENANT ISOLATION)
     await supabase
       .from('notes_clients')
       .delete()
-      .eq('client_id', req.params.id);
+      .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId);
 
-    // Supprimer le client
+    // Supprimer le client (🔒 TENANT ISOLATION)
     const { error } = await supabase
       .from('clients')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'delete',
       entite: 'client',
@@ -280,10 +368,14 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 // Liste les notes d'un client
 router.get('/:id/notes', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { data: notes, error } = await supabase
       .from('notes_clients')
       .select('*')
       .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -299,15 +391,20 @@ router.get('/:id/notes', authenticateAdmin, async (req, res) => {
 // Ajouter une note privée
 router.post('/:id/notes', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { note } = req.body;
 
     if (!note || note.trim() === '') {
       return res.status(400).json({ error: 'La note ne peut pas être vide' });
     }
 
+    // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
     const { data: newNote, error } = await supabase
       .from('notes_clients')
       .insert({
+        tenant_id: tenantId,
         client_id: req.params.id,
         note: note.trim()
       })
@@ -316,8 +413,9 @@ router.post('/:id/notes', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'create',
       entite: 'note_client',
@@ -336,16 +434,22 @@ router.post('/:id/notes', authenticateAdmin, async (req, res) => {
 // Supprimer une note
 router.delete('/:id/notes/:noteId', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // 🔒 TENANT ISOLATION
     const { error } = await supabase
       .from('notes_clients')
       .delete()
       .eq('id', req.params.noteId)
-      .eq('client_id', req.params.id); // Sécurité: vérifier que la note appartient au client
+      .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'delete',
       entite: 'note_client',
@@ -367,11 +471,15 @@ router.delete('/:id/notes/:noteId', authenticateAdmin, async (req, res) => {
 // Statistiques détaillées d'un client
 router.get('/:id/stats', authenticateAdmin, async (req, res) => {
   try {
-    // Récupérer tous les RDV du client
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer tous les RDV du client (🔒 TENANT ISOLATION)
     const { data: rdv } = await supabase
       .from('reservations')
       .select('statut, prix_total, service, date')
-      .eq('client_id', req.params.id);
+      .eq('client_id', req.params.id)
+      .eq('tenant_id', tenantId);
 
     if (!rdv) {
       return res.json({

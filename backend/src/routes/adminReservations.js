@@ -1,9 +1,14 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
+import { createFactureFromReservation } from './factures.js';
 
 const router = express.Router();
+
+// 🔒 MODULE PROTECTION: Toutes les routes réservations nécessitent le module 'reservations'
+router.use(requireModule('reservations'));
 
 // Statuts possibles pour une réservation
 // - demande: nouvelle réservation en attente de confirmation
@@ -22,6 +27,9 @@ const STATUTS_VALIDES = ['demande', 'en_attente', 'en_attente_paiement', 'confir
 // Liste toutes les réservations avec filtres et pagination
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const {
       statut,
       date_debut,
@@ -38,7 +46,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
-    // Query de base avec jointures
+    // Query de base avec jointures (🔒 TENANT ISOLATION)
     let query = supabase
       .from('reservations')
       .select(`
@@ -50,7 +58,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
           telephone,
           email
         )
-      `, { count: 'exact' });
+      `, { count: 'exact' })
+      .eq('tenant_id', tenantId);
 
     // Filtres
     if (statut) {
@@ -125,6 +134,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // Détail complet d'une réservation
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // 🔒 TENANT ISOLATION
     const { data: reservation, error } = await supabase
       .from('reservations')
       .select(`
@@ -138,6 +151,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         )
       `)
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error) throw error;
@@ -146,11 +160,12 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Réservation introuvable' });
     }
 
-    // Récupérer les informations du service depuis la table services
+    // Récupérer les informations du service depuis la table services (🔒 TENANT ISOLATION)
     const serviceName = reservation.service_nom || reservation.service;
     const { data: serviceInfo } = await supabase
       .from('services')
       .select('id, nom, prix, duree, description')
+      .eq('tenant_id', tenantId)
       .ilike('nom', serviceName || '')
       .single();
 
@@ -204,6 +219,9 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 // Créer une réservation manuellement
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const {
       client_id,
       service,
@@ -224,11 +242,12 @@ router.post('/', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Vérifier que le client existe et récupérer ses infos
+    // Vérifier que le client existe et récupérer ses infos (🔒 TENANT ISOLATION)
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('id, prenom, nom, telephone')
       .eq('id', client_id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (clientError || !client) {
@@ -261,8 +280,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: result.error || 'Erreur création' });
     }
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'create',
       entite: 'reservation',
@@ -270,11 +290,12 @@ router.post('/', authenticateAdmin, async (req, res) => {
       details: { client_id, service, date_rdv, heure_rdv, lieu }
     });
 
-    // Récupérer la réservation complète pour la réponse
+    // Récupérer la réservation complète pour la réponse (🔒 TENANT ISOLATION)
     const { data: reservation } = await supabase
       .from('reservations')
       .select('*')
       .eq('id', result.reservationId)
+      .eq('tenant_id', tenantId)
       .single();
 
     res.json({ reservation });
@@ -288,6 +309,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
 // Modifier une réservation
 router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const {
       date_rdv,
       heure_rdv,
@@ -301,11 +325,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       notes
     } = req.body;
 
-    // Récupérer la réservation actuelle avec téléphone client
+    // Récupérer la réservation actuelle avec téléphone client (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
       .select('*, clients(telephone)')
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !currentRdv) {
@@ -342,11 +367,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       if (heure_rdv) updates.heure = heure_rdv;
     }
 
-    // Si changement de service, recalculer le prix
+    // Si changement de service, recalculer le prix (🔒 TENANT ISOLATION)
     if (service && service !== currentRdv.service_nom) {
       const { data: serviceInfo, error: serviceError } = await supabase
         .from('services')
         .select('nom, prix, duree')
+        .eq('tenant_id', tenantId)
         .ilike('nom', service)
         .single();
 
@@ -376,10 +402,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         if (duree_trajet_minutes !== undefined) updates.duree_trajet_minutes = duree_trajet_minutes;
         if (frais_deplacement !== undefined) {
           updates.frais_deplacement = Math.round(frais_deplacement * 100);
-          // Recalculer prix total
+          // Recalculer prix total (🔒 TENANT ISOLATION)
           const { data: serviceInfo } = await supabase
             .from('services')
             .select('prix')
+            .eq('tenant_id', tenantId)
             .ilike('nom', updates.service_nom || currentRdv.service_nom)
             .single();
 
@@ -394,10 +421,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         updates.duree_trajet_minutes = null;
         updates.frais_deplacement = 0;
 
-        // Recalculer prix total
+        // Recalculer prix total (🔒 TENANT ISOLATION)
         const { data: serviceInfo } = await supabase
           .from('services')
           .select('prix')
+          .eq('tenant_id', tenantId)
           .ilike('nom', updates.service_nom || currentRdv.service_nom)
           .single();
 
@@ -416,11 +444,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // Notes
     if (notes !== undefined) updates.notes = notes;
 
-    // Appliquer les modifications
+    // Appliquer les modifications (🔒 TENANT ISOLATION)
     const { data: reservation, error } = await supabase
       .from('reservations')
       .update(updates)
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
@@ -452,8 +481,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'update',
       entite: 'reservation',
@@ -472,6 +502,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 // Changer le statut d'une réservation
 router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { statut } = req.body;
 
     if (!statut || !STATUTS_VALIDES.includes(statut)) {
@@ -480,11 +513,12 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Récupérer la réservation actuelle
+    // Récupérer la réservation actuelle (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
       .select('*, clients(nom, prenom, telephone)')
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !currentRdv) {
@@ -498,7 +532,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Mettre à jour le statut
+    // Mettre à jour le statut (🔒 TENANT ISOLATION)
     const { data: reservation, error } = await supabase
       .from('reservations')
       .update({
@@ -506,13 +540,15 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'update_statut',
       entite: 'reservation',
@@ -520,9 +556,24 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       details: { ancien_statut: currentRdv.statut, nouveau_statut: statut }
     });
 
+    // Si statut = termine, générer automatiquement la facture
+    let facture = null;
+    if (statut === 'termine') {
+      try {
+        const tenantId = req.admin.tenant_id || 'fatshairafro';
+        const factureResult = await createFactureFromReservation(req.params.id, tenantId);
+        if (factureResult.success) {
+          facture = factureResult.facture;
+          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} générée automatiquement`);
+        }
+      } catch (factureErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur génération facture:', factureErr.message);
+      }
+    }
+
     // TODO: Si annulation, déclencher logique de remboursement si applicable
 
-    res.json({ reservation });
+    res.json({ reservation, facture });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur changement statut:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -533,27 +584,33 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
 // Supprimer une réservation (cas exceptionnel)
 router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
-    // Vérifier que la réservation existe
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Vérifier que la réservation existe (🔒 TENANT ISOLATION)
     const { data: reservation, error: fetchError } = await supabase
       .from('reservations')
       .select('*')
       .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !reservation) {
       return res.status(404).json({ error: 'Réservation introuvable' });
     }
 
-    // Supprimer
+    // Supprimer (🔒 TENANT ISOLATION)
     const { error } = await supabase
       .from('reservations')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'delete',
       entite: 'reservation',
@@ -580,6 +637,9 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 // Statistiques des réservations
 router.get('/stats/periode', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { periode = 'mois' } = req.query;
 
     // Calculer les dates selon la période
@@ -603,10 +663,11 @@ router.get('/stats/periode', authenticateAdmin, async (req, res) => {
 
     const dateDebutStr = dateDebut.toISOString().split('T')[0];
 
-    // Récupérer toutes les réservations de la période
+    // Récupérer toutes les réservations de la période (🔒 TENANT ISOLATION)
     const { data: reservations, error } = await supabase
       .from('reservations')
       .select('statut, prix_total, service, date, lieu')
+      .eq('tenant_id', tenantId)
       .gte('date', dateDebutStr);
 
     if (error) throw error;
@@ -684,8 +745,12 @@ router.get('/stats/periode', authenticateAdmin, async (req, res) => {
 // Export CSV des réservations
 router.get('/export/csv', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { date_debut, date_fin } = req.query;
 
+    // 🔒 TENANT ISOLATION
     let query = supabase
       .from('reservations')
       .select(`
@@ -697,6 +762,7 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
           email
         )
       `)
+      .eq('tenant_id', tenantId)
       .order('date', { ascending: true });
 
     if (date_debut) {

@@ -64,6 +64,9 @@ Reste à payer : ${reste}€ (espèces/virement/PayPal)`;
 
   message += `
 
+🔗 Créez votre compte : https://fatshairafro.fr/compte
+⭐ Laissez un avis après votre RDV : https://fatshairafro.fr/avis
+
 À bientôt ! ✨
 Fatou`;
 

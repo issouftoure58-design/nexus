@@ -1,18 +1,26 @@
 import { Router } from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import { supabase } from '../config/supabase.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 
 const router = Router();
 
 // All routes require admin auth
 router.use(authenticateAdmin);
 
+// 🔒 MODULE PROTECTION: Toutes les routes agents IA nécessitent le module 'agent_ia_web'
+router.use(requireModule('agent_ia_web'));
+
 // GET /api/admin/agents — List agents for current tenant
 router.get('/', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { data: agents, error } = await supabase
       .from('ai_agents')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('agent_type');
 
     if (error) throw error;
@@ -27,6 +35,9 @@ router.get('/', async (req, res) => {
 // PATCH /api/admin/agents/:id — Update agent config
 router.patch('/:id', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { id } = req.params;
     const updates = req.body;
 
@@ -43,21 +54,24 @@ router.patch('/:id', async (req, res) => {
     }
     filtered.updated_at = new Date().toISOString();
 
-    // Verify agent exists for this tenant
+    // Verify agent exists for this tenant (🔒 TENANT ISOLATION)
     const { data: existing, error: fetchErr } = await supabase
       .from('ai_agents')
       .select('id')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchErr || !existing) {
       return res.status(404).json({ success: false, error: 'Agent non trouvé' });
     }
 
+    // 🔒 TENANT ISOLATION
     const { data: updated, error: updateErr } = await supabase
       .from('ai_agents')
       .update(filtered)
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
@@ -73,13 +87,18 @@ router.patch('/:id', async (req, res) => {
 // POST /api/admin/agents/:id/test-voice — Generate voice sample
 router.post('/:id/test-voice', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { id } = req.params;
     const { text = "Bonjour, ceci est un test de voix." } = req.body;
 
+    // 🔒 TENANT ISOLATION
     const { data: agent, error } = await supabase
       .from('ai_agents')
       .select('voice_id, custom_name')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !agent?.voice_id) {

@@ -312,8 +312,74 @@ const TOOLS_ADMIN_SEO = [
 
 const TOOLS_ADMIN_MARKETING = [
   {
+    name: "marketing_generer_post",
+    description: "Génère un post pour réseaux sociaux (Instagram, Facebook) adapté au business. Sauvegarde en brouillon automatiquement.",
+    input_schema: {
+      type: "object",
+      properties: {
+        plateforme: {
+          type: "string",
+          enum: ["instagram", "facebook", "linkedin", "twitter"],
+          description: "Plateforme cible (défaut: instagram)"
+        },
+        occasion: {
+          type: "string",
+          enum: ["promo", "nouveaute", "evenement", "inspiration", "temoignage", "conseil"],
+          description: "Type de post / occasion"
+        },
+        tone: {
+          type: "string",
+          enum: ["professionnel", "fun", "inspirant", "informatif"],
+          description: "Ton du message"
+        },
+        details: {
+          type: "string",
+          description: "Détails spécifiques (ex: promo -20%, nouveau service locks, etc.)"
+        }
+      },
+      required: ["occasion"]
+    }
+  },
+  {
+    name: "marketing_lister_posts",
+    description: "Liste les posts marketing générés avec filtres optionnels.",
+    input_schema: {
+      type: "object",
+      properties: {
+        statut: {
+          type: "string",
+          enum: ["brouillon", "publie", "programme", "archive"],
+          description: "Filtrer par statut"
+        },
+        type: {
+          type: "string",
+          enum: ["instagram", "facebook", "linkedin", "twitter"],
+          description: "Filtrer par plateforme"
+        },
+        limit: {
+          type: "integer",
+          description: "Nombre de posts à retourner (défaut: 10)"
+        }
+      }
+    }
+  },
+  {
+    name: "marketing_publier_post",
+    description: "Marque un post comme publié.",
+    input_schema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "ID du post à publier"
+        }
+      },
+      required: ["post_id"]
+    }
+  },
+  {
     name: "generate_social_post",
-    description: "Génère un post pour les réseaux sociaux.",
+    description: "Génère un post pour les réseaux sociaux (alias legacy).",
     input_schema: {
       type: "object",
       properties: {
@@ -430,6 +496,82 @@ const TOOLS_ADMIN_STRATEGIE = [
         format: { type: "string", enum: ["resume", "complet", "executif"] }
       },
       required: []
+    }
+  }
+];
+
+// ============================================
+// OUTILS ADMIN - Analytics & Prédictions IA
+// ============================================
+
+const TOOLS_ADMIN_ANALYTICS = [
+  {
+    name: "analytics_kpi",
+    description: "Métriques clés période (CA, RDV, clients, évolution, top services). Utilise pour les bilans et rapports.",
+    input_schema: {
+      type: "object",
+      properties: {
+        debut: { type: "string", description: "Date début YYYY-MM-DD (défaut: début du mois)" },
+        fin: { type: "string", description: "Date fin YYYY-MM-DD (défaut: aujourd'hui)" }
+      },
+      required: []
+    }
+  },
+  {
+    name: "analytics_predictions",
+    description: "Prédictions IA: CA et RDV du mois prochain, services en hausse, périodes creuses, recommandations.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "analytics_anomalies",
+    description: "Détecte les anomalies: taux annulation élevé, baisse d'activité, baisse CA, concentration horaire.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "analytics_evolution",
+    description: "Évolution temporelle CA et RDV (série chronologique pour graphiques).",
+    input_schema: {
+      type: "object",
+      properties: {
+        debut: { type: "string", description: "Date début YYYY-MM-DD" },
+        fin: { type: "string", description: "Date fin YYYY-MM-DD" },
+        granularite: { type: "string", enum: ["jour", "semaine", "mois"], description: "Niveau de détail" }
+      },
+      required: []
+    }
+  },
+  {
+    name: "analytics_rapport",
+    description: "Rapport complet: KPI + évolution + prédictions + anomalies en un seul appel.",
+    input_schema: {
+      type: "object",
+      properties: {
+        debut: { type: "string", description: "Date début YYYY-MM-DD" },
+        fin: { type: "string", description: "Date fin YYYY-MM-DD" }
+      },
+      required: []
+    }
+  },
+  {
+    name: "analytics_comparaison",
+    description: "Compare deux périodes (ex: ce mois vs mois dernier).",
+    input_schema: {
+      type: "object",
+      properties: {
+        debut1: { type: "string", description: "Début période 1" },
+        fin1: { type: "string", description: "Fin période 1" },
+        debut2: { type: "string", description: "Début période 2" },
+        fin2: { type: "string", description: "Fin période 2" }
+      },
+      required: ["debut1", "fin1", "debut2", "fin2"]
     }
   }
 ];
@@ -1536,6 +1678,96 @@ const TOOLS_ADMIN_COMMERCIAL = [
       },
       required: []
     }
+  },
+  // ========= NOUVEAUX OUTILS RELANCE CLIENTS =========
+  {
+    name: "commercial_detecter_inactifs",
+    description: "Détecte les clients inactifs avec scoring (VIP/Fidèle/Standard) et niveau d'inactivité (3/6/12 mois). Retourne une liste de clients à relancer avec offres suggérées.",
+    input_schema: {
+      type: "object",
+      properties: {
+        niveau_inactivite: {
+          type: "string",
+          enum: ["leger", "moyen", "fort", "tous"],
+          description: "Niveau d'inactivité: leger (3 mois), moyen (6 mois), fort (12 mois), tous"
+        },
+        segment: {
+          type: "string",
+          enum: ["vip", "fidele", "standard", "tous"],
+          description: "Filtrer par segment client"
+        },
+        limit: {
+          type: "integer",
+          description: "Nombre max de clients à retourner (défaut: 20)"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "commercial_generer_relance",
+    description: "Génère un message de relance personnalisé pour un client inactif. Utilise l'historique du client pour personnaliser le message et l'offre.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id: {
+          type: "integer",
+          description: "ID du client à relancer"
+        },
+        canal: {
+          type: "string",
+          enum: ["sms", "whatsapp", "email"],
+          description: "Canal d'envoi du message"
+        },
+        offre_type: {
+          type: "string",
+          enum: ["reduction_pourcentage", "reduction_euros", "service_gratuit"],
+          description: "Type d'offre à proposer"
+        },
+        offre_valeur: {
+          type: "number",
+          description: "Valeur de l'offre (ex: 20 pour 20%, 10 pour 10€)"
+        }
+      },
+      required: ["client_id", "canal"]
+    }
+  },
+  {
+    name: "commercial_stats_relances",
+    description: "Affiche les statistiques des campagnes de relance (taux ouverture, clics, conversions).",
+    input_schema: {
+      type: "object",
+      properties: {
+        periode: {
+          type: "string",
+          description: "Période d'analyse (mois, trimestre, annee)"
+        },
+        campagne_id: {
+          type: "string",
+          description: "ID d'une campagne spécifique (optionnel)"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "commercial_lister_campagnes",
+    description: "Liste les campagnes de relance avec leurs performances.",
+    input_schema: {
+      type: "object",
+      properties: {
+        statut: {
+          type: "string",
+          enum: ["brouillon", "planifie", "en_cours", "termine", "annule", "tous"],
+          description: "Filtrer par statut de campagne"
+        },
+        limit: {
+          type: "integer",
+          description: "Nombre de campagnes à retourner (défaut: 10)"
+        }
+      },
+      required: []
+    }
   }
 ];
 
@@ -1618,14 +1850,115 @@ const TOOLS_ADMIN_COMPTABLE = [
 // ============================================
 
 const TOOLS_ADMIN_RH = [
+  // ========= NOUVEAUX OUTILS RH BASE DE DONNÉES =========
+  {
+    name: "rh_liste_equipe",
+    description: "Liste tous les membres de l'équipe avec leurs informations (rôle, contrat, heures/semaine, statut actif).",
+    input_schema: {
+      type: "object",
+      properties: {
+        actif: {
+          type: "boolean",
+          description: "Filtrer par statut actif (true/false). Par défaut: tous"
+        },
+        role: {
+          type: "string",
+          description: "Filtrer par rôle (coiffeuse, manager, etc.)"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "rh_heures_mois",
+    description: "Récupère les heures travaillées d'un membre ou de toute l'équipe sur un mois donné. Inclut heures normales, supplémentaires, et écart vs heures attendues.",
+    input_schema: {
+      type: "object",
+      properties: {
+        membre_id: {
+          type: "string",
+          description: "UUID du membre. Si non spécifié, retourne les heures de toute l'équipe"
+        },
+        mois: {
+          type: "string",
+          description: "Mois au format YYYY-MM (ex: 2026-02). Par défaut: mois en cours"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "rh_absences",
+    description: "Liste les absences (congés, maladies, RTT) avec filtres optionnels. Peut aussi créer ou valider une absence.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["lister", "creer", "valider", "refuser"],
+          description: "Action à effectuer. Par défaut: lister"
+        },
+        membre_id: {
+          type: "string",
+          description: "UUID du membre (pour filtrer ou créer)"
+        },
+        statut: {
+          type: "string",
+          enum: ["en_attente", "approuve", "refuse", "annule", "tous"],
+          description: "Filtrer par statut d'absence"
+        },
+        type_absence: {
+          type: "string",
+          enum: ["conge_paye", "rtt", "maladie", "maternite", "paternite", "sans_solde", "formation", "evenement_familial", "autre"],
+          description: "Type d'absence (pour création ou filtre)"
+        },
+        date_debut: {
+          type: "string",
+          description: "Date début absence YYYY-MM-DD (pour création ou filtre)"
+        },
+        date_fin: {
+          type: "string",
+          description: "Date fin absence YYYY-MM-DD (pour création ou filtre)"
+        },
+        absence_id: {
+          type: "string",
+          description: "UUID de l'absence (pour validation/refus)"
+        },
+        motif: {
+          type: "string",
+          description: "Motif de l'absence (pour création)"
+        },
+        commentaire_refus: {
+          type: "string",
+          description: "Commentaire en cas de refus"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "rh_stats",
+    description: "Statistiques RH globales: effectif actif, heures travaillées totales, heures supplémentaires, jours d'absence par type, absences en attente.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mois: {
+          type: "string",
+          description: "Mois au format YYYY-MM. Par défaut: mois en cours"
+        }
+      },
+      required: []
+    }
+  },
+  // ========= OUTILS RH EXISTANTS =========
   {
     name: "rh_planning",
-    description: "Gère le planning de travail.",
+    description: "Gère le planning de travail (shifts).",
     input_schema: {
       type: "object",
       properties: {
         action: { type: "string", enum: ["voir", "modifier", "optimiser"] },
-        semaine: { type: "string" },
+        semaine: { type: "string", description: "Semaine au format YYYY-WXX (ex: 2026-W06)" },
         modifications: { type: "object" }
       },
       required: []
@@ -1710,6 +2043,8 @@ export const TOOLS_ADMIN = [
   ...TOOLS_ADMIN_MARKETING,
   // Stratégie Business
   ...TOOLS_ADMIN_STRATEGIE,
+  // Analytics & Prédictions
+  ...TOOLS_ADMIN_ANALYTICS,
   // Réseaux sociaux
   ...TOOLS_ADMIN_SOCIAL,
   // Commercial
@@ -1754,6 +2089,7 @@ export function getToolsByCategory(category) {
     seo: TOOLS_ADMIN_SEO,
     marketing: TOOLS_ADMIN_MARKETING,
     strategie: TOOLS_ADMIN_STRATEGIE,
+    analytics: TOOLS_ADMIN_ANALYTICS,
     social: TOOLS_ADMIN_SOCIAL,
     commercial: TOOLS_ADMIN_COMMERCIAL,
     comptable: TOOLS_ADMIN_COMPTABLE,
@@ -1798,6 +2134,7 @@ export const TOOLS_STATS = {
   seo: TOOLS_ADMIN_SEO.length,
   marketing: TOOLS_ADMIN_MARKETING.length,
   strategie: TOOLS_ADMIN_STRATEGIE.length,
+  analytics: TOOLS_ADMIN_ANALYTICS.length,
   social: TOOLS_ADMIN_SOCIAL.length,
   commercial: TOOLS_ADMIN_COMMERCIAL.length,
   comptable: TOOLS_ADMIN_COMPTABLE.length,

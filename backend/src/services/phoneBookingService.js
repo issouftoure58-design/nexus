@@ -382,13 +382,30 @@ ${bookingDetails.adresse ? 'À votre adresse : ' + bookingDetails.adresse : ''}
 À bientôt !
 Fatou - 09 39 24 02 69`;
 
-    await client.messages.create({
+    const result = await client.messages.create({
       body: message,
       from: twilioPhone,
       to: formattedPhone
     });
 
-    console.log('[SMS] ✅ Confirmation envoyée à', formattedPhone);
+    console.log('[SMS] ✅ Confirmation envoyée à', formattedPhone, 'SID:', result.sid);
+
+    // 📊 Logger le SMS sortant pour tracking des coûts
+    try {
+      const { supabase } = await import('../config/supabase.js');
+      await supabase.from('twilio_call_logs').insert({
+        channel: 'sms',
+        direction: 'outbound',
+        from_number: twilioPhone,
+        to_number: formattedPhone,
+        message_sid: result.sid,
+        tenant_id: 'fatshairafro',
+      });
+      console.log('[SMS] ✅ SMS loggé pour tracking coûts');
+    } catch (logErr) {
+      console.warn('[SMS] ⚠️ Erreur logging SMS:', logErr.message);
+    }
+
     return true;
 
   } catch (error) {

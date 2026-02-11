@@ -117,7 +117,7 @@ export default sentinel;
 import { THRESHOLDS_ALERTS, checkAndAlert, sendSlackAlert, resetAlerts } from './alerts.js';
 
 // Persistence
-import { saveUsage, loadMonthUsage, loadAllUsage, saveAlert, loadRecentAlerts } from './persistence.js';
+import { saveUsage, loadMonthUsage, loadAllUsage, loadTodayUsage, saveAlert, loadRecentAlerts } from './persistence.js';
 
 // Security
 import { rateLimitMiddleware, checkRateLimit, getRateLimitStats, resetIP, LIMITS as RATE_LIMITS } from './security/index.js';
@@ -127,7 +127,7 @@ import { inputValidationMiddleware } from './security/index.js';
 export { trackTenantCall, getTenantUsage, getAllTenantUsage, resetTenantUsage, initTenantUsageFromDB };
 export { PLANS, getPlan, checkQuota };
 export { THRESHOLDS_ALERTS, checkAndAlert, sendSlackAlert, resetAlerts };
-export { saveUsage, loadMonthUsage, loadAllUsage, saveAlert, loadRecentAlerts };
+export { saveUsage, loadMonthUsage, loadAllUsage, loadTodayUsage, saveAlert, loadRecentAlerts };
 export { rateLimitMiddleware, checkRateLimit, getRateLimitStats, resetIP, RATE_LIMITS };
 export { inputValidationMiddleware };
 

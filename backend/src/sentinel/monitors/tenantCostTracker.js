@@ -11,7 +11,7 @@ import { costMonitor } from './costMonitor.js';
 import { checkAndAlert } from '../alerts.js';
 import { checkQuota, getPlan } from './quotas.js';
 import { getTenantConfig } from '../../config/tenants/index.js';
-import { saveUsage, loadAllUsage } from '../persistence.js';
+import { saveUsage, loadTodayUsage } from '../persistence.js';
 
 // Structure : { tenantId: { calls, tokensIn, tokensOut, cost, history[] } }
 const tenantUsage = {};
@@ -87,11 +87,15 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
 
 /**
  * Charger les données persistées au démarrage du serveur.
+ * IMPORTANT: Charge uniquement les données d'AUJOURD'HUI pour éviter le cumul.
+ * Les totaux mensuels sont calculés par loadAllUsage() pour le dashboard.
  */
 export async function initTenantUsageFromDB() {
   try {
-    console.log('[SENTINEL] Chargement données persistées...');
-    const persisted = await loadAllUsage();
+    console.log('[SENTINEL] Chargement données du jour...');
+    // 🔧 FIX: Charger SEULEMENT aujourd'hui, pas tout le mois
+    // Cela évite le bug de cumul exponentiel à chaque redémarrage
+    const persisted = await loadTodayUsage();
 
     for (const [tid, data] of Object.entries(persisted)) {
       tenantUsage[tid] = {
@@ -100,7 +104,7 @@ export async function initTenantUsageFromDB() {
       };
     }
 
-    console.log(`[SENTINEL] ${Object.keys(persisted).length} tenants chargés depuis Supabase`);
+    console.log(`[SENTINEL] ${Object.keys(persisted).length} tenants chargés pour aujourd'hui`);
     return { success: true, count: Object.keys(persisted).length };
   } catch (err) {
     console.error('[SENTINEL] Erreur init depuis DB:', err.message);

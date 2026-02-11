@@ -1,7 +1,6 @@
 import express from 'express';
-import { supabase } from '../../../server/supabase.js';
-import { sendConfirmationSMS } from '../../../server/sms-service.js';
-import { sendConfirmationEmail } from '../../../server/email-service.js';
+import { supabase } from '../config/supabase.js';
+import { sendConfirmation } from '../services/notificationService.js';
 // 🔒 NEXUS CORE - Fonction unique de création RDV
 import { createReservationUnified } from '../core/unified/nexusCore.js';
 // 🔒 Config publique pour le checkout + règles métier
@@ -26,6 +25,9 @@ router.get('/checkout/config', (req, res) => {
 // POST /api/orders
 router.post('/', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
+
     const {
       items,
       clientId: providedClientId, // ID client si utilisateur connecté
@@ -110,11 +112,12 @@ router.post('/', async (req, res) => {
         continue; // Passer au prochain item
       }
 
-      // Vérifier que le service existe en DB
+      // Vérifier que le service existe en DB (🔒 TENANT ISOLATION)
       const { data: dbService, error: serviceError } = await supabase
         .from('services')
         .select('id, nom, prix, duree')
         .eq('nom', item.serviceNom)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (serviceError || !dbService) {
@@ -171,12 +174,13 @@ router.post('/', async (req, res) => {
     let clientId = providedClientId || null;
     const cleanPhone = clientTelephone.replace(/\s/g, '');
 
-    // Si clientId fourni, vérifier qu'il existe
+    // Si clientId fourni, vérifier qu'il existe (🔒 TENANT ISOLATION)
     if (clientId) {
       const { data: existingClient, error: clientCheckError } = await supabase
         .from('clients')
         .select('id')
         .eq('id', clientId)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (clientCheckError || !existingClient) {
@@ -185,12 +189,13 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Si pas de clientId valide, chercher par téléphone ou créer
+    // Si pas de clientId valide, chercher par téléphone ou créer (🔒 TENANT ISOLATION)
     if (!clientId) {
       const { data: existingClient } = await supabase
         .from('clients')
         .select('id')
         .eq('telephone', cleanPhone)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (existingClient) {
@@ -199,6 +204,7 @@ router.post('/', async (req, res) => {
         const { data: newClient, error: clientError } = await supabase
           .from('clients')
           .insert({
+            tenant_id: tenantId,
             nom: clientNom,
             prenom: clientPrenom,
             telephone: cleanPhone,
@@ -215,10 +221,11 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Créer la commande (avec prix recalculés par le serveur)
+    // Créer la commande (avec prix recalculés par le serveur) (🔒 TENANT ISOLATION)
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
+        tenant_id: tenantId,
         client_id: clientId,
         statut: paiementMethode === 'sur_place' ? 'en_attente' : 'en_attente',
         sous_total: finalSousTotal,           // 🔒 Prix recalculé serveur
@@ -246,8 +253,9 @@ router.post('/', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Erreur création commande' });
     }
 
-    // Créer les items de commande (avec prix validés serveur)
+    // Créer les items de commande (avec prix validés serveur) (🔒 TENANT ISOLATION)
     const orderItems = validatedItems.map((item, index) => ({
+      tenant_id: tenantId,
       order_id: order.id,
       service_nom: item.serviceNom,
       service_description: item.serviceDescription,
@@ -262,8 +270,8 @@ router.post('/', async (req, res) => {
 
     if (itemsError) {
       console.error('[ORDERS] Erreur création items:', itemsError);
-      // Supprimer la commande si les items échouent
-      await supabase.from('orders').delete().eq('id', order.id);
+      // Supprimer la commande si les items échouent (🔒 TENANT ISOLATION)
+      await supabase.from('orders').delete().eq('id', order.id).eq('tenant_id', tenantId);
       return res.status(500).json({ success: false, error: 'Erreur création items commande' });
     }
 
@@ -274,18 +282,20 @@ router.post('/', async (req, res) => {
     // - stripe/paypal → 'en_attente_paiement' (confirmé après paiement)
     // ═══════════════════════════════════════════════════════════════════════
     const statutReservation = paiementMethode === 'sur_place' ? 'demande' : 'en_attente_paiement';
-    await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation);
+    // 🔒 TENANT ISOLATION: Passer le tenantId
+    await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation, {}, tenantId);
     console.log(`[ORDERS] ✅ Réservations créées avec statut: ${statutReservation}`);
 
     if (paiementMethode === 'sur_place') {
       // Envoyer notifications pour paiement sur place
       await sendOrderConfirmation(order, items, clientTelephone, clientEmail);
 
-      // Mettre à jour statut commande
+      // Mettre à jour statut commande (🔒 TENANT ISOLATION)
       await supabase
         .from('orders')
         .update({ statut: 'confirme' })
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .eq('tenant_id', tenantId);
     }
 
     res.json({
@@ -307,6 +317,8 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     const { data: order, error } = await supabase
       .from('orders')
@@ -315,6 +327,7 @@ router.get('/:id', async (req, res) => {
         order_items (*)
       `)
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !order) {
@@ -334,8 +347,10 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/confirm-onsite', async (req, res) => {
   try {
     const { id } = req.params;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
-    // Récupérer la commande
+    // Récupérer la commande (🔒 TENANT ISOLATION)
     const { data: order, error: fetchError } = await supabase
       .from('orders')
       .select(`
@@ -343,6 +358,7 @@ router.post('/:id/confirm-onsite', async (req, res) => {
         order_items (*)
       `)
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !order) {
@@ -353,11 +369,12 @@ router.post('/:id/confirm-onsite', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Commande déjà traitée' });
     }
 
-    // Vérifier si des réservations existent déjà pour cette commande
+    // Vérifier si des réservations existent déjà pour cette commande (🔒 TENANT ISOLATION)
     const { data: existingReservations } = await supabase
       .from('reservations')
       .select('id')
-      .eq('order_id', order.id);
+      .eq('order_id', order.id)
+      .eq('tenant_id', tenantId);
 
     if (!existingReservations || existingReservations.length === 0) {
       // Créer les réservations (pour les anciennes commandes sans réservations)
@@ -369,24 +386,28 @@ router.post('/:id/confirm-onsite', async (req, res) => {
         order.heure_debut,
         order.lieu,
         order.adresse_client,
-        'demande'  // Statut pour paiement sur place
+        'demande',  // Statut pour paiement sur place
+        {},
+        tenantId  // 🔒 TENANT ISOLATION: Passer le tenantId
       );
     } else {
-      // Mettre à jour le statut des réservations existantes
+      // Mettre à jour le statut des réservations existantes (🔒 TENANT ISOLATION)
       await supabase
         .from('reservations')
         .update({ statut: 'demande' })
-        .eq('order_id', order.id);
+        .eq('order_id', order.id)
+        .eq('tenant_id', tenantId);
     }
 
-    // Mettre à jour la commande
+    // Mettre à jour la commande (🔒 TENANT ISOLATION)
     await supabase
       .from('orders')
       .update({
         statut: 'confirme',
         paiement_methode: 'sur_place',
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     // Envoyer notifications
     await sendOrderConfirmation(order, order.order_items, order.client_telephone, order.client_email);
@@ -409,10 +430,12 @@ router.post('/:id/confirm-payment', async (req, res) => {
   try {
     const { id } = req.params;
     const { paiementId, paiementMethode } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     console.log(`[ORDERS] Confirmation paiement en ligne pour commande #${id}`);
 
-    // Récupérer la commande
+    // Récupérer la commande (🔒 TENANT ISOLATION)
     const { data: order, error: fetchError } = await supabase
       .from('orders')
       .select(`
@@ -420,6 +443,7 @@ router.post('/:id/confirm-payment', async (req, res) => {
         order_items (*)
       `)
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !order) {
@@ -430,7 +454,7 @@ router.post('/:id/confirm-payment', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Commande déjà payée' });
     }
 
-    // Mettre à jour la commande
+    // Mettre à jour la commande (🔒 TENANT ISOLATION)
     await supabase
       .from('orders')
       .update({
@@ -440,13 +464,15 @@ router.post('/:id/confirm-payment', async (req, res) => {
         paiement_methode: paiementMethode || order.paiement_methode,
         paiement_date: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
-    // Mettre à jour le statut des réservations (en_attente_paiement → demande)
+    // Mettre à jour le statut des réservations (🔒 TENANT ISOLATION)
     const { error: updateError } = await supabase
       .from('reservations')
       .update({ statut: 'demande' })
-      .eq('order_id', order.id);
+      .eq('order_id', order.id)
+      .eq('tenant_id', tenantId);
 
     if (updateError) {
       console.error('[ORDERS] Erreur mise à jour réservations:', updateError);
@@ -471,18 +497,25 @@ router.post('/:id/confirm-payment', async (req, res) => {
 // ============= CRÉER LES RÉSERVATIONS DEPUIS UNE COMMANDE =============
 // 🔒 Utilise createReservationUnified (NEXUS CORE)
 // statut: 'demande' (paiement sur place) ou 'en_attente_paiement' (paiement en ligne)
-async function createReservationsFromOrder(orderId, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statut = 'demande', clientInfo = {}) {
+// 🔒 TENANT ISOLATION: Ajout du paramètre tenantId
+async function createReservationsFromOrder(orderId, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statut = 'demande', clientInfo = {}, tenantId = null) {
   let currentTime = heureDebut;
   console.log(`[ORDERS] Création de ${items.length} réservation(s) pour commande #${orderId} avec statut: ${statut}`);
 
-  // Récupérer les infos client si pas fournies
+  // Récupérer les infos client si pas fournies (🔒 TENANT ISOLATION)
   let clientData = clientInfo;
   if (!clientData.telephone && clientId) {
-    const { data: client } = await supabase
+    const query = supabase
       .from('clients')
       .select('nom, prenom, telephone, email')
-      .eq('id', clientId)
-      .single();
+      .eq('id', clientId);
+
+    // Ajouter le filtre tenant_id si disponible
+    if (tenantId) {
+      query.eq('tenant_id', tenantId);
+    }
+
+    const { data: client } = await query.single();
     if (client) {
       clientData = {
         nom: `${client.prenom} ${client.nom}`.trim(),
@@ -559,34 +592,23 @@ async function sendOrderConfirmation(order, items, telephone, email) {
       ? 'À régler sur place'
       : 'Payé en ligne';
 
-    // SMS
-    if (telephone) {
-      const smsMessage = `Fat's Hair-Afro - Réservation confirmée!\n\n${dateFormatted} à ${order.heure_debut}\n${lieuText}\n\nTotal: ${totalEuros}€ (${paiementText})\n\nÀ bientôt!`;
+    // Envoyer notification (Email + WhatsApp) via notificationService
+    try {
+      const rdvForNotification = {
+        client_telephone: telephone,
+        client_email: email,
+        client_nom: order.client_nom,
+        date: order.date_rdv,
+        heure: order.heure_debut,
+        service_nom: items.map(i => i.service_nom || i.serviceNom).join(', '),
+        adresse_client: lieuText,
+        total: order.total / 100, // Convertir centimes en euros
+      };
 
-      try {
-        await sendConfirmationSMS(telephone, {
-          serviceNom: items.map(i => i.service_nom || i.serviceNom).join(', '),
-          date: order.date_rdv,
-          heure: order.heure_debut,
-        });
-      } catch (smsError) {
-        console.error('[ORDERS] Erreur SMS:', smsError);
-      }
-    }
-
-    // Email
-    if (email) {
-      try {
-        await sendConfirmationEmail(email, {
-          nom: order.client_nom,
-          service: items.map(i => i.service_nom || i.serviceNom).join(', '),
-          date: order.date_rdv,
-          heure: order.heure_debut,
-          lieu: lieuText,
-        });
-      } catch (emailError) {
-        console.error('[ORDERS] Erreur Email:', emailError);
-      }
+      const acompte = order.paiement_methode === 'sur_place' ? 0 : 10;
+      await sendConfirmation(rdvForNotification, acompte);
+    } catch (notifError) {
+      console.error('[ORDERS] Erreur notification:', notifError);
     }
 
   } catch (error) {
@@ -672,6 +694,8 @@ router.post('/checkout/calculate', async (req, res) => {
 router.get('/checkout/available-slots', async (req, res) => {
   try {
     const { date, duration } = req.query;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!date) {
       return res.status(400).json({ success: false, error: 'Date requise' });
@@ -713,12 +737,13 @@ router.get('/checkout/available-slots', async (req, res) => {
       allSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
     }
 
-    // Récupérer les RDV existants pour cette date
+    // Récupérer les RDV existants pour cette date (🔒 TENANT ISOLATION)
     const { data: existingRdvs, error: rdvError } = await supabase
       .from('reservations')
       .select('heure, duree_minutes, service_nom')
       .eq('date', date)
-      .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+      .eq('tenant_id', tenantId)
+      .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
 
     if (rdvError) {
       console.error('[ORDERS] Erreur fetch RDV:', rdvError);
@@ -782,6 +807,8 @@ router.get('/checkout/available-slots', async (req, res) => {
 router.get('/checkout/available-dates', async (req, res) => {
   try {
     const { duration, days } = req.query;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
     const dureeTotale = parseInt(duration) || 60;
     const nbDays = parseInt(days) || 14;
 
@@ -811,12 +838,13 @@ router.get('/checkout/available-dates', async (req, res) => {
 
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-      // Récupérer les RDV pour ce jour
+      // Récupérer les RDV pour ce jour (🔒 TENANT ISOLATION)
       const { data: existingRdvs } = await supabase
         .from('reservations')
         .select('heure, duree_minutes')
         .eq('date', dateStr)
-        .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+        .eq('tenant_id', tenantId)
+        .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
 
       // Calculer les plages occupées
       const occupiedRanges = (existingRdvs || []).map(rdv => {
@@ -884,6 +912,8 @@ router.get('/checkout/week-availability', async (req, res) => {
 
   try {
     const { startDate, duration, blocksDays } = req.query;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!startDate) {
       return res.status(400).json({ success: false, error: 'startDate requise' });
@@ -935,6 +965,7 @@ router.get('/checkout/week-availability', async (req, res) => {
     };
 
     // Helper: Vérifie si un jour a au moins un créneau disponible pour la durée donnée
+    // 🔒 TENANT ISOLATION: Utilise tenantId de la closure
     const isDayAvailable = async (dateStr, durationMin) => {
       const [y, m, d] = dateStr.split('-').map(Number);
       const dateObj = new Date(y, m - 1, d);
@@ -946,12 +977,13 @@ router.get('/checkout/week-availability', async (req, res) => {
       const ouvertureMin = toMinutes(horaires.ouverture);
       const fermetureMin = toMinutes(horaires.fermeture);
 
-      // Récupérer les RDV existants
+      // Récupérer les RDV existants (🔒 TENANT ISOLATION)
       const { data: existingRdvs } = await supabase
         .from('reservations')
         .select('heure, duree_minutes')
         .eq('date', dateStr)
-        .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+        .eq('tenant_id', tenantId)
+        .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
 
       const occupiedRanges = (existingRdvs || []).map(rdv => ({
         start: toMinutes(rdv.heure),
@@ -1016,12 +1048,13 @@ router.get('/checkout/week-availability', async (req, res) => {
         allSlots.push(formatHeure(min));
       }
 
-      // Récupérer les RDV existants pour cette date
+      // Récupérer les RDV existants pour cette date (🔒 TENANT ISOLATION)
       const { data: existingRdvs, error: rdvError } = await supabase
         .from('reservations')
         .select('heure, duree_minutes')
         .eq('date', dateStr)
-        .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+        .eq('tenant_id', tenantId)
+        .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
 
       if (rdvError) {
         console.error('[ORDERS] Erreur fetch RDV:', rdvError);

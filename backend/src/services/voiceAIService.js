@@ -424,79 +424,28 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
     }
 
     // === TRAITER LE MESSAGE VIA NEXUS CORE (async) ===
-    const result = await nexusCore.processMessage(userMessage, ctx, 'phone');
-    console.log('[HALIMAH TEL-NEXUS] État:', result.context.state);
+    // Signature: processMessage(message, channel, context)
+    // Note: processMessage gère TOUT en interne (création RDV via tools, SMS, etc.)
+    // Il retourne {success, response, channel, hasBooking, duration}
+    const result = await nexusCore.processMessage(userMessage, 'phone', {
+      conversationId: callSid,
+      tenantId: 'fatshairafro'
+    });
 
-    // === CRÉATION DE RÉSERVATION ===
-    if (result.action === 'CREATE_BOOKING' && result.bookingData) {
-      try {
-        const dateFormatee = result.context.data.dateFormatee || '';
-        const jourMatch = dateFormatee.match(/^(\w+)/);
-        const jour = jourMatch ? jourMatch[1].toLowerCase() : null;
+    console.log('[HALIMAH TEL-NEXUS] Résultat:', result.success ? '✅' : '❌', 'hasBooking:', result.hasBooking);
 
-        // Calculer les frais de déplacement si domicile
-        let fraisDeplacement = 0;
-        let prixTotal = result.bookingData.prixService;
-
-        if (result.bookingData.lieu === 'domicile' && result.bookingData.adresse) {
-          const distResult = await calculateDistance(result.bookingData.adresse);
-          if (distResult && distResult.distance) {
-            const fraisResult = calculateTravelFee(distResult.distance);
-            fraisDeplacement = fraisResult.frais || 0;
-            prixTotal += fraisDeplacement;
-          }
-        }
-
-        const booking = await createAppointment({
-          clientPrenom: result.bookingData.prenom,
-          clientPhone: result.bookingData.telephone,
-          clientAddress: result.bookingData.lieu === 'domicile' ? result.bookingData.adresse : null,
-          service: result.bookingData.service,
-          jour: jour,
-          heure: result.bookingData.heure,
-          source: 'telephone-nexus',
-          notes: `Appel téléphonique (nexusCore) - ${callSid}`
-        });
-
-        console.log('[HALIMAH TEL-NEXUS] Booking:', booking.success ? '✅' : '❌', booking.error || '');
-
-        if (booking.success) {
-          // Envoyer SMS de confirmation
-          await sendConfirmationSMS(result.bookingData.telephone, {
-            service: result.bookingData.service,
-            date: result.context.data.dateFormatee,
-            heure: result.bookingData.heure,
-            prixTotal: prixTotal,
-            fraisDeplacement: fraisDeplacement,
-            adresse: result.bookingData.adresse
-          });
-
-          nexusPhoneContexts.set(callSid, result.context);
-
-          const fraisText = fraisDeplacement > 0 ? `, dont ${fraisDeplacement} euros de déplacement` : '';
-          return {
-            response: `C'est confirmé ${result.bookingData.prenom} ! ${result.bookingData.service} ${result.context.data.dateFormatee} à ${result.bookingData.heure} pour ${prixTotal} euros${fraisText}. Vous allez recevoir un SMS de confirmation. À très bientôt !`,
-            shouldEndCall: true
-          };
-        } else {
-          // Booking échoué - proposer une autre date
-          result.response = `Désolé, ce créneau n'est plus disponible. ${booking.error || ''} Quel autre jour vous conviendrait ?`;
-          result.context.state = nexusCore.CONVERSATION_STATES.ATTENTE_DATE;
-        }
-      } catch (bookingErr) {
-        console.error('[HALIMAH TEL-NEXUS] Erreur booking:', bookingErr);
-        return {
-          response: `Merci ${result.bookingData.prenom} ! Je transmets votre demande à Fatou qui vous rappellera pour confirmer. À bientôt !`,
-          shouldEndCall: true
-        };
-      }
+    // L'IA a créé le RDV via tool calling → terminer l'appel
+    if (result.hasBooking) {
+      return {
+        response: result.response,
+        shouldEndCall: true
+      };
     }
 
-    // Mettre à jour le contexte
-    nexusPhoneContexts.set(callSid, result.context);
-
-    // Retourner la réponse
-    const shouldEnd = result.context.state === nexusCore.CONVERSATION_STATES.TERMINE;
+    // Détecter fin de conversation (mots-clés de fin)
+    const msgLower = userMessage.toLowerCase();
+    const endKeywords = ['au revoir', 'merci beaucoup', 'bonne journée', 'à bientôt', 'c\'est tout'];
+    const shouldEnd = endKeywords.some(kw => msgLower.includes(kw));
 
     return {
       response: result.response,

@@ -332,16 +332,19 @@ export function getAvailableSlots(date, service, existingBookings = []) {
     };
   }
 
-  // Service normal - calculer les creneaux disponibles
+  // Service normal - calculer les creneaux disponibles par intervalles de 30 min
   const slots = [];
   const durationMinutes = service.durationMinutes;
+  const intervalMinutes = 30; // Intervalle entre créneaux (30 min)
 
-  for (let hour = openH; hour < closeH; hour++) {
-    const slotStart = hour * 60;
+  const openMinutes = openH * 60;
+  const closeMinutes = closeH * 60;
+
+  for (let slotStart = openMinutes; slotStart < closeMinutes; slotStart += intervalMinutes) {
     const slotEnd = slotStart + durationMinutes;
 
     // Verifier que le service peut se terminer avant la fermeture
-    if (slotEnd > closeH * 60) continue;
+    if (slotEnd > closeMinutes) continue;
 
     // Verifier les conflits
     const hasConflict = existingBookings.some(b => {
@@ -354,7 +357,9 @@ export function getAvailableSlots(date, service, existingBookings = []) {
     });
 
     if (!hasConflict) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      const slotH = Math.floor(slotStart / 60);
+      const slotM = slotStart % 60;
+      slots.push(`${slotH.toString().padStart(2, '0')}:${slotM.toString().padStart(2, '0')}`);
     }
   }
 

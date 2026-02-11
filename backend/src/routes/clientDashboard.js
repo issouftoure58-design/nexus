@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../../../server/supabase.js';
+import { supabase } from '../config/supabase.js';
 import { authenticateClient } from './clientAuth.js';
 
 const router = Router();
@@ -12,10 +12,14 @@ router.use(authenticateClient);
 // GET /profile - Récupérer le profil complet
 router.get('/profile', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: client } = await supabase
       .from('clients')
       .select('id, nom, prenom, email, telephone, email_verified, loyalty_points, total_spent, created_at')
       .eq('id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!client) {
@@ -49,6 +53,9 @@ router.get('/profile', async (req, res) => {
 // PATCH /profile - Mettre à jour le profil
 router.patch('/profile', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { nom, prenom, telephone } = req.body;
 
     const updates = {};
@@ -66,7 +73,8 @@ router.patch('/profile', async (req, res) => {
     const { error } = await supabase
       .from('clients')
       .update(updates)
-      .eq('id', req.client.id);
+      .eq('id', req.client.id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
@@ -86,10 +94,14 @@ router.patch('/profile', async (req, res) => {
 // GET /reservations - Toutes les réservations
 router.get('/reservations', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: reservations, error } = await supabase
       .from('reservations')
       .select('*')
       .eq('client_id', req.client.id)
+      .eq('tenant_id', tenantId)
       .order('date', { ascending: false })
       .order('heure', { ascending: false });
 
@@ -120,12 +132,15 @@ router.get('/reservations', async (req, res) => {
 // GET /reservations/upcoming - Réservations à venir
 router.get('/reservations/upcoming', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
     const today = new Date().toISOString().split('T')[0];
 
     const { data: reservations, error } = await supabase
       .from('reservations')
       .select('*')
       .eq('client_id', req.client.id)
+      .eq('tenant_id', tenantId)
       .gte('date', today)
       .in('statut', ['demande', 'confirme'])
       .order('date', { ascending: true })
@@ -156,10 +171,14 @@ router.get('/reservations/upcoming', async (req, res) => {
 // GET /reservations/history - Historique des réservations
 router.get('/reservations/history', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: reservations, error } = await supabase
       .from('reservations')
       .select('*')
       .eq('client_id', req.client.id)
+      .eq('tenant_id', tenantId)
       .in('statut', ['termine', 'annule'])
       .order('date', { ascending: false })
       .order('heure', { ascending: false })
@@ -191,13 +210,16 @@ router.get('/reservations/history', async (req, res) => {
 router.delete('/reservations/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
 
-    // Vérifier que la réservation appartient au client
+    // Vérifier que la réservation appartient au client (🔒 TENANT ISOLATION)
     const { data: reservation, error: fetchError } = await supabase
       .from('reservations')
       .select('*')
       .eq('id', id)
       .eq('client_id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !reservation) {
@@ -234,14 +256,15 @@ router.delete('/reservations/:id', async (req, res) => {
       });
     }
 
-    // Annuler la réservation
+    // Annuler la réservation (🔒 TENANT ISOLATION)
     const { error: updateError } = await supabase
       .from('reservations')
       .update({
         statut: 'annule',
         updated_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (updateError) throw updateError;
 
@@ -261,10 +284,14 @@ router.delete('/reservations/:id', async (req, res) => {
 // GET /loyalty/balance - Solde des points
 router.get('/loyalty/balance', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: client } = await supabase
       .from('clients')
       .select('loyalty_points, total_spent')
       .eq('id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     res.json({
@@ -284,10 +311,14 @@ router.get('/loyalty/balance', async (req, res) => {
 // GET /loyalty/transactions - Historique des points
 router.get('/loyalty/transactions', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: transactions, error } = await supabase
       .from('loyalty_transactions')
       .select('*')
       .eq('client_id', req.client.id)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -313,19 +344,24 @@ router.get('/loyalty/transactions', async (req, res) => {
 // GET /loyalty/rewards - Récompenses disponibles
 router.get('/loyalty/rewards', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: rewards, error } = await supabase
       .from('loyalty_rewards')
       .select('*')
       .eq('is_active', true)
+      .eq('tenant_id', tenantId)
       .order('points_required', { ascending: true });
 
     if (error) throw error;
 
-    // Récupérer le solde du client
+    // Récupérer le solde du client (🔒 TENANT ISOLATION)
     const { data: client } = await supabase
       .from('clients')
       .select('loyalty_points')
       .eq('id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     const currentPoints = client?.loyalty_points || 0;
@@ -352,6 +388,9 @@ router.get('/loyalty/rewards', async (req, res) => {
 // POST /loyalty/redeem - Échanger des points contre une récompense
 router.post('/loyalty/redeem', async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { rewardId } = req.body;
 
     if (!rewardId) {
@@ -361,12 +400,13 @@ router.post('/loyalty/redeem', async (req, res) => {
       });
     }
 
-    // Récupérer la récompense
+    // Récupérer la récompense (🔒 TENANT ISOLATION)
     const { data: reward, error: rewardError } = await supabase
       .from('loyalty_rewards')
       .select('*')
       .eq('id', rewardId)
       .eq('is_active', true)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (rewardError || !reward) {
@@ -376,11 +416,12 @@ router.post('/loyalty/redeem', async (req, res) => {
       });
     }
 
-    // Récupérer le solde du client
+    // Récupérer le solde du client (🔒 TENANT ISOLATION)
     const { data: client } = await supabase
       .from('clients')
       .select('loyalty_points')
       .eq('id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     const currentPoints = client?.loyalty_points || 0;
@@ -392,16 +433,18 @@ router.post('/loyalty/redeem', async (req, res) => {
       });
     }
 
-    // Déduire les points
+    // Déduire les points (🔒 TENANT ISOLATION)
     const newBalance = currentPoints - reward.points_required;
 
     await supabase
       .from('clients')
       .update({ loyalty_points: newBalance })
-      .eq('id', req.client.id);
+      .eq('id', req.client.id)
+      .eq('tenant_id', tenantId);
 
-    // Créer la transaction
+    // Créer la transaction (🔒 TENANT ISOLATION)
     await supabase.from('loyalty_transactions').insert({
+      tenant_id: tenantId,
       client_id: req.client.id,
       type: 'redeem',
       points: -reward.points_required,

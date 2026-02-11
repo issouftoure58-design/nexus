@@ -321,7 +321,19 @@ async function executeTool(toolName, toolInput, channel) {
         break;
 
       case 'create_booking':
+        console.log(`\n🔍 ════════════════════════════════════════════════════════`);
+        console.log(`🔍 STEP BOOKING 1: Tool create_booking APPELÉ`);
+        console.log(`🔍 Channel: ${channel}`);
+        console.log(`🔍 Input reçu:`, JSON.stringify(toolInput, null, 2));
+        console.log(`🔍 ════════════════════════════════════════════════════════`);
         result = await createBookingUnified(toolInput, channel);
+        console.log(`\n🔍 ════════════════════════════════════════════════════════`);
+        console.log(`🔍 STEP BOOKING 5: Résultat final create_booking`);
+        console.log(`🔍 Success: ${result?.success}`);
+        console.log(`🔍 Error: ${result?.error || 'aucune'}`);
+        console.log(`🔍 Errors array: ${result?.errors?.join(', ') || 'aucune'}`);
+        console.log(`🔍 ReservationId: ${result?.reservationId || 'N/A'}`);
+        console.log(`🔍 ════════════════════════════════════════════════════════\n`);
         break;
 
       case 'find_appointment':
@@ -609,6 +621,24 @@ function parseDate(dateText, heure) {
           }
         }
       }
+
+      // Format "le 24" ou juste "24" (jour seul, mois courant ou suivant)
+      if (!targetDate) {
+        const jourSeulMatch = text.match(/\b(\d{1,2})\b/);
+        if (jourSeulMatch) {
+          const jour = parseInt(jourSeulMatch[1]);
+          if (jour >= 1 && jour <= 31) {
+            // Essayer le mois courant d'abord
+            targetDate = new Date(now.getFullYear(), now.getMonth(), jour);
+            targetDate.setHours(12, 0, 0, 0);
+            // Si la date est passée, prendre le mois suivant
+            if (targetDate < now) {
+              targetDate = new Date(now.getFullYear(), now.getMonth() + 1, jour);
+              targetDate.setHours(12, 0, 0, 0);
+            }
+          }
+        }
+      }
     }
   }
 
@@ -819,40 +849,60 @@ function calculateTravelFeeUnified(distanceKm) {
 export async function createReservationUnified(data, channel = 'web', options = {}) {
   const { sendSMS = true, skipValidation = false } = options;
 
-  console.log('[NEXUS CORE] ========================================');
-  console.log(`[NEXUS CORE] Création RDV via ${channel}...`);
-  console.log('[NEXUS CORE] Données:', JSON.stringify(data, null, 2));
+  console.log(`\n💾 ════════════════════════════════════════════════════════`);
+  console.log(`💾 STEP BOOKING 2: createReservationUnified APPELÉ`);
+  console.log(`💾 ════════════════════════════════════════════════════════`);
+  console.log(`💾 Channel: ${channel}`);
+  console.log(`💾 Options: sendSMS=${sendSMS}, skipValidation=${skipValidation}`);
+  console.log(`💾 Données reçues:`, JSON.stringify(data, null, 2));
 
   const db = getSupabase();
+  console.log(`💾 STEP BOOKING 2.1: Supabase client: ${db ? '✅ OK' : '❌ NULL'}`);
   if (!db) {
-    console.error('[NEXUS CORE] ❌ Base de données non disponible');
+    console.error(`💾 ❌ ÉCHEC: Base de données non disponible`);
     return { success: false, error: "Base de données non disponible" };
   }
 
   try {
     // 0. VALIDATION ANTI-PLACEHOLDER
+    console.log(`💾 STEP BOOKING 2.2: Validation anti-placeholder...`);
     const PLACEHOLDER_VALUES = ['-', '--', 'n/a', 'na', 'inconnu', 'unknown', 'none', 'null', 'undefined', 'x', 'xx', 'xxx', '.', '..', 'test'];
     const isPlaceholder = (val) => !val || PLACEHOLDER_VALUES.includes(String(val).trim().toLowerCase()) || String(val).trim().length < 2;
 
-    if (isPlaceholder(data.client_nom)) {
+    // 🔧 FIX: Combiner client_prenom + client_nom si les deux sont fournis
+    let fullName = String(data.client_nom || '').trim();
+    if (data.client_prenom && data.client_prenom.trim()) {
+      fullName = `${data.client_prenom.trim()} ${fullName}`.trim();
+    }
+    data.client_nom = fullName;
+    console.log(`💾 Nom complet construit: "${fullName}"`);
+
+    if (isPlaceholder(fullName)) {
+      console.log(`💾 ❌ ÉCHEC: Nom est un placeholder`);
       return { success: false, error: "Le nom complet du client est obligatoire (prénom + nom de famille). Demandez-le avant de créer le rendez-vous." };
     }
-    // Vérifier que client_nom contient au moins 2 mots (prénom + nom)
-    const nameParts = String(data.client_nom).trim().split(/\s+/);
+    const nameParts = fullName.split(/\s+/);
+    console.log(`💾 Nom parts: ${nameParts.length} (${nameParts.join(' | ')})`);
     if (nameParts.length < 2) {
-      return { success: false, error: `Le nom "${data.client_nom}" semble incomplet. Il faut le prénom ET le nom de famille du client.` };
+      console.log(`💾 ❌ ÉCHEC: Nom incomplet (${nameParts.length} parts)`);
+      return { success: false, error: `Le nom "${fullName}" semble incomplet. Il faut le prénom ET le nom de famille du client.` };
     }
 
     const phone = String(data.client_telephone || '').replace(/[\s\-\.]/g, '');
+    console.log(`💾 Téléphone nettoyé: "${phone}"`);
     if (isPlaceholder(data.client_telephone) || !/^0[1-9][0-9]{8}$/.test(phone)) {
+      console.log(`💾 ❌ ÉCHEC: Téléphone invalide`);
       return { success: false, error: "Le numéro de téléphone doit contenir 10 chiffres commençant par 0 (ex: 0612345678)." };
     }
+    console.log(`💾 ✅ Validation nom/tel OK`);
 
     // 1. VALIDER LE SERVICE (config hardcodée → fallback BDD)
+    console.log(`💾 STEP BOOKING 2.3: Validation service "${data.service_name}"...`);
     let service = findServiceByName(data.service_name);
+    console.log(`💾 Service trouvé en config: ${service ? '✅ ' + service.name : '❌ NON'}`);
     if (!service) {
       // Fallback: chercher dans la table services de la BDD (services ajoutés via admin)
-      console.log(`[NEXUS CORE] Service "${data.service_name}" absent de la config, recherche en BDD...`);
+      console.log(`💾 Recherche en BDD...`);
       const { data: dbService } = await db
         .from('services')
         .select('id, nom, duree, prix, description')
@@ -880,8 +930,10 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
 
     // 2. VÉRIFIER AMBIGUÏTÉ
+    console.log(`💾 STEP BOOKING 2.4: Vérification ambiguïté...`);
     const ambiguity = checkAmbiguousTerm(data.service_name);
     if (ambiguity && !skipValidation) {
+      console.log(`💾 ❌ ÉCHEC: Service ambigu - ${ambiguity.message}`);
       return {
         success: false,
         needsClarification: true,
@@ -889,13 +941,18 @@ export async function createReservationUnified(data, channel = 'web', options = 
         options: ambiguity.options
       };
     }
+    console.log(`💾 ✅ Pas d'ambiguïté`);
 
     // 3. VALIDER DATE/HEURE/DISPONIBILITÉ (sauf si skipValidation)
+    console.log(`💾 STEP BOOKING 3: Validation date/heure/dispo (skipValidation=${skipValidation})...`);
+    console.log(`💾 Date: ${data.date}, Heure: ${data.heure}`);
     if (!skipValidation) {
       const { data: existingBookings } = await db
         .from('reservations')
         .select('id, date, heure, duree_minutes, service_nom, statut')
-        .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+        .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
+
+      console.log(`💾 Réservations existantes (bloquantes): ${existingBookings?.length || 0}`);
 
       const validation = await validateBeforeCreate({
         serviceName: data.service_name,
@@ -903,10 +960,12 @@ export async function createReservationUnified(data, channel = 'web', options = 
         heure: data.heure
       }, existingBookings || [], service);
 
+      console.log(`💾 Résultat validation: valid=${validation.valid}`);
       if (!validation.valid) {
-        console.error('[NEXUS CORE] ❌ Validation échouée:', validation.errors);
+        console.log(`💾 ❌ ÉCHEC VALIDATION: ${validation.errors?.join(', ')}`);
         return { success: false, errors: validation.errors };
       }
+      console.log(`💾 ✅ Validation OK`);
     }
 
     // 4. NORMALISER LE TÉLÉPHONE
@@ -940,6 +999,8 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
 
     // 6. CHERCHER OU CRÉER LE CLIENT
+    console.log(`💾 STEP BOOKING 4: Recherche/création client...`);
+    console.log(`💾 Téléphone recherché: ${telephone.replace('+33', '0')}`);
     let clientId;
     const { data: existingClient } = await db
       .from('clients')
@@ -949,10 +1010,13 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
     if (existingClient) {
       clientId = existingClient.id;
+      console.log(`💾 ✅ Client existant trouvé: ID=${clientId}`);
     } else {
+      console.log(`💾 Client non trouvé, création...`);
       // Extraire prénom/nom
       const prenom = data.client_prenom || data.client_nom.split(' ')[0] || 'Client';
       const nom = data.client_nom.split(' ').slice(1).join(' ') || data.client_nom;
+      console.log(`💾 Prénom: "${prenom}", Nom: "${nom}"`);
 
       const { data: newClient, error: clientError } = await db
         .from('clients')
@@ -966,10 +1030,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
         .single();
 
       if (clientError) {
-        console.error('[NEXUS CORE] ❌ Erreur création client:', clientError);
+        console.log(`💾 ❌ ÉCHEC création client: ${clientError.message}`);
         return { success: false, error: `Erreur création client: ${clientError.message}` };
       }
       clientId = newClient.id;
+      console.log(`💾 ✅ Nouveau client créé: ID=${clientId}`);
     }
 
     // 7. CALCULER PRIX TOTAL (gestion services variables: Réparation Locks = 10€/lock, 30min/lock)
@@ -995,6 +1060,8 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
 
     // 9. INSÉRER LES RÉSERVATIONS (une par jour ouvrable)
+    console.log(`💾 STEP BOOKING 4.5: Insertion réservation(s)...`);
+    console.log(`💾 Nombre de jours à réserver: ${reservationDates.length}`);
     const createdReservations = [];
     const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Chez Fatou');
 
@@ -1006,9 +1073,9 @@ export async function createReservationUnified(data, channel = 'web', options = 
         client_id: clientId,
         date: reservationDate,
         heure: data.heure,
-        duree_minutes: data.duree_minutes || service.durationMinutes,  // 🔧 FIX: Accepter durée dynamique (ex: Réparation Locks × N)
+        duree_minutes: data.duree_minutes || service.durationMinutes,
         service_nom: service.name,
-        prix_service: isFirstDay ? prixService : 0,  // Prix uniquement sur jour 1
+        prix_service: isFirstDay ? prixService : 0,
         distance_km: isFirstDay ? (distanceKm || null) : null,
         frais_deplacement: isFirstDay ? fraisDeplacementCents : 0,
         prix_total: isFirstDay ? prixTotal : 0,
@@ -1016,12 +1083,12 @@ export async function createReservationUnified(data, channel = 'web', options = 
         telephone: telephone.replace('+33', '0'),
         statut: data.statut || 'demande',
         created_via: `nexus-${channel}`,
-        order_id: data.order_id || null,
-        notes: nbJours > 1 ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]` : baseNotes,
-        // Champs multi-jours (null si service 1 jour)
-        multiday_group_id: multidayGroupId,
-        multiday_day_number: nbJours > 1 ? (dayIndex + 1) : null
+        notes: nbJours > 1
+          ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]${multidayGroupId ? ` [Group: ${multidayGroupId}]` : ''}`
+          : baseNotes
       };
+
+      console.log(`💾 Données réservation jour ${dayIndex + 1}:`, JSON.stringify(reservationData, null, 2));
 
       const { data: newBooking, error: bookingError } = await db
         .from('reservations')
@@ -1030,14 +1097,23 @@ export async function createReservationUnified(data, channel = 'web', options = 
         .single();
 
       if (bookingError) {
-        console.error(`[NEXUS CORE] ❌ Erreur création RDV jour ${dayIndex + 1}:`, bookingError);
+        console.error('╔═══════════════════════════════════════════════════════════╗');
+        console.error(`║ ❌ ERREUR CRÉATION RDV - Jour ${dayIndex + 1}/${nbJours}                    ║`);
+        console.error('╠═══════════════════════════════════════════════════════════╣');
+        console.error(`║ Code: ${bookingError.code || 'N/A'}`);
+        console.error(`║ Message: ${bookingError.message}`);
+        console.error(`║ Details: ${JSON.stringify(bookingError.details || {})}`);
+        console.error(`║ Data envoyée: ${JSON.stringify(reservationData)}`);
+        console.error('╚═══════════════════════════════════════════════════════════╝');
+
         // Si erreur sur un jour suivant, annuler les précédents (rollback manuel)
         if (createdReservations.length > 0) {
           console.log(`[NEXUS CORE] 🔄 Rollback: suppression de ${createdReservations.length} réservation(s)...`);
           try {
             await db.from('reservations').delete().in('id', createdReservations.map(r => r.id));
+            console.log('[NEXUS CORE] ✅ Rollback réussi');
           } catch (rollbackErr) {
-            console.error(`[NEXUS CORE] ❌ Échec rollback:`, rollbackErr.message);
+            console.error(`[NEXUS CORE] ❌ CRITIQUE: Échec rollback - réservations orphelines possibles:`, rollbackErr.message);
           }
         }
         return { success: false, error: `Erreur création RDV: ${bookingError.message}` };
@@ -1298,7 +1374,7 @@ function getBusinessHoursUnified(jour = null) {
 // ============================================
 async function enrichTenantWithAgent(tenantId, tenantConfig) {
   try {
-    const { rawSupabase } = await import('../../server/supabase.ts');
+    const { rawSupabase } = await import('../../config/supabase.js');
     const { data: agent } = await rawSupabase
       .from('ai_agents')
       .select('custom_name, greeting_message, tone')
@@ -1355,6 +1431,8 @@ Date ISO pour les outils : ${dateISO}
 • Samedi : 9h - 18h
 • Dimanche : Fatou ne travaille pas
 
+⚠️ RÈGLE HORAIRES : Un service PEUT finir pile à l'heure de fermeture. Exemple : un service de 4h le jeudi (9h-13h) commençant à 9h est VALIDE car il finit à 13h pile. Ne refuse JAMAIS un créneau qui finit exactement à l'heure de fermeture. En cas de doute, utilise TOUJOURS l'outil check_availability pour vérifier au lieu de décider toi-même.
+
 ⚠️ RÈGLE CRITIQUE POUR LES DATES ⚠️
 Tu ne dois JAMAIS calculer les dates toi-même.
 TOUJOURS utiliser l'outil get_upcoming_days AVANT de parler des disponibilités.
@@ -1402,6 +1480,7 @@ Ne propose JAMAIS un créneau sur un jour complet.
 • Passion Twist - 80€ (5h)
 • Boho Braids - à partir de 70€ (5h)
 • Départ Locks Vanille - à partir de 80€ (4h)
+• Vanille sans rajout - 50€ (3h)
 • Réparation Locks - 10€/lock (30min/lock) ⚠️ Demander le nombre de locks
 
 🎨 COLORATION & FINITION :
@@ -1752,11 +1831,21 @@ export async function processMessage(message, channel, context = {}) {
     // DÉTECTION HALLUCINATION CONFIRMATION RDV
     // ════════════════════════════════════════
     const confirmationKeywords = [
+      // Formes directes
       'rendez-vous est confirmé', 'rdv est confirmé', 'réservation est confirmée',
       'rendez-vous créé', 'rdv créé', 'réservation enregistrée',
       'votre rendez-vous est confirmé', 'votre réservation est validée',
       'c\'est enregistré', 'j\'ai bien noté votre rendez-vous',
-      'vous recevrez un sms de confirmation'
+      'vous recevrez un sms de confirmation',
+      // Formes avec "je confirme" (souvent utilisées par l'IA)
+      'je confirme votre', 'je vous confirme', 'je confirme le rendez-vous',
+      'je confirme la réservation', 'confirmé pour le', 'confirmée pour le',
+      // Formes implicites
+      'c\'est noté pour', 'c\'est bon pour', 'c\'est parfait',
+      'votre créneau est réservé', 'créneau réservé',
+      'à bientôt donc', 'on se retrouve', 'on se voit',
+      // Formes avec date (hallucination fréquente)
+      'rendez-vous le', 'rdv le', 'réservation le'
     ];
     const lowerResponse = responseText.toLowerCase();
     const claimsConfirmation = confirmationKeywords.some(kw => lowerResponse.includes(kw));

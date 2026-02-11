@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Resend } from 'resend';
-import { supabase } from '../../../server/supabase.js';
+import { supabase } from '../config/supabase.js';
+import { loginLimiter } from '../middleware/rateLimiter.js';
 
 // Client Resend pour l'envoi d'emails transactionnels
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -149,6 +150,8 @@ router.post('/register', async (req, res) => {
 
   try {
     const { email, password, nom, prenom, telephone } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     // Validation
     if (!email || !password || !nom || !telephone) {
@@ -185,11 +188,12 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Vérifier si l'email existe déjà
+    // Vérifier si l'email existe déjà (🔒 TENANT ISOLATION)
     const { data: existingByEmail } = await supabase
       .from('clients')
       .select('id')
       .eq('email', email.toLowerCase())
+      .eq('tenant_id', tenantId)
       .single();
 
     if (existingByEmail) {
@@ -199,11 +203,12 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Vérifier si le téléphone existe déjà
+    // Vérifier si le téléphone existe déjà (🔒 TENANT ISOLATION)
     const { data: existingByPhone } = await supabase
       .from('clients')
       .select('id, email, password_hash')
       .eq('telephone', telephone)
+      .eq('tenant_id', tenantId)
       .single();
 
     // Si le téléphone existe mais sans compte (créé via RDV), on met à jour
@@ -252,9 +257,11 @@ router.post('/register', async (req, res) => {
     const verificationToken = generateToken();
     const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+    // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
     const { data: newClient, error: insertError } = await supabase
       .from('clients')
       .insert({
+        tenant_id: tenantId,
         email: email.toLowerCase(),
         nom,
         prenom: prenom || null,
@@ -270,8 +277,9 @@ router.post('/register', async (req, res) => {
 
     if (insertError) throw insertError;
 
-    // Créer la transaction de points bonus
+    // Créer la transaction de points bonus (🔒 TENANT ISOLATION)
     await supabase.from('loyalty_transactions').insert({
+      tenant_id: tenantId,
       client_id: newClient.id,
       type: 'bonus',
       points: 50,
@@ -299,7 +307,7 @@ router.post('/register', async (req, res) => {
 });
 
 // ============= CONNEXION =============
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -307,6 +315,8 @@ router.post('/login', async (req, res) => {
 
   try {
     const { email, password } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -315,11 +325,12 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Trouver le client
+    // Trouver le client (🔒 TENANT ISOLATION)
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
       .eq('email', email.toLowerCase())
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !client) {
@@ -351,9 +362,9 @@ router.post('/login', async (req, res) => {
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', client.id);
 
-    // Générer les tokens
+    // Générer les tokens (🔒 TENANT ISOLATION: inclure tenant_id dans le JWT)
     const accessToken = jwt.sign(
-      { id: client.id, email: client.email, type: 'client' },
+      { id: client.id, email: client.email, type: 'client', tenant_id: tenantId },
       EFFECTIVE_JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -368,8 +379,9 @@ router.post('/login', async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
-    // Sauvegarder en base aussi
+    // Sauvegarder en base aussi (🔒 TENANT ISOLATION)
     await supabase.from('client_sessions').insert({
+      tenant_id: tenantId,
       client_id: client.id,
       refresh_token: refreshToken,
       expires_at: refreshTokenExpiry.toISOString(),
@@ -410,6 +422,8 @@ router.post('/refresh', async (req, res) => {
 
   try {
     const { refreshToken } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -428,11 +442,12 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    // Récupérer le client
+    // Récupérer le client (🔒 TENANT ISOLATION)
     const { data: client } = await supabase
       .from('clients')
       .select('*')
       .eq('id', session.clientId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!client) {
@@ -442,9 +457,9 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    // Générer un nouveau access token
+    // Générer un nouveau access token (🔒 TENANT ISOLATION: inclure tenant_id)
     const accessToken = jwt.sign(
-      { id: client.id, email: client.email, type: 'client' },
+      { id: client.id, email: client.email, type: 'client', tenant_id: tenantId },
       EFFECTIVE_JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -472,15 +487,18 @@ router.post('/logout', async (req, res) => {
 
   try {
     const { refreshToken } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (refreshToken) {
       clientSessions.delete(refreshToken);
 
-      // Supprimer de la base
+      // Supprimer de la base (🔒 TENANT ISOLATION)
       await supabase
         .from('client_sessions')
         .delete()
-        .eq('refresh_token', refreshToken);
+        .eq('refresh_token', refreshToken)
+        .eq('tenant_id', tenantId);
     }
 
     res.json({ success: true });
@@ -494,6 +512,8 @@ router.post('/logout', async (req, res) => {
 router.post('/verify-email', async (req, res) => {
   try {
     const { token } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!token) {
       return res.status(400).json({
@@ -502,10 +522,12 @@ router.post('/verify-email', async (req, res) => {
       });
     }
 
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
       .eq('verification_token', token)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !client) {
@@ -550,6 +572,8 @@ router.post('/verify-email', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!email) {
       return res.status(400).json({
@@ -558,10 +582,12 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id
     const { data: client } = await supabase
       .from('clients')
       .select('id, nom')
       .eq('email', email.toLowerCase())
+      .eq('tenant_id', tenantId)
       .single();
 
     // Toujours retourner succès pour ne pas révéler si l'email existe
@@ -606,6 +632,8 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     if (!token || !newPassword) {
       return res.status(400).json({
@@ -622,10 +650,12 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id
     const { data: client } = await supabase
       .from('clients')
       .select('id, reset_token_expiry')
       .eq('reset_token', token)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!client) {
@@ -654,11 +684,12 @@ router.post('/reset-password', async (req, res) => {
       })
       .eq('id', client.id);
 
-    // Invalider toutes les sessions du client
+    // Invalider toutes les sessions du client (🔒 TENANT ISOLATION)
     await supabase
       .from('client_sessions')
       .delete()
-      .eq('client_id', client.id);
+      .eq('client_id', client.id)
+      .eq('tenant_id', tenantId);
 
     res.json({
       success: true,
@@ -682,10 +713,14 @@ router.get('/me', authenticateClient, async (req, res) => {
   res.setHeader('Expires', '0');
 
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id du JWT ou du middleware
+    const tenantId = req.client.tenant_id || req.tenantId;
+
     const { data: client } = await supabase
       .from('clients')
       .select('id, nom, prenom, email, telephone, email_verified, loyalty_points, total_spent, created_at')
       .eq('id', req.client.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!client) {
@@ -725,6 +760,8 @@ router.get('/me', authenticateClient, async (req, res) => {
 router.post('/create-by-halimah', async (req, res) => {
   try {
     const { clientId, telephone, email, nom, prenom, sendCredentials } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
     // Validation
     if (!telephone && !clientId) {
@@ -734,13 +771,14 @@ router.post('/create-by-halimah', async (req, res) => {
       });
     }
 
-    // Chercher le client existant
+    // Chercher le client existant (🔒 TENANT ISOLATION)
     let client = null;
     if (clientId) {
       const { data } = await supabase
         .from('clients')
         .select('*')
         .eq('id', clientId)
+        .eq('tenant_id', tenantId)
         .single();
       client = data;
     } else if (telephone) {
@@ -748,6 +786,7 @@ router.post('/create-by-halimah', async (req, res) => {
         .from('clients')
         .select('*')
         .eq('telephone', telephone)
+        .eq('tenant_id', tenantId)
         .single();
       client = data;
     }
@@ -795,8 +834,9 @@ router.post('/create-by-halimah', async (req, res) => {
 
     if (updateError) throw updateError;
 
-    // Créer la transaction de points bonus
+    // Créer la transaction de points bonus (🔒 TENANT ISOLATION)
     await supabase.from('loyalty_transactions').insert({
+      tenant_id: tenantId,
       client_id: client.id,
       type: 'bonus',
       points: 50,
@@ -858,14 +898,17 @@ router.post('/create-by-halimah', async (req, res) => {
 router.post('/send-invitation', async (req, res) => {
   try {
     const { clientId, telephone } = req.body;
+    // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
+    const tenantId = req.tenantId;
 
-    // Chercher le client
+    // Chercher le client (🔒 TENANT ISOLATION)
     let client = null;
     if (clientId) {
       const { data } = await supabase
         .from('clients')
         .select('*')
         .eq('id', clientId)
+        .eq('tenant_id', tenantId)
         .single();
       client = data;
     } else if (telephone) {
@@ -873,6 +916,7 @@ router.post('/send-invitation', async (req, res) => {
         .from('clients')
         .select('*')
         .eq('telephone', telephone)
+        .eq('tenant_id', tenantId)
         .single();
       client = data;
     }

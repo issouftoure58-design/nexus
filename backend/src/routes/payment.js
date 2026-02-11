@@ -18,6 +18,7 @@ import {
 import { getDistanceFromSalon } from '../services/googleMapsService.js';
 import { calculerFraisDepl } from '../utils/tarification.js';
 import { sendConfirmation, sendAnnulation } from '../services/notificationService.js';
+import { idempotencyMiddleware } from '../middleware/idempotency.js';
 
 // ============= SUPABASE CLIENT =============
 
@@ -33,6 +34,9 @@ function getSupabase() {
 }
 
 const router = express.Router();
+
+// Middleware d'idempotence pour prévenir les doubles paiements
+router.use(idempotencyMiddleware);
 
 // Montant de l'acompte fixe
 const MONTANT_ACOMPTE = 10; // 10€

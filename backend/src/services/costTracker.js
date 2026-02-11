@@ -268,44 +268,54 @@ class CostTracker {
   }
 
   /**
-   * Coûts ElevenLabs depuis l'API quota
+   * Coûts ElevenLabs depuis les logs (twilio_call_logs avec channel='elevenlabs')
    */
-  async getElevenLabsCosts() {
-    // Cache 60s pour les appels API ElevenLabs
-    if (this.elevenLabsCache && Date.now() - this.elevenLabsCacheTs < 60000) {
+  async getElevenLabsCosts(options = {}) {
+    const {
+      startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      endDate = new Date()
+    } = options;
+
+    const startDateStr = startDate.toISOString();
+    const endDateStr = endDate.toISOString();
+
+    // Cache
+    const cacheKey = `elevenlabs-${startDateStr}-${endDateStr}`;
+    if (this.elevenLabsCache && this.elevenLabsCache._cacheKey === cacheKey && Date.now() - this.elevenLabsCacheTs < this.cacheTTL) {
       return this.elevenLabsCache;
     }
 
     try {
-      const apiKey = process.env.ELEVENLABS_API_KEY;
-      if (!apiKey) {
-        return { total: 0, characters: 0, limit: 0, percentUsed: 0 };
+      // Lire depuis twilio_call_logs où channel = 'elevenlabs'
+      // call_duration contient le nombre de caractères
+      const { data, error } = await supabase
+        .from('twilio_call_logs')
+        .select('call_duration, created_at')
+        .eq('channel', 'elevenlabs')
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr);
+
+      if (error) throw error;
+
+      // Calculer les totaux
+      let totalChars = 0;
+      let callCount = 0;
+
+      for (const log of (data || [])) {
+        totalChars += log.call_duration || 0; // call_duration = caractères
+        callCount++;
       }
-
-      const response = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
-        headers: { 'xi-api-key': apiKey }
-      });
-
-      if (!response.ok) {
-        throw new Error(`ElevenLabs API ${response.status}`);
-      }
-
-      const data = await response.json();
-      const charsUsed = data.character_count || 0;
-      const charLimit = data.character_limit || 0;
 
       // Calcul coût : turbo par défaut
       const model = process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5';
       const pricePerChar = model.includes('multilingual') ? ELEVENLABS_PRICING.multilingual : ELEVENLABS_PRICING.turbo;
-      const cost = parseFloat((charsUsed * pricePerChar).toFixed(4));
+      const cost = parseFloat((totalChars * pricePerChar).toFixed(4));
 
       const result = {
         total: cost,
-        characters: charsUsed,
-        limit: charLimit,
-        remaining: charLimit - charsUsed,
-        percentUsed: charLimit > 0 ? Math.round((charsUsed / charLimit) * 100) : 0,
-        tier: data.tier || 'unknown',
+        characters: totalChars,
+        callCount,
+        _cacheKey: cacheKey,
       };
 
       this.elevenLabsCache = result;
@@ -313,7 +323,7 @@ class CostTracker {
       return result;
     } catch (error) {
       console.error('[COST-TRACKER] Erreur ElevenLabs costs:', error.message);
-      return { total: 0, characters: 0, limit: 0, percentUsed: 0 };
+      return { total: 0, characters: 0, callCount: 0 };
     }
   }
 
@@ -324,7 +334,7 @@ class CostTracker {
     const [anthropicData, twilioData, elevenLabsData] = await Promise.all([
       this.getCurrentMonthCosts(options.tenantId || null),
       this.getTwilioCosts(options),
-      this.getElevenLabsCosts(),
+      this.getElevenLabsCosts(options),
     ]);
 
     return {
@@ -352,20 +362,20 @@ class CostTracker {
     startOfDay.setHours(0, 0, 0, 0);
     const now = new Date();
 
-    const [anthropicToday, twilioToday] = await Promise.all([
+    const [anthropicToday, twilioToday, elevenLabsToday] = await Promise.all([
       this.getTodayCosts(tenantId),
       this.getTwilioCosts({ startDate: startOfDay, endDate: now }),
+      this.getElevenLabsCosts({ startDate: startOfDay, endDate: now }),
     ]);
 
-    // ElevenLabs API donne le total du mois, pas du jour - on ne peut pas isoler aujourd'hui
-    // On retourne 0 pour elevenlabs today (pas de granularité journalière via l'API)
     return {
       anthropic: anthropicToday.byService?.anthropic || anthropicToday.total || 0,
       twilio: twilioToday.total,
-      elevenlabs: 0,
+      elevenlabs: elevenLabsToday.total,
       total: parseFloat((
         (anthropicToday.byService?.anthropic || anthropicToday.total || 0) +
-        twilioToday.total
+        twilioToday.total +
+        elevenLabsToday.total
       ).toFixed(4)),
     };
   }

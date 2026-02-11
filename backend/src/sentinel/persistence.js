@@ -69,7 +69,40 @@ export async function loadMonthUsage(tenantId) {
 }
 
 /**
+ * Charger usage d'AUJOURD'HUI SEULEMENT pour tous les tenants.
+ * Utilisé au démarrage pour restaurer l'état du tracker sans cumul.
+ */
+export async function loadTodayUsage() {
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const { data, error } = await supabase
+      .from('sentinel_usage')
+      .select('tenant_id, calls, tokens_in, tokens_out, cost')
+      .eq('date', today);
+
+    if (error) throw error;
+
+    const byTenant = {};
+    for (const row of (data || [])) {
+      byTenant[row.tenant_id] = {
+        calls: row.calls,
+        tokensIn: row.tokens_in,
+        tokensOut: row.tokens_out,
+        cost: parseFloat(row.cost),
+      };
+    }
+
+    return byTenant;
+  } catch (error) {
+    console.error('[SENTINEL] Erreur chargement today usage:', error.message);
+    return {};
+  }
+}
+
+/**
  * Charger usage de tous les tenants (mois en cours), pour dashboard.
+ * Note: Cette fonction retourne les totaux MENSUELS pour affichage.
  */
 export async function loadAllUsage() {
   const startOfMonth = new Date();

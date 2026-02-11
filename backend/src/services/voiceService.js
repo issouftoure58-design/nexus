@@ -39,6 +39,26 @@ let stats = {
   sessionStart: new Date().toISOString()
 };
 
+// 📊 Logger l'usage ElevenLabs pour tracking des coûts
+async function logElevenLabsUsage(characters, voiceId, cached = false) {
+  if (cached) return; // Ne pas logger les hits de cache (pas de coût)
+
+  try {
+    const { supabase } = await import('../config/supabase.js');
+    await supabase.from('twilio_call_logs').insert({
+      channel: 'elevenlabs',
+      direction: 'outbound',
+      call_duration: characters, // On réutilise ce champ pour stocker les caractères
+      from_number: voiceId,
+      tenant_id: 'fatshairafro',
+      sms_body: `TTS: ${characters} chars`,
+    });
+    console.log(`[VOICE] ✅ Usage loggé: ${characters} caractères`);
+  } catch (err) {
+    console.warn('[VOICE] ⚠️ Erreur logging usage:', err.message);
+  }
+}
+
 // Voix par défaut (Ingrid - française naturelle)
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'FFXYdAYPzn8Tw8KiHZqg';
 
@@ -327,7 +347,12 @@ async function callElevenLabsAPI(text, voiceId = DEFAULT_VOICE_ID) {
     throw new Error(`ElevenLabs error ${response.status}: ${error}`);
   }
 
-  return Buffer.from(await response.arrayBuffer());
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+
+  // 📊 Logger l'usage pour tracking des coûts
+  await logElevenLabsUsage(text.length, voiceId);
+
+  return audioBuffer;
 }
 
 // ============================================
@@ -486,6 +511,9 @@ async function textToSpeechStream(text, options = {}) {
 
     stats.apiCalls++;
     stats.totalCharacters += processedText.length;
+
+    // 📊 Logger l'usage pour tracking des coûts
+    await logElevenLabsUsage(processedText.length, voiceId);
 
     return response.body;
 

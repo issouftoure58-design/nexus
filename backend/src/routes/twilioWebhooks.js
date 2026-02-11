@@ -35,11 +35,17 @@ const voiceSessions = new Map();
 async function handleVoice(callSid, message, isFirst) {
   const conversationId = `voice_${callSid}`;
 
-  console.log(`[TWILIO NEXUS] === handleVoice ===`);
-  console.log(`[TWILIO NEXUS] CallSid: ${callSid}`);
-  console.log(`[TWILIO NEXUS] isFirst: ${isFirst}`);
-  console.log(`[TWILIO NEXUS] Message: "${message}"`);
-  console.log(`[TWILIO NEXUS] 🔑 ANTHROPIC_API_KEY présente: ${!!process.env.ANTHROPIC_API_KEY}`);
+  console.log(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
+  console.log(`[TWILIO NEXUS] ║           HANDLE VOICE - DEBUG COMPLET                 ║`);
+  console.log(`[TWILIO NEXUS] ╚════════════════════════════════════════════════════════╝`);
+  console.log(`[TWILIO NEXUS] 📞 CallSid: ${callSid}`);
+  console.log(`[TWILIO NEXUS] 🔄 ConversationId: ${conversationId}`);
+  console.log(`[TWILIO NEXUS] 🎯 isFirst: ${isFirst}`);
+  console.log(`[TWILIO NEXUS] 💬 Message brut: "${message}"`);
+  console.log(`[TWILIO NEXUS] 📏 Message length: ${message?.length || 0}`);
+  console.log(`[TWILIO NEXUS] 🔑 ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? '✅ présente (' + process.env.ANTHROPIC_API_KEY.substring(0,10) + '...)' : '❌ MANQUANTE'}`);
+  console.log(`[TWILIO NEXUS] 🗄️ SUPABASE_URL: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+  console.log(`[TWILIO NEXUS] ⏰ Timestamp: ${new Date().toISOString()}`);
 
   try {
     // Premier message = accueil
@@ -90,12 +96,25 @@ async function handleVoice(callSid, message, isFirst) {
     }
 
     // Message normal - traiter avec NEXUS CORE
-    console.log(`[TWILIO NEXUS] 🚀 Appel processMessage('${message.substring(0, 50)}...', 'phone')...`);
+    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
+    console.log(`[TWILIO NEXUS] 🚀 APPEL processMessage()`);
+    console.log(`[TWILIO NEXUS] → Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
+    console.log(`[TWILIO NEXUS] → Channel: phone`);
+    console.log(`[TWILIO NEXUS] → ConversationId: ${conversationId}`);
+
     const result = await processMessage(message, 'phone', {
       conversationId,
       phone: callSid
     });
-    console.log(`[TWILIO NEXUS] ✅ Réponse reçue: success=${result.success}, durée=${result.duration}ms`);
+
+    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
+    console.log(`[TWILIO NEXUS] ✅ RÉSULTAT processMessage()`);
+    console.log(`[TWILIO NEXUS] → success: ${result.success}`);
+    console.log(`[TWILIO NEXUS] → duration: ${result.duration}ms`);
+    console.log(`[TWILIO NEXUS] → error: ${result.error || 'aucune'}`);
+    console.log(`[TWILIO NEXUS] → response (100 premiers chars): "${result.response?.substring(0, 100) || 'VIDE'}"`);
+    console.log(`[TWILIO NEXUS] → response complète: "${result.response}"`);
+    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
 
     // Détecter si la réservation est confirmée (fin de conversation naturelle)
     const isBookingConfirmed = result.response.toLowerCase().includes('confirmé') &&
@@ -108,10 +127,15 @@ async function handleVoice(callSid, message, isFirst) {
     };
 
   } catch (error) {
-    console.error('[TWILIO NEXUS] ❌ ERREUR DÉTAILLÉE:');
+    console.error(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
+    console.error(`[TWILIO NEXUS] ║              ❌ ERREUR DANS handleVoice                 ║`);
+    console.error(`[TWILIO NEXUS] ╚════════════════════════════════════════════════════════╝`);
     console.error('[TWILIO NEXUS] ❌ Type:', error.constructor?.name);
     console.error('[TWILIO NEXUS] ❌ Message:', error.message);
-    console.error('[TWILIO NEXUS] ❌ Stack:', error.stack?.substring(0, 500));
+    console.error('[TWILIO NEXUS] ❌ CallSid:', callSid);
+    console.error('[TWILIO NEXUS] ❌ Message reçu:', message);
+    console.error('[TWILIO NEXUS] ❌ Stack complète:', error.stack);
+    console.error('[TWILIO NEXUS] ════════════════════════════════════════════════════════\n');
     return {
       response: "Excusez-moi, j'ai un petit problème. Pouvez-vous répéter ?",
       shouldEndCall: false,
@@ -275,10 +299,15 @@ router.all('/voice', async (req, res) => {
 router.post('/voice/conversation', async (req, res) => {
   const { CallSid, SpeechResult, Confidence } = req.body;
 
-  console.log(`[HALIMAH VOICE] === CONVERSATION ===`);
-  console.log(`[HALIMAH VOICE] CallSid: ${CallSid}`);
-  console.log(`[HALIMAH VOICE] Client a dit: "${SpeechResult}"`);
-  console.log(`[HALIMAH VOICE] Confiance reconnaissance: ${Confidence}`);
+  console.log(`\n════════════════════════════════════════════════════════════`);
+  console.log(`📞 APPEL TÉLÉPHONE - CONVERSATION REÇUE`);
+  console.log(`════════════════════════════════════════════════════════════`);
+  console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+  console.log(`📱 CallSid: ${CallSid}`);
+  console.log(`💬 SpeechResult: "${SpeechResult}"`);
+  console.log(`📊 Confidence: ${Confidence}`);
+  console.log(`📏 SpeechResult length: ${SpeechResult?.length || 0}`);
+  console.log(`════════════════════════════════════════════════════════════`);
 
   const twiml = new VoiceResponse();
 

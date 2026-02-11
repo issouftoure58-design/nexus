@@ -1,8 +1,12 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 
 const router = express.Router();
+
+// 🔒 MODULE PROTECTION: Toutes les routes commandes nécessitent le module 'ecommerce'
+router.use(requireModule('ecommerce'));
 
 // Statuts possibles pour une commande
 const STATUTS_VALIDES = ['en_attente', 'confirme', 'paye', 'termine', 'annule'];
@@ -15,6 +19,9 @@ const STATUTS_VALIDES = ['en_attente', 'confirme', 'paye', 'termine', 'annule'];
 // Liste toutes les commandes avec filtres et pagination
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const {
       statut,
       paiement,
@@ -52,7 +59,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
         dateDebut.setDate(now.getDate() - 7);
     }
 
-    // Query de base avec jointures
+    // Query de base avec jointures (🔒 TENANT ISOLATION)
     let query = supabase
       .from('orders')
       .select(`
@@ -65,7 +72,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
           prix,
           ordre
         )
-      `, { count: 'exact' });
+      `, { count: 'exact' })
+      .eq('tenant_id', tenantId);
 
     // Filtres
     if (statut && statut !== 'tous') {
@@ -108,10 +116,14 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // Statistiques des commandes
 router.get('/stats', authenticateAdmin, async (req, res) => {
   try {
-    // Récupérer toutes les commandes
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer toutes les commandes (🔒 TENANT ISOLATION)
     const { data: orders, error } = await supabase
       .from('orders')
-      .select('id, statut, total, paiement_statut');
+      .select('id, statut, total, paiement_statut')
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
@@ -153,6 +165,9 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 // Changer le statut d'une commande
 router.patch('/:id/status', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { statut } = req.body;
     const orderId = parseInt(req.params.id);
 
@@ -162,11 +177,12 @@ router.patch('/:id/status', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Récupérer la commande actuelle
+    // Récupérer la commande actuelle (🔒 TENANT ISOLATION)
     const { data: currentOrder, error: fetchError } = await supabase
       .from('orders')
       .select('*')
       .eq('id', orderId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !currentOrder) {
@@ -179,19 +195,21 @@ router.patch('/:id/status', authenticateAdmin, async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    // Si confirmé ou terminé, mettre à jour aussi les réservations associées
+    // Si confirmé ou terminé, mettre à jour aussi les réservations associées (🔒 TENANT ISOLATION)
     if (statut === 'confirme') {
       // Mettre les réservations en "confirme"
       await supabase
         .from('reservations')
         .update({ statut: 'confirme', updated_at: new Date().toISOString() })
-        .eq('order_id', orderId);
+        .eq('order_id', orderId)
+        .eq('tenant_id', tenantId);
     } else if (statut === 'termine') {
       // Mettre les réservations en "termine"
       await supabase
         .from('reservations')
         .update({ statut: 'termine', updated_at: new Date().toISOString() })
-        .eq('order_id', orderId);
+        .eq('order_id', orderId)
+        .eq('tenant_id', tenantId);
 
       // Si paiement sur place, marquer comme payé
       if (currentOrder.paiement_methode === 'sur_place') {
@@ -203,22 +221,25 @@ router.patch('/:id/status', authenticateAdmin, async (req, res) => {
       await supabase
         .from('reservations')
         .update({ statut: 'annule', updated_at: new Date().toISOString() })
-        .eq('order_id', orderId);
+        .eq('order_id', orderId)
+        .eq('tenant_id', tenantId);
     }
 
-    // Mettre à jour la commande
+    // Mettre à jour la commande (🔒 TENANT ISOLATION)
     const { data: order, error } = await supabase
       .from('orders')
       .update(updates)
       .eq('id', orderId)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     try {
       await supabase.from('historique_admin').insert({
+        tenant_id: tenantId,
         admin_id: req.admin?.id || 1,
         action: 'update_statut',
         entite: 'order',
@@ -240,8 +261,11 @@ router.patch('/:id/status', authenticateAdmin, async (req, res) => {
 // Détail d'une commande
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
     const orderId = parseInt(req.params.id);
 
+    // 🔒 TENANT ISOLATION
     const { data: order, error } = await supabase
       .from('orders')
       .select(`
@@ -257,6 +281,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         )
       `)
       .eq('id', orderId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !order) {
@@ -270,6 +295,46 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/admin/orders/:id
+// Supprimer une commande
+router.delete('/:id', authenticateAdmin, async (req, res) => {
+  try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+    const orderId = parseInt(req.params.id);
+    console.log(`[ADMIN ORDERS] Suppression commande #${orderId}`);
+
+    // Supprimer d'abord les order_items liés (🔒 TENANT ISOLATION)
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .delete()
+      .eq('order_id', orderId)
+      .eq('tenant_id', tenantId);
+
+    if (itemsError) {
+      console.error('[ADMIN ORDERS] Erreur suppression items:', itemsError);
+    }
+
+    // Puis supprimer la commande (🔒 TENANT ISOLATION)
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', orderId)
+      .eq('tenant_id', tenantId);
+
+    if (error) {
+      console.error('[ADMIN ORDERS] Erreur suppression:', error);
+      return res.status(500).json({ error: 'Erreur suppression commande' });
+    }
+
+    console.log(`[ADMIN ORDERS] ✅ Commande #${orderId} supprimée`);
+    res.json({ success: true, message: `Commande #${orderId} supprimée` });
+  } catch (error) {
+    console.error('[ADMIN ORDERS] Erreur delete:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════
 // EXPORT
 // ════════════════════════════════════════════════════════════════════
@@ -278,8 +343,11 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 // Export CSV des commandes
 router.get('/export/csv', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
     const { date_debut, date_fin } = req.query;
 
+    // 🔒 TENANT ISOLATION
     let query = supabase
       .from('orders')
       .select(`
@@ -289,6 +357,7 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
           prix
         )
       `)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
     if (date_debut) {

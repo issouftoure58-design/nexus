@@ -197,8 +197,8 @@ const tools = [
 // IMPLÉMENTATION DES OUTILS
 // ============================================
 
-async function executeTool(toolName, toolInput) {
-  console.log(`[HALIMAH AI] Outil appelé: ${toolName}`, toolInput);
+async function executeTool(toolName, toolInput, tenantId = 'fatshairafro') {
+  console.log(`[HALIMAH AI] Outil appelé: ${toolName}`, toolInput, `(tenant: ${tenantId})`);
 
   switch (toolName) {
     case 'parse_date': {
@@ -330,6 +330,7 @@ async function executeTool(toolName, toolInput) {
       const { data: rdvs } = await db
         .from('reservations')
         .select('heure, duree_minutes')
+        .eq('tenant_id', tenantId)
         .eq('date', date)
         .in('statut', ['demande', 'confirme', 'en_attente']);
 
@@ -337,15 +338,41 @@ async function executeTool(toolName, toolInput) {
         return { success: true, disponible: true };
       }
 
-      // Vérifier les conflits
-      const heureDebut = heure;
-      const heureFin = heure + Math.ceil(duree_minutes / 60);
+      // Convertir heure en minutes (supporte "14:30", "14h30", ou 14)
+      const parseHeureToMinutes = (h) => {
+        if (typeof h === 'number') return h * 60;
+        const str = String(h);
+        if (str.includes(':')) {
+          const [hh, mm] = str.split(':').map(Number);
+          return hh * 60 + (mm || 0);
+        }
+        if (str.includes('h')) {
+          const [hh, mm] = str.split('h').map(s => parseInt(s) || 0);
+          return hh * 60 + mm;
+        }
+        return parseInt(str) * 60;
+      };
+
+      // Vérifier les conflits en minutes
+      const debutMinutes = parseHeureToMinutes(heure);
+      const finMinutes = debutMinutes + (duree_minutes || 60);
 
       for (const rdv of rdvs) {
-        const rdvDebut = parseInt(rdv.heure);
-        const rdvFin = rdvDebut + Math.ceil((rdv.duree_minutes || 60) / 60);
-        if (!(heureFin <= rdvDebut || heureDebut >= rdvFin)) {
-          return { success: true, disponible: false, conflit: `Créneau ${rdvDebut}h-${rdvFin}h déjà pris` };
+        const rdvDebutMinutes = parseHeureToMinutes(rdv.heure);
+        const rdvFinMinutes = rdvDebutMinutes + (rdv.duree_minutes || 60);
+
+        // Conflit si les plages se chevauchent
+        if (!(finMinutes <= rdvDebutMinutes || debutMinutes >= rdvFinMinutes)) {
+          const rdvDebutH = Math.floor(rdvDebutMinutes / 60);
+          const rdvDebutM = rdvDebutMinutes % 60;
+          const rdvFinH = Math.floor(rdvFinMinutes / 60);
+          const rdvFinM = rdvFinMinutes % 60;
+          const formatHeure = (h, m) => m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+          return {
+            success: true,
+            disponible: false,
+            conflit: `Créneau ${formatHeure(rdvDebutH, rdvDebutM)}-${formatHeure(rdvFinH, rdvFinM)} déjà pris`
+          };
         }
       }
 
@@ -379,6 +406,7 @@ async function executeTool(toolName, toolInput) {
           const { data: rdvs } = await db
             .from('reservations')
             .select('heure, duree_minutes')
+            .eq('tenant_id', tenantId)
             .eq('date', dateStr)
             .in('statut', ['demande', 'confirme', 'en_attente']);
 
@@ -478,6 +506,7 @@ async function executeTool(toolName, toolInput) {
       const { data: existingClient } = await db
         .from('clients')
         .select('id')
+        .eq('tenant_id', tenantId)
         .eq('telephone', telephone)
         .single();
 
@@ -487,7 +516,7 @@ async function executeTool(toolName, toolInput) {
         // Créer le client
         const { data: newClient, error: clientError } = await db
           .from('clients')
-          .insert({ prenom, nom, telephone })
+          .insert({ prenom, nom, telephone, tenant_id: tenantId })
           .select('id')
           .single();
 
@@ -502,6 +531,7 @@ async function executeTool(toolName, toolInput) {
       // Note: pas de colonne "lieu", on utilise adresse_client (null = salon)
       const { error } = await db.from('reservations').insert({
         client_id: clientId,
+        tenant_id: tenantId,
         date: toolInput.date,
         heure: `${toolInput.heure}:00`,
         duree_minutes: service.duree,
@@ -665,8 +695,8 @@ function calculerProchainJour(jourCible) {
 // Stockage des conversations (en mémoire, à remplacer par Redis/DB en prod)
 const conversations = new Map();
 
-export async function chat(sessionId, userMessage, canal = 'chat') {
-  console.log(`[HALIMAH AI] Session: ${sessionId}, Canal: ${canal}`);
+export async function chat(sessionId, userMessage, canal = 'chat', tenantId = 'fatshairafro') {
+  console.log(`[HALIMAH AI] Session: ${sessionId}, Canal: ${canal}, Tenant: ${tenantId}`);
   console.log(`[HALIMAH AI] Message: ${userMessage}`);
 
   // Récupérer ou créer l'historique
@@ -711,7 +741,7 @@ export async function chat(sessionId, userMessage, canal = 'chat') {
       // Exécuter TOUS les outils et collecter les résultats
       const toolResults = [];
       for (const toolUseBlock of toolUseBlocks) {
-        const toolResult = await executeTool(toolUseBlock.name, toolUseBlock.input);
+        const toolResult = await executeTool(toolUseBlock.name, toolUseBlock.input, tenantId);
         console.log(`[HALIMAH AI] Résultat outil ${toolUseBlock.name}:`, toolResult);
         toolResults.push({
           type: 'tool_result',

@@ -121,9 +121,13 @@ const PARAMETRES_DEFAUT = [
 // Retourne tous les paramètres groupés par catégorie
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { data: parametres, error } = await supabase
       .from('parametres')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('categorie', { ascending: true })
       .order('cle', { ascending: true });
 
@@ -159,9 +163,13 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // Retourne un paramètre spécifique
 router.get('/:cle', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { data: parametre, error } = await supabase
       .from('parametres')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('cle', req.params.cle)
       .single();
 
@@ -182,13 +190,16 @@ router.get('/:cle', authenticateAdmin, async (req, res) => {
 // Met à jour plusieurs paramètres d'un coup
 router.put('/', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { parametres } = req.body;
 
     if (!parametres || !Array.isArray(parametres)) {
       return res.status(400).json({ error: 'Format invalide : parametres doit être un tableau' });
     }
 
-    // Mettre à jour chaque paramètre
+    // Mettre à jour chaque paramètre (🔒 TENANT ISOLATION)
     const updates = [];
     for (const param of parametres) {
       if (!param.cle) {
@@ -201,6 +212,7 @@ router.put('/', authenticateAdmin, async (req, res) => {
           valeur: param.valeur,
           updated_at: new Date().toISOString()
         })
+        .eq('tenant_id', tenantId)
         .eq('cle', param.cle)
         .select()
         .single();
@@ -208,8 +220,9 @@ router.put('/', authenticateAdmin, async (req, res) => {
       if (!error && data) {
         updates.push(data);
 
-        // Logger l'action
+        // Logger l'action (🔒 TENANT ISOLATION)
         await supabase.from('historique_admin').insert({
+          tenant_id: tenantId,
           admin_id: req.admin.id,
           action: 'update',
           entite: 'parametre',
@@ -237,26 +250,31 @@ router.put('/', authenticateAdmin, async (req, res) => {
 // Met à jour un paramètre spécifique
 router.put('/:cle', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { valeur } = req.body;
 
     if (valeur === undefined) {
       return res.status(400).json({ error: 'La valeur est requise' });
     }
 
-    // Récupérer l'ancienne valeur
+    // Récupérer l'ancienne valeur (🔒 TENANT ISOLATION)
     const { data: ancien } = await supabase
       .from('parametres')
       .select('valeur')
+      .eq('tenant_id', tenantId)
       .eq('cle', req.params.cle)
       .single();
 
-    // Mettre à jour
+    // Mettre à jour (🔒 TENANT ISOLATION)
     const { data: parametre, error } = await supabase
       .from('parametres')
       .update({
         valeur: valeur.toString(),
         updated_at: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)
       .eq('cle', req.params.cle)
       .select()
       .single();
@@ -267,8 +285,9 @@ router.put('/:cle', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Paramètre introuvable' });
     }
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'update',
       entite: 'parametre',
@@ -295,15 +314,21 @@ router.put('/:cle', authenticateAdmin, async (req, res) => {
 // Initialise les paramètres par défaut s'ils n'existent pas
 router.post('/init', authenticateAdmin, async (req, res) => {
   try {
-    // Récupérer les paramètres existants
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer les paramètres existants (🔒 TENANT ISOLATION)
     const { data: existants } = await supabase
       .from('parametres')
-      .select('cle');
+      .select('cle')
+      .eq('tenant_id', tenantId);
 
     const clesExistantes = new Set((existants || []).map(p => p.cle));
 
-    // Insérer les paramètres manquants
-    const aInserer = PARAMETRES_DEFAUT.filter(p => !clesExistantes.has(p.cle));
+    // Insérer les paramètres manquants (🔒 TENANT ISOLATION: ajouter tenant_id)
+    const aInserer = PARAMETRES_DEFAUT
+      .filter(p => !clesExistantes.has(p.cle))
+      .map(p => ({ ...p, tenant_id: tenantId }));
 
     if (aInserer.length === 0) {
       return res.json({
@@ -319,8 +344,9 @@ router.post('/init', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'init',
       entite: 'parametres',
@@ -345,11 +371,16 @@ router.post('/init', authenticateAdmin, async (req, res) => {
 // Retourne les dernières modifications de paramètres
 router.get('/historique/modifications', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const { limit = 50 } = req.query;
 
+    // 🔒 TENANT ISOLATION
     const { data: historique, error } = await supabase
       .from('historique_admin')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('entite', 'parametre')
       .order('created_at', { ascending: false })
       .limit(parseInt(limit));
@@ -374,26 +405,32 @@ router.get('/historique/modifications', authenticateAdmin, async (req, res) => {
 // Réinitialise un paramètre à sa valeur par défaut
 router.post('/:cle/reset', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
     const paramDefaut = PARAMETRES_DEFAUT.find(p => p.cle === req.params.cle);
 
     if (!paramDefaut) {
       return res.status(404).json({ error: 'Paramètre par défaut introuvable' });
     }
 
+    // 🔒 TENANT ISOLATION
     const { data: parametre, error } = await supabase
       .from('parametres')
       .update({
         valeur: paramDefaut.valeur,
         updated_at: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)
       .eq('cle', req.params.cle)
       .select()
       .single();
 
     if (error) throw error;
 
-    // Logger l'action
+    // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'reset',
       entite: 'parametre',
@@ -422,9 +459,14 @@ router.post('/:cle/reset', authenticateAdmin, async (req, res) => {
 // Exporte tous les paramètres en JSON
 router.get('/export/json', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
+    const tenantId = req.admin.tenant_id;
+
+    // 🔒 TENANT ISOLATION
     const { data: parametres, error } = await supabase
       .from('parametres')
       .select('cle, valeur, categorie, description')
+      .eq('tenant_id', tenantId)
       .order('categorie', { ascending: true })
       .order('cle', { ascending: true });
 
