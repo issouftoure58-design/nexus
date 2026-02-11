@@ -7,8 +7,7 @@ import express from 'express';
 import dns from 'dns';
 import { promisify } from 'util';
 import { supabase } from '../config/supabase.js';
-import { authenticateToken } from '../middleware/auth.js';
-import { requirePlan } from '../middleware/requirePlan.js';
+import { authenticateToken, requirePlan } from '../middleware/auth.js';
 
 const router = express.Router();
 const dnsResolve = promisify(dns.resolveCname);
