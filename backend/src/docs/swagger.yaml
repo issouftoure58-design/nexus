@@ -1,0 +1,846 @@
+openapi: 3.0.3
+info:
+  title: NEXUS API
+  description: |
+    API REST publique pour la plateforme NEXUS.
+
+    ## Authentication
+
+    Toutes les requetes doivent inclure une API key dans le header:
+    ```
+    Authorization: Bearer nxk_prod_xxxxxxxxxxxxx
+    ```
+
+    ## Rate Limiting
+
+    - 1000 requetes/heure par API key (configurable)
+    - Headers de reponse:
+      - `X-RateLimit-Limit`: Limite totale
+      - `X-RateLimit-Remaining`: Requetes restantes
+      - `X-RateLimit-Reset`: Timestamp reset (Unix)
+
+    ## Scopes
+
+    Les API keys ont des scopes qui limitent les operations possibles:
+    - `read:clients` - Lecture clients
+    - `write:clients` - Creation/modification clients
+    - `delete:clients` - Suppression clients
+    - `read:reservations` - Lecture reservations
+    - `write:reservations` - Creation/modification reservations
+    - `delete:reservations` - Annulation reservations
+    - `read:services` - Lecture services
+    - `read:webhooks` - Lecture webhooks
+    - `write:webhooks` - Configuration webhooks
+    - `admin` - Acces complet
+
+  version: 1.0.0
+  contact:
+    name: NEXUS Support
+    email: support@nexus.ai
+
+servers:
+  - url: https://nexus-backend-dev.onrender.com/api/v1
+    description: Development
+  - url: https://api.nexus.ai/v1
+    description: Production
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication
+  - name: Clients
+    description: Gestion des clients
+  - name: Reservations
+    description: Gestion des reservations
+  - name: Services
+    description: Catalogue des services
+  - name: Webhooks
+    description: Configuration webhooks
+  - name: API Keys
+    description: Gestion des API keys
+
+paths:
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Valider API key
+      description: Verifie l'API key et retourne les infos du tenant
+      responses:
+        '200':
+          description: API key valide
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      tenant_id:
+                        type: string
+                      key_name:
+                        type: string
+                      scopes:
+                        type: array
+                        items:
+                          type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /clients:
+    get:
+      tags: [Clients]
+      summary: Liste des clients
+      description: Retourne la liste paginee des clients
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: search
+          in: query
+          description: Recherche par nom, email ou telephone
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at, nom, prenom]
+            default: created_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Liste des clients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Client'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Clients]
+      summary: Creer un client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreate'
+      responses:
+        '201':
+          description: Client cree
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Client deja existant (telephone)
+
+  /clients/{id}:
+    get:
+      tags: [Clients]
+      summary: Detail d'un client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail client
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Client'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Clients]
+      summary: Modifier un client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientUpdate'
+      responses:
+        '200':
+          description: Client modifie
+
+    delete:
+      tags: [Clients]
+      summary: Supprimer un client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Client supprime
+
+  /reservations:
+    get:
+      tags: [Reservations]
+      summary: Liste des reservations
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [en_attente, confirme, annule, termine]
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: client_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Liste des reservations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reservation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [Reservations]
+      summary: Creer une reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationCreate'
+      responses:
+        '201':
+          description: Reservation creee
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Reservation'
+
+  /reservations/{id}:
+    get:
+      tags: [Reservations]
+      summary: Detail d'une reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail reservation
+
+    patch:
+      tags: [Reservations]
+      summary: Modifier une reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationUpdate'
+      responses:
+        '200':
+          description: Reservation modifiee
+
+    delete:
+      tags: [Reservations]
+      summary: Annuler une reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Reservation annulee
+
+  /services:
+    get:
+      tags: [Services]
+      summary: Liste des services
+      responses:
+        '200':
+          description: Liste des services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      summary: Liste des webhooks
+      responses:
+        '200':
+          description: Liste des webhooks configures
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+
+    post:
+      tags: [Webhooks]
+      summary: Creer un webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookCreate'
+            example:
+              name: "Zapier Integration"
+              url: "https://hooks.zapier.com/xxx"
+              events: ["client.created", "reservation.confirmed"]
+      responses:
+        '201':
+          description: Webhook cree (secret affiche une seule fois)
+
+  /webhooks/{id}:
+    patch:
+      tags: [Webhooks]
+      summary: Modifier un webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookUpdate'
+      responses:
+        '200':
+          description: Webhook modifie
+
+    delete:
+      tags: [Webhooks]
+      summary: Supprimer un webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook supprime
+
+  /events:
+    get:
+      tags: [Webhooks]
+      summary: Liste des events webhook disponibles
+      responses:
+        '200':
+          description: Liste des events
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  client.created: "Triggered when a new client is created"
+                  reservation.confirmed: "Triggered when a reservation is confirmed"
+
+  /scopes:
+    get:
+      tags: [API Keys]
+      summary: Liste des scopes disponibles
+      responses:
+        '200':
+          description: Liste des scopes
+
+  /api-keys:
+    get:
+      tags: [API Keys]
+      summary: Liste des API keys
+      description: Requiert scope admin
+      responses:
+        '200':
+          description: Liste des API keys (sans secrets)
+
+    post:
+      tags: [API Keys]
+      summary: Creer une API key
+      description: Requiert scope admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreate'
+            example:
+              name: "Zapier Integration"
+              scopes: ["read:clients", "read:reservations"]
+              type: "prod"
+              rate_limit_per_hour: 500
+      responses:
+        '201':
+          description: API key creee (cle affichee une seule fois)
+
+  /api-keys/{id}:
+    delete:
+      tags: [API Keys]
+      summary: Revoquer une API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key revoquee
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key format nxk_prod_xxx ou nxk_test_xxx
+
+  schemas:
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nom:
+          type: string
+        prenom:
+          type: string
+        email:
+          type: string
+          format: email
+        telephone:
+          type: string
+        adresse:
+          type: string
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ClientCreate:
+      type: object
+      required: [nom, telephone]
+      properties:
+        nom:
+          type: string
+        prenom:
+          type: string
+        email:
+          type: string
+          format: email
+        telephone:
+          type: string
+        adresse:
+          type: string
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    ClientUpdate:
+      type: object
+      properties:
+        nom:
+          type: string
+        prenom:
+          type: string
+        email:
+          type: string
+        telephone:
+          type: string
+        adresse:
+          type: string
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        date:
+          type: string
+          format: date
+        heure:
+          type: string
+        duree:
+          type: integer
+          description: Duree en minutes
+        statut:
+          type: string
+          enum: [en_attente, confirme, annule, termine]
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ReservationCreate:
+      type: object
+      required: [client_id, date, heure]
+      properties:
+        client_id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        date:
+          type: string
+          format: date
+        heure:
+          type: string
+        duree:
+          type: integer
+          default: 60
+        notes:
+          type: string
+
+    ReservationUpdate:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        heure:
+          type: string
+        statut:
+          type: string
+          enum: [en_attente, confirme, annule, termine]
+        notes:
+          type: string
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nom:
+          type: string
+        description:
+          type: string
+        duree:
+          type: integer
+        prix:
+          type: number
+        categorie:
+          type: string
+        is_active:
+          type: boolean
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        last_triggered_at:
+          type: string
+          format: date-time
+        last_status:
+          type: string
+          enum: [success, failed, timeout]
+
+    WebhookCreate:
+      type: object
+      required: [name, url, events]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        headers:
+          type: object
+        retry_count:
+          type: integer
+          default: 3
+        timeout_seconds:
+          type: integer
+          default: 30
+
+    WebhookUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        headers:
+          type: object
+
+    ApiKeyCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+          default: ["read:clients", "read:reservations", "read:services"]
+        type:
+          type: string
+          enum: [prod, test, sand]
+          default: prod
+        rate_limit_per_hour:
+          type: integer
+          default: 1000
+        expires_in_days:
+          type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+  responses:
+    Unauthorized:
+      description: API key invalide ou manquante
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    Forbidden:
+      description: Permissions insuffisantes
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              your_scopes:
+                type: array
+                items:
+                  type: string
+
+    BadRequest:
+      description: Donnees invalides
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    NotFound:
+      description: Ressource non trouvee
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    RateLimited:
+      description: Rate limit atteint
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              retry_after:
+                type: integer

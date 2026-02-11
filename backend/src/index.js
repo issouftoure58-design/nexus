@@ -34,6 +34,11 @@ import facturesRoutes from './routes/factures.js';
 import stockRoutes from './routes/stock.js';
 import seoRoutes from './routes/seo.js';
 import rhRoutes from './routes/rh.js';
+import apiPublicRoutes from './routes/api-public.js';
+import brandingRoutes from './routes/branding.js';
+
+// Import du middleware tenant resolution
+import { resolveTenantByDomain } from './middleware/resolveTenant.js';
 
 // Import du scheduler
 import { startScheduler } from './jobs/scheduler.js';
@@ -87,7 +92,7 @@ app.use(cors({
   origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key', 'X-Tenant-ID'],
 }));
 
 // Rate limiting global API
@@ -166,6 +171,12 @@ app.use('/api/seo', seoRoutes);
 
 // Routes RH Multi-employés (employés, planning, congés, heures)
 app.use('/api/rh', rhRoutes);
+
+// Routes API REST Publique v1 (pour intégrations tierces)
+app.use('/api/v1', apiPublicRoutes);
+
+// Routes Branding & White-Label
+app.use('/api/branding', brandingRoutes);
 
 // Route 404
 app.use((req, res) => {
@@ -330,6 +341,29 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  GET  /api/rh/compteurs/:employeId        - Compteurs congés');
   console.log('  POST /api/rh/heures                      - Pointage');
   console.log('  GET  /api/rh/dashboard                   - Dashboard RH');
+  console.log('');
+  console.log('🔌 API REST Publique v1:');
+  console.log('  POST /api/v1/auth/token                  - Valider API key');
+  console.log('  GET  /api/v1/clients                     - Liste clients');
+  console.log('  POST /api/v1/clients                     - Créer client');
+  console.log('  GET  /api/v1/reservations                - Liste réservations');
+  console.log('  POST /api/v1/reservations                - Créer réservation');
+  console.log('  GET  /api/v1/services                    - Liste services');
+  console.log('  GET  /api/v1/webhooks                    - Liste webhooks');
+  console.log('  POST /api/v1/webhooks                    - Créer webhook');
+  console.log('  GET  /api/v1/api-keys                    - Liste API keys');
+  console.log('  POST /api/v1/api-keys                    - Créer API key');
+  console.log('');
+  console.log('🎨 Branding & White-Label:');
+  console.log('  GET  /api/branding                       - Config branding');
+  console.log('  PUT  /api/branding                       - Modifier branding');
+  console.log('  GET  /api/branding/themes                - Thèmes disponibles');
+  console.log('  POST /api/branding/apply-theme           - Appliquer thème');
+  console.log('  POST /api/branding/domain                - Config domaine custom');
+  console.log('  POST /api/branding/domain/verify         - Vérifier domaine');
+  console.log('  GET  /api/branding/theme.css             - CSS dynamique');
+  console.log('  GET  /api/branding/pages                 - Pages custom');
+  console.log('  POST /api/branding/pages                 - Créer page');
   console.log('');
 
   // Démarrer le scheduler de jobs
