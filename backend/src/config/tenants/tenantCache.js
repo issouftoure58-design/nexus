@@ -8,7 +8,7 @@
  * the tenants table is a SYSTEM_TABLE.
  */
 
-import { rawSupabase } from '../../../../server/supabase.ts';
+import { rawSupabase } from '../supabase.js';
 
 // Static fallback imports
 import fatshairafroStatic from './fatshairafro.js';

@@ -121,6 +121,42 @@ export const SERVICES = Object.freeze({
     blocksFullDay: false,
     blocksDays: 1,
   }),
+  SOIN_HYDRATANT_CHEVEUX_NON_LOCKSES: Object.freeze({
+    id: 'soin_hydratant_cheveux_non_lockses',
+    name: 'Soin hydratant cheveux non locksés',
+    category: 'soins',
+    price: 40,
+    priceInCents: 4000,
+    priceIsMinimum: false,
+    durationMinutes: 120, // 2h
+    blocksFullDay: false,
+    blocksDays: 1,
+    description: 'Comprend shampoing, massage et brushing. Ne concerne que les cheveux non locksés.',
+  }),
+  SOIN_HYDRATANT_CHEVEUX_LOCKSES: Object.freeze({
+    id: 'soin_hydratant_cheveux_lockses',
+    name: 'Soin hydratant cheveux locksés',
+    category: 'soins',
+    price: 40,
+    priceInCents: 4000,
+    priceIsMinimum: false,
+    durationMinutes: 60, // 1h
+    blocksFullDay: false,
+    blocksDays: 1,
+    description: 'Shampoing et massage. Spécial cheveux locksés.',
+  }),
+  SOIN_PROFOND_CHEVEUX_NON_LOCKSES: Object.freeze({
+    id: 'soin_profond_cheveux_non_lockses',
+    name: 'Soin profond cheveux non locksés',
+    category: 'soins',
+    price: 60,
+    priceInCents: 6000,
+    priceIsMinimum: false,
+    durationMinutes: 150, // 2h30
+    blocksFullDay: false,
+    blocksDays: 1,
+    description: 'Massage, shampoing et brushing pointe. Ne concerne que les cheveux non locksés.',
+  }),
   SHAMPOING: Object.freeze({
     id: 'shampoing',
     name: 'Shampoing',
@@ -211,6 +247,18 @@ export const SERVICES = Object.freeze({
     blocksFullDay: false,
     blocksDays: 1,
   }),
+  FULANI_BRAIDS_DEMI_TETE: Object.freeze({
+    id: 'fulani_braids_demi_tete',
+    name: 'Fulani braids demi-tête',
+    category: 'tresses',
+    price: 50,
+    priceInCents: 5000,
+    priceIsMinimum: false,
+    durationMinutes: 180, // 3h
+    blocksFullDay: false,
+    blocksDays: 1,
+    description: 'Fulani braids sur la moitié de la tête uniquement.',
+  }),
   BOHEMIAN_FULANI: Object.freeze({
     id: 'bohemian_fulani',
     name: 'Bohemian Fulani',
@@ -266,6 +314,17 @@ export const SERVICES = Object.freeze({
     blocksFullDay: false,
     blocksDays: 1,
   }),
+  VANILLE_SANS_RAJOUT: Object.freeze({
+    id: 'vanille_sans_rajout',
+    name: 'Vanille sans rajout',
+    category: 'tresses',
+    price: 50,
+    priceInCents: 5000,
+    priceIsMinimum: false,
+    durationMinutes: 180,
+    blocksFullDay: false,
+    blocksDays: 1,
+  }),
   REPARATION_LOCKS: Object.freeze({
     id: 'reparation_locks',
     name: 'Réparation Locks',
@@ -313,6 +372,17 @@ export const SERVICES = Object.freeze({
     priceInCents: 2000,
     priceIsMinimum: false,
     durationMinutes: 60,
+    blocksFullDay: false,
+    blocksDays: 1,
+  }),
+  BRUSHING_POINTE: Object.freeze({
+    id: 'brushing_pointe',
+    name: 'Brushing pointe',
+    category: 'coloration',
+    price: 30,
+    priceInCents: 3000,
+    priceIsMinimum: false,
+    durationMinutes: 60, // 1h
     blocksFullDay: false,
     blocksDays: 1,
   }),
@@ -441,7 +511,10 @@ export function validateBooking(booking, service) {
   }
 
   // 2. Verifier le jour
-  const bookingDate = new Date(booking.date);
+  // IMPORTANT: Ajouter T12:00:00 pour éviter les problèmes de timezone
+  // Sans cela, "2026-02-16" est interprété comme minuit UTC, qui peut être
+  // le jour précédent dans certains fuseaux horaires (ex: serveur USA)
+  const bookingDate = new Date(booking.date + 'T12:00:00');
   const dayOfWeek = bookingDate.getDay();
 
   if (!BUSINESS_HOURS.isOpen(dayOfWeek)) {
@@ -456,8 +529,22 @@ export function validateBooking(booking, service) {
   const openMinutes = openH * 60 + openM;
   const closeMinutes = closeH * 60 + closeM;
 
-  const startHour = booking.startHour || parseInt(booking.heure?.split(':')[0] || '0');
-  const startMin = booking.startMinutes || parseInt(booking.heure?.split(':')[1] || '0');
+  // Parse l'heure en supportant les formats "14:30", "14h30", ou entier
+  let startHour = booking.startHour || 0;
+  let startMin = booking.startMinutes || 0;
+  if (!booking.startHour && booking.heure) {
+    const heureStr = String(booking.heure);
+    if (heureStr.includes(':')) {
+      [startHour, startMin] = heureStr.split(':').map(Number);
+    } else if (heureStr.includes('h')) {
+      const parts = heureStr.split('h');
+      startHour = parseInt(parts[0]) || 0;
+      startMin = parseInt(parts[1]) || 0;
+    } else {
+      startHour = parseInt(heureStr) || 0;
+      startMin = 0;
+    }
+  }
   const startMinutes = startHour * 60 + startMin;
   const endMinutes = startMinutes + service.durationMinutes;
 
@@ -531,6 +618,20 @@ export function findServiceByName(name) {
       if (searchWords.every(w => svcWords.includes(w))) {
         return { key, ...service };
       }
+    }
+  }
+
+  // 5. Recherche fuzzy avec tolérance singulier/pluriel
+  // Ex: "reprise racine locks" matche "Reprise racines locks"
+  const singularize = (w) => w.endsWith('s') && w.length > 3 ? w.slice(0, -1) : w;
+  const searchWordsSingular = searchKey.split(' ').map(singularize).filter(w => w.length > 1);
+
+  for (const [key, service] of Object.entries(SERVICES)) {
+    const svcWordsSingular = normalizeForSearch(service.name).split(' ').map(singularize).filter(w => w.length > 1);
+    // Vérifier si tous les mots (singularisés) correspondent
+    if (searchWordsSingular.length >= 2 &&
+        searchWordsSingular.every(w => svcWordsSingular.some(sw => sw === w || sw.includes(w) || w.includes(sw)))) {
+      return { key, ...service };
     }
   }
 

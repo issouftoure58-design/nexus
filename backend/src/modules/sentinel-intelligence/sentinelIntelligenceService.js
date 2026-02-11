@@ -408,60 +408,31 @@ export async function generatePredictions(tenantId) {
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
 
-  // Technical metrics predictions
-  const latencyValues = history.map(m => parseFloat(m.revenue_day) || 0); // avg_latency_ms stored in revenue_day
-  const securityValues = history.map(m => parseInt(m.bookings_day) || 0); // security_events stored in bookings_day
-  const memoryValues = history.map(m => parseFloat(m.stock_items_low) || 0); // memory_percent stored in stock_items_low
-  const uptimeValues = history.map(m => parseInt(m.customers_total) || 0); // uptime_seconds stored in customers_total
+  const revenueValues = history.map(m => parseFloat(m.revenue_day));
+  const bookingValues = history.map(m => parseInt(m.bookings_day));
 
-  const latencyPred = predictLinear(latencyValues);
-  const securityPred = predictLinear(securityValues);
-  const memoryPred = predictLinear(memoryValues);
-  const uptimePred = predictLinear(uptimeValues);
+  const revenuePred = predictLinear(revenueValues);
+  const bookingPred = predictLinear(bookingValues);
 
   const predictions = [
     {
       tenant_id: tenantId,
-      metric: 'Latence moyenne (ms)',
       prediction_date: today.toISOString().split('T')[0],
       target_date: nextWeek.toISOString().split('T')[0],
-      type: 'latency',
-      predicted_value: Math.round(latencyPred.predicted * 100) / 100,
-      confidence_score: latencyPred.confidence,
-      baseline_value: Math.round(latencyValues.slice(0, 7).reduce((s, v) => s + v, 0) / Math.min(7, latencyValues.length) * 100) / 100,
+      type: 'revenue',
+      predicted_value: Math.round(revenuePred.predicted * 7 * 100) / 100,
+      confidence_score: revenuePred.confidence,
+      baseline_value: Math.round(revenueValues.slice(0, 7).reduce((s, v) => s + v, 0) * 100) / 100,
       details: { method: 'linear_regression', data_points: history.length },
     },
     {
       tenant_id: tenantId,
-      metric: 'Evenements securite',
       prediction_date: today.toISOString().split('T')[0],
       target_date: nextWeek.toISOString().split('T')[0],
-      type: 'security_events',
-      predicted_value: Math.round(securityPred.predicted * 7),
-      confidence_score: securityPred.confidence,
-      baseline_value: securityValues.slice(0, 7).reduce((s, v) => s + v, 0),
-      details: { method: 'linear_regression', data_points: history.length },
-    },
-    {
-      tenant_id: tenantId,
-      metric: 'Utilisation memoire (%)',
-      prediction_date: today.toISOString().split('T')[0],
-      target_date: nextWeek.toISOString().split('T')[0],
-      type: 'memory',
-      predicted_value: Math.round(memoryPred.predicted * 100) / 100,
-      confidence_score: memoryPred.confidence,
-      baseline_value: Math.round(memoryValues.slice(0, 7).reduce((s, v) => s + v, 0) / Math.min(7, memoryValues.length) * 100) / 100,
-      details: { method: 'linear_regression', data_points: history.length },
-    },
-    {
-      tenant_id: tenantId,
-      metric: 'Uptime serveur (heures)',
-      prediction_date: today.toISOString().split('T')[0],
-      target_date: nextWeek.toISOString().split('T')[0],
-      type: 'uptime',
-      predicted_value: Math.round(uptimePred.predicted / 3600), // Convert to hours
-      confidence_score: uptimePred.confidence,
-      baseline_value: Math.round(uptimeValues.slice(0, 7).reduce((s, v) => s + v, 0) / Math.min(7, uptimeValues.length) / 3600),
+      type: 'bookings',
+      predicted_value: Math.round(bookingPred.predicted * 7),
+      confidence_score: bookingPred.confidence,
+      baseline_value: bookingValues.slice(0, 7).reduce((s, v) => s + v, 0),
       details: { method: 'linear_regression', data_points: history.length },
     },
   ];

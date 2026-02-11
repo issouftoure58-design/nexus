@@ -5,6 +5,8 @@
 
 import { sendRemerciement, sendRappelJ1, sendDemandeAvis } from '../services/notificationService.js';
 import { getTenantConfig } from '../config/tenants/index.js';
+import { traiterToutesRelances } from '../services/relancesService.js';
+import { publishScheduledPosts } from './publishScheduledPosts.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -27,9 +29,12 @@ const CHECK_INTERVAL_MS = 60 * 1000;
 
 // Heures d'exécution des jobs
 const JOBS_SCHEDULE = {
-  remerciements: { hour: 10, minute: 0 },  // 10h00
-  rappelsJ1: { hour: 18, minute: 0 },       // 18h00
+  remerciements: { hour: 10, minute: 0 },   // 10h00
+  rappelsJ1: { hour: 18, minute: 0 },       // 18h00 (ancien système, désactivé)
   demandesAvis: { hour: 14, minute: 0 },    // 14h00 (J+2)
+  relance24h: { interval: 5 },              // Toutes les 5 minutes (timing exact 24h)
+  relancesFactures: { hour: 9, minute: 0 }, // 09h00 - Relances factures impayées
+  socialPublish: { interval: 15 },          // Toutes les 15 minutes (publication posts programmés)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -89,8 +94,96 @@ async function getRdvTerminesHier() {
 }
 
 /**
- * Récupère les RDV de demain pour rappel J-1
+ * Récupère les RDV entre 24h et 30h dans le futur
+ * Fenêtre large pour ne rater aucun RDV
+ * Le flag relance_24h_envoyee évite les doublons
+ *
+ * CORRECTION BUG #2: Fenêtre élargie de ±3min à 24-30h
+ * @returns {Promise<Array>} Liste des RDV à relancer
+ */
+async function getRdvDans24h() {
+  const db = getSupabase();
+  if (!db) {
+    console.log('[Scheduler] ⚠️ Supabase non configuré, skip');
+    return [];
+  }
+
+  const now = new Date();
+
+  // Fenêtre : entre 24h et 30h dans le futur
+  // Envoie rappel AU MOINS 24h avant, jusqu'à 30h avant
+  const dans24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const dans30h = new Date(now.getTime() + 30 * 60 * 60 * 1000);
+
+  // Dates au format YYYY-MM-DD
+  const date24h = dans24h.toISOString().split('T')[0];
+  const date30h = dans30h.toISOString().split('T')[0];
+
+  // Heures au format HH:MM
+  const heure24h = `${String(dans24h.getHours()).padStart(2, '0')}:${String(dans24h.getMinutes()).padStart(2, '0')}`;
+  const heure30h = `${String(dans30h.getHours()).padStart(2, '0')}:${String(dans30h.getMinutes()).padStart(2, '0')}`;
+
+  console.log(`[Scheduler] 🔍 Recherche RDV entre 24h et 30h: ${date24h} ${heure24h} → ${date30h} ${heure30h}`);
+
+  // Si les dates sont différentes (fenêtre traverse minuit), on doit faire 2 requêtes
+  let allData = [];
+
+  if (date24h === date30h) {
+    // Même jour : simple query
+    const { data, error } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+      .eq('date', date24h)
+      .gte('heure', heure24h)
+      .lte('heure', heure30h)
+      .in('statut', ['demande', 'confirme'])
+      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+    if (error) {
+      console.error('[Scheduler] ❌ Erreur query RDV 24h:', error.message);
+      return [];
+    }
+    allData = data || [];
+  } else {
+    // Fenêtre traverse minuit : 2 requêtes
+    // Partie 1 : date24h de heure24h à 23:59
+    const { data: data1, error: error1 } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+      .eq('date', date24h)
+      .gte('heure', heure24h)
+      .in('statut', ['demande', 'confirme'])
+      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+    // Partie 2 : date30h de 00:00 à heure30h
+    const { data: data2, error: error2 } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+      .eq('date', date30h)
+      .lte('heure', heure30h)
+      .in('statut', ['demande', 'confirme'])
+      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+    if (error1) console.error('[Scheduler] ❌ Erreur query date1:', error1.message);
+    if (error2) console.error('[Scheduler] ❌ Erreur query date2:', error2.message);
+
+    allData = [...(data1 || []), ...(data2 || [])];
+  }
+
+  console.log(`[Scheduler] 📋 ${allData.length} RDV trouvés pour relance 24h`);
+  return allData.map(r => ({
+    ...r,
+    client_nom: r.clients?.nom || '',
+    client_prenom: r.clients?.prenom || '',
+    client_telephone: r.telephone || r.clients?.telephone || '',
+    client_email: r.clients?.email || '',
+  }));
+}
+
+/**
+ * Récupère les RDV de demain pour rappel J-1 (ancien système - backup)
  * @returns {Promise<Array>} Liste des RDV
+ * @deprecated Utiliser getRdvDans24h() pour un timing exact
  */
 async function getRdvDemain() {
   const db = getSupabase();
@@ -193,8 +286,9 @@ async function markRemerciementEnvoye(rdvId) {
 }
 
 /**
- * Marque un RDV comme rappel J-1 envoyé
+ * Marque un RDV comme rappel J-1 envoyé (ancien système)
  * @param {string} rdvId - ID du RDV
+ * @deprecated Utiliser markRelance24hEnvoyee()
  */
 async function markRappelJ1Envoye(rdvId) {
   const db = getSupabase();
@@ -205,6 +299,50 @@ async function markRappelJ1Envoye(rdvId) {
     .eq('id', rdvId);
   if (error) console.error(`[Scheduler] Erreur mark rappel RDV ${rdvId}:`, error.message);
   else console.log(`[Scheduler] RDV ${rdvId} marqué comme rappel J-1 envoyé`);
+}
+
+/**
+ * Marque un RDV comme relance 24h envoyée (nouveau système)
+ * CORRECTION BUG #1: Utilise condition atomique pour éviter doublons
+ *
+ * @param {string} rdvId - ID du RDV
+ * @param {string} telephone - Téléphone du client (pour log)
+ * @returns {Promise<boolean>} true si marqué avec succès, false si déjà marqué
+ */
+async function markRelance24hEnvoyee(rdvId, telephone = '') {
+  const db = getSupabase();
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+
+  // IMPORTANT: Update conditionnel - ne met à jour QUE si pas déjà envoyé
+  // Cela évite les doublons en cas de race condition
+  const { data, error } = await db
+    .from('reservations')
+    .update({
+      relance_24h_envoyee: true,
+      relance_24h_date: now,
+      // Aussi mettre à jour l'ancien champ pour compatibilité
+      rappel_j1_envoye: true,
+      rappel_j1_date: now
+    })
+    .eq('id', rdvId)
+    .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false')
+    .select('id');
+
+  if (error) {
+    console.error(`[Scheduler] ❌ Erreur mark relance 24h RDV ${rdvId}:`, error.message);
+    return false;
+  }
+
+  // Si aucune ligne mise à jour, c'est que la relance était déjà envoyée
+  if (!data || data.length === 0) {
+    console.log(`[Scheduler] ⏭️ RDV ${rdvId} déjà marqué (race condition évitée)`);
+    return false;
+  }
+
+  console.log(`[Scheduler] ✅ RDV ${rdvId} marqué relance_24h_envoyee=true (tel: ...${telephone.slice(-4) || '****'})`);
+  return true;
 }
 
 /**
@@ -316,13 +454,100 @@ export async function sendRemerciementsJ1() {
 }
 
 /**
- * Job: Envoyer les rappels J-1
+ * Job: Envoyer les relances 24-30h avant le RDV
+ * S'exécute toutes les 5 minutes
+ * UN SEUL SMS/EMAIL par client grâce au flag relance_24h_envoyee
+ *
+ * CORRECTION BUG #1: Marquage atomique AVANT envoi pour éviter doublons
+ * CORRECTION BUG #2: Fenêtre 24-30h au lieu de ±3 minutes
+ */
+export async function sendRelance24hJob() {
+  const jobName = 'sendRelance24h';
+  console.log(`\n[Scheduler] ⏰ Job ${jobName} - ${new Date().toLocaleTimeString('fr-FR')}`);
+
+  try {
+    const rdvs = await getRdvDans24h();
+
+    if (rdvs.length === 0) {
+      // Log silencieux pour ne pas polluer les logs
+      return { success: true, sent: 0, errors: 0, skipped: 0 };
+    }
+
+    console.log(`[Scheduler] 📬 ${rdvs.length} RDV candidats pour relance 24h`);
+
+    let sent = 0;
+    let errors = 0;
+    let skipped = 0;
+
+    for (const rdv of rdvs) {
+      try {
+        // Vérification préliminaire (peut être déjà filtré par la query)
+        if (rdv.relance_24h_envoyee === true) {
+          console.log(`[Scheduler] ⏭️ RDV ${rdv.id}: relance déjà envoyée, skip`);
+          skipped++;
+          continue;
+        }
+
+        const telephone = rdv.client_telephone || rdv.telephone;
+        if (!telephone) {
+          console.log(`[Scheduler] ⚠️ RDV ${rdv.id}: pas de téléphone, skip`);
+          skipped++;
+          continue;
+        }
+
+        // CORRECTION BUG #1: Marquer AVANT d'envoyer (atomique)
+        // Si retourne false = déjà marqué par un autre processus
+        const marked = await markRelance24hEnvoyee(rdv.id, telephone);
+        if (!marked) {
+          console.log(`[Scheduler] ⏭️ RDV ${rdv.id}: déjà traité (race condition), skip`);
+          skipped++;
+          continue;
+        }
+
+        console.log(`[Scheduler] 📤 Envoi relance 24h RDV ${rdv.id} - ${rdv.date} ${rdv.heure} - Tel: ...${telephone.slice(-4)}`);
+
+        const acompte = rdv.acompte || 10;
+        const tenantId = rdv.tenant_id || 'fatshairafro';
+        const result = await sendRappelJ1(rdv, acompte, tenantId);
+
+        // Au moins un canal a fonctionné = succès
+        if (result.email.success || result.whatsapp.success) {
+          sent++;
+          console.log(`[Scheduler] ✅ Relance 24h envoyée: RDV ${rdv.id} - ${rdv.client_prenom || rdv.client_nom} (Email: ${result.email.success ? '✓' : '✗'}, WhatsApp: ${result.whatsapp.success ? '✓' : '✗'})`);
+        } else {
+          // Même si l'envoi échoue, on garde le flag pour éviter spam
+          // L'admin peut voir dans les logs et renvoyer manuellement si besoin
+          errors++;
+          console.error(`[Scheduler] ❌ Échec relance RDV ${rdv.id} (flag conservé pour éviter spam):`, {
+            email: result.email.error,
+            whatsapp: result.whatsapp.error
+          });
+        }
+      } catch (error) {
+        errors++;
+        console.error(`[Scheduler] ❌ Erreur relance RDV ${rdv.id}:`, error.message);
+      }
+    }
+
+    if (sent > 0 || errors > 0 || skipped > 0) {
+      console.log(`[Scheduler] ⏰ Fin ${jobName}: ${sent} envoyés, ${skipped} skippés, ${errors} erreurs`);
+    }
+    return { success: true, sent, errors, skipped };
+
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Job: Envoyer les rappels J-1 (ancien système - backup)
  * S'exécute tous les jours à 18h
- * Rappelle aux clients leur RDV du lendemain
+ * @deprecated Utiliser sendRelance24hJob() pour un timing exact
  */
 export async function sendRappelsJ1Job() {
   const jobName = 'sendRappelsJ1';
-  console.log(`\n[Scheduler] 📅 Début job: ${jobName}`);
+  console.log(`\n[Scheduler] 📅 Début job: ${jobName} (ancien système)`);
 
   try {
     const rdvs = await getRdvDemain();
@@ -447,6 +672,32 @@ export async function sendDemandeAvisJ2() {
 // ============= SCHEDULER =============
 
 /**
+ * Job: Envoyer les relances factures impayées
+ * S'exécute tous les jours à 9h
+ * Traite les 4 niveaux de relance (J-15, J+1, J+7, J+15)
+ */
+export async function sendRelancesFacturesJob() {
+  const jobName = 'sendRelancesFactures';
+  console.log(`\n[Scheduler] 💰 Début job: ${jobName} - ${new Date().toLocaleString('fr-FR')}`);
+
+  try {
+    const result = await traiterToutesRelances();
+
+    console.log(`[Scheduler] 💰 Fin job ${jobName}: ${result.totalEnvoyees || 0} relances envoyées, ${result.totalErreurs || 0} erreurs`);
+    return {
+      success: true,
+      envoyees: result.totalEnvoyees || 0,
+      erreurs: result.totalErreurs || 0,
+      details: result.details
+    };
+
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Vérifie si un job doit s'exécuter maintenant
  * @param {string} jobName - Nom du job
  * @param {Object} schedule - { hour, minute }
@@ -488,6 +739,12 @@ function markJobExecuted(jobName) {
   }
 }
 
+// Tracking du dernier run de la relance 24h (toutes les 5 minutes)
+let lastRelance24hRun = 0;
+
+// Tracking du dernier run de la publication sociale (toutes les 15 minutes)
+let lastSocialPublishRun = 0;
+
 /**
  * Boucle principale du scheduler
  */
@@ -498,16 +755,41 @@ async function runScheduler() {
     await sendRemerciementsJ1();
   }
 
-  // Job: Rappels J-1 à 18h
-  if (shouldRunJob('rappelsJ1', JOBS_SCHEDULE.rappelsJ1)) {
-    markJobExecuted('rappelsJ1');
-    await sendRappelsJ1Job();
+  // Job: Relance 24h exacte (toutes les 5 minutes)
+  const now = Date.now();
+  const interval = JOBS_SCHEDULE.relance24h.interval * 60 * 1000; // 5 min en ms
+  if (now - lastRelance24hRun >= interval) {
+    lastRelance24hRun = now;
+    await sendRelance24hJob();
   }
+
+  // Job: Rappels J-1 à 18h (DÉSACTIVÉ - remplacé par relance 24h exacte)
+  // if (shouldRunJob('rappelsJ1', JOBS_SCHEDULE.rappelsJ1)) {
+  //   markJobExecuted('rappelsJ1');
+  //   await sendRappelsJ1Job();
+  // }
 
   // Job: Demandes d'avis à 14h (OPTIONNEL - désactivé par défaut)
   if (OPTIONAL_JOBS.demandesAvis && shouldRunJob('demandesAvis', JOBS_SCHEDULE.demandesAvis)) {
     markJobExecuted('demandesAvis');
     await sendDemandeAvisJ2();
+  }
+
+  // Job: Relances factures à 9h
+  if (shouldRunJob('relancesFactures', JOBS_SCHEDULE.relancesFactures)) {
+    markJobExecuted('relancesFactures');
+    await sendRelancesFacturesJob();
+  }
+
+  // Job: Publication posts programmés (toutes les 15 minutes)
+  const socialInterval = JOBS_SCHEDULE.socialPublish.interval * 60 * 1000; // 15 min en ms
+  if (now - lastSocialPublishRun >= socialInterval) {
+    lastSocialPublishRun = now;
+    try {
+      await publishScheduledPosts();
+    } catch (err) {
+      console.error('[Scheduler] Erreur publication sociale:', err.message);
+    }
   }
 }
 
@@ -526,8 +808,11 @@ export function startScheduler() {
 
   console.log('[Scheduler] 🚀 Démarrage du scheduler');
   console.log('[Scheduler] Jobs planifiés:');
+  console.log(`  ✅ Relances factures: tous les jours à ${JOBS_SCHEDULE.relancesFactures.hour}h${String(JOBS_SCHEDULE.relancesFactures.minute).padStart(2, '0')} (4 niveaux)`);
   console.log(`  ✅ Remerciements J+1: tous les jours à ${JOBS_SCHEDULE.remerciements.hour}h${String(JOBS_SCHEDULE.remerciements.minute).padStart(2, '0')}`);
-  console.log(`  ✅ Rappels J-1: tous les jours à ${JOBS_SCHEDULE.rappelsJ1.hour}h${String(JOBS_SCHEDULE.rappelsJ1.minute).padStart(2, '0')}`);
+  console.log(`  ✅ Relance 24h exacte: toutes les ${JOBS_SCHEDULE.relance24h.interval} minutes (timing précis)`);
+  console.log(`  ✅ Publication sociale: toutes les ${JOBS_SCHEDULE.socialPublish.interval} minutes (posts programmés)`);
+  console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
   if (OPTIONAL_JOBS.demandesAvis) {
@@ -554,7 +839,7 @@ export function stopScheduler() {
 
 /**
  * Exécute un job manuellement (pour tests)
- * @param {string} jobName - 'remerciements' | 'rappelsJ1' | 'demandesAvis'
+ * @param {string} jobName - 'remerciements' | 'rappelsJ1' | 'relance24h' | 'relancesFactures' | 'demandesAvis'
  */
 export async function runJobManually(jobName) {
   console.log(`[Scheduler] 🔧 Exécution manuelle: ${jobName}`);
@@ -564,6 +849,10 @@ export async function runJobManually(jobName) {
       return await sendRemerciementsJ1();
     case 'rappelsJ1':
       return await sendRappelsJ1Job();
+    case 'relance24h':
+      return await sendRelance24hJob();
+    case 'relancesFactures':
+      return await sendRelancesFacturesJob();
     case 'demandesAvis':
       return await sendDemandeAvisJ2();
     default:
@@ -586,6 +875,8 @@ export default {
   runJobManually,
   sendRemerciementsJ1,
   sendRappelsJ1Job,
+  sendRelance24hJob,
+  sendRelancesFacturesJob,
   sendDemandeAvisJ2,
   isAvisJobEnabled,
 };

@@ -1,6 +1,11 @@
 /**
- * Job pour publier les posts programmés
- * Vérifie toutes les minutes s'il y a des posts à publier
+ * ╔═══════════════════════════════════════════════════════════════════╗
+ * ║   Job de publication des posts programmés                          ║
+ * ╠═══════════════════════════════════════════════════════════════════╣
+ * ║   - Vérifie toutes les 15 minutes s'il y a des posts à publier    ║
+ * ║   - Publie sur les plateformes configurées (Facebook, LinkedIn)   ║
+ * ║   - Met à jour le statut du post après publication                ║
+ * ╚═══════════════════════════════════════════════════════════════════╝
  */
 
 import { publishToSocialMedia } from '../services/socialMediaService.js';
@@ -22,12 +27,12 @@ export async function publishScheduledPosts() {
 
     const now = new Date();
 
-    // Récupérer les posts à publier (statut pending et heure passée)
+    // Récupérer les posts programmés dont l'heure est passée
     const { data: posts, error } = await supabase
-      .from('scheduled_posts')
+      .from('social_posts')
       .select('*')
-      .eq('status', 'pending')
-      .lte('scheduled_time', now.toISOString());
+      .eq('status', 'scheduled')
+      .lte('scheduled_at', now.toISOString());
 
     if (error) {
       // Si la table n'existe pas, ne pas logger d'erreur
@@ -46,23 +51,29 @@ export async function publishScheduledPosts() {
 
     for (const post of posts) {
       try {
-        console.log(`[SCHEDULED] Publication du post ${post.id}...`);
+        console.log(`[SCHEDULED] Publication du post ${post.id} sur ${post.platforms?.join(', ')}...`);
+
+        // Récupérer l'URL média si disponible
+        const mediaUrl = post.media_urls && post.media_urls.length > 0
+          ? post.media_urls[0]
+          : null;
 
         const results = await publishToSocialMedia(
-          post.platforms,
+          post.platforms || [],
           post.content,
-          post.media_url,
-          post.media_type || 'image'
+          mediaUrl,
+          'image'
         );
 
         const allSuccess = results.resultats?.every(r => r.success) || false;
 
         // Mettre à jour le statut du post
         const { error: updateError } = await supabase
-          .from('scheduled_posts')
+          .from('social_posts')
           .update({
             status: allSuccess ? 'published' : 'failed',
-            results: results,
+            published_at: allSuccess ? new Date().toISOString() : null,
+            error_message: allSuccess ? null : JSON.stringify(results.resultats?.filter(r => !r.success) || []),
             updated_at: new Date().toISOString()
           })
           .eq('id', post.id);
@@ -89,10 +100,10 @@ export async function publishScheduledPosts() {
 
         // Marquer comme failed en cas d'erreur
         await supabase
-          .from('scheduled_posts')
+          .from('social_posts')
           .update({
             status: 'failed',
-            results: { error: postError.message },
+            error_message: postError.message,
             updated_at: new Date().toISOString()
           })
           .eq('id', post.id);
@@ -108,16 +119,16 @@ export async function publishScheduledPosts() {
 
 /**
  * Démarre le job de publication programmée
- * @param {number} intervalMs - Intervalle en millisecondes (défaut: 60000 = 1 minute)
+ * @param {number} intervalMs - Intervalle en millisecondes (défaut: 15 minutes)
  */
-export function startScheduledPostsJob(intervalMs = 60 * 1000) {
+export function startScheduledPostsJob(intervalMs = 15 * 60 * 1000) {
   console.log('[SCHEDULED] Job de publication programmée démarré');
-  console.log(`[SCHEDULED] Vérification toutes les ${intervalMs / 1000} secondes`);
+  console.log(`[SCHEDULED] Vérification toutes les ${intervalMs / 1000 / 60} minutes`);
 
   // Exécuter une première fois au démarrage
   publishScheduledPosts();
 
-  // Puis à intervalle régulier
+  // Puis à intervalle régulier (15 min par défaut)
   const intervalId = setInterval(publishScheduledPosts, intervalMs);
 
   // Retourner l'ID pour pouvoir arrêter le job si nécessaire
