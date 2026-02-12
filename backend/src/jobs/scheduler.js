@@ -6,7 +6,10 @@
 import { sendRemerciement, sendRappelJ1, sendDemandeAvis } from '../services/notificationService.js';
 import { getTenantConfig } from '../config/tenants/index.js';
 import { traiterToutesRelances } from '../services/relancesService.js';
+import { traiterToutesRelancesJ7J14J21 } from './relancesFacturesJob.js';
 import { publishScheduledPosts } from './publishScheduledPosts.js';
+import { checkStockLevels } from './stockAlertes.js';
+import { jobIntelligenceMonitoring } from '../ai/intelligenceMonitor.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -33,8 +36,11 @@ const JOBS_SCHEDULE = {
   rappelsJ1: { hour: 18, minute: 0 },       // 18h00 (ancien système, désactivé)
   demandesAvis: { hour: 14, minute: 0 },    // 14h00 (J+2)
   relance24h: { interval: 5 },              // Toutes les 5 minutes (timing exact 24h)
-  relancesFactures: { hour: 9, minute: 0 }, // 09h00 - Relances factures impayées
+  relancesFactures: { hour: 9, minute: 0 }, // 09h00 - Relances factures impayées (ancien système)
+  relancesJ7J14J21: { hour: 9, minute: 30 }, // 09h30 - Relances J+7, J+14, J+21 (nouveau système)
   socialPublish: { interval: 15 },          // Toutes les 15 minutes (publication posts programmés)
+  stockAlertes: { interval: 60 },           // Toutes les heures (vérification stock - Plan PRO)
+  intelligenceMonitoring: { interval: 60 }, // Toutes les heures (surveillance IA - Plan Business)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -672,7 +678,7 @@ export async function sendDemandeAvisJ2() {
 // ============= SCHEDULER =============
 
 /**
- * Job: Envoyer les relances factures impayées
+ * Job: Envoyer les relances factures impayées (ancien système 4 niveaux)
  * S'exécute tous les jours à 9h
  * Traite les 4 niveaux de relance (J-15, J+1, J+7, J+15)
  */
@@ -684,6 +690,32 @@ export async function sendRelancesFacturesJob() {
     const result = await traiterToutesRelances();
 
     console.log(`[Scheduler] 💰 Fin job ${jobName}: ${result.totalEnvoyees || 0} relances envoyées, ${result.totalErreurs || 0} erreurs`);
+    return {
+      success: true,
+      envoyees: result.totalEnvoyees || 0,
+      erreurs: result.totalErreurs || 0,
+      details: result.details
+    };
+
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Job: Envoyer les relances factures J+7, J+14, J+21
+ * S'exécute tous les jours à 9h30
+ * Nouveau système de relances automatiques
+ */
+export async function sendRelancesJ7J14J21Job() {
+  const jobName = 'sendRelancesJ7J14J21';
+  console.log(`\n[Scheduler] 📧 Début job: ${jobName} - ${new Date().toLocaleString('fr-FR')}`);
+
+  try {
+    const result = await traiterToutesRelancesJ7J14J21();
+
+    console.log(`[Scheduler] 📧 Fin job ${jobName}: ${result.totalEnvoyees || 0} relances envoyées, ${result.totalErreurs || 0} erreurs`);
     return {
       success: true,
       envoyees: result.totalEnvoyees || 0,
@@ -745,6 +777,12 @@ let lastRelance24hRun = 0;
 // Tracking du dernier run de la publication sociale (toutes les 15 minutes)
 let lastSocialPublishRun = 0;
 
+// Tracking du dernier run des alertes stock (toutes les heures)
+let lastStockAlertesRun = 0;
+
+// Tracking du dernier run de l'intelligence monitoring (toutes les heures - Plan Business)
+let lastIntelligenceMonitoringRun = 0;
+
 /**
  * Boucle principale du scheduler
  */
@@ -775,10 +813,16 @@ async function runScheduler() {
     await sendDemandeAvisJ2();
   }
 
-  // Job: Relances factures à 9h
+  // Job: Relances factures à 9h (ancien système)
   if (shouldRunJob('relancesFactures', JOBS_SCHEDULE.relancesFactures)) {
     markJobExecuted('relancesFactures');
     await sendRelancesFacturesJob();
+  }
+
+  // Job: Relances J+7/J+14/J+21 à 9h30 (nouveau système)
+  if (shouldRunJob('relancesJ7J14J21', JOBS_SCHEDULE.relancesJ7J14J21)) {
+    markJobExecuted('relancesJ7J14J21');
+    await sendRelancesJ7J14J21Job();
   }
 
   // Job: Publication posts programmés (toutes les 15 minutes)
@@ -789,6 +833,28 @@ async function runScheduler() {
       await publishScheduledPosts();
     } catch (err) {
       console.error('[Scheduler] Erreur publication sociale:', err.message);
+    }
+  }
+
+  // Job: Alertes stock (toutes les heures - Plan PRO)
+  const stockInterval = JOBS_SCHEDULE.stockAlertes.interval * 60 * 1000; // 60 min en ms
+  if (now - lastStockAlertesRun >= stockInterval) {
+    lastStockAlertesRun = now;
+    try {
+      await checkStockLevels();
+    } catch (err) {
+      console.error('[Scheduler] Erreur alertes stock:', err.message);
+    }
+  }
+
+  // Job: Intelligence Monitoring (toutes les heures - Plan Business)
+  const intelligenceInterval = JOBS_SCHEDULE.intelligenceMonitoring.interval * 60 * 1000; // 60 min en ms
+  if (now - lastIntelligenceMonitoringRun >= intelligenceInterval) {
+    lastIntelligenceMonitoringRun = now;
+    try {
+      await jobIntelligenceMonitoring();
+    } catch (err) {
+      console.error('[Scheduler] Erreur intelligence monitoring:', err.message);
     }
   }
 }
@@ -808,10 +874,13 @@ export function startScheduler() {
 
   console.log('[Scheduler] 🚀 Démarrage du scheduler');
   console.log('[Scheduler] Jobs planifiés:');
-  console.log(`  ✅ Relances factures: tous les jours à ${JOBS_SCHEDULE.relancesFactures.hour}h${String(JOBS_SCHEDULE.relancesFactures.minute).padStart(2, '0')} (4 niveaux)`);
+  console.log(`  ✅ Relances J+7/J+14/J+21: tous les jours à ${JOBS_SCHEDULE.relancesJ7J14J21.hour}h${String(JOBS_SCHEDULE.relancesJ7J14J21.minute).padStart(2, '0')} (nouveau système)`);
+  console.log(`  ✅ Relances factures (legacy): tous les jours à ${JOBS_SCHEDULE.relancesFactures.hour}h${String(JOBS_SCHEDULE.relancesFactures.minute).padStart(2, '0')} (4 niveaux)`);
   console.log(`  ✅ Remerciements J+1: tous les jours à ${JOBS_SCHEDULE.remerciements.hour}h${String(JOBS_SCHEDULE.remerciements.minute).padStart(2, '0')}`);
   console.log(`  ✅ Relance 24h exacte: toutes les ${JOBS_SCHEDULE.relance24h.interval} minutes (timing précis)`);
   console.log(`  ✅ Publication sociale: toutes les ${JOBS_SCHEDULE.socialPublish.interval} minutes (posts programmés)`);
+  console.log(`  ✅ Alertes stock: toutes les ${JOBS_SCHEDULE.stockAlertes.interval} minutes (Plan PRO)`);
+  console.log(`  ✅ Intelligence IA: toutes les ${JOBS_SCHEDULE.intelligenceMonitoring.interval} minutes (Plan Business)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
@@ -853,8 +922,14 @@ export async function runJobManually(jobName) {
       return await sendRelance24hJob();
     case 'relancesFactures':
       return await sendRelancesFacturesJob();
+    case 'relancesJ7J14J21':
+      return await sendRelancesJ7J14J21Job();
     case 'demandesAvis':
       return await sendDemandeAvisJ2();
+    case 'stockAlertes':
+      return await checkStockLevels();
+    case 'intelligenceMonitoring':
+      return await jobIntelligenceMonitoring();
     default:
       throw new Error(`Job inconnu: ${jobName}`);
   }
@@ -877,6 +952,9 @@ export default {
   sendRappelsJ1Job,
   sendRelance24hJob,
   sendRelancesFacturesJob,
+  sendRelancesJ7J14J21Job,
   sendDemandeAvisJ2,
+  checkStockLevels,
+  jobIntelligenceMonitoring,
   isAvisJobEnabled,
 };
