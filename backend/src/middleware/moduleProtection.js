@@ -50,6 +50,44 @@ const MODULE_TYPES = {
 };
 
 /**
+ * Plan features mapping (pas de table plans, on utilise le plan_id directement)
+ */
+const PLAN_FEATURES = {
+  starter: {
+    reservations: true,
+    ecommerce: true,
+    paiements: true,
+  },
+  pro: {
+    reservations: true,
+    ecommerce: true,
+    paiements: true,
+    comptabilite: true,
+    crm_avance: true,
+    marketing_automation: true,
+    commercial: true,
+    stock_inventaire: true,
+    analytics_avances: true,
+    rh_multiemployes: true,
+  },
+  business: {
+    reservations: true,
+    ecommerce: true,
+    paiements: true,
+    comptabilite: true,
+    crm_avance: true,
+    marketing_automation: true,
+    commercial: true,
+    stock_inventaire: true,
+    analytics_avances: true,
+    rh_multiemployes: true,
+    seo_visibilite: true,
+    api_integrations: true,
+    white_label: true,
+  }
+};
+
+/**
  * Récupère la config complète d'un tenant (avec cache)
  */
 async function getTenantConfig(tenantId) {
@@ -67,7 +105,7 @@ async function getTenantConfig(tenantId) {
       options_canaux_actifs,
       module_metier_id,
       module_metier_paye,
-      plan:plans(*)
+      modules_actifs
     `)
     .eq('id', tenantId)
     .single();
@@ -77,10 +115,14 @@ async function getTenantConfig(tenantId) {
     return null;
   }
 
+  // Utiliser le mapping PLAN_FEATURES au lieu d'une table plans
+  const planId = tenant.plan_id || 'starter';
+  const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
+
   const config = {
-    plan_id: tenant.plan_id,
-    plan: tenant.plan,
-    options_canaux: tenant.options_canaux_actifs || {},
+    plan_id: planId,
+    plan: planFeatures,
+    options_canaux: tenant.options_canaux_actifs || tenant.modules_actifs || {},
     module_metier_id: tenant.module_metier_id,
     module_metier_paye: tenant.module_metier_paye
   };

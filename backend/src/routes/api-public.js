@@ -12,6 +12,7 @@ import {
   hashApiKey,
   API_SCOPES
 } from '../middleware/apiAuth.js';
+import { requireClientsQuota } from '../middleware/quotas.js';
 
 const router = express.Router();
 
@@ -133,8 +134,9 @@ router.get('/clients/:id', requireScope('read:clients'), async (req, res) => {
 /**
  * POST /api/v1/clients
  * Creer un nouveau client
+ * 🔒 QUOTA CHECK: Vérifie limite clients selon plan
  */
-router.post('/clients', requireScope('write:clients'), async (req, res) => {
+router.post('/clients', requireScope('write:clients'), requireClientsQuota, async (req, res) => {
   try {
     const { nom, prenom, email, telephone, adresse, notes, tags } = req.body;
 

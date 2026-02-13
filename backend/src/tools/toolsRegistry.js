@@ -1846,6 +1846,90 @@ const TOOLS_ADMIN_COMPTABLE = [
 ];
 
 // ============================================
+// OUTILS ADMIN PRO - Capabilities avancées (Pro/Business uniquement)
+// ============================================
+
+const TOOLS_ADMIN_PRO = [
+  {
+    name: "executeAdvancedQuery",
+    description: `Execute une requête avancée sur les données du tenant en langage naturel.
+      Exemples:
+      - "Tous les clients inactifs depuis plus de 90 jours"
+      - "Top 5 des services les plus réservés ce mois"
+      - "Clients qui ont dépensé plus de 500€ cette année"
+      - "Taux d'annulation par jour de la semaine"
+      - "Chiffre d'affaires du mois"`,
+    input_schema: {
+      type: "object",
+      properties: {
+        query_description: {
+          type: "string",
+          description: "Description en langage naturel de la requête souhaitée"
+        }
+      },
+      required: ["query_description"]
+    }
+  },
+  {
+    name: "createAutomation",
+    description: `Crée une automation (workflow automatique).
+      Exemples:
+      - "Relancer automatiquement les clients sans RDV depuis 60 jours"
+      - "Envoyer SMS de rappel 24h avant chaque RDV"
+      - "Ajouter tag VIP aux clients avec + de 10 RDV"
+      - "Envoyer email d'anniversaire aux clients"`,
+    input_schema: {
+      type: "object",
+      properties: {
+        automation_description: {
+          type: "string",
+          description: "Description de l'automation à créer"
+        }
+      },
+      required: ["automation_description"]
+    }
+  },
+  {
+    name: "scheduleTask",
+    description: `Planifie une tâche à exécuter régulièrement.
+      Exemples:
+      - "Envoyer promo -20% tous les lundis à 9h"
+      - "Exporter liste clients tous les 1er du mois"
+      - "Rappel stock bas tous les vendredis"
+      - "Rapport hebdomadaire chaque dimanche"`,
+    input_schema: {
+      type: "object",
+      properties: {
+        task_description: {
+          type: "string",
+          description: "Description de la tâche à planifier"
+        }
+      },
+      required: ["task_description"]
+    }
+  },
+  {
+    name: "analyzePattern",
+    description: `Analyse des patterns dans les données métier.
+      Exemples:
+      - "Quel service marche le mieux le samedi ?"
+      - "Quand est-ce qu'on a le plus d'annulations ?"
+      - "Quel est le profil type de nos clients VIP ?"
+      - "Quels créneaux horaires sont les plus demandés ?"`,
+    input_schema: {
+      type: "object",
+      properties: {
+        question: {
+          type: "string",
+          description: "Question d'analyse métier"
+        }
+      },
+      required: ["question"]
+    }
+  }
+];
+
+// ============================================
 // OUTILS ADMIN - RH (Ressources Humaines)
 // ============================================
 
@@ -2072,8 +2156,71 @@ export const TOOLS_ADMIN = [
   // Sandbox
   ...TOOLS_ADMIN_SANDBOX,
   // Environnements
-  ...TOOLS_ADMIN_ENVIRONNEMENTS
+  ...TOOLS_ADMIN_ENVIRONNEMENTS,
+  // PRO/BUSINESS - Capabilities avancées
+  ...TOOLS_ADMIN_PRO
 ];
+
+// ============================================
+// OUTILS PAR PLAN (Starter, Pro, Business)
+// ============================================
+
+/**
+ * Retourne les outils disponibles selon le plan du tenant
+ * - Starter: Outils de base
+ * - Pro: Outils de base + Analytics + Pro capabilities
+ * - Business: Tous les outils
+ */
+export function getToolsForPlan(plan) {
+  const basePlan = plan?.toLowerCase() || 'starter';
+
+  // Outils de base (tous les plans)
+  const baseTools = [
+    ...TOOLS_CLIENT,
+    ...TOOLS_ADMIN_GESTION,
+    ...TOOLS_ADMIN_MARKETING,
+    ...TOOLS_ADMIN_COMMERCIAL,
+    ...TOOLS_ADMIN_COMPTABLE,
+    ...TOOLS_ADMIN_CONTENU,
+    ...TOOLS_ADMIN_MEMOIRE,
+    ...TOOLS_ADMIN_PLANIFICATION,
+    ...TOOLS_ADMIN_FICHIERS
+  ];
+
+  // Plan Starter: outils de base uniquement
+  if (basePlan === 'starter') {
+    return baseTools;
+  }
+
+  // Plan Pro: base + analytics + stratégie + PRO capabilities
+  if (basePlan === 'pro') {
+    return [
+      ...baseTools,
+      ...TOOLS_ADMIN_ANALYTICS,
+      ...TOOLS_ADMIN_STRATEGIE,
+      ...TOOLS_ADMIN_PRO
+    ];
+  }
+
+  // Plan Business: TOUS les outils
+  if (basePlan === 'business' || basePlan === 'enterprise') {
+    return TOOLS_ADMIN;
+  }
+
+  // Fallback: starter
+  return baseTools;
+}
+
+/**
+ * Vérifie si un outil est disponible pour un plan donné
+ */
+export function isToolAvailableForPlan(toolName, plan) {
+  const availableTools = getToolsForPlan(plan);
+  return availableTools.some(t => t.name === toolName);
+}
+
+// Export des outils PRO pour import externe
+export { TOOLS_ADMIN_PRO };
 
 // ============================================
 // HELPERS

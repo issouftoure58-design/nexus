@@ -1,6 +1,8 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireClientsQuota } from '../middleware/quotas.js';
+import { triggerWorkflows } from '../automation/workflowEngine.js';
 
 const router = express.Router();
 
@@ -93,7 +95,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/clients
 // Créer un nouveau client
-router.post('/', authenticateAdmin, async (req, res) => {
+// 🔒 QUOTA CHECK: Vérifie limite clients selon plan (Starter: 1000, Pro: 3000, Business: illimité)
+router.post('/', authenticateAdmin, requireClientsQuota, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
@@ -142,6 +145,16 @@ router.post('/', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     console.log('[ADMIN CLIENTS] Nouveau client créé:', client.id, `${prenom} ${nom}`);
+
+    // Déclencher les workflows "new_client"
+    try {
+      await triggerWorkflows('new_client', {
+        tenant_id: tenantId,
+        entity: { ...client, type: 'client' }
+      });
+    } catch (workflowErr) {
+      console.error('[ADMIN CLIENTS] Erreur workflow (non bloquant):', workflowErr.message);
+    }
 
     res.status(201).json({
       success: true,

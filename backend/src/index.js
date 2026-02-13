@@ -37,6 +37,23 @@ import rhRoutes from './routes/rh.js';
 import apiPublicRoutes from './routes/api-public.js';
 import brandingRoutes from './routes/branding.js';
 import sentinelRoutes from './routes/sentinel.js';
+import quotasRoutes from './routes/quotas.js';
+import tenantsRoutes from './routes/tenants.js';
+import segmentsRoutes from './routes/adminSegments.js';
+import workflowsRoutes from './routes/adminWorkflows.js';
+import pipelineRoutes from './routes/adminPipeline.js';
+import comptaRoutes from './routes/adminCompta.js';
+import adminSEORoutes from './routes/adminSEO.js';
+import adminAnalyticsRoutes from './routes/adminAnalytics.js';
+import adminRHRoutes from './routes/adminRH.js';
+import adminClientsRoutes from './routes/adminClients.js';
+import adminReservationsRoutes from './routes/adminReservations.js';
+import adminServicesRoutes from './routes/adminServices.js';
+import adminStatsRoutes from './routes/adminStats.js';
+import adminOrdersRoutes from './routes/adminOrders.js';
+import adminDisponibilitesRoutes from './routes/adminDisponibilites.js';
+import adminParametresRoutes from './routes/adminParametres.js';
+import adminAgentsRoutes from './routes/adminAgents.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -137,6 +154,27 @@ app.use('/api/admin/chat', adminChatRoutes);
 // Routes Admin Modules (activation/désactivation)
 app.use('/api/admin/modules', adminModulesRoutes);
 
+// Routes Admin Segments CRM (Pro/Business)
+app.use('/api/admin/segments', segmentsRoutes);
+
+// Routes Admin Workflows Marketing Automation (Pro/Business)
+app.use('/api/admin/workflows', workflowsRoutes);
+
+// Routes Admin Pipeline Commercial (Pro/Business)
+app.use('/api/admin/pipeline', pipelineRoutes);
+
+// Routes Admin Comptabilité P&L (Pro/Business)
+app.use('/api/admin/compta', comptaRoutes);
+
+// Routes Admin SEO (Business)
+app.use('/api/admin/seo', adminSEORoutes);
+
+// Routes Admin Analytics Prédictifs (Business)
+app.use('/api/admin/analytics', adminAnalyticsRoutes);
+
+// Routes Admin RH Equipe (Business)
+app.use('/api/admin/rh', adminRHRoutes);
+
 // Routes Relances factures
 app.use('/api/relances', relancesRoutes);
 
@@ -181,6 +219,23 @@ app.use('/api/branding', brandingRoutes);
 
 // Routes SENTINEL Analytics (Business plan)
 app.use('/api/sentinel', sentinelRoutes);
+
+// Routes Quotas (usage par plan Starter/Pro/Business)
+app.use('/api/quotas', quotasRoutes);
+app.use('/api/admin/quotas', quotasRoutes); // Alias pour admin-ui
+
+// Routes Tenants (configuration multi-tenant)
+app.use('/api/tenants', tenantsRoutes);
+
+// Routes Admin Core (clients, reservations, services, etc.)
+app.use('/api/admin/clients', adminClientsRoutes);
+app.use('/api/admin/reservations', adminReservationsRoutes);
+app.use('/api/admin/services', adminServicesRoutes);
+app.use('/api/admin/stats', adminStatsRoutes);
+app.use('/api/admin/orders', adminOrdersRoutes);
+app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
+app.use('/api/admin/parametres', adminParametresRoutes);
+app.use('/api/admin/agents', adminAgentsRoutes);
 
 // Route 404
 app.use((req, res) => {
@@ -379,6 +434,21 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  POST /api/sentinel/insights/ask          - Demander conseil IA');
   console.log('  GET  /api/sentinel/goals                 - Objectifs');
   console.log('  PUT  /api/sentinel/goals                 - Modifier objectifs');
+  console.log('');
+  console.log('🎯 Pipeline Commercial (Pro/Business):');
+  console.log('  GET  /api/admin/pipeline                 - Pipeline Kanban');
+  console.log('  POST /api/admin/pipeline                 - Créer opportunité');
+  console.log('  PATCH /api/admin/pipeline/:id/etape      - Déplacer (drag&drop)');
+  console.log('  GET  /api/admin/pipeline/stats/summary   - Stats résumé');
+  console.log('  GET  /api/admin/pipeline/stats/historique - Historique gagné/perdu');
+  console.log('');
+  console.log('📈 Comptabilité P&L (Pro/Business):');
+  console.log('  GET  /api/admin/compta/pnl               - P&L mensuel');
+  console.log('  GET  /api/admin/compta/pnl/periode       - P&L période');
+  console.log('  GET  /api/admin/compta/pnl/annee         - P&L annuel');
+  console.log('  GET  /api/admin/compta/pnl/compare       - Comparaison');
+  console.log('  GET  /api/admin/compta/pnl/export-pdf    - Export PDF');
+  console.log('  GET  /api/admin/compta/dashboard         - Dashboard compta');
   console.log('');
 
   // Démarrer le scheduler de jobs

@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "tenant_id": 3,
+
+  "identity": {
+    "name": "Test NEXUS Platform",
+    "tagline": "Tenant de test complet",
+    "description": "Environnement de test pour validation plateforme NEXUS"
+  },
+
+  "logo": {
+    "primary": "/assets/tenants/tenant-3/logo.svg",
+    "white": "/assets/tenants/tenant-3/logo-white.svg",
+    "icon": "/assets/tenants/tenant-3/icon.svg"
+  },
+
+  "colors": {
+    "primary": "#3B82F6",
+    "primaryHover": "#2563EB",
+    "secondary": "#8B5CF6",
+    "secondaryHover": "#7C3AED",
+    "accent": "#10B981",
+    "accentHover": "#059669",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "text": "#1E293B",
+    "textMuted": "#64748B",
+    "border": "#E2E8F0",
+    "error": "#EF4444",
+    "warning": "#F59E0B",
+    "success": "#10B981",
+    "info": "#3B82F6"
+  },
+
+  "fonts": {
+    "heading": {
+      "family": "Inter",
+      "weights": ["600", "700"]
+    },
+    "body": {
+      "family": "Inter",
+      "weights": ["400", "500"]
+    }
+  },
+
+  "components": {
+    "borderRadius": "8px",
+    "buttonStyle": "rounded",
+    "cardShadow": "0 1px 3px rgba(0,0,0,0.1)"
+  },
+
+  "emails": {
+    "headerColor": "#3B82F6",
+    "footerText": "Test NEXUS Platform - Tenant de test"
+  }
+}

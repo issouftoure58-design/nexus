@@ -7,7 +7,14 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
-import { TOOLS_ADMIN } from '../tools/toolsRegistry.js';
+import { TOOLS_ADMIN, getToolsForPlan } from '../tools/toolsRegistry.js';
+// Import des outils Pro
+import {
+  executeAdvancedQuery,
+  createAutomation,
+  scheduleTask,
+  analyzePattern
+} from '../ai/adminProTools.js';
 
 // Client Anthropic (singleton)
 let anthropicClient = null;
@@ -1455,6 +1462,45 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // OUTILS PRO - Capabilities avancées (Pro/Business uniquement)
+      // ═══════════════════════════════════════════════════════════════
+      case 'executeAdvancedQuery': {
+        console.log(`[ADMIN CHAT] executeAdvancedQuery - tenant: ${tenantId}`);
+        const result = await executeAdvancedQuery({
+          query_description: toolInput.query_description,
+          tenant_id: tenantId
+        });
+        return result;
+      }
+
+      case 'createAutomation': {
+        console.log(`[ADMIN CHAT] createAutomation - tenant: ${tenantId}`);
+        const result = await createAutomation({
+          automation_description: toolInput.automation_description,
+          tenant_id: tenantId
+        });
+        return result;
+      }
+
+      case 'scheduleTask': {
+        console.log(`[ADMIN CHAT] scheduleTask - tenant: ${tenantId}`);
+        const result = await scheduleTask({
+          task_description: toolInput.task_description,
+          tenant_id: tenantId
+        });
+        return result;
+      }
+
+      case 'analyzePattern': {
+        console.log(`[ADMIN CHAT] analyzePattern - tenant: ${tenantId}`);
+        const result = await analyzePattern({
+          question: toolInput.question,
+          tenant_id: tenantId
+        });
+        return result;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // OUTILS NON IMPLÉMENTÉS - Retourner message informatif
       // ═══════════════════════════════════════════════════════════════
       default:
@@ -1517,6 +1563,11 @@ export async function chatStream(tenantId, messages, res, conversationId) {
   const tenant = await getTenant(tenantId);
   console.log(`[ADMIN CHAT] Tenant récupéré:`, tenant?.business_name || 'NON TROUVÉ');
 
+  // Récupérer les outils disponibles selon le plan du tenant
+  const tenantPlan = tenant?.subscription_plan || 'starter';
+  const availableTools = getToolsForPlan(tenantPlan);
+  console.log(`[ADMIN CHAT] Plan: ${tenantPlan}, Outils disponibles: ${availableTools.length}`);
+
   // Headers SSE
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1546,7 +1597,7 @@ export async function chatStream(tenantId, messages, res, conversationId) {
         max_tokens: MAX_TOKENS,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,
-        tools: TOOLS_ADMIN,
+        tools: availableTools,
       });
 
       console.log(`[ADMIN CHAT] Stop reason: ${response.stop_reason}`);
@@ -1625,6 +1676,10 @@ export async function chat(tenantId, messages) {
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
+  // Récupérer les outils disponibles selon le plan du tenant
+  const tenantPlan = tenant?.subscription_plan || 'starter';
+  const availableTools = getToolsForPlan(tenantPlan);
+
   let conversationMessages = messages.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',
     content: m.content,
@@ -1642,7 +1697,7 @@ export async function chat(tenantId, messages) {
         max_tokens: MAX_TOKENS,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,
-        tools: TOOLS_ADMIN,
+        tools: availableTools,
       });
 
       // Extraire le texte

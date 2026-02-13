@@ -32,7 +32,7 @@ export function CRMSegments() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingSegment, setEditingSegment] = useState<string | null>(null);
   const [expandedSegment, setExpandedSegment] = useState<string | null>(null);
-  const [newSegment, setNewSegment] = useState({ nom: '', description: '', type: 'manuel' as const });
+  const [newSegment, setNewSegment] = useState<{ nom: string; description: string; type: 'manuel' | 'dynamique' }>({ nom: '', description: '', type: 'manuel' });
   const [editForm, setEditForm] = useState({ nom: '', description: '' });
 
   // Fetch segments

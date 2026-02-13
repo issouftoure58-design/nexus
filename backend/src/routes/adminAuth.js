@@ -91,7 +91,13 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     // Générer JWT (🔒 M4: durée réduite à 24h pour admin)
     const token = jwt.sign(
-      { id: loginResult.user.id, email: loginResult.user.email, role: loginResult.user.role },
+      {
+        id: loginResult.user.id,
+        email: loginResult.user.email,
+        role: loginResult.user.role,
+        tenant_id: loginResult.user.tenant_id,  // Multi-tenant
+        tenant_slug: loginResult.user.tenant_id  // Alias pour compatibilite
+      },
       EFFECTIVE_JWT_SECRET,
       { expiresIn: '24h' }
     );

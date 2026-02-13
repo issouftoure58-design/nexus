@@ -1,0 +1,65 @@
+{
+  "id": 3,
+  "slug": "nexus-test",
+  "name": "Test NEXUS Platform",
+  "businessType": "services",
+
+  "status": "active",
+  "frozen": false,
+  "version": "1.0.0",
+  "created": "2026-02-12T00:00:00Z",
+
+  "owner": {
+    "name": "Admin Test",
+    "email": "admin@nexus-test.com",
+    "phone": "+33612345678"
+  },
+
+  "technical": {
+    "database": {
+      "schema": "tenant_3_nexus_test",
+      "url": "${SUPABASE_URL}",
+      "migrated": false,
+      "migrationDate": null
+    },
+    "domain": "test.nexus.dev",
+    "region": "eu-west-1",
+    "timezone": "Europe/Paris"
+  },
+
+  "resources": {
+    "cpu": "2 vCPU",
+    "memory": "4GB",
+    "storage": "100GB"
+  },
+
+  "limits": {
+    "maxReservationsPerDay": 1000,
+    "maxSMSPerMonth": 10000,
+    "maxAICallsPerDay": 1000,
+    "maxUsers": 20,
+    "maxStorageGB": 100
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "alertsEmail": "admin@nexus-test.com",
+    "uptimeTarget": 99.9,
+    "metrics": {
+      "reservations": true,
+      "sms": true,
+      "ai": true,
+      "errors": true
+    }
+  },
+
+  "billing": {
+    "plan": "business",
+    "amount": 0,
+    "currency": "EUR",
+    "interval": "monthly",
+    "nextBilling": null,
+    "paymentMethod": "test",
+    "autoRenew": false
+  }
+}

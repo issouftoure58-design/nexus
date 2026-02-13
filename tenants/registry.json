@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastUpdate": "2026-02-01T00:00:00Z",
+  "lastUpdate": "2026-02-12T00:00:00Z",
   "platform": {
     "name": "NEXUS",
     "version": "1.0.0",
@@ -49,12 +49,40 @@
         "domain": "decoevent.fr",
         "region": "eu-west-1"
       }
+    },
+    {
+      "id": 3,
+      "slug": "nexus-test",
+      "name": "Test NEXUS Platform",
+      "status": "active",
+      "tier": "business",
+      "version": "1.0.0",
+      "frozen": false,
+      "created": "2026-02-12T00:00:00Z",
+      "migrated": false,
+      "owner": {
+        "name": "Admin Test",
+        "email": "admin@nexus-test.com",
+        "phone": "+33612345678"
+      },
+      "technical": {
+        "database": "tenant_3_nexus_test",
+        "domain": "test.nexus.dev",
+        "region": "eu-west-1"
+      },
+      "billing": {
+        "plan": "business",
+        "amount": 0,
+        "currency": "EUR",
+        "interval": "monthly"
+      }
     }
   ],
   "stats": {
-    "totalTenants": 2,
-    "activeTenants": 1,
+    "totalTenants": 3,
+    "activeTenants": 2,
     "pendingTenants": 1,
-    "migratedTenants": 0
+    "migratedTenants": 0,
+    "testTenants": 1
   }
 }

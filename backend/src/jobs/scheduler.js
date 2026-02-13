@@ -10,6 +10,8 @@ import { traiterToutesRelancesJ7J14J21 } from './relancesFacturesJob.js';
 import { publishScheduledPosts } from './publishScheduledPosts.js';
 import { checkStockLevels } from './stockAlertes.js';
 import { jobIntelligenceMonitoring } from '../ai/intelligenceMonitor.js';
+import { jobSEOTracking } from './seoTracking.js';
+import { jobChurnPrevention } from '../ai/predictions.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -41,6 +43,8 @@ const JOBS_SCHEDULE = {
   socialPublish: { interval: 15 },          // Toutes les 15 minutes (publication posts programmés)
   stockAlertes: { interval: 60 },           // Toutes les heures (vérification stock - Plan PRO)
   intelligenceMonitoring: { interval: 60 }, // Toutes les heures (surveillance IA - Plan Business)
+  seoTracking: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h (tracking SEO hebdo - Plan Business)
+  churnPrevention: { hour: 8, minute: 0 }, // 08h00 (detection churn quotidien - Plan Business)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -755,6 +759,48 @@ function shouldRunJob(jobName, schedule) {
 }
 
 /**
+ * Vérifie si un job hebdomadaire doit s'exécuter
+ * @param {string} jobName - Nom du job
+ * @param {Object} schedule - { dayOfWeek (0=dim, 1=lun), hour, minute }
+ * @returns {boolean}
+ */
+function shouldRunWeeklyJob(jobName, schedule) {
+  const now = new Date();
+  const currentDay = now.getDay();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  // Vérifier le jour de la semaine
+  if (currentDay !== schedule.dayOfWeek) {
+    return false;
+  }
+
+  // Vérifier l'heure
+  if (currentHour !== schedule.hour || currentMinute !== schedule.minute) {
+    return false;
+  }
+
+  // Vérifier si déjà exécuté cette semaine
+  const weekKey = `${jobName}_week_${getWeekNumber(now)}`;
+  if (executedToday.has(weekKey)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Retourne le numéro de semaine de l'année
+ */
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+/**
  * Marque un job comme exécuté aujourd'hui
  * @param {string} jobName
  */
@@ -857,6 +903,26 @@ async function runScheduler() {
       console.error('[Scheduler] Erreur intelligence monitoring:', err.message);
     }
   }
+
+  // Job: SEO Tracking (lundi 9h - Plan Business)
+  if (shouldRunWeeklyJob('seoTracking', JOBS_SCHEDULE.seoTracking)) {
+    markJobExecuted('seoTracking');
+    try {
+      await jobSEOTracking();
+    } catch (err) {
+      console.error('[Scheduler] Erreur SEO tracking:', err.message);
+    }
+  }
+
+  // Job: Churn Prevention (tous les jours a 8h - Plan Business)
+  if (shouldRunJob('churnPrevention', JOBS_SCHEDULE.churnPrevention)) {
+    markJobExecuted('churnPrevention');
+    try {
+      await jobChurnPrevention();
+    } catch (err) {
+      console.error('[Scheduler] Erreur churn prevention:', err.message);
+    }
+  }
 }
 
 // ============= DÉMARRAGE =============
@@ -881,6 +947,8 @@ export function startScheduler() {
   console.log(`  ✅ Publication sociale: toutes les ${JOBS_SCHEDULE.socialPublish.interval} minutes (posts programmés)`);
   console.log(`  ✅ Alertes stock: toutes les ${JOBS_SCHEDULE.stockAlertes.interval} minutes (Plan PRO)`);
   console.log(`  ✅ Intelligence IA: toutes les ${JOBS_SCHEDULE.intelligenceMonitoring.interval} minutes (Plan Business)`);
+  console.log(`  ✅ SEO Tracking: lundi ${JOBS_SCHEDULE.seoTracking.hour}h${String(JOBS_SCHEDULE.seoTracking.minute).padStart(2, '0')} (Plan Business)`);
+  console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
@@ -930,6 +998,10 @@ export async function runJobManually(jobName) {
       return await checkStockLevels();
     case 'intelligenceMonitoring':
       return await jobIntelligenceMonitoring();
+    case 'seoTracking':
+      return await jobSEOTracking();
+    case 'churnPrevention':
+      return await jobChurnPrevention();
     default:
       throw new Error(`Job inconnu: ${jobName}`);
   }
@@ -956,5 +1028,7 @@ export default {
   sendDemandeAvisJ2,
   checkStockLevels,
   jobIntelligenceMonitoring,
+  jobSEOTracking,
+  jobChurnPrevention,
   isAvisJobEnabled,
 };

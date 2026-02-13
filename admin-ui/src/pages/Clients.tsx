@@ -1,0 +1,475 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Layout } from '@/components/layout/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { clientsApi, type Client, type ClientsResponse } from '@/lib/api';
+import {
+  Users,
+  Search,
+  Plus,
+  Phone,
+  Mail,
+  Calendar,
+  MoreVertical,
+  Loader2,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Trash2,
+  Eye,
+  X
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+export default function Clients() {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  const { data, isLoading, error } = useQuery<ClientsResponse>({
+    queryKey: ['clients', search, page],
+    queryFn: () => clientsApi.list({ search, page, limit: 20 }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => clientsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <Layout title="Clients" subtitle={`${data?.pagination.total || 0} clients au total`}>
+      <div className="space-y-6">
+        {/* Header actions */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+          <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="search"
+                placeholder="Rechercher par nom, téléphone, email..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button type="submit" variant="outline">Rechercher</Button>
+          </form>
+          <Button onClick={() => setShowNewClientModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700">
+            <Plus className="h-4 w-4" />
+            Nouveau client
+          </Button>
+        </div>
+
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-6 flex items-center gap-4">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <div>
+                <p className="font-medium text-red-900">Erreur de chargement</p>
+                <p className="text-sm text-red-700">Impossible de charger les clients</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Clients list */}
+        {!isLoading && !error && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-gray-50/50">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Client</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Contact</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">RDV</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier RDV</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Inscrit le</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.clients.map((client) => (
+                      <tr key={client.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+                              {client.prenom[0]}{client.nom[0]}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{client.prenom} {client.nom}</p>
+                              <p className="text-sm text-gray-500">ID: {client.id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Phone className="h-3.5 w-3.5" />
+                              {client.telephone}
+                            </div>
+                            {client.email && (
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <Mail className="h-3.5 w-3.5" />
+                                <span className="truncate max-w-[150px]">{client.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {client.nb_rdv || 0} réservations
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          {client.dernier_rdv ? (
+                            <div className="space-y-1">
+                              <p className="text-sm text-gray-900">{formatDate(client.dernier_rdv.date)}</p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'text-xs',
+                                  client.dernier_rdv.statut === 'termine' && 'bg-green-50 text-green-700 border-green-200',
+                                  client.dernier_rdv.statut === 'confirme' && 'bg-blue-50 text-blue-700 border-blue-200',
+                                  client.dernier_rdv.statut === 'annule' && 'bg-red-50 text-red-700 border-red-200'
+                                )}
+                              >
+                                {client.dernier_rdv.statut}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-sm text-gray-600">
+                          {formatDate(client.created_at)}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedClient(client)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                if (confirm('Supprimer ce client ?')) {
+                                  deleteMutation.mutate(client.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!data?.clients || data.clients.length === 0) && (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-gray-500">
+                          <Users className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                          <p>Aucun client trouvé</p>
+                          {search && (
+                            <Button
+                              variant="link"
+                              onClick={() => { setSearch(''); setSearchInput(''); }}
+                              className="mt-2"
+                            >
+                              Effacer la recherche
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {data && data.pagination.pages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <p className="text-sm text-gray-600">
+                    Page {data.pagination.page} sur {data.pagination.pages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page === 1}
+                      onClick={() => setPage(p => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Précédent
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= data.pagination.pages}
+                      onClick={() => setPage(p => p + 1)}
+                    >
+                      Suivant
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* New Client Modal */}
+      {showNewClientModal && (
+        <NewClientModal onClose={() => setShowNewClientModal(false)} />
+      )}
+
+      {/* Client Detail Modal */}
+      {selectedClient && (
+        <ClientDetailModal client={selectedClient} onClose={() => setSelectedClient(null)} />
+      )}
+    </Layout>
+  );
+}
+
+// New Client Modal Component
+function NewClientModal({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    prenom: '',
+    nom: '',
+    telephone: '',
+    email: ''
+  });
+  const [error, setError] = useState('');
+
+  const createMutation = useMutation({
+    mutationFn: (data: typeof formData) => clientsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    }
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    createMutation.mutate(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Nouveau client</CardTitle>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <X className="h-4 w-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
+                <Input
+                  value={formData.prenom}
+                  onChange={(e) => setFormData(d => ({ ...d, prenom: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                <Input
+                  value={formData.nom}
+                  onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
+              <Input
+                type="tel"
+                value={formData.telephone}
+                onChange={(e) => setFormData(d => ({ ...d, telephone: e.target.value }))}
+                placeholder="0612345678"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(d => ({ ...d, email: e.target.value }))}
+                placeholder="client@email.com"
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Créer le client'
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Client Detail Modal Component
+function ClientDetailModal({ client, onClose }: { client: Client; onClose: () => void }) {
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ['client', client.id],
+    queryFn: () => clientsApi.get(client.id),
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between border-b">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
+              {client.prenom[0]}{client.nom[0]}
+            </div>
+            <div>
+              <CardTitle>{client.prenom} {client.nom}</CardTitle>
+              <p className="text-sm text-gray-500">{client.telephone}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <X className="h-4 w-4" />
+          </Button>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-y-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />
+            </div>
+          ) : detail ? (
+            <div className="space-y-6">
+              {/* Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700">{formatCurrency(detail.stats.ca_total)}</p>
+                  <p className="text-xs text-green-600">CA Total</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-700">{detail.stats.nb_rdv_total}</p>
+                  <p className="text-xs text-blue-600">RDV Total</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-purple-700">{detail.stats.nb_rdv_honores}</p>
+                  <p className="text-xs text-purple-600">RDV Honorés</p>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-orange-700">
+                    {detail.stats.frequence_jours ? `${detail.stats.frequence_jours}j` : '-'}
+                  </p>
+                  <p className="text-xs text-orange-600">Fréquence</p>
+                </div>
+              </div>
+
+              {/* Service favori */}
+              {detail.stats.service_favori && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-700">
+                    <span className="font-medium">Service favori :</span> {detail.stats.service_favori}
+                  </p>
+                </div>
+              )}
+
+              {/* Historique RDV */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Historique des rendez-vous</h3>
+                <div className="space-y-2">
+                  {detail.historique_rdv.map((rdv) => (
+                    <div key={rdv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{rdv.service_nom}</p>
+                        <p className="text-xs text-gray-500">{rdv.date} à {rdv.heure}</p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'text-xs',
+                          rdv.statut === 'termine' && 'bg-green-50 text-green-700 border-green-200',
+                          rdv.statut === 'confirme' && 'bg-blue-50 text-blue-700 border-blue-200',
+                          rdv.statut === 'annule' && 'bg-red-50 text-red-700 border-red-200'
+                        )}
+                      >
+                        {rdv.statut}
+                      </Badge>
+                    </div>
+                  ))}
+                  {detail.historique_rdv.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">Aucun rendez-vous</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

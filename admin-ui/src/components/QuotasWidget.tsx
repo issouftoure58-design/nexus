@@ -67,11 +67,6 @@ export function QuotasWidget() {
     );
   }
 
-  const getPercentage = (used: number, limit: number) => {
-    if (limit === -1) return 0;
-    return Math.round((used / limit) * 100);
-  };
-
   const isNearLimit = (used: number, limit: number) => {
     if (limit === -1) return false;
     return (used / limit) >= 0.8;
@@ -155,7 +150,6 @@ export function QuotasWidget() {
 
         <div className="space-y-6">
           {quotaItems.map((item) => {
-            const percentage = getPercentage(item.used, item.limit);
             const nearLimit = isNearLimit(item.used, item.limit);
             const atLimit = isAtLimit(item.used, item.limit);
             const Icon = item.icon;

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  LayoutDashboard, ArrowLeft, Plus, Euro, TrendingUp, User,
+  LayoutDashboard, ArrowLeft, Plus, TrendingUp, User,
   Calendar, GripVertical, X, Check, AlertCircle, Target
 } from 'lucide-react';
 
@@ -212,12 +212,10 @@ export default function PipelinePage() {
 
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link to="/" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Retour au dashboard
-            </Link>
-          </Button>
+          <Link to="/" className="inline-flex items-center gap-2 mb-4 hover:bg-gray-100 hover:text-gray-900 rounded-md px-3 py-2 text-sm font-medium">
+            <ArrowLeft className="h-4 w-4" />
+            Retour au dashboard
+          </Link>
 
           <div className="flex items-center justify-between">
             <div>

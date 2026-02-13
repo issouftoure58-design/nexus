@@ -20,10 +20,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
 
 const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 // Middleware auth admin pour toutes les routes
 router.use(authenticateAdmin);
@@ -148,8 +149,9 @@ const PROMPTS_SECTEUR = {
 /**
  * POST /api/social/generate-post
  * Génère un post avec l'IA selon le sujet et la plateforme
+ * 🔒 QUOTA CHECK: Vérifie limite posts IA/mois selon plan
  */
-router.post('/generate-post', async (req, res) => {
+router.post('/generate-post', requirePostsQuota, async (req, res) => {
   try {
     const { sujet, plateforme } = req.body;
     const tenantId = req.admin.tenant_id;
@@ -300,8 +302,9 @@ Réponds en JSON:
 /**
  * POST /api/social/generate-image
  * Génère une image avec DALL-E 3
+ * 🔒 QUOTA CHECK: Vérifie limite images DALL-E/mois selon plan
  */
-router.post('/generate-image', async (req, res) => {
+router.post('/generate-image', requireImagesQuota, async (req, res) => {
   try {
     const { prompt, style = 'natural', size = '1024x1024' } = req.body;
     const tenantId = req.admin.tenant_id;
@@ -313,15 +316,7 @@ router.post('/generate-image', async (req, res) => {
       });
     }
 
-    // Vérifier quota images
-    const quotaInfo = await getQuotaInfo(tenantId);
-    if (quotaInfo.restant.images <= 0) {
-      return res.status(403).json({
-        success: false,
-        error: `Quota images épuisé. Limite: ${quotaInfo.limites.images}/mois. Passez au plan supérieur pour plus d'images.`,
-        quota: quotaInfo
-      });
-    }
+    // Note: Quota vérifié par middleware requireImagesQuota
 
     // Récupérer contexte tenant pour enrichir le prompt
     const { data: tenantData } = await supabase

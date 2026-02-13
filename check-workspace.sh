@@ -16,6 +16,10 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Base directory (où se trouve ce script)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NEXUS_DIR="$(dirname "$SCRIPT_DIR")"
+
 ERRORS=0
 
 # 1. Vérifier le répertoire courant
@@ -34,13 +38,13 @@ echo ""
 
 # 2. Vérifier les fichiers .claudeproject
 echo "2. Vérification des fichiers .claudeproject..."
-if [ -f "/Users/hobb/Documents/halimah-project/.claudeproject" ]; then
+if [ -f "$NEXUS_DIR/halimah-project/.claudeproject" ]; then
     echo -e "   ${GREEN}OK${NC} - halimah-project/.claudeproject existe"
 else
     echo -e "   ${YELLOW}WARNING${NC} - halimah-project/.claudeproject manquant"
 fi
 
-if [ -f "/Users/hobb/Documents/nexus-backend-dev/.claudeproject" ]; then
+if [ -f "$SCRIPT_DIR/.claudeproject" ]; then
     echo -e "   ${GREEN}OK${NC} - nexus-backend-dev/.claudeproject existe"
 else
     echo -e "   ${RED}ERREUR${NC} - nexus-backend-dev/.claudeproject manquant"
@@ -78,7 +82,7 @@ REQUIRED_DIRS=(
 )
 
 for dir in "${REQUIRED_DIRS[@]}"; do
-    if [ -d "/Users/hobb/Documents/nexus-backend-dev/$dir" ]; then
+    if [ -d "$SCRIPT_DIR/$dir" ]; then
         echo -e "   ${GREEN}OK${NC} - $dir"
     else
         echo -e "   ${RED}ERREUR${NC} - $dir manquant"
@@ -99,7 +103,7 @@ REQUIRED_ROUTES=(
 )
 
 for route in "${REQUIRED_ROUTES[@]}"; do
-    if [ -f "/Users/hobb/Documents/nexus-backend-dev/backend/src/routes/$route" ]; then
+    if [ -f "$SCRIPT_DIR/backend/src/routes/$route" ]; then
         echo -e "   ${GREEN}OK${NC} - routes/$route"
     else
         echo -e "   ${RED}ERREUR${NC} - routes/$route manquant"

@@ -28,9 +28,10 @@ import {
 // Static fallback (used only during early boot before cache init)
 import fatshairafro from './fatshairafro.js';
 import decoevent from './decoevent.js';
+import nexustest from './nexustest.js';
 import template from './template.js';
 
-const staticTenants = { fatshairafro, decoevent };
+const staticTenants = { fatshairafro, decoevent, 'nexus-test': nexustest };
 
 /**
  * Retourne la config complète d'un tenant par son ID.
@@ -78,6 +79,7 @@ export function identifyTenant(req) {
   // 4. Static fallback for known domains (boot safety)
   if (host.includes('fatshairafro')) return 'fatshairafro';
   if (host.includes('decoevent')) return 'decoevent';
+  if (host.includes('nexus-test') || host.includes('test.nexus')) return 'nexus-test';
 
   // 5. Pas de tenant detecte = contexte NEXUS
   return null;

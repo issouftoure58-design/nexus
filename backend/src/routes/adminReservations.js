@@ -4,10 +4,12 @@ import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
 import { createFactureFromReservation } from './factures.js';
+import { triggerWorkflows } from '../automation/workflowEngine.js';
 
 const router = express.Router();
 
-// 🔒 MODULE PROTECTION: Toutes les routes réservations nécessitent le module 'reservations'
+// 🔒 AUTH FIRST, then MODULE PROTECTION
+router.use(authenticateAdmin);
 router.use(requireModule('reservations'));
 
 // Statuts possibles pour une réservation
@@ -556,11 +558,10 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       details: { ancien_statut: currentRdv.statut, nouveau_statut: statut }
     });
 
-    // Si statut = termine, générer automatiquement la facture
+    // Si statut = termine, générer automatiquement la facture et déclencher workflows
     let facture = null;
     if (statut === 'termine') {
       try {
-        const tenantId = req.admin.tenant_id || 'fatshairafro';
         const factureResult = await createFactureFromReservation(req.params.id, tenantId);
         if (factureResult.success) {
           facture = factureResult.facture;
@@ -568,6 +569,44 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur génération facture:', factureErr.message);
+      }
+
+      // Déclencher workflows "rdv_completed"
+      try {
+        await triggerWorkflows('rdv_completed', {
+          tenant_id: tenantId,
+          entity: {
+            ...reservation,
+            type: 'rdv',
+            client: currentRdv.clients,
+            prenom: currentRdv.clients?.prenom,
+            nom: currentRdv.clients?.nom,
+            email: currentRdv.clients?.email,
+            telephone: currentRdv.clients?.telephone
+          }
+        });
+      } catch (workflowErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur workflow (non bloquant):', workflowErr.message);
+      }
+    }
+
+    // Si statut = annule, déclencher workflows "rdv_cancelled"
+    if (statut === 'annule') {
+      try {
+        await triggerWorkflows('rdv_cancelled', {
+          tenant_id: tenantId,
+          entity: {
+            ...reservation,
+            type: 'rdv',
+            client: currentRdv.clients,
+            prenom: currentRdv.clients?.prenom,
+            nom: currentRdv.clients?.nom,
+            email: currentRdv.clients?.email,
+            telephone: currentRdv.clients?.telephone
+          }
+        });
+      } catch (workflowErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur workflow annulation (non bloquant):', workflowErr.message);
       }
     }
 

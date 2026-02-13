@@ -1,0 +1,84 @@
+{
+  "version": "1.0.0",
+  "tenant_id": 3,
+  "tier": "business",
+
+  "socle": {
+    "enabled": true,
+    "description": "Core platform features"
+  },
+
+  "agent_ia_web": {
+    "enabled": true,
+    "description": "AI Assistant for web chat"
+  },
+
+  "agent_ia_whatsapp": {
+    "enabled": true,
+    "description": "AI Assistant for WhatsApp"
+  },
+
+  "agent_ia_telephone": {
+    "enabled": true,
+    "description": "AI Assistant for phone calls"
+  },
+
+  "site_vitrine": {
+    "enabled": true,
+    "description": "Website builder"
+  },
+
+  "reservations": {
+    "enabled": true,
+    "description": "Booking system",
+    "channels": ["web", "phone", "chat", "whatsapp"]
+  },
+
+  "paiements": {
+    "enabled": true,
+    "description": "Payment processing",
+    "providers": ["stripe"]
+  },
+
+  "comptabilite": {
+    "enabled": true,
+    "description": "Accounting module",
+    "features": ["factures", "depenses", "rapports", "tva"]
+  },
+
+  "marketing": {
+    "enabled": true,
+    "description": "Marketing automation",
+    "features": ["campaigns", "workflows", "segments", "social"]
+  },
+
+  "seo": {
+    "enabled": true,
+    "description": "SEO tools",
+    "features": ["keywords", "articles", "recommendations", "audit"]
+  },
+
+  "commercial": {
+    "enabled": true,
+    "description": "Sales pipeline",
+    "features": ["pipeline", "leads", "devis", "contrats"]
+  },
+
+  "stock": {
+    "enabled": true,
+    "description": "Inventory management",
+    "features": ["produits", "alertes", "mouvements", "fournisseurs"]
+  },
+
+  "rh": {
+    "enabled": true,
+    "description": "HR management",
+    "features": ["equipe", "planning", "conges", "paie"]
+  },
+
+  "analytics": {
+    "enabled": true,
+    "description": "Advanced analytics",
+    "features": ["predictions", "churn", "forecast", "cohorts"]
+  }
+}

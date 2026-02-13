@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import { predictCAnextMonth, predictClientChurn, analyzeChurnRisk } from './predictions.js';
 import { generateSuggestions, generateOptimizationSuggestions } from './suggestions.js';
 import { getActiveAlertes, getMetricsDashboard } from './intelligenceMonitor.js';
+import { forecastRevenue, clusterClients } from './predictiveAnalytics.js';
 
 // Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -935,6 +936,110 @@ export async function detectAnomaly({ data_type, tenant_id }) {
 }
 
 // ============================================
+// BUSINESS TOOLS - Analytics Prédictifs
+// ============================================
+
+/**
+ * TOOL BUSINESS : Forecast Metric
+ * Prédit une métrique business future
+ */
+export const forecastMetricTool = {
+  name: 'forecastMetric',
+  description: `Prédit une métrique business future.
+    Exemples: "Prévois le CA des 3 prochains mois", "Combien vais-je gagner ce trimestre ?"`,
+
+  input_schema: {
+    type: 'object',
+    properties: {
+      metric: {
+        type: 'string',
+        enum: ['ca', 'clients', 'rdv'],
+        description: 'Métrique à prédire'
+      },
+      months: {
+        type: 'number',
+        description: 'Nombre de mois à prévoir (1-6)',
+        default: 3
+      },
+      tenant_id: {
+        type: 'string',
+        description: 'ID du tenant'
+      }
+    },
+    required: ['metric', 'tenant_id']
+  }
+};
+
+export async function forecastMetric({ metric, months, tenant_id }) {
+  try {
+    if (metric === 'ca') {
+      const forecast = await forecastRevenue(tenant_id, months || 3);
+      const totalPredicted = forecast.forecasts.reduce((sum, f) =>
+        sum + parseFloat(f.predicted_ca), 0
+      );
+
+      return {
+        success: true,
+        forecast: forecast.forecasts,
+        total: totalPredicted.toFixed(2),
+        growth_rate: forecast.growth_rate,
+        avg_monthly: forecast.avg_monthly,
+        historique: forecast.historique.slice(-6),
+        message: `Prévision CA sur ${months || 3} mois : ${totalPredicted.toFixed(2)}€ (croissance ${forecast.growth_rate}%)`
+      };
+    }
+
+    return { success: false, error: 'Métrique non supportée. Utilisez: ca' };
+  } catch (error) {
+    console.error('[BUSINESS TOOL] Erreur forecastMetric:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * TOOL BUSINESS : Segment Clients
+ * Segmente automatiquement les clients
+ */
+export const segmentClientsTool = {
+  name: 'segmentClients',
+  description: `Segmente automatiquement les clients.
+    Exemples: "Quels sont mes meilleurs clients ?", "Segmente ma base clients"`,
+
+  input_schema: {
+    type: 'object',
+    properties: {
+      tenant_id: {
+        type: 'string',
+        description: 'ID du tenant'
+      }
+    },
+    required: ['tenant_id']
+  }
+};
+
+export async function segmentClients({ tenant_id }) {
+  try {
+    const clusters = await clusterClients(tenant_id);
+
+    // Formater résumé textuel
+    const summary = clusters.segments
+      .filter(s => s.count > 0)
+      .map(s => `${s.name}: ${s.count} clients (${s.percentage}%)`)
+      .join(', ');
+
+    return {
+      success: true,
+      segments: clusters.segments,
+      recommendations: clusters.recommendations,
+      message: `${clusters.segments.filter(s => s.count > 0).length} segments identifiés: ${summary}`
+    };
+  } catch (error) {
+    console.error('[BUSINESS TOOL] Erreur segmentClients:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================
 // EXPORT TOOLS LIST
 // ============================================
 
@@ -951,7 +1056,9 @@ export const adminBusinessToolsList = [
   predictTrendTool,
   suggestActionTool,
   autoOptimizeTool,
-  detectAnomalyTool
+  detectAnomalyTool,
+  forecastMetricTool,
+  segmentClientsTool
 ];
 
 export const adminProToolsExecutors = {
@@ -965,7 +1072,9 @@ export const adminBusinessToolsExecutors = {
   predictTrend,
   suggestAction,
   autoOptimize,
-  detectAnomaly
+  detectAnomaly,
+  forecastMetric,
+  segmentClients
 };
 
 /**
@@ -1014,10 +1123,14 @@ export default {
   suggestActionTool,
   autoOptimizeTool,
   detectAnomalyTool,
+  forecastMetricTool,
+  segmentClientsTool,
   predictTrend,
   suggestAction,
   autoOptimize,
   detectAnomaly,
+  forecastMetric,
+  segmentClients,
 
   // Helpers
   getToolsForPlan,

@@ -40,7 +40,7 @@ export async function collectCADaily(tenant_id) {
     // CA aujourd'hui
     const { data: facturesAujourdhui, error } = await supabase
       .from('factures')
-      .select('montant_total')
+      .select('montant_ttc')
       .eq('tenant_id', tenant_id)
       .eq('statut', 'payee')
       .gte('date_paiement', today.toISOString());
@@ -48,7 +48,7 @@ export async function collectCADaily(tenant_id) {
     if (error) throw error;
 
     const caToday = (facturesAujourdhui || []).reduce(
-      (sum, f) => sum + parseFloat(f.montant_total || 0), 0
+      (sum, f) => sum + parseFloat(f.montant_ttc || 0), 0
     );
 
     // CA J-7 pour comparaison
@@ -59,14 +59,14 @@ export async function collectCADaily(tenant_id) {
 
     const { data: facturesJ7 } = await supabase
       .from('factures')
-      .select('montant_total')
+      .select('montant_ttc')
       .eq('tenant_id', tenant_id)
       .eq('statut', 'payee')
       .gte('date_paiement', lastWeek.toISOString())
       .lt('date_paiement', lastWeekEnd.toISOString());
 
     const caJ7 = (facturesJ7 || []).reduce(
-      (sum, f) => sum + parseFloat(f.montant_total || 0), 0
+      (sum, f) => sum + parseFloat(f.montant_ttc || 0), 0
     );
 
     const variation = caJ7 > 0 ? ((caToday - caJ7) / caJ7 * 100) : 0;
@@ -164,17 +164,17 @@ export async function collectSatisfaction(tenant_id) {
     const date30j = new Date();
     date30j.setDate(date30j.getDate() - 30);
 
-    const { data: avis, error } = await supabase
-      .from('avis')
-      .select('note')
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select('rating')
       .eq('tenant_id', tenant_id)
       .gte('created_at', date30j.toISOString());
 
     if (error) throw error;
 
-    const total = avis?.length || 0;
+    const total = reviews?.length || 0;
     const moyenne = total > 0
-      ? avis.reduce((sum, a) => sum + (a.note || 0), 0) / total
+      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / total
       : 0;
 
     return {
@@ -342,8 +342,8 @@ export async function jobIntelligenceMonitoring() {
     // Recuperer tous les tenants Business
     const { data: tenants, error: errTenants } = await supabase
       .from('tenants')
-      .select('id, nom_salon')
-      .ilike('subscription_plan', '%business%');
+      .select('id, name')
+      .eq('plan_id', 'business');
 
     if (errTenants) {
       console.error('[INTELLIGENCE] Erreur recuperation tenants:', errTenants);
@@ -393,7 +393,7 @@ export async function jobIntelligenceMonitoring() {
           console.error(`[INTELLIGENCE] Erreur insert alertes pour ${tenant_id}:`, errInsert);
         } else {
           totalAnomalies += allAnomalies.length;
-          console.log(`[INTELLIGENCE] ${allAnomalies.length} anomalie(s) detectee(s) pour ${tenant.nom_salon || tenant_id}`);
+          console.log(`[INTELLIGENCE] ${allAnomalies.length} anomalie(s) detectee(s) pour ${tenant.name || tenant_id}`);
         }
       }
 

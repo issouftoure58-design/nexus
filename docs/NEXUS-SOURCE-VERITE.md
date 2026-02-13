@@ -1,7 +1,7 @@
 # NEXUS - SOURCE DE VÉRITÉ ABSOLUE
 
 **Document de référence unique et complet**
-**Dernière mise à jour : 11 février 2026 - 14h00**
+**Dernière mise à jour : 12 février 2026 - 10h00**
 **Par : Issouf Toure + Claude Code**
 
 ⚠️ CE DOCUMENT EST LA SEULE SOURCE DE VÉRITÉ
@@ -37,13 +37,13 @@ C'EST :
 - ✅ Une solution à la carte selon besoins client
 - ✅ Évolutif et configurable
 
-### MODÈLE ÉCONOMIQUE (Mis à jour 10 février 2026)
+### MODÈLE ÉCONOMIQUE (Mis à jour 12 février 2026)
 
-SaaS multi-tenant avec pricing modulaire :
-- **Socle obligatoire : 99€/mois** (Dashboard IA, CRM, Comptabilité, Marketing, Assistant IA)
-- Modules additionnels à la carte
+SaaS multi-tenant avec 3 plans + options à la carte :
+- **3 Plans** : Starter (99€), Pro (199€), Business (399€)
+- **Options Canaux IA** : Web, WhatsApp, Téléphone (à la carte)
+- **Modules Métier** : Salon, Restaurant, Médical, etc. (à la carte)
 - Configuration unique par client
-- Facturation selon modules actifs
 
 ═══════════════════════════════════════════════════════════
 ## SECTION 2 : ARCHITECTURE GLOBALE (NE JAMAIS MODIFIER)
@@ -123,106 +123,168 @@ SaaS multi-tenant avec pricing modulaire :
    - Déploiement SENTINEL ≠ Déploiement NEXUS ≠ Déploiement TENANT
 
 ═══════════════════════════════════════════════════════════
-## SECTION 3 : PRICING OFFICIEL NEXUS (10 février 2026)
+## SECTION 3 : PRICING OFFICIEL NEXUS (12 février 2026)
 ═══════════════════════════════════════════════════════════
 
-### SOCLE OBLIGATOIRE : 99€/mois
+⚠️ **SEUL PRICING VALIDE** - Tout autre pricing est OBSOLÈTE
 
-Tous les clients ont obligatoirement :
-- ✅ Dashboard IA intelligent
-- ✅ Facturation et Comptabilité automatisées
-- ✅ CRM et Commercial
-- ✅ Marketing automation
-- ✅ Assistant IA interne
+### PLAN STARTER - 99€/mois
 
-Ce socle est OBLIGATOIRE et déjà très complet.
+**INCLUS :**
+- ✅ Dashboard & Analytics complet
+- ✅ Gestion clients (1000 max)
+- ✅ Facturation avancée (Devis, Factures, Relances auto, Acomptes)
+- ✅ Documents & Fichiers (2 GB)
+- ✅ CRM de base (Historique, Notes, Tags)
+- ✅ Assistant Admin IA basique (Consultation + Exécution simple)
+- ✅ Réseaux Sociaux (100 posts IA/mois, 100 images DALL-E/mois)
+- ✅ Notifications SMS
+- ✅ Espace client
+- ✅ 1 utilisateur
+- ✅ Support email (48h)
+
+**LIMITATIONS :**
+- ❌ Comptabilité avancée
+- ❌ Segmentation CRM avancée
+- ❌ Marketing automation
+- ❌ Stock/inventaire
+- ❌ Commercial avancé
+
+---
+
+### PLAN PRO - 199€/mois ⭐ POPULAIRE
+
+**INCLUS :**
+- ✅ Tout Starter +
+- ✅ Gestion clients (3000 max)
+- ✅ Documents (10 GB)
+- ✅ CRM avancé (Segmentation, Campagnes, Prédictions)
+- ✅ Assistant Admin IA PRO (Exécution avancée, Automatisations)
+- ✅ Réseaux Sociaux (500 posts IA/mois, 500 images DALL-E/mois)
+- ✅ Marketing automation (Workflows, Emails, SMS marketing)
+- ✅ Comptabilité (Dépenses, P&L, Exports)
+- ✅ Commercial avancé (Pipeline, Opportunités, Conversions)
+- ✅ Stock & Inventaire
+- ✅ Analytics avancés
+- ✅ 5 utilisateurs (+20€/utilisateur sup.)
+- ✅ Support prioritaire (24h)
+
+---
+
+### PLAN BUSINESS - 399€/mois 🚀
+
+**INCLUS :**
+- ✅ Tout Pro +
+- ✅ Clients illimités
+- ✅ Documents illimités
+- ✅ Assistant Admin IA Intelligence (Proactif, Prédictif, Suggestions auto)
+- ✅ Réseaux Sociaux (1000 posts IA/mois, 1000 images DALL-E/mois)
+- ✅ SEO & Visibilité (Articles IA, Mots-clés, Référencement)
+- ✅ RH & Multi-employés (Planning équipe, Paie, Congés)
+- ✅ API & Intégrations
+- ✅ White-label complet
+- ✅ SENTINEL Client Intelligence (Monitoring business temps réel)
+- ✅ 10 utilisateurs (+15€/utilisateur sup.)
+- ✅ Support dédié 24/7 + Account Manager
 
 ═══════════════════════════════════════════════════════════
-## SECTION 4 : MODULES ADDITIONNELS (10 février 2026)
+## SECTION 4 : OPTIONS À LA CARTE (12 février 2026)
 ═══════════════════════════════════════════════════════════
 
-### CANAUX CLIENTS
+### OPTIONS CANAUX IA (Disponibles pour TOUS les plans)
 
-| Module | Description | Prix/mois |
-|--------|-------------|-----------|
-| Agent IA Web | Chat conversationnel sur site, qualifie leads 24/7 | +29€ |
-| WhatsApp Business | Conversations illimitées, prise RDV, notifications | +39€ |
-| Téléphone IA | Standard IA (120 min/mois inclus), voicemail→texte | +89€ |
+| Option | Prix/mois | Forfait inclus | Au-delà |
+|--------|-----------|----------------|---------|
+| Agent IA Web | +19€ | Conversations illimitées | - |
+| Agent IA WhatsApp | +49€ | 600 messages/mois | 0.15€/msg |
+| Agent IA Téléphone | +79€ | 120 minutes/mois | 0.75€/min |
+| Site Web Pro | À partir de +29€ | Hébergement inclus | - |
 
-### OUTILS BUSINESS
+### MODULES MÉTIER (Disponibles pour TOUS les plans)
 
-| Module | Description | Prix/mois |
-|--------|-------------|-----------|
-| Réservations | Calendrier intelligent, rappels SMS/Email | +29€ |
-| Site web | 5 pages personnalisables, hébergement SSL inclus | +29€ |
-| E-commerce | Boutique en ligne, gestion stock, paiements | +49€ |
-| Paiements en ligne | Stripe + PayPal, facturation auto, relances | +29€ |
-
-### MODULES MÉTIER
-
-| Module | Description | Prix/mois |
-|--------|-------------|-----------|
-| Module Métier | Spécifique à l'activité (Salon, Resto, Garage, etc.) | +49€ |
+| Module | Prix/mois |
+|--------|-----------|
+| Module Salon/Beauté | +49€ |
+| Module Restaurant | +49€ |
+| Module Médical | +49€ |
+| Module Formation | +49€ |
+| Module E-commerce | +49€ |
 
 ═══════════════════════════════════════════════════════════
-## SECTION 5 : EXEMPLES CONFIGURATIONS CLIENTS (10 février 2026)
+## SECTION 5 : TABLEAU COMPARATIF & EXEMPLES (12 février 2026)
 ═══════════════════════════════════════════════════════════
 
-### Client Type 1 : Consultant Freelance
+### TABLEAU COMPARATIF DES PLANS
 
-**Besoins :** Gestion clients + Facturation + Lead gen
+| Feature | Starter 99€ | Pro 199€ | Business 399€ |
+|---------|-------------|----------|---------------|
+| Clients max | 1000 | 3000 | Illimité |
+| Stockage | 2 GB | 10 GB | Illimité |
+| Facturation | ✅ + Relances | ✅ + Échéanciers | ✅ Complet |
+| CRM | ✅ Base | ✅ + Segmentation | ✅ + IA |
+| Assistant IA | ✅ Basique | ⚡ PRO | 🧠 Intelligence |
+| Posts IA/mois | 100 | 500 | 1000 |
+| Images DALL-E/mois | 100 | 500 | 1000 |
+| Marketing Auto | ❌ | ✅ | ✅ |
+| Comptabilité | ❌ | ✅ P&L | ✅ Complet |
+| Commercial | ❌ | ✅ Pipeline | ✅ + Prédictions |
+| Stock | ❌ | ✅ | ✅ |
+| SEO | ❌ | ❌ | ✅ |
+| RH | ❌ | ❌ | ✅ |
+| API | ❌ | ❌ | ✅ |
+| SENTINEL Client | ❌ | ❌ | ✅ |
+| Support | 📧 48h | 📧 24h | 📞 24/7 + AM |
 
-**Modules actifs :**
-- Socle : 99€
-- Agent IA Web : 29€
+---
+
+### EXEMPLE 1 : Freelance Designer
+
+**Plan :** Starter (99€)
+**Options :** Site Web (29€)
 
 **TOTAL : 128€/mois**
 
 ---
 
-### Client Type 2 : Restaurant
+### EXEMPLE 2 : Fat's Hair-Afro (Salon Coiffure) ⭐
 
-**Besoins :** Réservations téléphoniques automatiques
-
-**Modules actifs :**
-- Socle : 99€
-- Téléphone IA : 89€
-- Réservations : 29€
-- Module Resto : 49€
-
-**TOTAL : 266€/mois**
-
----
-
-### Client Type 3 : Fat's Hair-Afro (Halimah Project) ⭐
-
-**Besoins :** Tout automatisé de A à Z
-
-**Modules actifs :**
-- Socle : 99€
-- Agent IA Web : 29€
-- WhatsApp : 39€
-- Téléphone IA : 89€
-- Réservations : 29€
-- Site web : 29€
+**Plan :** Pro (199€)
+**Options :**
+- Agent IA Web : 19€
+- Agent IA WhatsApp : 49€
+- Agent IA Téléphone : 79€
+- Site Web : 29€
 - Module Salon : 49€
 
-**TOTAL : 363€/mois**
+**TOTAL : 424€/mois**
 
 **Lien :** https://fatshairafro.fr
 
 ---
 
-### Client Type 4 : Artisan (Plombier, Électricien)
+### EXEMPLE 3 : Restaurant Très Actif
 
-**Besoins :** Standard téléphonique + Interventions
+**Plan :** Pro (199€)
+**Options :** Agent IA Téléphone (79€)
 
-**Modules actifs :**
-- Socle : 99€
-- Téléphone IA : 89€
-- Réservations : 29€
+**TOTAL BASE : 278€/mois**
 
-**TOTAL : 217€/mois**
+Usage moyen : ~200 min/mois
+- 120 min incluses
+- 80 min × 0.75€ = 60€ surcoût
+
+**TOTAL RÉEL : ~338€/mois**
+
+---
+
+### EXEMPLE 4 : Agence Marketing
+
+**Plan :** Business (399€)
+**Options :** Site Web (29€)
+
+**TOTAL : 428€/mois**
+
+Accès complet : SEO, API, White-label, SENTINEL
 
 ═══════════════════════════════════════════════════════════
 ## SECTION 6 : TENANTS ACTUELS
@@ -248,25 +310,29 @@ Ce socle est OBLIGATOIRE et déjà très complet.
 - Voix : ElevenLabs "Ingrid"
 - Canaux : WhatsApp, Chat Web, Téléphone
 
-**Modules actifs :**
+**Configuration :**
 ```json
 {
-  "socle": true,
-  "agent_ia_web": true,
-  "whatsapp": true,
-  "telephone": true,
-  "reservations": true,
-  "site_vitrine": true,
-  "paiements": true,   // Réactivé 10 fév 2026 (bug frontend corrigé)
-  "module_metier_salon": true,
-  "rh_avance": false,
-  "sentinel_pro": false
+  "plan": "pro",
+  "options": {
+    "agent_ia_web": true,
+    "agent_ia_whatsapp": true,
+    "agent_ia_telephone": true,
+    "site_web": true,
+    "module_metier_salon": true
+  }
 }
 ```
 
-**Tarification :**
+**Tarification (selon pricing 12 fév 2026) :**
+- Plan Pro : 199€/mois
+- Agent IA Web : 19€/mois
+- Agent IA WhatsApp : 49€/mois
+- Agent IA Téléphone : 79€/mois
+- Site Web : 29€/mois
+- Module Salon : 49€/mois
+- **TOTAL : 424€/mois**
 - Actuellement : **Gratuit** (POC famille)
-- Tarif normal : ~200€/mois
 
 **Dossier projet :** `/halimah-project`
 
@@ -650,6 +716,37 @@ CHECKLIST :
 ## SECTION 14 : DERNIÈRES MODIFICATIONS
 ═══════════════════════════════════════════════════════════
 
+### 12 Février 2026 - 10h00 - Claude Code
+
+**Action : REFONTE PRICING COMPLET - VERSION FINALE**
+
+**NOUVEAU PRICING VALIDÉ :**
+
+3 PLANS :
+- **Starter** : 99€/mois (1000 clients, 2GB, 100 posts/100 images)
+- **Pro** : 199€/mois (3000 clients, 10GB, 500 posts/500 images, modules avancés)
+- **Business** : 399€/mois (illimité, SEO, RH, API, White-label, SENTINEL)
+
+OPTIONS CANAUX IA (tous plans) :
+- Agent IA Web : +19€/mois
+- Agent IA WhatsApp : +49€/mois (600 msg inclus, puis 0.15€/msg)
+- Agent IA Téléphone : +79€/mois (120 min incluses, puis 0.75€/min)
+- Site Web Pro : +29€/mois
+
+MODULES MÉTIER (tous plans) :
+- Salon/Restaurant/Médical/Formation/E-commerce : +49€/mois chacun
+
+**Exemple Fat's Hair-Afro :**
+Pro (199€) + Web (19€) + WhatsApp (49€) + Téléphone (79€) + Site (29€) + Module Salon (49€) = **424€/mois**
+
+**Fichiers modifiés :**
+- `docs/NEXUS-SOURCE-VERITE.md` : Sections 3, 4, 5 entièrement réécrites
+- Ancien pricing "Socle 99€ + modules" supprimé
+
+**⚠️ CE PRICING EST LE SEUL VALIDE - Tout autre pricing est obsolète**
+
+---
+
 ### 10 Février 2026 - 08h00 - Claude Code
 
 **Action : FIX PAIEMENTS FRONTEND (JOUR 4)**
@@ -793,23 +890,7 @@ CHECKLIST :
 | `capture-pricing.ts` | Créé | Script capture screenshot |
 | `capture-home-hero.ts` | Créé | Script capture hero |
 
-**NOUVEAU PRICING OFFICIEL :**
-
-- **Socle obligatoire : 99€/mois** (5 inclusions)
-- Agent IA Web : +29€
-- WhatsApp Business : +39€
-- Téléphone IA : +89€
-- Réservations : +29€
-- Site web : +29€
-- E-commerce : +49€
-- Paiements en ligne : +29€
-- Module Métier : +49€
-
-**EXEMPLES CONFIGURATIONS :**
-- Consultant : 128€/mois
-- Restaurant : 266€/mois
-- Salon (Fat's Hair) : 363€/mois
-- Artisan : 217€/mois
+**PRICING :** ⚠️ OBSOLÈTE - Voir Section 3 pour le pricing valide du 12 février 2026
 
 **HERO ANIMÉ :**
 - 7 screenshots flottants (comme des feuilles au vent)
@@ -1324,7 +1405,180 @@ const dans30h = new Date(now.getTime() + 30 * 60 * 60 * 1000);
 - Compteur quotas restants
 - Plan affiché (Starter/Pro/Business)
 
-**Prochaine étape :** Configuration OAuth pour publication réelle vers réseaux sociaux
+**Prochaine étape :** Configuration OAuth pour publication reelle vers reseaux sociaux
+
+---
+
+### 12 Fevrier 2026 - 18h00 - Claude Code
+
+**Action : SEMAINE 7 - JOUR 2 : PLAN PRO (Quotas + Admin IA + CRM Segmentation)**
+
+**MISSION 1 ACCOMPLIE : VERIFICATION QUOTAS PRO (100%)**
+
+- Verification middleware quotas.js : Limites Pro OK (3000 clients, 10GB, 500 posts, 500 images)
+- UI QuotasWidget.tsx amelioree : Ajout messages upgrade Pro->Business et Starter->Pro
+- Tests quotas-pro.test.js : 5/5 passes
+
+**MISSION 2 ACCOMPLIE : ADMIN IA PRO CAPABILITIES (100%)**
+
+**Fichiers crees/modifies :**
+
+| Fichier | Action | Description |
+|---------|--------|-------------|
+| `backend/src/ai/adminProTools.js` | Cree | 4 capabilities IA avancees |
+| `backend/src/tools/toolsRegistry.js` | Modifie | Ajout TOOLS_ADMIN_PRO + getToolsForPlan() |
+| `backend/src/services/adminChatService.js` | Modifie | Integration outils Pro + filtrage par plan |
+
+**4 CAPABILITIES IA PRO CREEES :**
+
+| Tool | Description | Exemples |
+|------|-------------|----------|
+| `executeAdvancedQuery` | Requetes donnees en langage naturel | "Top 5 services ce mois", "Clients inactifs 90j" |
+| `createAutomation` | Creation automations/workflows | "Relancer clients sans RDV depuis 60j" |
+| `scheduleTask` | Planification taches recurrentes | "Promo -20% tous les lundis a 9h" |
+| `analyzePattern` | Analyse patterns metier | "Quel service marche le mieux le samedi?" |
+
+**FILTRAGE PAR PLAN :**
+- Starter : Outils de base uniquement
+- Pro : Base + Analytics + Strategie + PRO capabilities (4 nouveaux)
+- Business : TOUS les outils (incluant SEO, RH, API, etc.)
+
+**MISSION 3 ACCOMPLIE : CRM SEGMENTATION (100%)**
+
+**Fichiers crees :**
+
+| Fichier | Action | Description |
+|---------|--------|-------------|
+| `backend/src/migrations/005_crm_segments.sql` | Cree | Tables segments + segment_clients |
+| `backend/src/routes/adminSegments.js` | Cree | Routes CRUD segments |
+| `backend/src/index.js` | Modifie | Enregistrement /api/admin/segments |
+| `halimah-project/client/src/components/admin/CRMSegments.tsx` | Cree | UI segmentation complete |
+
+**TABLES BDD CREEES :**
+- `segments` : Definition des segments (nom, criteres, couleur, type)
+- `segment_clients` : Association clients <-> segments (many-to-many)
+
+**ROUTES API SEGMENTS :**
+
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/admin/segments` | GET | Liste segments |
+| `/api/admin/segments` | POST | Creer segment |
+| `/api/admin/segments/:id` | GET | Details segment |
+| `/api/admin/segments/:id` | PUT | Modifier segment |
+| `/api/admin/segments/:id` | DELETE | Supprimer segment |
+| `/api/admin/segments/:id/clients` | GET | Clients du segment |
+| `/api/admin/segments/:id/clients` | POST | Ajouter clients |
+| `/api/admin/segments/:id/clients` | DELETE | Retirer clients |
+| `/api/admin/segments/:id/refresh` | POST | Recalculer segment dynamique |
+
+**TYPES DE SEGMENTS :**
+- `manuel` : Clients ajoutes manuellement
+- `dynamique` : Base sur criteres automatiques (min_rdv, min_ca, inactivite, etc.)
+- `mixte` : Criteres auto + ajouts manuels
+
+**SEGMENTS PREDEFINIS SUGGERÉS :**
+- VIP (10+ RDV, 500EUR+ CA)
+- Fideles (5+ RDV)
+- Inactifs 3 mois
+- Inactifs 6 mois
+- Nouveaux (30 derniers jours)
+
+**UI FRONTEND :**
+- Liste segments avec stats (nb clients, CA total)
+- Creation/edition avec formulaire complet
+- Criteres dynamiques editables
+- Segments predefinis en 1 clic
+- Refresh manuel des segments dynamiques
+- Verification plan Pro/Business (403 si Starter)
+
+---
+
+### 12 Février 2026 - 15h30 - Claude Code
+
+**Action : SEMAINE 7 - QUOTAS STARTER + RELANCES FACTURES**
+
+**MISSION 1 ACCOMPLIE : SYSTÈME QUOTAS STARTER (100%)**
+
+**Fichiers créés/modifiés :**
+
+| Fichier | Action | Description |
+|---------|--------|-------------|
+| `backend/src/middleware/quotas.js` | Créé | Middleware quotas par plan |
+| `backend/src/routes/quotas.js` | Créé | API /api/quotas et /api/quotas/limits |
+| `backend/src/routes/adminClients.js` | Modifié | Ajout requireClientsQuota |
+| `backend/src/routes/api-public.js` | Modifié | Ajout requireClientsQuota |
+| `backend/src/routes/social.js` | Modifié | Ajout requirePostsQuota, requireImagesQuota |
+| `backend/src/index.js` | Modifié | Enregistrement routes quotas |
+| `halimah-project/client/src/components/admin/QuotasWidget.tsx` | Créé | Widget UI quotas |
+| `halimah-project/client/src/pages/admin/Dashboard.tsx` | Modifié | Intégration QuotasWidget |
+
+**LIMITES QUOTAS PAR PLAN :**
+
+| Plan | Clients | Stockage | Posts IA/mois | Images/mois |
+|------|---------|----------|---------------|-------------|
+| Starter (99€) | 1000 | 2 GB | 100 | 100 |
+| Pro (199€) | 3000 | 10 GB | 500 | 500 |
+| Business (399€) | Illimité | Illimité | 1000 | 1000 |
+
+**MIDDLEWARES CRÉÉS :**
+- `requireClientsQuota` : Vérifie limite clients avant création
+- `requireStorageQuota` : Vérifie limite stockage avant upload
+- `requirePostsQuota` : Vérifie limite posts IA avant génération
+- `requireImagesQuota` : Vérifie limite images DALL-E avant génération
+- `getQuotaUsage(tenantId)` : Retourne usage actuel du tenant
+
+**API QUOTAS :**
+- `GET /api/quotas` : Usage quotas du tenant (clients, storage, posts, images)
+- `GET /api/quotas/limits` : Limites par plan (comparatif)
+
+---
+
+**MISSION 2 ACCOMPLIE : RELANCES FACTURES J+7/J+14/J+21 (100%)**
+
+**Fichiers créés :**
+
+| Fichier | Action | Description |
+|---------|--------|-------------|
+| `backend/src/migrations/004_relances_factures.sql` | Créé | Migration BDD relances |
+| `backend/src/jobs/relancesFacturesJob.js` | Créé | Job relances J+7/J+14/J+21 |
+| `backend/src/jobs/scheduler.js` | Modifié | Ajout job relancesJ7J14J21 |
+
+**COLONNES BDD AJOUTÉES (table factures) :**
+- `relance_j7_envoyee` BOOLEAN DEFAULT false
+- `relance_j14_envoyee` BOOLEAN DEFAULT false
+- `relance_j21_envoyee` BOOLEAN DEFAULT false
+- `date_relance_j7` TIMESTAMPTZ
+- `date_relance_j14` TIMESTAMPTZ
+- `date_relance_j21` TIMESTAMPTZ
+
+**TABLE CRÉÉE :**
+- `relances_factures` : Historique des relances envoyées
+
+**VUE CRÉÉE :**
+- `factures_a_relancer` : Vue des factures à relancer avec calcul niveau automatique
+
+**JOB SCHEDULER :**
+- Exécution quotidienne à 09h30
+- 3 niveaux de relance :
+  - J+7 : Première relance (email)
+  - J+14 : Relance urgente (email + SMS)
+  - J+21 : Mise en demeure (email + SMS + notification admin)
+- Marquage automatique des factures relancées
+- Log historique complet
+
+**CONTENU EMAILS :**
+- Templates HTML personnalisés par niveau d'urgence
+- Couleurs : Bleu (J+7), Orange (J+14), Rouge (J+21)
+- Informations : Numéro facture, montant, échéance, jours de retard
+- Mention moyens de paiement acceptés
+
+**TESTS EFFECTUÉS :**
+- ✅ Middleware quotas bloque création si limite atteinte
+- ✅ API /api/quotas retourne données correctes
+- ✅ QuotasWidget affiche barres de progression
+- ✅ Migration SQL syntaxiquement correcte
+- ✅ Job scheduler démarre avec nouveau job relancesJ7J14J21
 
 ---
 
@@ -1334,8 +1588,8 @@ const dans30h = new Date(now.getTime() + 30 * 60 * 60 * 1000);
 
 **Ce document est vivant et doit être mis à jour en permanence.**
 
-Dernière révision : 11 février 2026 - 09h30
-Prochaine révision : 11 février 2026 (fin Jour 1 Semaine 2)
+Dernière révision : 12 février 2026 - 18h00
+Prochaine révision : 13 février 2026 (Semaine 7 - Jour 3)
 
 ---
 

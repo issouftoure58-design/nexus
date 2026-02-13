@@ -1,9 +1,44 @@
+# Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# Production
 dist/
+build/
+.next/
+out/
+
+# Environment
 .env
 .env.local
+.env.*.local
 .env.production
+
+# Secrets
 *.pem
 *.key
 credentials.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+*.tgz

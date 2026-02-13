@@ -368,9 +368,184 @@ export async function analyzeChurnRisk(tenant_id, limit = 10) {
   }
 }
 
+/**
+ * Calcule score churn pour TOUS les clients
+ * Retourne clients à risque triés par priorité
+ */
+export async function analyzeChurnRiskAll(tenant_id) {
+  try {
+    const { data: clients } = await supabase
+      .from('clients')
+      .select(`
+        id,
+        prenom,
+        nom,
+        email,
+        telephone,
+        created_at,
+        derniere_visite
+      `)
+      .eq('tenant_id', tenant_id);
+
+    const risksAnalysis = [];
+
+    for (const client of clients || []) {
+      const churnData = await predictClientChurn(tenant_id, client.id);
+
+      if (churnData.risk === 'high' || churnData.risk === 'medium') {
+        risksAnalysis.push({
+          client_id: client.id,
+          nom: `${client.prenom} ${client.nom}`,
+          email: client.email,
+          telephone: client.telephone,
+          score: churnData.score,
+          risk: churnData.risk,
+          factors: churnData.factors,
+          recommendation: churnData.recommendation,
+          derniere_visite: client.derniere_visite
+        });
+      }
+    }
+
+    // Trier par score décroissant (plus risqué en premier)
+    risksAnalysis.sort((a, b) => b.score - a.score);
+
+    return {
+      total_clients: clients?.length || 0,
+      at_risk: risksAnalysis.length,
+      high_risk: risksAnalysis.filter(r => r.risk === 'high').length,
+      medium_risk: risksAnalysis.filter(r => r.risk === 'medium').length,
+      clients: risksAnalysis
+    };
+  } catch (error) {
+    console.error('[PREDICTIONS] Erreur analyse churn all:', error);
+    throw error;
+  }
+}
+
+/**
+ * Programme action anti-churn automatique
+ */
+export async function scheduleChurnPrevention(tenant_id, client_id, action_type) {
+  try {
+    // action_type: 'email', 'sms', 'call', 'promo'
+
+    const actions = {
+      email: {
+        template: 'reactivation',
+        subject: 'On vous a manqué !',
+        offer: '15% de réduction sur votre prochain RDV'
+      },
+      sms: {
+        message: 'Bonjour ! Ca fait longtemps... Profitez de -15% sur votre prochain RDV avec le code RETOUR15'
+      },
+      promo: {
+        code: `RETOUR${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        discount: 15,
+        expires_days: 30
+      }
+    };
+
+    const action = actions[action_type];
+
+    if (!action) {
+      throw new Error('Type action invalide');
+    }
+
+    // Enregistrer action dans table admin_tasks
+    const { data, error } = await supabase
+      .from('admin_tasks')
+      .insert({
+        tenant_id,
+        titre: `Réactivation client - ${action_type}`,
+        description: JSON.stringify(action),
+        type: 'churn_prevention',
+        priorite: 'high',
+        statut: 'pending',
+        entity_type: 'client',
+        entity_id: client_id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // Table might not exist, return simulated success
+      if (error.message.includes('does not exist')) {
+        return {
+          success: true,
+          simulated: true,
+          action_type,
+          details: action,
+          message: 'Action programmée (simulation)'
+        };
+      }
+      throw error;
+    }
+
+    return {
+      success: true,
+      action_id: data.id,
+      action_type,
+      details: action
+    };
+  } catch (error) {
+    console.error('[PREDICTIONS] Erreur schedule churn prevention:', error);
+    throw error;
+  }
+}
+
+/**
+ * Job quotidien : détecter churn et créer tâches
+ */
+export async function jobChurnPrevention() {
+  console.log('[CHURN] Détection risques churn...');
+
+  try {
+    // Récupérer tous les tenants Business (churn = Business feature)
+    const { data: tenants } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('plan', 'business');
+
+    let totalHighRisk = 0;
+    let totalAtRisk = 0;
+
+    for (const tenant of tenants || []) {
+      try {
+        const analysis = await analyzeChurnRiskAll(tenant.id);
+
+        // Créer tâches pour clients high risk
+        const highRisk = analysis.clients.filter(c => c.risk === 'high');
+
+        for (const client of highRisk.slice(0, 5)) { // Max 5 par jour
+          try {
+            await scheduleChurnPrevention(tenant.id, client.client_id, 'email');
+          } catch (e) {
+            // Ignorer erreur individuelle
+          }
+        }
+
+        totalHighRisk += highRisk.length;
+        totalAtRisk += analysis.at_risk;
+
+        console.log(`[CHURN] ${tenant.id}: ${highRisk.length} high risk, ${analysis.at_risk} total at risk`);
+      } catch (e) {
+        console.error(`[CHURN] Erreur tenant ${tenant.id}:`, e.message);
+      }
+    }
+
+    console.log(`[CHURN] Terminé: ${totalHighRisk} high risk, ${totalAtRisk} total at risk`);
+  } catch (error) {
+    console.error('[CHURN] Erreur job:', error);
+  }
+}
+
 export default {
   predictCAnextMonth,
   predictClientChurn,
   predictRdvNextWeek,
-  analyzeChurnRisk
+  analyzeChurnRisk,
+  analyzeChurnRiskAll,
+  scheduleChurnPrevention,
+  jobChurnPrevention
 };

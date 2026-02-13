@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -189,12 +188,10 @@ export default function WorkflowsPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link to="/" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Retour au dashboard
-            </Link>
-          </Button>
+          <Link to="/" className="inline-flex items-center gap-2 mb-4 hover:bg-gray-100 hover:text-gray-900 rounded-md px-3 py-2 text-sm font-medium">
+            <ArrowLeft className="h-4 w-4" />
+            Retour au dashboard
+          </Link>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Marketing Automation</h1>
