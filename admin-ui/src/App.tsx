@@ -15,6 +15,10 @@ import Comptabilite from './pages/Comptabilite';
 import Stock from './pages/Stock';
 import Parametres from './pages/Parametres';
 import Subscription from './pages/Subscription';
+import { Home } from './pages/Home';
+
+// New Layout
+import { AppLayout } from './components/layout/AppLayout';
 
 // Existing pages
 import SegmentsPage from './pages/Segments';
@@ -28,6 +32,9 @@ import RH from './pages/RH';
 
 // Auth guard component
 function PrivateRoute({ children }: { children: React.ReactNode }) {
+  // DEMO_MODE désactivé - authentification réelle requise
+  const DEMO_MODE = false;
+
   const token = localStorage.getItem('nexus_admin_token');
 
   const { isLoading, isError } = useQuery({
@@ -61,106 +68,35 @@ function App() {
   return (
     <ErrorBoundary>
       <TenantProvider>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-white dark:bg-gray-950">
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
 
-            {/* Protected routes - Tous plans */}
-            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/clients" element={<PrivateRoute><Clients /></PrivateRoute>} />
-            <Route path="/reservations" element={<PrivateRoute><Reservations /></PrivateRoute>} />
-            <Route path="/services" element={<PrivateRoute><Services /></PrivateRoute>} />
-            <Route path="/parametres" element={<PrivateRoute><Parametres /></PrivateRoute>} />
-            <Route path="/subscription" element={<PrivateRoute><Subscription /></PrivateRoute>} />
+            {/* Protected routes - Tous plans - Design GitHub style avec AppLayout */}
+            <Route path="/" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
+            <Route path="/dashboard-old" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            <Route path="/clients" element={<PrivateRoute><AppLayout><Clients /></AppLayout></PrivateRoute>} />
+            <Route path="/reservations" element={<PrivateRoute><AppLayout><Reservations /></AppLayout></PrivateRoute>} />
+            <Route path="/services" element={<PrivateRoute><AppLayout><Services /></AppLayout></PrivateRoute>} />
+            <Route path="/parametres" element={<PrivateRoute><AppLayout><Parametres /></AppLayout></PrivateRoute>} />
+            <Route path="/subscription" element={<PrivateRoute><AppLayout><Subscription /></AppLayout></PrivateRoute>} />
 
             {/* Routes Pro */}
-            <Route path="/comptabilite" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Comptabilite" moduleDescription="Gestion comptable complete avec export">
-                  <Comptabilite />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/stock" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Gestion Stock" moduleDescription="Inventaire et gestion des produits">
-                  <Stock />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/analytics" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Analytics" moduleDescription="Tableaux de bord et statistiques avancees">
-                  <Analytics />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/rh" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Gestion RH" moduleDescription="Gestion de votre equipe et plannings">
-                  <RH />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/segments" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Segments CRM" moduleDescription="Segmentation avancee de vos clients">
-                  <SegmentsPage />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/workflows" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Workflows" moduleDescription="Automatisation marketing et processus">
-                  <WorkflowsPage />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/pipeline" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="Pipeline Marketing" moduleDescription="Gestion des campagnes et prospects">
-                  <PipelinePage />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/ia-admin" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="pro" moduleTitle="IA Admin" moduleDescription="Assistant IA pour administration">
-                  <ComingSoon title="IA Admin" />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
+            <Route path="/comptabilite" element={<PrivateRoute><AppLayout><Comptabilite /></AppLayout></PrivateRoute>} />
+            <Route path="/stock" element={<PrivateRoute><AppLayout><Stock /></AppLayout></PrivateRoute>} />
+            <Route path="/analytics" element={<PrivateRoute><AppLayout><Analytics /></AppLayout></PrivateRoute>} />
+            <Route path="/rh" element={<PrivateRoute><AppLayout><RH /></AppLayout></PrivateRoute>} />
+            <Route path="/segments" element={<PrivateRoute><AppLayout><SegmentsPage /></AppLayout></PrivateRoute>} />
+            <Route path="/workflows" element={<PrivateRoute><AppLayout><WorkflowsPage /></AppLayout></PrivateRoute>} />
+            <Route path="/pipeline" element={<PrivateRoute><AppLayout><PipelinePage /></AppLayout></PrivateRoute>} />
+            <Route path="/ia-admin" element={<PrivateRoute><AppLayout><ComingSoon title="IA Admin" /></AppLayout></PrivateRoute>} />
 
             {/* Routes Business */}
-            <Route path="/seo" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="business" moduleTitle="SEO & Contenu" moduleDescription="Optimisation referencement et contenu IA">
-                  <SEODashboard />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/seo/articles" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="business" moduleTitle="Articles SEO" moduleDescription="Generation d'articles optimises">
-                  <SEOArticles />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/churn" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="business" moduleTitle="Anti-Churn" moduleDescription="Prevention de la perte de clients">
-                  <ChurnPrevention />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
-            <Route path="/sentinel" element={
-              <PrivateRoute>
-                <ModuleGate requiredPlan="business" moduleTitle="SENTINEL" moduleDescription="Intelligence et surveillance avancee">
-                  <ComingSoon title="Sentinel" />
-                </ModuleGate>
-              </PrivateRoute>
-            } />
+            <Route path="/seo" element={<PrivateRoute><AppLayout><SEODashboard /></AppLayout></PrivateRoute>} />
+            <Route path="/seo/articles" element={<PrivateRoute><AppLayout><SEOArticles /></AppLayout></PrivateRoute>} />
+            <Route path="/churn" element={<PrivateRoute><AppLayout><ChurnPrevention /></AppLayout></PrivateRoute>} />
+            <Route path="/sentinel" element={<PrivateRoute><AppLayout><ComingSoon title="Sentinel" /></AppLayout></PrivateRoute>} />
 
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />

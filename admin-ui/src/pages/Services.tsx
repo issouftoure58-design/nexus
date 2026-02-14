@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layout } from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -50,7 +49,12 @@ export default function Services() {
   };
 
   return (
-    <Layout title="Services" subtitle={`${data?.services?.length || 0} services configurés`}>
+    <div className="p-6">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Services</h1>
+        <p className="text-sm text-gray-500">{data?.services?.length || 0} services configurés</p>
+      </div>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -177,7 +181,7 @@ export default function Services() {
         )}
       </div>
 
-      {/* New/Edit Modal */}
+      {/* Modal */}
       {(showNewModal || editingService) && (
         <ServiceModal
           service={editingService}
@@ -187,7 +191,7 @@ export default function Services() {
           }}
         />
       )}
-    </Layout>
+    </div>
   );
 }
 

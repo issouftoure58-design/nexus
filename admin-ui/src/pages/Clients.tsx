@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layout } from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -60,7 +59,12 @@ export default function Clients() {
   };
 
   return (
-    <Layout title="Clients" subtitle={`${data?.pagination.total || 0} clients au total`}>
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+        <p className="text-sm text-gray-500">{data?.pagination.total || 0} clients au total</p>
+      </div>
       <div className="space-y-6">
         {/* Header actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
@@ -264,7 +268,7 @@ export default function Clients() {
       {selectedClient && (
         <ClientDetailModal client={selectedClient} onClose={() => setSelectedClient(null)} />
       )}
-    </Layout>
+    </div>
   );
 }
 

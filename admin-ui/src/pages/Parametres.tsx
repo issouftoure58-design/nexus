@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Layout } from '@/components/layout/Layout';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,11 @@ export default function Parametres() {
   ];
 
   return (
-    <Layout title="Paramètres" subtitle="Configurez votre espace">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
+        <p className="text-sm text-gray-500">Configurez votre espace</p>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar */}
         <Card className="lg:col-span-1 h-fit">
@@ -81,7 +85,7 @@ export default function Parametres() {
           {activeSection === 'api' && <ApiSection />}
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }
 

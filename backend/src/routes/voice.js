@@ -1,8 +1,9 @@
 /**
  * VOICE ROUTES - API endpoints pour la synthèse vocale optimisée
  *
- * Routes pour la génération de voix avec ElevenLabs
- * avec cache, optimisation et pré-génération
+ * Routes avec routing intelligent entre providers:
+ * - OpenAI TTS (défaut): $0.015/1000 chars - 16x moins cher
+ * - ElevenLabs (premium): $0.30/1000 chars - voix clonées
  *
  * @module routes/voice
  */
@@ -10,7 +11,8 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import voiceService from '../services/voiceService.js';
+import ttsService from '../services/ttsService.js';
+import voiceService from '../services/voiceService.js'; // Pour CACHE_DIR et compatibilité
 
 const router = express.Router();
 
@@ -62,23 +64,24 @@ router.get('/audio/:filename', (req, res) => {
  */
 router.post('/synthesize', async (req, res) => {
   try {
-    const { text, voiceId, useCache = true, optimize = true } = req.body;
+    const { text, voiceId, voice, useCache = true, optimize = true, provider } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: 'Texte requis' });
     }
 
-    if (!voiceService.isConfigured()) {
+    if (!ttsService.isConfigured()) {
       return res.status(503).json({
         error: 'Service vocal non configuré',
-        message: 'Clé API ElevenLabs manquante'
+        message: 'OPENAI_API_KEY ou ELEVENLABS_API_KEY requis'
       });
     }
 
-    const result = await voiceService.textToSpeech(text, {
-      voiceId,
+    const result = await ttsService.textToSpeech(text, {
+      voiceId: voiceId || voice,
       useCache,
-      optimize
+      optimize,
+      forceProvider: provider
     });
 
     if (result.success) {
@@ -86,7 +89,8 @@ router.post('/synthesize', async (req, res) => {
         'Content-Type': 'audio/mpeg',
         'Content-Length': result.audio.length,
         'X-From-Cache': result.fromCache ? 'true' : 'false',
-        'X-Characters-Used': result.characters.toString(),
+        'X-Characters-Used': (result.characters || 0).toString(),
+        'X-Provider': result.provider || 'unknown',
         'Cache-Control': 'no-cache'
       });
       res.send(result.audio);
@@ -112,26 +116,30 @@ router.post('/synthesize', async (req, res) => {
  */
 router.post('/smart', async (req, res) => {
   try {
-    const { text, voiceId } = req.body;
+    const { text, voiceId, voice, provider } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: 'Texte requis' });
     }
 
-    if (!voiceService.isConfigured()) {
+    if (!ttsService.isConfigured()) {
       return res.status(503).json({
         error: 'Service vocal non configuré',
-        message: 'Clé API ElevenLabs manquante'
+        message: 'OPENAI_API_KEY ou ELEVENLABS_API_KEY requis'
       });
     }
 
-    const result = await voiceService.textToSpeechSmart(text, { voiceId });
+    const result = await ttsService.textToSpeechSmart(text, {
+      voiceId: voiceId || voice,
+      forceProvider: provider
+    });
 
     if (result.success) {
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': result.audio.length,
-        'X-Stats': JSON.stringify(result.stats),
+        'X-Stats': JSON.stringify(result.stats || {}),
+        'X-Provider': result.provider || 'unknown',
         'Cache-Control': 'no-cache'
       });
       res.send(result.audio);
@@ -151,20 +159,23 @@ router.post('/smart', async (req, res) => {
  */
 router.post('/stream', async (req, res) => {
   try {
-    const { text, voiceId } = req.body;
+    const { text, voiceId, voice, provider } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: 'Le texte est requis' });
     }
 
-    if (!voiceService.isConfigured()) {
+    if (!ttsService.isConfigured()) {
       return res.status(503).json({
         error: 'Service vocal non configuré',
-        message: 'Clé API ElevenLabs manquante'
+        message: 'OPENAI_API_KEY ou ELEVENLABS_API_KEY requis'
       });
     }
 
-    const audioStream = await voiceService.textToSpeechStream(text, { voiceId });
+    const audioStream = await ttsService.textToSpeechStream(text, {
+      voiceId: voiceId || voice,
+      forceProvider: provider
+    });
 
     if (!audioStream) {
       return res.status(500).json({ error: 'Erreur de streaming vocal' });
@@ -202,11 +213,11 @@ router.post('/stream', async (req, res) => {
 
 /**
  * GET /api/voice/cache/stats
- * Statistiques du cache et de la session
+ * Statistiques unifiées de tous les providers
  */
 router.get('/cache/stats', (req, res) => {
   try {
-    const stats = voiceService.getCacheStats();
+    const stats = ttsService.getStats();
     res.json({
       success: true,
       ...stats
@@ -219,11 +230,11 @@ router.get('/cache/stats', (req, res) => {
 
 /**
  * DELETE /api/voice/cache
- * Vider le cache audio
+ * Vider tous les caches audio
  */
 router.delete('/cache', (req, res) => {
   try {
-    const result = voiceService.clearCache();
+    const result = ttsService.clearAllCaches();
     res.json({
       success: true,
       ...result
@@ -244,15 +255,18 @@ router.delete('/cache', (req, res) => {
  */
 router.post('/pregenerate', async (req, res) => {
   try {
-    if (!voiceService.isConfigured()) {
+    if (!ttsService.isConfigured()) {
       return res.status(503).json({
         error: 'Service vocal non configuré',
-        message: 'Clé API ElevenLabs manquante'
+        message: 'OPENAI_API_KEY ou ELEVENLABS_API_KEY requis'
       });
     }
 
-    const { voiceId } = req.body;
-    const result = await voiceService.pregenerateCommonPhrases(voiceId);
+    const { voiceId, voice, provider } = req.body;
+    const result = await ttsService.pregenerateCommonPhrases({
+      voiceId: voiceId || voice,
+      forceProvider: provider
+    });
 
     res.json({
       success: true,
@@ -283,23 +297,16 @@ router.get('/phrases', (req, res) => {
 
 /**
  * GET /api/voice/status
- * Statut du service vocal
+ * Statut du service vocal unifié
  */
 router.get('/status', (req, res) => {
-  const stats = voiceService.getCacheStats();
+  const stats = ttsService.getStats();
   res.json({
-    configured: voiceService.isConfigured(),
-    defaultVoice: voiceService.DEFAULT_VOICE_ID,
-    voiceSettings: voiceService.VOICE_SETTINGS,
-    cacheFiles: stats.cacheFiles,
-    cacheSize: stats.cacheSize,
-    sessionStats: {
-      totalCharacters: stats.totalCharacters,
-      cachedHits: stats.cachedHits,
-      apiCalls: stats.apiCalls,
-      charactersSaved: stats.charactersSaved,
-      savingsPercent: stats.savingsPercent
-    }
+    configured: ttsService.isConfigured(),
+    defaultProvider: ttsService.DEFAULT_PROVIDER,
+    providers: stats.providers,
+    unified: stats.unified,
+    recommendation: 'OpenAI TTS est 16x moins cher qu\'ElevenLabs'
   });
 });
 
@@ -319,16 +326,16 @@ router.get('/quota', async (req, res) => {
 
 /**
  * GET /api/voice/voices
- * Liste des voix disponibles
+ * Liste des voix disponibles (tous providers)
  */
 router.get('/voices', async (req, res) => {
   try {
-    const voices = await voiceService.listVoices();
+    const voices = await ttsService.listVoices();
     res.json({
       success: true,
       voices,
-      count: voices.length,
-      default: voiceService.DEFAULT_VOICE_ID
+      openaiVoices: ttsService.OPENAI_VOICES,
+      defaultProvider: ttsService.DEFAULT_PROVIDER
     });
   } catch (error) {
     console.error('[VOICE ROUTE] Erreur voices:', error.message);
@@ -342,7 +349,7 @@ router.get('/voices', async (req, res) => {
  */
 router.post('/reset-stats', (req, res) => {
   try {
-    const stats = voiceService.resetStats();
+    const stats = ttsService.resetStats();
     res.json({
       success: true,
       stats
@@ -391,23 +398,24 @@ router.post('/optimize', (req, res) => {
  */
 router.get('/test', async (req, res) => {
   try {
-    if (!voiceService.isConfigured()) {
+    if (!ttsService.isConfigured()) {
       return res.status(503).json({
         error: 'Service vocal non configuré',
-        message: 'Clé API ElevenLabs manquante'
+        message: 'OPENAI_API_KEY ou ELEVENLABS_API_KEY requis'
       });
     }
 
-    const testText = "Fat's Hair-Afro bonjour ! Moi c'est Halimah...";
+    const testText = "Bonjour ! Ceci est un test du service vocal.";
 
-    const result = await voiceService.textToSpeech(testText);
+    const result = await ttsService.textToSpeech(testText);
 
     if (result.success) {
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': result.audio.length,
         'X-From-Cache': result.fromCache ? 'true' : 'false',
-        'X-Characters-Used': result.characters.toString()
+        'X-Characters-Used': (result.characters || 0).toString(),
+        'X-Provider': result.provider || 'unknown'
       });
       res.send(result.audio);
     } else {

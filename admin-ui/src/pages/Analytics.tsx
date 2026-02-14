@@ -96,7 +96,7 @@ export default function Analytics() {
     setError(null);
     try {
       const response = await fetch('/api/admin/analytics/dashboard', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       if (!response.ok) throw new Error('Erreur chargement analytics');
       const result = await response.json();

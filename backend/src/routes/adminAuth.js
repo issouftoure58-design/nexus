@@ -199,6 +199,50 @@ router.get('/password-policy', (req, res) => {
   });
 });
 
+// POST /api/admin/auth/unlock-account (débloquer un compte)
+router.post('/unlock-account', authenticateAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email requis' });
+    }
+
+    // Vérifier que l'admin a les droits (même tenant ou super_admin)
+    const { data: targetUser } = await supabase
+      .from('admin_users')
+      .select('id, tenant_id, locked_until')
+      .eq('email', email)
+      .single();
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // Seul un admin du même tenant ou super_admin peut débloquer
+    if (req.admin.role !== 'super_admin' && req.admin.tenant_id !== targetUser.tenant_id) {
+      return res.status(403).json({ error: 'Non autorisé' });
+    }
+
+    // Débloquer le compte
+    const { error } = await supabase
+      .from('admin_users')
+      .update({
+        failed_login_attempts: 0,
+        locked_until: null,
+      })
+      .eq('id', targetUser.id);
+
+    if (error) throw error;
+
+    console.log(`[AUTH] Compte débloqué: ${email}`);
+    res.json({ success: true, message: `Compte ${email} débloqué` });
+  } catch (error) {
+    console.error('[ADMIN AUTH] Erreur unlock-account:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/admin/auth/me (vérifier token)
 router.get('/me', authenticateAdmin, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)

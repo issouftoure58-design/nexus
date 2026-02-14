@@ -54,6 +54,7 @@ import adminOrdersRoutes from './routes/adminOrders.js';
 import adminDisponibilitesRoutes from './routes/adminDisponibilites.js';
 import adminParametresRoutes from './routes/adminParametres.js';
 import adminAgentsRoutes from './routes/adminAgents.js';
+import adminStockRoutes from './routes/adminStock.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -236,6 +237,7 @@ app.use('/api/admin/orders', adminOrdersRoutes);
 app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
 app.use('/api/admin/parametres', adminParametresRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
+app.use('/api/admin/stock', adminStockRoutes);
 
 // Route 404
 app.use((req, res) => {

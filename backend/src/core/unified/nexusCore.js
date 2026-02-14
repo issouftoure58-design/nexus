@@ -2139,10 +2139,39 @@ function extractQuickReplies(userMessage, responseText, toolResultsAccum) {
     }
   }
 
-  // ═══ CAS 5 : QUESTIONS OUI/NON ═══
+  // ═══ CAS 5 : QUESTIONS OUI/NON (restrictif) ═══
+  // On n'affiche Oui/Non QUE pour de vraies confirmations, PAS pour les questions ouvertes
   if (replies.length === 0) {
-    const yesNoPatterns = [/souhaitez-vous/i, /voulez-vous/i, /aimeriez-vous/i, /confirmez/i, /vous convient/i, /puis-je/i];
-    if (yesNoPatterns.some(p => p.test(responseText))) {
+    // Patterns de vraies questions Oui/Non (fin de phrase, contexte de confirmation)
+    const yesNoPatterns = [
+      /\bconfirmez[-\s]vous\s*\?/i,
+      /\bvous convient[-\s]il\s*\?/i,
+      /\bc'est bien ça\s*\?/i,
+      /\best[-\s]ce correct\s*\?/i,
+      /\bje confirme\s*(le|la|ce|cette|votre)\b/i,
+      /\bje peux procéder\s*\?/i,
+      /\bsouhaitez[-\s]vous que je\s+(confirme|réserve|enregistre|procède)/i,
+      /\bvoulez[-\s]vous que je\s+(confirme|réserve|enregistre|procède)/i,
+    ];
+
+    // Patterns de questions ouvertes (ne PAS afficher Oui/Non)
+    const openQuestionPatterns = [
+      /\bquel(le)?s?\b/i,
+      /\bcomment\b/i,
+      /\boù\b/i,
+      /\bquand\b/i,
+      /\bpourquoi\b/i,
+      /\bcombien\b/i,
+      /\bà quelle\b/i,
+      /\bde quel(le)?\b/i,
+      /pouvez[-\s]vous me (dire|donner|communiquer|indiquer)/i,
+    ];
+
+    // Ne montrer Oui/Non que si c'est une vraie confirmation ET pas une question ouverte
+    const isYesNoQuestion = yesNoPatterns.some(p => p.test(responseText));
+    const isOpenQuestion = openQuestionPatterns.some(p => p.test(responseText));
+
+    if (isYesNoQuestion && !isOpenQuestion) {
       replies.push({ type: 'confirm', label: 'Oui', value: 'Oui' });
       replies.push({ type: 'confirm', label: 'Non', value: 'Non' });
     }

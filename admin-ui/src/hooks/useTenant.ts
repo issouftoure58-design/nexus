@@ -237,22 +237,64 @@ const DEFAULT_QUOTAS: Record<PlanType, TenantQuotas> = {
 export function useTenant() {
   const tenantSlug = detectTenantSlug();
 
+  // Mode démo désactivé - authentification réelle requise
+  const DEMO_MODE = false;
+  const hasToken = !!localStorage.getItem('nexus_admin_token');
+
   // Charger config tenant depuis API
   const { data, isLoading, error, refetch } = useQuery<TenantResponse>({
     queryKey: ['tenant', tenantSlug],
     queryFn: async () => {
       try {
-        const response = await api.get<TenantResponse>('/tenants/me');
+        // En mode démo sans token, essayer avec le slug
+        const endpoint = hasToken ? '/tenants/me' : `/tenants/by-slug/${tenantSlug}`;
+        const response = await api.get<TenantResponse>(endpoint);
         return response;
       } catch (err) {
         console.error('[useTenant] Failed to load tenant config:', err);
+        // En mode démo, retourner config fictive
+        if (DEMO_MODE) {
+          return {
+            success: true,
+            tenant: {
+              id: 1,
+              slug: tenantSlug,
+              name: 'Salon Élégance Paris',
+              plan: 'business' as PlanType,
+              modules: {
+                reservations: true,
+                clients: true,
+                services: true,
+                facturation: true,
+                crm_avance: true,
+                analytics: true,
+                comptabilite: true,
+                marketing: true,
+                commercial: true,
+                stock: true,
+                seo: true,
+                rh: true,
+                sentinel: true,
+                churn_prevention: true,
+                agent_ia_web: true,
+                agent_ia_whatsapp: true,
+                agent_ia_telephone: true,
+              },
+              branding: {
+                primaryColor: '#0891b2',
+              },
+              quotas: DEFAULT_QUOTAS.business,
+              statut: 'actif' as const,
+            },
+          };
+        }
         throw err;
       }
     },
     staleTime: 5 * 60 * 1000, // Cache 5 min
-    retry: 2,
-    // Ne pas refetch si pas de token
-    enabled: !!localStorage.getItem('nexus_admin_token'),
+    retry: DEMO_MODE ? 0 : 2,
+    // En mode démo, toujours charger
+    enabled: DEMO_MODE || hasToken,
   });
 
   const tenant = data?.tenant;

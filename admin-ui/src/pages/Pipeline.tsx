@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  LayoutDashboard, ArrowLeft, Plus, TrendingUp, User,
+  Plus, TrendingUp, User,
   Calendar, GripVertical, X, Check, AlertCircle, Target
 } from 'lucide-react';
 
@@ -180,7 +179,7 @@ export default function PipelinePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
@@ -188,52 +187,42 @@ export default function PipelinePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Pipeline Commercial</h2>
-              <p className="text-gray-600 mb-4">
-                Cette fonctionnalite est disponible a partir du plan Pro.
-              </p>
-              <Button>Passer au Plan Pro</Button>
-            </CardContent>
-          </Card>
-        </main>
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Pipeline Commercial</h2>
+            <p className="text-gray-600 mb-4">
+              Cette fonctionnalite est disponible a partir du plan Pro.
+            </p>
+            <Button>Passer au Plan Pro</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link to="/" className="inline-flex items-center gap-2 mb-4 hover:bg-gray-100 hover:text-gray-900 rounded-md px-3 py-2 text-sm font-medium">
-            <ArrowLeft className="h-4 w-4" />
-            Retour au dashboard
-          </Link>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pipeline Commercial</h1>
-              <p className="text-gray-600 mt-1 flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                Prevision CA pondéré :
-                <span className="font-bold text-green-600 text-lg">
-                  {data?.previsionCA || '0'} EUR
-                </span>
-              </p>
-            </div>
-            <Button onClick={() => setShowCreateForm(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nouvelle opportunite
-            </Button>
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Pipeline Commercial</h1>
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Prevision CA pondere :
+              <span className="font-bold text-green-600 text-lg">
+                {data?.previsionCA || '0'} EUR
+              </span>
+            </p>
           </div>
+          <Button onClick={() => setShowCreateForm(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nouvelle opportunite
+          </Button>
         </div>
+      </div>
 
         {/* Create Form */}
         {showCreateForm && (
@@ -413,28 +402,6 @@ export default function PipelinePage() {
             </div>
           </CardContent>
         </Card>
-      </main>
     </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="bg-white border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-primary-600" />
-            <span className="text-xl font-bold">NEXUS Admin</span>
-          </div>
-          <nav className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-900">Dashboard</Link>
-            <Link to="/segments" className="text-gray-600 hover:text-gray-900">Segments</Link>
-            <Link to="/workflows" className="text-gray-600 hover:text-gray-900">Workflows</Link>
-            <Link to="/pipeline" className="text-primary-600 font-medium">Pipeline</Link>
-          </nav>
-        </div>
-      </div>
-    </header>
   );
 }

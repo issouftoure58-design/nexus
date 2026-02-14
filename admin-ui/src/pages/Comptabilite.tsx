@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layout } from '@/components/layout/Layout';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,7 +91,11 @@ export default function Comptabilite() {
   }));
 
   return (
-    <Layout title="Comptabilité" subtitle="Gestion financière">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Comptabilité</h1>
+        <p className="text-sm text-gray-500">Gestion financière</p>
+      </div>
       <div className="space-y-6">
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -383,7 +387,7 @@ export default function Comptabilite() {
       {showNewExpenseModal && (
         <NewExpenseModal onClose={() => setShowNewExpenseModal(false)} />
       )}
-    </Layout>
+    </div>
   );
 }
 
