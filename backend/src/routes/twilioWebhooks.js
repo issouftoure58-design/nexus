@@ -234,7 +234,7 @@ const SPEECH_HINTS = [
 // === HELPER : VOIX ELEVENLABS AVEC FALLBACK POLLY ===
 // ============================================================
 
-const BASE_URL = process.env.BASE_URL || 'https://www.fatshairafro.fr';
+const BASE_URL = process.env.BASE_URL || 'https://nexus-backend-dev.onrender.com';
 
 async function sayWithElevenLabs(twiml, text) {
   if (!voiceService.isConfigured()) {
