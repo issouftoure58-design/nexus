@@ -836,66 +836,21 @@ Fat's Hair-Afro
       context.data.telephone = clientPhone.replace('whatsapp:', '');
     }
 
-    // Traiter le message via nexusCore
-    const result = nexusCore.processMessage(message, context, 'whatsapp');
+    // Traiter le message via nexusCore (nouvelle API async avec Claude)
+    const conversationId = `whatsapp_${clientPhone.replace(/\D/g, '')}`;
+    const result = await nexusCore.processMessage(message, 'whatsapp', {
+      conversationId,
+      phone: clientPhone,
+      tenantId,
+      clientName
+    });
 
-    // Si action de création de réservation
-    if (result.action === 'CREATE_BOOKING' && result.bookingData) {
-      try {
-        // Extraire le jour de la semaine depuis dateFormatee
-        const dateFormatee = result.context.data.dateFormatee || '';
-        const jourMatch = dateFormatee.match(/^(\w+)/);
-        const jour = jourMatch ? jourMatch[1].toLowerCase() : null;
+    console.log('[WhatsApp-Nexus] Résultat Claude:', { success: result.success, response: result.response?.substring(0, 100) });
 
-        // Calculer les frais de déplacement si domicile
-        let fraisDeplacement = 0;
-        if (result.bookingData.lieu === 'domicile' && result.bookingData.adresse) {
-          try {
-            const distanceResult = await getDistanceFromSalon(result.bookingData.adresse);
-            if (distanceResult && distanceResult.distance) {
-              const fraisResult = calculerFraisDepl(distanceResult.distance);
-              fraisDeplacement = fraisResult.frais || 0;
-            }
-          } catch (distErr) {
-            console.warn('[WhatsApp-Nexus] Erreur calcul distance:', distErr.message);
-          }
-        }
-
-        const booking = await createAppointment({
-          clientPrenom: result.bookingData.prenom,
-          clientPhone: result.bookingData.telephone,
-          service: result.bookingData.service,
-          jour: jour,
-          heure: result.bookingData.heure,
-          clientAddress: result.bookingData.lieu === 'domicile' ? result.bookingData.adresse : null,
-          source: 'whatsapp-nexus',
-          notes: `WhatsApp - Lieu: ${result.bookingData.lieu === 'domicile' ? result.bookingData.adresse : 'Chez Fatou'}`
-        });
-
-        console.log('[WhatsApp-Nexus] Réservation créée:', booking);
-
-        // Si le booking a échoué, informer le client
-        if (!booking.success) {
-          result.response = `Désolé, ce créneau n'est plus disponible. 😔
-
-${booking.error || 'Erreur lors de la réservation.'}
-
-Voulez-vous choisir un autre créneau ?`;
-          result.context.state = nexusCore.CONVERSATION_STATES.ATTENTE_DATE;
-        } else {
-          // Ajouter le prix total dans la réponse
-          const prixTotal = result.bookingData.prixService + fraisDeplacement;
-          result.response += `\n\n💰 Total : ${prixTotal}€${fraisDeplacement > 0 ? ` (dont ${fraisDeplacement}€ de déplacement)` : ''}`;
-        }
-      } catch (bookingError) {
-        console.error('[WhatsApp-Nexus] Erreur création RDV:', bookingError);
-        result.response = `Désolé, une erreur s'est produite. Pouvez-vous réessayer ?`;
-        result.context.state = nexusCore.CONVERSATION_STATES.ATTENTE_DATE;
-      }
+    // Vérifier si Claude a répondu
+    if (!result.success || !result.response) {
+      throw new Error(result.error || 'Pas de réponse de Claude');
     }
-
-    // Mettre à jour le contexte
-    nexusContexts.set(clientPhone, result.context);
 
     // Envoyer la réponse via WhatsApp
     await sendWhatsAppMessage(clientPhone, result.response);
@@ -903,8 +858,7 @@ Voulez-vous choisir un autre créneau ?`;
     return {
       success: true,
       response: result.response,
-      state: result.context.state,
-      data: result.context.data
+      duration: result.duration
     };
 
   } catch (error) {
