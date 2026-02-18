@@ -1,6 +1,10 @@
 /**
  * Service Google Drive pour Halimah Pro
- * Permet à Halimah d'accéder aux fichiers Google Drive de Fatou
+ * Permet à Halimah d'accéder aux fichiers Google Drive du tenant
+ *
+ * 🔒 TENANT ISOLATION: Toutes les fonctions requièrent tenantId
+ * Chaque tenant a ses propres tokens OAuth - un tenant ne peut JAMAIS
+ * accéder au Google Drive d'un autre tenant.
  */
 
 import { google } from 'googleapis';
@@ -47,17 +51,42 @@ function getOAuth2Client() {
 }
 
 // ============================================================
+// === VALIDATION TENANT ===
+// ============================================================
+
+/**
+ * Valide que tenantId est présent
+ * @param {string} tenantId
+ * @param {string} functionName
+ * @returns {boolean}
+ */
+function validateTenantId(tenantId, functionName) {
+  if (!tenantId) {
+    console.error(`[GOOGLE DRIVE] ❌ ERREUR CRITIQUE: tenantId manquant dans ${functionName}()`);
+    return false;
+  }
+  return true;
+}
+
+// ============================================================
 // === GESTION DES TOKENS ===
 // ============================================================
 
 /**
  * Récupère les tokens stockés en base
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-async function getStoredTokens(userId = 'admin') {
+async function getStoredTokens(tenantId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'getStoredTokens')) {
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_google_tokens')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('user_id', userId)
       .single();
 
@@ -75,16 +104,25 @@ async function getStoredTokens(userId = 'admin') {
 
 /**
  * Sauvegarde les tokens en base
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {object} tokens - Tokens OAuth
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-async function saveTokens(tokens, userId = 'admin') {
+async function saveTokens(tenantId, tokens, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'saveTokens')) {
+    return false;
+  }
+
   try {
     const { data: existing } = await supabase
       .from('halimah_google_tokens')
       .select('id')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('user_id', userId)
       .single();
 
     const tokenData = {
+      tenant_id: tenantId,  // 🔒 TENANT ISOLATION
       user_id: userId,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -95,10 +133,11 @@ async function saveTokens(tokens, userId = 'admin') {
     };
 
     if (existing) {
-      // Mettre à jour
+      // Mettre à jour (avec double vérification tenant)
       const { error } = await supabase
         .from('halimah_google_tokens')
         .update(tokenData)
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('user_id', userId);
 
       if (error) throw error;
@@ -111,7 +150,7 @@ async function saveTokens(tokens, userId = 'admin') {
       if (error) throw error;
     }
 
-    console.log('[GOOGLE DRIVE] ✅ Tokens sauvegardés');
+    console.log(`[GOOGLE DRIVE] ✅ Tokens sauvegardés (tenant: ${tenantId})`);
     return true;
   } catch (err) {
     console.error('[GOOGLE DRIVE] Erreur saveTokens:', err);
@@ -121,16 +160,23 @@ async function saveTokens(tokens, userId = 'admin') {
 
 /**
  * Supprime les tokens (déconnexion)
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-async function deleteTokens(userId = 'admin') {
+async function deleteTokens(tenantId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'deleteTokens')) {
+    return false;
+  }
+
   try {
     const { error } = await supabase
       .from('halimah_google_tokens')
       .delete()
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('user_id', userId);
 
     if (error) throw error;
-    console.log('[GOOGLE DRIVE] 🗑️ Tokens supprimés');
+    console.log(`[GOOGLE DRIVE] 🗑️ Tokens supprimés (tenant: ${tenantId})`);
     return true;
   } catch (err) {
     console.error('[GOOGLE DRIVE] Erreur deleteTokens:', err);
@@ -151,25 +197,38 @@ export function isConfigured() {
 
 /**
  * Vérifie si l'utilisateur est connecté
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function isConnected(userId = 'admin') {
-  const tokens = await getStoredTokens(userId);
+export async function isConnected(tenantId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'isConnected')) {
+    return false;
+  }
+  const tokens = await getStoredTokens(tenantId, userId);
   return !!tokens?.access_token;
 }
 
 /**
  * Génère l'URL d'authentification Google
+ * Note: L'URL est la même pour tous les tenants, mais le callback
+ * doit inclure le tenantId pour associer les tokens au bon tenant
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export function getAuthUrl() {
+export function getAuthUrl(tenantId) {
   if (!GDRIVE_CONFIGURED) {
     return { success: false, error: 'Google Drive non configuré' };
+  }
+
+  if (!validateTenantId(tenantId, 'getAuthUrl')) {
+    return { success: false, error: 'tenantId manquant' };
   }
 
   const client = getOAuth2Client();
   const url = client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    prompt: 'consent' // Force le refresh token
+    prompt: 'consent', // Force le refresh token
+    state: tenantId    // Passer le tenantId dans le state pour le callback
   });
 
   return { success: true, url };
@@ -177,23 +236,30 @@ export function getAuthUrl() {
 
 /**
  * Gère le callback OAuth et sauvegarde les tokens
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} code - Code OAuth
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function handleCallback(code, userId = 'admin') {
+export async function handleCallback(tenantId, code, userId = 'admin') {
   if (!GDRIVE_CONFIGURED) {
     return { success: false, error: 'Google Drive non configuré' };
+  }
+
+  if (!validateTenantId(tenantId, 'handleCallback')) {
+    return { success: false, error: 'tenantId manquant' };
   }
 
   try {
     const client = getOAuth2Client();
     const { tokens } = await client.getToken(code);
 
-    // Sauvegarder les tokens
-    await saveTokens(tokens, userId);
+    // Sauvegarder les tokens avec le tenantId
+    await saveTokens(tenantId, tokens, userId);
 
     // Configurer le client
     client.setCredentials(tokens);
 
-    console.log('[GOOGLE DRIVE] ✅ Authentification réussie');
+    console.log(`[GOOGLE DRIVE] ✅ Authentification réussie (tenant: ${tenantId})`);
     return { success: true, message: 'Connecté à Google Drive' };
   } catch (err) {
     console.error('[GOOGLE DRIVE] Erreur handleCallback:', err);
@@ -203,11 +269,16 @@ export async function handleCallback(code, userId = 'admin') {
 
 /**
  * Déconnecte Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function disconnect(userId = 'admin') {
+export async function disconnect(tenantId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'disconnect')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    await deleteTokens(userId);
-    oauth2Client = null;
+    await deleteTokens(tenantId, userId);
     return { success: true, message: 'Déconnecté de Google Drive' };
   } catch (err) {
     return { success: false, error: err.message };
@@ -216,13 +287,19 @@ export async function disconnect(userId = 'admin') {
 
 /**
  * Obtient un client Drive authentifié
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-async function getAuthenticatedDrive(userId = 'admin') {
+async function getAuthenticatedDrive(tenantId, userId = 'admin') {
   if (!GDRIVE_CONFIGURED) {
     throw new Error('Google Drive non configuré');
   }
 
-  const tokens = await getStoredTokens(userId);
+  if (!validateTenantId(tenantId, 'getAuthenticatedDrive')) {
+    throw new Error('tenantId manquant');
+  }
+
+  const tokens = await getStoredTokens(tenantId, userId);
   if (!tokens) {
     throw new Error('Non connecté à Google Drive');
   }
@@ -238,7 +315,7 @@ async function getAuthenticatedDrive(userId = 'admin') {
   if (tokens.expiry_date && Date.now() >= tokens.expiry_date) {
     try {
       const { credentials } = await client.refreshAccessToken();
-      await saveTokens(credentials, userId);
+      await saveTokens(tenantId, credentials, userId);
       client.setCredentials(credentials);
     } catch (err) {
       console.error('[GOOGLE DRIVE] Erreur refresh token:', err);
@@ -255,10 +332,19 @@ async function getAuthenticatedDrive(userId = 'admin') {
 
 /**
  * Liste les fichiers Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} folderId - ID du dossier
+ * @param {string} query - Recherche dans le nom
+ * @param {number} pageSize - Nombre de résultats
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function listFiles(folderId = 'root', query = '', pageSize = 20, userId = 'admin') {
+export async function listFiles(tenantId, folderId = 'root', query = '', pageSize = 20, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'listFiles')) {
+    return { success: false, error: 'tenantId manquant', files: [] };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     let q = `'${folderId}' in parents and trashed = false`;
     if (query) {
@@ -299,10 +385,18 @@ export async function listFiles(folderId = 'root', query = '', pageSize = 20, us
 
 /**
  * Recherche dans Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} query - Terme de recherche
+ * @param {number} pageSize - Nombre de résultats
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function searchFiles(query, pageSize = 20, userId = 'admin') {
+export async function searchFiles(tenantId, query, pageSize = 20, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'searchFiles')) {
+    return { success: false, error: 'tenantId manquant', files: [] };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     const response = await drive.files.list({
       q: `name contains '${query}' and trashed = false`,
@@ -333,10 +427,17 @@ export async function searchFiles(query, pageSize = 20, userId = 'admin') {
 
 /**
  * Lit le contenu d'un fichier (texte uniquement)
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} fileId - ID du fichier
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function readFile(fileId, userId = 'admin') {
+export async function readFile(tenantId, fileId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'readFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     // Obtenir les métadonnées
     const metadata = await drive.files.get({
@@ -423,10 +524,20 @@ export async function readFile(fileId, userId = 'admin') {
 
 /**
  * Crée un fichier dans Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} name - Nom du fichier
+ * @param {string} content - Contenu du fichier
+ * @param {string} mimeType - Type MIME
+ * @param {string} folderId - ID du dossier parent
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function createFile(name, content, mimeType = 'text/plain', folderId = 'root', userId = 'admin') {
+export async function createFile(tenantId, name, content, mimeType = 'text/plain', folderId = 'root', userId = 'admin') {
+  if (!validateTenantId(tenantId, 'createFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     const fileMetadata = {
       name,
@@ -444,7 +555,7 @@ export async function createFile(name, content, mimeType = 'text/plain', folderI
       fields: 'id, name, webViewLink'
     });
 
-    console.log(`[GOOGLE DRIVE] ✅ Fichier créé: ${name}`);
+    console.log(`[GOOGLE DRIVE] ✅ Fichier créé: ${name} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -463,10 +574,18 @@ export async function createFile(name, content, mimeType = 'text/plain', folderI
 
 /**
  * Met à jour le contenu d'un fichier
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} fileId - ID du fichier
+ * @param {string} content - Nouveau contenu
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function updateFile(fileId, content, userId = 'admin') {
+export async function updateFile(tenantId, fileId, content, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'updateFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     const response = await drive.files.update({
       fileId,
@@ -476,7 +595,7 @@ export async function updateFile(fileId, content, userId = 'admin') {
       fields: 'id, name, webViewLink, modifiedTime'
     });
 
-    console.log(`[GOOGLE DRIVE] ✅ Fichier mis à jour: ${response.data.name}`);
+    console.log(`[GOOGLE DRIVE] ✅ Fichier mis à jour: ${response.data.name} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -496,10 +615,17 @@ export async function updateFile(fileId, content, userId = 'admin') {
 
 /**
  * Supprime un fichier (déplace vers la corbeille)
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} fileId - ID du fichier
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function deleteFile(fileId, userId = 'admin') {
+export async function deleteFile(tenantId, fileId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'deleteFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     // Obtenir le nom avant suppression
     const metadata = await drive.files.get({
@@ -512,7 +638,7 @@ export async function deleteFile(fileId, userId = 'admin') {
       requestBody: { trashed: true }
     });
 
-    console.log(`[GOOGLE DRIVE] 🗑️ Fichier supprimé: ${metadata.data.name}`);
+    console.log(`[GOOGLE DRIVE] 🗑️ Fichier supprimé: ${metadata.data.name} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -528,10 +654,18 @@ export async function deleteFile(fileId, userId = 'admin') {
 
 /**
  * Crée un dossier
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} name - Nom du dossier
+ * @param {string} parentId - ID du dossier parent
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function createFolder(name, parentId = 'root', userId = 'admin') {
+export async function createFolder(tenantId, name, parentId = 'root', userId = 'admin') {
+  if (!validateTenantId(tenantId, 'createFolder')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     const response = await drive.files.create({
       requestBody: {
@@ -542,7 +676,7 @@ export async function createFolder(name, parentId = 'root', userId = 'admin') {
       fields: 'id, name, webViewLink'
     });
 
-    console.log(`[GOOGLE DRIVE] 📁 Dossier créé: ${name}`);
+    console.log(`[GOOGLE DRIVE] 📁 Dossier créé: ${name} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -561,10 +695,18 @@ export async function createFolder(name, parentId = 'root', userId = 'admin') {
 
 /**
  * Télécharge un fichier Google Drive vers le serveur local
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} fileId - ID du fichier
+ * @param {string} localDir - Dossier local de destination
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function downloadFile(fileId, localDir = 'halimah-workspace/imports', userId = 'admin') {
+export async function downloadFile(tenantId, fileId, localDir = 'halimah-workspace/imports', userId = 'admin') {
+  if (!validateTenantId(tenantId, 'downloadFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     // Obtenir les métadonnées
     const metadata = await drive.files.get({
@@ -613,7 +755,7 @@ export async function downloadFile(fileId, localDir = 'halimah-workspace/imports
       response.data.pipe(dest).on('finish', resolve).on('error', reject);
     });
 
-    console.log(`[GOOGLE DRIVE] ⬇️ Fichier téléchargé: ${file.name}`);
+    console.log(`[GOOGLE DRIVE] ⬇️ Fichier téléchargé: ${file.name} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -630,10 +772,18 @@ export async function downloadFile(fileId, localDir = 'halimah-workspace/imports
 
 /**
  * Upload un fichier local vers Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} localPath - Chemin local du fichier
+ * @param {string} folderId - ID du dossier de destination
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function uploadFile(localPath, folderId = 'root', userId = 'admin') {
+export async function uploadFile(tenantId, localPath, folderId = 'root', userId = 'admin') {
+  if (!validateTenantId(tenantId, 'uploadFile')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
-    const drive = await getAuthenticatedDrive(userId);
+    const drive = await getAuthenticatedDrive(tenantId, userId);
 
     const fullPath = path.join(process.cwd(), 'client/public', localPath);
     if (!fs.existsSync(fullPath)) {
@@ -655,7 +805,7 @@ export async function uploadFile(localPath, folderId = 'root', userId = 'admin')
       fields: 'id, name, webViewLink, size'
     });
 
-    console.log(`[GOOGLE DRIVE] ⬆️ Fichier uploadé: ${filename}`);
+    console.log(`[GOOGLE DRIVE] ⬆️ Fichier uploadé: ${filename} (tenant: ${tenantId})`);
 
     return {
       success: true,
@@ -675,10 +825,20 @@ export async function uploadFile(localPath, folderId = 'root', userId = 'admin')
 
 /**
  * Obtient le statut de connexion Google Drive
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} userId - Identifiant de l'utilisateur
  */
-export async function getStatus(userId = 'admin') {
+export async function getStatus(tenantId, userId = 'admin') {
+  if (!validateTenantId(tenantId, 'getStatus')) {
+    return {
+      configured: isConfigured(),
+      connected: false,
+      message: 'tenantId manquant'
+    };
+  }
+
   const configured = isConfigured();
-  const connected = await isConnected(userId);
+  const connected = await isConnected(tenantId, userId);
 
   return {
     configured,

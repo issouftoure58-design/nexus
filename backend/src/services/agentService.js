@@ -1,6 +1,8 @@
 /**
  * Service Agent Autonome pour Halimah Pro
  * Permet à Halimah de planifier et exécuter des tâches complexes en plusieurs étapes
+ *
+ * 🔒 TENANT ISOLATION: Toutes les fonctions requièrent tenantId
  */
 
 import { supabase } from '../config/supabase.js';
@@ -31,17 +33,44 @@ const SENSITIVE_ACTIONS = [
 ];
 
 // ============================================================
+// === VALIDATION TENANT ===
+// ============================================================
+
+/**
+ * Valide que tenantId est présent
+ * @param {string} tenantId
+ * @param {string} functionName
+ * @returns {boolean}
+ */
+function validateTenantId(tenantId, functionName) {
+  if (!tenantId) {
+    console.error(`[AGENT] ❌ ERREUR CRITIQUE: tenantId manquant dans ${functionName}()`);
+    return false;
+  }
+  return true;
+}
+
+// ============================================================
 // === GESTION DES TÂCHES ===
 // ============================================================
 
 /**
  * Crée une nouvelle tâche
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} description - Description de la tâche
+ * @param {Array} steps - Étapes de la tâche
+ * @param {string|null} parentTaskId - ID de la tâche parente
  */
-export async function createTask(description, steps = [], parentTaskId = null) {
+export async function createTask(tenantId, description, steps = [], parentTaskId = null) {
+  if (!validateTenantId(tenantId, 'createTask')) {
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
       .insert({
+        tenant_id: tenantId,  // 🔒 TENANT ISOLATION
         parent_task_id: parentTaskId,
         description,
         status: TASK_STATUS.PENDING,
@@ -56,7 +85,7 @@ export async function createTask(description, steps = [], parentTaskId = null) {
       return null;
     }
 
-    console.log(`[AGENT] ✅ Tâche créée #${data.id}: ${description}`);
+    console.log(`[AGENT] ✅ Tâche créée #${data.id}: ${description} (tenant: ${tenantId})`);
     return data;
   } catch (err) {
     console.error('[AGENT] Exception createTask:', err);
@@ -66,12 +95,19 @@ export async function createTask(description, steps = [], parentTaskId = null) {
 
 /**
  * Récupère une tâche par son ID
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
  */
-export async function getTask(taskId) {
+export async function getTask(tenantId, taskId) {
+  if (!validateTenantId(tenantId, 'getTask')) {
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', taskId)
       .single();
 
@@ -94,8 +130,17 @@ export async function getTask(taskId) {
 
 /**
  * Met à jour le statut d'une tâche
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
+ * @param {string} status - Nouveau statut
+ * @param {object|null} result - Résultat
+ * @param {string|null} error - Message d'erreur
  */
-export async function updateTaskStatus(taskId, status, result = null, error = null) {
+export async function updateTaskStatus(tenantId, taskId, status, result = null, error = null) {
+  if (!validateTenantId(tenantId, 'updateTaskStatus')) {
+    return null;
+  }
+
   try {
     const updateData = {
       status,
@@ -107,6 +152,7 @@ export async function updateTaskStatus(taskId, status, result = null, error = nu
     const { data, error: updateError } = await supabase
       .from('halimah_tasks')
       .update(updateData)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', taskId)
       .select()
       .single();
@@ -116,7 +162,7 @@ export async function updateTaskStatus(taskId, status, result = null, error = nu
       return null;
     }
 
-    console.log(`[AGENT] 🔄 Tâche #${taskId} -> ${status}`);
+    console.log(`[AGENT] 🔄 Tâche #${taskId} -> ${status} (tenant: ${tenantId})`);
     return data;
   } catch (err) {
     console.error('[AGENT] Exception updateTaskStatus:', err);
@@ -126,10 +172,17 @@ export async function updateTaskStatus(taskId, status, result = null, error = nu
 
 /**
  * Avance à l'étape suivante d'une tâche
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
+ * @param {object|null} stepResult - Résultat de l'étape
  */
-export async function advanceTaskStep(taskId, stepResult = null) {
+export async function advanceTaskStep(tenantId, taskId, stepResult = null) {
+  if (!validateTenantId(tenantId, 'advanceTaskStep')) {
+    return null;
+  }
+
   try {
-    const task = await getTask(taskId);
+    const task = await getTask(tenantId, taskId);
     if (!task) return null;
 
     const newStep = task.current_step + 1;
@@ -152,6 +205,7 @@ export async function advanceTaskStep(taskId, stepResult = null) {
         status: isComplete ? TASK_STATUS.COMPLETED : TASK_STATUS.RUNNING,
         ...(isComplete && { completed_at: new Date().toISOString() })
       })
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', taskId)
       .select()
       .single();
@@ -161,7 +215,7 @@ export async function advanceTaskStep(taskId, stepResult = null) {
       return null;
     }
 
-    console.log(`[AGENT] ➡️ Tâche #${taskId} étape ${newStep}/${task.steps.length}`);
+    console.log(`[AGENT] ➡️ Tâche #${taskId} étape ${newStep}/${task.steps.length} (tenant: ${tenantId})`);
     return data;
   } catch (err) {
     console.error('[AGENT] Exception advanceTaskStep:', err);
@@ -171,12 +225,19 @@ export async function advanceTaskStep(taskId, stepResult = null) {
 
 /**
  * Récupère les tâches en cours ou en attente
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {number} limit - Nombre max de tâches
  */
-export async function getPendingTasks(limit = 10) {
+export async function getPendingTasks(tenantId, limit = 10) {
+  if (!validateTenantId(tenantId, 'getPendingTasks')) {
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .in('status', [TASK_STATUS.PENDING, TASK_STATUS.RUNNING, TASK_STATUS.NEEDS_CONFIRMATION])
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -199,8 +260,14 @@ export async function getPendingTasks(limit = 10) {
 
 /**
  * Annule une tâche
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
  */
-export async function cancelTask(taskId) {
+export async function cancelTask(tenantId, taskId) {
+  if (!validateTenantId(tenantId, 'cancelTask')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
@@ -208,6 +275,7 @@ export async function cancelTask(taskId) {
         status: TASK_STATUS.CANCELLED,
         completed_at: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', taskId)
       .select()
       .single();
@@ -217,7 +285,7 @@ export async function cancelTask(taskId) {
       return { success: false, error: error.message };
     }
 
-    console.log(`[AGENT] ❌ Tâche #${taskId} annulée`);
+    console.log(`[AGENT] ❌ Tâche #${taskId} annulée (tenant: ${tenantId})`);
     return { success: true, task: data };
   } catch (err) {
     console.error('[AGENT] Exception cancelTask:', err);
@@ -232,6 +300,7 @@ export async function cancelTask(taskId) {
 /**
  * Analyse une demande utilisateur et décompose en étapes
  * Retourne un plan d'exécution
+ * Note: Pas besoin de tenantId ici car c'est juste de l'analyse locale
  */
 export function analyzeAndPlan(userRequest) {
   const request = userRequest.toLowerCase();
@@ -382,8 +451,16 @@ export function formatPlanForDisplay(plan) {
 /**
  * Exécute une étape d'une tâche
  * Retourne le résultat de l'étape ou une demande de confirmation
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {object} task - Tâche à exécuter
+ * @param {number} stepIndex - Index de l'étape
+ * @param {function} executeTool - Fonction d'exécution d'outil
  */
-export async function executeStep(task, stepIndex, executeTool) {
+export async function executeStep(tenantId, task, stepIndex, executeTool) {
+  if (!validateTenantId(tenantId, 'executeStep')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
   if (stepIndex >= task.steps.length) {
     return {
       success: true,
@@ -406,9 +483,9 @@ export async function executeStep(task, stepIndex, executeTool) {
     };
   }
 
-  // Exécuter l'étape
+  // Exécuter l'étape (passer tenantId à executeTool)
   try {
-    const result = await executeTool(step.action, step.params);
+    const result = await executeTool(step.action, step.params, tenantId);
 
     return {
       success: true,
@@ -430,24 +507,32 @@ export async function executeStep(task, stepIndex, executeTool) {
 
 /**
  * Exécute une tâche complète (avec confirmations si nécessaire)
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
+ * @param {function} executeTool - Fonction d'exécution d'outil
+ * @param {boolean} confirmed - Si déjà confirmé
  */
-export async function executeTask(taskId, executeTool, confirmed = false) {
-  const task = await getTask(taskId);
+export async function executeTask(tenantId, taskId, executeTool, confirmed = false) {
+  if (!validateTenantId(tenantId, 'executeTask')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
+  const task = await getTask(tenantId, taskId);
   if (!task) {
     return { success: false, error: 'Tâche non trouvée' };
   }
 
   // Mettre la tâche en cours
-  await updateTaskStatus(taskId, TASK_STATUS.RUNNING);
+  await updateTaskStatus(tenantId, taskId, TASK_STATUS.RUNNING);
 
   const results = [];
 
   for (let i = task.current_step; i < task.steps.length; i++) {
-    const stepResult = await executeStep(task, i, executeTool);
+    const stepResult = await executeStep(tenantId, task, i, executeTool);
 
     if (!stepResult.success) {
       // Échec - marquer la tâche comme échouée
-      await updateTaskStatus(taskId, TASK_STATUS.FAILED, { steps: results }, stepResult.error);
+      await updateTaskStatus(tenantId, taskId, TASK_STATUS.FAILED, { steps: results }, stepResult.error);
       return {
         success: false,
         taskId,
@@ -459,8 +544,8 @@ export async function executeTask(taskId, executeTool, confirmed = false) {
 
     if (stepResult.needsConfirmation && !confirmed) {
       // Mettre en pause pour confirmation
-      await updateTaskStatus(taskId, TASK_STATUS.NEEDS_CONFIRMATION);
-      await advanceTaskStep(taskId, { status: 'awaiting_confirmation' });
+      await updateTaskStatus(tenantId, taskId, TASK_STATUS.NEEDS_CONFIRMATION);
+      await advanceTaskStep(tenantId, taskId, { status: 'awaiting_confirmation' });
 
       return {
         success: true,
@@ -473,11 +558,11 @@ export async function executeTask(taskId, executeTool, confirmed = false) {
     }
 
     results.push(stepResult);
-    await advanceTaskStep(taskId, stepResult.result);
+    await advanceTaskStep(tenantId, taskId, stepResult.result);
   }
 
   // Tâche terminée
-  await updateTaskStatus(taskId, TASK_STATUS.COMPLETED, { steps: results });
+  await updateTaskStatus(tenantId, taskId, TASK_STATUS.COMPLETED, { steps: results });
 
   return {
     success: true,
@@ -490,15 +575,22 @@ export async function executeTask(taskId, executeTool, confirmed = false) {
 
 /**
  * Confirme et continue une tâche en attente
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {string} taskId - ID de la tâche
+ * @param {function} executeTool - Fonction d'exécution d'outil
  */
-export async function confirmAndContinue(taskId, executeTool) {
-  const task = await getTask(taskId);
+export async function confirmAndContinue(tenantId, taskId, executeTool) {
+  if (!validateTenantId(tenantId, 'confirmAndContinue')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
+  const task = await getTask(tenantId, taskId);
   if (!task || task.status !== TASK_STATUS.NEEDS_CONFIRMATION) {
     return { success: false, error: 'Tâche non trouvée ou pas en attente de confirmation' };
   }
 
   // Continuer l'exécution avec confirmation
-  return await executeTask(taskId, executeTool, true);
+  return await executeTask(tenantId, taskId, executeTool, true);
 }
 
 // ============================================================
@@ -507,12 +599,18 @@ export async function confirmAndContinue(taskId, executeTool) {
 
 /**
  * Obtient les statistiques des tâches
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export async function getTaskStats() {
+export async function getTaskStats(tenantId) {
+  if (!validateTenantId(tenantId, 'getTaskStats')) {
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
-      .select('status');
+      .select('status')
+      .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
     if (error) {
       console.error('[AGENT] Erreur getTaskStats:', error);
@@ -537,12 +635,19 @@ export async function getTaskStats() {
 
 /**
  * Récupère l'historique des tâches récentes
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {number} limit - Nombre max de tâches
  */
-export async function getTaskHistory(limit = 20) {
+export async function getTaskHistory(tenantId, limit = 20) {
+  if (!validateTenantId(tenantId, 'getTaskHistory')) {
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_tasks')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .order('created_at', { ascending: false })
       .limit(limit);
 

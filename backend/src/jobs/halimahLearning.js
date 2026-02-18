@@ -1,6 +1,8 @@
 /**
  * JOB D'APPRENTISSAGE AUTOMATIQUE HALIMAH
  * Analyse les conversations et génère des insights
+ *
+ * 🔒 TENANT ISOLATION: Toutes les fonctions requièrent tenantId
  */
 
 import { supabase } from '../config/supabase.js';
@@ -11,30 +13,53 @@ import {
 } from '../services/halimahMemory.js';
 
 // ============================================================
+// === VALIDATION TENANT ===
+// ============================================================
+
+/**
+ * Valide que tenantId est présent
+ * @param {string} tenantId
+ * @param {string} functionName
+ * @returns {boolean}
+ */
+function validateTenantId(tenantId, functionName) {
+  if (!tenantId) {
+    console.error(`[LEARNING] ❌ ERREUR CRITIQUE: tenantId manquant dans ${functionName}()`);
+    return false;
+  }
+  return true;
+}
+
+// ============================================================
 // === ANALYSE QUOTIDIENNE ===
 // ============================================================
 
 /**
  * Analyse quotidienne des conversations et activités
  * À lancer via un cron job ou manuellement
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export async function dailyLearning() {
-  console.log('[LEARNING] 📊 Démarrage de l\'analyse quotidienne...');
+export async function dailyLearning(tenantId) {
+  if (!validateTenantId(tenantId, 'dailyLearning')) {
+    return { success: false, error: 'tenantId manquant' };
+  }
+
+  console.log(`[LEARNING] 📊 Démarrage de l'analyse quotidienne (tenant: ${tenantId})...`);
 
   try {
     // 1. Analyser les conversations des dernières 24h
-    await analyzeRecentConversations();
+    await analyzeRecentConversations(tenantId);
 
     // 2. Analyser les réservations
-    await analyzeReservations();
+    await analyzeReservations(tenantId);
 
     // 3. Analyser les services populaires
-    await analyzePopularServices();
+    await analyzePopularServices(tenantId);
 
     // 4. Nettoyer les souvenirs obsolètes
-    await cleanupOldMemories();
+    await cleanupOldMemories(tenantId);
 
-    console.log('[LEARNING] ✅ Analyse quotidienne terminée');
+    console.log(`[LEARNING] ✅ Analyse quotidienne terminée (tenant: ${tenantId})`);
     return { success: true };
   } catch (error) {
     console.error('[LEARNING] ❌ Erreur analyse quotidienne:', error);
@@ -48,8 +73,13 @@ export async function dailyLearning() {
 
 /**
  * Analyse les conversations récentes pour détecter des patterns
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-async function analyzeRecentConversations() {
+async function analyzeRecentConversations(tenantId) {
+  if (!validateTenantId(tenantId, 'analyzeRecentConversations')) {
+    return;
+  }
+
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
@@ -57,6 +87,7 @@ async function analyzeRecentConversations() {
   const { data: conversations, error } = await supabase
     .from('halimah_conversations')
     .select('*')
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .gte('created_at', yesterday.toISOString());
 
   if (error) {
@@ -84,6 +115,7 @@ async function analyzeRecentConversations() {
 
   for (const [topic, count] of frequentTopics) {
     await createInsight({
+      tenantId,  // 🔒 TENANT ISOLATION
       insightType: 'trend',
       title: `Sujet fréquent : ${topic}`,
       description: `Le sujet "${topic}" a été abordé ${count} fois ces dernières 24h. Peut-être créer une FAQ ou un contenu dédié ?`,
@@ -96,6 +128,7 @@ async function analyzeRecentConversations() {
   const avgDuration = conversations.reduce((sum, c) => sum + (c.duration_seconds || 0), 0) / conversations.length;
   if (avgDuration > 300) { // Plus de 5 minutes en moyenne
     await createInsight({
+      tenantId,  // 🔒 TENANT ISOLATION
       insightType: 'warning',
       title: 'Conversations longues',
       description: `La durée moyenne des conversations est de ${Math.round(avgDuration / 60)} minutes. Les clients ont peut-être besoin de plus d'informations en amont.`,
@@ -104,7 +137,7 @@ async function analyzeRecentConversations() {
     });
   }
 
-  console.log(`[LEARNING] Analysé ${conversations.length} conversation(s)`);
+  console.log(`[LEARNING] Analysé ${conversations.length} conversation(s) (tenant: ${tenantId})`);
 }
 
 // ============================================================
@@ -113,14 +146,20 @@ async function analyzeRecentConversations() {
 
 /**
  * Analyse les réservations pour détecter des tendances
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-async function analyzeReservations() {
+async function analyzeReservations(tenantId) {
+  if (!validateTenantId(tenantId, 'analyzeReservations')) {
+    return;
+  }
+
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
   const { data: reservations, error } = await supabase
     .from('reservations')
     .select('*')
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .gte('created_at', oneWeekAgo.toISOString());
 
   if (error || !reservations) {
@@ -154,6 +193,7 @@ async function analyzeReservations() {
 
   if (mostPopularDay && mostPopularDay[1] >= 3) {
     await recordLearning({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'business',
       key: 'jour_rdv_populaire',
       value: `${mostPopularDay[0]} (${mostPopularDay[1]} RDV cette semaine)`,
@@ -167,6 +207,7 @@ async function analyzeReservations() {
 
   if (mostPopularHour && mostPopularHour[1] >= 3) {
     await recordLearning({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'business',
       key: 'heure_rdv_populaire',
       value: `${mostPopularHour[0]}h (${mostPopularHour[1]} RDV cette semaine)`,
@@ -180,6 +221,7 @@ async function analyzeReservations() {
 
   if (cancellationRate > 20) {
     await createInsight({
+      tenantId,  // 🔒 TENANT ISOLATION
       insightType: 'warning',
       title: 'Taux d\'annulation élevé',
       description: `${cancellationRate.toFixed(1)}% des réservations ont été annulées cette semaine. Peut-être envoyer des rappels plus fréquents ?`,
@@ -188,7 +230,7 @@ async function analyzeReservations() {
     });
   }
 
-  console.log(`[LEARNING] Analysé ${reservations.length} réservation(s)`);
+  console.log(`[LEARNING] Analysé ${reservations.length} réservation(s) (tenant: ${tenantId})`);
 }
 
 // ============================================================
@@ -197,14 +239,20 @@ async function analyzeReservations() {
 
 /**
  * Analyse les services populaires
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-async function analyzePopularServices() {
+async function analyzePopularServices(tenantId) {
+  if (!validateTenantId(tenantId, 'analyzePopularServices')) {
+    return;
+  }
+
   const oneMonthAgo = new Date();
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
   const { data: reservations, error } = await supabase
     .from('reservations')
     .select('service_nom, prix_total')
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .gte('created_at', oneMonthAgo.toISOString())
     .in('statut', ['confirme', 'termine']);
 
@@ -229,6 +277,7 @@ async function analyzePopularServices() {
 
   if (topByCount) {
     await recordLearning({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'business',
       key: 'service_plus_demande',
       value: `${topByCount[0]} (${topByCount[1]} fois ce mois)`,
@@ -242,6 +291,7 @@ async function analyzePopularServices() {
 
   if (topByRevenue) {
     await recordLearning({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'business',
       key: 'service_plus_rentable',
       value: `${topByRevenue[0]} (${(topByRevenue[1] / 100).toFixed(2)}€ ce mois)`,
@@ -256,6 +306,7 @@ async function analyzePopularServices() {
 
   if (lowDemandServices.length > 0) {
     await createInsight({
+      tenantId,  // 🔒 TENANT ISOLATION
       insightType: 'opportunity',
       title: 'Services peu demandés',
       description: `Les services suivants ont été peu demandés ce mois : ${lowDemandServices.join(', ')}. Peut-être promouvoir ou ajuster les tarifs ?`,
@@ -264,7 +315,7 @@ async function analyzePopularServices() {
     });
   }
 
-  console.log('[LEARNING] Analyse des services terminée');
+  console.log(`[LEARNING] Analyse des services terminée (tenant: ${tenantId})`);
 }
 
 // ============================================================
@@ -273,8 +324,13 @@ async function analyzePopularServices() {
 
 /**
  * Nettoie les souvenirs obsolètes ou à faible confiance
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-async function cleanupOldMemories() {
+async function cleanupOldMemories(tenantId) {
+  if (!validateTenantId(tenantId, 'cleanupOldMemories')) {
+    return;
+  }
+
   // Supprimer les souvenirs à très faible confiance (< 0.1) de plus d'un mois
   const oneMonthAgo = new Date();
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -282,12 +338,13 @@ async function cleanupOldMemories() {
   const { data, error } = await supabase
     .from('halimah_memory')
     .delete()
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .lt('confidence', 0.1)
     .lt('created_at', oneMonthAgo.toISOString())
     .select();
 
   if (data && data.length > 0) {
-    console.log(`[LEARNING] 🧹 Supprimé ${data.length} souvenir(s) obsolète(s)`);
+    console.log(`[LEARNING] 🧹 Supprimé ${data.length} souvenir(s) obsolète(s) (tenant: ${tenantId})`);
   }
 
   // Désactiver les insights traités depuis plus d'une semaine
@@ -297,6 +354,7 @@ async function cleanupOldMemories() {
   await supabase
     .from('halimah_insights')
     .delete()
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .eq('is_actioned', true)
     .lt('actioned_at', oneWeekAgo.toISOString());
 }
@@ -307,8 +365,15 @@ async function cleanupOldMemories() {
 
 /**
  * Extrait des apprentissages d'une conversation
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
+ * @param {Array} messages - Messages de la conversation
+ * @param {string|null} clientId - ID du client (optionnel)
  */
-export async function learnFromConversation(messages, clientId = null) {
+export async function learnFromConversation(tenantId, messages, clientId = null) {
+  if (!validateTenantId(tenantId, 'learnFromConversation')) {
+    return 0;
+  }
+
   const learnings = [];
 
   // Patterns pour détecter des préférences
@@ -361,9 +426,10 @@ export async function learnFromConversation(messages, clientId = null) {
     }
   }
 
-  // Sauvegarder les apprentissages
+  // Sauvegarder les apprentissages avec tenantId
   for (const learning of learnings) {
     await memoryRemember({
+      tenantId,  // 🔒 TENANT ISOLATION
       type: learning.type,
       category: learning.category,
       subjectType: learning.clientId ? 'client' : null,

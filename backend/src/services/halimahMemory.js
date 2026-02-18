@@ -1,6 +1,8 @@
 /**
  * SYSTÈME DE MÉMOIRE ÉVOLUTIVE HALIMAH PRO
  * Permet à Halimah d'apprendre, de mémoriser et de s'améliorer
+ *
+ * 🔒 TENANT ISOLATION: Toutes les opérations sont isolées par tenant_id
  */
 
 import { supabase } from '../config/supabase.js';
@@ -11,8 +13,10 @@ import { supabase } from '../config/supabase.js';
 
 /**
  * Enregistrer un souvenir
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function remember({
+  tenantId,  // 🔒 REQUIS
   type,
   category,
   subjectType = null,
@@ -22,11 +26,17 @@ export async function remember({
   metadata = {},
   confidence = 0.5
 }) {
-  try {
-    console.log(`[MEMORY] 💾 Mémorisation: ${type}/${category}/${key}`);
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans remember()');
+    return null;
+  }
 
-    // Vérifier si ce souvenir existe déjà
-    const existing = await recall({ type, category, key, subjectId });
+  try {
+    console.log(`[MEMORY] 💾 Mémorisation (${tenantId}): ${type}/${category}/${key}`);
+
+    // 🔒 TENANT ISOLATION: Vérifier si ce souvenir existe déjà POUR CE TENANT
+    const existing = await recall({ tenantId, type, category, key, subjectId });
 
     if (existing) {
       // Mettre à jour et augmenter la confiance
@@ -41,6 +51,7 @@ export async function remember({
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .select()
         .single();
 
@@ -53,10 +64,11 @@ export async function remember({
       return data;
     }
 
-    // Créer nouveau souvenir
+    // 🔒 TENANT ISOLATION: Créer nouveau souvenir AVEC tenant_id
     const { data, error } = await supabase
       .from('halimah_memory')
       .insert({
+        tenant_id: tenantId,  // 🔒 TENANT ISOLATION
         type,
         category,
         subject_type: subjectType,
@@ -84,18 +96,27 @@ export async function remember({
 
 /**
  * Se souvenir d'une info spécifique
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function recall({
+  tenantId,  // 🔒 REQUIS
   type = null,
   category = null,
   key = null,
   subjectId = null,
   minConfidence = 0.3
 }) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans recall()');
+    return null;
+  }
+
   try {
     let query = supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('confidence', minConfidence);
 
     if (type) query = query.eq('type', type);
@@ -110,7 +131,7 @@ export async function recall({
       return null;
     }
 
-    // Marquer comme utilisé
+    // Marquer comme utilisé (avec isolation tenant)
     if (data && data.length > 0) {
       await supabase
         .from('halimah_memory')
@@ -118,7 +139,8 @@ export async function recall({
           last_used: new Date().toISOString(),
           use_count: (data[0].use_count || 0) + 1
         })
-        .eq('id', data[0].id);
+        .eq('id', data[0].id)
+        .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
       console.log(`[MEMORY] 🔍 Souvenir trouvé: ${data[0].key}`);
     }
@@ -132,8 +154,10 @@ export async function recall({
 
 /**
  * Récupérer tous les souvenirs sur un sujet
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function recallAll({
+  tenantId,  // 🔒 REQUIS
   subjectType = null,
   subjectId = null,
   category = null,
@@ -141,10 +165,17 @@ export async function recallAll({
   minConfidence = 0.3,
   limit = 50
 }) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans recallAll()');
+    return [];
+  }
+
   try {
     let query = supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('confidence', minConfidence);
 
     if (subjectType) query = query.eq('subject_type', subjectType);
@@ -170,14 +201,22 @@ export async function recallAll({
 
 /**
  * Recherche dans la mémoire avec mots-clés
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function search(query, category = null, limit = 20) {
+export async function search(tenantId, query, category = null, limit = 20) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans search()');
+    return [];
+  }
+
   try {
     const searchTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
 
     let dbQuery = supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('confidence', 0.2);
 
     if (category) dbQuery = dbQuery.eq('category', category);
@@ -208,8 +247,10 @@ export async function search(query, category = null, limit = 20) {
 
 /**
  * Enregistrer un feedback
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function learnFromFeedback({
+  tenantId,  // 🔒 REQUIS
   conversationId = null,
   messageId = null,
   rating,
@@ -217,10 +258,17 @@ export async function learnFromFeedback({
   comment = null,
   context = {}
 }) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans learnFromFeedback()');
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_feedback')
       .insert({
+        tenant_id: tenantId,  // 🔒 TENANT ISOLATION
         conversation_id: conversationId,
         message_id: messageId,
         rating,
@@ -245,6 +293,7 @@ export async function learnFromFeedback({
           .from('halimah_memory')
           .select('confidence')
           .eq('id', memId)
+          .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
           .single();
 
         if (mem) {
@@ -252,7 +301,8 @@ export async function learnFromFeedback({
           await supabase
             .from('halimah_memory')
             .update({ confidence: newConfidence })
-            .eq('id', memId);
+            .eq('id', memId)
+            .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
         }
       }
     }
@@ -264,6 +314,7 @@ export async function learnFromFeedback({
           .from('halimah_memory')
           .select('confidence')
           .eq('id', memId)
+          .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
           .single();
 
         if (mem) {
@@ -271,7 +322,8 @@ export async function learnFromFeedback({
           await supabase
             .from('halimah_memory')
             .update({ confidence: newConfidence })
-            .eq('id', memId);
+            .eq('id', memId)
+            .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
         }
       }
     }
@@ -285,14 +337,17 @@ export async function learnFromFeedback({
 
 /**
  * Apprendre une préférence client
+ * 🔒 TENANT ISOLATION: Via remember()
  */
 export async function learnClientPreference({
+  tenantId,  // 🔒 REQUIS
   clientId,
   preference,
   value,
   source = 'conversation'
 }) {
   return await remember({
+    tenantId,  // 🔒 TENANT ISOLATION
     type: 'preference',
     category: 'client',
     subjectType: 'client',
@@ -306,12 +361,15 @@ export async function learnClientPreference({
 
 /**
  * Apprendre une préférence admin (Fatou)
+ * 🔒 TENANT ISOLATION: Via remember()
  */
 export async function learnAdminPreference({
+  tenantId,  // 🔒 REQUIS
   preference,
   value
 }) {
   return await remember({
+    tenantId,  // 🔒 TENANT ISOLATION
     type: 'preference',
     category: 'admin',
     key: preference,
@@ -322,13 +380,16 @@ export async function learnAdminPreference({
 
 /**
  * Apprendre un fait business
+ * 🔒 TENANT ISOLATION: Via remember()
  */
 export async function learnBusinessFact({
+  tenantId,  // 🔒 REQUIS
   key,
   value,
   metadata = {}
 }) {
   return await remember({
+    tenantId,  // 🔒 TENANT ISOLATION
     type: 'fact',
     category: 'business',
     key,
@@ -340,14 +401,17 @@ export async function learnBusinessFact({
 
 /**
  * Enregistrer un apprentissage (leçon apprise)
+ * 🔒 TENANT ISOLATION: Via remember()
  */
 export async function recordLearning({
+  tenantId,  // 🔒 REQUIS
   category,
   key,
   value,
   metadata = {}
 }) {
   return await remember({
+    tenantId,  // 🔒 TENANT ISOLATION
     type: 'learning',
     category,
     key,
@@ -363,18 +427,27 @@ export async function recordLearning({
 
 /**
  * Créer un insight
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function createInsight({
+  tenantId,  // 🔒 REQUIS
   insightType,
   title,
   description,
   data = {},
   priority = 5
 }) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans createInsight()');
+    return null;
+  }
+
   try {
     const { data: insight, error } = await supabase
       .from('halimah_insights')
       .insert({
+        tenant_id: tenantId,  // 🔒 TENANT ISOLATION
         insight_type: insightType,
         title,
         description,
@@ -399,12 +472,20 @@ export async function createInsight({
 
 /**
  * Récupérer les insights non traités
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function getPendingInsights(limit = 10) {
+export async function getPendingInsights(tenantId, limit = 10) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans getPendingInsights()');
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_insights')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('is_actioned', false)
       .order('priority', { ascending: false })
       .order('created_at', { ascending: false })
@@ -424,8 +505,15 @@ export async function getPendingInsights(limit = 10) {
 
 /**
  * Marquer un insight comme traité
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function markInsightActioned(insightId) {
+export async function markInsightActioned(tenantId, insightId) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans markInsightActioned()');
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('halimah_insights')
@@ -434,6 +522,7 @@ export async function markInsightActioned(insightId) {
         actioned_at: new Date().toISOString()
       })
       .eq('id', insightId)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .select()
       .single();
 
@@ -455,13 +544,21 @@ export async function markInsightActioned(insightId) {
 
 /**
  * Oublier un souvenir spécifique
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function forget(memoryId) {
+export async function forget(tenantId, memoryId) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans forget()');
+    return false;
+  }
+
   try {
     const { error } = await supabase
       .from('halimah_memory')
       .delete()
-      .eq('id', memoryId);
+      .eq('id', memoryId)
+      .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
     if (error) {
       console.error('[MEMORY] Erreur forget:', error.message);
@@ -478,12 +575,20 @@ export async function forget(memoryId) {
 
 /**
  * Oublier par clé
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function forgetByKey(key, category = null) {
+export async function forgetByKey(tenantId, key, category = null) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans forgetByKey()');
+    return 0;
+  }
+
   try {
     let query = supabase
       .from('halimah_memory')
       .delete()
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .ilike('key', `%${key}%`);
 
     if (category) query = query.eq('category', category);
@@ -512,11 +617,25 @@ export async function forgetByKey(key, category = null) {
 
 /**
  * Construire le contexte mémoire pour une conversation
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
 export async function buildMemoryContext({
+  tenantId,  // 🔒 REQUIS
   clientId = null,
   topic = null
 }) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans buildMemoryContext()');
+    return {
+      adminPreferences: [],
+      clientInfo: [],
+      relevantInsights: [],
+      recentLearnings: [],
+      businessFacts: []
+    };
+  }
+
   const context = {
     adminPreferences: [],
     clientInfo: [],
@@ -528,6 +647,7 @@ export async function buildMemoryContext({
   try {
     // Préférences admin
     const adminPrefs = await recallAll({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'admin',
       type: 'preference',
       minConfidence: 0.5
@@ -536,6 +656,7 @@ export async function buildMemoryContext({
 
     // Faits business
     const businessFacts = await recallAll({
+      tenantId,  // 🔒 TENANT ISOLATION
       category: 'business',
       minConfidence: 0.5
     });
@@ -544,6 +665,7 @@ export async function buildMemoryContext({
     // Info client si spécifié
     if (clientId) {
       context.clientInfo = await recallAll({
+        tenantId,  // 🔒 TENANT ISOLATION
         subjectType: 'client',
         subjectId: clientId,
         minConfidence: 0.3
@@ -551,7 +673,7 @@ export async function buildMemoryContext({
     }
 
     // Insights récents
-    context.relevantInsights = await getPendingInsights(5);
+    context.relevantInsights = await getPendingInsights(tenantId, 5);
 
     // Apprentissages récents (dernière semaine)
     const oneWeekAgo = new Date();
@@ -560,6 +682,7 @@ export async function buildMemoryContext({
     const { data: recent } = await supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('type', 'learning')
       .gte('created_at', oneWeekAgo.toISOString())
       .gte('confidence', 0.5)
@@ -632,21 +755,31 @@ export function formatMemoryContextForPrompt(context) {
 
 /**
  * Obtenir les statistiques de la mémoire
+ * 🔒 TENANT ISOLATION: Filtre par tenant_id
  */
-export async function getMemoryStats() {
+export async function getMemoryStats(tenantId) {
+  // 🔒 VALIDATION TENANT
+  if (!tenantId) {
+    console.error('[MEMORY] ❌ ERREUR CRITIQUE: tenantId manquant dans getMemoryStats()');
+    return null;
+  }
+
   try {
     const { data: memories } = await supabase
       .from('halimah_memory')
-      .select('type, category, confidence');
+      .select('type, category, confidence')
+      .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
     const { count: insightCount } = await supabase
       .from('halimah_insights')
       .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('is_actioned', false);
 
     const { count: feedbackCount } = await supabase
       .from('halimah_feedback')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
     const stats = {
       totalMemories: memories?.length || 0,
