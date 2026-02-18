@@ -15,7 +15,7 @@ services:
     name: nexus-admin
     runtime: node
     rootDir: admin-ui
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: node server.js
     envVars:
       - key: VITE_API_URL
