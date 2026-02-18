@@ -14,4 +14,11 @@ if (API_BASE_URL) {
   };
 }
 
+// SPA redirect handling - if redirected from 404.html, navigate to original path
+const params = new URLSearchParams(window.location.search);
+const redirectPath = params.get('redirect');
+if (redirectPath) {
+  window.history.replaceState(null, '', redirectPath);
+}
+
 createRoot(document.getElementById("root")!).render(<App />);

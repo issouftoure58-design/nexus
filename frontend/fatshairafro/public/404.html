@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fat's Hair-Afro</title>
+  <script>
+    // SPA redirect: redirect to root with path in query param
+    var path = location.pathname + location.search + location.hash;
+    location.replace('/?redirect=' + encodeURIComponent(path));
+  </script>
+</head>
+<body>
+  <p>Redirection...</p>
+</body>
+</html>
