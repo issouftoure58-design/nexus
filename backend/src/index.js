@@ -66,6 +66,8 @@ import signupRoutes from './routes/signup.js';
 import trialRoutes from './routes/trial.js';
 import publicRoutes from './routes/public.js';
 import reviewsRoutes from './routes/reviews.js';
+import twilioWebhooksRoutes from './routes/twilioWebhooks.js';
+import voiceRoutes from './routes/voice.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -160,6 +162,12 @@ app.use('/api', publicRoutes);
 
 // Reviews/Avis clients (public GET + admin routes)
 app.use('/api/reviews', reviewsRoutes);
+
+// Twilio Webhooks (Voice IA + SMS)
+app.use('/api/twilio', twilioWebhooksRoutes);
+
+// Voice TTS routes
+app.use('/api/voice', voiceRoutes);
 
 // Routes de paiement (avec rate limiting strict)
 app.use('/api/payment', paymentLimiter, paymentRoutes);
