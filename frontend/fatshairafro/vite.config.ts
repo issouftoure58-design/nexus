@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      selfDestroying: true, // Force unregister old service workers
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: "Fat's Hair-Afro - Coiffure Afro à Domicile",
