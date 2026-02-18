@@ -279,9 +279,9 @@ function invalidateCache(pattern) {
 // IMPLÉMENTATION DES OUTILS
 // ============================================
 
-async function executeTool(toolName, toolInput, channel) {
+async function executeTool(toolName, toolInput, channel, tenantId = 'fatshairafro') {
   const startTime = Date.now();
-  console.log(`[NEXUS CORE] 🔧 ${channel} → ${toolName}`, JSON.stringify(toolInput).substring(0, 100));
+  console.log(`[NEXUS CORE] 🔧 ${channel} → ${toolName} (tenant: ${tenantId})`, JSON.stringify(toolInput).substring(0, 100));
 
   try {
     let result;
@@ -300,11 +300,11 @@ async function executeTool(toolName, toolInput, channel) {
         break;
 
       case 'check_availability':
-        result = await checkAvailabilityUnified(toolInput.date, toolInput.heure, toolInput.service_name);
+        result = await checkAvailabilityUnified(toolInput.date, toolInput.heure, toolInput.service_name, tenantId);
         break;
 
       case 'get_available_slots':
-        result = await getAvailableSlotsUnified(toolInput.date, toolInput.service_name);
+        result = await getAvailableSlotsUnified(toolInput.date, toolInput.service_name, tenantId);
         break;
 
       case 'calculate_travel_fee':
@@ -353,7 +353,7 @@ async function executeTool(toolName, toolInput, channel) {
         break;
 
       case 'get_upcoming_days':
-        result = await getUpcomingDays(toolInput.nb_jours);
+        result = await getUpcomingDays(toolInput.nb_jours, tenantId);
         break;
 
       default:
@@ -373,7 +373,8 @@ async function executeTool(toolName, toolInput, channel) {
 
 // --- GET UPCOMING DAYS ---
 // IMPORTANT: Cette fonction retourne les dates EXACTES pour éviter les erreurs de calcul de l'IA
-async function getUpcomingDays(nbJours = 14) {
+// 🔒 TENANT ISOLATION: Filtre par tenant_id pour éviter les conflits inter-tenants
+async function getUpcomingDays(nbJours = 14, tenantId = 'fatshairafro') {
   const JOURS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -393,16 +394,19 @@ async function getUpcomingDays(nbJours = 14) {
   const endDateISO = endDate.toISOString().split('T')[0];
 
   // 🔧 Récupérer toutes les réservations de la période en une seule requête
+  // 🔒 TENANT ISOLATION: Filtre par tenant_id
   let allReservations = [];
   const db = getSupabase();
   if (db) {
     const { data } = await db
       .from('reservations')
       .select('date, heure, duree_minutes, statut')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('date', today)
       .lte('date', endDateISO)
       .in('statut', BLOCKING_STATUTS);
     allReservations = data || [];
+    console.log(`[NEXUS CORE] 📅 getUpcomingDays: ${allReservations.length} réservations trouvées pour tenant ${tenantId}`);
   }
 
   // Indexer les réservations par date
@@ -702,9 +706,10 @@ function getPriceForService(serviceName) {
 }
 
 // --- CHECK AVAILABILITY ---
-async function checkAvailabilityUnified(date, heure, serviceName) {
-  // Vérifier cache
-  const cacheKey = `availability_${date}_${heure}_${serviceName}`;
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function checkAvailabilityUnified(date, heure, serviceName, tenantId = 'fatshairafro') {
+  // Vérifier cache (inclut tenantId dans la clé)
+  const cacheKey = `availability_${tenantId}_${date}_${heure}_${serviceName}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -724,7 +729,7 @@ async function checkAvailabilityUnified(date, heure, serviceName) {
     };
   }
 
-  // Récupérer les réservations existantes
+  // 🔒 TENANT ISOLATION: Récupérer les réservations existantes pour CE tenant uniquement
   const db = getSupabase();
   let existingBookings = [];
 
@@ -732,8 +737,9 @@ async function checkAvailabilityUnified(date, heure, serviceName) {
     const { data } = await db
       .from('reservations')
       .select('id, date, heure, duree_minutes, service_nom, statut')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', date)
-      .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+      .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
     existingBookings = data || [];
   }
 
@@ -765,8 +771,10 @@ async function checkAvailabilityUnified(date, heure, serviceName) {
 }
 
 // --- GET AVAILABLE SLOTS ---
-async function getAvailableSlotsUnified(date, serviceName) {
-  const cacheKey = `slots_${date}_${serviceName}`;
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function getAvailableSlotsUnified(date, serviceName, tenantId = 'fatshairafro') {
+  // Vérifier cache (inclut tenantId dans la clé)
+  const cacheKey = `slots_${tenantId}_${date}_${serviceName}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -775,7 +783,7 @@ async function getAvailableSlotsUnified(date, serviceName) {
     return { success: false, error: `Service non trouvé: "${serviceName}"` };
   }
 
-  // Récupérer les réservations existantes
+  // 🔒 TENANT ISOLATION: Récupérer les réservations existantes pour CE tenant uniquement
   const db = getSupabase();
   let existingBookings = [];
 
@@ -783,8 +791,9 @@ async function getAvailableSlotsUnified(date, serviceName) {
     const { data } = await db
       .from('reservations')
       .select('id, date, heure, duree_minutes, service_nom, statut')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', date)
-      .in('statut', BLOCKING_STATUTS)  // 🔒 C3: Statuts unifiés;
+      .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
     existingBookings = data || [];
   }
 
@@ -1837,7 +1846,7 @@ export async function processMessage(message, channel, context = {}) {
       // Exécuter tous les outils
       const toolResults = [];
       for (const toolBlock of toolUseBlocks) {
-        const result = await executeTool(toolBlock.name, toolBlock.input, channel);
+        const result = await executeTool(toolBlock.name, toolBlock.input, channel, tenantId);
         // Tracker si create_booking/create_appointment a été appelé avec succès
         if ((toolBlock.name === 'create_booking' || toolBlock.name === 'create_appointment') && result?.success) {
           bookingToolCalled = true;
@@ -1918,7 +1927,7 @@ export async function processMessage(message, channel, context = {}) {
         history.push({ role: 'assistant', content: retryFinal.content });
         const retryResults = [];
         for (const tb of retryToolBlocks) {
-          const res = await executeTool(tb.name, tb.input, channel);
+          const res = await executeTool(tb.name, tb.input, channel, tenantId);
           if ((tb.name === 'create_booking' || tb.name === 'create_appointment') && res?.success) {
             bookingToolCalled = true;
           }
@@ -2319,7 +2328,7 @@ export async function* processMessageStreaming(message, channel, context = {}) {
 
         const toolResults = [];
         for (const toolBlock of toolUseBlocks) {
-          const result = await executeTool(toolBlock.name, toolBlock.input, channel);
+          const result = await executeTool(toolBlock.name, toolBlock.input, channel, tenantId);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolBlock.id,
