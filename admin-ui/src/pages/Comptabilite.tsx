@@ -959,7 +959,7 @@ export default function Comptabilite() {
       const lines = text.split('\n').filter(line => line.trim());
 
       // Skip header line and parse transactions
-      const transactions: Array<{date: string; libelle: string; montant: number; type: 'credit' | 'debit'}> = [];
+      const transactions: Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}> = [];
       let totalSolde = 0;
 
       for (let i = 1; i < lines.length; i++) {
@@ -990,7 +990,7 @@ export default function Comptabilite() {
           }
 
           if (date && montant > 0) {
-            transactions.push({ date, libelle, montant, type });
+            transactions.push({ id: transactions.length + 1, date, libelle, montant, type, pointed: false });
             totalSolde += type === 'credit' ? montant : -montant;
           }
         }
