@@ -5,10 +5,190 @@
  */
 
 import express from 'express';
+import multer from 'multer';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
+const anthropic = new Anthropic();
+
+// ============================================
+// HELPER: GÉNÉRATION ÉCRITURES COMPTABLES
+// ============================================
+
+// Mapping catégories dépenses vers comptes
+const COMPTE_DEPENSE = {
+  fournitures: { numero: '601', libelle: 'Achats fournitures' },
+  loyer: { numero: '613', libelle: 'Loyers' },
+  charges: { numero: '606', libelle: 'Électricité/Eau' },
+  telecom: { numero: '626', libelle: 'Télécom/Internet' },
+  assurance: { numero: '616', libelle: 'Assurances' },
+  transport: { numero: '625', libelle: 'Déplacements' },
+  marketing: { numero: '623', libelle: 'Publicité' },
+  bancaire: { numero: '627', libelle: 'Frais bancaires' },
+  formation: { numero: '618', libelle: 'Formation' },
+  materiel: { numero: '615', libelle: 'Entretien matériel' },
+  logiciel: { numero: '651', libelle: 'Abonnements' },
+  comptabilite: { numero: '622', libelle: 'Honoraires' },
+  taxes: { numero: '635', libelle: 'Impôts et taxes' },
+  salaires: { numero: '641', libelle: 'Rémunérations personnel' },
+  cotisations_sociales: { numero: '645', libelle: 'Charges sociales' },
+  autre: { numero: '658', libelle: 'Charges diverses' }
+};
+
+/**
+ * Génère les écritures comptables pour une dépense (AC + BQ si payée)
+ */
+async function genererEcrituresDepense(tenantId, depenseId) {
+  try {
+    // Récupérer la dépense
+    const { data: depense, error: errDep } = await supabase
+      .from('depenses')
+      .select('*')
+      .eq('id', depenseId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (errDep || !depense) {
+      console.error('[DEPENSES] Dépense non trouvée pour écritures:', depenseId);
+      return;
+    }
+
+    // Supprimer les anciennes écritures si elles existent
+    await supabase
+      .from('ecritures_comptables')
+      .delete()
+      .eq('depense_id', depenseId)
+      .eq('tenant_id', tenantId);
+
+    const dateDepense = depense.date_depense;
+    const periode = dateDepense?.slice(0, 7);
+    const exercice = parseInt(dateDepense?.slice(0, 4)) || new Date().getFullYear();
+    const montantTTC = depense.montant_ttc || depense.montant || 0;
+    const montantHT = depense.montant || montantTTC;
+    const montantTVA = depense.montant_tva || 0;
+    const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
+
+    const ecritures = [];
+
+    // Journal AC - Écriture d'achat
+    // Débit compte de charge
+    ecritures.push({
+      tenant_id: tenantId,
+      journal_code: 'AC',
+      date_ecriture: dateDepense,
+      numero_piece: `DEP-${depense.id}`,
+      compte_numero: compteCharge.numero,
+      compte_libelle: compteCharge.libelle,
+      libelle: depense.libelle || depense.categorie,
+      debit: montantHT,
+      credit: 0,
+      depense_id: depenseId,
+      periode,
+      exercice
+    });
+
+    // Débit 44566 TVA déductible
+    if (montantTVA > 0 && depense.deductible_tva !== false) {
+      ecritures.push({
+        tenant_id: tenantId,
+        journal_code: 'AC',
+        date_ecriture: dateDepense,
+        numero_piece: `DEP-${depense.id}`,
+        compte_numero: '44566',
+        compte_libelle: 'TVA déductible',
+        libelle: `TVA ${depense.libelle || depense.categorie}`,
+        debit: montantTVA,
+        credit: 0,
+        depense_id: depenseId,
+        periode,
+        exercice
+      });
+    }
+
+    // Crédit 401 Fournisseurs
+    ecritures.push({
+      tenant_id: tenantId,
+      journal_code: 'AC',
+      date_ecriture: dateDepense,
+      numero_piece: `DEP-${depense.id}`,
+      compte_numero: '401',
+      compte_libelle: 'Fournisseurs',
+      libelle: depense.libelle || depense.categorie,
+      debit: 0,
+      credit: montantTTC,
+      depense_id: depenseId,
+      periode,
+      exercice
+    });
+
+    // Si dépense payée, écriture banque
+    if (depense.payee !== false) {
+      const datePaiement = depense.date_paiement?.split('T')[0] || dateDepense;
+      const periodePaie = datePaiement?.slice(0, 7);
+
+      // Journal BQ - Paiement
+      ecritures.push({
+        tenant_id: tenantId,
+        journal_code: 'BQ',
+        date_ecriture: datePaiement,
+        numero_piece: `DEP-${depense.id}`,
+        compte_numero: '401',
+        compte_libelle: 'Fournisseurs',
+        libelle: `Règlement ${depense.libelle || depense.categorie}`,
+        debit: montantTTC,
+        credit: 0,
+        depense_id: depenseId,
+        periode: periodePaie,
+        exercice
+      });
+
+      ecritures.push({
+        tenant_id: tenantId,
+        journal_code: 'BQ',
+        date_ecriture: datePaiement,
+        numero_piece: `DEP-${depense.id}`,
+        compte_numero: '512',
+        compte_libelle: 'Banque',
+        libelle: `Paiement ${depense.libelle || depense.categorie}`,
+        debit: 0,
+        credit: montantTTC,
+        depense_id: depenseId,
+        periode: periodePaie,
+        exercice
+      });
+    }
+
+    if (ecritures.length > 0) {
+      const { error } = await supabase
+        .from('ecritures_comptables')
+        .insert(ecritures);
+
+      if (error) {
+        console.error('[DEPENSES] Erreur insertion écritures:', error);
+      } else {
+        console.log(`[DEPENSES] ${ecritures.length} écritures générées pour dépense ${depense.id}`);
+      }
+    }
+  } catch (err) {
+    console.error('[DEPENSES] Erreur génération écritures:', err);
+  }
+}
+
+// Configuration multer pour upload en mémoire
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Type de fichier non supporté. Formats acceptés: JPEG, PNG, GIF, WEBP, PDF'));
+    }
+  }
+});
 
 // Toutes les routes nécessitent une authentification admin
 router.use(authenticateAdmin);
@@ -17,7 +197,7 @@ router.use(authenticateAdmin);
 const CATEGORIES = [
   'fournitures', 'loyer', 'charges', 'telecom', 'assurance',
   'transport', 'marketing', 'bancaire', 'formation', 'materiel',
-  'logiciel', 'comptabilite', 'taxes', 'autre'
+  'logiciel', 'comptabilite', 'taxes', 'salaires', 'cotisations_sociales', 'autre'
 ];
 
 const RECURRENCES = ['ponctuelle', 'mensuelle', 'trimestrielle', 'annuelle'];
@@ -53,6 +233,9 @@ function formatDepense(d) {
     date_depense: d.date_depense,
     recurrence: d.recurrence,
     justificatif_url: d.justificatif_url,
+    // Statut paiement
+    payee: d.payee !== false,
+    date_paiement: d.date_paiement,
     created_at: d.created_at,
     updated_at: d.updated_at
   };
@@ -274,7 +457,8 @@ router.post('/', async (req, res) => {
       deductible_tva,   // TVA déductible ?
       date_depense,
       recurrence,
-      justificatif_url
+      justificatif_url,
+      payee             // Marquer comme payée à la création
     } = req.body;
 
     // Validation
@@ -317,6 +501,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Montant invalide' });
     }
 
+    // Statut payée (par défaut true si non spécifié)
+    const estPayee = payee !== false;
+
     const { data, error } = await supabase
       .from('depenses')
       .insert({
@@ -330,12 +517,17 @@ router.post('/', async (req, res) => {
         deductible_tva: estDeductible,
         date_depense: date_depense || new Date().toISOString().split('T')[0],
         recurrence: recurrence && RECURRENCES.includes(recurrence) ? recurrence : 'ponctuelle',
-        justificatif_url: justificatif_url || null
+        justificatif_url: justificatif_url || null,
+        payee: estPayee,
+        date_paiement: estPayee ? new Date().toISOString() : null
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    // Générer les écritures comptables
+    await genererEcrituresDepense(tenantId, data.id);
 
     res.status(201).json({
       success: true,
@@ -409,6 +601,9 @@ router.put('/:id', async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Dépense non trouvée' });
 
+    // Régénérer les écritures comptables
+    await genererEcrituresDepense(tenantId, parseInt(id));
+
     res.json({
       success: true,
       depense: formatDepense(data)
@@ -428,6 +623,13 @@ router.delete('/:id', async (req, res) => {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
 
+    // Supprimer d'abord les écritures comptables liées
+    await supabase
+      .from('ecritures_comptables')
+      .delete()
+      .eq('depense_id', parseInt(id))
+      .eq('tenant_id', tenantId);
+
     const { error } = await supabase
       .from('depenses')
       .delete()
@@ -444,8 +646,47 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
+ * PATCH /api/depenses/:id/payer
+ * Marquer une dépense comme payée ou non payée
+ */
+router.patch('/:id/payer', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+    const { payee } = req.body;
+
+    const updates = {
+      payee: payee !== false,
+      date_paiement: payee !== false ? new Date().toISOString() : null
+    };
+
+    const { data, error } = await supabase
+      .from('depenses')
+      .update(updates)
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Dépense non trouvée' });
+
+    // Régénérer les écritures comptables (pour ajouter les écritures BQ si payée)
+    await genererEcrituresDepense(tenantId, parseInt(id));
+
+    res.json({
+      success: true,
+      depense: formatDepense(data)
+    });
+  } catch (error) {
+    console.error('[DEPENSES] Erreur marquage payée:', error);
+    res.status(500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /api/depenses/tva
- * Résumé TVA pour un mois (TVA collectée, TVA déductible, TVA à payer)
+ * Résumé TVA pour un mois (TVA collectée depuis factures, TVA déductible depuis dépenses)
  * Query: ?mois=2026-02
  */
 router.get('/tva', async (req, res) => {
@@ -460,39 +701,38 @@ router.get('/tva', async (req, res) => {
     const startDate = `${year}-${month}-01`;
     const endDate = new Date(year, parseInt(month), 0).toISOString().split('T')[0];
 
-    // 1. TVA COLLECTÉE - depuis les réservations/ventes
-    // Récupérer les réservations confirmées/terminées du mois avec les infos service
-    const { data: reservations } = await supabase
-      .from('reservations')
-      .select('prix_total, prix_service, frais_deplacement, statut, service_id, services(taux_tva)')
+    // 1. TVA COLLECTÉE - depuis les FACTURES (pas les réservations)
+    // On prend les factures confirmées, envoyées ou payées du mois
+    const { data: factures } = await supabase
+      .from('factures')
+      .select('montant_ht, montant_ttc, montant_tva, taux_tva, statut')
       .eq('tenant_id', tenantId)
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .in('statut', ['confirme', 'termine']);
+      .gte('date_facture', startDate)
+      .lte('date_facture', endDate)
+      .in('statut', ['generee', 'envoyee', 'payee']);
 
-    // Calcul CA TTC et TVA collectée (utilisant le taux de chaque service)
+    // Calcul CA TTC et TVA collectée depuis les factures
     let chiffreAffairesTTC = 0;
     let chiffreAffairesHT = 0;
     let tvaCollectee = 0;
     const tvaParTaux = {};
 
-    reservations?.forEach(r => {
-      const prixTTC = r.prix_total || (r.prix_service || 0) + (r.frais_deplacement || 0);
-      const tauxTVA = r.services?.taux_tva || 20; // Taux du service ou 20% par défaut
+    factures?.forEach(f => {
+      const montantHT = f.montant_ht || 0;
+      const montantTTC = f.montant_ttc || montantHT;
+      const montantTVA = f.montant_tva || (montantTTC - montantHT);
+      const tauxTVA = f.taux_tva || 20;
 
-      const prixHT = Math.round(prixTTC / (1 + tauxTVA / 100));
-      const tva = prixTTC - prixHT;
-
-      chiffreAffairesTTC += prixTTC;
-      chiffreAffairesHT += prixHT;
-      tvaCollectee += tva;
+      chiffreAffairesTTC += montantTTC;
+      chiffreAffairesHT += montantHT;
+      tvaCollectee += montantTVA;
 
       // Grouper par taux
       if (!tvaParTaux[tauxTVA]) {
         tvaParTaux[tauxTVA] = { base_ht: 0, tva: 0, nb: 0 };
       }
-      tvaParTaux[tauxTVA].base_ht += prixHT;
-      tvaParTaux[tauxTVA].tva += tva;
+      tvaParTaux[tauxTVA].base_ht += montantHT;
+      tvaParTaux[tauxTVA].tva += montantTVA;
       tvaParTaux[tauxTVA].nb += 1;
     });
 
@@ -545,13 +785,13 @@ router.get('/tva', async (req, res) => {
       success: true,
       mois: targetMois,
       tva: {
-        // TVA Collectée (sur ventes)
+        // TVA Collectée (sur ventes - depuis factures)
         collectee: {
           base_ht: chiffreAffairesHT,
           base_ht_euros: (chiffreAffairesHT / 100).toFixed(2),
           tva: tvaCollectee,
           tva_euros: (tvaCollectee / 100).toFixed(2),
-          nb_operations: reservations?.length || 0,
+          nb_operations: factures?.length || 0,
           detail_par_taux: Object.entries(tvaParTaux).map(([taux, data]) => ({
             taux: parseFloat(taux),
             base_ht_euros: (data.base_ht / 100).toFixed(2),
@@ -606,6 +846,8 @@ router.get('/categories', (req, res) => {
     logiciel: 'Logiciels / Abonnements',
     comptabilite: 'Comptabilité',
     taxes: 'Taxes / Impôts',
+    salaires: 'Salaires',
+    cotisations_sociales: 'Cotisations sociales',
     autre: 'Autre'
   };
 
@@ -616,6 +858,172 @@ router.get('/categories', (req, res) => {
       label: categoriesLabels[c]
     }))
   });
+});
+
+/**
+ * POST /api/depenses/upload-facture
+ * Upload une facture (image/PDF) et extrait automatiquement les données via IA
+ */
+router.post('/upload-facture', upload.single('file'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Aucun fichier uploadé' });
+    }
+
+    console.log('[DEPENSES] Upload facture:', {
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
+    // Convertir le fichier en base64 pour Claude Vision
+    const base64Data = req.file.buffer.toString('base64');
+    const mediaType = req.file.mimetype;
+
+    // Vérifier si c'est un PDF (Claude ne supporte pas directement les PDF pour vision)
+    // Pour les PDFs, on pourrait utiliser pdf-parse ou autre, mais pour l'instant on rejette
+    if (mediaType === 'application/pdf') {
+      return res.status(400).json({
+        success: false,
+        error: 'Les fichiers PDF ne sont pas encore supportés. Veuillez uploader une image (photo de la facture).'
+      });
+    }
+
+    // Appel à Claude Vision pour analyser la facture
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64Data
+              }
+            },
+            {
+              type: 'text',
+              text: `Analyse cette facture/ticket de caisse et extrait les informations suivantes au format JSON strict.
+
+IMPORTANT: Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ou après.
+
+Format attendu:
+{
+  "fournisseur": "nom du fournisseur/magasin",
+  "date": "YYYY-MM-DD",
+  "montant_ttc": 12.50,
+  "taux_tva": 20,
+  "description": "description courte des achats",
+  "categorie": "une parmi: fournitures, loyer, charges, telecom, assurance, transport, marketing, bancaire, formation, materiel, logiciel, comptabilite, taxes, autre"
+}
+
+Règles:
+- montant_ttc: le montant TOTAL TTC en euros (nombre décimal, pas de symbole €)
+- taux_tva: le taux de TVA principal (20, 10, 5.5, 2.1 ou 0)
+- date: format ISO YYYY-MM-DD, utilise la date d'aujourd'hui si non visible
+- categorie: choisis la plus appropriée parmi la liste
+- Si une information n'est pas lisible, fais une estimation raisonnable
+
+Réponds UNIQUEMENT avec le JSON, rien d'autre.`
+            }
+          ]
+        }
+      ]
+    });
+
+    // Parser la réponse JSON
+    let extractedData;
+    try {
+      const jsonText = response.content[0].text.trim();
+      // Nettoyer si entouré de backticks markdown
+      const cleanJson = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+      extractedData = JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.error('[DEPENSES] Erreur parsing JSON IA:', parseError, 'Réponse:', response.content[0].text);
+      return res.status(422).json({
+        success: false,
+        error: 'Impossible d\'extraire les données de la facture. Veuillez réessayer avec une image plus nette.',
+        raw_response: response.content[0].text
+      });
+    }
+
+    // Valider et normaliser les données
+    const tauxTVA = parseFloat(extractedData.taux_tva) || 20;
+    const montantTTC = Math.round((parseFloat(extractedData.montant_ttc) || 0) * 100); // Convertir en centimes
+    const montantHT = tauxTVA > 0 ? Math.round(montantTTC / (1 + tauxTVA / 100)) : montantTTC;
+    const montantTVA = montantTTC - montantHT;
+
+    // Valider la catégorie
+    let categorie = extractedData.categorie?.toLowerCase() || 'autre';
+    if (!CATEGORIES.includes(categorie)) {
+      categorie = 'autre';
+    }
+
+    // Valider la date
+    let dateDepense = extractedData.date;
+    if (!dateDepense || !/^\d{4}-\d{2}-\d{2}$/.test(dateDepense)) {
+      dateDepense = new Date().toISOString().split('T')[0];
+    }
+
+    // Créer la dépense
+    const { data: depense, error: insertError } = await supabase
+      .from('depenses')
+      .insert({
+        tenant_id: tenantId,
+        categorie: categorie,
+        libelle: extractedData.fournisseur || 'Facture importée',
+        description: extractedData.description || null,
+        montant: montantHT,
+        montant_ttc: montantTTC,
+        montant_tva: montantTVA,
+        taux_tva: tauxTVA,
+        deductible_tva: true,
+        date_depense: dateDepense,
+        recurrence: 'ponctuelle',
+        justificatif_url: null // TODO: on pourrait stocker le fichier dans Supabase Storage
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('[DEPENSES] Erreur insertion:', insertError);
+      throw insertError;
+    }
+
+    // Générer les écritures comptables
+    await genererEcrituresDepense(tenantId, depense.id);
+
+    console.log('[DEPENSES] Dépense créée via IA:', depense.id, extractedData.fournisseur);
+
+    res.status(201).json({
+      success: true,
+      message: 'Facture analysée et dépense créée avec succès',
+      depense: formatDepense(depense),
+      extracted: {
+        fournisseur: extractedData.fournisseur,
+        date: dateDepense,
+        montant_ttc_euros: (montantTTC / 100).toFixed(2),
+        montant_ht_euros: (montantHT / 100).toFixed(2),
+        tva_euros: (montantTVA / 100).toFixed(2),
+        taux_tva: tauxTVA,
+        categorie: categorie,
+        description: extractedData.description
+      }
+    });
+
+  } catch (error) {
+    console.error('[DEPENSES] Erreur upload facture:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur lors de l\'analyse de la facture'
+    });
+  }
 });
 
 export default router;

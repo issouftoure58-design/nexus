@@ -54,31 +54,31 @@ class AutoHeal {
   }
 
   async healMemory(data) {
-    console.log('[SENTINEL] Healing memory...');
+    console.log('[SENTINEL-ACTION] Handling unhealthy service: memory');
 
-    // Force garbage collection if available
+    const actions = [];
+
+    // Force garbage collection if available (requires --expose-gc flag)
     if (global.gc) {
       global.gc();
+      actions.push('gc_forced');
       console.log('[SENTINEL] Garbage collection forced');
     }
 
-    // Clear any caches we can access
-    try {
-      // Clear require cache for non-essential modules
-      const keysToDelete = Object.keys(require.cache).filter(key =>
-        key.includes('/node_modules/') && !key.includes('express') && !key.includes('supabase')
-      );
+    // Log memory state
+    const mem = process.memoryUsage();
+    console.log(`[SENTINEL] Memory: heap ${Math.round(mem.heapUsed/1024/1024)}MB / ${Math.round(mem.heapTotal/1024/1024)}MB`);
 
-      keysToDelete.slice(0, 50).forEach(key => {
-        delete require.cache[key];
-      });
-
-      console.log(`[SENTINEL] Cleared ${Math.min(keysToDelete.length, 50)} cached modules`);
-    } catch (e) {
-      // Module cache clearing might not work in ESM
+    // Note: On Render, the best solution for memory issues is to restart the service
+    // This auto-heal just logs the situation
+    if (data.usagePercent > 90) {
+      console.log('[SENTINEL-ACTION] CRITICAL: System health critical!');
+      console.log('[SENTINEL] Recommend: Restart service or increase memory');
     }
 
-    return { success: true, action: 'memory_cleanup' };
+    // Return success even if gc wasn't available - we did what we could
+    console.log(`[SENTINEL-ACTION] Repair result for memory: ${actions.length > 0 ? 'PARTIAL' : 'LOGGED'}`);
+    return { success: true, action: 'memory_logged', actions };
   }
 
   async healDatabase(data) {

@@ -103,7 +103,13 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t text-center">
+          <div className="mt-6 pt-4 border-t text-center space-y-3">
+            <p className="text-sm text-gray-600">
+              Pas encore de compte ?{' '}
+              <a href="/signup" className="text-cyan-600 hover:text-cyan-700 font-medium">
+                Créer un compte
+              </a>
+            </p>
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
               <Sparkles className="h-4 w-4" />
               Propulsé par NEXUS Platform

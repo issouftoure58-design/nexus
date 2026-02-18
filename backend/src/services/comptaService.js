@@ -25,7 +25,7 @@ export async function calculatePnL(tenant_id, mois, annee) {
     // REVENUS : Factures payées du mois
     const { data: factures, error: errFactures } = await supabase
       .from('factures')
-      .select('montant_total, montant_ht, montant_tva, date_paiement')
+      .select('montant_ttc, montant_ht, montant_tva, date_paiement')
       .eq('tenant_id', tenant_id)
       .eq('statut', 'payee')
       .gte('date_paiement', dateDebutStr)
@@ -35,29 +35,31 @@ export async function calculatePnL(tenant_id, mois, annee) {
       console.error('[COMPTA] Erreur factures:', errFactures);
     }
 
-    const revenus = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_total || f.montant_ht || 0), 0);
-    const revenusHT = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_ht || f.montant_total || 0), 0);
-    const tvaCollectee = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_tva || 0), 0);
+    // Montants en centimes dans la DB, convertir en euros
+    const revenus = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_ttc || f.montant_ht || 0), 0) / 100;
+    const revenusHT = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_ht || f.montant_ttc || 0), 0) / 100;
+    const tvaCollectee = (factures || []).reduce((sum, f) => sum + parseFloat(f.montant_tva || 0), 0) / 100;
     const nbFactures = factures?.length || 0;
 
     // DÉPENSES : Table dépenses du mois
     const { data: depenses, error: errDepenses } = await supabase
       .from('depenses')
-      .select('montant, montant_ht, montant_tva, categorie, libelle, date')
+      .select('montant, montant_ttc, montant_tva, categorie, libelle, date_depense')
       .eq('tenant_id', tenant_id)
-      .gte('date', dateDebutStr)
-      .lte('date', dateFinStr);
+      .gte('date_depense', dateDebutStr)
+      .lte('date_depense', dateFinStr);
 
     if (errDepenses) {
       console.error('[COMPTA] Erreur dépenses:', errDepenses);
     }
 
-    const depensesTotal = (depenses || []).reduce((sum, d) => sum + parseFloat(d.montant || d.montant_ht || 0), 0);
-    const depensesHT = (depenses || []).reduce((sum, d) => sum + parseFloat(d.montant_ht || d.montant || 0), 0);
-    const tvaDeductible = (depenses || []).reduce((sum, d) => sum + parseFloat(d.montant_tva || 0), 0);
+    // Montants en centimes dans la DB, convertir en euros
+    const depensesTotal = (depenses || []).reduce((sum, d) => sum + parseFloat(d.montant || 0), 0) / 100;
+    const depensesHT = depensesTotal; // montant est déjà HT
+    const tvaDeductible = (depenses || []).reduce((sum, d) => sum + parseFloat(d.montant_tva || 0), 0) / 100;
     const nbDepenses = depenses?.length || 0;
 
-    // Grouper dépenses par catégorie
+    // Grouper dépenses par catégorie (montants en euros)
     const depensesParCategorie = {};
     (depenses || []).forEach(d => {
       const cat = d.categorie || 'Autre';
@@ -68,12 +70,13 @@ export async function calculatePnL(tenant_id, mois, annee) {
           items: []
         };
       }
-      depensesParCategorie[cat].total += parseFloat(d.montant || d.montant_ht || 0);
+      const montantEuros = parseFloat(d.montant || 0) / 100;
+      depensesParCategorie[cat].total += montantEuros;
       depensesParCategorie[cat].count += 1;
       depensesParCategorie[cat].items.push({
         libelle: d.libelle,
-        montant: parseFloat(d.montant || d.montant_ht || 0),
-        date: d.date
+        montant: montantEuros,
+        date: d.date_depense
       });
     });
 

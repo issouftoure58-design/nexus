@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +65,7 @@ const PRIORITE_COLORS: Record<string, string> = {
 };
 
 export default function PipelinePage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draggedItem, setDraggedItem] = useState<Opportunite | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -74,7 +76,7 @@ export default function PipelinePage() {
     queryKey: ['pipeline'],
     queryFn: async () => {
       const res = await fetch('/api/admin/pipeline', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       if (!res.ok) {
         if (res.status === 403) throw new Error('Plan Pro requis');
@@ -90,7 +92,7 @@ export default function PipelinePage() {
       const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ etape })
@@ -109,7 +111,7 @@ export default function PipelinePage() {
       const res = await fetch('/api/admin/pipeline', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -135,7 +137,7 @@ export default function PipelinePage() {
       const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ etape: 'gagne' })
@@ -151,7 +153,7 @@ export default function PipelinePage() {
       const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ etape: 'perdu' })
@@ -192,10 +194,10 @@ export default function PipelinePage() {
           <CardContent className="p-12 text-center">
             <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Pipeline Commercial</h2>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Cette fonctionnalite est disponible a partir du plan Pro.
             </p>
-            <Button>Passer au Plan Pro</Button>
+            <Button onClick={() => navigate('/subscription')}>Passer au Plan Pro</Button>
           </CardContent>
         </Card>
       </div>

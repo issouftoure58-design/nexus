@@ -61,7 +61,7 @@ export async function getTenant(tenantId) {
 export function buildSystemPrompt(tenant) {
   const businessName = tenant?.business_name || 'NEXUS';
   const businessType = tenant?.business_type || 'business';
-  const plan = tenant?.subscription_plan || 'starter';
+  const plan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
   const credits = tenant?.ai_credits_remaining ?? 1000;
 
   return `Tu es l'Assistant Admin Pro de ${businessName}, propulsé par NEXUS.
@@ -1564,7 +1564,7 @@ export async function chatStream(tenantId, messages, res, conversationId) {
   console.log(`[ADMIN CHAT] Tenant récupéré:`, tenant?.business_name || 'NON TROUVÉ');
 
   // Récupérer les outils disponibles selon le plan du tenant
-  const tenantPlan = tenant?.subscription_plan || 'starter';
+  const tenantPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
   const availableTools = getToolsForPlan(tenantPlan);
   console.log(`[ADMIN CHAT] Plan: ${tenantPlan}, Outils disponibles: ${availableTools.length}`);
 
@@ -1677,7 +1677,7 @@ export async function chat(tenantId, messages) {
   const tenant = await getTenant(tenantId);
 
   // Récupérer les outils disponibles selon le plan du tenant
-  const tenantPlan = tenant?.subscription_plan || 'starter';
+  const tenantPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
   const availableTools = getToolsForPlan(tenantPlan);
 
   let conversationMessages = messages.map(m => ({

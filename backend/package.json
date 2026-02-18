@@ -12,7 +12,9 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:api": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=api-public",
     "test:sentinel": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=sentinel",
-    "test:branding": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=branding"
+    "test:branding": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=branding",
+    "test:trial": "node src/tests/trial.test.js",
+    "test:quotas": "node src/tests/quotas-pro.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

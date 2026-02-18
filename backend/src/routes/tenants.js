@@ -11,6 +11,14 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import {
+  BUSINESS_TEMPLATES,
+  NEXUS_PLANS,
+  getBusinessTemplate,
+  getAllBusinessTemplates,
+  generateIaConfig,
+  getPlan,
+} from '../data/businessTemplates.js';
 
 const router = express.Router();
 
@@ -121,8 +129,8 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Déterminer le plan
-    const plan = tenant.plan_id || 'starter';
+    // Déterminer le plan (priorité: plan > plan_id > tier)
+    const plan = (tenant.plan || tenant.plan_id || tenant.tier || 'starter').toLowerCase();
 
     // Construire les quotas (merge défaut + custom)
     const quotas = {
@@ -250,11 +258,11 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
     // Récupérer le tenant pour connaître son plan
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan_id, modules_actifs')
+      .select('plan, plan_id, tier, modules_actifs')
       .eq('id', tenantId)
       .single();
 
-    const currentPlan = tenant?.plan_id || 'starter';
+    const currentPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
     const activeModules = tenant?.modules_actifs || {};
 
     // Enrichir les modules avec leur statut
@@ -271,6 +279,423 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('[TENANTS] Erreur GET /modules/available:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/tenants/business-templates - Templates métier disponibles
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.get('/business-templates', async (req, res) => {
+  try {
+    const templates = getAllBusinessTemplates().map(t => ({
+      id: t.id,
+      name: t.name,
+      icon: t.icon,
+      emoji: t.emoji,
+      description: t.description,
+      recommendedModules: t.recommendedModules,
+      suggestedPlan: t.suggestedPlan,
+      estimatedMonthlyPrice: t.estimatedMonthlyPrice,
+      servicesCount: t.defaultServices.length,
+    }));
+
+    res.json({
+      success: true,
+      templates,
+    });
+  } catch (error) {
+    console.error('[TENANTS] Erreur GET /business-templates:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/tenants/plans - Plans NEXUS disponibles
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.get('/plans', async (req, res) => {
+  try {
+    const plans = Object.values(NEXUS_PLANS).map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      description: p.description,
+      popular: p.popular || false,
+      includes: p.includes,
+    }));
+
+    res.json({
+      success: true,
+      plans,
+    });
+  } catch (error) {
+    console.error('[TENANTS] Erreur GET /plans:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/tenants/setup-from-template - Configuration auto depuis template
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.post('/setup-from-template', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tenant ID manquant',
+      });
+    }
+
+    const {
+      businessType,
+      businessName,
+      ownerName,
+      address,
+      phone,
+      selectedServices, // optionnel: services sélectionnés (si l'utilisateur modifie)
+      customHours, // optionnel: horaires personnalisés
+    } = req.body;
+
+    if (!businessType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Type de business requis',
+      });
+    }
+
+    console.log(`[TENANTS] Setup from template: ${tenantId} -> ${businessType}`);
+
+    // Récupérer le template
+    const template = getBusinessTemplate(businessType);
+
+    if (!template) {
+      return res.status(400).json({
+        success: false,
+        error: 'Template non trouvé',
+      });
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 1. METTRE À JOUR LE TENANT
+    // ═══════════════════════════════════════════════════
+
+    const tenantUpdate = {
+      name: businessName || null,
+      business_type: businessType,
+      adresse: address || null,
+      telephone: phone || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: tenantError } = await supabase
+      .from('tenants')
+      .update(tenantUpdate)
+      .eq('id', tenantId);
+
+    if (tenantError) {
+      console.error('[TENANTS] Erreur update tenant:', tenantError);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 2. CRÉER LES SERVICES PAR DÉFAUT
+    // ═══════════════════════════════════════════════════
+
+    const servicesToCreate = selectedServices || template.defaultServices;
+    let servicesCreated = 0;
+
+    if (servicesToCreate.length > 0) {
+      // Supprimer les anciens services (reset)
+      await supabase
+        .from('services')
+        .delete()
+        .eq('tenant_id', tenantId);
+
+      // Créer les nouveaux services
+      const servicesData = servicesToCreate.map((s, index) => ({
+        tenant_id: tenantId,
+        nom: s.name,
+        description: s.description || '',
+        prix: Math.round((s.price || 0) * 100), // En centimes
+        duree: s.duration || 30,
+        categorie: s.category || 'Service',
+        actif: true,
+        ordre: index + 1,
+      }));
+
+      const { data: createdServices, error: servicesError } = await supabase
+        .from('services')
+        .insert(servicesData)
+        .select();
+
+      if (servicesError) {
+        console.error('[TENANTS] Erreur création services:', servicesError);
+      } else {
+        servicesCreated = createdServices?.length || 0;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 3. CRÉER/METTRE À JOUR LES DISPONIBILITÉS
+    // ═══════════════════════════════════════════════════
+
+    const hoursToUse = customHours || template.defaultHours;
+    let hoursCreated = 0;
+
+    // Supprimer les anciennes disponibilités
+    await supabase
+      .from('disponibilites')
+      .delete()
+      .eq('tenant_id', tenantId);
+
+    // Créer les nouvelles disponibilités
+    const dayMapping = {
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+      sunday: 0,
+    };
+
+    const disponibilites = [];
+
+    for (const [day, hours] of Object.entries(hoursToUse)) {
+      if (hours) {
+        // Jour avec horaires
+        if (hours.open && hours.close) {
+          // Horaires simples
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.open,
+            heure_fin: hours.close,
+            actif: true,
+          });
+        }
+
+        // Horaires matin/après-midi (médical)
+        if (hours.morning) {
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.morning.open,
+            heure_fin: hours.morning.close,
+            actif: true,
+          });
+        }
+        if (hours.afternoon) {
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.afternoon.open,
+            heure_fin: hours.afternoon.close,
+            actif: true,
+          });
+        }
+
+        // Horaires midi/soir (restaurant)
+        if (hours.lunch) {
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.lunch.open,
+            heure_fin: hours.lunch.close,
+            actif: true,
+          });
+        }
+        if (hours.dinner) {
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.dinner.open,
+            heure_fin: hours.dinner.close,
+            actif: true,
+          });
+        }
+        if (hours.evening) {
+          disponibilites.push({
+            tenant_id: tenantId,
+            jour_semaine: dayMapping[day],
+            heure_debut: hours.evening.open,
+            heure_fin: hours.evening.close,
+            actif: true,
+          });
+        }
+      }
+    }
+
+    if (disponibilites.length > 0) {
+      const { data: createdDispo, error: dispoError } = await supabase
+        .from('disponibilites')
+        .insert(disponibilites)
+        .select();
+
+      if (dispoError) {
+        console.error('[TENANTS] Erreur création disponibilités:', dispoError);
+      } else {
+        hoursCreated = createdDispo?.length || 0;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 4. CRÉER/METTRE À JOUR LA CONFIG IA
+    // ═══════════════════════════════════════════════════
+
+    const iaConfigs = generateIaConfig(businessType, businessName || 'Mon entreprise', ownerName || '');
+    let iaConfigsCreated = 0;
+
+    for (const [channel, config] of Object.entries(iaConfigs)) {
+      // Channel format: channel_telephone, channel_whatsapp, channel_web
+      const channelName = channel.replace('channel_', '');
+
+      // Upsert config IA
+      const { error: iaError } = await supabase
+        .from('tenant_ia_config')
+        .upsert({
+          tenant_id: tenantId,
+          channel: channelName,
+          greeting_message: config.greeting,
+          system_prompt: config.personality,
+          tone: config.tone,
+          can_book: config.canBook,
+          can_quote: config.canQuote,
+          can_transfer: config.canTransfer || false,
+          transfer_keywords: config.transferKeywords || [],
+          quick_replies: config.quickReplies || [],
+          active: true,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'tenant_id,channel',
+        });
+
+      if (!iaError) {
+        iaConfigsCreated++;
+      } else {
+        console.error(`[TENANTS] Erreur config IA ${channelName}:`, iaError);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 5. RETOURNER LE RÉSULTAT
+    // ═══════════════════════════════════════════════════
+
+    console.log(`[TENANTS] Setup terminé: ${servicesCreated} services, ${hoursCreated} horaires, ${iaConfigsCreated} configs IA`);
+
+    res.json({
+      success: true,
+      message: 'Configuration appliquée avec succès',
+      setup: {
+        businessType: template.id,
+        businessName: template.name,
+        servicesCreated,
+        hoursCreated,
+        iaConfigsCreated,
+        recommendedModules: template.recommendedModules,
+        suggestedPlan: template.suggestedPlan,
+        estimatedPrice: template.estimatedMonthlyPrice,
+      },
+    });
+  } catch (error) {
+    console.error('[TENANTS] Erreur POST /setup-from-template:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/tenants/template-preview/:type - Prévisualiser un template
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.get('/template-preview/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const template = getBusinessTemplate(type);
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template non trouvé',
+      });
+    }
+
+    // Retourner le template complet pour prévisualisation
+    res.json({
+      success: true,
+      template: {
+        id: template.id,
+        name: template.name,
+        icon: template.icon,
+        emoji: template.emoji,
+        description: template.description,
+        defaultServices: template.defaultServices,
+        defaultHours: template.defaultHours,
+        iaConfig: template.iaConfig,
+        recommendedModules: template.recommendedModules,
+        suggestedPlan: template.suggestedPlan,
+        estimatedMonthlyPrice: template.estimatedMonthlyPrice,
+        specialNotes: template.specialNotes || [],
+      },
+    });
+  } catch (error) {
+    console.error('[TENANTS] Erreur GET /template-preview:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/tenants/me/complete-onboarding - Marquer onboarding terminé
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.patch('/me/complete-onboarding', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tenant ID manquant',
+      });
+    }
+
+    const { error } = await supabase
+      .from('tenants')
+      .update({
+        onboarding_completed: true,
+        onboarding_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tenantId);
+
+    if (error) throw error;
+
+    console.log(`[TENANTS] Onboarding terminé: ${tenantId}`);
+
+    res.json({
+      success: true,
+      message: 'Onboarding marqué comme terminé',
+    });
+  } catch (error) {
+    console.error('[TENANTS] Erreur PATCH /me/complete-onboarding:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur serveur',

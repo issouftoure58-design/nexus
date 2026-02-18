@@ -136,4 +136,103 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/stats/activity
+router.get('/activity', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const activities = [];
+
+    // Dernières réservations (confirmées/créées aujourd'hui)
+    const today = new Date().toISOString().split('T')[0];
+    const { data: recentRdv } = await supabase
+      .from('reservations')
+      .select('id, statut, heure, created_at, clients(prenom, nom)')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    recentRdv?.forEach(rdv => {
+      const clientName = rdv.clients ? `${rdv.clients.prenom} ${rdv.clients.nom}` : 'Client';
+      if (rdv.statut === 'confirme') {
+        activities.push({
+          type: 'rdv_confirmed',
+          message: `${clientName} - RDV confirmé ${rdv.heure || ''}`,
+          time: rdv.created_at
+        });
+      } else if (rdv.statut === 'demande' || rdv.statut === 'en_attente') {
+        activities.push({
+          type: 'rdv_pending',
+          message: `Demande de RDV de ${clientName}`,
+          time: rdv.created_at
+        });
+      }
+    });
+
+    // Nouveaux clients
+    const { data: newClients } = await supabase
+      .from('clients')
+      .select('id, prenom, nom, created_at')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    newClients?.forEach(client => {
+      activities.push({
+        type: 'new_client',
+        message: `Nouveau client: ${client.prenom} ${client.nom}`,
+        time: client.created_at
+      });
+    });
+
+    // Stock bas
+    const { data: lowStock } = await supabase
+      .from('produits')
+      .select('id, nom, quantite_stock, seuil_alerte')
+      .eq('tenant_id', tenantId)
+      .lt('quantite_stock', 5)
+      .limit(3);
+
+    lowStock?.forEach(product => {
+      activities.push({
+        type: 'alert',
+        message: `Stock bas: ${product.nom}`,
+        time: new Date().toISOString()
+      });
+    });
+
+    // Trier par date
+    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+    // Formater les temps relatifs
+    const formattedActivities = activities.slice(0, 10).map((a, i) => ({
+      id: i + 1,
+      type: a.type,
+      message: a.message,
+      time: formatRelativeTime(a.time)
+    }));
+
+    res.json({ activities: formattedActivities });
+
+  } catch (error) {
+    console.error('[ADMIN STATS] Activity error:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+function formatRelativeTime(dateStr) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+
+  if (diffMin < 1) return 'A l\'instant';
+  if (diffMin < 60) return `Il y a ${diffMin} min`;
+  if (diffHour < 24) return `Il y a ${diffHour}h`;
+  return `Il y a ${diffDay}j`;
+}
+
 export default router;

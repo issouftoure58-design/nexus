@@ -8,7 +8,10 @@ import {
   getFacturesARelancer,
   getStatsRelances,
   envoyerRelance,
-  traiterRelancesTenant
+  traiterRelancesTenant,
+  transmettreContentieux,
+  getRelanceSettings,
+  saveRelanceSettings
 } from '../services/relancesService.js';
 import { createClient } from '@supabase/supabase-js';
 
@@ -27,16 +30,20 @@ function getSupabase() {
 
 /**
  * GET /api/relances
- * Liste les factures à relancer pour le tenant
+ * Liste les factures à relancer pour le tenant avec stats
  */
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId || 'fatshairafro';
-    const factures = await getFacturesARelancer(tenantId);
+    const tenantId = req.admin?.tenant_id || req.tenantId || 'fatshairafro';
+    const [factures, stats] = await Promise.all([
+      getFacturesARelancer(tenantId),
+      getStatsRelances(tenantId)
+    ]);
 
     res.json({
       success: true,
       factures,
+      stats,
       count: factures.length
     });
   } catch (error) {
@@ -228,6 +235,81 @@ router.patch('/:factureId/marquer-payee', authenticateAdmin, async (req, res) =>
     });
   } catch (error) {
     console.error('[API Relances] Erreur marquer payée:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/relances/:factureId/contentieux
+ * Transmettre un dossier au service contentieux
+ */
+router.post('/:factureId/contentieux', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id || req.tenantId || 'fatshairafro';
+    const { factureId } = req.params;
+    const { service } = req.body; // 'interne' ou 'huissier'
+
+    const result = await transmettreContentieux(
+      parseInt(factureId),
+      tenantId,
+      service || 'interne'
+    );
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('[API Relances] Erreur contentieux:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/relances/settings
+ * Récupérer les paramètres de relance du tenant
+ */
+router.get('/settings', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id || req.tenantId || 'fatshairafro';
+    const settings = await getRelanceSettings(tenantId);
+
+    res.json({
+      success: true,
+      settings
+    });
+  } catch (error) {
+    console.error('[API Relances] Erreur get settings:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/relances/settings
+ * Mettre à jour les paramètres de relance du tenant
+ */
+router.put('/settings', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id || req.tenantId || 'fatshairafro';
+    const { settings } = req.body;
+
+    if (!settings) {
+      return res.status(400).json({
+        success: false,
+        error: 'Paramètres manquants'
+      });
+    }
+
+    const result = await saveRelanceSettings(tenantId, settings);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('[API Relances] Erreur save settings:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

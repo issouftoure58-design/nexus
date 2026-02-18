@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -91,12 +91,84 @@ export default function Parametres() {
 
 // Profile Section
 function ProfileSection() {
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
-    businessName: 'Test NEXUS Platform',
-    email: 'admin@nexus-test.com',
-    phone: '0612345678',
-    address: '123 Rue Test, Paris'
+    businessName: '',
+    email: '',
+    phone: '',
+    address: ''
   });
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch parametres from API
+  const { data: parametresData, isLoading } = useQuery({
+    queryKey: ['parametres'],
+    queryFn: async () => {
+      const token = localStorage.getItem('nexus_admin_token');
+      const res = await fetch('/api/admin/parametres', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Erreur chargement parametres');
+      return res.json();
+    }
+  });
+
+  // Update form when data loads
+  useEffect(() => {
+    if (parametresData?.parametres?.salon) {
+      const salonParams = parametresData.parametres.salon;
+      const getValue = (cle: string) => salonParams.find((p: any) => p.cle === cle)?.valeur || '';
+      setFormData({
+        businessName: getValue('nom_salon'),
+        email: getValue('email_salon'),
+        phone: getValue('telephone_salon'),
+        address: getValue('adresse_salon')
+      });
+    }
+  }, [parametresData]);
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const token = localStorage.getItem('nexus_admin_token');
+      const res = await fetch('/api/admin/parametres', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          parametres: [
+            { cle: 'nom_salon', valeur: data.businessName },
+            { cle: 'email_salon', valeur: data.email },
+            { cle: 'telephone_salon', valeur: data.phone },
+            { cle: 'adresse_salon', valeur: data.address }
+          ]
+        })
+      });
+      if (!res.ok) throw new Error('Erreur sauvegarde');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['parametres'] });
+      setHasChanges(false);
+    }
+  });
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(d => ({ ...d, [field]: value }));
+    setHasChanges(true);
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -107,39 +179,50 @@ function ProfileSection() {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'entreprise</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom de l'entreprise</label>
             <Input
               value={formData.businessName}
-              onChange={(e) => setFormData(d => ({ ...d, businessName: e.target.value }))}
+              onChange={(e) => handleChange('businessName', e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email de contact</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email de contact</label>
             <Input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData(d => ({ ...d, email: e.target.value }))}
+              onChange={(e) => handleChange('email', e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Téléphone</label>
             <Input
               type="tel"
               value={formData.phone}
-              onChange={(e) => setFormData(d => ({ ...d, phone: e.target.value }))}
+              onChange={(e) => handleChange('phone', e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Adresse</label>
             <Input
               value={formData.address}
-              onChange={(e) => setFormData(d => ({ ...d, address: e.target.value }))}
+              onChange={(e) => handleChange('address', e.target.value)}
             />
           </div>
         </div>
         <div className="flex justify-end pt-4">
-          <Button className="bg-gradient-to-r from-cyan-500 to-blue-600">
-            Enregistrer les modifications
+          <Button
+            onClick={() => saveMutation.mutate(formData)}
+            disabled={!hasChanges || saveMutation.isPending}
+            className="bg-gradient-to-r from-cyan-500 to-blue-600"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Enregistrement...
+              </>
+            ) : (
+              'Enregistrer les modifications'
+            )}
           </Button>
         </div>
       </CardContent>

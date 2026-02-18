@@ -1,6 +1,14 @@
 /**
- * Service de gestion des relances factures
- * 4 niveaux : J-15 (préventif), J+1, J+7, J+15
+ * ╔═══════════════════════════════════════════════════════════════════════════════╗
+ * ║   SERVICE RELANCES FACTURES - Système automatique R1 à Contentieux            ║
+ * ╠═══════════════════════════════════════════════════════════════════════════════╣
+ * ║   R1: 7 jours AVANT échéance (préventive)                                     ║
+ * ║   R2: Jour d'échéance                                                         ║
+ * ║   R3: Échéance +7j                                                            ║
+ * ║   R4: Échéance +15j                                                           ║
+ * ║   R5: Mise en demeure +21j                                                    ║
+ * ║   Contentieux: +30j (transmission huissier/service interne)                   ║
+ * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -28,114 +36,268 @@ function getResend() {
   return _resend;
 }
 
-// Configuration des niveaux de relance
-const NIVEAUX_RELANCE = {
+// ============= CONFIGURATION DES DÉLAIS PAR DÉFAUT =============
+
+const DEFAULT_DELAYS = {
+  r1: -7,      // 7 jours AVANT échéance
+  r2: 0,       // Jour d'échéance
+  r3: 7,       // 7 jours après échéance
+  r4: 15,      // 15 jours après échéance
+  r5: 21,      // Mise en demeure +21 jours
+  contentieux: 30  // Contentieux +30 jours
+};
+
+// Cache des settings par tenant
+const settingsCache = new Map();
+
+// ============= CONFIGURATION DES NIVEAUX =============
+
+export const NIVEAUX_RELANCE = {
   1: {
-    type: 'preventif',
-    nom: 'Rappel préventif J-15',
-    jours: -15, // 15 jours avant échéance
+    type: 'preventive',
+    nom: 'R1 - Rappel préventif',
+    jours: -7, // 7 jours AVANT échéance
     objet: 'Rappel : Facture à régler prochainement',
-    urgence: 'faible'
+    couleur: '#3B82F6', // Bleu
+    urgence: 'info',
+    canaux: ['email']
   },
   2: {
-    type: 'rappel',
-    nom: 'Première relance J+1',
-    jours: 1, // 1 jour après échéance
-    objet: 'Relance : Facture impayée',
-    urgence: 'moyenne'
+    type: 'echeance',
+    nom: 'R2 - Jour d\'échéance',
+    jours: 0, // Jour d'échéance
+    objet: 'Rappel : Votre facture arrive à échéance aujourd\'hui',
+    couleur: '#06B6D4', // Cyan
+    urgence: 'normale',
+    canaux: ['email']
   },
   3: {
-    type: 'urgence',
-    nom: 'Deuxième relance J+7',
+    type: 'relance1',
+    nom: 'R3 - Première relance',
     jours: 7, // 7 jours après échéance
-    objet: 'URGENT : Facture en retard de paiement',
-    urgence: 'haute'
+    objet: 'Relance : Facture impayée depuis 7 jours',
+    couleur: '#EAB308', // Yellow
+    urgence: 'moyenne',
+    canaux: ['email', 'sms']
   },
   4: {
-    type: 'mise_en_demeure',
-    nom: 'Mise en demeure J+15',
+    type: 'relance2',
+    nom: 'R4 - Deuxième relance',
     jours: 15, // 15 jours après échéance
+    objet: 'URGENT : Facture impayée depuis 15 jours',
+    couleur: '#F97316', // Orange
+    urgence: 'haute',
+    canaux: ['email', 'sms']
+  },
+  5: {
+    type: 'mise_en_demeure',
+    nom: 'R5 - Mise en demeure',
+    jours: 21, // 21 jours après échéance
     objet: 'MISE EN DEMEURE : Règlement immédiat requis',
-    urgence: 'critique'
+    couleur: '#EF4444', // Rouge
+    urgence: 'critique',
+    canaux: ['email', 'sms', 'courrier'],
+    notifyAdmin: true
+  },
+  6: {
+    type: 'contentieux',
+    nom: 'Contentieux',
+    jours: 30, // 30 jours après échéance
+    objet: 'Transmission au service contentieux',
+    couleur: '#7C3AED', // Violet
+    urgence: 'contentieux',
+    canaux: ['email', 'courrier']
   }
 };
 
+// ============= FONCTIONS UTILITAIRES =============
+
 /**
- * Récupère les factures à relancer pour un tenant
- * @param {string} tenantId
- * @returns {Promise<Array>}
+ * Calcule le nombre de jours de retard par rapport à l'échéance
+ */
+function calculerJoursRetard(dateEcheance) {
+  if (!dateEcheance) return 0;
+  const echeance = new Date(dateEcheance);
+  const aujourdhui = new Date();
+  aujourdhui.setHours(0, 0, 0, 0);
+  echeance.setHours(0, 0, 0, 0);
+  return Math.floor((aujourdhui - echeance) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Détermine le niveau de relance en fonction des jours de retard
+ */
+function determinerNiveauRelance(joursRetard) {
+  if (joursRetard >= 30) return 6; // Contentieux
+  if (joursRetard >= 21) return 5; // Mise en demeure
+  if (joursRetard >= 15) return 4; // R4
+  if (joursRetard >= 7) return 3;  // R3
+  if (joursRetard >= 0) return 2;  // R2 (jour d'échéance)
+  if (joursRetard >= -7) return 1; // R1 (7 jours avant)
+  return 0; // Pas encore de relance
+}
+
+// ============= RÉCUPÉRATION DES DONNÉES =============
+
+/**
+ * Récupère les factures impayées avec leur niveau de relance
  */
 export async function getFacturesARelancer(tenantId) {
   const db = getSupabase();
   if (!db) return [];
 
   const { data, error } = await db
-    .from('factures_a_relancer')
-    .select('*')
+    .from('factures')
+    .select(`
+      id,
+      numero,
+      client_nom,
+      client_email,
+      client_telephone,
+      montant_ttc,
+      date_facture,
+      date_echeance,
+      statut,
+      niveau_relance,
+      date_derniere_relance,
+      en_contentieux
+    `)
     .eq('tenant_id', tenantId)
-    .gt('prochain_niveau_relance', 0)
-    .order('jours_retard', { ascending: false });
+    .not('statut', 'in', '(payee,annulee)')
+    .not('date_echeance', 'is', null)
+    .order('date_echeance', { ascending: true });
 
   if (error) {
     console.error('[Relances] Erreur récupération factures:', error.message);
     return [];
   }
 
-  return data || [];
+  // Calculer les jours de retard et le niveau pour chaque facture
+  return (data || []).map(f => {
+    const joursRetard = calculerJoursRetard(f.date_echeance);
+    const niveauCalcule = determinerNiveauRelance(joursRetard);
+
+    return {
+      ...f,
+      jours_retard: joursRetard,
+      niveau_relance: f.niveau_relance || 0,
+      niveau_attendu: niveauCalcule,
+      dernier_envoi: f.date_derniere_relance
+    };
+  });
 }
 
 /**
- * Récupère les stats de relances pour un tenant
- * @param {string} tenantId
- * @returns {Promise<Object>}
+ * Récupère les stats de relances avec les nouveaux niveaux
  */
 export async function getStatsRelances(tenantId) {
   const db = getSupabase();
-  if (!db) return { niveau1: 0, niveau2: 0, niveau3: 0, niveau4: 0, total: 0 };
+  if (!db) return getEmptyStats();
 
   const { data, error } = await db
     .from('factures')
-    .select('niveau_relance')
+    .select('id, date_echeance, montant_ttc, niveau_relance, en_contentieux')
     .eq('tenant_id', tenantId)
-    .not('statut', 'in', '("payee","annulee")');
+    .not('statut', 'in', '(payee,annulee)')
+    .not('date_echeance', 'is', null);
 
   if (error) {
     console.error('[Relances] Erreur stats:', error.message);
-    return { niveau1: 0, niveau2: 0, niveau3: 0, niveau4: 0, total: 0 };
+    return getEmptyStats();
   }
 
-  const stats = { niveau1: 0, niveau2: 0, niveau3: 0, niveau4: 0, total: 0 };
+  const stats = {
+    total_impayees: 0,
+    montant_total: 0,
+    r1_preventive: 0,
+    r2_echeance: 0,
+    r3_plus7: 0,
+    r4_plus15: 0,
+    r5_mise_demeure: 0,
+    contentieux: 0
+  };
+
   (data || []).forEach(f => {
-    if (f.niveau_relance >= 1) stats.niveau1++;
-    if (f.niveau_relance >= 2) stats.niveau2++;
-    if (f.niveau_relance >= 3) stats.niveau3++;
-    if (f.niveau_relance >= 4) stats.niveau4++;
-    if (f.niveau_relance > 0) stats.total++;
+    const joursRetard = calculerJoursRetard(f.date_echeance);
+    const niveau = determinerNiveauRelance(joursRetard);
+
+    stats.total_impayees++;
+    stats.montant_total += f.montant_ttc || 0;
+
+    if (f.en_contentieux) {
+      stats.contentieux++;
+    } else if (niveau === 1 || joursRetard < 0) {
+      stats.r1_preventive++;
+    } else if (niveau === 2 || joursRetard === 0) {
+      stats.r2_echeance++;
+    } else if (niveau === 3 || joursRetard <= 7) {
+      stats.r3_plus7++;
+    } else if (niveau === 4 || joursRetard <= 15) {
+      stats.r4_plus15++;
+    } else if (niveau === 5 || joursRetard <= 21) {
+      stats.r5_mise_demeure++;
+    } else {
+      stats.contentieux++;
+    }
   });
 
   return stats;
 }
 
-/**
- * Génère le contenu email pour une relance
- * @param {Object} facture
- * @param {number} niveau
- * @param {Object} tenantConfig
- * @returns {Object} { subject, html }
- */
+function getEmptyStats() {
+  return {
+    total_impayees: 0,
+    montant_total: 0,
+    r1_preventive: 0,
+    r2_echeance: 0,
+    r3_plus7: 0,
+    r4_plus15: 0,
+    r5_mise_demeure: 0,
+    contentieux: 0
+  };
+}
+
+// ============= GÉNÉRATION EMAIL =============
+
 function genererEmailRelance(facture, niveau, tenantConfig) {
   const config = NIVEAUX_RELANCE[niveau];
   const t = tenantConfig;
-  const montantTTC = (facture.montant_ttc / 100).toFixed(2);
-  const dateEcheance = new Date(facture.date_echeance).toLocaleDateString('fr-FR');
-  const joursRetard = facture.jours_retard || 0;
+  const montantTTC = ((facture.montant_ttc || 0) / 100).toFixed(2);
+  const dateEcheance = facture.date_echeance
+    ? new Date(facture.date_echeance).toLocaleDateString('fr-FR')
+    : 'Non définie';
+  const joursRetard = calculerJoursRetard(facture.date_echeance);
 
-  const couleurUrgence = {
-    faible: '#3B82F6',    // Bleu
-    moyenne: '#F59E0B',   // Orange
-    haute: '#EF4444',     // Rouge
-    critique: '#7C3AED'   // Violet
-  }[config.urgence];
+  const messages = {
+    1: `
+      <p>Nous vous rappelons que la facture <strong>${facture.numero}</strong> arrivera à échéance le <strong>${dateEcheance}</strong>.</p>
+      <p>Merci de bien vouloir procéder au règlement dans les délais impartis.</p>
+    `,
+    2: `
+      <p>La facture <strong>${facture.numero}</strong> arrive à échéance <strong>aujourd'hui</strong>.</p>
+      <p>Nous vous remercions de bien vouloir procéder au règlement dans les meilleurs délais.</p>
+    `,
+    3: `
+      <p>Sauf erreur de notre part, la facture <strong>${facture.numero}</strong> reste impayée depuis <strong>${joursRetard} jours</strong>.</p>
+      <p style="color: ${config.couleur};">Nous vous prions de régulariser cette situation rapidement.</p>
+    `,
+    4: `
+      <p>Malgré nos précédents rappels, la facture <strong>${facture.numero}</strong> reste impayée depuis <strong>${joursRetard} jours</strong>.</p>
+      <p style="color: ${config.couleur}; font-weight: bold;">Nous vous demandons de régler cette facture dans les plus brefs délais.</p>
+      <p>Sans règlement de votre part, nous serons contraints d'engager des actions de recouvrement.</p>
+    `,
+    5: `
+      <p style="font-weight: bold; color: ${config.couleur}; font-size: 18px;">MISE EN DEMEURE DE PAYER</p>
+      <p>La facture <strong>${facture.numero}</strong> est impayée depuis <strong>${joursRetard} jours</strong> malgré nos multiples relances.</p>
+      <p style="color: ${config.couleur}; font-weight: bold;">Cette mise en demeure constitue un dernier avertissement avant transmission au service contentieux.</p>
+      <p>Vous disposez d'un délai de <strong>8 jours</strong> à compter de la réception de ce message pour procéder au règlement intégral, faute de quoi votre dossier sera transmis à notre service de recouvrement.</p>
+    `,
+    6: `
+      <p style="font-weight: bold; color: ${config.couleur}; font-size: 18px;">TRANSMISSION AU SERVICE CONTENTIEUX</p>
+      <p>Suite à l'absence de règlement de la facture <strong>${facture.numero}</strong> malgré nos multiples relances et mise en demeure, votre dossier a été transmis à notre service contentieux.</p>
+      <p>Des frais de recouvrement seront ajoutés au montant de la créance.</p>
+    `
+  };
 
   const html = `
 <!DOCTYPE html>
@@ -145,44 +307,30 @@ function genererEmailRelance(facture, niveau, tenantConfig) {
   <title>${config.objet}</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="border-top: 4px solid ${couleurUrgence}; padding-top: 20px;">
-    <h1 style="color: ${couleurUrgence}; margin-bottom: 10px;">
+  <div style="border-top: 4px solid ${config.couleur}; padding-top: 20px;">
+    <h1 style="color: ${config.couleur}; margin-bottom: 10px; font-size: 22px;">
       ${config.nom}
     </h1>
 
-    <p>Bonjour ${facture.client_nom},</p>
+    <p>Bonjour ${facture.client_nom || 'Cher client'},</p>
 
-    ${niveau === 1 ? `
-    <p>Nous vous rappelons que la facture <strong>${facture.numero}</strong> arrive à échéance le <strong>${dateEcheance}</strong>.</p>
-    <p>Merci de bien vouloir procéder au règlement dans les délais.</p>
-    ` : niveau === 2 ? `
-    <p>Sauf erreur de notre part, la facture <strong>${facture.numero}</strong> dont l'échéance était le <strong>${dateEcheance}</strong> n'a pas été réglée.</p>
-    <p>Nous vous remercions de bien vouloir régulariser cette situation dans les meilleurs délais.</p>
-    ` : niveau === 3 ? `
-    <p>Malgré notre précédent rappel, la facture <strong>${facture.numero}</strong> reste impayée depuis <strong>${joursRetard} jours</strong>.</p>
-    <p style="color: ${couleurUrgence}; font-weight: bold;">Nous vous prions de régler cette facture de toute urgence.</p>
-    ` : `
-    <p style="font-weight: bold;">MISE EN DEMEURE</p>
-    <p>La facture <strong>${facture.numero}</strong> est impayée depuis <strong>${joursRetard} jours</strong> malgré nos multiples relances.</p>
-    <p style="color: ${couleurUrgence}; font-weight: bold;">Sans règlement sous 8 jours, nous serons contraints d'engager des poursuites.</p>
-    `}
+    ${messages[niveau] || messages[3]}
 
     <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
       <p style="margin: 5px 0;"><strong>Facture n°:</strong> ${facture.numero}</p>
-      <p style="margin: 5px 0;"><strong>Service:</strong> ${facture.service_nom}</p>
       <p style="margin: 5px 0;"><strong>Montant TTC:</strong> ${montantTTC} €</p>
       <p style="margin: 5px 0;"><strong>Échéance:</strong> ${dateEcheance}</p>
-      ${joursRetard > 0 ? `<p style="margin: 5px 0; color: ${couleurUrgence};"><strong>Retard:</strong> ${joursRetard} jours</p>` : ''}
+      ${joursRetard > 0 ? `<p style="margin: 5px 0; color: ${config.couleur}; font-weight: bold;"><strong>Retard:</strong> ${joursRetard} jours</p>` : ''}
     </div>
 
-    <p><strong>Moyens de paiement :</strong></p>
+    <p><strong>Moyens de paiement acceptés :</strong></p>
     <ul>
       <li>Virement bancaire</li>
-      <li>Espèces lors de votre prochain RDV</li>
-      <li>PayPal</li>
+      <li>Espèces</li>
+      <li>Carte bancaire</li>
     </ul>
 
-    <p>Si vous avez déjà effectué le règlement, merci de ne pas tenir compte de ce message.</p>
+    <p>Si vous avez déjà effectué le règlement, merci de nous en informer en répondant à cet email.</p>
 
     <p>Cordialement,<br>
     <strong>${t.ownerName || t.businessName}</strong><br>
@@ -191,7 +339,7 @@ function genererEmailRelance(facture, niveau, tenantConfig) {
     <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
     <p style="font-size: 12px; color: #666;">
       ${t.businessName}<br>
-      ${t.phone ? `Tél: ${t.phone}` : ''}<br>
+      ${t.phone ? `Tél: ${t.phone}<br>` : ''}
       ${t.email || ''}
     </p>
   </div>
@@ -199,17 +347,15 @@ function genererEmailRelance(facture, niveau, tenantConfig) {
 </html>`;
 
   return {
-    subject: `${config.objet} - ${facture.numero}`,
+    subject: `${config.objet} - Facture ${facture.numero}`,
     html
   };
 }
 
+// ============= ENVOI RELANCES =============
+
 /**
  * Envoie une relance pour une facture
- * @param {Object} facture
- * @param {number} niveau
- * @param {string} tenantId
- * @returns {Promise<Object>}
  */
 export async function envoyerRelance(facture, niveau, tenantId) {
   const db = getSupabase();
@@ -221,20 +367,18 @@ export async function envoyerRelance(facture, niveau, tenantId) {
   }
 
   const tenantConfig = getTenantConfig(tenantId);
-  console.log(`[Relances] 📤 Envoi relance niveau ${niveau} pour facture ${facture.numero}`);
+  console.log(`[Relances] 📤 Envoi ${config.nom} pour facture ${facture.numero}`);
 
   let emailEnvoye = false;
   let smsEnvoye = false;
-  let emailId = null;
-  let smsId = null;
 
   // 1. Envoyer email
-  if (facture.client_email && resend) {
+  if (config.canaux.includes('email') && facture.client_email && resend) {
     try {
       const { subject, html } = genererEmailRelance(facture, niveau, tenantConfig);
-      const fromEmail = tenantConfig.email || 'noreply@nexus.app';
+      const fromEmail = tenantConfig.email || `noreply@${tenantConfig.domain || 'nexus.app'}`;
 
-      const result = await resend.emails.send({
+      await resend.emails.send({
         from: `${tenantConfig.businessName} <${fromEmail}>`,
         to: facture.client_email,
         subject,
@@ -242,24 +386,26 @@ export async function envoyerRelance(facture, niveau, tenantId) {
       });
 
       emailEnvoye = true;
-      emailId = result.id;
       console.log(`[Relances] ✅ Email envoyé: ${facture.client_email}`);
     } catch (error) {
       console.error(`[Relances] ❌ Erreur email:`, error.message);
     }
   }
 
-  // 2. Envoyer SMS (niveaux 3 et 4 uniquement)
-  if (niveau >= 3 && facture.client_telephone) {
-    // TODO: Intégrer Twilio pour SMS
-    // Pour l'instant, on log seulement
-    console.log(`[Relances] 📱 SMS niveau ${niveau} à envoyer: ${facture.client_telephone}`);
-    // smsEnvoye = true;
+  // 2. Envoyer SMS (à partir de R3)
+  if (config.canaux.includes('sms') && facture.client_telephone) {
+    // TODO: Intégrer Twilio/autre service SMS
+    console.log(`[Relances] 📱 SMS ${config.nom} à implémenter: ${facture.client_telephone}`);
   }
 
-  // 3. Mettre à jour la facture
+  // 3. Notification admin (R5 et contentieux)
+  if (config.notifyAdmin) {
+    console.log(`[Relances] 🚨 ALERTE ADMIN: ${config.nom} envoyée pour facture ${facture.numero}`);
+  }
+
+  // 4. Mettre à jour la facture et logger
   if (db && (emailEnvoye || smsEnvoye)) {
-    const { error: updateError } = await db
+    await db
       .from('factures')
       .update({
         niveau_relance: niveau,
@@ -267,12 +413,7 @@ export async function envoyerRelance(facture, niveau, tenantId) {
       })
       .eq('id', facture.id);
 
-    if (updateError) {
-      console.error(`[Relances] ❌ Erreur update facture:`, updateError.message);
-    }
-
-    // 4. Enregistrer dans l'historique
-    const { error: histError } = await db
+    await db
       .from('relances_factures')
       .insert({
         tenant_id: tenantId,
@@ -280,14 +421,8 @@ export async function envoyerRelance(facture, niveau, tenantId) {
         niveau,
         type: config.type,
         email_envoye: emailEnvoye,
-        sms_envoye: smsEnvoye,
-        email_id: emailId,
-        sms_id: smsId
+        sms_envoye: smsEnvoye
       });
-
-    if (histError) {
-      console.error(`[Relances] ❌ Erreur historique:`, histError.message);
-    }
   }
 
   return {
@@ -295,56 +430,111 @@ export async function envoyerRelance(facture, niveau, tenantId) {
     emailEnvoye,
     smsEnvoye,
     niveau,
-    factureId: facture.id
+    message: emailEnvoye ? `${config.nom} envoyée par email` : 'Échec de l\'envoi'
   };
 }
 
 /**
- * Traite toutes les relances en attente pour un tenant
- * Appelé par le CRON job quotidien
- * @param {string} tenantId
- * @returns {Promise<Object>}
+ * Transmet un dossier au contentieux
+ */
+export async function transmettreContentieux(factureId, tenantId, service = 'interne') {
+  const db = getSupabase();
+  if (!db) return { success: false, error: 'Base de données non disponible' };
+
+  // Récupérer la facture
+  const { data: facture, error: fetchError } = await db
+    .from('factures')
+    .select('*')
+    .eq('id', factureId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (fetchError || !facture) {
+    return { success: false, error: 'Facture non trouvée' };
+  }
+
+  // Marquer comme contentieux
+  const { error: updateError } = await db
+    .from('factures')
+    .update({
+      en_contentieux: true,
+      niveau_relance: 6,
+      date_contentieux: new Date().toISOString(),
+      service_contentieux: service
+    })
+    .eq('id', factureId);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  // Logger dans l'historique
+  await db
+    .from('relances_factures')
+    .insert({
+      tenant_id: tenantId,
+      facture_id: factureId,
+      niveau: 6,
+      type: 'contentieux',
+      email_envoye: false,
+      sms_envoye: false,
+      notes: `Transmis au ${service === 'huissier' ? 'huissier de justice' : 'service contentieux interne'}`
+    });
+
+  console.log(`[Relances] ⚖️ Dossier ${facture.numero} transmis au contentieux (${service})`);
+
+  return {
+    success: true,
+    message: service === 'huissier'
+      ? 'Dossier transmis à l\'huissier de justice'
+      : 'Dossier transmis au service contentieux interne'
+  };
+}
+
+/**
+ * Traite automatiquement les relances pour un tenant
  */
 export async function traiterRelancesTenant(tenantId) {
   console.log(`\n[Relances] 🏢 Traitement relances pour tenant: ${tenantId}`);
 
   const factures = await getFacturesARelancer(tenantId);
-  console.log(`[Relances] 📋 ${factures.length} factures à relancer`);
+  console.log(`[Relances] 📋 ${factures.length} factures impayées`);
 
   const resultats = {
     total: factures.length,
     envoyees: 0,
     erreurs: 0,
-    parNiveau: { 1: 0, 2: 0, 3: 0, 4: 0 }
+    parNiveau: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 }
   };
 
   for (const facture of factures) {
-    const niveau = facture.prochain_niveau_relance;
-    if (niveau < 1 || niveau > 4) continue;
+    // Calculer le niveau attendu
+    const niveauAttendu = facture.niveau_attendu;
+    const niveauActuel = facture.niveau_relance || 0;
 
-    try {
-      const result = await envoyerRelance(facture, niveau, tenantId);
-      if (result.success) {
-        resultats.envoyees++;
-        resultats.parNiveau[niveau]++;
-        console.log(`[Relances] ✅ Facture ${facture.numero}: niveau ${niveau} envoyé`);
-      } else {
+    // Si le niveau attendu est supérieur au niveau actuel, envoyer la relance
+    if (niveauAttendu > niveauActuel && niveauAttendu <= 5) {
+      try {
+        const result = await envoyerRelance(facture, niveauAttendu, tenantId);
+        if (result.success) {
+          resultats.envoyees++;
+          resultats.parNiveau[niveauAttendu]++;
+        } else {
+          resultats.erreurs++;
+        }
+      } catch (error) {
         resultats.erreurs++;
-        console.log(`[Relances] ⚠️ Facture ${facture.numero}: échec envoi`);
+        console.error(`[Relances] ❌ Erreur facture ${facture.numero}:`, error.message);
       }
-    } catch (error) {
-      resultats.erreurs++;
-      console.error(`[Relances] ❌ Erreur facture ${facture.numero}:`, error.message);
     }
   }
 
-  console.log(`[Relances] 📊 Résultat: ${resultats.envoyees}/${resultats.total} envoyées, ${resultats.erreurs} erreurs`);
+  console.log(`[Relances] 📊 Résultat: ${resultats.envoyees} envoyées, ${resultats.erreurs} erreurs`);
   return resultats;
 }
 
 /**
- * Traite les relances pour tous les tenants actifs
- * @returns {Promise<Object>}
+ * Traite les relances pour tous les tenants
  */
 export async function traiterToutesRelances() {
   const db = getSupabase();
@@ -355,11 +545,11 @@ export async function traiterToutesRelances() {
 
   console.log(`\n[Relances] 🚀 Début traitement relances - ${new Date().toLocaleString('fr-FR')}`);
 
-  // Récupérer tous les tenants avec des factures à relancer
+  // Récupérer tous les tenants avec des factures impayées
   const { data: tenants, error } = await db
     .from('factures')
     .select('tenant_id')
-    .not('statut', 'in', '("payee","annulee")')
+    .not('statut', 'in', '(payee,annulee)')
     .not('date_echeance', 'is', null);
 
   if (error) {
@@ -367,7 +557,6 @@ export async function traiterToutesRelances() {
     return { success: false, error: error.message };
   }
 
-  // Dédupliquer les tenants
   const tenantIds = [...new Set((tenants || []).map(t => t.tenant_id))];
   console.log(`[Relances] 🏢 ${tenantIds.length} tenants à traiter`);
 
@@ -385,8 +574,110 @@ export async function traiterToutesRelances() {
     resultatsGlobaux.totalErreurs += resultat.erreurs;
   }
 
-  console.log(`\n[Relances] ✅ Traitement terminé: ${resultatsGlobaux.totalEnvoyees} relances envoyées, ${resultatsGlobaux.totalErreurs} erreurs`);
+  console.log(`\n[Relances] ✅ Terminé: ${resultatsGlobaux.totalEnvoyees} relances, ${resultatsGlobaux.totalErreurs} erreurs`);
   return { success: true, ...resultatsGlobaux };
+}
+
+// ============= GESTION DES SETTINGS =============
+
+/**
+ * Récupère les paramètres de relance pour un tenant
+ */
+export async function getRelanceSettings(tenantId) {
+  // Check cache first
+  if (settingsCache.has(tenantId)) {
+    return settingsCache.get(tenantId);
+  }
+
+  const db = getSupabase();
+  if (!db) {
+    return { ...DEFAULT_DELAYS };
+  }
+
+  const { data, error } = await db
+    .from('relance_settings')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (error || !data) {
+    // Return defaults if no settings exist
+    return { ...DEFAULT_DELAYS };
+  }
+
+  const settings = {
+    r1: data.r1_jours ?? DEFAULT_DELAYS.r1,
+    r2: data.r2_jours ?? DEFAULT_DELAYS.r2,
+    r3: data.r3_jours ?? DEFAULT_DELAYS.r3,
+    r4: data.r4_jours ?? DEFAULT_DELAYS.r4,
+    r5: data.r5_jours ?? DEFAULT_DELAYS.r5,
+    contentieux: data.contentieux_jours ?? DEFAULT_DELAYS.contentieux
+  };
+
+  // Cache the settings
+  settingsCache.set(tenantId, settings);
+  return settings;
+}
+
+/**
+ * Sauvegarde les paramètres de relance pour un tenant
+ */
+export async function saveRelanceSettings(tenantId, settings) {
+  const db = getSupabase();
+  if (!db) {
+    return { success: false, error: 'Base de données non disponible' };
+  }
+
+  // Validate settings
+  const validatedSettings = {
+    r1_jours: parseInt(settings.r1) || DEFAULT_DELAYS.r1,
+    r2_jours: parseInt(settings.r2) || DEFAULT_DELAYS.r2,
+    r3_jours: parseInt(settings.r3) || DEFAULT_DELAYS.r3,
+    r4_jours: parseInt(settings.r4) || DEFAULT_DELAYS.r4,
+    r5_jours: parseInt(settings.r5) || DEFAULT_DELAYS.r5,
+    contentieux_jours: parseInt(settings.contentieux) || DEFAULT_DELAYS.contentieux
+  };
+
+  // Upsert settings
+  const { error } = await db
+    .from('relance_settings')
+    .upsert({
+      tenant_id: tenantId,
+      ...validatedSettings,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'tenant_id'
+    });
+
+  if (error) {
+    console.error('[Relances] Erreur sauvegarde settings:', error.message);
+    return { success: false, error: error.message };
+  }
+
+  // Clear cache for this tenant
+  settingsCache.delete(tenantId);
+
+  console.log(`[Relances] ✅ Settings mis à jour pour ${tenantId}:`, validatedSettings);
+
+  return {
+    success: true,
+    message: 'Paramètres de relance mis à jour',
+    settings: {
+      r1: validatedSettings.r1_jours,
+      r2: validatedSettings.r2_jours,
+      r3: validatedSettings.r3_jours,
+      r4: validatedSettings.r4_jours,
+      r5: validatedSettings.r5_jours,
+      contentieux: validatedSettings.contentieux_jours
+    }
+  };
+}
+
+/**
+ * Récupère les délais pour un tenant (utilisé par le calcul de niveau)
+ */
+export async function getTenantDelays(tenantId) {
+  return await getRelanceSettings(tenantId);
 }
 
 // Export par défaut
@@ -394,7 +685,11 @@ export default {
   getFacturesARelancer,
   getStatsRelances,
   envoyerRelance,
+  transmettreContentieux,
   traiterRelancesTenant,
   traiterToutesRelances,
+  getRelanceSettings,
+  saveRelanceSettings,
+  getTenantDelays,
   NIVEAUX_RELANCE
 };

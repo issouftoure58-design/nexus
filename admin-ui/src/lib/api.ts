@@ -218,6 +218,26 @@ export const reservationsApi = {
 // Services
 export const servicesApi = {
   list: () => api.get<{ services: Service[] }>('/admin/services'),
+  get: (id: number) => api.get<{
+    service: Service;
+    stats: {
+      ca_total: number;
+      nb_rdv_total: number;
+      nb_rdv_termines: number;
+      nb_rdv_annules: number;
+      nb_clients_uniques: number;
+      derniere_reservation: string | null;
+    };
+    top_clients: Array<{ id: number; prenom: string; nom: string; nb_rdv: number }>;
+    historique_rdv: Array<{
+      id: number;
+      date: string;
+      heure: string;
+      statut: string;
+      prix_total: number;
+      client_nom: string;
+    }>;
+  }>(`/admin/services/${id}`),
   create: (data: CreateServiceData) => api.post<{ service: Service }>('/admin/services', data),
   update: (id: number, data: Partial<Service>) => api.put<{ service: Service }>(`/admin/services/${id}`, data),
   delete: (id: number) => api.delete(`/admin/services/${id}`),
@@ -235,15 +255,160 @@ export const stockApi = {
 
 // Comptabilité
 export const comptaApi = {
-  getStats: () => api.get<ComptaStats>('/admin/compta/stats'),
+  getStats: async (): Promise<ComptaStats> => {
+    // Utiliser le dashboard pour obtenir les stats
+    const dashboard = await api.get<{
+      moisActuel: {
+        revenus: { total: string };
+        depenses: { total: string };
+        resultat: { net: string };
+      };
+    }>('/admin/compta/dashboard');
+
+    // Récupérer les factures impayées
+    const facturesRes = await api.get<{ factures: Invoice[] }>('/factures');
+
+    return {
+      ca_mois: parseFloat(dashboard.moisActuel?.revenus?.total || '0'),
+      depenses_mois: parseFloat(dashboard.moisActuel?.depenses?.total || '0'),
+      benefice_mois: parseFloat(dashboard.moisActuel?.resultat?.net || '0'),
+      factures_impayees: facturesRes.factures?.filter(f => f.statut !== 'payee' && f.statut !== 'annulee').length || 0,
+    };
+  },
   getFactures: (params?: FacturesParams) => {
     const query = new URLSearchParams();
     if (params?.statut) query.set('statut', params.statut);
-    return api.get<{ factures: Invoice[] }>(`/admin/factures?${query}`);
+    return api.get<{ factures: Invoice[] }>(`/factures?${query}`);
   },
-  getDepenses: () => api.get<{ depenses: Expense[] }>('/admin/depenses'),
-  createDepense: (data: CreateExpenseData) => api.post<{ depense: Expense }>('/admin/depenses', data),
+  getDepenses: () => api.get<{ depenses: Expense[] }>('/depenses'),
+  createDepense: (data: CreateExpenseData) => api.post<{ depense: Expense }>('/depenses', data),
+  marquerDepensePayee: (id: number, payee: boolean) => api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee }),
+  getTVA: (mois?: string) => api.get<TVAData>(`/depenses/tva${mois ? `?mois=${mois}` : ''}`),
+  updateFactureStatut: (id: number, statut: string) => api.patch<{ facture: Invoice }>(`/factures/${id}/statut`, { statut }),
+  getFacture: (id: number) => api.get<{ facture: Invoice }>(`/factures/${id}`),
+  getFacturePDF: (id: number) => api.get<{ success: boolean; facture: Invoice; html: string; tenant: string }>(`/factures/${id}/pdf`),
+  sendFacture: (id: number) => api.post<{ success: boolean; message: string }>(`/factures/${id}/envoyer`),
+  sendAllFactures: () => api.post<{ success: boolean; nb_envoyees: number }>('/factures/envoyer-toutes'),
+  syncFactures: () => api.post<{ success: boolean; message: string; nb_creees: number; nb_mises_a_jour: number; nb_echecs?: number; total_reservations?: number }>('/factures/generer-manquantes'),
+  // Relances
+  getRelances: () => api.get<{ success: boolean; factures: RelanceFacture[]; stats: RelanceStats }>('/relances'),
+  getRelanceHistorique: (factureId: number) => api.get<{ success: boolean; historique: RelanceHistorique[] }>(`/relances/historique/${factureId}`),
+  envoyerRelance: (factureId: number, niveau: number) => api.post<{ success: boolean; message: string }>(`/relances/${factureId}/envoyer`, { niveau }),
+  marquerPayee: (factureId: number) => api.patch<{ success: boolean }>(`/relances/${factureId}/marquer-payee`),
+  transmettreContentieux: (factureId: number, service: 'interne' | 'huissier') => api.post<{ success: boolean; message: string }>(`/relances/${factureId}/contentieux`, { service }),
+  // Relance Settings
+  getRelanceSettings: () => api.get<{ success: boolean; settings: RelanceSettings }>('/relances/settings'),
+  saveRelanceSettings: (settings: RelanceSettings) => api.put<{ success: boolean; message: string; settings: RelanceSettings }>('/relances/settings', { settings }),
+  // Journaux Comptables
+  getJournaux: () => api.get<Journal[]>('/journaux'),
+  getEcritures: (params?: { journal?: string; periode?: string; compte?: string; non_lettrees?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.journal) query.set('journal', params.journal);
+    if (params?.periode) query.set('periode', params.periode);
+    if (params?.compte) query.set('compte', params.compte);
+    if (params?.non_lettrees) query.set('non_lettrees', 'true');
+    return api.get<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number } }>(`/journaux/ecritures?${query}`);
+  },
+  getEcrituresBanque: (params?: { periode?: string; non_pointees?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.periode) query.set('periode', params.periode);
+    if (params?.non_pointees) query.set('non_pointees', 'true');
+    return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number }>(`/journaux/ecritures/banque?${query}`);
+  },
+  pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
+  genererToutesEcritures: () => api.post<{ success: boolean; message: string }>('/journaux/generer/tout'),
+  getBalance: (params?: { periode?: string; exercice?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.periode) query.set('periode', params.periode);
+    if (params?.exercice) query.set('exercice', params.exercice.toString());
+    return api.get<{ balance: BalanceCompte[]; totaux: { debit: number; credit: number; solde_debiteur: number; solde_crediteur: number } }>(`/journaux/balance?${query}`);
+  },
 };
+
+// Types Journaux
+export interface Journal {
+  id: number;
+  code: string;
+  libelle: string;
+  description?: string;
+  actif: boolean;
+}
+
+export interface EcritureComptable {
+  id: number;
+  journal_code: string;
+  date_ecriture: string;
+  numero_piece?: string;
+  compte_numero: string;
+  compte_libelle?: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  lettrage?: string;
+  date_lettrage?: string;
+  facture_id?: number;
+  depense_id?: number;
+  paie_journal_id?: number;
+  periode?: string;
+  exercice?: number;
+  debit_euros?: string;
+  credit_euros?: string;
+}
+
+export interface BalanceCompte {
+  numero: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  solde_debiteur: number;
+  solde_crediteur: number;
+}
+
+// Types Relances
+export interface RelanceFacture {
+  id: number;
+  numero: string;
+  client_nom: string;
+  client_email: string;
+  client_telephone: string;
+  montant_ttc: number;
+  date_facture: string;
+  date_echeance: string;
+  jours_retard: number;
+  niveau_relance: number;
+  dernier_envoi: string | null;
+  statut: string;
+  en_contentieux: boolean;
+}
+
+export interface RelanceStats {
+  total_impayees: number;
+  montant_total: number;
+  r1_preventive: number;
+  r2_echeance: number;
+  r3_plus7: number;
+  r4_plus15: number;
+  r5_mise_demeure: number;
+  contentieux: number;
+}
+
+export interface RelanceHistorique {
+  id: number;
+  date_envoi: string;
+  niveau: number;
+  type: string;
+  email_envoye: boolean;
+  sms_envoye: boolean;
+}
+
+export interface RelanceSettings {
+  r1: number;
+  r2: number;
+  r3: number;
+  r4: number;
+  r5: number;
+  contentieux: number;
+}
 
 // Analytics
 export const analyticsApi = {
@@ -313,6 +478,69 @@ export const subscriptionApi = {
    * Portail de paiement Stripe
    */
   getPortalUrl: () => api.get<{ url: string }>('/subscription/portal'),
+};
+
+// Trial
+export interface TrialStatus {
+  success: boolean;
+  isTrial: boolean;
+  isActive: boolean;
+  isExpired: boolean;
+  isPaid: boolean;
+  daysRemaining: number;
+  trialEnd?: string;
+  trialStart?: string;
+  usage: {
+    interactions_ia: number;
+    reservations: number;
+    sms: number;
+    clients: number;
+  };
+  limits: {
+    interactions_ia: number;
+    reservations: number;
+    sms: number;
+    emails: number;
+    clients: number;
+  };
+  alerts: Array<{
+    type: 'warning' | 'critical';
+    code: string;
+    message: string;
+    action?: string;
+  }>;
+  percentComplete: number;
+}
+
+export const trialApi = {
+  /**
+   * Récupère le statut du trial
+   */
+  getStatus: () => api.get<TrialStatus>('/trial/status'),
+
+  /**
+   * Récupère les limites du trial
+   */
+  getLimits: () => api.get<{ limits: TrialStatus['limits']; duration_days: number }>('/trial/limits'),
+
+  /**
+   * Vérifie si une action est autorisée
+   */
+  checkLimit: (resource: string, amount?: number) =>
+    api.post<{ allowed: boolean; used?: number; limit?: number; remaining?: number }>(
+      '/trial/check',
+      { resource, amount }
+    ),
+
+  /**
+   * Résumé d'usage pendant le trial
+   */
+  getUsageSummary: () => api.get<{
+    isTrial: boolean;
+    daysRemaining: number;
+    usage: Record<string, { used: number; limit: number; remaining: number; percentage: number; isAtLimit: boolean }>;
+    alerts: TrialStatus['alerts'];
+  }>('/trial/usage-summary'),
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -498,26 +726,63 @@ export interface Invoice {
   id: number;
   numero: string;
   client_id: number;
-  montant: number;
-  statut: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
-  date_emission: string;
-  date_echeance: string;
-  clients?: { nom: string; prenom: string };
+  // Montants en centimes
+  montant_ht: number;
+  montant_ttc: number;
+  montant_tva: number;
+  taux_tva: number;
+  // Noms formattés par le backend
+  client_nom: string;
+  client_email?: string;
+  client_telephone?: string;
+  service_nom: string;
+  service_description?: string;
+  // Dates
+  date_facture: string;
+  date_prestation: string;
+  date_envoi?: string;
+  date_paiement?: string;
+  // Statut
+  statut: 'brouillon' | 'generee' | 'envoyee' | 'payee' | 'annulee';
+  // Lien réservation
+  reservation_id?: number;
+  // Legacy / compatibilité
+  montant_ht_euros?: string;
+  montant_ttc_euros?: string;
+  montant_tva_euros?: string;
 }
 
 export interface Expense {
   id: number;
   categorie: string;
-  description: string;
+  libelle: string;
+  description?: string;
+  // Montants en centimes
   montant: number;
-  date: string;
+  montant_ttc: number;
+  montant_tva?: number;
+  taux_tva?: number;
+  deductible_tva?: boolean;
+  // Date
+  date_depense: string;
+  recurrence?: 'ponctuelle' | 'mensuelle' | 'trimestrielle' | 'annuelle';
+  justificatif_url?: string;
+  // Statut paiement
+  payee: boolean;
+  date_paiement?: string;
+  // Legacy / compatibilité
+  montant_euros?: string;
+  montant_ttc_euros?: string;
+  montant_tva_euros?: string;
 }
 
 export interface CreateExpenseData {
   categorie: string;
+  libelle?: string;
   description: string;
   montant: number;
   date: string;
+  payee?: boolean;
 }
 
 export interface FacturesParams {
@@ -529,6 +794,44 @@ export interface ComptaStats {
   depenses_mois: number;
   benefice_mois: number;
   factures_impayees: number;
+}
+
+export interface TVAData {
+  success: boolean;
+  mois: string;
+  tva: {
+    collectee: {
+      base_ht: number;
+      base_ht_euros: string;
+      tva: number;
+      tva_euros: string;
+      nb_operations: number;
+      detail_par_taux: Array<{
+        taux: number;
+        base_ht_euros: string;
+        tva_euros: string;
+        nb_operations?: number;
+      }>;
+    };
+    deductible: {
+      base_ht: number;
+      base_ht_euros: string;
+      tva: number;
+      tva_euros: string;
+      nb_operations: number;
+      detail_par_taux: Array<{
+        taux: number;
+        base_ht_euros: string;
+        tva_euros: string;
+      }>;
+    };
+    solde: {
+      montant: number;
+      montant_euros: string;
+      a_payer: boolean;
+      credit: boolean;
+    };
+  };
 }
 
 export interface AnalyticsOverview {

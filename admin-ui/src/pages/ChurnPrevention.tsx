@@ -59,7 +59,7 @@ export default function ChurnPrevention() {
     setLoading(true);
     try {
       const response = await fetch('/api/admin/analytics/churn', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       if (!response.ok) throw new Error('Erreur fetch');
       const data = await response.json();
@@ -77,7 +77,7 @@ export default function ChurnPrevention() {
       const response = await fetch(`/api/admin/analytics/churn/${clientId}/prevent`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ action_type: actionType })

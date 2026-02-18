@@ -20,6 +20,7 @@ const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoevent
 // In-memory stores
 let tenantMap = new Map();   // tenantId -> full config object
 let domainMap = new Map();   // domain fragment -> tenantId
+let phoneMap = new Map();    // phone_number -> tenantId (pour routing téléphone)
 let tenantIds = [];          // ordered list of tenant IDs
 let initialized = false;
 let lastRefresh = null;
@@ -83,6 +84,9 @@ export async function loadAllTenants() {
     loadedFromDb = true;
     lastRefresh = new Date();
 
+    // Charger les numéros de téléphone pour le routing multi-tenant
+    await loadPhoneNumbers();
+
     console.log(`[TenantCache] Loaded ${tenantMap.size} tenants from DB`);
     return true;
   } catch (err) {
@@ -138,6 +142,45 @@ export function stopPeriodicRefresh() {
   }
 }
 
+/**
+ * Load phone numbers for all tenants (for multi-tenant phone routing).
+ */
+async function loadPhoneNumbers() {
+  try {
+    // Load from tenant_phone_numbers table
+    const { data: phoneData, error: phoneError } = await rawSupabase
+      .from('tenant_phone_numbers')
+      .select('tenant_id, phone_number')
+      .eq('status', 'active');
+
+    if (!phoneError && phoneData) {
+      const newPhoneMap = new Map();
+      for (const row of phoneData) {
+        newPhoneMap.set(row.phone_number, row.tenant_id);
+      }
+      phoneMap = newPhoneMap;
+      console.log(`[TenantCache] Loaded ${phoneMap.size} phone numbers for routing`);
+    }
+
+    // Also load from tenants.phone_number column (fallback)
+    const { data: tenantPhones } = await rawSupabase
+      .from('tenants')
+      .select('slug, id, phone_number')
+      .not('phone_number', 'is', null);
+
+    if (tenantPhones) {
+      for (const row of tenantPhones) {
+        const tenantId = row.slug || row.id;
+        if (row.phone_number && !phoneMap.has(row.phone_number)) {
+          phoneMap.set(row.phone_number, tenantId);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[TenantCache] Phone numbers load failed:`, err.message);
+  }
+}
+
 // ============ SYNC GETTERS ============
 
 /**
@@ -164,6 +207,33 @@ export function findTenantByDomain(host) {
   for (const [fragment, tenantId] of domainMap) {
     if (host.includes(fragment)) return tenantId;
   }
+  return null;
+}
+
+/**
+ * Find tenant ID by phone number (sync).
+ * Used for multi-tenant phone routing.
+ */
+export function findTenantByPhone(phoneNumber) {
+  if (!phoneNumber) return null;
+  // Normaliser le numéro (enlever espaces, +, etc.)
+  const normalized = phoneNumber.replace(/[\s\-\(\)]/g, '');
+
+  // Chercher exact match
+  if (phoneMap.has(normalized)) {
+    return phoneMap.get(normalized);
+  }
+
+  // Chercher avec variantes (+33 vs 0033 vs 33)
+  for (const [phone, tenantId] of phoneMap) {
+    const phoneNorm = phone.replace(/[\s\-\(\)]/g, '');
+    if (phoneNorm === normalized ||
+        phoneNorm.endsWith(normalized.slice(-9)) ||
+        normalized.endsWith(phoneNorm.slice(-9))) {
+      return tenantId;
+    }
+  }
+
   return null;
 }
 

@@ -3,8 +3,9 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
-import { createFactureFromReservation } from './factures.js';
+import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
+import { enforceTrialLimit } from '../services/trialService.js';
 
 const router = express.Router();
 
@@ -59,6 +60,12 @@ router.get('/', authenticateAdmin, async (req, res) => {
           prenom,
           telephone,
           email
+        ),
+        membre:rh_membres (
+          id,
+          nom,
+          prenom,
+          role
         )
       `, { count: 'exact' })
       .eq('tenant_id', tenantId);
@@ -77,11 +84,14 @@ router.get('/', authenticateAdmin, async (req, res) => {
       query = query.eq('client_id', client_id);
     }
     if (service) {
-      query = query.ilike('service', `%${service}%`);
+      query = query.ilike('service_nom', `%${service}%`);
     }
 
-    // Tri
+    // Tri (date + heure pour ordre chronologique complet)
     query = query.order(sort, { ascending: order === 'asc' });
+    if (sort === 'date') {
+      query = query.order('heure', { ascending: order === 'asc' });
+    }
 
     // Pagination
     query = query.range(offset, offset + limitNum - 1);
@@ -114,7 +124,13 @@ router.get('/', authenticateAdmin, async (req, res) => {
       },
       adresse_client: r.adresse_client,
       distance_km: r.distance_km,
-      duree_trajet_minutes: r.duree_trajet_minutes
+      duree_trajet_minutes: r.duree_trajet_minutes,
+      membre: r.membre ? {
+        id: r.membre.id,
+        nom: r.membre.nom,
+        prenom: r.membre.prenom,
+        role: r.membre.role
+      } : null
     }));
 
     res.json({
@@ -150,6 +166,12 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
           prenom,
           telephone,
           email
+        ),
+        membre:rh_membres (
+          id,
+          nom,
+          prenom,
+          role
         )
       `)
       .eq('id', req.params.id)
@@ -203,7 +225,13 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         duree_trajet_minutes: reservation.duree_trajet_minutes,
         frais: reservation.frais_deplacement ? reservation.frais_deplacement / 100 : 0
       } : null,
-      created_via: reservation.created_via || 'chatbot'
+      created_via: reservation.created_via || 'chatbot',
+      membre: reservation.membre ? {
+        id: reservation.membre.id,
+        nom: reservation.membre.nom,
+        prenom: reservation.membre.prenom,
+        role: reservation.membre.role
+      } : null
     };
 
     res.json({ reservation: formattedReservation });
@@ -219,7 +247,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/reservations
 // Créer une réservation manuellement
-router.post('/', authenticateAdmin, async (req, res) => {
+router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
@@ -234,7 +262,8 @@ router.post('/', authenticateAdmin, async (req, res) => {
       distance_km,
       duree_trajet_minutes,
       frais_deplacement,
-      notes
+      notes,
+      membre_id
     } = req.body;
 
     // Validation
@@ -260,6 +289,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const { createReservationUnified } = await import('../core/unified/nexusCore.js');
 
     const result = await createReservationUnified({
+      tenant_id: tenantId,  // 🔒 TENANT ISOLATION
       service_name: service,
       date: date_rdv,
       heure: heure_rdv,
@@ -282,6 +312,15 @@ router.post('/', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: result.error || 'Erreur création' });
     }
 
+    // Assigner un membre si spécifié
+    if (membre_id) {
+      await supabase
+        .from('reservations')
+        .update({ membre_id })
+        .eq('id', result.reservationId)
+        .eq('tenant_id', tenantId);
+    }
+
     // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
       tenant_id: tenantId,
@@ -289,18 +328,33 @@ router.post('/', authenticateAdmin, async (req, res) => {
       action: 'create',
       entite: 'reservation',
       entite_id: result.reservationId,
-      details: { client_id, service, date_rdv, heure_rdv, lieu }
+      details: { client_id, service, date_rdv, heure_rdv, lieu, membre_id }
     });
 
     // Récupérer la réservation complète pour la réponse (🔒 TENANT ISOLATION)
     const { data: reservation } = await supabase
       .from('reservations')
-      .select('*')
+      .select(`
+        *,
+        membre:rh_membres (id, nom, prenom, role)
+      `)
       .eq('id', result.reservationId)
       .eq('tenant_id', tenantId)
       .single();
 
-    res.json({ reservation });
+    // 📄 Créer automatiquement une facture en mode brouillon
+    let facture = null;
+    try {
+      const factureResult = await createFactureFromReservation(result.reservationId, tenantId, { statut: 'brouillon' });
+      if (factureResult.success) {
+        facture = factureResult.facture;
+        console.log(`[ADMIN RESERVATIONS] Facture brouillon ${facture.numero} créée`);
+      }
+    } catch (factureErr) {
+      console.error('[ADMIN RESERVATIONS] Erreur création facture brouillon:', factureErr.message);
+    }
+
+    res.json({ reservation, facture });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur création:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -324,7 +378,8 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       distance_km,
       duree_trajet_minutes,
       frais_deplacement,
-      notes
+      notes,
+      membre_id
     } = req.body;
 
     // Récupérer la réservation actuelle avec téléphone client (🔒 TENANT ISOLATION)
@@ -446,6 +501,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // Notes
     if (notes !== undefined) updates.notes = notes;
 
+    // Membre assigné
+    if (membre_id !== undefined) {
+      updates.membre_id = membre_id;
+      console.log(`[ADMIN EDIT] Membre: ${currentRdv.membre_id || 'aucun'} → ${membre_id || 'aucun'}`);
+    }
+
     // Appliquer les modifications (🔒 TENANT ISOLATION)
     const { data: reservation, error } = await supabase
       .from('reservations')
@@ -558,17 +619,27 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       details: { ancien_statut: currentRdv.statut, nouveau_statut: statut }
     });
 
-    // Si statut = termine, générer automatiquement la facture et déclencher workflows
+    // 📄 Gestion automatique des factures selon le statut
     let facture = null;
+
     if (statut === 'termine') {
+      // RDV terminé → Facture payée (le prestataire ne termine que si paiement confirmé)
       try {
-        const factureResult = await createFactureFromReservation(req.params.id, tenantId);
+        const factureResult = await createFactureFromReservation(req.params.id, tenantId, {
+          statut: 'payee',
+          updateIfExists: true
+        });
         if (factureResult.success) {
           facture = factureResult.facture;
-          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} générée automatiquement`);
+          // Ajouter la date de paiement
+          await supabase
+            .from('factures')
+            .update({ date_paiement: new Date().toISOString() })
+            .eq('id', facture.id);
+          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} marquée payée`);
         }
       } catch (factureErr) {
-        console.error('[ADMIN RESERVATIONS] Erreur génération facture:', factureErr.message);
+        console.error('[ADMIN RESERVATIONS] Erreur marquage facture payée:', factureErr.message);
       }
 
       // Déclencher workflows "rdv_completed"
@@ -590,8 +661,34 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // Si statut = annule, déclencher workflows "rdv_cancelled"
+    if (statut === 'confirme' && currentRdv.statut === 'demande') {
+      // RDV confirmé depuis demande → Créer facture brouillon si pas encore faite
+      try {
+        const factureResult = await createFactureFromReservation(req.params.id, tenantId, {
+          statut: 'brouillon'
+        });
+        if (factureResult.success && factureResult.message !== 'Facture déjà existante') {
+          facture = factureResult.facture;
+          console.log(`[ADMIN RESERVATIONS] Facture brouillon ${facture.numero} créée`);
+        }
+      } catch (factureErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur création facture brouillon:', factureErr.message);
+      }
+    }
+
     if (statut === 'annule') {
+      // RDV annulé → Annuler la facture associée
+      try {
+        const cancelResult = await cancelFactureFromReservation(req.params.id, tenantId, false);
+        if (cancelResult.success && cancelResult.facture) {
+          facture = cancelResult.facture;
+          console.log(`[ADMIN RESERVATIONS] Facture annulée`);
+        }
+      } catch (factureErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur annulation facture:', factureErr.message);
+      }
+
+      // Déclencher workflows "rdv_cancelled"
       try {
         await triggerWorkflows('rdv_cancelled', {
           tenant_id: tenantId,
@@ -609,8 +706,6 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         console.error('[ADMIN RESERVATIONS] Erreur workflow annulation (non bloquant):', workflowErr.message);
       }
     }
-
-    // TODO: Si annulation, déclencher logique de remboursement si applicable
 
     res.json({ reservation, facture });
   } catch (error) {
@@ -638,7 +733,20 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Réservation introuvable' });
     }
 
-    // Supprimer (🔒 TENANT ISOLATION)
+    // 📄 Supprimer ou annuler la facture associée AVANT de supprimer la réservation
+    let factureInfo = null;
+    try {
+      // Supprimer si brouillon, annuler sinon
+      const cancelResult = await cancelFactureFromReservation(req.params.id, tenantId, true);
+      if (cancelResult.success) {
+        factureInfo = cancelResult.message;
+        console.log(`[ADMIN RESERVATIONS] Facture gérée: ${factureInfo}`);
+      }
+    } catch (factureErr) {
+      console.error('[ADMIN RESERVATIONS] Erreur suppression facture:', factureErr.message);
+    }
+
+    // Supprimer la réservation (🔒 TENANT ISOLATION)
     const { error } = await supabase
       .from('reservations')
       .delete()
@@ -657,11 +765,12 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       details: {
         client_id: reservation.client_id,
         date: reservation.date,
-        service: reservation.service
+        service: reservation.service,
+        facture: factureInfo
       }
     });
 
-    res.json({ message: 'Réservation supprimée' });
+    res.json({ message: 'Réservation supprimée', facture: factureInfo });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur suppression:', error);
     res.status(500).json({ error: 'Erreur serveur' });

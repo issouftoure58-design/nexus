@@ -33,6 +33,13 @@ import {
   Calculator,
   GitBranch,
   AlertTriangle,
+  Banknote,
+  Share2,
+  Sparkles,
+  Phone,
+  Headphones,
+  CalendarCheck,
+  Bot,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -46,43 +53,59 @@ interface NavItem {
   path: string;
   badge?: string | number;
   requiredPlan?: PlanType;
-  requiredModule?: string;
+  requiredModule?: string;  // Module requis pour afficher cet item
+  alwaysShow?: boolean;     // Toujours afficher (dashboard, paramètres)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MENU CONFIGURATION
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Principal - Tous plans
+// ══════════════════════════════════════════════════════════════════════════════
+// MENU CONFIGURATION - Mappé aux modules actifs
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Principal - Modules de base (socle)
 const mainNav: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Tableau de bord', path: '/' },
-  { icon: Calendar, label: 'Réservations', path: '/reservations' },
-  { icon: Users, label: 'Clients', path: '/clients' },
-  { icon: Briefcase, label: 'Services', path: '/services' },
+  { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
+  { icon: Calendar, label: 'Réservations', path: '/reservations', requiredModule: 'reservations' },
+  { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
+  { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
 ];
 
-// Business - Pro et Business
+// IA & Automatisation
+const iaNav: NavItem[] = [
+  { icon: Bot, label: 'Agent IA Web', path: '/ia-admin', requiredModule: 'agent_ia_web' },
+  { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', requiredModule: 'whatsapp' },
+  { icon: Phone, label: 'Téléphone IA', path: '/ia-telephone', requiredModule: 'telephone' },
+  { icon: Headphones, label: 'Standard IA', path: '/ia-standard', requiredModule: 'standard_ia' },
+  { icon: CalendarCheck, label: 'Résa IA Omnicanal', path: '/ia-reservation', requiredModule: 'ia_reservation' },
+  { icon: Sparkles, label: 'Assistant Personnel', path: '/assistant', requiredModule: 'assistant_ia' },
+];
+
+// Business - Modules avancés
 const businessNav: NavItem[] = [
-  { icon: TrendingUp, label: 'Analytics', path: '/analytics', requiredPlan: 'pro' },
-  { icon: Calculator, label: 'Comptabilité', path: '/comptabilite', requiredPlan: 'pro' },
-  { icon: Package, label: 'Stock', path: '/stock', requiredPlan: 'pro' },
-  { icon: UserCog, label: 'Équipe', path: '/rh', requiredPlan: 'pro' },
+  { icon: TrendingUp, label: 'Analytics', path: '/analytics', requiredModule: 'analytics' },
+  { icon: Calculator, label: 'Comptabilité', path: '/comptabilite', requiredModule: 'comptabilite' },
+  { icon: Package, label: 'Stock', path: '/stock', requiredModule: 'ecommerce' },
+  { icon: UserCog, label: 'Équipe RH', path: '/rh', requiredModule: 'rh_avance' },
+  { icon: Banknote, label: 'Paie', path: '/paie', requiredModule: 'paie' },
 ];
 
-// Marketing - Pro et Business
+// Marketing - Modules marketing
 const marketingNav: NavItem[] = [
-  { icon: Target, label: 'Segments CRM', path: '/segments', requiredPlan: 'pro' },
-  { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredPlan: 'pro' },
-  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', requiredPlan: 'pro' },
-  { icon: Search, label: 'SEO', path: '/seo', requiredPlan: 'business' },
-  { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredPlan: 'business' },
+  { icon: Share2, label: 'Réseaux Sociaux', path: '/social', requiredModule: 'social_media' },
+  { icon: Target, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
+  { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredModule: 'marketing' },
+  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', requiredModule: 'marketing' },
+  { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
+  { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
 ];
 
-// Système - Business uniquement
+// Système
 const systemNav: NavItem[] = [
-  { icon: MessageSquare, label: 'IA Admin', path: '/ia-admin', requiredPlan: 'pro' },
-  { icon: Shield, label: 'Sentinel', path: '/sentinel', requiredPlan: 'business' },
-  { icon: Settings, label: 'Paramètres', path: '/parametres' },
+  { icon: Shield, label: 'Sentinel', path: '/sentinel', requiredModule: 'sentinel_pro' },
+  { icon: Settings, label: 'Paramètres', path: '/parametres', alwaysShow: true },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -99,27 +122,40 @@ export function Sidebar({ onLogout }: SidebarProps) {
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
 
   /**
+   * Vérifie si l'item doit être affiché
+   * Mode dynamique: on affiche SEULEMENT les modules actifs
+   */
+  const shouldShowItem = (item: NavItem): boolean => {
+    // Items toujours visibles
+    if (item.alwaysShow) return true;
+
+    // Si module requis, vérifier qu'il est actif
+    if (item.requiredModule) {
+      return hasModule(item.requiredModule);
+    }
+
+    // Si plan requis (fallback), vérifier le plan
+    if (item.requiredPlan) {
+      return hasPlan(item.requiredPlan);
+    }
+
+    return true;
+  };
+
+  /**
    * Vérifie si l'item est verrouillé (visible mais pas accessible)
+   * Note: En mode dynamique, on cache les items au lieu de les verrouiller
    */
   const isItemLocked = (item: NavItem): boolean => {
-    // Check plan requirement
-    if (item.requiredPlan && !hasPlan(item.requiredPlan)) {
-      return true;
-    }
-    // Check module requirement
-    if (item.requiredModule && !hasModule(item.requiredModule)) {
-      return true;
-    }
-    return false;
+    return false; // Plus de verrouillage, on cache simplement
   };
 
   /**
    * Filtre les items visibles d'une section
-   * On montre les items verrouillés aussi pour donner envie d'upgrader
+   * Mode dynamique: affiche seulement les modules actifs du tenant
    */
   const getVisibleItems = (items: NavItem[]): NavItem[] => {
-    // Pour l'instant, on montre tout mais on marque les items verrouillés
-    return items;
+    return items.filter(shouldShowItem);
   };
 
   const NavLink = ({ item }: { item: NavItem }) => {
@@ -263,20 +299,21 @@ export function Sidebar({ onLogout }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
         <NavSection title="Principal" items={mainNav} />
+        <NavSection title="IA & Automatisation" items={iaNav} />
         <NavSection title="Business" items={businessNav} />
         <NavSection title="Marketing" items={marketingNav} />
         <NavSection title="Système" items={systemNav} />
       </nav>
 
-      {/* Upgrade button si pas Business */}
-      {plan !== 'business' && !collapsed && (
+      {/* Bouton Gérer mes modules */}
+      {!collapsed && (
         <div className="px-3 pb-2">
           <Link
             to="/subscription"
-            className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-semibold hover:from-yellow-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl"
           >
             <Crown className="w-5 h-5" />
-            <span>Passer à {plan === 'starter' ? 'Pro' : 'Business'}</span>
+            <span>Gérer mes modules</span>
           </Link>
         </div>
       )}

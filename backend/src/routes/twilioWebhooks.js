@@ -23,6 +23,28 @@ import {
 } from '../core/unified/nexusCore.js';
 import voiceService from '../services/voiceService.js';
 import { logCallStart, logCallEnd, logSMS, logSMSStatus } from '../modules/twilio/callLogService.js';
+import usageTracking from '../services/usageTrackingService.js';
+import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
+
+/**
+ * Identifie le tenant par le numéro de téléphone appelé
+ * Retourne l'ID et la config complète du tenant
+ */
+function getTenantByPhoneNumber(toNumber) {
+  const { tenantId, config } = getTenantByPhone(toNumber);
+
+  if (tenantId && config) {
+    console.log(`[ROUTING] Numéro ${toNumber} → Tenant: ${tenantId}`);
+    return { tenantId, config };
+  }
+
+  // Fallback: tenant par défaut
+  const defaultTenantId = process.env.DEFAULT_TENANT || 'fatshairafro';
+  const defaultConfig = getTenantConfig(defaultTenantId);
+  console.log(`[ROUTING] Numéro ${toNumber} → Fallback: ${defaultTenantId}`);
+
+  return { tenantId: defaultTenantId, config: defaultConfig };
+}
 
 const router = express.Router();
 
@@ -31,9 +53,22 @@ const voiceSessions = new Map();
 
 /**
  * 🔒 Handler voix unifié - Utilise NEXUS CORE
+ * @param {string} callSid - ID de l'appel Twilio
+ * @param {string} message - Message transcrit
+ * @param {boolean} isFirst - Premier message (accueil)
+ * @param {object} tenantConfig - Configuration du tenant (optionnel)
  */
-async function handleVoice(callSid, message, isFirst) {
+async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
   const conversationId = `voice_${callSid}`;
+
+  // Récupérer la config du tenant depuis la session si non fournie
+  if (!tenantConfig) {
+    const session = voiceSessions.get(callSid);
+    tenantConfig = session?.tenantConfig;
+  }
+
+  // Nom du salon pour les réponses
+  const salonName = tenantConfig?.name || SALON_INFO.nom;
 
   console.log(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
   console.log(`[TWILIO NEXUS] ║           HANDLE VOICE - DEBUG COMPLET                 ║`);
@@ -47,19 +82,21 @@ async function handleVoice(callSid, message, isFirst) {
   console.log(`[TWILIO NEXUS] 🗄️ SUPABASE_URL: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
   console.log(`[TWILIO NEXUS] ⏰ Timestamp: ${new Date().toISOString()}`);
 
+  // Récupérer le tenantId depuis la session
+  const session = voiceSessions.get(callSid);
+  const tenantId = session?.tenantId || 'fatshairafro';
+
   try {
     // Premier message = accueil
     if (isFirst) {
-      // Initialiser la session
-      voiceSessions.set(callSid, { startTime: Date.now() });
-
       // Message d'accueil via NEXUS CORE
-      console.log(`[TWILIO NEXUS] 🚀 Appel processMessage('bonjour', 'phone')...`);
+      console.log(`[VOICE] 🚀 Appel processMessage('bonjour', 'phone') pour tenant: ${tenantId}`);
       const result = await processMessage('bonjour', 'phone', {
         conversationId,
-        phone: callSid
+        phone: callSid,
+        tenantId
       });
-      console.log(`[TWILIO NEXUS] ✅ Réponse reçue: success=${result.success}, durée=${result.duration}ms`);
+      console.log(`[VOICE] ✅ Réponse reçue: success=${result.success}, durée=${result.duration}ms`);
 
       return {
         response: result.response,
@@ -89,22 +126,23 @@ async function handleVoice(callSid, message, isFirst) {
       voiceSessions.delete(callSid);
 
       return {
-        response: `Merci d'avoir appelé ${SALON_INFO.nom}. À très bientôt !`,
+        response: `Merci d'avoir appelé ${salonName}. À très bientôt !`,
         shouldEndCall: true,
         shouldTransfer: false
       };
     }
 
     // Message normal - traiter avec NEXUS CORE
-    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
-    console.log(`[TWILIO NEXUS] 🚀 APPEL processMessage()`);
-    console.log(`[TWILIO NEXUS] → Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
-    console.log(`[TWILIO NEXUS] → Channel: phone`);
-    console.log(`[TWILIO NEXUS] → ConversationId: ${conversationId}`);
+    console.log(`[VOICE] ═══════════════════════════════════════════════════`);
+    console.log(`[VOICE] 🚀 APPEL processMessage()`);
+    console.log(`[VOICE] → Tenant: ${tenantId}`);
+    console.log(`[VOICE] → Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
+    console.log(`[VOICE] → ConversationId: ${conversationId}`);
 
     const result = await processMessage(message, 'phone', {
       conversationId,
-      phone: callSid
+      phone: callSid,
+      tenantId
     });
 
     console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
@@ -232,17 +270,28 @@ router.all('/voice', async (req, res) => {
   const params = req.method === 'GET' ? req.query : req.body;
   const { From, To, CallSid, CallerCity, CallerCountry } = params;
 
+  // MULTI-TENANT: Identifier le tenant par le numéro appelé
+  const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
+
   console.log(`[TWILIO VOICE] Appel reçu - Method: ${req.method} - From: ${From}`);
-  console.log(`[HALIMAH VOICE] === NOUVEL APPEL ===`);
-  console.log(`[HALIMAH VOICE] De: ${From} vers ${To}`);
-  console.log(`[HALIMAH VOICE] CallSid: ${CallSid}`);
-  if (CallerCity) console.log(`[HALIMAH VOICE] Localisation: ${CallerCity}, ${CallerCountry}`);
+  console.log(`[VOICE] === NOUVEL APPEL ===`);
+  console.log(`[VOICE] De: ${From} vers ${To}`);
+  console.log(`[VOICE] Tenant: ${tenantId} (${tenantConfig?.name || 'inconnu'})`);
+  console.log(`[VOICE] CallSid: ${CallSid}`);
+  if (CallerCity) console.log(`[VOICE] Localisation: ${CallerCity}, ${CallerCountry}`);
+
+  // Stocker la config du tenant dans la session pour les appels suivants
+  voiceSessions.set(CallSid, {
+    startTime: Date.now(),
+    tenantId,
+    tenantConfig
+  });
 
   // Tracker la conversation
   trackConversation(CallSid);
 
   // Persister en base
-  logCallStart('fatshairafro', { CallSid, From, To, CallerCity, CallerCountry }).catch(() => {});
+  logCallStart(tenantId, { CallSid, From, To, CallerCity, CallerCountry }).catch(() => {});
 
   const twiml = new VoiceResponse();
 
@@ -427,7 +476,7 @@ router.post('/voice/conversation', async (req, res) => {
 // === WEBHOOK STATUT D'APPEL ===
 // ============================================================
 
-router.post('/voice/status', (req, res) => {
+router.post('/voice/status', async (req, res) => {
   const { CallSid, CallStatus, CallDuration, From, To } = req.body;
 
   console.log(`[HALIMAH VOICE] === STATUT APPEL ===`);
@@ -437,6 +486,17 @@ router.post('/voice/status', (req, res) => {
 
   // Persister fin d'appel
   logCallEnd({ CallSid, CallStatus, CallDuration }).catch(() => {});
+
+  // Tracker l'usage quand l'appel est terminé
+  if (CallStatus === 'completed' && CallDuration) {
+    try {
+      const { tenantId } = getTenantByPhoneNumber(To);
+      await usageTracking.trackPhoneCall(tenantId, parseInt(CallDuration), CallSid, 'inbound');
+      console.log(`[VOICE] ✅ Usage tracké: ${CallDuration}s pour ${tenantId}`);
+    } catch (err) {
+      console.error(`[VOICE] Erreur tracking:`, err.message);
+    }
+  }
 
   // Nettoyer la conversation quand l'appel se termine
   if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer') {
@@ -577,14 +637,19 @@ router.post('/voice/transcription', async (req, res) => {
 // ============================================================
 
 router.post('/sms', async (req, res) => {
-  const { From, Body, MessageSid } = req.body;
+  const { From, To, Body, MessageSid } = req.body;
 
-  console.log(`[HALIMAH SMS] === NOUVEAU SMS ===`);
-  console.log(`[HALIMAH SMS] De: ${From}`);
-  console.log(`[HALIMAH SMS] Message: ${Body}`);
+  // MULTI-TENANT: Identifier le tenant par le numéro appelé
+  const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
+  const salonName = tenantConfig?.name || SALON_INFO.nom;
+
+  console.log(`[SMS] === NOUVEAU SMS ===`);
+  console.log(`[SMS] De: ${From} vers ${To}`);
+  console.log(`[SMS] Tenant: ${tenantId}`);
+  console.log(`[SMS] Message: ${Body}`);
 
   // Persister SMS en base
-  logSMS('fatshairafro', { MessageSid, From, Body }).catch(() => {});
+  logSMS(tenantId, { MessageSid, From, Body }).catch(() => {});
 
   const twiml = new MessagingResponse();
 
@@ -595,10 +660,11 @@ router.post('/sms', async (req, res) => {
 
     const result = await processMessage(Body, 'sms', {
       conversationId,
-      phone: From
+      phone: From,
+      tenantId
     });
 
-    console.log(`[HALIMAH SMS] Réponse: ${result.response}`);
+    console.log(`[SMS] Réponse: ${result.response}`);
 
     twiml.message(result.response);
 
@@ -606,8 +672,8 @@ router.post('/sms', async (req, res) => {
     clearConversation(conversationId);
 
   } catch (error) {
-    console.error('[HALIMAH SMS] Erreur:', error);
-    twiml.message(`Merci pour votre message ! ${SALON_INFO.nom} vous répond bientôt. WhatsApp: ${SALON_INFO.telephoneTwilio}`);
+    console.error('[SMS] Erreur:', error);
+    twiml.message(`Merci pour votre message ! ${salonName} vous répond bientôt.`);
   }
 
   res.type('text/xml');

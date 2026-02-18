@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireClientsQuota } from '../middleware/quotas.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
+import { enforceTrialLimit } from '../services/trialService.js';
 
 const router = express.Router();
 
@@ -95,8 +96,9 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/clients
 // Créer un nouveau client
+// 🔒 TRIAL CHECK: Vérifie limite trial (50 clients)
 // 🔒 QUOTA CHECK: Vérifie limite clients selon plan (Starter: 1000, Pro: 3000, Business: illimité)
-router.post('/', authenticateAdmin, requireClientsQuota, async (req, res) => {
+router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClientsQuota, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
@@ -188,9 +190,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     }
 
     // Historique RDV (10 derniers) (🔒 TENANT ISOLATION)
+    // Note: service_nom est dénormalisé dans reservations, pas besoin de join
     const { data: historiqueRdv } = await supabase
       .from('reservations')
-      .select('*, services(nom)')
+      .select('*')
       .eq('client_id', req.params.id)
       .eq('tenant_id', tenantId)
       .order('date', { ascending: false })
@@ -205,10 +208,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       .order('created_at', { ascending: false });
 
     // STATISTIQUES (🔒 TENANT ISOLATION)
-    // Total RDV
+    // Note: service_nom est dénormalisé dans reservations
     const { data: allRdv } = await supabase
       .from('reservations')
-      .select('statut, prix_total, service, date')
+      .select('statut, prix_total, service_nom, date')
       .eq('client_id', req.params.id)
       .eq('tenant_id', tenantId);
 
@@ -216,7 +219,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     const nbRdvHonores = allRdv?.filter(r => r.statut === 'termine').length || 0;
     const nbRdvAnnules = allRdv?.filter(r => r.statut === 'annule').length || 0;
 
-    // CA total (RDV terminés uniquement)
+    // CA total (RDV terminés uniquement) - prix stocké en centimes, convertir en euros
     const caTotal = allRdv
       ?.filter(r => r.statut === 'termine')
       .reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
@@ -224,8 +227,8 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     // Service favori (le plus demandé)
     const servicesCount = {};
     allRdv?.forEach(r => {
-      if (r.service) {
-        servicesCount[r.service] = (servicesCount[r.service] || 0) + 1;
+      if (r.service_nom) {
+        servicesCount[r.service_nom] = (servicesCount[r.service_nom] || 0) + 1;
       }
     });
     const serviceFavori = Object.entries(servicesCount)
@@ -265,6 +268,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         frequence_jours: frequenceJours
       },
       notes: notes || [],
+      // service_nom est déjà une colonne dans reservations
       historique_rdv: historiqueRdv || []
     });
   } catch (error) {
@@ -488,9 +492,10 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
     const tenantId = req.admin.tenant_id;
 
     // Récupérer tous les RDV du client (🔒 TENANT ISOLATION)
+    // Note: service_nom est dénormalisé dans reservations
     const { data: rdv } = await supabase
       .from('reservations')
-      .select('statut, prix_total, service, date')
+      .select('statut, prix_total, service_nom, date')
       .eq('client_id', req.params.id)
       .eq('tenant_id', tenantId);
 
@@ -509,7 +514,7 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
     const nbRdvHonores = rdv.filter(r => r.statut === 'termine').length;
     const nbRdvAnnules = rdv.filter(r => r.statut === 'annule').length;
 
-    // CA total
+    // CA total - prix stocké en centimes, convertir en euros
     const caTotal = rdv
       .filter(r => r.statut === 'termine')
       .reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100;
@@ -517,8 +522,8 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
     // Service favori
     const servicesCount = {};
     rdv.forEach(r => {
-      if (r.service) {
-        servicesCount[r.service] = (servicesCount[r.service] || 0) + 1;
+      if (r.service_nom) {
+        servicesCount[r.service_nom] = (servicesCount[r.service_nom] || 0) + 1;
       }
     });
     const serviceFavori = Object.entries(servicesCount)

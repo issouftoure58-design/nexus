@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +60,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function WorkflowsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -67,7 +69,7 @@ export default function WorkflowsPage() {
     queryKey: ['workflows'],
     queryFn: async () => {
       const res = await fetch('/api/admin/workflows', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
       });
       if (!res.ok) {
         if (res.status === 403) throw new Error('Plan Pro requis');
@@ -82,7 +84,7 @@ export default function WorkflowsPage() {
     queryKey: ['workflow-templates'],
     queryFn: async () => {
       const res = await fetch('/api/admin/workflows/templates', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
       });
       if (!res.ok) return { templates: [] };
       return res.json();
@@ -95,7 +97,7 @@ export default function WorkflowsPage() {
     queryKey: ['workflow-stats'],
     queryFn: async () => {
       const res = await fetch('/api/admin/workflows/stats/summary', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
       });
       if (!res.ok) return null;
       return res.json();
@@ -107,7 +109,7 @@ export default function WorkflowsPage() {
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/admin/workflows/${id}/toggle`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
       });
       if (!res.ok) throw new Error('Erreur toggle');
       return res.json();
@@ -124,7 +126,7 @@ export default function WorkflowsPage() {
       const res = await fetch('/api/admin/workflows', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ template_id: templateId }),
@@ -143,7 +145,7 @@ export default function WorkflowsPage() {
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/admin/workflows/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
       });
       if (!res.ok) throw new Error('Erreur suppression');
     },
@@ -168,10 +170,10 @@ export default function WorkflowsPage() {
           <CardContent className="p-12 text-center">
             <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Marketing Automation</h2>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Cette fonctionnalite est disponible a partir du plan Pro.
             </p>
-            <Button>Passer au Plan Pro</Button>
+            <Button onClick={() => navigate('/subscription')}>Passer au Plan Pro</Button>
           </CardContent>
         </Card>
       </div>

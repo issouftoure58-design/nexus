@@ -800,8 +800,8 @@ Réessayez ou appelez le 09 39 24 02 69`;
  * @param {string} clientName - Nom du client (optionnel, fourni par WhatsApp)
  * @returns {Promise<Object>} Réponse à envoyer au client
  */
-export async function handleIncomingMessageNexus(clientPhone, message, clientName = null) {
-  console.log(`[WhatsApp-Nexus] Message reçu de ${clientPhone}: ${message}`);
+export async function handleIncomingMessageNexus(clientPhone, message, clientName = null, tenantId = 'fatshairafro') {
+  console.log(`[WhatsApp-Nexus] Message de ${clientPhone} pour tenant ${tenantId}: ${message}`);
 
   const messageLower = message.toLowerCase().trim();
 

@@ -11,6 +11,31 @@ import {
   handleIncomingMessageNexus,
   handlePaymentConfirmed
 } from '../services/whatsappService.js';
+import usageTracking from '../services/usageTrackingService.js';
+import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
+
+/**
+ * Identifie le tenant par le numéro WhatsApp appelé
+ * Utilise le système de cache multi-tenant unifié
+ */
+function getTenantByWhatsAppNumber(toNumber) {
+  // Enlever le préfixe whatsapp: si présent
+  const cleanNumber = toNumber.replace('whatsapp:', '');
+
+  const { tenantId, config } = getTenantByPhone(cleanNumber);
+
+  if (tenantId && config) {
+    console.log(`[WhatsApp ROUTING] ${cleanNumber} → Tenant: ${tenantId}`);
+    return { tenantId, config };
+  }
+
+  // Fallback sur le tenant par défaut
+  const defaultTenantId = process.env.DEFAULT_TENANT || 'fatshairafro';
+  const defaultConfig = getTenantConfig(defaultTenantId);
+  console.log(`[WhatsApp ROUTING] ${cleanNumber} → Fallback: ${defaultTenantId}`);
+
+  return { tenantId: defaultTenantId, config: defaultConfig };
+}
 
 const router = express.Router();
 
@@ -49,18 +74,38 @@ router.post('/webhook', async (req, res) => {
     // Extraire le numéro de téléphone (enlever le préfixe whatsapp:)
     const clientPhone = From.replace('whatsapp:', '');
 
+    // Identifier le tenant par le numéro appelé (MULTI-TENANT)
+    const { tenantId, config: tenantConfig } = getTenantByWhatsAppNumber(To);
+
     console.log('[WhatsApp Webhook] Message reçu:', {
       de: clientPhone,
       nom: ProfileName,
+      tenant: tenantId,
+      tenantName: tenantConfig?.name,
       message: Body.substring(0, 100) + (Body.length > 100 ? '...' : ''),
       messageId: MessageSid,
     });
 
-    // Traiter le message via nexusCore (handler unifié)
-    const result = await handleIncomingMessageNexus(clientPhone, Body, ProfileName);
+    // Vérifier le quota avant de traiter
+    try {
+      await usageTracking.enforceQuota(tenantId, 'whatsapp');
+    } catch (quotaError) {
+      console.log(`[WhatsApp] Quota dépassé pour ${tenantId}:`, quotaError.message);
+      // On pourrait envoyer un message d'erreur au client ici
+    }
+
+    // Traiter le message via nexusCore (handler unifié, multi-tenant)
+    const result = await handleIncomingMessageNexus(clientPhone, Body, ProfileName, tenantId);
+
+    // Tracker l'utilisation (message entrant + réponse = 2 messages)
+    await usageTracking.trackWhatsAppMessage(tenantId, MessageSid, 'inbound');
+    if (result.response) {
+      await usageTracking.trackWhatsAppMessage(tenantId, `${MessageSid}-reply`, 'outbound');
+    }
 
     console.log('[WhatsApp Webhook] Réponse:', {
       handler: 'nexusCore',
+      tenant: tenantId,
       success: result.success,
       state: result.state || result.context?.etape,
       responseLength: result.response?.length,

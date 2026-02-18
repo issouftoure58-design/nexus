@@ -8,6 +8,7 @@ import { ModuleGate } from './components/ModuleGate/ModuleGate';
 // Pages
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Clients from './pages/Clients';
 import Reservations from './pages/Reservations';
 import Services from './pages/Services';
@@ -16,6 +17,7 @@ import Stock from './pages/Stock';
 import Parametres from './pages/Parametres';
 import Subscription from './pages/Subscription';
 import { Home } from './pages/Home';
+import Onboarding from './pages/Onboarding';
 
 // New Layout
 import { AppLayout } from './components/layout/AppLayout';
@@ -29,6 +31,10 @@ import SEOArticles from './pages/SEOArticles';
 import Analytics from './pages/Analytics';
 import ChurnPrevention from './pages/ChurnPrevention';
 import RH from './pages/RH';
+import Sentinel from './pages/Sentinel';
+import IAAdmin from './pages/IAAdmin';
+import IATelephone from './pages/IATelephone';
+import IAWhatsApp from './pages/IAWhatsApp';
 
 // Auth guard component
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -64,6 +70,30 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Module-protected route component
+interface ModuleRouteProps {
+  children: React.ReactNode;
+  module?: string;
+  moduleTitle?: string;
+  moduleDescription?: string;
+}
+
+function ModuleRoute({ children, module, moduleTitle, moduleDescription }: ModuleRouteProps) {
+  return (
+    <PrivateRoute>
+      <AppLayout>
+        {module ? (
+          <ModuleGate module={module} moduleTitle={moduleTitle} moduleDescription={moduleDescription}>
+            {children}
+          </ModuleGate>
+        ) : (
+          children
+        )}
+      </AppLayout>
+    </PrivateRoute>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -72,31 +102,43 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/onboarding" element={<PrivateRoute><Onboarding /></PrivateRoute>} />
 
-            {/* Protected routes - Tous plans - Design GitHub style avec AppLayout */}
-            <Route path="/" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
+            {/* Routes de base - toujours accessibles */}
+            <Route path="/" element={<ModuleRoute><Home /></ModuleRoute>} />
             <Route path="/dashboard-old" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/clients" element={<PrivateRoute><AppLayout><Clients /></AppLayout></PrivateRoute>} />
-            <Route path="/reservations" element={<PrivateRoute><AppLayout><Reservations /></AppLayout></PrivateRoute>} />
-            <Route path="/services" element={<PrivateRoute><AppLayout><Services /></AppLayout></PrivateRoute>} />
-            <Route path="/parametres" element={<PrivateRoute><AppLayout><Parametres /></AppLayout></PrivateRoute>} />
-            <Route path="/subscription" element={<PrivateRoute><AppLayout><Subscription /></AppLayout></PrivateRoute>} />
+            <Route path="/clients" element={<ModuleRoute><Clients /></ModuleRoute>} />
+            <Route path="/services" element={<ModuleRoute><Services /></ModuleRoute>} />
+            <Route path="/parametres" element={<ModuleRoute><Parametres /></ModuleRoute>} />
+            <Route path="/subscription" element={<ModuleRoute><Subscription /></ModuleRoute>} />
 
-            {/* Routes Pro */}
-            <Route path="/comptabilite" element={<PrivateRoute><AppLayout><Comptabilite /></AppLayout></PrivateRoute>} />
-            <Route path="/stock" element={<PrivateRoute><AppLayout><Stock /></AppLayout></PrivateRoute>} />
-            <Route path="/analytics" element={<PrivateRoute><AppLayout><Analytics /></AppLayout></PrivateRoute>} />
-            <Route path="/rh" element={<PrivateRoute><AppLayout><RH /></AppLayout></PrivateRoute>} />
-            <Route path="/segments" element={<PrivateRoute><AppLayout><SegmentsPage /></AppLayout></PrivateRoute>} />
-            <Route path="/workflows" element={<PrivateRoute><AppLayout><WorkflowsPage /></AppLayout></PrivateRoute>} />
-            <Route path="/pipeline" element={<PrivateRoute><AppLayout><PipelinePage /></AppLayout></PrivateRoute>} />
-            <Route path="/ia-admin" element={<PrivateRoute><AppLayout><ComingSoon title="IA Admin" /></AppLayout></PrivateRoute>} />
+            {/* Réservations - module requis */}
+            <Route path="/reservations" element={<ModuleRoute module="reservations" moduleTitle="Agenda & Réservations" moduleDescription="Gérez vos rendez-vous et disponibilités"><Reservations /></ModuleRoute>} />
+            <Route path="/reservations/historique" element={<ModuleRoute module="reservations"><Reservations /></ModuleRoute>} />
+            <Route path="/reservations/parametres" element={<ModuleRoute module="reservations"><Reservations /></ModuleRoute>} />
 
-            {/* Routes Business */}
-            <Route path="/seo" element={<PrivateRoute><AppLayout><SEODashboard /></AppLayout></PrivateRoute>} />
-            <Route path="/seo/articles" element={<PrivateRoute><AppLayout><SEOArticles /></AppLayout></PrivateRoute>} />
-            <Route path="/churn" element={<PrivateRoute><AppLayout><ChurnPrevention /></AppLayout></PrivateRoute>} />
-            <Route path="/sentinel" element={<PrivateRoute><AppLayout><ComingSoon title="Sentinel" /></AppLayout></PrivateRoute>} />
+            {/* Modules Business */}
+            <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Suivi dépenses, P&L et exports"><Comptabilite /></ModuleRoute>} />
+            <Route path="/stock" element={<ModuleRoute module="ecommerce" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
+            <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Analytics" moduleDescription="Tableaux de bord et statistiques avancées"><Analytics /></ModuleRoute>} />
+            <Route path="/rh" element={<ModuleRoute module="rh_avance" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
+
+            {/* Modules Marketing */}
+            <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
+            <Route path="/workflows" element={<ModuleRoute module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
+            <Route path="/pipeline" element={<ModuleRoute module="marketing" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
+            <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
+
+            {/* Modules IA */}
+            <Route path="/ia-admin" element={<ModuleRoute module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
+            <Route path="/ia-telephone" element={<ModuleRoute module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
+            <Route path="/ia-whatsapp" element={<ModuleRoute module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
+
+            {/* Modules SEO & Système */}
+            <Route path="/seo" element={<ModuleRoute module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
+            <Route path="/seo/articles" element={<ModuleRoute module="seo"><SEOArticles /></ModuleRoute>} />
+            <Route path="/sentinel" element={<ModuleRoute module="sentinel_pro" moduleTitle="SENTINEL Pro" moduleDescription="Monitoring et alertes temps réel"><Sentinel /></ModuleRoute>} />
 
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />

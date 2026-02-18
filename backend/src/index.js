@@ -46,8 +46,11 @@ import comptaRoutes from './routes/adminCompta.js';
 import adminSEORoutes from './routes/adminSEO.js';
 import adminAnalyticsRoutes from './routes/adminAnalytics.js';
 import adminRHRoutes from './routes/adminRH.js';
+import journauxRoutes from './routes/journaux.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import adminReservationsRoutes from './routes/adminReservations.js';
+import provisioningRoutes from './routes/provisioning.js';
+import usageRoutes from './routes/usage.js';
 import adminServicesRoutes from './routes/adminServices.js';
 import adminStatsRoutes from './routes/adminStats.js';
 import adminOrdersRoutes from './routes/adminOrders.js';
@@ -55,6 +58,12 @@ import adminDisponibilitesRoutes from './routes/adminDisponibilites.js';
 import adminParametresRoutes from './routes/adminParametres.js';
 import adminAgentsRoutes from './routes/adminAgents.js';
 import adminStockRoutes from './routes/adminStock.js';
+import modulesRoutes from './routes/modules.js';
+import adminIARoutes from './routes/adminIA.js';
+import billingRoutes from './routes/billing.js';
+import stripeWebhookRoutes from './routes/stripeWebhook.js';
+import signupRoutes from './routes/signup.js';
+import trialRoutes from './routes/trial.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -116,6 +125,9 @@ app.use(cors({
 
 // Rate limiting global API
 app.use('/api/', apiLimiter);
+
+// Stripe Webhook (AVANT json parser - necessite raw body)
+app.use('/api/webhooks/stripe', stripeWebhookRoutes);
 
 // JSON body parser
 app.use(express.json());
@@ -200,6 +212,9 @@ app.use('/api/commercial', commercialRoutes);
 // Routes Dépenses (charges, TVA, compte résultat)
 app.use('/api/depenses', depensesRoutes);
 
+// Routes Journaux comptables (écritures, balance, grand livre)
+app.use('/api/journaux', journauxRoutes);
+
 // Routes Factures (génération, envoi, gestion)
 app.use('/api/factures', facturesRoutes);
 
@@ -239,6 +254,27 @@ app.use('/api/admin/parametres', adminParametresRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
 app.use('/api/admin/stock', adminStockRoutes);
 
+// Routes Admin IA Config (Telephone & WhatsApp)
+app.use('/api/admin/ia', adminIARoutes);
+
+// Routes Billing (Stripe subscriptions)
+app.use('/api/billing', billingRoutes);
+
+// Routes Modules dynamiques (nouveau système modulaire)
+app.use('/api/modules', modulesRoutes);
+
+// Routes Provisioning (numéros Twilio automatiques)
+app.use('/api/provisioning', provisioningRoutes);
+
+// Routes Usage Tracking
+app.use('/api/usage', usageRoutes);
+
+// Routes Signup (inscription nouveaux tenants)
+app.use('/api/signup', signupRoutes);
+
+// Routes Trial (gestion période d'essai)
+app.use('/api/trial', trialRoutes);
+
 // Route 404
 app.use((req, res) => {
   res.status(404).json({
@@ -259,6 +295,16 @@ app.use((err, req, res, next) => {
     error: err.message || 'Erreur serveur interne',
   });
 });
+
+// ============= INITIALISATION TENANT CACHE =============
+import { loadAllTenants, startPeriodicRefresh } from './config/tenants/tenantCache.js';
+
+// Charger le cache des tenants au démarrage (async)
+loadAllTenants()
+  .then(() => {
+    startPeriodicRefresh();
+  })
+  .catch(err => console.error('[TenantCache] Erreur init:', err.message));
 
 // ============= DÉMARRAGE SERVEUR =============
 

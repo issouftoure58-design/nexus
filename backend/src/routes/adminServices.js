@@ -21,8 +21,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
     // Mapper les champs pour le frontend (duree -> duree_minutes)
     const mappedServices = services.map(s => ({
       ...s,
-      duree_minutes: s.duree_minutes || s.duree || 0, // Compatibilité avec les deux noms de champ
-      actif: s.actif !== false,
+      duree_minutes: s.duree || 0, // Le champ DB s'appelle 'duree'
       taux_tva: s.taux_tva || 20, // TVA par défaut 20%
       // Calculs prix HT et TVA
       prix_ht: s.taux_tva > 0 ? Math.round(s.prix / (1 + (s.taux_tva || 20) / 100)) : s.prix,
@@ -36,12 +35,13 @@ router.get('/', authenticateAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/services/:id - Un service
+// GET /api/admin/services/:id - Un service avec stats
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
+    // Récupérer le service
     const { data: service, error } = await supabase
       .from('services')
       .select('*')
@@ -51,7 +51,91 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ service });
+    if (!service) {
+      return res.status(404).json({ error: 'Service introuvable' });
+    }
+
+    // Récupérer toutes les réservations de ce service
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('id, client_id, statut, prix_total, date')
+      .eq('service_id', req.params.id)
+      .eq('tenant_id', tenantId);
+
+    const allRdv = reservations || [];
+    const nbRdvTotal = allRdv.length;
+    const nbRdvTermines = allRdv.filter(r => r.statut === 'termine').length;
+    const nbRdvAnnules = allRdv.filter(r => r.statut === 'annule').length;
+
+    // CA total (RDV terminés uniquement) - prix en centimes
+    const caTotal = allRdv
+      .filter(r => r.statut === 'termine')
+      .reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100;
+
+    // Nombre de clients uniques
+    const clientIds = [...new Set(allRdv.map(r => r.client_id).filter(Boolean))];
+    const nbClientsUniques = clientIds.length;
+
+    // Dernière réservation
+    const derniereReservation = allRdv
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date || null;
+
+    // Top 5 clients (les plus fidèles pour ce service)
+    const clientCounts = {};
+    allRdv.forEach(r => {
+      if (r.client_id) {
+        clientCounts[r.client_id] = (clientCounts[r.client_id] || 0) + 1;
+      }
+    });
+    const topClientIds = Object.entries(clientCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => parseInt(id));
+
+    let topClients = [];
+    if (topClientIds.length > 0) {
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('id, prenom, nom')
+        .in('id', topClientIds);
+
+      topClients = topClientIds.map(id => {
+        const client = clients?.find(c => c.id === id);
+        return client ? {
+          ...client,
+          nb_rdv: clientCounts[id]
+        } : null;
+      }).filter(Boolean);
+    }
+
+    // Historique des 10 dernières réservations
+    const { data: historiqueRdv } = await supabase
+      .from('reservations')
+      .select('id, client_id, date, heure, statut, prix_total, clients(prenom, nom)')
+      .eq('service_id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .order('date', { ascending: false })
+      .limit(10);
+
+    res.json({
+      service: {
+        ...service,
+        duree_minutes: service.duree
+      },
+      stats: {
+        ca_total: caTotal,
+        nb_rdv_total: nbRdvTotal,
+        nb_rdv_termines: nbRdvTermines,
+        nb_rdv_annules: nbRdvAnnules,
+        nb_clients_uniques: nbClientsUniques,
+        derniere_reservation: derniereReservation
+      },
+      top_clients: topClients,
+      historique_rdv: (historiqueRdv || []).map(rdv => ({
+        ...rdv,
+        client_nom: rdv.clients ? `${rdv.clients.prenom} ${rdv.clients.nom}` : 'Client inconnu'
+      }))
+    });
   } catch (error) {
     console.error('[ADMIN SERVICES] Erreur détail:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -64,9 +148,12 @@ router.post('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, categorie, actif, taux_tva } = req.body;
+    const { nom, description, prix, duree_minutes, duree, taux_tva } = req.body;
 
-    if (!nom || !prix || !duree_minutes) {
+    // Accepter duree_minutes OU duree pour la durée
+    const serviceDuree = duree_minutes || duree;
+
+    if (!nom || prix === undefined || !serviceDuree) {
       return res.status(400).json({ error: 'Nom, prix et durée requis' });
     }
 
@@ -82,16 +169,16 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const ordre = (maxOrdre?.ordre || 0) + 1;
 
     // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
+    // Note: la colonne 'actif' et 'categorie' n'existent pas dans la DB
+    // Le frontend envoie déjà le prix en centimes
     const { data: service, error } = await supabase
       .from('services')
       .insert({
         tenant_id: tenantId,
         nom,
-        description,
-        prix: Math.round(prix * 100), // Convertir en centimes (TTC)
-        duree: duree_minutes, // Le champ s'appelle 'duree' dans la DB
-        categorie: categorie || 'Coiffure',
-        actif: actif !== false,
+        description: description || null,
+        prix: Math.round(prix), // Prix déjà en centimes depuis le frontend
+        duree: serviceDuree, // Le champ s'appelle 'duree' dans la DB
         taux_tva: taux_tva !== undefined ? parseFloat(taux_tva) : 20, // TVA par défaut 20%
         ordre
       })
@@ -123,17 +210,16 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, categorie, actif, taux_tva } = req.body;
+    const { nom, description, prix, duree_minutes, duree, taux_tva } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
     if (description !== undefined) updates.description = description;
-    if (prix !== undefined) updates.prix = Math.round(prix * 100); // Convertir en centimes (TTC)
-    if (duree_minutes !== undefined) updates.duree = duree_minutes; // Le champ s'appelle 'duree' dans la DB
-    if (categorie !== undefined) updates.categorie = categorie;
-    if (actif !== undefined) updates.actif = actif;
+    if (prix !== undefined) updates.prix = Math.round(prix); // Prix déjà en centimes depuis le frontend
+    // Accepter duree_minutes OU duree pour la durée
+    if (duree_minutes !== undefined) updates.duree = duree_minutes;
+    if (duree !== undefined) updates.duree = duree;
     if (taux_tva !== undefined) updates.taux_tva = parseFloat(taux_tva);
-    updates.updated_at = new Date().toISOString();
 
     // 🔒 TENANT ISOLATION
     const { data: service, error } = await supabase
@@ -208,44 +294,10 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/services/:id/toggle - Activer/Désactiver
+// Note: La colonne 'actif' n'existe pas dans la DB actuellement
+// Cette route est désactivée
 router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
-  try {
-    // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
-    const tenantId = req.admin.tenant_id;
-
-    const { data: service } = await supabase
-      .from('services')
-      .select('actif')
-      .eq('id', req.params.id)
-      .eq('tenant_id', tenantId)
-      .single();
-
-    // 🔒 TENANT ISOLATION
-    const { data: updated, error } = await supabase
-      .from('services')
-      .update({ actif: !service.actif })
-      .eq('id', req.params.id)
-      .eq('tenant_id', tenantId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Logger l'action (🔒 TENANT ISOLATION)
-    await supabase.from('historique_admin').insert({
-      tenant_id: tenantId,
-      admin_id: req.admin.id,
-      action: 'toggle',
-      entite: 'service',
-      entite_id: updated.id,
-      details: { actif: updated.actif }
-    });
-
-    res.json({ service: updated });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur toggle:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
+  res.status(501).json({ error: 'Fonctionnalité non disponible - colonne actif non présente' });
 });
 
 export default router;

@@ -55,7 +55,7 @@ export default function SEOArticles() {
   const fetchArticles = async () => {
     try {
       const response = await fetch('/api/admin/seo/articles', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       const data = await response.json();
       if (Array.isArray(data)) {
@@ -70,7 +70,7 @@ export default function SEOArticles() {
     setLoadingIdeas(true);
     try {
       const response = await fetch('/api/admin/seo/articles/ideas', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       const result = await response.json();
       if (result.ideas) {
@@ -94,7 +94,7 @@ export default function SEOArticles() {
       const response = await fetch('/api/admin/seo/articles/generate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -130,7 +130,7 @@ export default function SEOArticles() {
     try {
       await fetch(`/api/admin/seo/articles/${articleId}/publier`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       fetchArticles();
     } catch (error) {
@@ -144,7 +144,7 @@ export default function SEOArticles() {
     try {
       await fetch(`/api/admin/seo/articles/${articleId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
       fetchArticles();
     } catch (error) {

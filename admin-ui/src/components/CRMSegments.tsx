@@ -39,12 +39,16 @@ export function CRMSegments() {
   const { data: segments, isLoading, error } = useQuery<Segment[]>({
     queryKey: ['segments'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/segments');
+      const res = await fetch('/api/admin/segments', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
+      });
       if (!res.ok) {
         if (res.status === 403) throw new Error('Cette fonctionnalite necessite le plan Pro ou Business');
         throw new Error('Erreur lors du chargement des segments');
       }
-      return res.json();
+      const data = await res.json();
+      // Backend returns { success, segments, count } - extract array
+      return data.segments || data || [];
     },
   });
 
@@ -53,9 +57,12 @@ export function CRMSegments() {
     queryKey: ['segment-clients', expandedSegment],
     queryFn: async () => {
       if (!expandedSegment) return [];
-      const res = await fetch(`/api/admin/segments/${expandedSegment}/clients`);
+      const res = await fetch(`/api/admin/segments/${expandedSegment}/clients`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
+      });
       if (!res.ok) throw new Error('Erreur lors du chargement des clients');
-      return res.json();
+      const data = await res.json();
+      return data.clients || data || [];
     },
     enabled: !!expandedSegment,
   });
@@ -65,7 +72,10 @@ export function CRMSegments() {
     mutationFn: async (data: typeof newSegment) => {
       const res = await fetch('/api/admin/segments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error('Erreur lors de la creation');
@@ -83,7 +93,10 @@ export function CRMSegments() {
     mutationFn: async ({ id, data }: { id: string; data: { nom: string; description: string } }) => {
       const res = await fetch(`/api/admin/segments/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error('Erreur lors de la mise a jour');
@@ -98,7 +111,10 @@ export function CRMSegments() {
   // Delete segment mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/segments/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/segments/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
+      });
       if (!res.ok) throw new Error('Erreur lors de la suppression');
     },
     onSuccess: () => {
@@ -109,7 +125,10 @@ export function CRMSegments() {
   // Refresh dynamic segment
   const refreshMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/segments/${id}/refresh`, { method: 'POST' });
+      const res = await fetch(`/api/admin/segments/${id}/refresh`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
+      });
       if (!res.ok) throw new Error('Erreur lors du rafraichissement');
       return res.json();
     },

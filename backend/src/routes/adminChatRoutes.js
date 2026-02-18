@@ -25,6 +25,7 @@ import {
   sendMessageStream,
   sendMessage,
 } from '../controllers/adminChatController.js';
+import { enforceTrialLimit } from '../services/trialService.js';
 
 const router = express.Router();
 
@@ -84,13 +85,13 @@ router.get('/conversations/:id/messages', listMessages);
  *   { type: 'done', stop_reason: string }   - Stream terminé
  *   { type: 'error', message: string }      - Erreur
  */
-router.post('/conversations/:id/messages/stream', sendMessageStream);
+router.post('/conversations/:id/messages/stream', enforceTrialLimit('interactions_ia'), sendMessageStream);
 
 /**
  * POST /api/admin/chat/conversations/:id/messages
  * Envoyer un message sans streaming (fallback)
  * Body: { content: string }
  */
-router.post('/conversations/:id/messages', sendMessage);
+router.post('/conversations/:id/messages', enforceTrialLimit('interactions_ia'), sendMessage);
 
 export default router;

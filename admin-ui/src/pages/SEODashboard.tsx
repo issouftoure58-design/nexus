@@ -60,7 +60,7 @@ export default function SEODashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` };
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` };
 
       // Fetch all data in parallel
       const [statsRes, keywordsRes, recoRes] = await Promise.all([
@@ -89,7 +89,7 @@ export default function SEODashboard() {
       await fetch(`/api/admin/seo/recommendations/${recoId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ statut: 'appliquee' })
@@ -105,7 +105,7 @@ export default function SEODashboard() {
       await fetch(`/api/admin/seo/recommendations/${recoId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ statut: 'ignoree' })

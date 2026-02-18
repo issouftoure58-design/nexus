@@ -3,12 +3,12 @@
  * Dashboard avec activité récente et accès rapide aux modules
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar, Users, Scissors, Package, TrendingUp, Megaphone,
   Bot, FileText, BarChart3, Search, Plus, Filter, Clock,
-  CheckCircle, AlertCircle, DollarSign, UserPlus
+  CheckCircle, AlertCircle, DollarSign, UserPlus, RefreshCw
 } from 'lucide-react';
 import { QuotaBar } from '../components/QuotaBar';
 
@@ -25,18 +25,48 @@ const modules = [
   { id: 'agent-ia', icon: Bot, label: 'Agent IA', path: '/agent-ia', color: 'teal' },
 ];
 
-// Activité récente (mock)
-const recentActivity = [
-  { id: 1, type: 'rdv_confirmed', icon: CheckCircle, color: 'green', message: 'Marie D. - RDV confirmé 14h', time: 'Il y a 5 min' },
-  { id: 2, type: 'new_client', icon: UserPlus, color: 'blue', message: 'Nouveau client: Jean P.', time: 'Il y a 12 min' },
-  { id: 3, type: 'payment', icon: DollarSign, color: 'green', message: 'Paiement reçu: 85€', time: 'Il y a 30 min' },
-  { id: 4, type: 'rdv_pending', icon: Clock, color: 'amber', message: '3 RDV en attente de confirmation', time: 'Il y a 1h' },
-  { id: 5, type: 'alert', icon: AlertCircle, color: 'red', message: 'Stock bas: Shampoing Pro', time: 'Il y a 2h' },
-];
+interface Activity {
+  id: number;
+  type: string;
+  message: string;
+  time: string;
+}
+
+const ACTIVITY_ICONS: Record<string, { icon: any; color: string }> = {
+  rdv_confirmed: { icon: CheckCircle, color: 'green' },
+  rdv_pending: { icon: Clock, color: 'amber' },
+  new_client: { icon: UserPlus, color: 'blue' },
+  payment: { icon: DollarSign, color: 'green' },
+  alert: { icon: AlertCircle, color: 'red' },
+};
 
 export function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(true);
+
+  useEffect(() => {
+    fetchActivity();
+  }, []);
+
+  const fetchActivity = async () => {
+    setLoadingActivity(true);
+    try {
+      const token = localStorage.getItem('nexus_admin_token');
+      const response = await fetch('/api/admin/stats/activity', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setActivities(data.activities || []);
+      }
+    } catch (err) {
+      console.error('Activity fetch error:', err);
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
 
   const filteredModules = modules.filter(m =>
     m.label.toLowerCase().includes(searchQuery.toLowerCase())
@@ -159,32 +189,50 @@ export function Home() {
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
               <h2 className="font-medium text-gray-900 dark:text-white">Activité récente</h2>
-              <button className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                <Filter className="w-4 h-4" />
-                Filtrer
+              <button
+                onClick={fetchActivity}
+                disabled={loadingActivity}
+                className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingActivity ? 'animate-spin' : ''}`} />
+                Actualiser
               </button>
             </div>
             <div className="divide-y divide-gray-200 dark:divide-gray-800">
-              {recentActivity.map((activity) => {
-                const Icon = activity.icon;
-                return (
-                  <div key={activity.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <div className={`p-1.5 rounded-full ${getColorClasses(activity.color)}`}>
-                      <Icon className="w-4 h-4" />
+              {loadingActivity ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : activities.length > 0 ? (
+                activities.map((activity) => {
+                  const config = ACTIVITY_ICONS[activity.type] || ACTIVITY_ICONS.alert;
+                  const Icon = config.icon;
+                  return (
+                    <div key={activity.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div className={`p-1.5 rounded-full ${getColorClasses(config.color)}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900 dark:text-white">{activity.message}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{activity.time}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900 dark:text-white">{activity.message}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{activity.time}</p>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Aucune activité récente</p>
+                </div>
+              )}
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
-              <button className="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400">
-                Voir toute l'activité →
-              </button>
-            </div>
+            {activities.length > 0 && (
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
+                <button className="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400">
+                  Voir toute l'activité →
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>

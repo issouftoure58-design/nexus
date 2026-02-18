@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,10 +31,43 @@ export default function Clients() {
   const [page, setPage] = useState(1);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Debounce search input for suggestions
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput.length >= 1) {
+        setDebouncedSearch(searchInput);
+      } else {
+        setDebouncedSearch('');
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { data, isLoading, error } = useQuery<ClientsResponse>({
     queryKey: ['clients', search, page],
     queryFn: () => clientsApi.list({ search, page, limit: 20 }),
+  });
+
+  // Query for suggestions
+  const { data: suggestions } = useQuery<ClientsResponse>({
+    queryKey: ['clients-suggestions', debouncedSearch],
+    queryFn: () => clientsApi.list({ search: debouncedSearch, page: 1, limit: 5 }),
+    enabled: debouncedSearch.length >= 1,
   });
 
   const deleteMutation = useMutation({
@@ -47,6 +80,7 @@ export default function Clients() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
+    setShowSuggestions(false);
     setPage(1);
   };
 
@@ -69,15 +103,49 @@ export default function Clients() {
         {/* Header actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="relative flex-1" ref={searchRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
               <Input
                 type="search"
                 placeholder="Rechercher par nom, téléphone, email..."
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
                 className="pl-10"
               />
+              {/* Suggestions dropdown */}
+              {showSuggestions && debouncedSearch && suggestions?.clients && suggestions.clients.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                  {suggestions.clients.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchInput(`${client.prenom} ${client.nom}`);
+                        setSearch(`${client.prenom} ${client.nom}`);
+                        setShowSuggestions(false);
+                        setPage(1);
+                      }}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b last:border-0"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+                        {client.prenom[0]}{client.nom[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900 truncate">
+                          {client.prenom} {client.nom}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {client.telephone} {client.email && `• ${client.email}`}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <Button type="submit" variant="outline">Rechercher</Button>
           </form>

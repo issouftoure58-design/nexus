@@ -910,19 +910,20 @@ export async function createReservationUnified(data, channel = 'web', options = 
         .single();
 
       if (dbService) {
+        // Note: dbService.prix est en EUROS dans la BDD, pas en centimes
         service = {
           key: `db_${dbService.id}`,
           id: `db_${dbService.id}`,
           name: dbService.nom,
           durationMinutes: dbService.duree,
-          price: dbService.prix / 100,
-          priceInCents: dbService.prix,
+          price: dbService.prix,  // Déjà en euros
+          priceInCents: Math.round(dbService.prix * 100),  // Convertir en centimes
           priceIsMinimum: false,
           category: 'other',
           blocksFullDay: dbService.duree >= 480,
           blocksDays: 1,
         };
-        console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix/100}€)`);
+        console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix}€)`);
       } else {
         console.error(`[NEXUS CORE] ❌ Service non trouvé ni en config ni en BDD: "${data.service_name}"`);
         return { success: false, error: `Service non trouvé: "${data.service_name}"` };
@@ -945,12 +946,19 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
     // 3. VALIDER DATE/HEURE/DISPONIBILITÉ (sauf si skipValidation)
     console.log(`💾 STEP BOOKING 3: Validation date/heure/dispo (skipValidation=${skipValidation})...`);
-    console.log(`💾 Date: ${data.date}, Heure: ${data.heure}`);
+    console.log(`💾 Date: ${data.date}, Heure: ${data.heure}, Tenant: ${data.tenant_id || 'non spécifié'}`);
     if (!skipValidation) {
-      const { data: existingBookings } = await db
+      let query = db
         .from('reservations')
         .select('id, date, heure, duree_minutes, service_nom, statut')
         .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
+
+      // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
+      if (data.tenant_id) {
+        query = query.eq('tenant_id', data.tenant_id);
+      }
+
+      const { data: existingBookings } = await query;
 
       console.log(`💾 Réservations existantes (bloquantes): ${existingBookings?.length || 0}`);
 
@@ -1000,13 +1008,19 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
     // 6. CHERCHER OU CRÉER LE CLIENT
     console.log(`💾 STEP BOOKING 4: Recherche/création client...`);
-    console.log(`💾 Téléphone recherché: ${telephone.replace('+33', '0')}`);
+    console.log(`💾 Téléphone recherché: ${telephone.replace('+33', '0')}, Tenant: ${data.tenant_id}`);
     let clientId;
-    const { data: existingClient } = await db
+    let clientQuery = db
       .from('clients')
       .select('id')
-      .eq('telephone', telephone.replace('+33', '0'))
-      .single();
+      .eq('telephone', telephone.replace('+33', '0'));
+
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
+    if (data.tenant_id) {
+      clientQuery = clientQuery.eq('tenant_id', data.tenant_id);
+    }
+
+    const { data: existingClient } = await clientQuery.single();
 
     if (existingClient) {
       clientId = existingClient.id;
@@ -1021,6 +1035,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
       const { data: newClient, error: clientError } = await db
         .from('clients')
         .insert({
+          tenant_id: data.tenant_id,  // 🔒 TENANT ISOLATION
           prenom,
           nom,
           telephone: telephone.replace('+33', '0'),
@@ -1070,6 +1085,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
       const isFirstDay = dayIndex === 0;
 
       const reservationData = {
+        tenant_id: data.tenant_id,  // 🔒 TENANT ISOLATION
         client_id: clientId,
         date: reservationDate,
         heure: data.heure,
@@ -1127,7 +1143,29 @@ export async function createReservationUnified(data, channel = 'web', options = 
       invalidateCache(`availability_${reservationDate}`);
     }
 
-    // 10. ENVOYER SMS DE CONFIRMATION (une seule fois, pour toutes les dates)
+    // 10. CRÉER FACTURE BROUILLON (pour la réservation principale seulement)
+    let facture = null;
+    const primaryReservationId = createdReservations[0]?.id;
+    if (primaryReservationId && data.tenant_id) {
+      try {
+        // Import dynamique pour éviter les cycles de dépendances
+        const { createFactureFromReservation } = await import('../../routes/factures.js');
+        const factureResult = await createFactureFromReservation(
+          primaryReservationId,
+          data.tenant_id,
+          { statut: 'brouillon' }
+        );
+        if (factureResult.success) {
+          facture = factureResult.facture;
+          console.log(`[NEXUS CORE] 📄 Facture brouillon ${facture.numero} créée`);
+        }
+      } catch (factureErr) {
+        // Non bloquant - la facture peut être créée plus tard
+        console.warn('[NEXUS CORE] ⚠️ Erreur création facture brouillon:', factureErr.message);
+      }
+    }
+
+    // 11. ENVOYER SMS DE CONFIRMATION (une seule fois, pour toutes les dates)
     if (sendSMS && data.client_telephone) {
       try {
         const datesFormatees = reservationDates.map(d => {
@@ -1182,7 +1220,8 @@ export async function createReservationUnified(data, channel = 'web', options = 
         prixTotal: prixTotal / 100,
         acompte: pricing.deposit,
         acompteTexte: `${pricing.deposit}€ (${BOOKING_RULES.DEPOSIT_PERCENT}%)`
-      }
+      },
+      facture: facture ? { id: facture.id, numero: facture.numero, statut: facture.statut } : null
     };
 
   } catch (error) {

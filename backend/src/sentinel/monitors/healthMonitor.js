@@ -5,12 +5,13 @@
  * Priorite #1 - Le plus critique
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../config/supabase.js';
 
 class HealthMonitor {
   constructor() {
     this.lastResults = null;
     this.history = [];
+    this.maxHistorySize = 20; // Réduit de 100 à 20 pour économiser la mémoire
   }
 
   async check() {
@@ -25,9 +26,9 @@ class HealthMonitor {
     this.lastResults = results;
     this.history.push(results);
 
-    // Keep only last 100 checks
-    if (this.history.length > 100) {
-      this.history.shift();
+    // Keep only last N checks (économie mémoire)
+    if (this.history.length > this.maxHistorySize) {
+      this.history = this.history.slice(-this.maxHistorySize);
     }
 
     return results;
@@ -54,16 +55,11 @@ class HealthMonitor {
 
   async checkDatabase() {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
+      if (!supabase) {
         return { status: 'WARNING', message: 'Supabase not configured' };
       }
 
-      const supabase = createClient(supabaseUrl, supabaseKey);
       const startTime = Date.now();
-
       const { error } = await supabase.from('services').select('id').limit(1);
       const latency = Date.now() - startTime;
 

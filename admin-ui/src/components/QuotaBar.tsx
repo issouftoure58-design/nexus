@@ -3,6 +3,7 @@
  * Affiche la consommation globale (Web + WhatsApp + Téléphone)
  */
 
+import { useState, useEffect } from 'react';
 import { Bot, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,16 +11,47 @@ interface QuotaBarProps {
   className?: string;
 }
 
-// Mock data - sera remplacé par les vraies données API
-const quotaData = {
-  used: 1247,
-  limit: 2000,
-  plan: 'Starter',
-  nextReset: '1er mars 2026'
-};
+interface QuotaData {
+  used: number;
+  limit: number;
+  plan: string;
+  nextReset: string;
+}
 
 export function QuotaBar({ className = '' }: QuotaBarProps) {
   const navigate = useNavigate();
+  const [quotaData, setQuotaData] = useState<QuotaData>({
+    used: 0,
+    limit: 1,
+    plan: 'Starter',
+    nextReset: '-'
+  });
+  useEffect(() => {
+    const fetchQuotas = async () => {
+      try {
+        const token = localStorage.getItem('nexus_admin_token');
+        const response = await fetch('/api/admin/quotas', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Aggregate all quotas
+          const totalUsed = (data.web?.used || 0) + (data.whatsapp?.used || 0) + (data.telephone?.used || 0);
+          const totalLimit = (data.web?.limit || 1000) + (data.whatsapp?.limit || 500) + (data.telephone?.limit || 100);
+          setQuotaData({
+            used: totalUsed,
+            limit: totalLimit,
+            plan: data.plan || 'Starter',
+            nextReset: data.nextReset || 'Fin du mois'
+          });
+        }
+      } catch (err) {
+        console.error('Erreur fetch quotas:', err);
+      }
+    };
+    fetchQuotas();
+  }, []);
+
   const percentage = Math.min((quotaData.used / quotaData.limit) * 100, 100);
 
   const getBarColor = () => {

@@ -26,11 +26,11 @@ async function requireProPlan(req, res, next) {
     const tenantId = req.admin.tenant_id;
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('subscription_plan')
+      .select('plan, plan_id, tier')
       .eq('id', tenantId)
       .single();
 
-    const plan = tenant?.subscription_plan?.toLowerCase() || 'starter';
+    const plan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
     if (plan === 'starter') {
       return res.status(403).json({
         error: 'Fonctionnalité Pro requise',

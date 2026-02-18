@@ -37,7 +37,7 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('prix_total')
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', startOfMonth)
+      .gte('date', startOfMonth)
       .in('statut', ['confirme', 'termine']);
 
     const caMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
@@ -47,8 +47,8 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('prix_total')
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', startOfLastMonth)
-      .lt('date_rdv', endOfLastMonth)
+      .gte('date', startOfLastMonth)
+      .lt('date', endOfLastMonth)
       .in('statut', ['confirme', 'termine']);
 
     const caLastMois = rdvLastMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
@@ -76,15 +76,15 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', startOfMonth);
+      .gte('date', startOfMonth);
 
     // Nombre de RDV mois précédent
     const { count: nbRdvLast } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', startOfLastMonth)
-      .lt('date_rdv', endOfLastMonth);
+      .gte('date', startOfLastMonth)
+      .lt('date', endOfLastMonth);
 
     const rdvVariation = nbRdvLast > 0
       ? Math.round(((nbRdv - nbRdvLast) / nbRdvLast) * 100)
@@ -95,7 +95,7 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', startOfMonth)
+      .gte('date', startOfMonth)
       .in('statut', ['confirme', 'termine']);
 
     const tauxConversion = nbRdv > 0
@@ -141,7 +141,7 @@ router.get('/revenue', authenticateAdmin, async (req, res) => {
         .from('reservations')
         .select('prix_total')
         .eq('tenant_id', tenantId)
-        .eq('date_rdv', dateStr)
+        .eq('date', dateStr)
         .in('statut', ['confirme', 'termine']);
 
       const ca = rdvDay?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
@@ -181,7 +181,7 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('client_id')
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', threeMonthsAgo)
+      .gte('date', threeMonthsAgo)
       .in('statut', ['confirme', 'termine']);
 
     const clientsActifs = new Set(clientsActifsData?.map(r => r.client_id) || []).size;
@@ -198,7 +198,7 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
       .from('reservations')
       .select('client_id')
       .eq('tenant_id', tenantId)
-      .gte('date_rdv', sixMonthsAgo);
+      .gte('date', sixMonthsAgo);
 
     const clientsRecents = new Set(clientsRecentData?.map(r => r.client_id) || []).size;
     const clientsPerdus = Math.max(0, (totalClients || 0) - clientsRecents);

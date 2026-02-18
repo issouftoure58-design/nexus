@@ -21,6 +21,7 @@ import {
   getCachedConfig,
   getCachedTenantIds,
   findTenantByDomain,
+  findTenantByPhone,
   isInitialized,
   getTemplate,
 } from './tenantCache.js';
@@ -102,6 +103,18 @@ export function getTenantFromRequest(req) {
 }
 
 /**
+ * Identifie le tenant par numéro de téléphone (pour routing appels/WhatsApp).
+ * Retourne le tenantId et sa config complète.
+ */
+export function getTenantByPhone(phoneNumber) {
+  const tenantId = findTenantByPhone(phoneNumber);
+  if (!tenantId) {
+    return { tenantId: null, config: null };
+  }
+  return { tenantId, config: getTenantConfig(tenantId) };
+}
+
+/**
  * Liste tous les tenants enregistrés.
  */
 export function listTenants() {
@@ -141,4 +154,4 @@ export function canModify(tenantId, reason = '') {
   return true;
 }
 
-export default { getTenantConfig, identifyTenant, getTenantFromRequest, listTenants, isFrozen, hasFeature, canModify };
+export default { getTenantConfig, identifyTenant, getTenantFromRequest, getTenantByPhone, listTenants, isFrozen, hasFeature, canModify };

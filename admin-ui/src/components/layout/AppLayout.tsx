@@ -10,6 +10,7 @@
 import { ReactNode, useState } from 'react';
 import { GlobalMenu } from './GlobalMenu';
 import { Menu, Search, Bell } from 'lucide-react';
+import { TrialBanner } from '../TrialBanner';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -73,6 +74,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </div>
       </header>
+
+      {/* Trial Banner */}
+      <TrialBanner />
 
       {/* Main content */}
       <main className="min-h-[calc(100vh-3.5rem)]">

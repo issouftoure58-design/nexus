@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,12 @@ import {
   Loader2,
   AlertCircle,
   Check,
-  Power
+  Power,
+  Search,
+  Eye,
+  Users,
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,11 +29,36 @@ export default function Services() {
   const queryClient = useQueryClient();
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['services'],
     queryFn: servicesApi.list,
   });
+
+  // Filter services based on search
+  const filteredServices = data?.services?.filter(service =>
+    !searchInput || service.nom.toLowerCase().includes(searchInput.toLowerCase())
+  ) || [];
+
+  // Suggestions for search
+  const suggestions = searchInput.length >= 1
+    ? data?.services?.filter(s => s.nom.toLowerCase().includes(searchInput.toLowerCase())).slice(0, 5)
+    : [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => servicesApi.delete(id),
@@ -56,10 +86,45 @@ export default function Services() {
         <p className="text-sm text-gray-500">{data?.services?.length || 0} services configurés</p>
       </div>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-gray-500">
-            Gérez les services proposés à vos clients
+        {/* Header with search */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+          <div className="relative flex-1 max-w-md" ref={searchRef}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+            <Input
+              type="search"
+              placeholder="Rechercher un service..."
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              className="pl-10"
+            />
+            {/* Suggestions dropdown */}
+            {showSuggestions && suggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                {suggestions.map((service) => (
+                  <button
+                    key={service.id}
+                    type="button"
+                    onClick={() => {
+                      setSearchInput(service.nom);
+                      setShowSuggestions(false);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b last:border-0"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+                      <Briefcase className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{service.nom}</p>
+                      <p className="text-xs text-gray-500">{formatCurrency(service.prix)} • {formatDuration(service.duree)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Button
             onClick={() => setShowNewModal(true)}
@@ -93,34 +158,35 @@ export default function Services() {
         {/* Services grid */}
         {!isLoading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {data?.services?.map((service) => (
-              <Card key={service.id} className={cn(
-                'relative overflow-hidden transition-all hover:shadow-lg',
-                !service.actif && 'opacity-60'
-              )}>
+            {filteredServices.map((service) => (
+              <Card
+                key={service.id}
+                className={cn(
+                  'relative overflow-hidden transition-all hover:shadow-lg cursor-pointer',
+                  !service.actif && 'opacity-60'
+                )}
+                onClick={() => setSelectedService(service)}
+              >
                 {/* Status indicator */}
                 <div className={cn(
                   'absolute top-0 left-0 right-0 h-1',
-                  service.actif ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gray-300'
+                  'bg-gradient-to-r from-cyan-400 to-blue-500'
                 )} />
 
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-900 text-lg">{service.nom}</h3>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          'mt-1',
-                          service.actif
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-gray-50 text-gray-500 border-gray-200'
-                        )}
-                      >
-                        {service.actif ? 'Actif' : 'Inactif'}
-                      </Badge>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setSelectedService(service)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -162,7 +228,23 @@ export default function Services() {
               </Card>
             ))}
 
-            {(!data?.services || data.services.length === 0) && (
+            {filteredServices.length === 0 && searchInput && (
+              <Card className="col-span-full">
+                <CardContent className="p-12 text-center">
+                  <Search className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">Aucun service trouvé pour "{searchInput}"</p>
+                  <Button
+                    variant="link"
+                    onClick={() => setSearchInput('')}
+                    className="mt-2"
+                  >
+                    Effacer la recherche
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {(!data?.services || data.services.length === 0) && !searchInput && (
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Briefcase className="h-12 w-12 mx-auto text-gray-300 mb-4" />
@@ -181,13 +263,25 @@ export default function Services() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Edit/Create Modal */}
       {(showNewModal || editingService) && (
         <ServiceModal
           service={editingService}
           onClose={() => {
             setShowNewModal(false);
             setEditingService(null);
+          }}
+        />
+      )}
+
+      {/* Detail Modal */}
+      {selectedService && (
+        <ServiceDetailModal
+          service={selectedService}
+          onClose={() => setSelectedService(null)}
+          onEdit={() => {
+            setEditingService(selectedService);
+            setSelectedService(null);
           }}
         />
       )}
@@ -238,7 +332,6 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       description: formData.description || undefined,
       duree: formData.duree,
       prix: Math.round(formData.prix * 100), // Convert to cents
-      actif: formData.actif,
     };
 
     if (isEditing) {
@@ -352,6 +445,192 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Service Detail Modal Component
+interface ServiceDetailResponse {
+  service: Service;
+  stats: {
+    ca_total: number;
+    nb_rdv_total: number;
+    nb_rdv_termines: number;
+    nb_rdv_annules: number;
+    nb_clients_uniques: number;
+    derniere_reservation: string | null;
+  };
+  top_clients: Array<{ id: number; prenom: string; nom: string; nb_rdv: number }>;
+  historique_rdv: Array<{
+    id: number;
+    date: string;
+    heure: string;
+    statut: string;
+    prix_total: number;
+    client_nom: string;
+  }>;
+}
+
+function ServiceDetailModal({
+  service,
+  onClose,
+  onEdit
+}: {
+  service: Service;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const { data, isLoading } = useQuery<ServiceDetailResponse>({
+    queryKey: ['service-detail', service.id],
+    queryFn: () => servicesApi.get(service.id),
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h${mins}` : `${hours}h`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between border-b">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white">
+              <Briefcase className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle>{service.nom}</CardTitle>
+              <p className="text-sm text-gray-500">
+                {formatCurrency(service.prix / 100)} • {formatDuration(service.duree)}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Edit className="h-4 w-4 mr-1" />
+              Modifier
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-y-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />
+            </div>
+          ) : data ? (
+            <div className="space-y-6">
+              {/* Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700">{formatCurrency(data.stats.ca_total)}</p>
+                  <p className="text-xs text-green-600">CA Total</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-700">{data.stats.nb_rdv_total}</p>
+                  <p className="text-xs text-blue-600">RDV Total</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-purple-700">{data.stats.nb_rdv_termines}</p>
+                  <p className="text-xs text-purple-600">RDV Terminés</p>
+                </div>
+                <div className="bg-cyan-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-cyan-700">{data.stats.nb_clients_uniques}</p>
+                  <p className="text-xs text-cyan-600">Clients Uniques</p>
+                </div>
+              </div>
+
+              {/* Dernière réservation */}
+              {data.stats.derniere_reservation && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-700">
+                    <Calendar className="h-4 w-4 inline mr-2 text-gray-500" />
+                    <span className="font-medium">Dernière réservation :</span> {formatDate(data.stats.derniere_reservation)}
+                  </p>
+                </div>
+              )}
+
+              {/* Top clients */}
+              {data.top_clients && data.top_clients.length > 0 && (
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Clients les plus fidèles
+                  </h3>
+                  <div className="space-y-2">
+                    {data.top_clients.map((client, index) => (
+                      <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+                            {client.prenom[0]}{client.nom[0]}
+                          </div>
+                          <p className="font-medium text-sm">{client.prenom} {client.nom}</p>
+                        </div>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {client.nb_rdv} RDV
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Historique RDV */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Dernières réservations
+                </h3>
+                <div className="space-y-2">
+                  {data.historique_rdv.map((rdv) => (
+                    <div key={rdv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{rdv.client_nom}</p>
+                        <p className="text-xs text-gray-500">{formatDate(rdv.date)} à {rdv.heure}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          {formatCurrency(rdv.prix_total / 100)}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-xs',
+                            rdv.statut === 'termine' && 'bg-green-50 text-green-700 border-green-200',
+                            rdv.statut === 'confirme' && 'bg-blue-50 text-blue-700 border-blue-200',
+                            rdv.statut === 'annule' && 'bg-red-50 text-red-700 border-red-200'
+                          )}
+                        >
+                          {rdv.statut}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {data.historique_rdv.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">Aucune réservation</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
