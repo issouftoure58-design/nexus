@@ -14,6 +14,35 @@ import crypto from 'crypto';
 
 const router = express.Router();
 
+// Middleware pour identifier le tenant depuis le domaine ou header
+const resolveTenant = (req, res, next) => {
+  const host = req.get('host') || '';
+  const tenantHeader = req.get('X-Tenant-ID');
+  const origin = req.get('origin') || '';
+
+  // Mapping domaine -> tenant_id
+  const domainToTenant = {
+    'fatshairafro.fr': 'fatshairafro',
+    'www.fatshairafro.fr': 'fatshairafro',
+    'nexus-backend-dev.onrender.com': 'fatshairafro',
+    'localhost': 'fatshairafro',
+  };
+
+  let tenantId = null;
+  // Check origin first (for CORS requests from static site)
+  for (const [domain, tenant] of Object.entries(domainToTenant)) {
+    if (origin.includes(domain) || host.includes(domain)) {
+      tenantId = tenant;
+      break;
+    }
+  }
+
+  req.tenantId = tenantId || tenantHeader || req.query.tenant_id || 'fatshairafro';
+  next();
+};
+
+router.use(resolveTenant);
+
 // ============================================
 // ROUTES PUBLIQUES
 // ============================================

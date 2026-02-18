@@ -65,6 +65,7 @@ import stripeWebhookRoutes from './routes/stripeWebhook.js';
 import signupRoutes from './routes/signup.js';
 import trialRoutes from './routes/trial.js';
 import publicRoutes from './routes/public.js';
+import reviewsRoutes from './routes/reviews.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -156,6 +157,9 @@ app.get('/health', (req, res) => {
 // ============= ROUTES PUBLIQUES (sans auth) =============
 // Services, Chat, Rendez-vous pour les clients
 app.use('/api', publicRoutes);
+
+// Reviews/Avis clients (public GET + admin routes)
+app.use('/api/reviews', reviewsRoutes);
 
 // Routes de paiement (avec rate limiting strict)
 app.use('/api/payment', paymentLimiter, paymentRoutes);
