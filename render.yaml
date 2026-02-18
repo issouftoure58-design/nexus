@@ -19,6 +19,6 @@ services:
     startCommand: node server.js
     envVars:
       - key: VITE_API_URL
-        value: https://nexus-backend-dev.onrender.com
+        value: https://nexus-backend-dev.onrender.com/api
       - key: NODE_ENV
         value: production
