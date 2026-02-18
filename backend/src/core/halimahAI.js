@@ -493,6 +493,38 @@ async function executeTool(toolName, toolInput, tenantId = 'fatshairafro') {
       const service = SERVICES[toolInput.service_id];
       if (!service) return { success: false, error: "Service non trouvé" };
 
+      // VÉRIFICATION CHEVAUCHEMENTS avant création
+      const { data: existingRdvs } = await db
+        .from('reservations')
+        .select('heure, duree_minutes')
+        .eq('tenant_id', tenantId)
+        .eq('date', toolInput.date)
+        .in('statut', ['demande', 'confirme', 'en_attente', 'en_attente_paiement']);
+
+      if (existingRdvs && existingRdvs.length > 0) {
+        const parseHeure = (h) => {
+          const str = String(h);
+          if (str.includes(':')) {
+            const [hh, mm] = str.split(':').map(Number);
+            return hh * 60 + (mm || 0);
+          }
+          return parseInt(str) * 60;
+        };
+        const newStart = parseHeure(toolInput.heure);
+        const newEnd = newStart + (service.duree || 60);
+
+        for (const rdv of existingRdvs) {
+          const rdvStart = parseHeure(rdv.heure);
+          const rdvEnd = rdvStart + (rdv.duree_minutes || 60);
+          if (newStart < rdvEnd && newEnd > rdvStart) {
+            return {
+              success: false,
+              error: `Ce créneau chevauche un RDV existant (${rdv.heure}). Veuillez proposer un autre horaire.`
+            };
+          }
+        }
+      }
+
       // Extraire prénom et nom du client
       const nameParts = toolInput.client_nom.trim().split(' ');
       const prenom = nameParts[0] || 'Client';
