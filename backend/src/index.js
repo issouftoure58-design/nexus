@@ -124,7 +124,7 @@ app.use(cors({
   origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key', 'X-Tenant-ID'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key', 'X-Tenant-ID', 'X-Tenant-Slug'],
 }));
 
 // Rate limiting global API
