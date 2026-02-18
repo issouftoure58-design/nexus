@@ -244,14 +244,14 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center gap-3 flex-1">
               <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-amber-500/30">
-                {stats.prochainRdv.clients.prenom?.[0] || stats.prochainRdv.clients.nom?.[0]}
+                {stats.prochainRdv.clients?.prenom?.[0] || stats.prochainRdv.clients?.nom?.[0] || '?'}
               </div>
               <div>
                 <p className="font-semibold text-white text-lg">
-                  {stats.prochainRdv.clients.prenom} {stats.prochainRdv.clients.nom}
+                  {stats.prochainRdv.clients?.prenom || ''} {stats.prochainRdv.clients?.nom || 'Client'}
                 </p>
                 <p className="text-amber-400 text-sm font-medium">{stats.prochainRdv.service_nom}</p>
-                <p className="text-white/50 text-sm">{stats.prochainRdv.clients.telephone}</p>
+                <p className="text-white/50 text-sm">{stats.prochainRdv.clients?.telephone || ''}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
