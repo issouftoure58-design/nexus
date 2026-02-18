@@ -826,14 +826,14 @@ Fat's Hair-Afro
       context = nexusCore.createConversationContext('whatsapp');
       // Si on a le nom du client, le stocker
       if (clientName) {
-        context.data.prenom = clientName;
+        context.nomClient = clientName;
       }
       nexusContexts.set(clientPhone, context);
     }
 
     // Stocker le téléphone dans le contexte (on l'a déjà via WhatsApp)
-    if (!context.data.telephone) {
-      context.data.telephone = clientPhone.replace('whatsapp:', '');
+    if (!context.telephone) {
+      context.telephone = clientPhone.replace('whatsapp:', '');
     }
 
     // Traiter le message via nexusCore (nouvelle API async avec Claude)
