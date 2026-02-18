@@ -12,6 +12,14 @@ const TenantContext = createContext<TenantContextType>({
   setTenantId: () => {},
 });
 
+// Mapping des domaines personnalisés vers les tenant IDs
+const CUSTOM_DOMAINS: Record<string, string> = {
+  'fatshairafro.fr': 'fatshairafro',
+  'www.fatshairafro.fr': 'fatshairafro',
+  'fatshairafro-frontend.onrender.com': 'fatshairafro',
+  // Ajouter d'autres domaines personnalisés ici
+};
+
 /**
  * Detecte le tenant depuis l'URL.
  * Retourne null si contexte NEXUS (pas de tenant).
@@ -22,8 +30,14 @@ function detectTenant(): string | null {
   const param = params.get('tenant');
   if (param) return param;
 
-  // 2. Subdomain in production (fatshairafro.nexus.com → 'fatshairafro')
   const host = window.location.hostname;
+
+  // 2. Domaines personnalisés (fatshairafro.fr → 'fatshairafro')
+  if (CUSTOM_DOMAINS[host]) {
+    return CUSTOM_DOMAINS[host];
+  }
+
+  // 3. Subdomain in production (fatshairafro.nexus.com → 'fatshairafro')
   if (host !== 'localhost' && host !== '127.0.0.1') {
     const subdomain = host.split('.')[0];
     if (subdomain && subdomain !== 'nexus' && subdomain !== 'www') {
@@ -31,7 +45,7 @@ function detectTenant(): string | null {
     }
   }
 
-  // 3. Pas de tenant detecte = contexte NEXUS
+  // 4. Pas de tenant detecte = contexte NEXUS
   return null;
 }
 
