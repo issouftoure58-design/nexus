@@ -573,7 +573,7 @@ export default function Reservations() {
       Client: rdv.client ? `${rdv.client.prenom} ${rdv.client.nom}` : 'Inconnu',
       Téléphone: rdv.client?.telephone || '',
       Service: rdv.service_nom || '',
-      'Prix (€)': ((rdv.prix || 0) / 100).toFixed(2),
+      'Prix (€)': (rdv.prix || 0).toFixed(2),
       Statut: STATUS_CONFIG[rdv.statut]?.label || rdv.statut,
       Notes: rdv.notes || ''
     }));
@@ -612,7 +612,8 @@ export default function Reservations() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount / 100);
+    // Backend already converts centimes to euros
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
   };
 
   return (

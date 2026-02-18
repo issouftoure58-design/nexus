@@ -8,3 +8,15 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  - type: web
+    name: fatshairafro-admin
+    runtime: node
+    rootDir: admin-ui
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: VITE_API_URL
+        value: https://nexus-backend-dev.onrender.com
+      - key: NODE_ENV
+        value: production
