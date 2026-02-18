@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fat's Admin - Dashboard</title>
+
+  <!-- Manifest Admin -->
+  <link rel="manifest" href="/manifest-admin.webmanifest" />
+
+  <!-- Theme -->
+  <meta name="theme-color" content="#f59e0b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Fat's Admin" />
+
+  <!-- Icons -->
+  <link rel="apple-touch-icon" href="/icons/admin-icon-192x192.png" />
+  <link rel="icon" type="image/png" href="/icons/admin-icon-192x192.png" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #09090b 0%, #18181b 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 400px;
+    }
+    .icon {
+      width: 120px;
+      height: 120px;
+      border-radius: 24px;
+      margin: 0 auto 1.5rem;
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      box-shadow: 0 20px 40px rgba(245, 158, 11, 0.3);
+    }
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+    .btn {
+      display: inline-block;
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(245, 158, 11, 0.4);
+    }
+    .instructions {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .instructions h3 {
+      font-size: 0.875rem;
+      color: #f59e0b;
+      margin-bottom: 1rem;
+    }
+    .instructions ol {
+      text-align: left;
+      padding-left: 1.25rem;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.875rem;
+      line-height: 1.8;
+    }
+    .loader {
+      display: none;
+      margin-top: 1rem;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">👩🏾‍💼</div>
+    <h1>Fat's Admin</h1>
+    <p>Installez l'application pour accéder rapidement au dashboard depuis votre écran d'accueil</p>
+
+    <a href="/admin/dashboard" class="btn" id="openBtn">Ouvrir le Dashboard</a>
+
+    <div class="instructions">
+      <h3>📱 Pour installer l'app :</h3>
+      <ol>
+        <li><strong>iPhone/iPad :</strong> Touchez le bouton partage (⬆️) puis "Sur l'écran d'accueil"</li>
+        <li><strong>Android :</strong> Touchez les 3 points (⋮) puis "Installer l'application"</li>
+      </ol>
+    </div>
+
+    <p class="loader" id="loader">Redirection...</p>
+  </div>
+
+  <script>
+    // Si déjà en mode standalone, rediriger directement
+    if (window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true) {
+      document.getElementById('loader').style.display = 'block';
+      document.querySelector('.instructions').style.display = 'none';
+      document.getElementById('openBtn').style.display = 'none';
+      setTimeout(() => {
+        window.location.href = '/admin/dashboard';
+      }, 500);
+    }
+  </script>
+</body>
+</html>

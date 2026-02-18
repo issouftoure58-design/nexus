@@ -9,6 +9,11 @@ import './config/env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import des middlewares sécurité
 import { apiLimiter, paymentLimiter } from './middleware/rateLimiter.js';
@@ -64,6 +69,7 @@ import billingRoutes from './routes/billing.js';
 import stripeWebhookRoutes from './routes/stripeWebhook.js';
 import signupRoutes from './routes/signup.js';
 import trialRoutes from './routes/trial.js';
+import publicRoutes from './routes/public.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -151,6 +157,10 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// ============= ROUTES PUBLIQUES (sans auth) =============
+// Services, Chat, Rendez-vous pour les clients
+app.use('/api', publicRoutes);
 
 // Routes de paiement (avec rate limiting strict)
 app.use('/api/payment', paymentLimiter, paymentRoutes);
@@ -275,8 +285,27 @@ app.use('/api/signup', signupRoutes);
 // Routes Trial (gestion période d'essai)
 app.use('/api/trial', trialRoutes);
 
-// Route 404
-app.use((req, res) => {
+// ============= FRONTEND STATIQUE =============
+// Servir les fichiers statiques du frontend
+const publicPath = path.join(__dirname, '..', 'public');
+app.use(express.static(publicPath));
+
+// SPA fallback - renvoyer index.html pour toutes les routes non-API
+app.get('*', (req, res, next) => {
+  // Ne pas intercepter les routes API
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  // Servir la page admin pour /admin*
+  if (req.path.startsWith('/admin')) {
+    return res.sendFile(path.join(publicPath, 'admin.html'));
+  }
+  // Servir index.html pour tout le reste (SPA)
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
+
+// Route 404 pour les API seulement
+app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     error: 'Route non trouvée',
