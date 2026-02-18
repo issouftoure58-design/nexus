@@ -14,3 +14,11 @@ export function apiUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${base}${cleanPath}`;
 }
+
+// Wrapper fetch qui ajoute automatiquement l'URL de base pour les appels API
+export function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (typeof input === 'string' && input.startsWith('/api')) {
+    return fetch(apiUrl(input), init);
+  }
+  return fetch(input, init);
+}
