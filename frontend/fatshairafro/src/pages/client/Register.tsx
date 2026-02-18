@@ -1,0 +1,352 @@
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { Navigation } from "@/components/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import {
+  UserPlus,
+  Mail,
+  Lock,
+  User,
+  Phone,
+  Sparkles,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Gift,
+  CheckCircle2,
+} from "lucide-react";
+
+export default function ClientRegister() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [formData, setFormData] = useState({
+    nom: "",
+    prenom: "",
+    email: "",
+    telephone: "",
+    password: "",
+    confirmPassword: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Les mots de passe ne correspondent pas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!acceptTerms) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez accepter les conditions générales",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/client/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom: formData.nom,
+          prenom: formData.prenom,
+          email: formData.email,
+          telephone: formData.telephone,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de l'inscription");
+      }
+
+      toast({
+        title: "Inscription réussie !",
+        description: `Vous avez reçu ${data.bonusPoints} points de bienvenue ! Vérifiez votre email.`,
+      });
+
+      setLocation("/mon-compte/connexion");
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-950">
+      <Navigation />
+
+      {/* Background effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute inset-0 african-pattern opacity-5" />
+        <div className="absolute top-1/4 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl" />
+      </div>
+
+      {/* Letterbox bars */}
+      <div className="fixed top-0 left-0 right-0 h-4 bg-black z-30" />
+      <div className="fixed bottom-0 left-0 right-0 h-4 bg-black z-30" />
+
+      {/* Corner frames */}
+      <div className="fixed top-8 left-6 w-12 h-12 border-l-2 border-t-2 border-amber-500/30 z-20" />
+      <div className="fixed top-8 right-6 w-12 h-12 border-r-2 border-t-2 border-amber-500/30 z-20" />
+      <div className="fixed bottom-8 left-6 w-12 h-12 border-l-2 border-b-2 border-amber-500/30 z-20" />
+      <div className="fixed bottom-8 right-6 w-12 h-12 border-r-2 border-b-2 border-amber-500/30 z-20" />
+
+      <main className="relative z-10 flex items-center justify-center min-h-screen px-4 pt-20 pb-12">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 backdrop-blur-sm rounded-full border border-amber-500/30 mb-6">
+              <UserPlus className="h-4 w-4 text-amber-400" />
+              <span className="text-amber-300 text-sm font-medium">Inscription</span>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+              <span className="text-white">Créer votre </span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
+                compte fidélité
+              </span>
+            </h1>
+            <p className="text-white/60">
+              Rejoignez Fat's Hair-Afro et profitez d'avantages exclusifs
+            </p>
+          </div>
+
+          {/* Bonus Banner */}
+          <div className="mb-6 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-2xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-amber-500 rounded-xl">
+              <Gift className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-amber-300 font-semibold">50 points offerts</p>
+              <p className="text-white/60 text-sm">Bonus de bienvenue à l'inscription</p>
+            </div>
+          </div>
+
+          {/* Register Card */}
+          <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 overflow-hidden">
+            {/* Corner decorations */}
+            <div className="absolute top-4 left-4 w-6 h-6 border-l-2 border-t-2 border-amber-500/50 rounded-tl-lg" />
+            <div className="absolute top-4 right-4 w-6 h-6 border-r-2 border-t-2 border-amber-500/50 rounded-tr-lg" />
+            <div className="absolute bottom-4 left-4 w-6 h-6 border-l-2 border-b-2 border-amber-500/50 rounded-bl-lg" />
+            <div className="absolute bottom-4 right-4 w-6 h-6 border-r-2 border-b-2 border-amber-500/50 rounded-br-lg" />
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Name fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nom" className="text-white/80">
+                    Nom *
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                    <Input
+                      id="nom"
+                      placeholder="Diallo"
+                      value={formData.nom}
+                      onChange={(e) =>
+                        setFormData({ ...formData, nom: e.target.value })
+                      }
+                      className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prenom" className="text-white/80">
+                    Prénom
+                  </Label>
+                  <Input
+                    id="prenom"
+                    placeholder="Aminata"
+                    value={formData.prenom}
+                    onChange={(e) =>
+                      setFormData({ ...formData, prenom: e.target.value })
+                    }
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-white/80">
+                  Email *
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="votre@email.com"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Telephone */}
+              <div className="space-y-2">
+                <Label htmlFor="telephone" className="text-white/80">
+                  Téléphone *
+                </Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                  <Input
+                    id="telephone"
+                    type="tel"
+                    placeholder="06 12 34 56 78"
+                    value={formData.telephone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, telephone: e.target.value })
+                    }
+                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-white/80">
+                  Mot de passe *
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 caractères"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    className="pl-10 pr-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                <p className="text-white/40 text-xs">
+                  Au moins 8 caractères avec 1 chiffre et 1 lettre
+                </p>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-white/80">
+                  Confirmer le mot de passe *
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirmez votre mot de passe"
+                    value={formData.confirmPassword}
+                    onChange={(e) =>
+                      setFormData({ ...formData, confirmPassword: e.target.value })
+                    }
+                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-amber-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Terms checkbox */}
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="terms"
+                  checked={acceptTerms}
+                  onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                  className="mt-1 border-white/30 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                />
+                <Label htmlFor="terms" className="text-white/60 text-sm leading-relaxed">
+                  J'accepte les{" "}
+                  <Link href="/cgv" className="text-amber-400 hover:underline">
+                    conditions générales
+                  </Link>{" "}
+                  et la{" "}
+                  <Link href="/confidentialite" className="text-amber-400 hover:underline">
+                    politique de confidentialité
+                  </Link>
+                </Label>
+              </div>
+
+              {/* Submit button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/30"
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Création en cours...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5" />
+                    Créer mon compte
+                  </div>
+                )}
+              </Button>
+            </form>
+
+            {/* Divider */}
+            <div className="flex items-center gap-4 my-6">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-white/40 text-sm">ou</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+
+            {/* Login link */}
+            <div className="text-center">
+              <p className="text-white/60 mb-4">Vous avez déjà un compte ?</p>
+              <Link href="/mon-compte/connexion">
+                <Button
+                  variant="outline"
+                  className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:border-amber-500/30"
+                >
+                  Se connecter
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
