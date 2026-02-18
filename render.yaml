@@ -1,0 +1,10 @@
+services:
+  - type: static_site
+    name: fatshairafro-web
+    rootDir: frontend/fatshairafro
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
