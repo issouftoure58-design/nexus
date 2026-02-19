@@ -28,16 +28,24 @@ function minutesToLabel(minutes) {
  * @param {string} heure - HH:MM
  * @param {number} dureeMinutes - durée du nouveau RDV en minutes
  * @param {number|null} excludeId - ID RDV à exclure (pour modification)
+ * @param {string|null} tenantId - ID du tenant (isolation multi-tenant)
  * @returns {object} { conflict: boolean, rdv?, suggestions? }
  */
-export async function checkConflicts(supabase, date, heure, dureeMinutes, excludeId = null) {
+export async function checkConflicts(supabase, date, heure, dureeMinutes, excludeId = null, tenantId = null) {
   try {
-  // Récupérer tous les RDV actifs de cette date
-  const { data: rdvs, error } = await supabase
+  // Récupérer tous les RDV actifs de cette date POUR CE TENANT
+  let query = supabase
     .from('reservations')
     .select('id, heure, duree_minutes, service_nom, clients(prenom, nom)')
     .eq('date', date)
     .in('statut', ['demande', 'en_attente', 'en_attente_paiement', 'confirme']);
+
+  // 🔒 TENANT ISOLATION - filtrer par tenant
+  if (tenantId) {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  const { data: rdvs, error } = await query;
 
   if (error) {
     console.error('[CONFLICT CHECK] Erreur query:', error.message);

@@ -411,7 +411,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       const newHeure = heure_rdv || currentRdv.heure;
       const duree = currentRdv.duree_minutes || 60;
 
-      const conflictResult = await checkConflicts(supabase, newDate, newHeure, duree, req.params.id);
+      const conflictResult = await checkConflicts(supabase, newDate, newHeure, duree, req.params.id, tenantId);
       if (conflictResult.conflict) {
         const c = conflictResult.rdv;
         return res.status(409).json({
