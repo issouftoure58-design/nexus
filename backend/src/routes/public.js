@@ -27,7 +27,12 @@ const resolveTenant = async (req, res, next) => {
   // - /tenants/* : Auth admin JWT
   // - /billing/* : Auth admin JWT
   // - /quotas/* : Auth admin JWT
-  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules'];
+  // - /whatsapp/* : Routing par numéro Twilio
+  // - /twilio/* : Webhooks Twilio (voice)
+  // - /voice/* : TTS routes
+  // - /reviews/* : Public + Admin routes
+  // - /payment/* : Routes de paiement
+  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules', '/whatsapp', '/twilio', '/voice', '/reviews', '/payment'];
   if (skipPrefixes.some(prefix => req.path.startsWith(prefix))) {
     return next();
   }
