@@ -132,7 +132,7 @@ export default function Clients() {
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b last:border-0"
                     >
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
-                        {client.prenom[0]}{client.nom[0]}
+                        {(client.prenom?.[0] || '')}{(client.nom?.[0] || '')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-gray-900 truncate">
@@ -197,7 +197,7 @@ export default function Clients() {
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
-                              {client.prenom[0]}{client.nom[0]}
+                              {(client.prenom?.[0] || '')}{(client.nom?.[0] || '')}
                             </div>
                             <div>
                               <p className="font-medium text-gray-900">{client.prenom} {client.nom}</p>
@@ -461,7 +461,7 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
         <CardHeader className="flex flex-row items-center justify-between border-b">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-              {client.prenom[0]}{client.nom[0]}
+              {(client.prenom?.[0] || '')}{(client.nom?.[0] || '')}
             </div>
             <div>
               <div className="flex items-center gap-2">
