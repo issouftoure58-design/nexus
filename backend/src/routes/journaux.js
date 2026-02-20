@@ -14,12 +14,22 @@ router.use(authenticateAdmin);
 
 // Codes journaux disponibles
 const JOURNAUX = {
-  BQ: { code: 'BQ', libelle: 'Journal de Banque', description: 'Mouvements bancaires' },
+  BQ: { code: 'BQ', libelle: 'Journal de Banque', description: 'Mouvements bancaires (CB, virement, prélèvement)' },
+  CA: { code: 'CA', libelle: 'Journal de Caisse', description: 'Mouvements espèces' },
   VT: { code: 'VT', libelle: 'Journal des Ventes', description: 'Factures clients' },
   AC: { code: 'AC', libelle: 'Journal des Achats', description: 'Factures fournisseurs' },
   PA: { code: 'PA', libelle: 'Journal de Paie', description: 'Salaires et cotisations' },
   OD: { code: 'OD', libelle: 'Opérations Diverses', description: 'Écritures diverses' },
   AN: { code: 'AN', libelle: 'À Nouveaux', description: 'Reports à nouveau' }
+};
+
+// Modes de paiement et leur journal associé
+const MODES_PAIEMENT = {
+  especes: { journal: 'CA', compte: '530', libelle: 'Caisse' },
+  cb: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+  virement: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+  prelevement: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+  cheque: { journal: 'BQ', compte: '512', libelle: 'Banque' }
 };
 
 // Mapping catégories dépenses vers comptes
@@ -123,16 +133,58 @@ router.get('/ecritures', async (req, res) => {
 
     if (error) throw error;
 
-    // Calculer totaux
+    // Calculer totaux (pour la période affichée)
     const totalDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
     const totalCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
+
+    // Pour les journaux BQ et CA, calculer le solde CUMULATIF
+    // Le solde doit inclure TOUTES les écritures jusqu'à la période sélectionnée
+    let soldeTresorerie = null;
+    let labelSolde = null;
+
+    // Configuration des journaux de trésorerie
+    const journauxTresorerie = {
+      BQ: { compte: '512', label: 'solde_banque' },
+      CA: { compte: '530', label: 'solde_caisse' }
+    };
+
+    if (journauxTresorerie[journal]) {
+      const config = journauxTresorerie[journal];
+      labelSolde = config.label;
+
+      // Récupérer TOUTES les écritures du compte jusqu'à la période sélectionnée (cumulatif)
+      let queryTresorerie = supabase
+        .from('ecritures_comptables')
+        .select('debit, credit')
+        .eq('tenant_id', req.admin.tenant_id)
+        .eq('journal_code', journal)
+        .eq('compte_numero', config.compte);
+
+      // Si période spécifiée, prendre tout jusqu'à cette période incluse
+      if (periode) {
+        queryTresorerie = queryTresorerie.lte('periode', periode);
+      }
+
+      const { data: ecrituresTreso, error: errTreso } = await queryTresorerie;
+
+      if (!errTreso && ecrituresTreso) {
+        const debitTreso = ecrituresTreso.reduce((s, e) => s + (e.debit || 0), 0);
+        const creditTreso = ecrituresTreso.reduce((s, e) => s + (e.credit || 0), 0);
+        // Solde: débit = encaissements, crédit = décaissements
+        // Solde positif = plus d'encaissements que de décaissements
+        soldeTresorerie = (debitTreso - creditTreso) / 100; // Convertir en euros
+      }
+    }
 
     res.json({
       ecritures: ecritures || [],
       totaux: {
         debit: totalDebit,
         credit: totalCredit,
-        solde: totalDebit - totalCredit
+        solde: totalDebit - totalCredit,
+        ...(soldeTresorerie !== null && { [labelSolde]: soldeTresorerie }),
+        // Garder solde_banque pour rétrocompatibilité
+        ...(journal === 'BQ' && soldeTresorerie !== null && { solde_banque: soldeTresorerie })
       }
     });
   } catch (error) {
@@ -168,9 +220,30 @@ router.get('/ecritures/banque', async (req, res) => {
 
     if (error) throw error;
 
-    // Calculer solde
-    const totalDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
-    const totalCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
+    // Calculer le solde CUMULATIF (toutes les écritures jusqu'à la période incluse)
+    let queryCumulatif = supabase
+      .from('ecritures_comptables')
+      .select('debit, credit')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('journal_code', 'BQ')
+      .eq('compte_numero', '512');
+
+    if (periode) {
+      queryCumulatif = queryCumulatif.lte('periode', periode);
+    }
+
+    const { data: ecrituresCumulatif, error: errCumulatif } = await queryCumulatif;
+
+    let soldeCumulatif = 0;
+    if (!errCumulatif && ecrituresCumulatif) {
+      const totalDebit = ecrituresCumulatif.reduce((s, e) => s + (e.debit || 0), 0);
+      const totalCredit = ecrituresCumulatif.reduce((s, e) => s + (e.credit || 0), 0);
+      soldeCumulatif = (totalDebit - totalCredit) / 100;
+    }
+
+    // Calculer le mouvement du mois (pour info)
+    const mouvementDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
+    const mouvementCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
 
     res.json({
       ecritures: ecritures?.map(e => ({
@@ -178,7 +251,12 @@ router.get('/ecritures/banque', async (req, res) => {
         debit_euros: (e.debit / 100).toFixed(2),
         credit_euros: (e.credit / 100).toFixed(2)
       })) || [],
-      solde_comptable: (totalDebit - totalCredit) / 100
+      solde_comptable: soldeCumulatif, // Solde cumulatif
+      mouvement_mois: {
+        debit: mouvementDebit / 100,
+        credit: mouvementCredit / 100,
+        solde: (mouvementDebit - mouvementCredit) / 100
+      }
     });
   } catch (error) {
     console.error('[JOURNAUX] Erreur écritures banque:', error);
@@ -362,20 +440,26 @@ router.post('/generer/facture', async (req, res) => {
       });
     }
 
-    // Si facture payée, écriture banque
+    // Si facture payée, écriture banque ou caisse selon mode de paiement
     if (facture.statut === 'payee') {
       const datePaiement = facture.date_paiement || dateFacture;
       const periodePaie = datePaiement.slice(0, 7);
 
-      // Journal BQ - Encaissement
-      // Débit 512 Banque
+      // Déterminer le journal et compte selon le mode de paiement
+      const modePaiement = facture.mode_paiement || 'cb';
+      const configPaiement = MODES_PAIEMENT[modePaiement] || MODES_PAIEMENT.cb;
+      const journalCode = configPaiement.journal;
+      const compteNumero = configPaiement.compte;
+      const compteLibelle = configPaiement.libelle;
+
+      // Débit compte trésorerie (512 Banque ou 530 Caisse)
       ecritures.push({
         tenant_id: req.admin.tenant_id,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
-        compte_numero: '512',
-        compte_libelle: 'Banque',
+        compte_numero: compteNumero,
+        compte_libelle: compteLibelle,
         libelle: `Encaissement ${facture.numero} - ${facture.client_nom}`,
         debit: montantTTC,
         credit: 0,
@@ -387,7 +471,7 @@ router.post('/generer/facture', async (req, res) => {
       // Crédit 411 Client
       ecritures.push({
         tenant_id: req.admin.tenant_id,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
         compte_numero: '411',
@@ -791,14 +875,21 @@ async function generateFactureEcritures(tenantId, factureId) {
     const datePaiement = facture.date_paiement || dateFacture;
     const periodePaie = datePaiement.slice(0, 7);
 
+    // Déterminer le journal et compte selon le mode de paiement
+    const modePaiement = facture.mode_paiement || 'cb'; // Par défaut CB
+    const configPaiement = MODES_PAIEMENT[modePaiement] || MODES_PAIEMENT.cb;
+    const journalCode = configPaiement.journal;
+    const compteNumero = configPaiement.compte;
+    const compteLibelle = configPaiement.libelle;
+
     ecritures.push(
       {
         tenant_id: tenantId,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
-        compte_numero: '512',
-        compte_libelle: 'Banque',
+        compte_numero: compteNumero,
+        compte_libelle: compteLibelle,
         libelle: `Encaissement ${facture.numero}`,
         debit: montantTTC,
         credit: 0,
@@ -808,7 +899,7 @@ async function generateFactureEcritures(tenantId, factureId) {
       },
       {
         tenant_id: tenantId,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
         compte_numero: '411',
@@ -993,6 +1084,256 @@ router.get('/balance', async (req, res) => {
   } catch (error) {
     console.error('[JOURNAUX] Erreur balance:', error);
     res.status(500).json({ error: 'Erreur génération balance' });
+  }
+});
+
+// ============================================
+// À NOUVEAUX (REPORT À NOUVEAU)
+// ============================================
+
+/**
+ * POST /api/journaux/generer/a-nouveaux
+ * Génère les écritures d'à nouveaux pour le nouvel exercice
+ *
+ * Les à nouveaux reprennent les soldes des comptes de bilan (classes 1-5)
+ * et transfèrent le résultat (classes 6-7) vers le compte 120 (bénéfice) ou 129 (perte)
+ */
+router.post('/generer/a-nouveaux', async (req, res) => {
+  try {
+    const { exercice_precedent } = req.body;
+
+    if (!exercice_precedent) {
+      return res.status(400).json({ error: 'Exercice précédent requis' });
+    }
+
+    const exercicePrecedent = parseInt(exercice_precedent);
+    const nouvelExercice = exercicePrecedent + 1;
+    const dateAN = `${nouvelExercice}-01-01`;
+    const periodeAN = `${nouvelExercice}-01`;
+
+    // Vérifier si les AN existent déjà pour ce nouvel exercice
+    const { data: existants } = await supabase
+      .from('ecritures_comptables')
+      .select('id')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('journal_code', 'AN')
+      .eq('exercice', nouvelExercice)
+      .limit(1);
+
+    if (existants && existants.length > 0) {
+      return res.status(400).json({
+        error: `Les à nouveaux pour l'exercice ${nouvelExercice} existent déjà`
+      });
+    }
+
+    // Récupérer toutes les écritures de l'exercice précédent
+    const { data: ecritures, error } = await supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('exercice', exercicePrecedent);
+
+    if (error) throw error;
+
+    // Agréger par compte
+    const comptes = {};
+    ecritures?.forEach(e => {
+      if (!comptes[e.compte_numero]) {
+        comptes[e.compte_numero] = {
+          numero: e.compte_numero,
+          libelle: e.compte_libelle,
+          debit: 0,
+          credit: 0
+        };
+      }
+      comptes[e.compte_numero].debit += e.debit || 0;
+      comptes[e.compte_numero].credit += e.credit || 0;
+    });
+
+    // Calculer les soldes
+    const soldes = Object.values(comptes).map(c => ({
+      ...c,
+      solde: c.debit - c.credit
+    })).filter(c => c.solde !== 0); // Ne garder que les comptes avec solde non nul
+
+    // Séparer les comptes de bilan (1-5) et de résultat (6-7)
+    const comptesBilan = soldes.filter(c => {
+      const classe = c.numero.charAt(0);
+      return ['1', '2', '3', '4', '5'].includes(classe);
+    });
+
+    const comptesResultat = soldes.filter(c => {
+      const classe = c.numero.charAt(0);
+      return ['6', '7'].includes(classe);
+    });
+
+    // Calculer le résultat de l'exercice (Produits - Charges)
+    // Classe 7 = Produits (créditeur = positif)
+    // Classe 6 = Charges (débiteur = positif)
+    let resultat = 0;
+    comptesResultat.forEach(c => {
+      if (c.numero.charAt(0) === '7') {
+        // Produits: crédit - débit = solde créditeur positif = bénéfice
+        resultat += (c.credit - c.debit);
+      } else {
+        // Charges: débit - crédit = solde débiteur positif = charge
+        resultat -= (c.debit - c.credit);
+      }
+    });
+
+    const ecrituresAN = [];
+
+    // 1. Reports des comptes de bilan (classes 1-5)
+    comptesBilan.forEach(c => {
+      if (c.solde > 0) {
+        // Solde débiteur → débit dans AN
+        ecrituresAN.push({
+          tenant_id: req.admin.tenant_id,
+          journal_code: 'AN',
+          date_ecriture: dateAN,
+          numero_piece: `AN-${nouvelExercice}`,
+          compte_numero: c.numero,
+          compte_libelle: c.libelle,
+          libelle: `À nouveau ${c.libelle}`,
+          debit: c.solde,
+          credit: 0,
+          periode: periodeAN,
+          exercice: nouvelExercice
+        });
+      } else {
+        // Solde créditeur → crédit dans AN
+        ecrituresAN.push({
+          tenant_id: req.admin.tenant_id,
+          journal_code: 'AN',
+          date_ecriture: dateAN,
+          numero_piece: `AN-${nouvelExercice}`,
+          compte_numero: c.numero,
+          compte_libelle: c.libelle,
+          libelle: `À nouveau ${c.libelle}`,
+          debit: 0,
+          credit: Math.abs(c.solde),
+          periode: periodeAN,
+          exercice: nouvelExercice
+        });
+      }
+    });
+
+    // 2. Affectation du résultat
+    if (resultat !== 0) {
+      if (resultat > 0) {
+        // Bénéfice → Crédit 120 Report à nouveau (bénéfice)
+        ecrituresAN.push({
+          tenant_id: req.admin.tenant_id,
+          journal_code: 'AN',
+          date_ecriture: dateAN,
+          numero_piece: `AN-${nouvelExercice}`,
+          compte_numero: '120',
+          compte_libelle: 'Report à nouveau (bénéfice)',
+          libelle: `Résultat exercice ${exercicePrecedent}`,
+          debit: 0,
+          credit: resultat,
+          periode: periodeAN,
+          exercice: nouvelExercice
+        });
+      } else {
+        // Perte → Débit 129 Report à nouveau (perte)
+        ecrituresAN.push({
+          tenant_id: req.admin.tenant_id,
+          journal_code: 'AN',
+          date_ecriture: dateAN,
+          numero_piece: `AN-${nouvelExercice}`,
+          compte_numero: '129',
+          compte_libelle: 'Report à nouveau (perte)',
+          libelle: `Résultat exercice ${exercicePrecedent}`,
+          debit: Math.abs(resultat),
+          credit: 0,
+          periode: periodeAN,
+          exercice: nouvelExercice
+        });
+      }
+    }
+
+    // Vérifier l'équilibre des écritures AN
+    const totalDebit = ecrituresAN.reduce((s, e) => s + e.debit, 0);
+    const totalCredit = ecrituresAN.reduce((s, e) => s + e.credit, 0);
+
+    if (totalDebit !== totalCredit) {
+      console.error('[JOURNAUX] AN déséquilibrés:', { totalDebit, totalCredit, diff: totalDebit - totalCredit });
+      return res.status(500).json({
+        error: 'Écritures à nouveaux déséquilibrées',
+        detail: { totalDebit, totalCredit, diff: totalDebit - totalCredit }
+      });
+    }
+
+    // Insérer les écritures
+    if (ecrituresAN.length > 0) {
+      const { data, error: insertError } = await supabase
+        .from('ecritures_comptables')
+        .insert(ecrituresAN)
+        .select();
+
+      if (insertError) throw insertError;
+
+      res.json({
+        success: true,
+        message: `${ecrituresAN.length} écritures à nouveaux générées pour l'exercice ${nouvelExercice}`,
+        resultat: resultat / 100, // En euros
+        resultat_type: resultat >= 0 ? 'bénéfice' : 'perte',
+        nb_ecritures: ecrituresAN.length,
+        exercice: nouvelExercice
+      });
+    } else {
+      res.json({
+        success: true,
+        message: `Aucune écriture à nouveau à générer (pas de soldes sur l'exercice ${exercicePrecedent})`,
+        nb_ecritures: 0
+      });
+    }
+
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur génération à nouveaux:', error);
+    res.status(500).json({ error: 'Erreur génération à nouveaux' });
+  }
+});
+
+/**
+ * GET /api/journaux/a-nouveaux/status
+ * Vérifie si les à nouveaux ont été générés pour un exercice
+ */
+router.get('/a-nouveaux/status', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+
+    if (!exercice) {
+      return res.status(400).json({ error: 'Exercice requis' });
+    }
+
+    const { data: ecrituresAN, error } = await supabase
+      .from('ecritures_comptables')
+      .select('id, date_ecriture, compte_numero, debit, credit')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('journal_code', 'AN')
+      .eq('exercice', parseInt(exercice));
+
+    if (error) throw error;
+
+    const generes = ecrituresAN && ecrituresAN.length > 0;
+    const totalDebit = ecrituresAN?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
+    const totalCredit = ecrituresAN?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
+
+    res.json({
+      exercice: parseInt(exercice),
+      generes,
+      nb_ecritures: ecrituresAN?.length || 0,
+      totaux: {
+        debit: totalDebit / 100,
+        credit: totalCredit / 100
+      }
+    });
+
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur status à nouveaux:', error);
+    res.status(500).json({ error: 'Erreur vérification à nouveaux' });
   }
 });
 

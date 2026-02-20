@@ -53,8 +53,9 @@ const OPTIONAL_JOBS = {
   demandesAvis: process.env.ENABLE_AVIS_JOB === 'true',
 };
 
-// URL de base pour les formulaires
-const BASE_URL = process.env.BASE_URL || 'https://fatshairafro.fr';
+// URL de base pour les formulaires - DOIT être défini par tenant
+// Note: Sera surchargé par tenant dans les jobs multi-tenant
+const BASE_URL = process.env.BASE_URL || null;
 
 // Secret pour générer les tokens (à définir dans .env)
 const AVIS_TOKEN_SECRET = process.env.AVIS_TOKEN_SECRET || 'default-secret-change-in-production';
@@ -392,9 +393,17 @@ function generateAvisToken(rdvId) {
  * @param {string} token - Token de sécurité
  * @returns {string} URL complète du formulaire
  */
-function generateAvisLink(rdvId, token, tenantId = null) {
-  const tc = getTenantConfig(tenantId || 'fatshairafro');
-  const baseUrl = `https://${tc.domain || 'fatshairafro.fr'}`;
+function generateAvisLink(rdvId, token, tenantId) {
+  if (!tenantId) {
+    console.error('[Scheduler] TENANT_ID_REQUIRED: generateAvisLink requires tenantId');
+    return null;
+  }
+  const tc = getTenantConfig(tenantId);
+  if (!tc || !tc.domain) {
+    console.error(`[Scheduler] No domain configured for tenant: ${tenantId}`);
+    return null;
+  }
+  const baseUrl = `https://${tc.domain}`;
   return `${baseUrl}/avis?rdv_id=${rdvId}&token=${token}`;
 }
 
@@ -433,7 +442,13 @@ export async function sendRemerciementsJ1() {
         }
 
         // Envoyer Email + WhatsApp (tenant-aware)
-        const tenantId = rdv.tenant_id || 'fatshairafro';
+        // 🔒 TENANT ISOLATION: tenant_id doit être présent dans le RDV
+        const tenantId = rdv.tenant_id;
+        if (!tenantId) {
+          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP`);
+          errors++;
+          continue;
+        }
         const result = await sendRemerciement(rdv, tenantId);
 
         // Au moins un canal a fonctionné
@@ -517,7 +532,13 @@ export async function sendRelance24hJob() {
         console.log(`[Scheduler] 📤 Envoi relance 24h RDV ${rdv.id} - ${rdv.date} ${rdv.heure} - Tel: ...${telephone.slice(-4)}`);
 
         const acompte = rdv.acompte || 10;
-        const tenantId = rdv.tenant_id || 'fatshairafro';
+        // 🔒 TENANT ISOLATION: tenant_id obligatoire
+        const tenantId = rdv.tenant_id;
+        if (!tenantId) {
+          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP relance 24h`);
+          errors++;
+          continue;
+        }
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
         // Au moins un canal a fonctionné = succès
@@ -579,7 +600,13 @@ export async function sendRappelsJ1Job() {
         }
 
         const acompte = rdv.acompte || 10;
-        const tenantId = rdv.tenant_id || 'fatshairafro';
+        // 🔒 TENANT ISOLATION: tenant_id obligatoire
+        const tenantId = rdv.tenant_id;
+        if (!tenantId) {
+          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP rappel J-1`);
+          errors++;
+          continue;
+        }
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
         if (result.email.success || result.whatsapp.success) {
@@ -642,8 +669,15 @@ export async function sendDemandeAvisJ2() {
           continue;
         }
 
+        // 🔒 TENANT ISOLATION: tenant_id obligatoire
+        const tenantId = rdv.tenant_id;
+        if (!tenantId) {
+          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP demande avis`);
+          errors++;
+          continue;
+        }
+
         // Générer le token sécurisé et le lien
-        const tenantId = rdv.tenant_id || 'fatshairafro';
         const token = generateAvisToken(rdv.id);
         const lienAvis = generateAvisLink(rdv.id, token, tenantId);
 

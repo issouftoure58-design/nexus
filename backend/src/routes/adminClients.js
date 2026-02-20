@@ -219,10 +219,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     const nbRdvHonores = allRdv?.filter(r => r.statut === 'termine').length || 0;
     const nbRdvAnnules = allRdv?.filter(r => r.statut === 'annule').length || 0;
 
-    // CA total (RDV terminés uniquement) - prix stocké en centimes, convertir en euros
+    // CA total (RDV terminés uniquement) - prix stocké en euros
     const caTotal = allRdv
       ?.filter(r => r.statut === 'termine')
-      .reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+      .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
 
     // Service favori (le plus demandé)
     const servicesCount = {};

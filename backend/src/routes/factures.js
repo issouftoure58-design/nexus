@@ -608,21 +608,31 @@ router.post('/envoyer-toutes', async (req, res) => {
 /**
  * PATCH /api/factures/:id/statut
  * Changer le statut d'une facture
+ * @param {string} statut - Nouveau statut
+ * @param {string} mode_paiement - Mode de paiement (requis si statut = payee): especes, cb, virement, prelevement, cheque
  */
 router.patch('/:id/statut', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    const { statut } = req.body;
+    const { statut, mode_paiement } = req.body;
 
     const statutsValides = ['brouillon', 'generee', 'envoyee', 'payee', 'annulee'];
     if (!statut || !statutsValides.includes(statut)) {
       return res.status(400).json({ success: false, error: 'Statut invalide' });
     }
 
+    // Mode de paiement requis pour marquer comme payée
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    if (statut === 'payee' && mode_paiement && !modesPaiementValides.includes(mode_paiement)) {
+      return res.status(400).json({ success: false, error: 'Mode de paiement invalide' });
+    }
+
     const updates = { statut };
     if (statut === 'payee') {
       updates.date_paiement = new Date().toISOString();
+      // Mode de paiement par défaut: CB si non spécifié (rétrocompatibilité)
+      updates.mode_paiement = mode_paiement || 'cb';
     }
 
     const { data, error } = await supabase
@@ -635,7 +645,7 @@ router.patch('/:id/statut', async (req, res) => {
 
     if (error) throw error;
 
-    // Régénérer les écritures comptables (notamment pour ajouter les écritures BQ si payée)
+    // Régénérer les écritures comptables (notamment pour ajouter les écritures BQ/CA si payée)
     await genererEcrituresFacture(tenantId, parseInt(id));
 
     res.json({ success: true, facture: data });

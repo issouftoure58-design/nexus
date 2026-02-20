@@ -904,6 +904,15 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
     // Boucle pour gérer les appels d'outils (comme halimahAI.js)
     let toolResults = [];
     let toolLoopCount = 0;
+
+    // Contexte à passer aux outils (tenant_id, etc.)
+    const toolContext = {
+      tenantId: req.admin?.tenant_id,
+      adminId: req.admin?.id,
+      adminEmail: req.admin?.email
+    };
+    console.log('[HALIMAH PRO] 🔑 Tool context tenant_id:', toolContext.tenantId);
+
     console.log('═══════════════════════════════════════════════════════════');
     console.log('🔄 DÉBUT BOUCLE OUTILS - stop_reason initial:', response.stop_reason);
     console.log('═══════════════════════════════════════════════════════════');
@@ -933,7 +942,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
         console.log('📥 INPUT:', JSON.stringify(toolUseBlock.input, null, 2));
 
         const startTime = Date.now();
-        const toolResult = await executeTool(toolUseBlock.name, toolUseBlock.input);
+        const toolResult = await executeTool(toolUseBlock.name, toolUseBlock.input, toolContext);
         const duration = Date.now() - startTime;
 
         console.log(`📤 RÉSULTAT (${duration}ms):`, JSON.stringify(toolResult).substring(0, 500));
@@ -1048,7 +1057,9 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
 });
 
 // Fonction pour exécuter les tools
-async function executeTool(toolName, toolInput) {
+// context: { tenantId, adminId, adminEmail } - passé depuis le handler /chat
+async function executeTool(toolName, toolInput, context = {}) {
+  const { tenantId } = context;
   try {
     switch (toolName) {
       case 'parse_date': {
@@ -1116,10 +1127,10 @@ async function executeTool(toolName, toolInput) {
       }
 
       case 'get_stats':
-        return await getStats(toolInput.periode, toolInput.type);
+        return await getStats(toolInput.periode, toolInput.type, tenantId);
 
       case 'get_rdv':
-        return await getRdv(toolInput.date, toolInput.statut, toolInput.limit);
+        return await getRdv(toolInput.date, toolInput.statut, toolInput.limit, tenantId);
 
       case 'update_rdv':
         return await updateRdv(
@@ -1763,8 +1774,9 @@ async function executeTool(toolName, toolInput) {
       case 'agent_execute':
         {
           // Créer une fonction executeTool locale pour passer à executeTask
+          // Passe le contexte (tenant_id) aux outils exécutés par l'agent
           const executeToolWrapper = async (action, params) => {
-            return await executeTool(action, params);
+            return await executeTool(action, params, context);
           };
 
           const result = await executeTask(toolInput.task_id, executeToolWrapper);
@@ -1773,8 +1785,9 @@ async function executeTool(toolName, toolInput) {
 
       case 'agent_confirm':
         {
+          // Passe le contexte (tenant_id) aux outils exécutés par l'agent
           const executeToolWrapper = async (action, params) => {
-            return await executeTool(action, params);
+            return await executeTool(action, params, context);
           };
 
           const result = await confirmAndContinue(toolInput.task_id, executeToolWrapper);

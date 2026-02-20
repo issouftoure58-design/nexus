@@ -1,5 +1,5 @@
 /**
- * Reservations - Page complète des réservations NEXUS
+ * Activités - Page complète des activités business NEXUS
  * CRUD complet avec filtres, modals, export CSV
  */
 
@@ -16,9 +16,9 @@ import { Input } from '../components/ui/input';
 
 // Tabs de navigation
 const tabs = [
-  { label: 'Planning', path: '/reservations' },
-  { label: 'Historique', path: '/reservations/historique' },
-  { label: 'Paramètres', path: '/reservations/parametres' },
+  { label: 'Planning', path: '/activites' },
+  { label: 'Historique', path: '/activites/historique' },
+  { label: 'Paramètres', path: '/activites/parametres' },
 ];
 
 interface Client {
@@ -80,7 +80,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   no_show: { label: 'Absent', color: 'text-gray-500 dark:text-gray-500', bgColor: 'bg-gray-200 dark:bg-gray-700' },
 };
 
-export default function Reservations() {
+const MODES_PAIEMENT = [
+  { value: 'cb', label: 'Carte bancaire', icon: '💳' },
+  { value: 'especes', label: 'Espèces', icon: '💵' },
+  { value: 'virement', label: 'Virement', icon: '🏦' },
+  { value: 'cheque', label: 'Chèque', icon: '📝' },
+  { value: 'prelevement', label: 'Prélèvement', icon: '🔄' },
+];
+
+export default function Activites() {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -126,6 +134,12 @@ export default function Reservations() {
   const [editForm, setEditForm] = useState({ service_nom: '', date: '', heure: '', statut: '', notes: '', membre_id: 0 });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+
+  // Modal paiement (pour marquer terminé)
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingTermineRdvId, setPendingTermineRdvId] = useState<number | null>(null);
+  const [selectedModePaiement, setSelectedModePaiement] = useState('cb');
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Création RDV
   const [clients, setClients] = useState<Client[]>([]);
@@ -379,24 +393,56 @@ export default function Reservations() {
     }
   };
 
-  const handleChangeStatut = async (rdvId: number, newStatut: string) => {
+  const handleChangeStatut = async (rdvId: number, newStatut: string, modePaiement?: string) => {
+    // Si on passe en terminé, demander le mode de paiement
+    if (newStatut === 'termine' && !modePaiement) {
+      setPendingTermineRdvId(rdvId);
+      setSelectedModePaiement('cb');
+      setShowPaymentModal(true);
+      return;
+    }
+
     try {
       const token = getToken();
+      const body: { statut: string; mode_paiement?: string } = { statut: newStatut };
+      if (newStatut === 'termine' && modePaiement) {
+        body.mode_paiement = modePaiement;
+      }
+
       const response = await fetch(`/api/admin/reservations/${rdvId}/statut`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ statut: newStatut })
+        body: JSON.stringify(body)
       });
 
-      if (!response.ok) throw new Error('Erreur changement statut');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erreur changement statut');
+      }
 
       fetchReservations();
       fetchStats();
+    } catch (error: any) {
+      console.error('Erreur:', error);
+      alert(error.message || 'Erreur lors du changement de statut');
+    }
+  };
+
+  const handleConfirmPaymentAndTermine = async () => {
+    if (!pendingTermineRdvId) return;
+
+    setPaymentLoading(true);
+    try {
+      await handleChangeStatut(pendingTermineRdvId, 'termine', selectedModePaiement);
+      setShowPaymentModal(false);
+      setPendingTermineRdvId(null);
     } catch (error) {
       console.error('Erreur:', error);
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -878,7 +924,7 @@ export default function Reservations() {
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                            {!['termine', 'annule'].includes(rdv.statut) && (
+                            {rdv.statut !== 'annule' && (
                               <select
                                 value={rdv.statut}
                                 onChange={(e) => handleChangeStatut(rdv.id, e.target.value)}
@@ -1411,6 +1457,70 @@ export default function Reservations() {
               <Button onClick={handleCreateRdv} disabled={createLoading} className="flex-1">
                 {createLoading ? 'Création...' : 'Créer la réservation'}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Paiement - Mode de paiement pour terminé */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setShowPaymentModal(false); setPendingTermineRdvId(null); }}>
+          <div
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Mode de paiement</h2>
+              <button onClick={() => { setShowPaymentModal(false); setPendingTermineRdvId(null); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Sélectionnez le mode de paiement pour marquer cette activité comme terminée.
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                {MODES_PAIEMENT.map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setSelectedModePaiement(mode.value)}
+                    className={`p-4 rounded-lg border-2 transition-all text-center ${
+                      selectedModePaiement === mode.value
+                        ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">{mode.icon}</span>
+                    <span className={`text-sm font-medium ${
+                      selectedModePaiement === mode.value
+                        ? 'text-cyan-700 dark:text-cyan-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {mode.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => { setShowPaymentModal(false); setPendingTermineRdvId(null); }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleConfirmPaymentAndTermine}
+                  disabled={paymentLoading}
+                  className="flex-1"
+                >
+                  {paymentLoading ? 'Validation...' : 'Confirmer'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

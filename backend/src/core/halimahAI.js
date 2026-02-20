@@ -197,7 +197,10 @@ const tools = [
 // IMPLÉMENTATION DES OUTILS
 // ============================================
 
-async function executeTool(toolName, toolInput, tenantId = 'fatshairafro') {
+async function executeTool(toolName, toolInput, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: executeTool requires explicit tenantId');
+  }
   console.log(`[HALIMAH AI] Outil appelé: ${toolName}`, toolInput, `(tenant: ${tenantId})`);
 
   switch (toolName) {
@@ -727,7 +730,10 @@ function calculerProchainJour(jourCible) {
 // Stockage des conversations (en mémoire, à remplacer par Redis/DB en prod)
 const conversations = new Map();
 
-export async function chat(sessionId, userMessage, canal = 'chat', tenantId = 'fatshairafro') {
+export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: chat requires explicit tenantId');
+  }
   console.log(`[HALIMAH AI] Session: ${sessionId}, Canal: ${canal}, Tenant: ${tenantId}`);
   console.log(`[HALIMAH AI] Message: ${userMessage}`);
 

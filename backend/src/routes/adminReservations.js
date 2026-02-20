@@ -554,7 +554,59 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       details: { updates }
     });
 
-    res.json({ reservation, changes: updates });
+    // 📄 Synchronisation facture si changement de statut
+    let facture = null;
+    if (updates.statut && updates.statut !== currentRdv.statut) {
+      // Terminé → Confirmé : remettre la facture en "générée"
+      if (updates.statut === 'confirme' && currentRdv.statut === 'termine') {
+        try {
+          const { data: factureExistante } = await supabase
+            .from('factures')
+            .select('id, numero, statut')
+            .eq('reservation_id', req.params.id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+          if (factureExistante && factureExistante.statut === 'payee') {
+            await supabase
+              .from('factures')
+              .update({
+                statut: 'generee',
+                date_paiement: null,
+                mode_paiement: null
+              })
+              .eq('id', factureExistante.id);
+
+            // Supprimer les écritures de paiement (BQ/CA)
+            await supabase
+              .from('ecritures_comptables')
+              .delete()
+              .eq('facture_id', factureExistante.id)
+              .in('journal_code', ['BQ', 'CA']);
+
+            console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} remise en générée`);
+            facture = { ...factureExistante, statut: 'generee' };
+          }
+        } catch (factureErr) {
+          console.error('[ADMIN EDIT] Erreur retour facture générée:', factureErr.message);
+        }
+      }
+
+      // Annulé : annuler la facture
+      if (updates.statut === 'annule') {
+        try {
+          const cancelResult = await cancelFactureFromReservation(req.params.id, tenantId, false);
+          if (cancelResult.success && cancelResult.facture) {
+            facture = cancelResult.facture;
+            console.log(`[ADMIN EDIT] Facture annulée`);
+          }
+        } catch (factureErr) {
+          console.error('[ADMIN EDIT] Erreur annulation facture:', factureErr.message);
+        }
+      }
+    }
+
+    res.json({ reservation, changes: updates, facture });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur modification:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -568,12 +620,27 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { statut } = req.body;
+    const { statut, mode_paiement } = req.body;
 
     if (!statut || !STATUTS_VALIDES.includes(statut)) {
       return res.status(400).json({
         error: `Statut invalide. Valeurs acceptées : ${STATUTS_VALIDES.join(', ')}`
       });
+    }
+
+    // Mode de paiement obligatoire pour marquer comme terminé
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    if (statut === 'termine') {
+      if (!mode_paiement) {
+        return res.status(400).json({
+          error: 'Mode de paiement requis pour marquer comme terminé'
+        });
+      }
+      if (!modesPaiementValides.includes(mode_paiement)) {
+        return res.status(400).json({
+          error: `Mode de paiement invalide. Valeurs acceptées : ${modesPaiementValides.join(', ')}`
+        });
+      }
     }
 
     // Récupérer la réservation actuelle (🔒 TENANT ISOLATION)
@@ -595,13 +662,21 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       });
     }
 
+    // Préparer les données de mise à jour
+    const updateData = {
+      statut,
+      updated_at: new Date().toISOString()
+    };
+
+    // Ajouter mode_paiement si terminé
+    if (statut === 'termine' && mode_paiement) {
+      updateData.mode_paiement = mode_paiement;
+    }
+
     // Mettre à jour le statut (🔒 TENANT ISOLATION)
     const { data: reservation, error } = await supabase
       .from('reservations')
-      .update({
-        statut,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .select()
@@ -623,7 +698,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     let facture = null;
 
     if (statut === 'termine') {
-      // RDV terminé → Facture payée (le prestataire ne termine que si paiement confirmé)
+      // RDV terminé → Facture payée avec mode de paiement
       try {
         const factureResult = await createFactureFromReservation(req.params.id, tenantId, {
           statut: 'payee',
@@ -631,12 +706,25 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         });
         if (factureResult.success) {
           facture = factureResult.facture;
-          // Ajouter la date de paiement
+          // Ajouter la date de paiement et le mode de paiement
           await supabase
             .from('factures')
-            .update({ date_paiement: new Date().toISOString() })
+            .update({
+              date_paiement: new Date().toISOString(),
+              mode_paiement: mode_paiement
+            })
             .eq('id', facture.id);
-          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} marquée payée`);
+          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} marquée payée (${mode_paiement})`);
+
+          // Régénérer les écritures comptables avec le bon journal (BQ ou CA)
+          try {
+            const { genererEcrituresFacture } = await import('./journaux.js');
+            if (genererEcrituresFacture) {
+              await genererEcrituresFacture(tenantId, facture.id);
+            }
+          } catch (ecrituresErr) {
+            console.error('[ADMIN RESERVATIONS] Erreur génération écritures:', ecrituresErr.message);
+          }
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur marquage facture payée:', factureErr.message);
@@ -658,6 +746,43 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         });
       } catch (workflowErr) {
         console.error('[ADMIN RESERVATIONS] Erreur workflow (non bloquant):', workflowErr.message);
+      }
+    }
+
+    // Retour de terminé vers confirmé → Remettre la facture en "générée"
+    if (statut === 'confirme' && currentRdv.statut === 'termine') {
+      try {
+        // Trouver la facture liée
+        const { data: factureExistante } = await supabase
+          .from('factures')
+          .select('id, numero, statut')
+          .eq('reservation_id', req.params.id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (factureExistante && factureExistante.statut === 'payee') {
+          // Remettre la facture en générée
+          await supabase
+            .from('factures')
+            .update({
+              statut: 'generee',
+              date_paiement: null,
+              mode_paiement: null
+            })
+            .eq('id', factureExistante.id);
+
+          // Supprimer les écritures de paiement (BQ/CA)
+          await supabase
+            .from('ecritures_comptables')
+            .delete()
+            .eq('facture_id', factureExistante.id)
+            .in('journal_code', ['BQ', 'CA']);
+
+          console.log(`[ADMIN RESERVATIONS] Facture ${factureExistante.numero} remise en générée`);
+          facture = { ...factureExistante, statut: 'generee' };
+        }
+      } catch (factureErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur retour facture générée:', factureErr.message);
       }
     }
 

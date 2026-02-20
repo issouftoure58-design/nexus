@@ -12,17 +12,17 @@ export class AnalyticsService {
    * Calcul KPI pour une période donnée
    */
   async getKPI(tenantId, dateDebut, dateFin) {
-    // Réservations période
-    const { data: reservations } = await supabase
+    console.log(`[ANALYTICS] getKPI called: tenant=${tenantId}, debut=${dateDebut}, fin=${dateFin}`);
+
+    // Réservations période (service_nom est déjà dans reservations, pas besoin de jointure services)
+    const { data: reservations, error } = await supabase
       .from('reservations')
-      .select(`
-        *,
-        clients(nom, prenom),
-        services(nom, duree)
-      `)
+      .select('*')
       .eq('tenant_id', tenantId)
       .gte('date', dateDebut)
       .lte('date', dateFin);
+
+    console.log(`[ANALYTICS] Query result: ${reservations?.length || 0} reservations, error: ${error?.message || 'none'}`);
 
     // Période précédente (même durée)
     const dureeJours = Math.ceil((new Date(dateFin) - new Date(dateDebut)) / (1000 * 60 * 60 * 24));
@@ -41,24 +41,36 @@ export class AnalyticsService {
     const rdvConfirmes = reservations?.filter(r => r.statut === 'confirme' || r.statut === 'termine').length || 0;
     const rdvAnnules = reservations?.filter(r => r.statut === 'annule').length || 0;
 
-    const caTotal = reservations?.reduce((sum, r) => {
+    // Taux TVA par défaut (20% en France)
+    const TAUX_TVA_DEFAUT = 0.20;
+
+    // Fonction pour convertir TTC en HT
+    const ttcToHt = (prixTtc, tauxTva = TAUX_TVA_DEFAUT) => prixTtc / (1 + tauxTva);
+
+    // CA en HT (les prix en base sont en centimes TTC)
+    const caTotalTtc = reservations?.reduce((sum, r) => {
       const prix = r.prix_total || (r.prix_service || 0) + (r.frais_deplacement || 0);
       if (r.statut === 'confirme' || r.statut === 'termine') {
         return sum + prix;
       }
       return sum;
     }, 0) || 0;
+
+    // Convertir en HT
+    const caTotal = ttcToHt(caTotalTtc);
 
     const caMoyen = rdvConfirmes > 0 ? caTotal / rdvConfirmes : 0;
 
-    // Calculs période précédente
-    const caPrecedent = reservationsPrecedentes?.reduce((sum, r) => {
+    // Calculs période précédente (également en HT)
+    const caPrecedentTtc = reservationsPrecedentes?.reduce((sum, r) => {
       const prix = r.prix_total || (r.prix_service || 0) + (r.frais_deplacement || 0);
       if (r.statut === 'confirme' || r.statut === 'termine') {
         return sum + prix;
       }
       return sum;
     }, 0) || 0;
+
+    const caPrecedent = ttcToHt(caPrecedentTtc);
 
     const rdvPrecedent = reservationsPrecedentes?.filter(r => r.statut === 'confirme' || r.statut === 'termine').length || 0;
 
@@ -87,7 +99,7 @@ export class AnalyticsService {
       }
     }
 
-    // Services populaires
+    // Services populaires (CA en HT)
     const servicesStats = {};
     reservations?.forEach(r => {
       const service = r.services?.nom || r.service_nom || 'Autre';
@@ -96,8 +108,9 @@ export class AnalyticsService {
       }
       servicesStats[service].count++;
       if (r.statut === 'confirme' || r.statut === 'termine') {
-        const prix = r.prix_total || (r.prix_service || 0) + (r.frais_deplacement || 0);
-        servicesStats[service].ca += prix;
+        const prixTtc = r.prix_total || (r.prix_service || 0) + (r.frais_deplacement || 0);
+        // Convertir en HT
+        servicesStats[service].ca += ttcToHt(prixTtc);
       }
     });
 
@@ -105,7 +118,7 @@ export class AnalyticsService {
       .map(([nom, stats]) => ({
         nom,
         nb_rdv: stats.count,
-        ca_euros: (stats.ca / 100).toFixed(2)
+        ca_ht_euros: (stats.ca / 100).toFixed(2)
       }))
       .sort((a, b) => b.nb_rdv - a.nb_rdv)
       .slice(0, 5);
@@ -126,10 +139,11 @@ export class AnalyticsService {
     return {
       periode: { debut: dateDebut, fin: dateFin },
       revenus: {
-        ca_total_euros: (caTotal / 100).toFixed(2),
-        ca_moyen_euros: (caMoyen / 100).toFixed(2),
+        ca_total_ht: (caTotal / 100).toFixed(2),
+        ca_moyen_ht: (caMoyen / 100).toFixed(2),
         evolution_pourcent: evolutionCA.toFixed(1),
-        tendance: evolutionCA > 0 ? 'hausse' : evolutionCA < 0 ? 'baisse' : 'stable'
+        tendance: evolutionCA > 0 ? 'hausse' : evolutionCA < 0 ? 'baisse' : 'stable',
+        note: 'Montants HT (TVA 20%)'
       },
       rdv: {
         total: rdvTotal,
@@ -142,12 +156,12 @@ export class AnalyticsService {
       clients: {
         actifs: clientIds.length,
         nouveaux: nouveauxClients.length,
-        panier_moyen_euros: (caMoyen / 100).toFixed(2)
+        panier_moyen_ht: (caMoyen / 100).toFixed(2)
       },
       top_services: topServices,
       jours_populaires: topJours,
       comparaison_periode_precedente: {
-        ca_precedent_euros: (caPrecedent / 100).toFixed(2),
+        ca_precedent_ht: (caPrecedent / 100).toFixed(2),
         rdv_precedent: rdvPrecedent
       }
     };

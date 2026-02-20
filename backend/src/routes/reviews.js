@@ -37,7 +37,15 @@ const resolveTenant = (req, res, next) => {
     }
   }
 
-  req.tenantId = tenantId || tenantHeader || req.query.tenant_id || 'fatshairafro';
+  req.tenantId = tenantId || tenantHeader || req.query.tenant_id;
+
+  // 🔒 TENANT ISOLATION: Pas de fallback
+  if (!req.tenantId) {
+    return res.status(400).json({
+      error: 'tenant_required',
+      message: 'Tenant ID is required via domain, X-Tenant-ID header, or tenant_id query param'
+    });
+  }
   next();
 };
 

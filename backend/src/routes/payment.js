@@ -87,7 +87,7 @@ async function saveTransaction(data) {
     type: data.type || 'acompte',
     status: data.status || 'pending',
     metadata: data.metadata || {},
-    tenant_id: data.tenant_id || 'fatshairafro',
+    tenant_id: data.tenant_id, // REQUIRED - no fallback allowed
   };
 
   const { data: inserted, error } = await db

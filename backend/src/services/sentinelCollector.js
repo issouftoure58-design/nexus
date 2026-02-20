@@ -59,7 +59,7 @@ class SentinelCollector {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const { data: activeClientIds } = await supabase
-        .from('rendezvous')
+        .from('reservations')
         .select('client_id')
         .eq('tenant_id', tenantId)
         .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
@@ -68,7 +68,7 @@ class SentinelCollector {
 
       // 2. RESERVATIONS DU JOUR
       const { data: reservations } = await supabase
-        .from('rendezvous')
+        .from('reservations')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('date', dateStr);
@@ -77,19 +77,14 @@ class SentinelCollector {
       const confirmed = reservations?.filter(r => r.statut === 'confirme').length || 0;
       const cancelled = reservations?.filter(r => r.statut === 'annule').length || 0;
       const completed = reservations?.filter(r => r.statut === 'termine').length || 0;
-      const pending = reservations?.filter(r => r.statut === 'en_attente').length || 0;
+      const pending = reservations?.filter(r => r.statut === 'en_attente' || r.statut === 'demande').length || 0;
       const noShows = reservations?.filter(r => r.statut === 'no_show').length || 0;
 
-      // 3. REVENUS
-      const { data: paidReservations } = await supabase
-        .from('rendezvous')
-        .select('prix, statut_paiement')
-        .eq('tenant_id', tenantId)
-        .eq('date', dateStr);
-
-      const revenueTotal = paidReservations?.reduce((sum, r) => sum + (parseFloat(r.prix) || 0), 0) || 0;
-      const revenuePaid = paidReservations?.filter(r => r.statut_paiement === 'paye')
-        .reduce((sum, r) => sum + (parseFloat(r.prix) || 0), 0) || 0;
+      // 3. REVENUS (prix_total en centimes)
+      const revenueTotal = reservations?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+      // Considérer comme payé les RDV terminés ou confirmés
+      const revenuePaid = reservations?.filter(r => r.statut === 'termine' || r.statut === 'confirme')
+        .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
       const revenuePending = revenueTotal - revenuePaid;
       const averageBasket = totalReservations > 0 ? revenueTotal / totalReservations : 0;
 
@@ -136,7 +131,7 @@ class SentinelCollector {
       // 9. TOP SERVICES
       const serviceStats = {};
       reservations?.forEach(r => {
-        const serviceName = r.service_name || 'Autre';
+        const serviceName = r.service_nom || 'Autre';
         serviceStats[serviceName] = (serviceStats[serviceName] || 0) + 1;
       });
       const topServices = Object.entries(serviceStats)

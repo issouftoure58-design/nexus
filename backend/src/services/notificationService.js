@@ -18,14 +18,21 @@ import {
 import { getTenantConfig } from '../config/tenants/index.js';
 
 // Helper : résoudre la config tenant
+// 🔒 TENANT ISOLATION: tenantId est OBLIGATOIRE
 function resolveTenant(tenantId) {
-  const tc = getTenantConfig(tenantId || 'fatshairafro');
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: resolveTenant requires explicit tenantId');
+  }
+  const tc = getTenantConfig(tenantId);
+  if (!tc) {
+    throw new Error(`TENANT_NOT_FOUND: ${tenantId}`);
+  }
   return {
-    salonName: tc.name || "Fat's Hair-Afro",
-    gerante: tc.gerante || 'Fatou',
-    adresse: tc.adresse || '8 rue des Monts Rouges, 95130 Franconville',
-    telephone: tc.telephone || '07 82 23 50 20',
-    domain: tc.domain || 'fatshairafro.fr',
+    salonName: tc.name,
+    gerante: tc.gerante,
+    adresse: tc.adresse,
+    telephone: tc.telephone,
+    domain: tc.domain,
   };
 }
 

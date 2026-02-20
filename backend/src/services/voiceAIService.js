@@ -11,6 +11,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import bookingService from './bookingService.js';
 // NEXUS CORE UNIFIÉ - Source unique de logique métier
 import nexusCore from '../core/unified/nexusCore.js';
+// 🔒 TENANT ISOLATION: Résolution du tenant depuis le numéro appelé
+import { getTenantByPhone } from '../config/tenants/index.js';
+
+/**
+ * 🔒 Résout le tenantId depuis le numéro de téléphone appelé
+ * @param {string} toNumber - Numéro appelé (format E.164)
+ * @returns {Promise<string|null>} tenantId ou null si non trouvé
+ */
+async function resolveTenantFromCalledNumber(toNumber) {
+  if (!toNumber) return null;
+  const cleanNumber = toNumber.replace(/[^\d+]/g, '');
+  const { tenantId } = getTenantByPhone(cleanNumber);
+  return tenantId || null;
+}
 
 // Flag pour utiliser nexusCore
 const USE_NEXUS_PHONE = process.env.USE_NEXUS_PHONE === 'true';
@@ -427,9 +441,19 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
     // Signature: processMessage(message, channel, context)
     // Note: processMessage gère TOUT en interne (création RDV via tools, SMS, etc.)
     // Il retourne {success, response, channel, hasBooking, duration}
+    // 🔒 TENANT ISOLATION: Le tenantId doit être résolu depuis le numéro appelé
+    // TODO: Implémenter resolveTenantFromPhone(toNumber) pour les appels vocaux
+    const tenantId = callContext?.tenantId || await resolveTenantFromCalledNumber(toNumber);
+    if (!tenantId) {
+      console.error('[HALIMAH TEL-NEXUS] TENANT_ID_REQUIRED: Cannot process call without tenantId');
+      return {
+        response: "Désolé, une erreur technique est survenue. Veuillez rappeler plus tard.",
+        shouldEndCall: true
+      };
+    }
     const result = await nexusCore.processMessage(userMessage, 'phone', {
       conversationId: callSid,
-      tenantId: 'fatshairafro'
+      tenantId
     });
 
     console.log('[HALIMAH TEL-NEXUS] Résultat:', result.success ? '✅' : '❌', 'hasBooking:', result.hasBooking);

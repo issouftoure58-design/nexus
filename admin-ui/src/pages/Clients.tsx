@@ -464,7 +464,18 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
               {client.prenom[0]}{client.nom[0]}
             </div>
             <div>
-              <CardTitle>{client.prenom} {client.nom}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>{client.prenom} {client.nom}</CardTitle>
+                {client.tags && client.tags.length > 0 && client.tags.map((tag, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className={tag === 'VIP' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : ''}
+                  >
+                    {tag === 'VIP' ? '⭐ VIP' : tag}
+                  </Badge>
+                ))}
+              </div>
               <p className="text-sm text-gray-500">{client.telephone}</p>
             </div>
           </div>

@@ -1,444 +1,1446 @@
+import { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react'
+
+// Lazy load Spline pour éviter de bloquer le chargement initial
+const Spline = lazy(() => import('@splinetool/react-spline'))
 import {
   Phone, MessageCircle, Calendar, BarChart3, Mail,
   ShoppingBag, Users, Globe, Search, Check, ArrowRight,
-  Sparkles, Clock, Shield, Zap, Star, ChevronRight
+  Sparkles, Clock, Shield, Zap, Star, ChevronRight,
+  Send, Mic, Menu, X, Play, Pause, ChevronLeft, Monitor,
+  Image as ImageIcon, Film, Volume2, VolumeX
 } from 'lucide-react'
+import { clsx } from 'clsx'
 
-// Configuration des modules avec les vrais prix
-const MODULES = [
-  {
-    id: 'telephone_ia',
-    name: 'Telephone IA',
-    description: 'Agent IA qui repond au telephone 24/7',
-    price: 99,
-    included: '300 min',
-    icon: Phone,
-    color: 'bg-blue-500',
-    features: ['Prise de RDV automatique', 'Reponses aux questions', 'Transfert vers humain']
-  },
-  {
-    id: 'whatsapp_ia',
-    name: 'WhatsApp IA',
-    description: 'Repondez a vos clients sur WhatsApp automatiquement',
-    price: 49,
-    included: '1500 msgs',
-    icon: MessageCircle,
-    color: 'bg-green-500',
-    features: ['Reponses instantanees', 'Prise de RDV', 'Envoi de confirmations']
-  },
-  {
-    id: 'web_chat',
-    name: 'Chat Web IA',
-    description: 'Chatbot intelligent sur votre site',
-    price: 79,
-    included: '800 sessions',
-    icon: Globe,
-    color: 'bg-purple-500',
-    features: ['Widget personnalisable', 'Reponses contextuelles', 'Capture de leads']
-  },
-  {
-    id: 'reservations',
-    name: 'Reservations',
-    description: 'Systeme de reservation en ligne complet',
-    price: 19,
-    included: 'Illimite',
-    icon: Calendar,
-    color: 'bg-orange-500',
-    features: ['Calendrier en ligne', 'Rappels automatiques', 'Gestion des creneaux']
-  },
-  {
-    id: 'sms_rdv',
-    name: 'SMS Rappels',
-    description: 'Rappels SMS automatiques pour vos RDV',
-    price: 39,
-    included: '200 SMS',
-    icon: Mail,
-    color: 'bg-pink-500',
-    features: ['Rappels J-1', 'Confirmations', 'Annulations faciles']
-  },
-  {
-    id: 'crm',
-    name: 'CRM',
-    description: 'Gerez vos clients et prospects',
-    price: 14.90,
-    included: 'Illimite',
-    icon: Users,
-    color: 'bg-indigo-500',
-    features: ['Fiches clients', 'Historique', 'Segmentation']
-  },
-  {
-    id: 'comptabilite',
-    name: 'Comptabilite',
-    description: 'Factures, devis et suivi financier',
-    price: 14.90,
-    included: 'Illimite',
-    icon: BarChart3,
-    color: 'bg-emerald-500',
-    features: ['Factures auto', 'Devis', 'Export comptable']
-  },
-  {
-    id: 'marketing',
-    name: 'Marketing Email',
-    description: 'Campagnes email automatisees',
-    price: 29,
-    included: '5000 emails',
-    icon: Mail,
-    color: 'bg-red-500',
-    features: ['Templates', 'Automatisations', 'Stats detaillees']
-  },
-  {
-    id: 'site_web',
-    name: 'Site Web',
-    description: 'Site professionnel cle en main',
-    price: 25.90,
-    included: 'Illimite',
-    icon: Globe,
-    color: 'bg-cyan-500',
-    features: ['Design moderne', 'SEO optimise', 'Mobile-first']
-  },
-  {
-    id: 'seo',
-    name: 'SEO',
-    description: 'Optimisation referencement Google',
-    price: 9.90,
-    included: 'Illimite',
-    icon: Search,
-    color: 'bg-yellow-500',
-    features: ['Audit SEO', 'Mots-cles', 'Suivi positions']
-  },
-  {
-    id: 'stock',
-    name: 'Gestion Stock',
-    description: 'Inventaires et alertes',
-    price: 9.90,
-    included: 'Illimite',
-    icon: ShoppingBag,
-    color: 'bg-amber-500',
-    features: ['Suivi temps reel', 'Alertes', 'Commandes auto']
-  },
-  {
-    id: 'rh',
-    name: 'RH',
-    description: 'Planning et gestion equipe',
-    price: 9.90,
-    included: 'Illimite',
-    icon: Users,
-    color: 'bg-teal-500',
-    features: ['Planning', 'Conges', 'Pointage']
-  },
-]
+// ============================================
+// STARFIELD BACKGROUND - Arrière-plan spatial avec parallax
+// ============================================
+function StarfieldBackground() {
+  const [stars, setStars] = useState([])
+  const [shootingStars, setShootingStars] = useState([])
+  const [scrollY, setScrollY] = useState(0)
 
-// Metiers cibles
-const METIERS = [
-  { name: 'Salons de coiffure', emoji: '✂️' },
-  { name: 'Instituts de beaute', emoji: '💅' },
-  { name: 'Restaurants', emoji: '🍽️' },
-  { name: 'Cabinets medicaux', emoji: '🏥' },
-  { name: 'Garages auto', emoji: '🔧' },
-  { name: 'Commerces', emoji: '🛍️' },
-]
+  // Parallax scroll effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
-// Temoignages
-const TESTIMONIALS = [
-  {
-    name: 'Marie L.',
-    business: 'Salon de coiffure, Lyon',
-    text: "Depuis que j'utilise NEXUS, je ne rate plus aucun appel. L'IA repond a ma place et prend les RDV automatiquement.",
-    avatar: 'ML',
-    rating: 5
-  },
-  {
-    name: 'Thomas R.',
-    business: 'Restaurant, Paris',
-    text: "Les reservations se font toutes seules via WhatsApp. Mes clients adorent la rapidite des reponses.",
-    avatar: 'TR',
-    rating: 5
-  },
-  {
-    name: 'Sophie M.',
-    business: 'Institut beaute, Marseille',
-    text: "J'ai reduit mes no-shows de 80% grace aux rappels SMS automatiques. ROI immediat!",
-    avatar: 'SM',
-    rating: 5
-  }
-]
+  // Generate stars on mount
+  useEffect(() => {
+    const generatedStars = []
+    // Layer 1: Small distant stars (slowest parallax)
+    for (let i = 0; i < 150; i++) {
+      generatedStars.push({
+        id: `s1-${i}`,
+        x: Math.random() * 100,
+        y: Math.random() * 200, // Extended range for parallax
+        size: Math.random() * 1.5 + 0.5,
+        opacity: Math.random() * 0.5 + 0.3,
+        duration: Math.random() * 3 + 2,
+        delay: Math.random() * 5,
+        layer: 1,
+        parallaxSpeed: 0.02 // Slowest
+      })
+    }
+    // Layer 2: Medium stars (medium parallax)
+    for (let i = 0; i < 80; i++) {
+      generatedStars.push({
+        id: `s2-${i}`,
+        x: Math.random() * 100,
+        y: Math.random() * 200,
+        size: Math.random() * 2 + 1.5,
+        opacity: Math.random() * 0.4 + 0.4,
+        duration: Math.random() * 4 + 3,
+        delay: Math.random() * 5,
+        layer: 2,
+        parallaxSpeed: 0.05 // Medium
+      })
+    }
+    // Layer 3: Bright stars (fastest parallax - closest)
+    for (let i = 0; i < 30; i++) {
+      generatedStars.push({
+        id: `s3-${i}`,
+        x: Math.random() * 100,
+        y: Math.random() * 200,
+        size: Math.random() * 2.5 + 2,
+        opacity: Math.random() * 0.3 + 0.7,
+        duration: Math.random() * 2 + 1,
+        delay: Math.random() * 3,
+        layer: 3,
+        parallaxSpeed: 0.1, // Fastest
+        color: ['#ffffff', '#00f5ff', '#bf00ff', '#ffd700'][Math.floor(Math.random() * 4)]
+      })
+    }
+    setStars(generatedStars)
+  }, [])
 
-function App() {
+  // Shooting stars
+  useEffect(() => {
+    const createShootingStar = () => {
+      const id = Date.now()
+      const star = {
+        id,
+        x: Math.random() * 70 + 10,
+        y: Math.random() * 30,
+        duration: Math.random() * 1 + 0.5
+      }
+      setShootingStars(prev => [...prev, star])
+      setTimeout(() => {
+        setShootingStars(prev => prev.filter(s => s.id !== id))
+      }, star.duration * 1000 + 500)
+    }
+
+    // Random shooting stars
+    const interval = setInterval(() => {
+      if (Math.random() > 0.6) createShootingStar()
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-lg z-50 border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-accent-500 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">NEXUS</span>
+    <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {/* Deep space gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-dark-950 via-[#0a0a1a] to-dark-950" />
+
+      {/* Nebula effects with parallax */}
+      <div
+        className="absolute left-1/4 w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] animate-pulse"
+        style={{
+          animationDuration: '8s',
+          top: `calc(0% - ${scrollY * 0.03}px)`
+        }}
+      />
+      <div
+        className="absolute right-0 w-[500px] h-[500px] bg-cyan-900/10 rounded-full blur-[100px] animate-pulse"
+        style={{
+          animationDuration: '10s',
+          animationDelay: '2s',
+          top: `calc(33% - ${scrollY * 0.04}px)`
+        }}
+      />
+      <div
+        className="absolute left-0 w-[400px] h-[400px] bg-blue-900/10 rounded-full blur-[80px] animate-pulse"
+        style={{
+          animationDuration: '12s',
+          animationDelay: '4s',
+          bottom: `calc(0% + ${scrollY * 0.02}px)`
+        }}
+      />
+
+      {/* Stars with parallax */}
+      {stars.map(star => {
+        const parallaxOffset = scrollY * star.parallaxSpeed
+        return (
+          <div
+            key={star.id}
+            className="absolute rounded-full animate-twinkle"
+            style={{
+              left: `${star.x}%`,
+              top: `calc(${star.y}% - ${parallaxOffset}px)`,
+              width: `${star.size}px`,
+              height: `${star.size}px`,
+              backgroundColor: star.color || '#ffffff',
+              opacity: star.opacity,
+              animationDuration: `${star.duration}s`,
+              animationDelay: `${star.delay}s`,
+              boxShadow: star.layer === 3 ? `0 0 ${star.size * 2}px ${star.color || '#ffffff'}` : 'none',
+              willChange: 'top'
+            }}
+          />
+        )
+      })}
+
+      {/* Shooting stars */}
+      {shootingStars.map(star => (
+        <div
+          key={star.id}
+          className="absolute animate-shooting-star"
+          style={{
+            left: `${star.x}%`,
+            top: `${star.y}%`,
+            animationDuration: `${star.duration}s`
+          }}
+        >
+          <div className="w-1 h-1 bg-white rounded-full shadow-[0_0_6px_#fff,_-30px_0_20px_rgba(255,255,255,0.3),_-60px_0_30px_rgba(255,255,255,0.1)]"
+               style={{ transform: 'rotate(-45deg)' }} />
+        </div>
+      ))}
+
+      {/* Grid overlay (subtle) */}
+      <div className="absolute inset-0 bg-grid-pattern bg-[size:60px_60px] opacity-[0.03]" />
+    </div>
+  )
+}
+
+// ============================================
+// GALLERY SCREENSHOTS - Liste des images
+// ============================================
+const SCREENSHOTS = Array.from({ length: 19 }, (_, i) => ({
+  id: i + 1,
+  src: `/gallery/screenshot-${String(i + 1).padStart(2, '0')}.png`,
+  alt: `NEXUS Interface ${i + 1}`
+}))
+
+// ============================================
+// GALLERY SLIDESHOW - Carrousel auto-défilant
+// ============================================
+function GallerySlideshow() {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [isHovering, setIsHovering] = useState(false)
+  const intervalRef = useRef(null)
+
+  // Auto-advance slides
+  useEffect(() => {
+    if (isPlaying && !isHovering) {
+      intervalRef.current = setInterval(() => {
+        setCurrentIndex(prev => (prev + 1) % SCREENSHOTS.length)
+      }, 4000)
+    }
+    return () => clearInterval(intervalRef.current)
+  }, [isPlaying, isHovering])
+
+  const goToSlide = (index) => {
+    setCurrentIndex(index)
+  }
+
+  const nextSlide = () => {
+    setCurrentIndex(prev => (prev + 1) % SCREENSHOTS.length)
+  }
+
+  const prevSlide = () => {
+    setCurrentIndex(prev => (prev - 1 + SCREENSHOTS.length) % SCREENSHOTS.length)
+  }
+
+  return (
+    <div className="w-full max-w-5xl mx-auto">
+      {/* Screen Frame */}
+      <div
+        className="relative"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        {/* Monitor Frame */}
+        <div className="bg-dark-800 rounded-2xl p-3 border border-white/10 shadow-2xl">
+          {/* Top bar (like browser/app) */}
+          <div className="flex items-center gap-2 mb-3 px-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500/80" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+              <div className="w-3 h-3 rounded-full bg-green-500/80" />
             </div>
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#modules" className="text-gray-600 hover:text-gray-900 transition">Modules</a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition">Tarifs</a>
-              <a href="#testimonials" className="text-gray-600 hover:text-gray-900 transition">Temoignages</a>
+            <div className="flex-1 bg-dark-700 rounded-lg h-7 flex items-center justify-center">
+              <span className="text-xs text-gray-500">admin.nexus-saas.com</span>
             </div>
-            <div className="flex items-center gap-4">
-              <a href="http://localhost:3002/login" className="text-gray-600 hover:text-gray-900 transition hidden sm:block">Connexion</a>
-              <a href="http://localhost:3002/signup" className="btn-primary text-sm py-2 px-4">
-                Essai gratuit
-              </a>
+          </div>
+
+          {/* Screen Content */}
+          <div className="relative bg-dark-950 rounded-xl overflow-hidden aspect-[16/9]">
+            {/* Images */}
+            <div className="relative w-full h-full flex items-center justify-center">
+              {SCREENSHOTS.map((screenshot, index) => (
+                <img
+                  key={screenshot.id}
+                  src={screenshot.src}
+                  alt={screenshot.alt}
+                  className={clsx(
+                    'absolute inset-0 w-full h-full object-contain transition-opacity duration-700',
+                    index === currentIndex ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
+              ))}
+            </div>
+
+            {/* Navigation arrows (visible on hover) */}
+            <div className={clsx(
+              'absolute inset-0 flex items-center justify-between px-4 transition-opacity duration-300',
+              isHovering ? 'opacity-100' : 'opacity-0'
+            )}>
+              <button
+                onClick={prevSlide}
+                className="p-2 bg-dark-900/80 backdrop-blur-sm rounded-full border border-white/10 hover:border-neon-cyan/50 transition-colors"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={nextSlide}
+                className="p-2 bg-dark-900/80 backdrop-blur-sm rounded-full border border-white/10 hover:border-neon-cyan/50 transition-colors"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Play/Pause indicator */}
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={clsx(
+                'absolute top-4 right-4 p-2 bg-dark-900/80 backdrop-blur-sm rounded-full border border-white/10 transition-all duration-300',
+                isHovering ? 'opacity-100' : 'opacity-0'
+              )}
+            >
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+
+            {/* Slide counter */}
+            <div className="absolute bottom-4 left-4 bg-dark-900/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm border border-white/10">
+              {currentIndex + 1} / {SCREENSHOTS.length}
             </div>
           </div>
         </div>
-      </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Sparkles className="w-4 h-4" />
-            Propulse par l'Intelligence Artificielle
+        {/* Monitor Stand */}
+        <div className="flex justify-center">
+          <div className="w-20 h-6 bg-gradient-to-b from-dark-700 to-dark-800 rounded-b-lg" />
+        </div>
+        <div className="flex justify-center">
+          <div className="w-32 h-2 bg-dark-700 rounded-full" />
+        </div>
+      </div>
+
+      {/* Thumbnails/Dots */}
+      <div className="flex justify-center gap-1.5 mt-6 flex-wrap max-w-2xl mx-auto">
+        {SCREENSHOTS.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => goToSlide(index)}
+            className={clsx(
+              'w-2 h-2 rounded-full transition-all duration-300',
+              index === currentIndex
+                ? 'bg-neon-cyan w-6'
+                : 'bg-dark-600 hover:bg-dark-500'
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// VIDEO PLAYER - Lecteur vidéo séparé
+// ============================================
+function VideoPlayer() {
+  const videoRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [showControls, setShowControls] = useState(true)
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause()
+      } else {
+        videoRef.current.play()
+      }
+      setIsPlaying(!isPlaying)
+    }
+  }
+
+  return (
+    <div className="w-full max-w-4xl mx-auto">
+      {/* Video Frame */}
+      <div
+        className="relative"
+        onMouseEnter={() => setShowControls(true)}
+        onMouseLeave={() => setShowControls(!isPlaying)}
+      >
+        {/* Monitor Frame */}
+        <div className="bg-dark-800 rounded-2xl p-3 border border-neon-purple/30 shadow-2xl shadow-neon-purple/10">
+          {/* Top bar */}
+          <div className="flex items-center gap-2 mb-3 px-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500/80" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+              <div className="w-3 h-3 rounded-full bg-green-500/80" />
+            </div>
+            <div className="flex-1 bg-dark-700 rounded-lg h-7 flex items-center justify-center gap-2">
+              <Film className="w-4 h-4 text-neon-purple" />
+              <span className="text-xs text-gray-400">Demo Video - NEXUS en action</span>
+            </div>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight">
-            Automatisez votre<br />
-            <span className="gradient-text">business avec l'IA</span>
-          </h1>
+          {/* Video Content */}
+          <div className="relative bg-black rounded-xl overflow-hidden aspect-video">
+            <video
+              ref={videoRef}
+              src="/gallery/demo-video.mov"
+              className="w-full h-full object-contain"
+              onEnded={() => setIsPlaying(false)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+            />
 
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-            Reservations, WhatsApp, appels telephoniques - tout fonctionne en autopilote.
-            Concentrez-vous sur votre metier, NEXUS gere le reste.
+            {/* Play overlay */}
+            <div
+              className={clsx(
+                'absolute inset-0 flex items-center justify-center bg-dark-900/50 transition-opacity duration-300 cursor-pointer',
+                isPlaying && !showControls ? 'opacity-0' : 'opacity-100'
+              )}
+              onClick={togglePlay}
+            >
+              <button className="p-6 bg-neon-purple/20 backdrop-blur-sm rounded-full border-2 border-neon-purple/50 hover:border-neon-purple hover:bg-neon-purple/30 transition-all group">
+                {isPlaying ? (
+                  <Pause className="w-12 h-12 text-white group-hover:scale-110 transition-transform" />
+                ) : (
+                  <Play className="w-12 h-12 text-white ml-1 group-hover:scale-110 transition-transform" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Monitor Stand */}
+        <div className="flex justify-center">
+          <div className="w-16 h-5 bg-gradient-to-b from-dark-700 to-dark-800 rounded-b-lg" />
+        </div>
+        <div className="flex justify-center">
+          <div className="w-28 h-2 bg-dark-700 rounded-full" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// Configuration Spline (mettre l'URL de votre scène ici)
+// ============================================
+const SPLINE_SCENE_URL = null // Ex: 'https://prod.spline.design/xxxxx/scene.splinecode'
+
+// ============================================
+// NEXUS ROBOT - Le personnage animé (SVG ou Spline)
+// ============================================
+function NexusRobot({ state = 'idle', onAnimationComplete }) {
+  // States: 'entering', 'idle', 'talking', 'listening', 'waving'
+  const [currentState, setCurrentState] = useState(state)
+  const splineRef = useRef(null)
+
+  useEffect(() => {
+    setCurrentState(state)
+
+    // Si Spline est chargé, déclencher les animations
+    if (splineRef.current) {
+      try {
+        // Spline permet de trigger des états via l'API
+        // splineRef.current.emitEvent('mouseDown', 'robotState')
+      } catch (e) {}
+    }
+  }, [state])
+
+  // Animation classes based on state
+  const robotClasses = clsx(
+    'relative transition-all duration-500',
+    currentState === 'entering' && 'animate-robot-enter',
+    currentState === 'idle' && 'animate-float',
+    currentState === 'talking' && 'animate-float',
+    currentState === 'waving' && 'animate-float'
+  )
+
+  // Si une URL Spline est configurée, utiliser Spline
+  if (SPLINE_SCENE_URL) {
+    return (
+      <div className={robotClasses}>
+        <div className="relative w-48 h-48 md:w-64 md:h-64">
+          {/* Glow effect */}
+          <div className="absolute inset-0 bg-neon-cyan/20 rounded-full blur-3xl animate-pulse-glow" />
+
+          <Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-12 h-12 border-4 border-neon-cyan/30 border-t-neon-cyan rounded-full animate-spin" />
+            </div>
+          }>
+            <Spline
+              scene={SPLINE_SCENE_URL}
+              onLoad={(spline) => {
+                splineRef.current = spline
+              }}
+              className="w-full h-full"
+            />
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback: Robot SVG animé
+  return (
+    <div className={robotClasses}>
+      <div className="relative w-48 h-48 md:w-64 md:h-64">
+        {/* Glow effect behind robot */}
+        <div className="absolute inset-0 bg-neon-cyan/20 rounded-full blur-3xl animate-pulse-glow" />
+
+        {/* Robot body */}
+        <svg viewBox="0 0 200 200" className="w-full h-full relative z-10">
+          {/* Jet flames under feet */}
+          <g className={clsx(currentState !== 'entering' && 'animate-pulse')}>
+            <ellipse cx="70" cy="185" rx="12" ry="20" fill="url(#flameGradient)" opacity="0.8" />
+            <ellipse cx="130" cy="185" rx="12" ry="20" fill="url(#flameGradient)" opacity="0.8" />
+          </g>
+
+          {/* Legs */}
+          <rect x="60" y="140" width="20" height="40" rx="8" fill="#1e3a5f" />
+          <rect x="120" y="140" width="20" height="40" rx="8" fill="#1e3a5f" />
+
+          {/* Feet/Jets */}
+          <ellipse cx="70" cy="175" rx="15" ry="8" fill="#0ea5e9" />
+          <ellipse cx="130" cy="175" rx="15" ry="8" fill="#0ea5e9" />
+
+          {/* Body */}
+          <rect x="55" y="80" width="90" height="65" rx="20" fill="url(#bodyGradient)" />
+
+          {/* Chest light */}
+          <circle cx="100" cy="110" r="12" fill="#00f5ff" className={clsx(
+            currentState === 'talking' ? 'animate-pulse' : 'opacity-80'
+          )} />
+          <circle cx="100" cy="110" r="8" fill="#ffffff" opacity="0.8" />
+
+          {/* Arms */}
+          <g className={clsx(
+            currentState === 'waving' && 'origin-[45px_95px]',
+            currentState === 'waving' && 'animate-[wave_0.5s_ease-in-out_infinite]'
+          )}>
+            <rect x="30" y="85" width="18" height="40" rx="8" fill="#1e3a5f" />
+            <circle cx="39" cy="130" r="10" fill="#0ea5e9" />
+          </g>
+          <rect x="152" y="85" width="18" height="40" rx="8" fill="#1e3a5f" />
+          <circle cx="161" cy="130" r="10" fill="#0ea5e9" />
+
+          {/* Head */}
+          <ellipse cx="100" cy="55" rx="40" ry="35" fill="url(#headGradient)" />
+
+          {/* Visor/Face */}
+          <ellipse cx="100" cy="55" rx="32" ry="20" fill="#0a1929" />
+
+          {/* Eyes */}
+          <g className={clsx(
+            currentState === 'talking' && 'animate-pulse'
+          )}>
+            <ellipse cx="82" cy="52" rx="8" ry="10" fill="#00f5ff" />
+            <ellipse cx="118" cy="52" rx="8" ry="10" fill="#00f5ff" />
+            {/* Eye shine */}
+            <circle cx="85" cy="49" r="3" fill="#ffffff" opacity="0.8" />
+            <circle cx="121" cy="49" r="3" fill="#ffffff" opacity="0.8" />
+          </g>
+
+          {/* Antenna */}
+          <line x1="100" y1="20" x2="100" y2="8" stroke="#0ea5e9" strokeWidth="3" />
+          <circle cx="100" cy="5" r="5" fill="#00f5ff" className="animate-pulse" />
+
+          {/* Mouth (visible when talking) */}
+          {currentState === 'talking' && (
+            <rect x="90" y="62" width="20" height="4" rx="2" fill="#00f5ff" className="animate-pulse" />
+          )}
+
+          {/* Gradients */}
+          <defs>
+            <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#0369a1" />
+            </linearGradient>
+            <linearGradient id="headGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#0ea5e9" />
+            </linearGradient>
+            <linearGradient id="flameGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#00f5ff" stopOpacity="0" />
+              <stop offset="50%" stopColor="#00f5ff" />
+              <stop offset="100%" stopColor="#bf00ff" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {/* Floating particles around robot */}
+        <div className="absolute top-1/4 left-0 w-2 h-2 bg-neon-cyan rounded-full animate-float opacity-60" style={{ animationDelay: '0s' }} />
+        <div className="absolute top-1/3 right-0 w-1.5 h-1.5 bg-neon-purple rounded-full animate-float opacity-60" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute bottom-1/3 left-4 w-1 h-1 bg-neon-cyan rounded-full animate-float opacity-60" style={{ animationDelay: '1s' }} />
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// NEXUS CHAT - Chat avec streaming
+// ============================================
+function NexusChat({ messages, onSend, isTyping, inputDisabled, disableAutoScroll = false }) {
+  const [input, setInput] = useState('')
+  const messagesEndRef = useRef(null)
+  const inputRef = useRef(null)
+  const chatContainerRef = useRef(null)
+
+  // Auto-scroll only within the chat container, not the page
+  useEffect(() => {
+    if (!disableAutoScroll && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [messages, disableAutoScroll])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (input.trim() && !inputDisabled) {
+      onSend(input.trim())
+      setInput('')
+    }
+  }
+
+  return (
+    <div className="w-full max-w-2xl mx-auto">
+      {/* Chat container */}
+      <div className="bg-dark-900/80 backdrop-blur-xl border border-neon-cyan/20 rounded-2xl overflow-hidden shadow-2xl">
+        {/* Messages area */}
+        <div ref={chatContainerRef} className="h-48 md:h-56 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={clsx(
+                'flex animate-slide-up',
+                msg.role === 'user' ? 'justify-end' : 'justify-start'
+              )}
+              style={{ animationDelay: `${i * 0.1}s` }}
+            >
+              <div className={clsx(
+                'max-w-[80%] rounded-2xl px-4 py-3',
+                msg.role === 'user'
+                  ? 'bg-primary-600 text-white rounded-br-md'
+                  : 'bg-dark-700 text-gray-100 rounded-bl-md border border-neon-cyan/10'
+              )}>
+                {msg.role === 'assistant' && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-5 h-5 bg-gradient-to-br from-neon-cyan to-primary-500 rounded-full flex items-center justify-center">
+                      <Sparkles className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-xs text-neon-cyan font-medium">NEXUS</span>
+                  </div>
+                )}
+                <p className="text-sm md:text-base leading-relaxed">
+                  {msg.content}
+                  {msg.isStreaming && (
+                    <span className="inline-block w-2 h-4 bg-neon-cyan ml-1 animate-typing" />
+                  )}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {isTyping && messages[messages.length - 1]?.role !== 'assistant' && (
+            <div className="flex justify-start animate-fade-in">
+              <div className="bg-dark-700 rounded-2xl rounded-bl-md px-4 py-3 border border-neon-cyan/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-neon-cyan rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                  <div className="w-2 h-2 bg-neon-cyan rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-2 h-2 bg-neon-cyan rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input area */}
+        <form onSubmit={handleSubmit} className="border-t border-neon-cyan/10 p-4">
+          <div className="flex items-center gap-3">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Posez votre question sur NEXUS..."
+              disabled={inputDisabled}
+              className="flex-1 bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || inputDisabled}
+              className="p-3 bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            NEXUS peut repondre a toutes vos questions sur nos services
           </p>
+        </form>
+      </div>
+    </div>
+  )
+}
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
-            <a href="http://localhost:3002/signup" className="btn-primary inline-flex items-center justify-center gap-2">
-              Essai gratuit 14 jours
-              <ArrowRight className="w-5 h-5" />
-            </a>
-            <a href="#modules" className="btn-secondary inline-flex items-center justify-center gap-2">
-              Voir les modules
-            </a>
+// ============================================
+// CONFIGURATIONS - Messages de Nexus
+// ============================================
+const MESSAGES_CONFIG = {
+  welcome: {
+    text: "Bonjour ! Je suis NEXUS, votre assistant IA. Je peux automatiser votre business : reservations, appels telephoniques, WhatsApp, CRM, facturation... Posez-moi vos questions, je suis la pour vous aider !",
+    audio: "/audio/welcome.mp3"
+  },
+  prix: {
+    text: "Nous avons 3 plans : Starter a 199€/mois avec 1 assistant IA, CRM et agenda. Pro a 399€/mois avec tous les assistants IA, marketing et comptabilite. Business a 799€/mois pour les entreprises multi-sites avec API et account manager dedie. Essai gratuit de 14 jours !",
+    audio: null // Pas d'audio pour ce nouveau texte
+  },
+  telephone: {
+    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Starter, Pro et Business.",
+    audio: null
+  },
+  whatsapp: {
+    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Inclus dans tous nos plans !",
+    audio: null
+  },
+  reservation: {
+    text: "Notre systeme de reservations permet a vos clients de reserver en ligne 24/7. Calendrier synchronise, rappels automatiques, gestion des creneaux. Inclus dans tous les plans NEXUS !",
+    audio: null
+  },
+  essai: {
+    text: "Vous pouvez essayer NEXUS gratuitement pendant 14 jours, sans carte bancaire requise. Cliquez sur 'Essai gratuit' pour commencer !",
+    audio: "/audio/faq-essai.mp3"
+  },
+  default: {
+    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Starter 199€, Pro 399€, Business 799€), les fonctionnalites, ou comment demarrer votre essai gratuit.",
+    audio: null
+  }
+}
+
+// Hook pour l'ambiance spatiale
+function useSpaceAmbient(enabled) {
+  const audioContextRef = useRef(null)
+  const nodesRef = useRef([])
+
+  useEffect(() => {
+    if (!enabled) {
+      // Arrêter l'ambiance
+      nodesRef.current.forEach(node => {
+        try { node.stop() } catch (e) {}
+      })
+      nodesRef.current = []
+      return
+    }
+
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      audioContextRef.current = ctx
+
+      // Créer un drone spatial subtil
+      const createDrone = (freq, vol) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        const filter = ctx.createBiquadFilter()
+
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        // Légère modulation de fréquence pour un effet spatial
+        const lfo = ctx.createOscillator()
+        const lfoGain = ctx.createGain()
+        lfo.frequency.value = 0.1
+        lfoGain.gain.value = 2
+        lfo.connect(lfoGain)
+        lfoGain.connect(osc.frequency)
+        lfo.start()
+
+        filter.type = 'lowpass'
+        filter.frequency.value = 200
+
+        gain.gain.value = vol
+
+        osc.connect(filter)
+        filter.connect(gain)
+        gain.connect(ctx.destination)
+
+        osc.start()
+        nodesRef.current.push(osc, lfo)
+        return osc
+      }
+
+      // Plusieurs couches de drones pour un son riche
+      createDrone(40, 0.015)  // Très basse fréquence
+      createDrone(60, 0.01)   // Bass
+      createDrone(80, 0.008)  // Sub-mid
+
+    } catch (e) {
+      // Web Audio not supported
+    }
+
+    return () => {
+      nodesRef.current.forEach(node => {
+        try { node.stop() } catch (e) {}
+      })
+      nodesRef.current = []
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+    }
+  }, [enabled])
+}
+
+// Hook pour les effets sonores (bips, ambient)
+function useSoundEffects() {
+  const audioContextRef = useRef(null)
+
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+    }
+    return audioContextRef.current
+  }, [])
+
+  // Jouer un bip robotique
+  const playBeep = useCallback((frequency = 800, duration = 0.1, volume = 0.1) => {
+    try {
+      const ctx = getAudioContext()
+      const oscillator = ctx.createOscillator()
+      const gainNode = ctx.createGain()
+
+      oscillator.connect(gainNode)
+      gainNode.connect(ctx.destination)
+
+      oscillator.frequency.value = frequency
+      oscillator.type = 'sine'
+
+      gainNode.gain.setValueAtTime(volume, ctx.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
+
+      oscillator.start(ctx.currentTime)
+      oscillator.stop(ctx.currentTime + duration)
+    } catch (e) {
+      // Audio context not supported
+    }
+  }, [getAudioContext])
+
+  // Séquence de bips robotiques
+  const playRobotBeeps = useCallback(() => {
+    const frequencies = [600, 800, 1000, 800]
+    frequencies.forEach((freq, i) => {
+      setTimeout(() => playBeep(freq, 0.08, 0.05), i * 100)
+    })
+  }, [playBeep])
+
+  // Bip de confirmation
+  const playConfirmBeep = useCallback(() => {
+    playBeep(600, 0.1, 0.05)
+    setTimeout(() => playBeep(900, 0.15, 0.05), 120)
+  }, [playBeep])
+
+  return { playBeep, playRobotBeeps, playConfirmBeep }
+}
+
+// Hook pour gérer l'audio principal (voix)
+function useNexusAudio() {
+  const audioRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  const { playRobotBeeps, playConfirmBeep } = useSoundEffects()
+
+  const playAudio = useCallback((audioSrc) => {
+    if (!audioEnabled) return Promise.resolve()
+
+    // Si pas de source audio, juste jouer les bips
+    if (!audioSrc) {
+      playRobotBeeps()
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          playConfirmBeep()
+          resolve()
+        }, 500)
+      })
+    }
+
+    // Jouer les bips d'introduction
+    playRobotBeeps()
+
+    return new Promise((resolve) => {
+      // Arrêter l'audio précédent
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+
+      // Petit délai après les bips
+      setTimeout(() => {
+        // Créer nouvel audio
+        const audio = new Audio(audioSrc)
+        audioRef.current = audio
+
+        audio.onplay = () => setIsPlaying(true)
+        audio.onended = () => {
+          setIsPlaying(false)
+          playConfirmBeep() // Bip de fin
+          resolve()
+        }
+        audio.onerror = () => {
+          setIsPlaying(false)
+          resolve()
+        }
+
+        audio.play().catch(() => {
+          setIsPlaying(false)
+          resolve()
+        })
+      }, 400) // Délai après les bips
+    })
+  }, [audioEnabled, playRobotBeeps, playConfirmBeep])
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setIsPlaying(false)
+    }
+  }, [])
+
+  return { playAudio, stopAudio, isPlaying, audioEnabled, setAudioEnabled }
+}
+
+// ============================================
+// MAIN APP
+// ============================================
+function App() {
+  const [robotState, setRobotState] = useState('entering')
+  const [messages, setMessages] = useState([])
+  const [isTyping, setIsTyping] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
+  const [showStartButton, setShowStartButton] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { playAudio, stopAudio, isPlaying, audioEnabled, setAudioEnabled } = useNexusAudio()
+
+  // Activer l'ambiance spatiale quand le son est activé
+  useSpaceAmbient(audioEnabled && hasStarted)
+
+  // Sequence d'entree - Robot arrive puis attend le clic
+  useEffect(() => {
+    // Robot arrive
+    setTimeout(() => {
+      setRobotState('idle')
+      setShowStartButton(true)
+    }, 1500)
+  }, [])
+
+  // Fonction pour démarrer l'expérience (appelée au clic)
+  const startExperience = async () => {
+    setShowStartButton(false)
+    setRobotState('talking')
+    await speakMessage('welcome')
+  }
+
+  // Fonction pour faire parler Nexus (audio + texte synchronisé)
+  const speakMessage = async (messageKey) => {
+    const config = MESSAGES_CONFIG[messageKey]
+    if (!config) return
+
+    setIsTyping(true)
+    setHasStarted(true)
+    setRobotState('talking')
+
+    // Ajouter un message vide qui va se remplir
+    setMessages(prev => [...prev, { role: 'assistant', content: '', isStreaming: true }])
+
+    // Lancer l'audio en parallèle
+    const audioPromise = playAudio(config.audio)
+
+    // Calculer la vitesse de frappe basée sur la durée estimée de l'audio
+    // ~180 mots/min en parole = ~25 caractères/seconde (voix rapide)
+    const estimatedAudioDuration = config.text.length / 25 * 1000
+    const charDelay = estimatedAudioDuration / config.text.length
+
+    // Streamer caractere par caractere synchronisé avec l'audio
+    for (let i = 0; i <= config.text.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(charDelay, 15)))
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          content: config.text.slice(0, i)
+        }
+        return updated
+      })
+    }
+
+    // Attendre la fin de l'audio
+    await audioPromise
+
+    // Terminer le streaming
+    setMessages(prev => {
+      const updated = [...prev]
+      updated[updated.length - 1] = {
+        ...updated[updated.length - 1],
+        isStreaming: false
+      }
+      return updated
+    })
+
+    setIsTyping(false)
+    setRobotState('idle')
+  }
+
+  // Gerer l'envoi d'un message utilisateur
+  const handleSend = async (text) => {
+    // Arrêter l'audio en cours si nécessaire
+    stopAudio()
+
+    // Ajouter le message utilisateur
+    setMessages(prev => [...prev, { role: 'user', content: text }])
+
+    // Robot ecoute puis repond
+    setRobotState('listening')
+
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Trouver la reponse appropriee
+    const lowerText = text.toLowerCase()
+    let messageKey = 'default'
+
+    if (lowerText.includes('prix') || lowerText.includes('tarif') || lowerText.includes('cout') || lowerText.includes('combien')) {
+      messageKey = 'prix'
+    } else if (lowerText.includes('telephone') || lowerText.includes('appel')) {
+      messageKey = 'telephone'
+    } else if (lowerText.includes('whatsapp')) {
+      messageKey = 'whatsapp'
+    } else if (lowerText.includes('reservation') || lowerText.includes('rdv') || lowerText.includes('rendez')) {
+      messageKey = 'reservation'
+    } else if (lowerText.includes('essai') || lowerText.includes('gratuit') || lowerText.includes('test')) {
+      messageKey = 'essai'
+    }
+
+    await speakMessage(messageKey)
+  }
+
+  return (
+    <div className="min-h-screen bg-dark-950 text-white overflow-x-hidden">
+      {/* Starfield Background - z-index négatif pour être derrière le contenu */}
+      <div className="fixed inset-0 z-0">
+        <StarfieldBackground />
+      </div>
+
+      {/* Contenu principal - z-index positif */}
+      <div className="relative z-10">
+
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-950/80 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-neon-cyan to-primary-500 rounded-xl flex items-center justify-center animate-pulse-glow">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                NEXUS
+              </span>
+            </div>
+
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#gallery" className="text-gray-400 hover:text-white transition">Galerie</a>
+              <a href="#demo" className="text-gray-400 hover:text-white transition">Demo</a>
+              <a href="#pricing" className="text-gray-400 hover:text-white transition">Tarifs</a>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <a href="http://localhost:3003/login" className="text-gray-400 hover:text-white transition hidden sm:block">
+                Connexion
+              </a>
+              <a
+                href="http://localhost:3003/signup"
+                className="bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-semibold py-2 px-5 rounded-xl hover:opacity-90 transition-opacity"
+              >
+                Essai gratuit
+              </a>
+              <button
+                className="md:hidden p-2"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-dark-900 border-t border-white/5 animate-slide-up">
+            <div className="px-4 py-4 space-y-3">
+              <a href="#gallery" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Galerie</a>
+              <a href="#demo" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Demo</a>
+              <a href="#pricing" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
+              <a href="http://localhost:3003/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
+            </div>
+          </div>
+        )}
+      </nav>
+
+      {/* Hero Section - Robot + Chat Central */}
+      <section className="min-h-screen flex flex-col items-center pt-20 pb-8 px-4 relative">
+        {/* Title - More compact */}
+        <div className="text-center mb-4 animate-fade-in">
+          <h1 className="text-3xl md:text-5xl font-extrabold mb-2">
+            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+              Rencontrez
+            </span>{' '}
+            <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
+              NEXUS
+            </span>
+          </h1>
+          <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
+            Votre assistant IA qui automatise tout votre business
+          </p>
+        </div>
+
+        {/* Robot - Smaller */}
+        <div className="mb-4 scale-90 md:scale-100 relative">
+          <NexusRobot state={robotState} />
+          {/* Audio toggle button */}
+          <button
+            onClick={() => setAudioEnabled(!audioEnabled)}
+            className={clsx(
+              'absolute -bottom-2 right-0 p-2 rounded-full border transition-all',
+              audioEnabled
+                ? 'bg-neon-cyan/20 border-neon-cyan/50 text-neon-cyan'
+                : 'bg-dark-800/80 border-white/10 text-gray-500'
+            )}
+            title={audioEnabled ? 'Couper le son' : 'Activer le son'}
+          >
+            {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Bouton Démarrer - Apparaît avant que Nexus parle */}
+        {showStartButton && (
+          <button
+            onClick={startExperience}
+            className="mb-6 px-8 py-4 bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-bold text-lg rounded-2xl hover:opacity-90 transition-all animate-pulse-glow flex items-center gap-3"
+          >
+            <Play className="w-6 h-6" />
+            Cliquez pour parler avec NEXUS
+          </button>
+        )}
+
+        {/* Chat - Reduced height */}
+        {hasStarted && (
+          <NexusChat
+            messages={messages}
+            onSend={handleSend}
+            isTyping={isTyping}
+            inputDisabled={isTyping}
+          />
+        )}
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 animate-bounce">
+          <ChevronRight className="w-5 h-5 text-gray-500 rotate-90" />
+        </div>
+      </section>
+
+      {/* Features highlight */}
+      <section className="py-16 px-4 bg-dark-900/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-primary-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Phone className="w-7 h-7 text-neon-cyan" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Telephone IA</h3>
+              <p className="text-gray-400">Repondez a 100% de vos appels, meme a 3h du matin</p>
+            </div>
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <MessageCircle className="w-7 h-7 text-green-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">WhatsApp IA</h3>
+              <p className="text-gray-400">Reponses instantanees sur le canal prefere de vos clients</p>
+            </div>
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-orange-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-7 h-7 text-orange-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Reservations</h3>
+              <p className="text-gray-400">Vos clients reservent 24/7, vous ne ratez plus rien</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Gallery Section - Screenshots */}
+      <section id="gallery" className="py-20 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-neon-cyan/10 text-neon-cyan px-4 py-2 rounded-full text-sm font-medium mb-4">
+              <ImageIcon className="w-4 h-4" />
+              Apercu de la plateforme
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                Decouvrez
+              </span>{' '}
+              <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
+                l'interface
+              </span>
+            </h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Une interface moderne et intuitive, concue pour les professionnels qui veulent gagner du temps.
+            </p>
+          </div>
+
+          <GallerySlideshow />
+        </div>
+      </section>
+
+      {/* Video Section */}
+      <section id="demo" className="py-20 px-4 bg-dark-900/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-neon-purple/10 text-purple-400 px-4 py-2 rounded-full text-sm font-medium mb-4">
+              <Film className="w-4 h-4" />
+              Demo video
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                NEXUS en
+              </span>{' '}
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                action
+              </span>
+            </h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Regardez comment NEXUS automatise les taches quotidiennes de votre business.
+            </p>
+          </div>
+
+          <VideoPlayer />
+        </div>
+      </section>
+
+      {/* Pricing Section - 3 Plans */}
+      <section id="pricing" className="py-20 px-4 bg-dark-900/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Choisissez votre{' '}
+              <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
+                plan
+              </span>
+            </h2>
+            <p className="text-gray-400 text-lg">
+              Pas de frais caches. 14 jours d'essai gratuit. Annulez a tout moment.
+            </p>
+          </div>
+
+          {/* Pricing Cards */}
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+            {/* Starter */}
+            <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-white/20 transition-colors">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold mb-2">Starter</h3>
+                <p className="text-gray-400 text-sm mb-4">Pour demarrer avec l'IA</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold">199€</span>
+                  <span className="text-gray-500">/mois</span>
+                </div>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>1 Assistant IA (Telephone ou WhatsApp)</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>CRM & Gestion clients</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Agenda & Reservations</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Facturation & Devis</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Support email</span>
+                </li>
+              </ul>
+              <a
+                href="http://localhost:3003/signup?plan=starter"
+                className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-white/10 rounded-xl font-semibold transition-colors"
+              >
+                Commencer l'essai
+              </a>
+            </div>
+
+            {/* Pro - Featured */}
+            <div className="bg-gradient-to-b from-neon-cyan/10 to-dark-800 border-2 border-neon-cyan/50 rounded-2xl p-6 lg:p-8 relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-neon-cyan text-dark-900 text-xs font-bold px-3 py-1 rounded-full">
+                POPULAIRE
+              </div>
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold mb-2">Pro</h3>
+                <p className="text-gray-400 text-sm mb-4">Pour les professionnels</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold text-neon-cyan">399€</span>
+                  <span className="text-gray-500">/mois</span>
+                </div>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Tous les assistants IA inclus</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>CRM avance + Marketing</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Agenda multi-employes</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Comptabilite complete</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Gestion des stocks</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-neon-cyan flex-shrink-0" />
+                  <span>Support prioritaire</span>
+                </li>
+              </ul>
+              <a
+                href="http://localhost:3003/signup?plan=pro"
+                className="block w-full py-3 px-6 text-center bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+              >
+                Commencer l'essai
+              </a>
+            </div>
+
+            {/* Business */}
+            <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-purple-500/30 transition-colors">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold mb-2">Business</h3>
+                <p className="text-gray-400 text-sm mb-4">Pour les entreprises</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold text-purple-400">799€</span>
+                  <span className="text-gray-500">/mois</span>
+                </div>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>Tout le plan Pro inclus</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>Multi-sites / Multi-agences</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>API & Integrations</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>Rapports avances</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>Formations personnalisees</span>
+                </li>
+                <li className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>Account manager dedie</span>
+                </li>
+              </ul>
+              <a
+                href="http://localhost:3003/signup?plan=business"
+                className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
+              >
+                Contacter les ventes
+              </a>
+            </div>
           </div>
 
           {/* Trust badges */}
-          <div className="flex flex-wrap justify-center gap-8 text-sm text-gray-500">
+          <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-400 mt-12">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-green-500" />
-              <span>Donnees securisees</span>
+              <Shield className="w-5 h-5 text-green-400" />
+              <span>14 jours d'essai gratuit</span>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-500" />
-              <span>Setup en 5 minutes</span>
+              <Check className="w-5 h-5 text-green-400" />
+              <span>Sans carte bancaire</span>
             </div>
             <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-500" />
+              <Zap className="w-5 h-5 text-yellow-400" />
               <span>Sans engagement</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Metiers Section */}
-      <section className="py-16 px-4 bg-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-gray-500 mb-8">Concu pour les professionnels</p>
-          <div className="flex flex-wrap justify-center gap-4">
-            {METIERS.map((metier) => (
-              <div key={metier.name} className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full">
-                <span>{metier.emoji}</span>
-                <span className="text-gray-700 font-medium">{metier.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Modules Section */}
-      <section id="modules" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Choisissez vos modules
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Composez votre solution sur-mesure. Payez uniquement ce dont vous avez besoin.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {MODULES.map((module) => {
-              const Icon = module.icon
-              return (
-                <div key={module.id} className="card hover:shadow-xl transition-shadow duration-300">
-                  <div className={`w-12 h-12 ${module.color} rounded-xl flex items-center justify-center mb-4`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{module.name}</h3>
-                  <p className="text-gray-600 text-sm mb-4">{module.description}</p>
-                  <div className="flex items-baseline gap-1 mb-4">
-                    <span className="text-3xl font-bold text-gray-900">{module.price}€</span>
-                    <span className="text-gray-500">/mois</span>
-                  </div>
-                  <p className="text-sm text-primary-600 font-medium mb-4">{module.included} inclus</p>
-                  <ul className="space-y-2">
-                    {module.features.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Tarification simple et transparente
-          </h2>
-          <p className="text-xl text-gray-600 mb-12">
-            Pas de frais caches. Pas d'engagement. Annulez a tout moment.
-          </p>
-
-          {/* Exemple de configuration */}
-          <div className="card border-2 border-primary-500 p-8 mb-12">
-            <div className="inline-flex items-center gap-2 bg-primary-100 text-primary-700 px-3 py-1 rounded-full text-sm font-medium mb-6">
-              Exemple: Salon de coiffure
-            </div>
-            <div className="grid sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <Phone className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                <p className="font-semibold">Telephone IA</p>
-                <p className="text-2xl font-bold">99€</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <MessageCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                <p className="font-semibold">WhatsApp IA</p>
-                <p className="text-2xl font-bold">49€</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <Calendar className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-                <p className="font-semibold">Reservations</p>
-                <p className="text-2xl font-bold">19€</p>
-              </div>
-            </div>
-            <div className="border-t pt-6">
-              <p className="text-gray-600 mb-2">Total mensuel</p>
-              <p className="text-5xl font-bold text-gray-900 mb-4">167€<span className="text-lg font-normal text-gray-500">/mois</span></p>
-              <a href="http://localhost:3002/signup" className="btn-primary inline-flex items-center gap-2">
-                Commencer l'essai gratuit
-                <ArrowRight className="w-5 h-5" />
-              </a>
-            </div>
-          </div>
-
-          <p className="text-gray-500">
-            Essai gratuit de 14 jours - Aucune carte bancaire requise
-          </p>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Ils nous font confiance
-            </h2>
-            <p className="text-xl text-gray-600">
-              Decouvrez ce que nos clients disent de NEXUS
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {TESTIMONIALS.map((t, i) => (
-              <div key={i} className="card">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(t.rating)].map((_, j) => (
-                    <Star key={j} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-6">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{t.name}</p>
-                    <p className="text-sm text-gray-500">{t.business}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-primary-600 to-accent-600">
+      <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Pret a automatiser votre business ?
-          </h2>
-          <p className="text-xl text-white/80 mb-10">
-            Rejoignez des centaines de professionnels qui gagnent du temps chaque jour.
-          </p>
-          <a href="http://localhost:3002/signup" className="bg-white text-primary-600 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
-            Demarrer l'essai gratuit
-            <ChevronRight className="w-5 h-5" />
-          </a>
+          <div className="bg-gradient-to-r from-neon-cyan/10 to-primary-500/10 border border-neon-cyan/20 rounded-3xl p-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+              Pret a automatiser votre{' '}
+              <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
+                business
+              </span>{' '}?
+            </h2>
+            <p className="text-gray-400 text-lg mb-10 max-w-xl mx-auto">
+              Rejoignez des centaines de professionnels qui gagnent du temps chaque jour grace a NEXUS.
+            </p>
+            <a
+              href="http://localhost:3003/signup"
+              className="inline-flex items-center gap-2 bg-white text-dark-900 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              Demarrer l'essai gratuit
+              <ChevronRight className="w-5 h-5" />
+            </a>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 bg-gray-900 text-gray-400">
-        <div className="max-w-7xl mx-auto">
+      <footer className="py-12 px-4 border-t border-white/5">
+        <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-accent-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-neon-cyan to-primary-500 rounded-lg flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold text-white">NEXUS</span>
+                <span className="text-xl font-bold">NEXUS</span>
               </div>
-              <p className="text-sm">
+              <p className="text-sm text-gray-500">
                 Automatisez votre business avec l'intelligence artificielle.
               </p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Produit</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#modules" className="hover:text-white transition">Modules</a></li>
+              <h4 className="font-semibold mb-4">Produit</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li><a href="#pricing" className="hover:text-white transition">Tarifs</a></li>
+                <li><a href="#demo" className="hover:text-white transition">Demo</a></li>
                 <li><a href="#" className="hover:text-white transition">Demo</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-sm">
+              <h4 className="font-semibold mb-4">Support</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li><a href="#" className="hover:text-white transition">Centre d'aide</a></li>
                 <li><a href="#" className="hover:text-white transition">Contact</a></li>
                 <li><a href="#" className="hover:text-white transition">API</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
+              <h4 className="font-semibold mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li><a href="#" className="hover:text-white transition">CGV</a></li>
                 <li><a href="#" className="hover:text-white transition">Confidentialite</a></li>
                 <li><a href="#" className="hover:text-white transition">Mentions legales</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
+          <div className="border-t border-white/5 pt-8 text-center text-sm text-gray-500">
             <p>© 2026 NEXUS. Tous droits reserves.</p>
           </div>
         </div>
       </footer>
+      </div>{/* Fin du contenu principal z-10 */}
     </div>
   )
 }

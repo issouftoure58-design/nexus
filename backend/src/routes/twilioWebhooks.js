@@ -29,6 +29,7 @@ import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 /**
  * Identifie le tenant par le numéro de téléphone appelé
  * Retourne l'ID et la config complète du tenant
+ * 🔒 TENANT ISOLATION: Pas de fallback - rejette si tenant inconnu
  */
 function getTenantByPhoneNumber(toNumber) {
   const { tenantId, config } = getTenantByPhone(toNumber);
@@ -38,12 +39,9 @@ function getTenantByPhoneNumber(toNumber) {
     return { tenantId, config };
   }
 
-  // Fallback: tenant par défaut
-  const defaultTenantId = process.env.DEFAULT_TENANT || 'fatshairafro';
-  const defaultConfig = getTenantConfig(defaultTenantId);
-  console.log(`[ROUTING] Numéro ${toNumber} → Fallback: ${defaultTenantId}`);
-
-  return { tenantId: defaultTenantId, config: defaultConfig };
+  // 🔒 TENANT ISOLATION: Pas de fallback - rejeter si numéro inconnu
+  console.error(`[ROUTING] ❌ TENANT_NOT_FOUND: No tenant configured for number ${toNumber}`);
+  return { tenantId: null, config: null, error: 'TENANT_NOT_FOUND' };
 }
 
 const router = express.Router();
@@ -83,8 +81,17 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
   console.log(`[TWILIO NEXUS] ⏰ Timestamp: ${new Date().toISOString()}`);
 
   // Récupérer le tenantId depuis la session
+  // 🔒 TENANT ISOLATION: tenantId obligatoire
   const session = voiceSessions.get(callSid);
-  const tenantId = session?.tenantId || 'fatshairafro';
+  const tenantId = session?.tenantId;
+  if (!tenantId) {
+    console.error(`[TWILIO NEXUS] ❌ TENANT_ID_REQUIRED: No tenant in session for call ${callSid}`);
+    return {
+      success: false,
+      response: "Désolé, une erreur technique est survenue. Veuillez rappeler.",
+      shouldEndCall: true
+    };
+  }
 
   try {
     // Premier message = accueil

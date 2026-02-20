@@ -8,39 +8,81 @@
 
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { identifyTenant } from '../config/tenants/index.js';
+import { resolveTenantFromDomain, loadTenant } from '../core/TenantContext.js';
 
 const router = express.Router();
 
-// Middleware pour identifier le tenant depuis le domaine ou header
-const resolveTenant = (req, res, next) => {
-  // Essayer d'identifier le tenant depuis le domaine
+/**
+ * 🔒 MIDDLEWARE MULTI-TENANT SÉCURISÉ
+ * Résout le tenant depuis le domaine, header ou query param
+ * JAMAIS de fallback sur un tenant par défaut!
+ *
+ * IMPORTANT: Ce middleware ne s'applique PAS aux routes /admin/*
+ * qui utilisent leur propre système d'auth avec tenant_id dans le JWT.
+ */
+const resolveTenant = async (req, res, next) => {
+  // 🔒 SKIP pour les routes avec leur propre système d'auth
+  // - /admin/* : Auth admin JWT
+  // - /sentinel/* : Auth JWT + requirePlan
+  // - /tenants/* : Auth admin JWT
+  // - /billing/* : Auth admin JWT
+  // - /quotas/* : Auth admin JWT
+  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules'];
+  if (skipPrefixes.some(prefix => req.path.startsWith(prefix))) {
+    return next();
+  }
+
   const host = req.get('host') || '';
   const tenantHeader = req.get('X-Tenant-ID');
+  const tenantQuery = req.query.tenant_id;
 
-  // Mapping domaine -> tenant_id
-  const domainToTenant = {
-    'fatshairafro.fr': 'fatshairafro',
-    'www.fatshairafro.fr': 'fatshairafro',
-    'halimah-api.onrender.com': 'fatshairafro',
-    'nexus-backend-dev.onrender.com': 'fatshairafro', // Default pour dev
-    'localhost': 'fatshairafro', // Local dev
-  };
-
-  // Chercher le tenant depuis le domaine
   let tenantId = null;
-  for (const [domain, tenant] of Object.entries(domainToTenant)) {
-    if (host.includes(domain)) {
-      tenantId = tenant;
-      break;
+
+  // 1. Header X-Tenant-ID (priorité max pour API)
+  if (tenantHeader) {
+    tenantId = tenantHeader;
+  }
+  // 2. Query param tenant_id
+  else if (tenantQuery) {
+    tenantId = tenantQuery;
+  }
+  // 3. Résolution par domaine (depuis BDD)
+  else {
+    try {
+      const context = await resolveTenantFromDomain(host);
+      tenantId = context.id;
+    } catch (e) {
+      // Si le domaine n'est pas trouvé, vérifier si c'est un domaine de dev
+      if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        // En dev, exiger un header ou query param
+        console.warn(`[PUBLIC] Dev mode: tenant_id required via header or query param`);
+        return res.status(400).json({
+          error: 'tenant_required',
+          message: 'En mode développement, utilisez le header X-Tenant-ID ou le query param tenant_id',
+        });
+      }
+      console.error(`[PUBLIC] Cannot resolve tenant for host: ${host}`, e.message);
+      return res.status(400).json({
+        error: 'tenant_not_found',
+        message: `Aucun tenant trouvé pour le domaine ${host}`,
+      });
     }
   }
 
-  // Fallback sur header ou query param
-  req.tenantId = tenantId || tenantHeader || req.query.tenant_id || 'fatshairafro';
-
-  console.log(`[PUBLIC] Tenant resolved: ${req.tenantId} (host: ${host})`);
-  next();
+  // Valider que le tenant existe
+  try {
+    const context = await loadTenant(tenantId);
+    req.tenantId = context.id;
+    req.tenantContext = context;
+    console.log(`[PUBLIC] Tenant resolved: ${req.tenantId} (host: ${host})`);
+    next();
+  } catch (loadError) {
+    console.error(`[PUBLIC] Invalid tenant_id: ${tenantId}`, loadError.message);
+    return res.status(404).json({
+      error: 'tenant_invalid',
+      message: `Tenant '${tenantId}' non trouvé`,
+    });
+  }
 };
 
 router.use(resolveTenant);

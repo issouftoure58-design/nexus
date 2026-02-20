@@ -258,9 +258,9 @@ nexus-saas.fr/
 │   │   └── Dashboard & Analytics
 │   │
 │   ├── Section Pricing
-│   │   ├── Plan Essentiel (49€)
-│   │   ├── Plan Business (99€)
-│   │   └── Plan Enterprise (199€)
+│   │   ├── Plan Starter (199€)
+│   │   ├── Plan Pro (399€)
+│   │   └── Plan Business (799€)
 │   │
 │   ├── Section Témoignages
 │   │   └── (À ajouter après beta)
@@ -534,9 +534,9 @@ const TRIAL_CONFIG = {
 
 | Plan | Prix | Inclus |
 |------|------|--------|
-| **Essentiel** | 49€/mois | Dashboard, Clients, 1 module IA au choix |
-| **Business** | 99€/mois | Tout Essentiel + Réservations + 2 modules IA |
-| **Enterprise** | 199€/mois | Tout Business + Tous modules + Support prioritaire |
+| **Starter** | 199€/mois | 300 min tel, 1000 msg WA, 1000 clients, CRM basique |
+| **Pro** | 399€/mois | 600 min tel, 2500 msg WA, 3000 clients, CRM avancé, Marketing auto |
+| **Business** | 799€/mois | 1200 min tel, 5000 msg WA, illimité, SEO, RH, API, SENTINEL |
 
 ### 8.3 Onboarding Guidé
 

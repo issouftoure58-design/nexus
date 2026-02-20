@@ -5,11 +5,70 @@
 
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { authenticateToken, requirePlan } from '../middleware/auth.js';
+import { authenticateAdmin } from './adminAuth.js';
 import { sentinelCollector } from '../services/sentinelCollector.js';
 import { sentinelInsights } from '../services/sentinelInsights.js';
 
 const router = express.Router();
+
+/**
+ * Middleware pour vérifier le plan minimum (version admin)
+ * Récupère le plan depuis le tenant de l'admin
+ */
+const requireAdminPlan = (minPlan) => {
+  const planOrder = ['starter', 'pro', 'business', 'enterprise'];
+
+  return async (req, res, next) => {
+    if (!req.admin?.tenant_id) {
+      return res.status(401).json({
+        success: false,
+        error: 'Non authentifie',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    try {
+      // Récupérer le plan du tenant
+      const { data: tenant, error } = await supabase
+        .from('tenants')
+        .select('plan, plan_id')
+        .eq('id', req.admin.tenant_id)
+        .single();
+
+      if (error || !tenant) {
+        return res.status(404).json({
+          success: false,
+          error: 'Tenant non trouve',
+          code: 'TENANT_NOT_FOUND'
+        });
+      }
+
+      const plan = (tenant.plan || tenant.plan_id || 'starter').toLowerCase();
+      const userPlanIndex = planOrder.indexOf(plan);
+      const requiredPlanIndex = planOrder.indexOf(minPlan);
+
+      if (userPlanIndex < requiredPlanIndex) {
+        return res.status(403).json({
+          success: false,
+          error: `Plan ${minPlan} ou superieur requis`,
+          code: 'PLAN_REQUIRED',
+          required_plan: minPlan,
+          current_plan: plan
+        });
+      }
+
+      // Ajouter le plan à req pour usage ultérieur
+      req.admin.plan = plan;
+      next();
+    } catch (err) {
+      console.error('[SENTINEL] Plan check error:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'Erreur verification plan'
+      });
+    }
+  };
+};
 
 // ============================================
 // DASHBOARD PRINCIPAL
@@ -19,9 +78,9 @@ const router = express.Router();
  * GET /api/sentinel/dashboard
  * Dashboard principal avec resume complet
  */
-router.get('/dashboard', authenticateToken, requirePlan('business'), async (req, res) => {
+router.get('/dashboard', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const today = new Date().toISOString().split('T')[0];
 
     // 1. Snapshot aujourd'hui
@@ -101,9 +160,9 @@ router.get('/dashboard', authenticateToken, requirePlan('business'), async (req,
  * POST /api/sentinel/refresh
  * Forcer rafraichissement des donnees (temps reel)
  */
-router.post('/refresh', authenticateToken, requirePlan('business'), async (req, res) => {
+router.post('/refresh', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     await sentinelCollector.collectRealtime(tenantId);
 
     res.json({
@@ -126,9 +185,9 @@ router.post('/refresh', authenticateToken, requirePlan('business'), async (req, 
  * GET /api/sentinel/activity/:period
  * Activite detaillee par periode (7d, 30d, 90d)
  */
-router.get('/activity/:period', authenticateToken, requirePlan('business'), async (req, res) => {
+router.get('/activity/:period', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const { period } = req.params;
 
     // Valider periode
@@ -196,9 +255,9 @@ router.get('/activity/:period', authenticateToken, requirePlan('business'), asyn
  * GET /api/sentinel/costs/:period
  * Couts detailles par periode
  */
-router.get('/costs/:period', authenticateToken, requirePlan('business'), async (req, res) => {
+router.get('/costs/:period', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const { period } = req.params;
 
     const days = { '7d': 7, '30d': 30, '90d': 90 }[period];
@@ -261,9 +320,9 @@ router.get('/costs/:period', authenticateToken, requirePlan('business'), async (
  * GET /api/sentinel/insights
  * Liste des insights actifs
  */
-router.get('/insights', authenticateToken, requirePlan('business'), async (req, res) => {
+router.get('/insights', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const { status = 'active', limit = 20 } = req.query;
 
     const { data: insights, error } = await supabase
@@ -288,9 +347,9 @@ router.get('/insights', authenticateToken, requirePlan('business'), async (req, 
  * POST /api/sentinel/insights/generate
  * Forcer generation de nouveaux insights
  */
-router.post('/insights/generate', authenticateToken, requirePlan('business'), async (req, res) => {
+router.post('/insights/generate', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const insights = await sentinelInsights.generateInsights(tenantId);
 
     res.json({
@@ -309,9 +368,9 @@ router.post('/insights/generate', authenticateToken, requirePlan('business'), as
  * POST /api/sentinel/insights/ask
  * Demander un insight specifique
  */
-router.post('/insights/ask', authenticateToken, requirePlan('business'), async (req, res) => {
+router.post('/insights/ask', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const { topic } = req.body;
 
     if (!topic) {
@@ -339,7 +398,7 @@ router.post('/insights/ask', authenticateToken, requirePlan('business'), async (
  * PATCH /api/sentinel/insights/:id/dismiss
  * Ignorer un insight
  */
-router.patch('/insights/:id/dismiss', authenticateToken, async (req, res) => {
+router.patch('/insights/:id/dismiss', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -362,7 +421,7 @@ router.patch('/insights/:id/dismiss', authenticateToken, async (req, res) => {
  * PATCH /api/sentinel/insights/:id/implement
  * Marquer un insight comme implemente
  */
-router.patch('/insights/:id/implement', authenticateToken, async (req, res) => {
+router.patch('/insights/:id/implement', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
@@ -389,9 +448,9 @@ router.patch('/insights/:id/implement', authenticateToken, async (req, res) => {
  * GET /api/sentinel/goals
  * Recuperer objectifs du tenant
  */
-router.get('/goals', authenticateToken, requirePlan('business'), async (req, res) => {
+router.get('/goals', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
 
     const { data: goals, error } = await supabase
       .from('sentinel_goals')
@@ -412,48 +471,52 @@ router.get('/goals', authenticateToken, requirePlan('business'), async (req, res
 
 /**
  * PUT /api/sentinel/goals
- * Mettre a jour objectifs
+ * Mettre a jour objectifs (supporte annual, monthly, custom)
  */
-router.put('/goals', authenticateToken, requirePlan('business'), async (req, res) => {
+router.put('/goals', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
-    const tenantId = req.user.tenant_id;
+    const tenantId = req.admin.tenant_id;
     const {
+      goal_type, // 'annual' | 'monthly' | 'custom'
       goal_revenue_monthly,
       goal_new_clients_monthly,
       goal_reservations_monthly,
-      goal_conversion_rate,
-      goal_completion_rate,
+      goal_revenue_annual,
+      goal_new_clients_annual,
+      goal_reservations_annual,
+      monthly_goals, // Array for custom: [{month: 1, revenue: X, clients: Y, reservations: Z}, ...]
       alert_no_show_rate_threshold,
       alert_cancellation_rate_threshold,
-      alert_cost_daily_threshold,
-      alert_low_booking_threshold,
-      notify_daily_summary,
-      notify_weekly_report,
-      notify_goal_achieved,
-      notify_alerts,
-      notification_email,
-      notification_phone
+      notify_alerts
     } = req.body;
 
+    // Calculer les objectifs mensuels selon le type
+    let effectiveMonthlyRevenue = goal_revenue_monthly;
+    let effectiveMonthlyClients = goal_new_clients_monthly;
+    let effectiveMonthlyReservations = goal_reservations_monthly;
+
+    if (goal_type === 'annual') {
+      // Diviser les objectifs annuels par 12
+      effectiveMonthlyRevenue = Math.round((goal_revenue_annual || 0) / 12);
+      effectiveMonthlyClients = Math.round((goal_new_clients_annual || 0) / 12);
+      effectiveMonthlyReservations = Math.round((goal_reservations_annual || 0) / 12);
+    }
+
+    // Sauvegarder les objectifs principaux
     const { data, error } = await supabase
       .from('sentinel_goals')
       .upsert({
         tenant_id: tenantId,
-        goal_revenue_monthly,
-        goal_new_clients_monthly,
-        goal_reservations_monthly,
-        goal_conversion_rate,
-        goal_completion_rate,
+        goal_type: goal_type || 'monthly',
+        goal_revenue_monthly: effectiveMonthlyRevenue,
+        goal_new_clients_monthly: effectiveMonthlyClients,
+        goal_reservations_monthly: effectiveMonthlyReservations,
+        goal_revenue_annual,
+        goal_new_clients_annual,
+        goal_reservations_annual,
         alert_no_show_rate_threshold,
         alert_cancellation_rate_threshold,
-        alert_cost_daily_threshold,
-        alert_low_booking_threshold,
-        notify_daily_summary,
-        notify_weekly_report,
-        notify_goal_achieved,
         notify_alerts,
-        notification_email,
-        notification_phone,
         updated_at: new Date().toISOString()
       }, { onConflict: 'tenant_id' })
       .select()
@@ -461,10 +524,55 @@ router.put('/goals', authenticateToken, requirePlan('business'), async (req, res
 
     if (error) throw error;
 
+    // Si custom, sauvegarder les objectifs mensuels détaillés
+    if (goal_type === 'custom' && monthly_goals && Array.isArray(monthly_goals)) {
+      const year = new Date().getFullYear();
+
+      for (const mg of monthly_goals) {
+        await supabase
+          .from('sentinel_monthly_goals')
+          .upsert({
+            tenant_id: tenantId,
+            year,
+            month: mg.month,
+            goal_revenue: mg.revenue || 0,
+            goal_new_clients: mg.clients || 0,
+            goal_reservations: mg.reservations || 0,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'tenant_id,year,month' });
+      }
+    }
+
     res.json({ success: true, data });
 
   } catch (error) {
     console.error('[SENTINEL] Update goals error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/sentinel/monthly-goals
+ * Récupérer objectifs personnalisés par mois
+ */
+router.get('/monthly-goals', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const { data, error } = await supabase
+      .from('sentinel_monthly_goals')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('year', year)
+      .order('month', { ascending: true });
+
+    if (error) throw error;
+
+    res.json({ success: true, data: data || [] });
+
+  } catch (error) {
+    console.error('[SENTINEL] Get monthly goals error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

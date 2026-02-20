@@ -314,7 +314,56 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
 router.get('/churn', authenticateAdmin, async (req, res) => {
   try {
     const analysis = await analyzeChurnRiskAll(req.admin.tenant_id);
-    res.json(analysis);
+
+    // Mapper les données au format attendu par le frontend
+    const mappedClients = (analysis.clients || []).map(client => {
+      // Calculer les jours depuis dernière activité
+      const lastActivityDays = client.derniere_visite
+        ? Math.floor((Date.now() - new Date(client.derniere_visite).getTime()) / (1000 * 60 * 60 * 24))
+        : 999;
+
+      // Extraire les facteurs du tableau vers un objet
+      const factors = {
+        inactivity: 0,
+        frequency_drop: 0,
+        spending_drop: 0,
+        engagement: 0
+      };
+
+      // Mapper les facteurs si présents
+      if (Array.isArray(client.factors)) {
+        client.factors.forEach(f => {
+          if (f.name?.includes('inactiv') || f.name?.includes('Inactiv')) {
+            factors.inactivity = f.weight || 0;
+          } else if (f.name?.includes('fréquence') || f.name?.includes('Frequence')) {
+            factors.frequency_drop = f.weight || 0;
+          } else if (f.name?.includes('CA') || f.name?.includes('dépense')) {
+            factors.spending_drop = f.weight || 0;
+          } else if (f.name?.includes('engag')) {
+            factors.engagement = f.weight || 0;
+          }
+        });
+      }
+
+      return {
+        client_id: client.client_id,
+        name: client.nom || 'Client inconnu',
+        email: client.email || '',
+        risk_score: client.score || 0,
+        risk_level: client.risk === 'high' ? 'high' : (client.risk === 'medium' ? 'medium' : 'low'),
+        last_activity_days: lastActivityDays,
+        total_spent: 0, // Non disponible dans les données actuelles
+        factors
+      };
+    });
+
+    res.json({
+      total_clients: analysis.total_clients || 0,
+      at_risk: analysis.at_risk || 0,
+      high_risk: analysis.high_risk || 0,
+      medium_risk: analysis.medium_risk || 0,
+      clients: mappedClients
+    });
   } catch (error) {
     console.error('[Analytics] Erreur analyse churn:', error);
     res.status(500).json({ error: 'Erreur analyse churn' });
@@ -327,7 +376,22 @@ router.get('/churn', authenticateAdmin, async (req, res) => {
  */
 router.post('/churn/:clientId/prevent', authenticateAdmin, async (req, res) => {
   try {
-    const { action_type } = req.body;
+    let { action_type } = req.body;
+
+    // Mapper les types d'actions frontend vers backend
+    const actionTypeMapping = {
+      'email_retention': 'email',
+      'sms_rappel': 'sms',
+      'promo_personnalisee': 'promo',
+      // Garder les types backend existants
+      'email': 'email',
+      'sms': 'sms',
+      'promo': 'promo',
+      'call': 'call'
+    };
+
+    action_type = actionTypeMapping[action_type] || action_type;
+
     const result = await scheduleChurnPrevention(
       req.admin.tenant_id,
       parseInt(req.params.clientId),

@@ -43,6 +43,13 @@ import {
   getConsecutiveBusinessDays,
 } from '../../services/bookingValidator.js';
 
+// 🔒 NOUVEAU: Validateur multi-tenant
+import {
+  validateBeforeCreateForTenant,
+  checkBookingConflicts,
+  findServiceForTenant,
+} from '../TenantAwareValidator.js';
+
 // 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
 import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
 
@@ -279,7 +286,10 @@ function invalidateCache(pattern) {
 // IMPLÉMENTATION DES OUTILS
 // ============================================
 
-async function executeTool(toolName, toolInput, channel, tenantId = 'fatshairafro') {
+async function executeTool(toolName, toolInput, channel, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: executeTool requires explicit tenantId');
+  }
   const startTime = Date.now();
   console.log(`[NEXUS CORE] 🔧 ${channel} → ${toolName} (tenant: ${tenantId})`, JSON.stringify(toolInput).substring(0, 100));
 
@@ -374,7 +384,10 @@ async function executeTool(toolName, toolInput, channel, tenantId = 'fatshairafr
 // --- GET UPCOMING DAYS ---
 // IMPORTANT: Cette fonction retourne les dates EXACTES pour éviter les erreurs de calcul de l'IA
 // 🔒 TENANT ISOLATION: Filtre par tenant_id pour éviter les conflits inter-tenants
-async function getUpcomingDays(nbJours = 14, tenantId = 'fatshairafro') {
+async function getUpcomingDays(nbJours = 14, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getUpcomingDays requires explicit tenantId');
+  }
   const JOURS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -707,7 +720,10 @@ function getPriceForService(serviceName) {
 
 // --- CHECK AVAILABILITY ---
 // 🔒 TENANT ISOLATION: Filtre par tenant_id
-async function checkAvailabilityUnified(date, heure, serviceName, tenantId = 'fatshairafro') {
+async function checkAvailabilityUnified(date, heure, serviceName, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: checkAvailabilityUnified requires explicit tenantId');
+  }
   // Vérifier cache (inclut tenantId dans la clé)
   const cacheKey = `availability_${tenantId}_${date}_${heure}_${serviceName}`;
   const cached = getCached(cacheKey);
@@ -772,7 +788,10 @@ async function checkAvailabilityUnified(date, heure, serviceName, tenantId = 'fa
 
 // --- GET AVAILABLE SLOTS ---
 // 🔒 TENANT ISOLATION: Filtre par tenant_id
-async function getAvailableSlotsUnified(date, serviceName, tenantId = 'fatshairafro') {
+async function getAvailableSlotsUnified(date, serviceName, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getAvailableSlotsUnified requires explicit tenantId');
+  }
   // Vérifier cache (inclut tenantId dans la clé)
   const cacheKey = `slots_${tenantId}_${date}_${serviceName}`;
   const cached = getCached(cacheKey);
@@ -956,33 +975,32 @@ export async function createReservationUnified(data, channel = 'web', options = 
     // 3. VALIDER DATE/HEURE/DISPONIBILITÉ (sauf si skipValidation)
     console.log(`💾 STEP BOOKING 3: Validation date/heure/dispo (skipValidation=${skipValidation})...`);
     console.log(`💾 Date: ${data.date}, Heure: ${data.heure}, Tenant: ${data.tenant_id || 'non spécifié'}`);
+
+    // 🔒 MULTI-TENANT: Exiger tenant_id pour la validation
+    if (!data.tenant_id) {
+      console.log(`💾 ❌ ÉCHEC: tenant_id manquant pour validation`);
+      return { success: false, errors: ['tenant_id est requis pour créer une réservation'] };
+    }
+
     if (!skipValidation) {
-      let query = db
-        .from('reservations')
-        .select('id, date, heure, duree_minutes, service_nom, statut')
-        .in('statut', BLOCKING_STATUTS);  // 🔒 C3: Statuts unifiés
+      // 🔒 NOUVEAU: Utiliser le validateur multi-tenant
+      try {
+        const validation = await validateBeforeCreateForTenant(
+          data.tenant_id,
+          { date: data.date, heure: data.heure },
+          service
+        );
 
-      // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
-      if (data.tenant_id) {
-        query = query.eq('tenant_id', data.tenant_id);
+        console.log(`💾 Résultat validation: valid=${validation.valid}`);
+        if (!validation.valid) {
+          console.log(`💾 ❌ ÉCHEC VALIDATION: ${validation.errors?.join(', ')}`);
+          return { success: false, errors: validation.errors };
+        }
+        console.log(`💾 ✅ Validation OK (multi-tenant)`);
+      } catch (validationError) {
+        console.error(`💾 ❌ ERREUR VALIDATION:`, validationError);
+        return { success: false, errors: [validationError.message] };
       }
-
-      const { data: existingBookings } = await query;
-
-      console.log(`💾 Réservations existantes (bloquantes): ${existingBookings?.length || 0}`);
-
-      const validation = await validateBeforeCreate({
-        serviceName: data.service_name,
-        date: data.date,
-        heure: data.heure
-      }, existingBookings || [], service);
-
-      console.log(`💾 Résultat validation: valid=${validation.valid}`);
-      if (!validation.valid) {
-        console.log(`💾 ❌ ÉCHEC VALIDATION: ${validation.errors?.join(', ')}`);
-        return { success: false, errors: validation.errors };
-      }
-      console.log(`💾 ✅ Validation OK`);
     }
 
     // 4. NORMALISER LE TÉLÉPHONE
@@ -1093,17 +1111,18 @@ export async function createReservationUnified(data, channel = 'web', options = 
       const reservationDate = reservationDates[dayIndex];
       const isFirstDay = dayIndex === 0;
 
-      const reservationData = {
+      // 💰 IMPORTANT: La BDD stocke en EUROS, pas en centimes
+    const reservationData = {
         tenant_id: data.tenant_id,  // 🔒 TENANT ISOLATION
         client_id: clientId,
         date: reservationDate,
         heure: data.heure,
         duree_minutes: data.duree_minutes || service.durationMinutes,
         service_nom: service.name,
-        prix_service: isFirstDay ? prixService : 0,
+        prix_service: isFirstDay ? Math.round(prixService / 100 * 100) / 100 : 0,  // Centimes → Euros
         distance_km: isFirstDay ? (distanceKm || null) : null,
-        frais_deplacement: isFirstDay ? fraisDeplacementCents : 0,
-        prix_total: isFirstDay ? prixTotal : 0,
+        frais_deplacement: isFirstDay ? Math.round(fraisDeplacementCents / 100 * 100) / 100 : 0,  // Centimes → Euros
+        prix_total: isFirstDay ? Math.round(prixTotal / 100 * 100) / 100 : 0,  // Centimes → Euros
         adresse_client: data.lieu === 'domicile' ? data.adresse : null,
         telephone: telephone.replace('+33', '0'),
         statut: data.statut || 'demande',
@@ -1439,9 +1458,11 @@ async function enrichTenantWithAgent(tenantId, tenantConfig) {
 // SYSTEM PROMPT UNIFIÉ
 // ============================================
 
-function getSystemPrompt(channel, tenantConfig = null) {
-  // Si pas de tenantConfig, fallback sur la config fatshairafro (backward compat)
-  const tc = tenantConfig || getTenantConfig('fatshairafro');
+function getSystemPrompt(channel, tenantConfig) {
+  if (!tenantConfig) {
+    throw new Error('TENANT_CONFIG_REQUIRED: getSystemPrompt requires explicit tenantConfig');
+  }
+  const tc = tenantConfig;
 
   const now = new Date();
   const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
@@ -1723,7 +1744,18 @@ export async function processMessage(message, channel, context = {}) {
   const conversationId = context.conversationId || `${channel}_${context.phone || context.userId || Date.now()}`;
 
   // 🏢 Multi-tenant : charger la config du tenant + agent IA
-  const tenantId = context.tenantId || 'fatshairafro';
+  // 🔒 TENANT ISOLATION: tenantId est OBLIGATOIRE - pas de fallback
+  const tenantId = context.tenantId;
+  if (!tenantId) {
+    console.error(`[NEXUS CORE] TENANT_ID_REQUIRED: processMessage called without tenantId`);
+    return {
+      success: false,
+      response: 'Erreur de configuration. Veuillez réessayer.',
+      channel,
+      duration: Date.now() - startTime,
+      error: 'TENANT_ID_REQUIRED'
+    };
+  }
   const tenantConfig = await enrichTenantWithAgent(tenantId, { ...getTenantConfig(tenantId) });
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 
@@ -2233,7 +2265,13 @@ export async function* processMessageStreaming(message, channel, context = {}) {
   const conversationId = context.conversationId || `${channel}_${context.phone || context.userId || Date.now()}`;
 
   // 🏢 Multi-tenant : charger la config du tenant + agent IA
-  const tenantId = context.tenantId || 'fatshairafro';
+  // 🔒 TENANT ISOLATION: tenantId est OBLIGATOIRE - pas de fallback
+  const tenantId = context.tenantId;
+  if (!tenantId) {
+    console.error(`[NEXUS CORE] TENANT_ID_REQUIRED: processMessageStreaming called without tenantId`);
+    yield { type: 'error', error: 'TENANT_ID_REQUIRED' };
+    return;
+  }
   const tenantConfig = await enrichTenantWithAgent(tenantId, { ...getTenantConfig(tenantId) });
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 

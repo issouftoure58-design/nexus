@@ -407,15 +407,25 @@ async function executeSendWhatsApp(action, entity, tenant_id) {
 async function executeAddTag(action, entity, tenant_id) {
   const { tag } = action;
 
-  if (!entity.id) {
-    throw new Error('ID entité manquant pour ajouter tag');
+  // Déterminer l'ID du client selon le type d'entité
+  // Si c'est un RDV, utiliser client_id ou client.id
+  // Si c'est un client, utiliser id directement
+  let clientId = entity.id;
+  if (entity.type === 'rdv' || entity.client_id) {
+    clientId = entity.client_id || entity.client?.id;
   }
+
+  if (!clientId) {
+    throw new Error('ID client manquant pour ajouter tag');
+  }
+
+  console.log(`[WORKFLOWS] add_tag: client_id=${clientId}, tag=${tag}`);
 
   // Récupérer tags actuels
   const { data: client, error: getError } = await supabase
     .from('clients')
-    .select('tags')
-    .eq('id', entity.id)
+    .select('id, tags')
+    .eq('id', clientId)
     .eq('tenant_id', tenant_id)
     .single();
 
@@ -430,15 +440,19 @@ async function executeAddTag(action, entity, tenant_id) {
     const { error: updateError } = await supabase
       .from('clients')
       .update({ tags: currentTags })
-      .eq('id', entity.id)
+      .eq('id', clientId)
       .eq('tenant_id', tenant_id);
 
     if (updateError) {
       throw new Error(`Erreur mise à jour tags: ${updateError.message}`);
     }
+
+    console.log(`[WORKFLOWS] ✅ Tag "${tag}" ajouté au client ${clientId}`);
+  } else {
+    console.log(`[WORKFLOWS] Tag "${tag}" déjà présent sur client ${clientId}`);
   }
 
-  return { action: 'add_tag', tag, success: true };
+  return { action: 'add_tag', tag, clientId, success: true };
 }
 
 /**
@@ -447,14 +461,20 @@ async function executeAddTag(action, entity, tenant_id) {
 async function executeRemoveTag(action, entity, tenant_id) {
   const { tag } = action;
 
-  if (!entity.id) {
-    throw new Error('ID entité manquant pour retirer tag');
+  // Déterminer l'ID du client selon le type d'entité
+  let clientId = entity.id;
+  if (entity.type === 'rdv' || entity.client_id) {
+    clientId = entity.client_id || entity.client?.id;
+  }
+
+  if (!clientId) {
+    throw new Error('ID client manquant pour retirer tag');
   }
 
   const { data: client } = await supabase
     .from('clients')
     .select('tags')
-    .eq('id', entity.id)
+    .eq('id', clientId)
     .eq('tenant_id', tenant_id)
     .single();
 
@@ -467,11 +487,13 @@ async function executeRemoveTag(action, entity, tenant_id) {
     await supabase
       .from('clients')
       .update({ tags: currentTags })
-      .eq('id', entity.id)
+      .eq('id', clientId)
       .eq('tenant_id', tenant_id);
+
+    console.log(`[WORKFLOWS] ✅ Tag "${tag}" retiré du client ${clientId}`);
   }
 
-  return { action: 'remove_tag', tag, success: true };
+  return { action: 'remove_tag', tag, clientId, success: true };
 }
 
 /**

@@ -68,7 +68,8 @@ interface NavItem {
 // Principal - Modules de base (socle)
 const mainNav: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
-  { icon: Calendar, label: 'Réservations', path: '/reservations', requiredModule: 'reservations' },
+  { icon: Calendar, label: 'Agenda', path: '/agenda', alwaysShow: true }, // RDV business entrepreneur
+  { icon: CalendarCheck, label: 'Activités', path: '/activites', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
 ];

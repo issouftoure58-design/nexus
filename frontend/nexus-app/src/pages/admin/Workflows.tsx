@@ -52,10 +52,11 @@ interface Workflow {
 
 interface WorkflowStats {
   total_workflows: number;
-  workflows_actifs: number;
-  total_executions: number;
-  executions_reussies: number;
-  executions_erreur: number;
+  active_workflows: number;
+  executions_this_month: number;
+  success_this_month: number;
+  failed_this_month: number;
+  success_rate: number;
 }
 
 const TRIGGERS: Record<string, string> = {
@@ -103,12 +104,12 @@ export default function Workflows() {
     try {
       setLoading(true);
       const token = localStorage.getItem('admin_token');
-      const response = await fetch('/api/marketing/workflows', {
+      const response = await fetch('/api/admin/workflows', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
-        setWorkflows(data.workflows);
+      if (Array.isArray(data)) {
+        setWorkflows(data);
       }
     } catch (error) {
       console.error('Erreur chargement workflows:', error);
@@ -120,12 +121,12 @@ export default function Workflows() {
   const chargerStats = async () => {
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch('/api/marketing/workflows/stats', {
+      const response = await fetch('/api/admin/workflows/stats/summary', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
-        setStats(data.stats);
+      if (data && !data.error) {
+        setStats(data);
       }
     } catch (error) {
       console.error('Erreur stats:', error);
@@ -135,11 +136,11 @@ export default function Workflows() {
   const chargerDetail = async (workflow: Workflow) => {
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch(`/api/marketing/workflows/${workflow.id}`, {
+      const response = await fetch(`/api/admin/workflows/${workflow.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
+      if (data.workflow) {
         setSelectedWorkflow(data.workflow);
         setExecutions(data.executions || []);
         setShowDetail(true);
@@ -171,7 +172,7 @@ export default function Workflows() {
 
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch('/api/marketing/workflows', {
+      const response = await fetch('/api/admin/workflows', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,7 +188,7 @@ export default function Workflows() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data && data.id) {
         setShowCreate(false);
         resetForm();
         chargerWorkflows();
@@ -212,7 +213,7 @@ export default function Workflows() {
   const toggleWorkflow = async (id: string) => {
     try {
       const token = localStorage.getItem('admin_token');
-      await fetch(`/api/marketing/workflows/${id}/toggle`, {
+      await fetch(`/api/admin/workflows/${id}/toggle`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -227,7 +228,7 @@ export default function Workflows() {
 
     try {
       const token = localStorage.getItem('admin_token');
-      await fetch(`/api/marketing/workflows/${id}`, {
+      await fetch(`/api/admin/workflows/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -279,19 +280,16 @@ export default function Workflows() {
             </div>
             <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
               <p className="text-sm text-white/50">Actifs</p>
-              <p className="text-3xl font-bold text-emerald-400 mt-1">{stats.workflows_actifs}</p>
+              <p className="text-3xl font-bold text-emerald-400 mt-1">{stats.active_workflows}</p>
             </div>
             <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
-              <p className="text-sm text-white/50">Exécutions</p>
-              <p className="text-3xl font-bold text-white mt-1">{stats.total_executions}</p>
+              <p className="text-sm text-white/50">Exécutions ce mois</p>
+              <p className="text-3xl font-bold text-white mt-1">{stats.executions_this_month}</p>
             </div>
             <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
               <p className="text-sm text-white/50">Taux Réussite</p>
               <p className="text-3xl font-bold text-blue-400 mt-1">
-                {stats.total_executions > 0
-                  ? Math.round((stats.executions_reussies / stats.total_executions) * 100)
-                  : 0}
-                %
+                {stats.success_rate}%
               </p>
             </div>
           </div>

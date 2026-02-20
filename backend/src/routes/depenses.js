@@ -123,15 +123,30 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       exercice
     });
 
-    // Si dépense payée, écriture banque
+    // Si dépense payée, écriture banque ou caisse
     if (depense.payee !== false) {
       const datePaiement = depense.date_paiement?.split('T')[0] || dateDepense;
       const periodePaie = datePaiement?.slice(0, 7);
 
-      // Journal BQ - Paiement
+      // Déterminer le journal et compte selon le mode de paiement
+      const MODES_PAIEMENT = {
+        especes: { journal: 'CA', compte: '530', libelle: 'Caisse' },
+        cb: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+        virement: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+        prelevement: { journal: 'BQ', compte: '512', libelle: 'Banque' },
+        cheque: { journal: 'BQ', compte: '512', libelle: 'Banque' }
+      };
+
+      const modePaiement = depense.mode_paiement || 'cb';
+      const configPaiement = MODES_PAIEMENT[modePaiement] || MODES_PAIEMENT.cb;
+      const journalCode = configPaiement.journal;
+      const compteNumero = configPaiement.compte;
+      const compteLibelle = configPaiement.libelle;
+
+      // Journal BQ/CA - Paiement
       ecritures.push({
         tenant_id: tenantId,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: `DEP-${depense.id}`,
         compte_numero: '401',
@@ -146,11 +161,11 @@ async function genererEcrituresDepense(tenantId, depenseId) {
 
       ecritures.push({
         tenant_id: tenantId,
-        journal_code: 'BQ',
+        journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: `DEP-${depense.id}`,
-        compte_numero: '512',
-        compte_libelle: 'Banque',
+        compte_numero: compteNumero,
+        compte_libelle: compteLibelle,
         libelle: `Paiement ${depense.libelle || depense.categorie}`,
         debit: 0,
         credit: montantTTC,
@@ -443,6 +458,8 @@ router.get('/compte-resultat', async (req, res) => {
 /**
  * POST /api/depenses
  * Ajouter une dépense
+ * @param {string} mode_paiement - Mode de paiement si payée: especes, cb, virement, prelevement, cheque
+ * @param {boolean} a_credit - Si true, dépense à crédit (non payée), sinon comptant (payée)
  */
 router.post('/', async (req, res) => {
   try {
@@ -458,8 +475,13 @@ router.post('/', async (req, res) => {
       date_depense,
       recurrence,
       justificatif_url,
-      payee             // Marquer comme payée à la création
+      payee,            // Marquer comme payée à la création (legacy)
+      a_credit,         // Si true = à crédit (non payée), false = comptant (payée)
+      mode_paiement     // Mode de paiement requis si comptant
     } = req.body;
+
+    // Modes de paiement valides
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
 
     // Validation
     if (!categorie || !CATEGORIES.includes(categorie)) {
@@ -501,8 +523,25 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Montant invalide' });
     }
 
-    // Statut payée (par défaut true si non spécifié)
-    const estPayee = payee !== false;
+    // Déterminer si payée: a_credit=true → non payée, sinon payée
+    // Rétrocompatibilité: si payee est explicitement défini, l'utiliser
+    const estPayee = payee !== undefined ? payee !== false : a_credit !== true;
+
+    // Mode de paiement requis si comptant (payée à la création)
+    if (estPayee) {
+      if (!mode_paiement) {
+        return res.status(400).json({
+          success: false,
+          error: 'Mode de paiement requis pour une dépense comptant'
+        });
+      }
+      if (!modesPaiementValides.includes(mode_paiement)) {
+        return res.status(400).json({
+          success: false,
+          error: `Mode de paiement invalide. Valeurs acceptées : ${modesPaiementValides.join(', ')}`
+        });
+      }
+    }
 
     const { data, error } = await supabase
       .from('depenses')
@@ -519,7 +558,8 @@ router.post('/', async (req, res) => {
         recurrence: recurrence && RECURRENCES.includes(recurrence) ? recurrence : 'ponctuelle',
         justificatif_url: justificatif_url || null,
         payee: estPayee,
-        date_paiement: estPayee ? new Date().toISOString() : null
+        date_paiement: estPayee ? new Date().toISOString() : null,
+        mode_paiement: estPayee ? mode_paiement : null
       })
       .select()
       .single();
@@ -648,16 +688,38 @@ router.delete('/:id', async (req, res) => {
 /**
  * PATCH /api/depenses/:id/payer
  * Marquer une dépense comme payée ou non payée
+ * @param {boolean} payee - true pour payée, false pour non payée
+ * @param {string} mode_paiement - Mode de paiement requis si payee=true: especes, cb, virement, prelevement, cheque
  */
 router.patch('/:id/payer', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    const { payee } = req.body;
+    const { payee, mode_paiement } = req.body;
+
+    const estPayee = payee !== false;
+
+    // Mode de paiement requis si on marque comme payée
+    if (estPayee) {
+      const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+      if (!mode_paiement) {
+        return res.status(400).json({
+          success: false,
+          error: 'Mode de paiement requis pour marquer comme payée'
+        });
+      }
+      if (!modesPaiementValides.includes(mode_paiement)) {
+        return res.status(400).json({
+          success: false,
+          error: `Mode de paiement invalide. Valeurs acceptées : ${modesPaiementValides.join(', ')}`
+        });
+      }
+    }
 
     const updates = {
-      payee: payee !== false,
-      date_paiement: payee !== false ? new Date().toISOString() : null
+      payee: estPayee,
+      date_paiement: estPayee ? new Date().toISOString() : null,
+      mode_paiement: estPayee ? mode_paiement : null
     };
 
     const { data, error } = await supabase
@@ -671,7 +733,7 @@ router.patch('/:id/payer', async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Dépense non trouvée' });
 
-    // Régénérer les écritures comptables (pour ajouter les écritures BQ si payée)
+    // Régénérer les écritures comptables (pour ajouter les écritures BQ/CA si payée)
     await genererEcrituresDepense(tenantId, parseInt(id));
 
     res.json({

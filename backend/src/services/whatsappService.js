@@ -800,7 +800,15 @@ Réessayez ou appelez le 09 39 24 02 69`;
  * @param {string} clientName - Nom du client (optionnel, fourni par WhatsApp)
  * @returns {Promise<Object>} Réponse à envoyer au client
  */
-export async function handleIncomingMessageNexus(clientPhone, message, clientName = null, tenantId = 'fatshairafro') {
+export async function handleIncomingMessageNexus(clientPhone, message, clientName = null, tenantId) {
+  if (!tenantId) {
+    console.error(`[WhatsApp-Nexus] TENANT_ID_REQUIRED: Cannot process message from ${clientPhone} without tenantId`);
+    return {
+      success: false,
+      error: 'TENANT_ID_REQUIRED',
+      response: 'Désolé, une erreur technique est survenue. Veuillez réessayer plus tard.',
+    };
+  }
   console.log(`[WhatsApp-Nexus] Message de ${clientPhone} pour tenant ${tenantId}: ${message}`);
 
   const messageLower = message.toLowerCase().trim();

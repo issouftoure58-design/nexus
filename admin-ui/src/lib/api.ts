@@ -282,9 +282,11 @@ export const comptaApi = {
   },
   getDepenses: () => api.get<{ depenses: Expense[] }>('/depenses'),
   createDepense: (data: CreateExpenseData) => api.post<{ depense: Expense }>('/depenses', data),
-  marquerDepensePayee: (id: number, payee: boolean) => api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee }),
+  marquerDepensePayee: (id: number, payee: boolean, mode_paiement?: string) =>
+    api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee, mode_paiement }),
   getTVA: (mois?: string) => api.get<TVAData>(`/depenses/tva${mois ? `?mois=${mois}` : ''}`),
-  updateFactureStatut: (id: number, statut: string) => api.patch<{ facture: Invoice }>(`/factures/${id}/statut`, { statut }),
+  updateFactureStatut: (id: number, statut: string, mode_paiement?: string) =>
+    api.patch<{ facture: Invoice }>(`/factures/${id}/statut`, { statut, mode_paiement }),
   getFacture: (id: number) => api.get<{ facture: Invoice }>(`/factures/${id}`),
   getFacturePDF: (id: number) => api.get<{ success: boolean; facture: Invoice; html: string; tenant: string }>(`/factures/${id}/pdf`),
   sendFacture: (id: number) => api.post<{ success: boolean; message: string }>(`/factures/${id}/envoyer`),
@@ -307,7 +309,7 @@ export const comptaApi = {
     if (params?.periode) query.set('periode', params.periode);
     if (params?.compte) query.set('compte', params.compte);
     if (params?.non_lettrees) query.set('non_lettrees', 'true');
-    return api.get<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number } }>(`/journaux/ecritures?${query}`);
+    return api.get<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>(`/journaux/ecritures?${query}`);
   },
   getEcrituresBanque: (params?: { periode?: string; non_pointees?: boolean }) => {
     const query = new URLSearchParams();
@@ -317,6 +319,11 @@ export const comptaApi = {
   },
   pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
   genererToutesEcritures: () => api.post<{ success: boolean; message: string }>('/journaux/generer/tout'),
+  // À Nouveaux
+  genererANouveaux: (exercicePrecedent: number) =>
+    api.post<{ success: boolean; message: string; resultat?: number; resultat_type?: string; nb_ecritures: number; exercice?: number }>('/journaux/generer/a-nouveaux', { exercice_precedent: exercicePrecedent }),
+  getANouveauxStatus: (exercice: number) =>
+    api.get<{ exercice: number; generes: boolean; nb_ecritures: number; totaux: { debit: number; credit: number } }>(`/journaux/a-nouveaux/status?exercice=${exercice}`),
   getBalance: (params?: { periode?: string; exercice?: number }) => {
     const query = new URLSearchParams();
     if (params?.periode) query.set('periode', params.periode);
@@ -621,6 +628,7 @@ export interface Client {
   created_at: string;
   nb_rdv?: number;
   dernier_rdv?: { date: string; statut: string } | null;
+  tags?: string[] | null;
 }
 
 export interface ClientDetail {
@@ -694,6 +702,15 @@ export interface Service {
   duree: number;
   prix: number;
   actif: boolean;
+  taux_tva?: number;
+  taxe_cnaps?: boolean;
+  taux_cnaps?: number;
+  categorie?: string;
+  // Champs calculés par le backend
+  prix_ht_base?: number;
+  prix_ht?: number;
+  prix_tva?: number;
+  montant_cnaps?: number;
 }
 
 export interface CreateServiceData {
@@ -701,6 +718,11 @@ export interface CreateServiceData {
   description?: string;
   duree: number;
   prix: number;
+  taux_tva?: number;
+  taxe_cnaps?: boolean;
+  taux_cnaps?: number;
+  categorie?: string;
+  actif?: boolean;
 }
 
 export interface Product {
@@ -783,6 +805,8 @@ export interface CreateExpenseData {
   montant: number;
   date: string;
   payee?: boolean;
+  a_credit?: boolean;
+  mode_paiement?: string;
 }
 
 export interface FacturesParams {

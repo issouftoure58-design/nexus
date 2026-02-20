@@ -100,20 +100,21 @@ class SentinelInsights {
       return ((current - previous) / previous) * 100;
     };
 
-    // Totaux
-    const totalRevenue = snapshots.reduce((s, d) => s + (d.revenue_paid || 0), 0);
+    // Totaux (revenue_paid est en centimes, on convertit en euros)
+    const totalRevenueCents = snapshots.reduce((s, d) => s + (d.revenue_paid || 0), 0);
+    const totalRevenue = totalRevenueCents / 100; // Convertir en euros
     const totalReservations = snapshots.reduce((s, d) => s + (d.total_reservations || 0), 0);
     const totalNewClients = snapshots.reduce((s, d) => s + (d.new_clients || 0), 0);
 
     return {
       period_days: snapshots.length,
 
-      // Totaux
+      // Totaux (en euros)
       total_revenue: Math.round(totalRevenue),
       total_reservations: totalReservations,
       total_new_clients: totalNewClients,
 
-      // Moyennes
+      // Moyennes (en euros)
       avg_daily_revenue: Math.round(totalRevenue / snapshots.length),
       avg_daily_reservations: Math.round((totalReservations / snapshots.length) * 10) / 10,
       avg_no_show_rate: Math.round((snapshots.reduce((s, d) => s + (d.no_show_rate || 0), 0) / snapshots.length) * 10) / 10,
@@ -232,7 +233,7 @@ COUTS D'UTILISATION :
 - Principal poste : ${costTrends.main_cost_driver || 'N/A'}
 
 OBJECTIFS CLIENT :
-- Objectif CA mensuel : ${goals.goal_revenue_monthly || 'Non defini'}€
+- Objectif CA mensuel : ${goals.goal_revenue_monthly ? Math.round(goals.goal_revenue_monthly / 100) : 'Non defini'}€
 - Objectif nouveaux clients/mois : ${goals.goal_new_clients_monthly || 'Non defini'}
 
 Genere 3 a 5 insights actionnables et pertinents.

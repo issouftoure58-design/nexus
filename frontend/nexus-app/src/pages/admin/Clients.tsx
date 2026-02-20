@@ -48,6 +48,7 @@ interface ClientDetail {
   email: string | null;
   adresse: string | null;
   derniere_visite: string | null;
+  tags: string[] | null;
 }
 
 interface ClientStats {
@@ -549,9 +550,28 @@ export default function Clients() {
                     </span>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {selectedClient.prenom} {selectedClient.nom}
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {selectedClient.prenom} {selectedClient.nom}
+                      </h2>
+                      {/* Tags du client */}
+                      {selectedClient.tags && selectedClient.tags.length > 0 && (
+                        <div className="flex gap-1">
+                          {selectedClient.tags.map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                tag === 'VIP'
+                                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}
+                            >
+                              {tag === 'VIP' ? '⭐ VIP' : tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">{selectedClient.telephone}</p>
                   </div>
                 </div>

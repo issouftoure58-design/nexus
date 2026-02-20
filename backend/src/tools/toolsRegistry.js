@@ -2113,6 +2113,170 @@ const TOOLS_ADMIN_RH = [
 ];
 
 // ============================================
+// OUTILS ADMIN - Agenda Personnel (Événements business)
+// ============================================
+
+const TOOLS_ADMIN_AGENDA = [
+  {
+    name: "agenda_creer_evenement",
+    description: `Crée un événement dans l'agenda personnel de l'entrepreneur (meeting, appel, rappel, tâche).
+
+IMPORTANT - CALCUL DE DATE:
+- TOUJOURS utiliser get_upcoming_days AVANT cet outil pour obtenir la date exacte
+- Exemple: si l'utilisateur dit "le 24", utilise get_upcoming_days pour trouver 2026-02-24
+- Ne PAS deviner la date, TOUJOURS vérifier avec get_upcoming_days
+
+IMPORTANT - HEURE DE FIN:
+- Si l'utilisateur dit "de 10h à 11h30", tu DOIS passer heure="10:00" ET heure_fin="11:30"
+- Ne pas oublier heure_fin quand une plage horaire est indiquée`,
+    input_schema: {
+      type: "object",
+      properties: {
+        titre: {
+          type: "string",
+          description: "Titre de l'événement (ex: 'RDV avec Sophie Sanchez')"
+        },
+        date: {
+          type: "string",
+          description: "Date au format YYYY-MM-DD. OBLIGATOIRE: utilise get_upcoming_days pour obtenir la date exacte"
+        },
+        heure: {
+          type: "string",
+          description: "Heure de début au format HH:MM (ex: 10:00)"
+        },
+        heure_fin: {
+          type: "string",
+          description: "Heure de fin au format HH:MM. OBLIGATOIRE si l'utilisateur indique une plage horaire (ex: 'de 10h à 11h30' → heure_fin='11:30')"
+        },
+        type: {
+          type: "string",
+          enum: ["meeting", "call", "task", "reminder", "personal", "other"],
+          description: "Type d'événement (défaut: meeting)"
+        },
+        lieu: {
+          type: "string",
+          description: "Lieu de l'événement (optionnel)"
+        },
+        description: {
+          type: "string",
+          description: "Description ou notes (optionnel)"
+        },
+        participants: {
+          type: "string",
+          description: "Participants (optionnel, ex: 'Sophie Sanchez, Jean Dupont')"
+        }
+      },
+      required: ["titre", "date", "heure"]
+    }
+  },
+  {
+    name: "agenda_lister_evenements",
+    description: "Liste les événements de l'agenda personnel. Peut filtrer par période ou date spécifique.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description: "Date spécifique YYYY-MM-DD"
+        },
+        debut: {
+          type: "string",
+          description: "Date début de période YYYY-MM-DD"
+        },
+        fin: {
+          type: "string",
+          description: "Date fin de période YYYY-MM-DD"
+        },
+        type: {
+          type: "string",
+          enum: ["meeting", "call", "task", "reminder", "personal", "other", "all"],
+          description: "Filtrer par type"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "agenda_aujourdhui",
+    description: "Récupère les événements de l'agenda pour aujourd'hui. Pratique pour le briefing du matin.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "agenda_prochains",
+    description: "Récupère les prochains événements à venir (non terminés).",
+    input_schema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          description: "Nombre d'événements à retourner (défaut: 10)"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "agenda_modifier_evenement",
+    description: "Modifie un événement existant de l'agenda.",
+    input_schema: {
+      type: "object",
+      properties: {
+        event_id: {
+          type: "string",
+          description: "ID de l'événement à modifier"
+        },
+        titre: { type: "string" },
+        date: { type: "string" },
+        heure: { type: "string" },
+        heure_fin: { type: "string" },
+        type: { type: "string" },
+        lieu: { type: "string" },
+        description: { type: "string" },
+        participants: { type: "string" },
+        completed: { type: "boolean", description: "Marquer comme terminé" }
+      },
+      required: ["event_id"]
+    }
+  },
+  {
+    name: "agenda_supprimer_evenement",
+    description: "Supprime un événement de l'agenda.",
+    input_schema: {
+      type: "object",
+      properties: {
+        event_id: {
+          type: "string",
+          description: "ID de l'événement à supprimer"
+        }
+      },
+      required: ["event_id"]
+    }
+  },
+  {
+    name: "agenda_marquer_termine",
+    description: "Marque un événement comme terminé ou non terminé.",
+    input_schema: {
+      type: "object",
+      properties: {
+        event_id: {
+          type: "string",
+          description: "ID de l'événement"
+        },
+        termine: {
+          type: "boolean",
+          description: "true pour marquer comme terminé, false pour non terminé (défaut: true)"
+        }
+      },
+      required: ["event_id"]
+    }
+  }
+];
+
+// ============================================
 // ASSEMBLAGE DES OUTILS ADMIN
 // ============================================
 
@@ -2158,7 +2322,9 @@ export const TOOLS_ADMIN = [
   // Environnements
   ...TOOLS_ADMIN_ENVIRONNEMENTS,
   // PRO/BUSINESS - Capabilities avancées
-  ...TOOLS_ADMIN_PRO
+  ...TOOLS_ADMIN_PRO,
+  // Agenda personnel entrepreneur
+  ...TOOLS_ADMIN_AGENDA
 ];
 
 // ============================================
@@ -2167,14 +2333,14 @@ export const TOOLS_ADMIN = [
 
 /**
  * Retourne les outils disponibles selon le plan du tenant
- * - Starter: Outils de base
- * - Pro: Outils de base + Analytics + Pro capabilities
- * - Business: Tous les outils
+ * - Starter: Outils de base (gestion, marketing, compta)
+ * - Pro: TOUS les outils (accès complet)
+ * - Business: TOUS les outils (accès complet)
  */
 export function getToolsForPlan(plan) {
   const basePlan = plan?.toLowerCase() || 'starter';
 
-  // Outils de base (tous les plans)
+  // Outils de base (Starter uniquement)
   const baseTools = [
     ...TOOLS_CLIENT,
     ...TOOLS_ADMIN_GESTION,
@@ -2184,7 +2350,8 @@ export function getToolsForPlan(plan) {
     ...TOOLS_ADMIN_CONTENU,
     ...TOOLS_ADMIN_MEMOIRE,
     ...TOOLS_ADMIN_PLANIFICATION,
-    ...TOOLS_ADMIN_FICHIERS
+    ...TOOLS_ADMIN_FICHIERS,
+    ...TOOLS_ADMIN_AGENDA
   ];
 
   // Plan Starter: outils de base uniquement
@@ -2192,18 +2359,9 @@ export function getToolsForPlan(plan) {
     return baseTools;
   }
 
-  // Plan Pro: base + analytics + stratégie + PRO capabilities
-  if (basePlan === 'pro') {
-    return [
-      ...baseTools,
-      ...TOOLS_ADMIN_ANALYTICS,
-      ...TOOLS_ADMIN_STRATEGIE,
-      ...TOOLS_ADMIN_PRO
-    ];
-  }
-
-  // Plan Business: TOUS les outils
-  if (basePlan === 'business' || basePlan === 'enterprise') {
+  // Plan Pro et Business: TOUS les outils (accès complet à l'assistant Pro)
+  // Inclut: SEO, Social, RH, GDrive, Agent, Recherche, Computer Use, Sandbox, Environnements
+  if (basePlan === 'pro' || basePlan === 'business' || basePlan === 'enterprise') {
     return TOOLS_ADMIN;
   }
 
@@ -2251,6 +2409,7 @@ export function getToolsByCategory(category) {
     computer_use: TOOLS_ADMIN_COMPUTER_USE,
     sandbox: TOOLS_ADMIN_SANDBOX,
     environnements: TOOLS_ADMIN_ENVIRONNEMENTS,
+    agenda: TOOLS_ADMIN_AGENDA,
     admin: TOOLS_ADMIN
   };
   return categories[category] || [];
@@ -2296,6 +2455,7 @@ export const TOOLS_STATS = {
   computer_use: TOOLS_ADMIN_COMPUTER_USE.length,
   sandbox: TOOLS_ADMIN_SANDBOX.length,
   environnements: TOOLS_ADMIN_ENVIRONNEMENTS.length,
+  agenda: TOOLS_ADMIN_AGENDA.length,
   admin_total: TOOLS_ADMIN.length
 };
 

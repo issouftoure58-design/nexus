@@ -3,7 +3,7 @@
  * Tracking hebdomadaire des positions Google
  *
  * NOTE: Version simulation - intégration Google Search Console API à faire
- * NOTE: Adapté au schéma DB existant
+ * NOTE: Adapté au schéma DB migration 010
  */
 
 import { supabase } from '../config/supabase.js';
@@ -17,17 +17,17 @@ export async function jobSEOTracking() {
 
   try {
     // Récupérer tous les keywords actifs de tous les tenants Business
+    // Schéma: mot_cle, position_actuelle, url_cible, actif (migration 010)
     const { data: keywords, error: kwError } = await supabase
       .from('seo_keywords')
       .select(`
         id,
         tenant_id,
-        keyword,
-        target_url,
-        current_position,
-        previous_position
+        mot_cle,
+        url_cible,
+        position_actuelle
       `)
-      .eq('status', 'active');
+      .eq('actif', true);
 
     if (kwError) {
       console.error('[SEO] Erreur récupération keywords:', kwError);
@@ -48,17 +48,16 @@ export async function jobSEOTracking() {
       try {
         // SIMULATION position Google
         // En production: utiliser Google Search Console API ou service tiers
-        // const position = await getRealGooglePosition(keyword.keyword, keyword.target_url);
+        const position = simulateGooglePosition(keyword.position_actuelle);
 
-        const position = simulateGooglePosition(keyword.current_position);
-
-        // Enregistrer dans historique (table seo_positions)
+        // Enregistrer dans historique (table seo_positions_history - migration 010)
         const { error: histError } = await supabase
-          .from('seo_positions')
+          .from('seo_positions_history')
           .insert({
             keyword_id: keyword.id,
             position,
-            url: keyword.target_url
+            url_classee: keyword.url_cible,
+            date_mesure: new Date().toISOString()
           });
 
         if (histError) {
@@ -67,13 +66,11 @@ export async function jobSEOTracking() {
           continue;
         }
 
-        // Mettre à jour position actuelle et précédente
+        // Mettre à jour position actuelle
         const { error: updateError } = await supabase
           .from('seo_keywords')
           .update({
-            previous_position: keyword.current_position,
-            current_position: position,
-            last_checked: new Date()
+            position_actuelle: position
           })
           .eq('id', keyword.id);
 
@@ -81,14 +78,6 @@ export async function jobSEOTracking() {
           console.error(`[SEO] Erreur update keyword ${keyword.id}:`, updateError.message);
           errors++;
           continue;
-        }
-
-        // Mettre à jour best_position si meilleure
-        if (!keyword.best_position || position < keyword.best_position) {
-          await supabase
-            .from('seo_keywords')
-            .update({ best_position: position })
-            .eq('id', keyword.id);
         }
 
         tracked++;
@@ -138,12 +127,12 @@ function simulateGooglePosition(currentPosition) {
 async function checkPositionAlerts(keywords) {
   try {
     for (const keyword of keywords) {
-      // Récupérer les 2 dernières positions
+      // Récupérer les 2 dernières positions depuis seo_positions_history
       const { data: history } = await supabase
-        .from('seo_positions')
-        .select('position')
+        .from('seo_positions_history')
+        .select('position, date_mesure')
         .eq('keyword_id', keyword.id)
-        .order('checked_at', { ascending: false })
+        .order('date_mesure', { ascending: false })
         .limit(2);
 
       if (history && history.length >= 2) {
@@ -152,7 +141,7 @@ async function checkPositionAlerts(keywords) {
 
         // Alerte si perte de plus de 10 positions
         if (drop > 10) {
-          console.log(`[SEO] ⚠️ Alerte: "${keyword.keyword}" a perdu ${drop} positions (${previous.position} → ${current.position})`);
+          console.log(`[SEO] ⚠️ Alerte: "${keyword.mot_cle}" a perdu ${drop} positions (${previous.position} → ${current.position})`);
 
           // Créer recommandation automatique
           await supabase
@@ -160,8 +149,8 @@ async function checkPositionAlerts(keywords) {
             .insert({
               tenant_id: keyword.tenant_id,
               type: 'technical',
-              titre: `Perte de position: ${keyword.keyword}`,
-              description: `Le mot-clé "${keyword.keyword}" a perdu ${drop} positions cette semaine (${previous.position} → ${current.position}). Vérifier le contenu et les backlinks.`,
+              titre: `Perte de position: ${keyword.mot_cle}`,
+              description: `Le mot-clé "${keyword.mot_cle}" a perdu ${drop} positions cette semaine (${previous.position} → ${current.position}). Vérifier le contenu et les backlinks.`,
               priorite: drop > 20 ? 'high' : 'medium',
               impact_estime: 'Récupérer les positions perdues peut restaurer le trafic',
               statut: 'active'
@@ -170,7 +159,7 @@ async function checkPositionAlerts(keywords) {
 
         // Alerte positive si gain top 10
         if (previous.position > 10 && current.position <= 10) {
-          console.log(`[SEO] 🎉 "${keyword.keyword}" est entré dans le top 10 ! (${previous.position} → ${current.position})`);
+          console.log(`[SEO] 🎉 "${keyword.mot_cle}" est entré dans le top 10 ! (${previous.position} → ${current.position})`);
         }
       }
     }
@@ -186,8 +175,3 @@ export async function runSEOTrackingManually() {
   console.log('[SEO] Exécution manuelle du tracking...');
   await jobSEOTracking();
 }
-
-export default {
-  jobSEOTracking,
-  runSEOTrackingManually
-};

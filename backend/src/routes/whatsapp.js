@@ -17,6 +17,7 @@ import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 /**
  * Identifie le tenant par le numéro WhatsApp appelé
  * Utilise le système de cache multi-tenant unifié
+ * 🔒 TENANT ISOLATION: Pas de fallback - rejette si tenant inconnu
  */
 function getTenantByWhatsAppNumber(toNumber) {
   // Enlever le préfixe whatsapp: si présent
@@ -29,12 +30,9 @@ function getTenantByWhatsAppNumber(toNumber) {
     return { tenantId, config };
   }
 
-  // Fallback sur le tenant par défaut
-  const defaultTenantId = process.env.DEFAULT_TENANT || 'fatshairafro';
-  const defaultConfig = getTenantConfig(defaultTenantId);
-  console.log(`[WhatsApp ROUTING] ${cleanNumber} → Fallback: ${defaultTenantId}`);
-
-  return { tenantId: defaultTenantId, config: defaultConfig };
+  // 🔒 TENANT ISOLATION: Pas de fallback - rejeter si numéro inconnu
+  console.error(`[WhatsApp ROUTING] ❌ TENANT_NOT_FOUND: No tenant configured for number ${cleanNumber}`);
+  return { tenantId: null, config: null, error: 'TENANT_NOT_FOUND' };
 }
 
 const router = express.Router();
@@ -75,7 +73,19 @@ router.post('/webhook', async (req, res) => {
     const clientPhone = From.replace('whatsapp:', '');
 
     // Identifier le tenant par le numéro appelé (MULTI-TENANT)
-    const { tenantId, config: tenantConfig } = getTenantByWhatsAppNumber(To);
+    const { tenantId, config: tenantConfig, error: tenantError } = getTenantByWhatsAppNumber(To);
+
+    // 🔒 TENANT ISOLATION: Rejeter si tenant inconnu
+    if (!tenantId || tenantError) {
+      console.error('[WhatsApp Webhook] ❌ TENANT_NOT_FOUND:', {
+        toNumber: To,
+        fromPhone: clientPhone,
+        error: tenantError
+      });
+      // Répondre avec une erreur générique - ne pas traiter le message
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
 
     console.log('[WhatsApp Webhook] Message reçu:', {
       de: clientPhone,

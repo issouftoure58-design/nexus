@@ -19,14 +19,39 @@ router.get('/', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     // Mapper les champs pour le frontend (duree -> duree_minutes)
-    const mappedServices = services.map(s => ({
-      ...s,
-      duree_minutes: s.duree || 0, // Le champ DB s'appelle 'duree'
-      taux_tva: s.taux_tva || 20, // TVA par défaut 20%
-      // Calculs prix HT et TVA
-      prix_ht: s.taux_tva > 0 ? Math.round(s.prix / (1 + (s.taux_tva || 20) / 100)) : s.prix,
-      prix_tva: s.taux_tva > 0 ? s.prix - Math.round(s.prix / (1 + (s.taux_tva || 20) / 100)) : 0
-    }));
+    const mappedServices = services.map(s => {
+      const tauxTva = s.taux_tva ?? 20;
+      const taxeCnaps = s.taxe_cnaps ?? false;
+      const tauxCnaps = s.taux_cnaps ?? 0.50;
+
+      // Calcul: prix TTC -> prix HT -> montant TVA
+      // Si taxe CNAPS: HT = Base HT + CNAPS, puis TVA sur le tout
+      const prixHtBase = tauxTva > 0 ? Math.round(s.prix / (1 + tauxTva / 100)) : s.prix;
+
+      let montantCnaps = 0;
+      let prixHtTotal = prixHtBase;
+      if (taxeCnaps && tauxCnaps > 0) {
+        // La taxe CNAPS s'applique sur le HT de base et est soumise à TVA
+        montantCnaps = Math.round(prixHtBase * tauxCnaps / 100);
+        prixHtTotal = prixHtBase + montantCnaps;
+      }
+
+      const montantTva = tauxTva > 0 ? s.prix - prixHtTotal : 0;
+
+      return {
+        ...s,
+        duree_minutes: s.duree || 0,
+        taux_tva: tauxTva,
+        taxe_cnaps: taxeCnaps,
+        taux_cnaps: tauxCnaps,
+        actif: s.actif ?? true,
+        // Calculs prix
+        prix_ht_base: prixHtBase,
+        montant_cnaps: montantCnaps,
+        prix_ht: prixHtTotal,
+        prix_tva: montantTva
+      };
+    });
 
     res.json({ services: mappedServices });
   } catch (error) {
@@ -148,7 +173,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, duree, taux_tva } = req.body;
+    const { nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps, categorie, actif } = req.body;
 
     // Accepter duree_minutes OU duree pour la durée
     const serviceDuree = duree_minutes || duree;
@@ -169,8 +194,6 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const ordre = (maxOrdre?.ordre || 0) + 1;
 
     // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
-    // Note: la colonne 'actif' et 'categorie' n'existent pas dans la DB
-    // Le frontend envoie déjà le prix en centimes
     const { data: service, error } = await supabase
       .from('services')
       .insert({
@@ -180,6 +203,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
         prix: Math.round(prix), // Prix déjà en centimes depuis le frontend
         duree: serviceDuree, // Le champ s'appelle 'duree' dans la DB
         taux_tva: taux_tva !== undefined ? parseFloat(taux_tva) : 20, // TVA par défaut 20%
+        taxe_cnaps: taxe_cnaps ?? false, // Taxe CNAPS (sécurité privée)
+        taux_cnaps: taux_cnaps !== undefined ? parseFloat(taux_cnaps) : 0.50, // Taux CNAPS par défaut 0.50%
+        categorie: categorie || null,
+        actif: actif ?? true,
         ordre
       })
       .select()
@@ -210,7 +237,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, duree, taux_tva } = req.body;
+    const { nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps, categorie, actif } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
@@ -220,6 +247,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (duree_minutes !== undefined) updates.duree = duree_minutes;
     if (duree !== undefined) updates.duree = duree;
     if (taux_tva !== undefined) updates.taux_tva = parseFloat(taux_tva);
+    if (taxe_cnaps !== undefined) updates.taxe_cnaps = taxe_cnaps;
+    if (taux_cnaps !== undefined) updates.taux_cnaps = parseFloat(taux_cnaps);
+    if (categorie !== undefined) updates.categorie = categorie;
+    if (actif !== undefined) updates.actif = actif;
 
     // 🔒 TENANT ISOLATION
     const { data: service, error } = await supabase
@@ -294,10 +325,40 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/services/:id/toggle - Activer/Désactiver
-// Note: La colonne 'actif' n'existe pas dans la DB actuellement
-// Cette route est désactivée
 router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
-  res.status(501).json({ error: 'Fonctionnalité non disponible - colonne actif non présente' });
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer le service actuel
+    const { data: current, error: fetchError } = await supabase
+      .from('services')
+      .select('actif')
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (fetchError || !current) {
+      return res.status(404).json({ error: 'Service introuvable' });
+    }
+
+    // Inverser le statut
+    const newActif = !(current.actif ?? true);
+
+    const { data: service, error } = await supabase
+      .from('services')
+      .update({ actif: newActif })
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ service, actif: newActif });
+  } catch (error) {
+    console.error('[ADMIN SERVICES] Erreur toggle:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 export default router;

@@ -10,7 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Clients from './pages/Clients';
-import Reservations from './pages/Reservations';
+import Activites from './pages/Activites';
+import Agenda from './pages/Agenda';
 import Services from './pages/Services';
 import Comptabilite from './pages/Comptabilite';
 import Stock from './pages/Stock';
@@ -28,7 +29,7 @@ import WorkflowsPage from './pages/Workflows';
 import PipelinePage from './pages/Pipeline';
 import SEODashboard from './pages/SEODashboard';
 import SEOArticles from './pages/SEOArticles';
-import Analytics from './pages/Analytics';
+// Analytics est maintenant intégré dans Sentinel
 import ChurnPrevention from './pages/ChurnPrevention';
 import RH from './pages/RH';
 import Sentinel from './pages/Sentinel';
@@ -113,16 +114,21 @@ function App() {
             <Route path="/parametres" element={<ModuleRoute><Parametres /></ModuleRoute>} />
             <Route path="/subscription" element={<ModuleRoute><Subscription /></ModuleRoute>} />
 
-            {/* Réservations - module requis */}
-            <Route path="/reservations" element={<ModuleRoute module="reservations" moduleTitle="Agenda & Réservations" moduleDescription="Gérez vos rendez-vous et disponibilités"><Reservations /></ModuleRoute>} />
-            <Route path="/reservations/historique" element={<ModuleRoute module="reservations"><Reservations /></ModuleRoute>} />
-            <Route path="/reservations/parametres" element={<ModuleRoute module="reservations"><Reservations /></ModuleRoute>} />
+            {/* Agenda - RDV business de l'entrepreneur */}
+            <Route path="/agenda" element={<ModuleRoute moduleTitle="Agenda" moduleDescription="Gérez vos rendez-vous business"><Agenda /></ModuleRoute>} />
+
+            {/* Activités (ex-Réservations) - module requis */}
+            <Route path="/activites" element={<ModuleRoute module="reservations" moduleTitle="Activités" moduleDescription="Gérez vos activités et prestations"><Activites /></ModuleRoute>} />
+            <Route path="/activites/historique" element={<ModuleRoute module="reservations"><Activites /></ModuleRoute>} />
+            <Route path="/activites/parametres" element={<ModuleRoute module="reservations"><Activites /></ModuleRoute>} />
+            {/* Redirection ancien chemin */}
+            <Route path="/reservations/*" element={<Navigate to="/activites" replace />} />
 
             {/* Modules Business */}
             <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Suivi dépenses, P&L et exports"><Comptabilite /></ModuleRoute>} />
-            <Route path="/stock" element={<ModuleRoute module="ecommerce" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
-            <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Analytics" moduleDescription="Tableaux de bord et statistiques avancées"><Analytics /></ModuleRoute>} />
-            <Route path="/rh" element={<ModuleRoute module="rh_avance" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
+            <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
+            <Route path="/analytics" element={<Navigate to="/sentinel" replace />} />
+            <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
             {/* Modules Marketing */}
             <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
@@ -132,13 +138,13 @@ function App() {
 
             {/* Modules IA */}
             <Route path="/ia-admin" element={<ModuleRoute module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
-            <Route path="/ia-telephone" element={<ModuleRoute module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
-            <Route path="/ia-whatsapp" element={<ModuleRoute module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
+            <Route path="/ia-telephone" element={<ModuleRoute module="agent_ia_telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
+            <Route path="/ia-whatsapp" element={<ModuleRoute module="agent_ia_whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
 
             {/* Modules SEO & Système */}
             <Route path="/seo" element={<ModuleRoute module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
             <Route path="/seo/articles" element={<ModuleRoute module="seo"><SEOArticles /></ModuleRoute>} />
-            <Route path="/sentinel" element={<ModuleRoute module="sentinel_pro" moduleTitle="SENTINEL Pro" moduleDescription="Monitoring et alertes temps réel"><Sentinel /></ModuleRoute>} />
+            <Route path="/sentinel" element={<ModuleRoute module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
 
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />

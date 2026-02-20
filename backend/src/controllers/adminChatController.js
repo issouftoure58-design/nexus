@@ -238,8 +238,8 @@ export async function sendMessageStream(req, res) {
       content: m.content,
     }));
 
-    // Streamer la réponse
-    await chatStream(tenantId, messages, res, id);
+    // Streamer la réponse (passer adminId pour les outils)
+    await chatStream(tenantId, messages, res, id, adminId);
 
   } catch (error) {
     console.error('[ADMIN CHAT CTRL] sendMessageStream error:', error);

@@ -69,7 +69,15 @@ export default function PipelinePage() {
   const queryClient = useQueryClient();
   const [draggedItem, setDraggedItem] = useState<Opportunite | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newOpp, setNewOpp] = useState({ nom: '', montant: '', client_id: '' });
+  const [newOpp, setNewOpp] = useState({
+    nom: '',
+    montant: '',
+    client_id: '',
+    description: '',
+    source: 'autre',
+    priorite: 'normale',
+    date_cloture_prevue: ''
+  });
 
   // Fetch pipeline data
   const { data, isLoading, error } = useQuery<PipelineData>({
@@ -118,6 +126,10 @@ export default function PipelinePage() {
           nom: data.nom,
           montant: parseFloat(data.montant) || 0,
           client_id: data.client_id ? parseInt(data.client_id) : null,
+          description: data.description || null,
+          source: data.source || 'autre',
+          priorite: data.priorite || 'normale',
+          date_cloture_prevue: data.date_cloture_prevue || null,
           etape: 'prospect'
         })
       });
@@ -127,7 +139,15 @@ export default function PipelinePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
       setShowCreateForm(false);
-      setNewOpp({ nom: '', montant: '', client_id: '' });
+      setNewOpp({
+        nom: '',
+        montant: '',
+        client_id: '',
+        description: '',
+        source: 'autre',
+        priorite: 'normale',
+        date_cloture_prevue: ''
+      });
     }
   });
 
@@ -233,28 +253,71 @@ export default function PipelinePage() {
               <CardTitle>Nouvelle opportunite</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input
-                  placeholder="Nom de l'opportunite"
-                  value={newOpp.nom}
-                  onChange={(e) => setNewOpp({ ...newOpp, nom: e.target.value })}
+              <div className="space-y-4">
+                {/* Ligne 1: Nom et Montant */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    placeholder="Nom de l'opportunite *"
+                    value={newOpp.nom}
+                    onChange={(e) => setNewOpp({ ...newOpp, nom: e.target.value })}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Montant (EUR)"
+                    value={newOpp.montant}
+                    onChange={(e) => setNewOpp({ ...newOpp, montant: e.target.value })}
+                  />
+                </div>
+
+                {/* Ligne 2: Description */}
+                <textarea
+                  placeholder="Description de l'opportunite..."
+                  className="w-full border rounded-lg p-3 h-20 text-sm focus:ring-2 focus:ring-blue-500"
+                  value={newOpp.description}
+                  onChange={(e) => setNewOpp({ ...newOpp, description: e.target.value })}
                 />
-                <Input
-                  type="number"
-                  placeholder="Montant (EUR)"
-                  value={newOpp.montant}
-                  onChange={(e) => setNewOpp({ ...newOpp, montant: e.target.value })}
-                />
-                <div className="flex gap-2">
+
+                {/* Ligne 3: Source, Priorite, Date */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <select
+                    className="border rounded-lg p-2 text-sm"
+                    value={newOpp.source}
+                    onChange={(e) => setNewOpp({ ...newOpp, source: e.target.value })}
+                  >
+                    <option value="site_web">Site Web</option>
+                    <option value="recommandation">Recommandation</option>
+                    <option value="reseaux_sociaux">Reseaux Sociaux</option>
+                    <option value="pub">Publicite</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                  <select
+                    className="border rounded-lg p-2 text-sm"
+                    value={newOpp.priorite}
+                    onChange={(e) => setNewOpp({ ...newOpp, priorite: e.target.value })}
+                  >
+                    <option value="basse">Priorite Basse</option>
+                    <option value="normale">Priorite Normale</option>
+                    <option value="haute">Priorite Haute</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                  <Input
+                    type="date"
+                    placeholder="Date de cloture prevue"
+                    value={newOpp.date_cloture_prevue}
+                    onChange={(e) => setNewOpp({ ...newOpp, date_cloture_prevue: e.target.value })}
+                  />
+                </div>
+
+                {/* Boutons */}
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowCreateForm(false)}>
+                    Annuler
+                  </Button>
                   <Button
-                    className="flex-1"
                     onClick={() => createMutation.mutate(newOpp)}
                     disabled={!newOpp.nom || createMutation.isPending}
                   >
-                    Creer
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowCreateForm(false)}>
-                    Annuler
+                    Creer l'opportunite
                   </Button>
                 </div>
               </div>

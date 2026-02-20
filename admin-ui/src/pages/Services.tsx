@@ -289,6 +289,15 @@ export default function Services() {
   );
 }
 
+// Taux de TVA courants en France
+const TAUX_TVA = [
+  { value: 20, label: '20% (normal)' },
+  { value: 10, label: '10% (intermédiaire)' },
+  { value: 5.5, label: '5,5% (réduit)' },
+  { value: 2.1, label: '2,1% (super réduit)' },
+  { value: 0, label: '0% (exonéré)' },
+];
+
 // Service Modal Component
 function ServiceModal({ service, onClose }: { service: Service | null; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -300,6 +309,10 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     duree: service?.duree || 60,
     prix: service ? service.prix / 100 : 0,
     actif: service?.actif ?? true,
+    taux_tva: service?.taux_tva ?? 20,
+    taxe_cnaps: service?.taxe_cnaps ?? false,
+    taux_cnaps: service?.taux_cnaps ?? 0.50,
+    categorie: service?.categorie || '',
   });
   const [error, setError] = useState('');
 
@@ -332,6 +345,11 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       description: formData.description || undefined,
       duree: formData.duree,
       prix: Math.round(formData.prix * 100), // Convert to cents
+      taux_tva: formData.taux_tva,
+      taxe_cnaps: formData.taxe_cnaps,
+      taux_cnaps: formData.taux_cnaps,
+      categorie: formData.categorie || undefined,
+      actif: formData.actif,
     };
 
     if (isEditing) {
@@ -345,14 +363,14 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
           <CardTitle>{isEditing ? 'Modifier le service' : 'Nouveau service'}</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -394,7 +412,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prix TTC (€) *</label>
                 <Input
                   type="number"
                   min={0}
@@ -404,6 +422,71 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                   required
                 />
               </div>
+            </div>
+
+            {/* TVA */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Taux de TVA</label>
+              <select
+                value={formData.taux_tva}
+                onChange={(e) => setFormData(d => ({ ...d, taux_tva: parseFloat(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              >
+                {TAUX_TVA.map((taux) => (
+                  <option key={taux.value} value={taux.value}>{taux.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Catégorie */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+              <Input
+                value={formData.categorie}
+                onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                placeholder="Ex: Coiffure, Sécurité, etc."
+              />
+            </div>
+
+            {/* Taxe CNAPS (Sécurité privée) */}
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm text-amber-900">Taxe CNAPS</p>
+                  <p className="text-xs text-amber-700">Pour les activités de sécurité privée uniquement</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(d => ({ ...d, taxe_cnaps: !d.taxe_cnaps }))}
+                  className={cn(
+                    'w-12 h-6 rounded-full transition-colors relative',
+                    formData.taxe_cnaps ? 'bg-amber-500' : 'bg-gray-300'
+                  )}
+                >
+                  <div className={cn(
+                    'w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow',
+                    formData.taxe_cnaps ? 'translate-x-6' : 'translate-x-0.5'
+                  )} />
+                </button>
+              </div>
+
+              {formData.taxe_cnaps && (
+                <div>
+                  <label className="block text-xs font-medium text-amber-800 mb-1">Taux CNAPS (%)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step={0.01}
+                    value={formData.taux_cnaps}
+                    onChange={(e) => setFormData(d => ({ ...d, taux_cnaps: parseFloat(e.target.value) || 0 }))}
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-amber-600 mt-1">
+                    Taux historique : 0,40% à 0,50% (supprimée depuis 01/2020)
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

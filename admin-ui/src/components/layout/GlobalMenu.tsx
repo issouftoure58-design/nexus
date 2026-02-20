@@ -4,7 +4,7 @@
  */
 
 import {
-  X, Home, Calendar, Users, Scissors, Package, TrendingUp,
+  X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog
 } from 'lucide-react';
@@ -18,7 +18,8 @@ interface GlobalMenuProps {
 const menuItems = [
   { icon: Home, label: 'Home', path: '/' },
   { type: 'separator', label: 'Principal' },
-  { icon: Calendar, label: 'Réservations', path: '/reservations' },
+  { icon: Calendar, label: 'Agenda', path: '/agenda' },
+  { icon: CalendarCheck, label: 'Activités', path: '/activites' },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
   { type: 'separator', label: 'Business' },

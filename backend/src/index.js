@@ -40,6 +40,7 @@ import sentinelRoutes from './routes/sentinel.js';
 import quotasRoutes from './routes/quotas.js';
 import tenantsRoutes from './routes/tenants.js';
 import segmentsRoutes from './routes/adminSegments.js';
+import rfmRoutes from './routes/adminRFM.js';
 import workflowsRoutes from './routes/adminWorkflows.js';
 import pipelineRoutes from './routes/adminPipeline.js';
 import comptaRoutes from './routes/adminCompta.js';
@@ -68,6 +69,7 @@ import publicRoutes from './routes/public.js';
 import reviewsRoutes from './routes/reviews.js';
 import twilioWebhooksRoutes from './routes/twilioWebhooks.js';
 import voiceRoutes from './routes/voice.js';
+import agendaRoutes from './routes/agenda.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -186,6 +188,7 @@ app.use('/api/admin/modules', adminModulesRoutes);
 
 // Routes Admin Segments CRM (Pro/Business)
 app.use('/api/admin/segments', segmentsRoutes);
+app.use('/api/admin/rfm', rfmRoutes);
 
 // Routes Admin Workflows Marketing Automation (Pro/Business)
 app.use('/api/admin/workflows', workflowsRoutes);
@@ -291,6 +294,9 @@ app.use('/api/signup', signupRoutes);
 
 // Routes Trial (gestion période d'essai)
 app.use('/api/trial', trialRoutes);
+
+// Agenda - RDV business entrepreneur
+app.use('/api/agenda', agendaRoutes);
 
 // Route 404 pour les API
 app.use('/api/*', (req, res) => {

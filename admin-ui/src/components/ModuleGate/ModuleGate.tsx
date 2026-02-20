@@ -37,9 +37,9 @@ interface ModuleGateProps {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const PLAN_INFO: Record<PlanType, { name: string; color: string; price: number }> = {
-  starter: { name: 'Starter', color: 'gray', price: 99 },
-  pro: { name: 'Pro', color: 'blue', price: 199 },
-  business: { name: 'Business', color: 'yellow', price: 399 },
+  starter: { name: 'Starter', color: 'gray', price: 199 },
+  pro: { name: 'Pro', color: 'blue', price: 399 },
+  business: { name: 'Business', color: 'yellow', price: 799 },
 };
 
 const PLAN_FEATURES: Record<PlanType, string[]> = {

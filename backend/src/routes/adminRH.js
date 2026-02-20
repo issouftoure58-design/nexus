@@ -672,52 +672,80 @@ router.post('/paie/generer', authenticateAdmin, async (req, res) => {
     }
 
     // Créer les écritures comptables (dépenses)
+    // Vérifier si des dépenses existent déjà pour cette période (éviter doublons)
+    const libelleSalaires = `Salaires nets - ${month}/${year}`;
+    const libelleCotisations = `Cotisations sociales - ${month}/${year}`;
+
+    const { data: depensesExistantes } = await supabase
+      .from('depenses')
+      .select('id, libelle')
+      .eq('tenant_id', req.admin.tenant_id)
+      .in('libelle', [libelleSalaires, libelleCotisations]);
+
+    const salairesExiste = depensesExistantes?.some(d => d.libelle === libelleSalaires);
+    const cotisationsExiste = depensesExistantes?.some(d => d.libelle === libelleCotisations);
+
     const ecritures = [];
+    let depSalaires, depCotis;
 
-    // 1. Dépense Salaires (net à payer)
-    const { data: depSalaires, error: errSal } = await supabase
-      .from('depenses')
-      .insert({
-        tenant_id: req.admin.tenant_id,
-        categorie: 'salaires',
-        libelle: `Salaires nets - ${month}/${year}`,
-        description: `Paie du mois de ${month}/${year} - ${membres.length} salarié(s)`,
-        montant: totalSalairesNets,
-        montant_ttc: totalSalairesNets,
-        taux_tva: 0,
-        deductible_tva: false,
-        date_depense: dateDepense,
-        recurrence: 'ponctuelle',
-        payee: false
-      })
-      .select()
-      .single();
+    // 1. Dépense Salaires (net à payer) - seulement si n'existe pas
+    if (!salairesExiste) {
+      const { data, error: errSal } = await supabase
+        .from('depenses')
+        .insert({
+          tenant_id: req.admin.tenant_id,
+          categorie: 'salaires',
+          libelle: libelleSalaires,
+          description: `Paie du mois de ${month}/${year} - ${membres.length} salarié(s)`,
+          montant: totalSalairesNets,
+          montant_ttc: totalSalairesNets,
+          taux_tva: 0,
+          deductible_tva: false,
+          date_depense: dateDepense,
+          recurrence: 'ponctuelle',
+          payee: false
+        })
+        .select()
+        .single();
 
-    if (errSal) throw errSal;
-    ecritures.push(depSalaires);
+      if (errSal) throw errSal;
+      depSalaires = data;
+      ecritures.push(depSalaires);
+    } else {
+      // Récupérer l'existante
+      depSalaires = depensesExistantes.find(d => d.libelle === libelleSalaires);
+      console.log(`[RH] Dépense salaires déjà existante pour ${periode}, skip`);
+    }
 
-    // 2. Dépense Cotisations sociales (patronales + salariales)
+    // 2. Dépense Cotisations sociales (patronales + salariales) - seulement si n'existe pas
     const totalCotisations = totalCotisationsPatronales + totalCotisationsSalariales;
-    const { data: depCotis, error: errCot } = await supabase
-      .from('depenses')
-      .insert({
-        tenant_id: req.admin.tenant_id,
-        categorie: 'cotisations_sociales',
-        libelle: `Cotisations sociales - ${month}/${year}`,
-        description: `Charges sociales: ${(totalCotisationsPatronales/100).toFixed(2)}€ patron + ${(totalCotisationsSalariales/100).toFixed(2)}€ salarié`,
-        montant: totalCotisations,
-        montant_ttc: totalCotisations,
-        taux_tva: 0,
-        deductible_tva: false,
-        date_depense: dateDepense,
-        recurrence: 'ponctuelle',
-        payee: false
-      })
-      .select()
-      .single();
 
-    if (errCot) throw errCot;
-    ecritures.push(depCotis);
+    if (!cotisationsExiste) {
+      const { data, error: errCot } = await supabase
+        .from('depenses')
+        .insert({
+          tenant_id: req.admin.tenant_id,
+          categorie: 'cotisations_sociales',
+          libelle: libelleCotisations,
+          description: `Charges sociales: ${(totalCotisationsPatronales/100).toFixed(2)}€ patron + ${(totalCotisationsSalariales/100).toFixed(2)}€ salarié`,
+          montant: totalCotisations,
+          montant_ttc: totalCotisations,
+          taux_tva: 0,
+          deductible_tva: false,
+          date_depense: dateDepense,
+          recurrence: 'ponctuelle',
+          payee: false
+        })
+        .select()
+        .single();
+
+      if (errCot) throw errCot;
+      depCotis = data;
+      ecritures.push(depCotis);
+    } else {
+      depCotis = depensesExistantes.find(d => d.libelle === libelleCotisations);
+      console.log(`[RH] Dépense cotisations déjà existante pour ${periode}, skip`);
+    }
 
     // Enregistrer le journal de paie
     const { data: journal, error: errJournal } = await supabase

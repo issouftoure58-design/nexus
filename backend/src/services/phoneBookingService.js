@@ -393,13 +393,15 @@ Fatou - 09 39 24 02 69`;
     // 📊 Logger le SMS sortant pour tracking des coûts
     try {
       const { supabase } = await import('../config/supabase.js');
+      // 🔒 TENANT ISOLATION: Le tenantId doit être passé en paramètre
+      // Note: Cette fonction devra être mise à jour pour recevoir tenantId
       await supabase.from('twilio_call_logs').insert({
         channel: 'sms',
         direction: 'outbound',
         from_number: twilioPhone,
         to_number: formattedPhone,
         message_sid: result.sid,
-        tenant_id: 'fatshairafro',
+        tenant_id: tenantId || null, // 🔒 Pas de fallback hardcodé
       });
       console.log('[SMS] ✅ SMS loggé pour tracking coûts');
     } catch (logErr) {

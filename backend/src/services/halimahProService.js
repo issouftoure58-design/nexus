@@ -10,8 +10,11 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 /**
  * Récupère les statistiques du salon
+ * @param {string} periode - jour, semaine, mois, annee
+ * @param {string} type - type de stats (all par défaut)
+ * @param {string} tenantId - ID du tenant (obligatoire pour multi-tenant)
  */
-export async function getStats(periode = 'mois', type = 'all') {
+export async function getStats(periode = 'mois', type = 'all', tenantId = null) {
   try {
     const now = new Date();
     let startDate;
@@ -34,11 +37,18 @@ export async function getStats(periode = 'mois', type = 'all') {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    // Récupérer les RDV depuis la date de début
-    const { data: rdvs, error } = await supabase
+    // Récupérer les RDV depuis la date de début avec filtre tenant
+    let query = supabase
       .from('reservations')
       .select('*')
       .gte('date', startDate.toISOString().split('T')[0]);
+
+    // IMPORTANT: Filtrer par tenant_id si fourni
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data: rdvs, error } = await query;
 
     if (error) throw error;
 
@@ -68,10 +78,16 @@ export async function getStats(periode = 'mois', type = 'all') {
       .slice(0, 5)
       .map(([service, count]) => ({ service, count }));
 
-    // Nombre total de clients
-    const { count: nbClients } = await supabase
+    // Nombre total de clients (avec filtre tenant)
+    let clientsQuery = supabase
       .from('clients')
       .select('*', { count: 'exact', head: true });
+
+    if (tenantId) {
+      clientsQuery = clientsQuery.eq('tenant_id', tenantId);
+    }
+
+    const { count: nbClients } = await clientsQuery;
 
     return {
       periode,
@@ -90,14 +106,23 @@ export async function getStats(periode = 'mois', type = 'all') {
 
 /**
  * Récupère les rendez-vous selon les critères
+ * @param {string} date - Filtre date (aujourd'hui, demain, semaine, ou date ISO)
+ * @param {string} statut - Filtre statut (tous, en_attente, confirme, termine, annule)
+ * @param {number} limit - Nombre max de résultats
+ * @param {string} tenantId - ID du tenant (obligatoire pour multi-tenant)
  */
-export async function getRdv(date, statut = 'tous', limit = 10) {
+export async function getRdv(date, statut = 'tous', limit = 10, tenantId = null) {
   try {
     let query = supabase
       .from('reservations')
       .select('*, clients(nom, prenom, telephone, email)')
       .order('date', { ascending: true })
       .order('heure', { ascending: true });
+
+    // IMPORTANT: Filtrer par tenant_id si fourni
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
 
     // Filtre par date
     if (date) {

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   Plus, Play, Pause, Trash2, Settings,
-  Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle
+  Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle, X
 } from 'lucide-react';
 
 interface Workflow {
@@ -59,10 +59,26 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   create_task: <CheckSquare className="h-4 w-4" />,
 };
 
+interface WorkflowExecution {
+  id: number;
+  workflow_id: number;
+  entity_type: string;
+  entity_id: number;
+  statut: string;
+  details: Record<string, unknown>;
+  executed_at: string;
+}
+
+interface WorkflowDetail {
+  workflow: Workflow;
+  executions: WorkflowExecution[];
+}
+
 export default function WorkflowsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
 
   // Fetch workflows
   const { data: workflows, isLoading, error } = useQuery<Workflow[]>({
@@ -102,6 +118,19 @@ export default function WorkflowsPage() {
       if (!res.ok) return null;
       return res.json();
     },
+  });
+
+  // Fetch workflow detail
+  const { data: workflowDetail } = useQuery<WorkflowDetail>({
+    queryKey: ['workflow-detail', selectedWorkflowId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/workflows/${selectedWorkflowId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
+      });
+      if (!res.ok) throw new Error('Erreur chargement detail');
+      return res.json();
+    },
+    enabled: !!selectedWorkflowId,
   });
 
   // Toggle workflow mutation
@@ -366,7 +395,11 @@ export default function WorkflowsPage() {
                         onCheckedChange={() => toggleMutation.mutate(workflow.id)}
                         disabled={toggleMutation.isPending}
                       />
-                      <Button size="icon" variant="ghost">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setSelectedWorkflowId(workflow.id)}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
@@ -387,6 +420,80 @@ export default function WorkflowsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Modal Detail Workflow */}
+        {selectedWorkflowId && workflowDetail && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+              <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{workflowDetail.workflow.nom}</h2>
+                  <p className="text-sm text-white/60">{workflowDetail.workflow.description}</p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setSelectedWorkflowId(null)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-white/70 mb-2">Configuration</h3>
+                  <div className="bg-zinc-800/50 rounded-lg p-4 text-sm">
+                    <p className="text-white/80">
+                      <span className="text-white/50">Trigger:</span>{' '}
+                      {TRIGGER_LABELS[workflowDetail.workflow.trigger_type] || workflowDetail.workflow.trigger_type}
+                    </p>
+                    <p className="text-white/80 mt-1">
+                      <span className="text-white/50">Statut:</span>{' '}
+                      <Badge variant={workflowDetail.workflow.actif ? 'default' : 'secondary'}>
+                        {workflowDetail.workflow.actif ? 'Actif' : 'Inactif'}
+                      </Badge>
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-white/70 mb-2">
+                    Historique des executions ({workflowDetail.executions?.length || 0})
+                  </h3>
+                  {workflowDetail.executions?.length > 0 ? (
+                    <div className="space-y-2">
+                      {workflowDetail.executions.map((exec) => (
+                        <div
+                          key={exec.id}
+                          className="bg-zinc-800/50 rounded-lg p-3 flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="text-sm text-white">
+                              {exec.entity_type} #{exec.entity_id}
+                            </p>
+                            <p className="text-xs text-white/50">
+                              {new Date(exec.executed_at).toLocaleString('fr-FR')}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={exec.statut === 'success' ? 'default' : 'destructive'}
+                            className={exec.statut === 'success' ? 'bg-green-600' : ''}
+                          >
+                            {exec.statut === 'success' ? 'Succes' : 'Echec'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-white/50 text-center py-4">
+                      Aucune execution pour ce workflow
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }

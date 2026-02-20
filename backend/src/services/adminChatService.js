@@ -36,6 +36,68 @@ const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 4096;
 const MAX_TOOL_ITERATIONS = 5; // Limite pour éviter les boucles infinies
 
+// Flag pour éviter de recréer les tables à chaque appel
+let chatTablesInitialized = false;
+
+/**
+ * Initialise les tables de chat si elles n'existent pas
+ */
+async function ensureChatTables() {
+  if (chatTablesInitialized) return true;
+
+  try {
+    // Test si la table existe
+    const { error: testError } = await supabase
+      .from('admin_conversations')
+      .select('id')
+      .limit(1);
+
+    if (!testError) {
+      chatTablesInitialized = true;
+      return true;
+    }
+
+    console.log('[ADMIN CHAT] Tables non trouvées, création en cours...');
+
+    // Créer les tables via SQL brut (service role bypass RLS)
+    const { error: createError } = await supabase.rpc('exec_sql', {
+      sql_query: `
+        CREATE TABLE IF NOT EXISTS admin_conversations (
+          id SERIAL PRIMARY KEY,
+          tenant_id INTEGER NOT NULL,
+          admin_id INTEGER NOT NULL,
+          title VARCHAR(255) DEFAULT 'Nouvelle conversation',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS admin_messages (
+          id SERIAL PRIMARY KEY,
+          conversation_id INTEGER NOT NULL REFERENCES admin_conversations(id) ON DELETE CASCADE,
+          role VARCHAR(20) NOT NULL,
+          content TEXT NOT NULL,
+          tool_use JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_admin_conversations_tenant ON admin_conversations(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_admin_messages_conversation ON admin_messages(conversation_id);
+      `
+    });
+
+    if (createError) {
+      console.warn('[ADMIN CHAT] RPC exec_sql non disponible, tables doivent être créées manuellement');
+      console.warn('[ADMIN CHAT] Exécutez: src/migrations/014_admin_chat.sql dans Supabase');
+      return false;
+    }
+
+    chatTablesInitialized = true;
+    console.log('[ADMIN CHAT] ✅ Tables créées avec succès');
+    return true;
+  } catch (error) {
+    console.error('[ADMIN CHAT] Erreur initialisation tables:', error.message);
+    return false;
+  }
+}
+
 /**
  * Récupère les informations du tenant
  */
@@ -64,7 +126,41 @@ export function buildSystemPrompt(tenant) {
   const plan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
   const credits = tenant?.ai_credits_remaining ?? 1000;
 
+  // Date actuelle formatée avec date ISO
+  const now = new Date();
+  const dateISO = now.toISOString().split('T')[0]; // 2026-02-20
+  const dateStr = now.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  // Générer les prochains jours pour référence
+  const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const prochainsJours = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    prochainsJours.push(`${d.getDate()} = ${JOURS[d.getDay()]} ${d.toISOString().split('T')[0]}`);
+  }
+
   return `Tu es l'Assistant Admin Pro de ${businessName}, propulsé par NEXUS.
+
+## DATE ET HEURE ACTUELLES
+- **Aujourd'hui** : ${dateStr}
+- **Date ISO** : ${dateISO}
+- **Heure** : ${timeStr}
+
+## CALENDRIER - PROCHAINS JOURS (RÉFÉRENCE OBLIGATOIRE)
+${prochainsJours.join('\n')}
+
+## RÈGLE CRITIQUE - AGENDA
+Quand l'utilisateur demande d'ajouter un événement à une date :
+1. Consulte le CALENDRIER ci-dessus pour trouver la bonne date ISO
+2. Exemple: "le 24" → regarde le calendrier → 24 = Mardi 2026-02-24
+3. Utilise TOUJOURS heure_fin si l'utilisateur donne une plage horaire ("de 10h à 11h30" → heure="10:00", heure_fin="11:30")
 
 ## IDENTITÉ
 - Tu es un assistant IA expert en gestion d'entreprise
@@ -102,7 +198,7 @@ function getPrixReservation(r) {
 /**
  * Exécute un outil et retourne le résultat
  */
-async function executeTool(toolName, toolInput, tenantId) {
+async function executeTool(toolName, toolInput, tenantId, adminId = null) {
   console.log(`[ADMIN CHAT] Exécution outil: ${toolName}`, { toolInput, tenantId });
 
   try {
@@ -215,6 +311,74 @@ async function executeTool(toolName, toolInput, tenantId) {
         return {
           success: true,
           top_clients: clientsWithRevenue.slice(0, toolInput.limit || 10)
+        };
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // OUTILS DATES - CRITIQUE POUR LA PRÉCISION
+      // ═══════════════════════════════════════════════════════════════
+      case 'get_upcoming_days': {
+        const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+        const now = new Date();
+        now.setHours(12, 0, 0, 0);
+        const limit = Math.min(toolInput.nb_jours || 14, 60);
+        const jours = [];
+
+        for (let i = 0; i < limit; i++) {
+          const d = new Date(now);
+          d.setDate(now.getDate() + i);
+          jours.push({
+            date: d.toISOString().split('T')[0],
+            jour: JOURS[d.getDay()],
+            dateFormatee: `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()}`
+          });
+        }
+
+        return {
+          success: true,
+          aujourdhui: {
+            date: now.toISOString().split('T')[0],
+            jour: JOURS[now.getDay()],
+            dateFormatee: `${JOURS[now.getDay()]} ${now.getDate()} ${MOIS[now.getMonth()]} ${now.getFullYear()}`
+          },
+          jours_prochains: jours
+        };
+      }
+
+      case 'parse_date': {
+        const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+        const text = (toolInput.date_text || '').toLowerCase().trim();
+        const now = new Date();
+        now.setHours(12, 0, 0, 0);
+        let targetDate = new Date(now);
+
+        if (text === 'aujourdhui' || text === "aujourd'hui") {
+          // aujourd'hui
+        } else if (text === 'demain') {
+          targetDate.setDate(now.getDate() + 1);
+        } else if (text === 'après-demain' || text === 'apres-demain' || text === 'apres demain') {
+          targetDate.setDate(now.getDate() + 2);
+        } else {
+          // Chercher un jour de la semaine
+          const jourIndex = JOURS.indexOf(text.replace(' prochain', '').trim());
+          if (jourIndex !== -1) {
+            const currentDay = now.getDay();
+            let daysUntil = jourIndex - currentDay;
+            if (daysUntil <= 0) daysUntil += 7;
+            targetDate.setDate(now.getDate() + daysUntil);
+          }
+        }
+
+        return {
+          success: true,
+          date_iso: targetDate.toISOString().split('T')[0],
+          date_formatee: targetDate.toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
         };
       }
 
@@ -743,9 +907,10 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
         const dateDebut = debut || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const dateFin = fin || now.toISOString().split('T')[0];
 
-        console.log(`[ADMIN CHAT] Analytics KPI - ${dateDebut} à ${dateFin}`);
+        console.log(`[ADMIN CHAT] Analytics KPI - ${dateDebut} à ${dateFin} - tenant: ${tenantId}`);
 
         const kpi = await analyticsService.getKPI(tenantId, dateDebut, dateFin);
+        console.log(`[ADMIN CHAT] KPI Result: CA=${kpi.caTotal}, RDV=${kpi.rdvTotal}, Confirmes=${kpi.rdvConfirmes}`);
 
         return {
           success: true,
@@ -1462,6 +1627,408 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // OUTILS AGENDA - Événements personnels de l'entrepreneur
+      // ═══════════════════════════════════════════════════════════════
+      case 'agenda_creer_evenement': {
+        let { titre, date, heure, heure_fin, type, lieu, description, participants } = toolInput;
+
+        // Log complet pour debug
+        console.log(`[ADMIN CHAT] agenda_creer_evenement - Paramètres reçus:`, JSON.stringify(toolInput, null, 2));
+
+        if (!titre || !heure) {
+          return { success: false, error: 'Titre et heure sont requis' };
+        }
+
+        // Si la date est juste un jour (ex: "24"), convertir en date ISO du mois courant
+        if (!date || /^\d{1,2}$/.test(date)) {
+          const jour = parseInt(date) || new Date().getDate();
+          const now = new Date();
+          date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(jour).padStart(2, '0')}`;
+          console.log(`[ADMIN CHAT] Date convertie depuis jour: ${toolInput.date} -> ${date}`);
+        }
+
+        // Validation du format de date
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(date)) {
+          return { success: false, error: `Format de date invalide: "${date}". Utilisez YYYY-MM-DD (ex: 2026-02-24)` };
+        }
+
+        // AUTO-CORRECTION: Détecter si l'IA a passé la mauvaise date
+        // Chercher un numéro de jour dans le titre ou la description
+        const texteCombine = `${titre} ${description || ''} ${participants || ''}`;
+        const jourMentionneMatch = texteCombine.match(/\ble?\s*(\d{1,2})\b/i);
+
+        if (jourMentionneMatch) {
+          const jourMentionne = parseInt(jourMentionneMatch[1]);
+          const jourDatePasse = parseInt(date.split('-')[2]);
+
+          // Si le jour mentionné est valide et différent de celui passé, corriger
+          if (jourMentionne >= 1 && jourMentionne <= 31 && jourMentionne !== jourDatePasse) {
+            const [annee, mois] = date.split('-');
+            const dateCorrigee = `${annee}-${mois}-${String(jourMentionne).padStart(2, '0')}`;
+            console.log(`[ADMIN CHAT] ⚠️ AUTO-CORRECTION: ${date} -> ${dateCorrigee} (jour ${jourMentionne} détecté dans "${jourMentionneMatch[0]}")`);
+            date = dateCorrigee;
+          }
+        }
+
+        // Validation de l'heure
+        const heureRegex = /^\d{2}:\d{2}$/;
+        if (!heureRegex.test(heure)) {
+          return { success: false, error: `Format d'heure invalide: "${heure}". Utilisez HH:MM (ex: 10:00)` };
+        }
+
+        // Utiliser l'admin_id passé en paramètre (de la session)
+        if (!adminId) {
+          console.error('[ADMIN CHAT] agenda_creer_evenement: adminId non fourni!');
+          return { success: false, error: 'Session admin non valide' };
+        }
+        console.log(`[ADMIN CHAT] Création événement avec adminId: ${adminId}`);
+
+        // Vérifier les chevauchements
+        const startTime = heure;
+        const endTime = heure_fin || heure; // Si pas de fin, on considère la même heure
+
+        const { data: existingEvents } = await supabase
+          .from('agenda_events')
+          .select('id, title, start_time, end_time')
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .eq('date', date);
+
+        // Détecter les chevauchements
+        const overlaps = [];
+        for (const evt of existingEvents || []) {
+          const evtStart = evt.start_time || '00:00';
+          const evtEnd = evt.end_time || evt.start_time || '23:59';
+
+          // Vérifier si les plages horaires se chevauchent
+          if (startTime < evtEnd && (heure_fin || '23:59') > evtStart) {
+            overlaps.push({
+              id: evt.id,
+              titre: evt.title,
+              horaire: `${evtStart}${evt.end_time ? ' - ' + evt.end_time : ''}`
+            });
+          }
+        }
+
+        if (overlaps.length > 0) {
+          return {
+            success: false,
+            error: 'Chevauchement détecté avec un événement existant',
+            conflits: overlaps,
+            message: `Un événement existe déjà le ${date} : "${overlaps[0].titre}" à ${overlaps[0].horaire}. Voulez-vous quand même créer cet événement ?`
+          };
+        }
+
+        // Créer l'événement
+        const { data, error } = await supabase
+          .from('agenda_events')
+          .insert({
+            tenant_id: tenantId,
+            admin_id: adminId,
+            title: titre,
+            description: description || null,
+            date,
+            start_time: heure,
+            end_time: heure_fin || null,
+            type: type || 'meeting',
+            location: lieu || null,
+            attendees: participants || null,
+            completed: false
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Calculer le jour de la semaine correct
+        const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        const dateObj = new Date(date + 'T12:00:00');
+        const jourSemaine = JOURS[dateObj.getDay()];
+
+        return {
+          success: true,
+          message: `Événement créé: "${titre}" le ${jourSemaine} ${date} de ${heure}${heure_fin ? ' à ' + heure_fin : ''}`,
+          evenement: {
+            id: data.id,
+            titre: data.title,
+            date: data.date,
+            jour: jourSemaine,
+            heure: data.start_time,
+            heure_fin: data.end_time,
+            type: data.type,
+            lieu: data.location,
+            participants: data.attendees
+          }
+        };
+      }
+
+      case 'agenda_lister_evenements': {
+        const { date: dateSpecifique, debut, fin, type } = toolInput;
+
+        console.log(`[ADMIN CHAT] Liste événements agenda`);
+
+        // Utiliser l'admin_id passé en paramètre
+        if (!adminId) {
+          console.error('[ADMIN CHAT] Outil agenda: adminId non fourni!');
+          return { success: false, error: 'Session admin non valide' };
+        }
+
+        let query = supabase
+          .from('agenda_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .order('date', { ascending: true })
+          .order('start_time', { ascending: true });
+
+        if (dateSpecifique) {
+          query = query.eq('date', dateSpecifique);
+        } else if (debut && fin) {
+          query = query.gte('date', debut).lte('date', fin);
+        }
+
+        if (type && type !== 'all') {
+          query = query.eq('type', type);
+        }
+
+        const { data: events, error } = await query.limit(50);
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          nb_evenements: events?.length || 0,
+          evenements: (events || []).map(e => ({
+            id: e.id,
+            titre: e.title,
+            date: e.date,
+            heure: e.start_time,
+            heure_fin: e.end_time,
+            type: e.type,
+            lieu: e.location,
+            description: e.description,
+            participants: e.attendees,
+            termine: e.completed
+          }))
+        };
+      }
+
+      case 'agenda_aujourdhui': {
+        console.log(`[ADMIN CHAT] Événements agenda aujourd'hui`);
+
+        const today = new Date().toISOString().split('T')[0];
+
+        const { data: admin } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .single();
+
+        const adminId = admin?.id || 1;
+
+        const { data: events, error } = await supabase
+          .from('agenda_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .eq('date', today)
+          .order('start_time', { ascending: true });
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          date: today,
+          nb_evenements: events?.length || 0,
+          evenements: (events || []).map(e => ({
+            id: e.id,
+            titre: e.title,
+            heure: e.start_time,
+            heure_fin: e.end_time,
+            type: e.type,
+            lieu: e.location,
+            termine: e.completed
+          }))
+        };
+      }
+
+      case 'agenda_prochains': {
+        const limit = toolInput.limit || 10;
+
+        console.log(`[ADMIN CHAT] Prochains événements agenda (limit: ${limit})`);
+
+        const today = new Date().toISOString().split('T')[0];
+
+        const { data: admin } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .single();
+
+        const adminId = admin?.id || 1;
+
+        const { data: events, error } = await supabase
+          .from('agenda_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .gte('date', today)
+          .eq('completed', false)
+          .order('date', { ascending: true })
+          .order('start_time', { ascending: true })
+          .limit(limit);
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          nb_evenements: events?.length || 0,
+          evenements: (events || []).map(e => ({
+            id: e.id,
+            titre: e.title,
+            date: e.date,
+            heure: e.start_time,
+            heure_fin: e.end_time,
+            type: e.type,
+            lieu: e.location,
+            participants: e.attendees
+          }))
+        };
+      }
+
+      case 'agenda_modifier_evenement': {
+        const { event_id, titre, date, heure, heure_fin, type, lieu, description, participants, completed } = toolInput;
+
+        console.log(`[ADMIN CHAT] Modification événement ${event_id}`);
+
+        if (!event_id) {
+          return { success: false, error: 'event_id est requis' };
+        }
+
+        const { data: admin } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .single();
+
+        const adminId = admin?.id || 1;
+
+        const updateData = { updated_at: new Date().toISOString() };
+        if (titre !== undefined) updateData.title = titre;
+        if (date !== undefined) updateData.date = date;
+        if (heure !== undefined) updateData.start_time = heure;
+        if (heure_fin !== undefined) updateData.end_time = heure_fin;
+        if (type !== undefined) updateData.type = type;
+        if (lieu !== undefined) updateData.location = lieu;
+        if (description !== undefined) updateData.description = description;
+        if (participants !== undefined) updateData.attendees = participants;
+        if (completed !== undefined) updateData.completed = completed;
+
+        const { data, error } = await supabase
+          .from('agenda_events')
+          .update(updateData)
+          .eq('id', event_id)
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          message: 'Événement modifié',
+          evenement: {
+            id: data.id,
+            titre: data.title,
+            date: data.date,
+            heure: data.start_time,
+            type: data.type
+          }
+        };
+      }
+
+      case 'agenda_supprimer_evenement': {
+        const { event_id } = toolInput;
+
+        console.log(`[ADMIN CHAT] Suppression événement ${event_id}`);
+
+        if (!event_id) {
+          return { success: false, error: 'event_id est requis' };
+        }
+
+        const { data: admin } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .single();
+
+        const adminId = admin?.id || 1;
+
+        const { error } = await supabase
+          .from('agenda_events')
+          .delete()
+          .eq('id', event_id)
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId);
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          message: 'Événement supprimé'
+        };
+      }
+
+      case 'agenda_marquer_termine': {
+        const { event_id, termine } = toolInput;
+
+        console.log(`[ADMIN CHAT] Marquer événement ${event_id} comme ${termine !== false ? 'terminé' : 'non terminé'}`);
+
+        if (!event_id) {
+          return { success: false, error: 'event_id est requis' };
+        }
+
+        const { data: admin } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .single();
+
+        const adminId = admin?.id || 1;
+
+        const { data, error } = await supabase
+          .from('agenda_events')
+          .update({
+            completed: termine !== false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', event_id)
+          .eq('tenant_id', tenantId)
+          .eq('admin_id', adminId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          message: data.completed ? 'Marqué comme terminé' : 'Marqué comme non terminé',
+          evenement: {
+            id: data.id,
+            titre: data.title,
+            termine: data.completed
+          }
+        };
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // OUTILS PRO - Capabilities avancées (Pro/Business uniquement)
       // ═══════════════════════════════════════════════════════════════
       case 'executeAdvancedQuery': {
@@ -1554,10 +2121,16 @@ Réponds UNIQUEMENT en JSON valide :
 
 /**
  * Chat avec streaming SSE et exécution des outils
+ * @param {string} tenantId - ID du tenant
+ * @param {Array} messages - Messages de conversation
+ * @param {Object} res - Response object Express
+ * @param {string} conversationId - ID de la conversation
+ * @param {string} adminId - ID de l'admin connecté (pour les outils agenda, etc.)
  */
-export async function chatStream(tenantId, messages, res, conversationId) {
+export async function chatStream(tenantId, messages, res, conversationId, adminId = null) {
   console.log(`[ADMIN CHAT] ========== DEBUT CHAT STREAM ==========`);
   console.log(`[ADMIN CHAT] TenantId reçu: "${tenantId}" (type: ${typeof tenantId})`);
+  console.log(`[ADMIN CHAT] AdminId reçu: "${adminId}"`);
 
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
@@ -1635,7 +2208,7 @@ export async function chatStream(tenantId, messages, res, conversationId) {
       // Exécuter chaque outil et collecter les résultats
       const toolResults = [];
       for (const tool of toolBlocks) {
-        const result = await executeTool(tool.name, tool.input, tenantId);
+        const result = await executeTool(tool.name, tool.input, tenantId, adminId);
         console.log(`[ADMIN CHAT] Résultat ${tool.name}:`, result.success);
 
         toolResults.push({
@@ -1721,7 +2294,7 @@ export async function chat(tenantId, messages) {
       // Exécuter outils
       const toolResults = [];
       for (const tool of toolBlocks) {
-        const result = await executeTool(tool.name, tool.input, tenantId);
+        const result = await executeTool(tool.name, tool.input, tenantId, adminId);
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tool.id,
@@ -1796,6 +2369,9 @@ export async function getMessages(conversationId) {
  */
 export async function createConversation(tenantId, adminId, title = 'Nouvelle conversation') {
   try {
+    // S'assurer que les tables existent
+    await ensureChatTables();
+
     const { data, error } = await supabase
       .from('admin_conversations')
       .insert({
@@ -1806,7 +2382,10 @@ export async function createConversation(tenantId, adminId, title = 'Nouvelle co
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[ADMIN CHAT] Erreur insert conversation:', error);
+      throw error;
+    }
     return data;
   } catch (error) {
     console.error('[ADMIN CHAT] Erreur createConversation:', error);

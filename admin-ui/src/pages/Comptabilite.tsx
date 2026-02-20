@@ -107,6 +107,9 @@ export default function Comptabilite() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'expenses' | 'tva' | 'relances' | 'rapprochement' | 'resultat' | 'bilan' | 'expert'>('overview');
   const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
+  const [showExpensePaymentModal, setShowExpensePaymentModal] = useState(false);
+  const [pendingExpenseId, setPendingExpenseId] = useState<number | null>(null);
+  const [expensePaymentMode, setExpensePaymentMode] = useState('cb');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isUploadingExpense, setIsUploadingExpense] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,7 +197,7 @@ export default function Comptabilite() {
   });
 
   // Query pour les écritures du journal sélectionné
-  const { data: ecrituresJournalData, isLoading: ecrituresJournalLoading } = useQuery<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number } }>({
+  const { data: ecrituresJournalData, isLoading: ecrituresJournalLoading } = useQuery<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>({
     queryKey: ['ecritures-journal', selectedJournal, journalPeriode],
     queryFn: () => comptaApi.getEcritures({ journal: selectedJournal, periode: journalPeriode }),
     enabled: activeTab === 'expert' && !!selectedJournal,
@@ -242,7 +245,8 @@ export default function Comptabilite() {
 
   // Mutation pour changer le statut
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, statut }: { id: number; statut: string }) => comptaApi.updateFactureStatut(id, statut),
+    mutationFn: ({ id, statut, mode_paiement }: { id: number; statut: string; mode_paiement?: string }) =>
+      comptaApi.updateFactureStatut(id, statut, mode_paiement),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setSelectedInvoice(null);
@@ -296,10 +300,17 @@ export default function Comptabilite() {
   });
 
   const marquerDepensePayeeMutation = useMutation({
-    mutationFn: ({ id, payee }: { id: number; payee: boolean }) => comptaApi.marquerDepensePayee(id, payee),
+    mutationFn: ({ id, payee, mode_paiement }: { id: number; payee: boolean; mode_paiement?: string }) =>
+      comptaApi.marquerDepensePayee(id, payee, mode_paiement),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       setNotification({ type: 'success', message: variables.payee ? 'Dépense marquée comme payée' : 'Dépense marquée non payée' });
+      setTimeout(() => setNotification(null), 5000);
+      setShowExpensePaymentModal(false);
+      setPendingExpenseId(null);
+    },
+    onError: (err: Error) => {
+      setNotification({ type: 'error', message: err.message });
       setTimeout(() => setNotification(null), 5000);
     }
   });
@@ -1719,7 +1730,11 @@ export default function Comptabilite() {
                                   size="sm"
                                   variant="outline"
                                   className="text-xs h-7"
-                                  onClick={() => marquerDepensePayeeMutation.mutate({ id: expense.id, payee: true })}
+                                  onClick={() => {
+                                    setPendingExpenseId(expense.id);
+                                    setExpensePaymentMode('cb');
+                                    setShowExpensePaymentModal(true);
+                                  }}
                                   disabled={marquerDepensePayeeMutation.isPending}
                                 >
                                   Marquer payée
@@ -3150,6 +3165,7 @@ export default function Comptabilite() {
                   <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
                     {[
                       { code: 'BQ', label: 'Banque', color: 'purple' },
+                      { code: 'CA', label: 'Caisse', color: 'amber' },
                       { code: 'VT', label: 'Ventes', color: 'green' },
                       { code: 'AC', label: 'Achats', color: 'orange' },
                       { code: 'PA', label: 'Paie', color: 'rose' },
@@ -3163,9 +3179,11 @@ export default function Comptabilite() {
                           "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                           selectedJournal === j.code
                             ? j.color === 'purple' ? "bg-purple-600 text-white"
+                            : j.color === 'amber' ? "bg-amber-600 text-white"
                             : j.color === 'green' ? "bg-green-600 text-white"
                             : j.color === 'orange' ? "bg-orange-600 text-white"
                             : j.color === 'rose' ? "bg-rose-600 text-white"
+                            : j.color === 'gray' ? "bg-gray-600 text-white"
                             : "bg-blue-600 text-white"
                             : "text-gray-600 hover:bg-gray-200"
                         )}
@@ -3208,6 +3226,7 @@ export default function Comptabilite() {
                   {/* Nom du journal */}
                   <div className="ml-auto text-sm text-gray-600">
                     {selectedJournal === 'BQ' && 'Journal de Banque'}
+                    {selectedJournal === 'CA' && 'Journal de Caisse'}
                     {selectedJournal === 'VT' && 'Journal des Ventes'}
                     {selectedJournal === 'AC' && 'Journal des Achats'}
                     {selectedJournal === 'PA' && 'Journal de Paie'}
@@ -3233,17 +3252,46 @@ export default function Comptabilite() {
                     </div>
                     <div className={cn(
                       "rounded-lg p-3 text-center",
-                      (ecrituresJournalData.totaux?.solde || 0) >= 0 ? "bg-blue-50" : "bg-orange-50"
+                      // Pour BQ/CA: utiliser solde_banque/solde_caisse (déjà en euros), sinon solde normal
+                      (() => {
+                        const solde = selectedJournal === 'BQ'
+                          ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
+                          : selectedJournal === 'CA'
+                          ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
+                          : (ecrituresJournalData.totaux?.solde || 0);
+                        return solde >= 0 ? "bg-blue-50" : "bg-orange-50";
+                      })()
                     )}>
                       <p className={cn(
                         "text-xs",
-                        (ecrituresJournalData.totaux?.solde || 0) >= 0 ? "text-blue-600" : "text-orange-600"
-                      )}>Solde</p>
+                        (() => {
+                          const solde = selectedJournal === 'BQ'
+                            ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
+                            : selectedJournal === 'CA'
+                            ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
+                            : (ecrituresJournalData.totaux?.solde || 0);
+                          return solde >= 0 ? "text-blue-600" : "text-orange-600";
+                        })()
+                      )}>
+                        {selectedJournal === 'BQ' ? 'Solde Banque' : selectedJournal === 'CA' ? 'Solde Caisse' : 'Solde'}
+                      </p>
                       <p className={cn(
                         "text-lg font-bold",
-                        (ecrituresJournalData.totaux?.solde || 0) >= 0 ? "text-blue-700" : "text-orange-700"
+                        (() => {
+                          const solde = selectedJournal === 'BQ'
+                            ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
+                            : selectedJournal === 'CA'
+                            ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
+                            : (ecrituresJournalData.totaux?.solde || 0);
+                          return solde >= 0 ? "text-blue-700" : "text-orange-700";
+                        })()
                       )}>
-                        {formatCurrency((ecrituresJournalData.totaux?.solde || 0) / 100)}
+                        {selectedJournal === 'BQ'
+                          ? formatCurrency(ecrituresJournalData.totaux?.solde_banque ?? 0)
+                          : selectedJournal === 'CA'
+                          ? formatCurrency(ecrituresJournalData.totaux?.solde_caisse ?? 0)
+                          : formatCurrency((ecrituresJournalData.totaux?.solde || 0) / 100)
+                        }
                       </p>
                     </div>
                   </div>
@@ -3300,30 +3348,61 @@ export default function Comptabilite() {
                   </div>
                 </div>
 
-                {/* Info et bouton régénération */}
+                {/* Info et boutons */}
                 <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-600">
                     {ecrituresJournalData?.ecritures?.length || 0} écriture(s) ce mois
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={async () => {
-                      try {
-                        const result = await comptaApi.genererToutesEcritures();
-                        setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
-                        // Refetch des écritures
-                        window.location.reload();
-                      } catch {
-                        setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
-                      }
-                      setTimeout(() => setNotification(null), 3000);
-                    }}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Régénérer
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        const exercicePrecedent = new Date().getFullYear() - 1;
+                        const confirmer = confirm(
+                          `Générer les à nouveaux pour ${exercicePrecedent + 1} à partir de l'exercice ${exercicePrecedent} ?\n\n` +
+                          `Cette action va reporter les soldes des comptes de bilan et affecter le résultat de l'exercice ${exercicePrecedent}.`
+                        );
+                        if (!confirmer) return;
+
+                        try {
+                          const result = await comptaApi.genererANouveaux(exercicePrecedent);
+                          const message = result.resultat !== undefined
+                            ? `${result.message}\nRésultat: ${result.resultat?.toFixed(2)}€ (${result.resultat_type})`
+                            : result.message;
+                          setNotification({ type: 'success', message });
+                          window.location.reload();
+                        } catch (err: unknown) {
+                          const error = err as Error;
+                          setNotification({ type: 'error', message: error.message || 'Erreur génération à nouveaux' });
+                        }
+                        setTimeout(() => setNotification(null), 5000);
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      À Nouveaux
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        try {
+                          const result = await comptaApi.genererToutesEcritures();
+                          setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
+                          // Refetch des écritures
+                          window.location.reload();
+                        } catch {
+                          setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
+                        }
+                        setTimeout(() => setNotification(null), 3000);
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Régénérer
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -3338,7 +3417,7 @@ export default function Comptabilite() {
           onClose={() => setSelectedInvoice(null)}
           onPrint={() => handlePrintInvoice(selectedInvoice.id)}
           onSend={() => sendInvoiceMutation.mutate(selectedInvoice.id)}
-          onUpdateStatus={(statut) => updateStatusMutation.mutate({ id: selectedInvoice.id, statut })}
+          onUpdateStatus={(statut, mode_paiement) => updateStatusMutation.mutate({ id: selectedInvoice.id, statut, mode_paiement })}
           isSending={sendInvoiceMutation.isPending}
           isUpdating={updateStatusMutation.isPending}
           formatCurrency={formatCurrency}
@@ -3350,9 +3429,75 @@ export default function Comptabilite() {
       {showNewExpenseModal && (
         <NewExpenseModal onClose={() => setShowNewExpenseModal(false)} />
       )}
+
+      {/* Expense Payment Modal */}
+      {showExpensePaymentModal && pendingExpenseId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Mode de paiement</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => { setShowExpensePaymentModal(false); setPendingExpenseId(null); }} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Sélectionnez le mode de paiement pour cette dépense.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {MODES_PAIEMENT.map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setExpensePaymentMode(mode.value)}
+                    className={`p-4 rounded-lg border-2 transition-all text-center ${
+                      expensePaymentMode === mode.value
+                        ? 'border-cyan-500 bg-cyan-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">{mode.icon}</span>
+                    <span className={`text-sm font-medium ${
+                      expensePaymentMode === mode.value ? 'text-cyan-700' : 'text-gray-700'
+                    }`}>
+                      {mode.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => { setShowExpensePaymentModal(false); setPendingExpenseId(null); }}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => marquerDepensePayeeMutation.mutate({ id: pendingExpenseId, payee: true, mode_paiement: expensePaymentMode })}
+                  disabled={marquerDepensePayeeMutation.isPending}
+                  className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
+                >
+                  {marquerDepensePayeeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Confirmer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
+
+// Modes de paiement disponibles
+const MODES_PAIEMENT = [
+  { value: 'cb', label: 'Carte bancaire', icon: '💳' },
+  { value: 'especes', label: 'Espèces', icon: '💵' },
+  { value: 'virement', label: 'Virement', icon: '🏦' },
+  { value: 'cheque', label: 'Chèque', icon: '📝' },
+  { value: 'prelevement', label: 'Prélèvement', icon: '🔄' },
+];
 
 // Invoice Detail Modal
 function InvoiceDetailModal({
@@ -3370,14 +3515,22 @@ function InvoiceDetailModal({
   onClose: () => void;
   onPrint: () => void;
   onSend: () => void;
-  onUpdateStatus: (statut: string) => void;
+  onUpdateStatus: (statut: string, modePaiement?: string) => void;
   isSending: boolean;
   isUpdating: boolean;
   formatCurrency: (amount: number) => string;
   formatDate: (dateStr: string | null | undefined) => string;
 }) {
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState('cb');
+
   const canSend = invoice.client_email && invoice.statut !== 'payee' && invoice.statut !== 'annulee';
   const canMarkPaid = invoice.statut !== 'payee' && invoice.statut !== 'annulee' && invoice.statut !== 'brouillon';
+
+  const handleMarkPaid = () => {
+    onUpdateStatus('payee', selectedPaymentMode);
+    setShowPaymentModal(false);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -3451,7 +3604,7 @@ function InvoiceDetailModal({
               </Button>
             )}
             {canMarkPaid && (
-              <Button onClick={() => onUpdateStatus('payee')} disabled={isUpdating} className="gap-2 bg-green-600 hover:bg-green-700">
+              <Button onClick={() => setShowPaymentModal(true)} disabled={isUpdating} className="gap-2 bg-green-600 hover:bg-green-700">
                 {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 Marquer payée
               </Button>
@@ -3465,6 +3618,54 @@ function InvoiceDetailModal({
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal sélection mode de paiement */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-green-600" />
+                Mode de paiement
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Sélectionnez le mode de paiement pour la facture {invoice.numero}
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                {MODES_PAIEMENT.map((mode) => (
+                  <button
+                    key={mode.value}
+                    onClick={() => setSelectedPaymentMode(mode.value)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
+                      selectedPaymentMode === mode.value
+                        ? "border-green-500 bg-green-50 ring-2 ring-green-200"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    <span className="text-xl">{mode.icon}</span>
+                    <span className="font-medium">{mode.label}</span>
+                    {selectedPaymentMode === mode.value && (
+                      <CheckCircle className="h-5 w-5 text-green-600 ml-auto" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowPaymentModal(false)} className="flex-1">
+                  Annuler
+                </Button>
+                <Button onClick={handleMarkPaid} disabled={isUpdating} className="flex-1 bg-green-600 hover:bg-green-700 gap-2">
+                  {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Confirmer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -3477,6 +3678,8 @@ function NewExpenseModal({ onClose }: { onClose: () => void }) {
     libelle: '',
     montant: 0,
     date_depense: new Date().toISOString().split('T')[0],
+    a_credit: false, // false = comptant, true = crédit
+    mode_paiement: 'cb',
   });
   const [error, setError] = useState('');
 
@@ -3488,6 +3691,8 @@ function NewExpenseModal({ onClose }: { onClose: () => void }) {
         description: data.libelle,
         montant: Math.round(data.montant * 100),
         date: data.date_depense,
+        a_credit: data.a_credit,
+        mode_paiement: data.a_credit ? undefined : data.mode_paiement,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -3563,6 +3768,63 @@ function NewExpenseModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
             </div>
+
+            {/* Type de paiement: Comptant ou Crédit */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Type de paiement *</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData(d => ({ ...d, a_credit: false }))}
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    !formData.a_credit
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  💵 Comptant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(d => ({ ...d, a_credit: true }))}
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    formData.a_credit
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  📋 À crédit
+                </button>
+              </div>
+            </div>
+
+            {/* Mode de paiement (si comptant) */}
+            {!formData.a_credit && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mode de paiement *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MODES_PAIEMENT.map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => setFormData(d => ({ ...d, mode_paiement: mode.value }))}
+                      className={`p-2 rounded-lg border-2 text-center transition-all ${
+                        formData.mode_paiement === mode.value
+                          ? 'border-cyan-500 bg-cyan-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-lg block">{mode.icon}</span>
+                      <span className={`text-xs font-medium ${
+                        formData.mode_paiement === mode.value ? 'text-cyan-700' : 'text-gray-600'
+                      }`}>
+                        {mode.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={onClose} className="flex-1">

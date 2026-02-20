@@ -138,6 +138,12 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       ...(tenant.quotas || {}),
     };
 
+    // Convertir modules_actifs (array) en objet avec booléens
+    const modulesArray = tenant.modules_actifs || [];
+    const modulesObject = Array.isArray(modulesArray)
+      ? modulesArray.reduce((acc, mod) => ({ ...acc, [mod]: true }), {})
+      : modulesArray; // Si c'est déjà un objet, le garder
+
     // Construire la réponse
     const response = {
       success: true,
@@ -146,7 +152,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
         slug: tenant.id, // Le slug est l'ID pour l'instant
         name: tenant.name || tenant.nom_commercial || 'NEXUS',
         plan: plan,
-        modules: tenant.modules_actifs || {},
+        modules: modulesObject,
         branding: {
           logo: tenant.logo_url || null,
           primaryColor: tenant.couleur_primaire || '#0EA5E9',
