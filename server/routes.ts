@@ -2556,6 +2556,9 @@ RECONNAISSANCE : Nom mentionné → search_client_by_name → "${salutation} [Pr
   // ============= HALIMAH PRO - ADMIN AUTH =============
   app.use('/api/admin/auth', adminAuthRouter);
 
+  // ============= PUBLIC AUTH (signup sans auth) =============
+  app.use('/api/auth', adminAuthRouter);  // Réutilise le même router pour /api/auth/signup
+
   // ============= HALIMAH PRO - ADMIN STATS =============
   app.use('/api/admin/stats', adminStatsRouter);
 

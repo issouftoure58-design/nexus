@@ -243,6 +243,121 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/auth/signup (créer un compte)
+router.post('/signup', async (req, res) => {
+  try {
+    const { entreprise, nom, email, telephone, password, plan = 'starter' } = req.body;
+
+    // Validation
+    if (!entreprise || !nom || !email || !password) {
+      return res.status(400).json({ error: 'Tous les champs obligatoires doivent être remplis' });
+    }
+
+    // Valider le mot de passe
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({
+        error: 'Mot de passe trop faible',
+        details: passwordValidation.errors
+      });
+    }
+
+    // Vérifier si l'email existe déjà
+    const { data: existingUser } = await supabase
+      .from('admin_users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Un compte avec cet email existe déjà' });
+    }
+
+    // Créer le slug du tenant
+    const slug = entreprise
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50);
+
+    // Vérifier si le slug existe
+    const { data: existingTenant } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+
+    const finalSlug = existingTenant ? `${slug}-${Date.now()}` : slug;
+
+    // Créer le tenant
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenants')
+      .insert({
+        nom: entreprise,
+        slug: finalSlug,
+        plan: plan,
+        status: 'trial',
+        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 jours
+        settings: {
+          timezone: 'Europe/Paris',
+          currency: 'EUR',
+          locale: 'fr-FR'
+        }
+      })
+      .select()
+      .single();
+
+    if (tenantError) {
+      console.error('[SIGNUP] Erreur création tenant:', tenantError);
+      throw new Error('Erreur lors de la création du compte');
+    }
+
+    // Hasher le mot de passe
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Créer l'admin user
+    const { data: adminUser, error: userError } = await supabase
+      .from('admin_users')
+      .insert({
+        email,
+        password: hashedPassword,
+        nom,
+        role: 'admin',
+        tenant_id: tenant.id,
+        telephone: telephone || null,
+        password_changed_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (userError) {
+      // Rollback: supprimer le tenant créé
+      await supabase.from('tenants').delete().eq('id', tenant.id);
+      console.error('[SIGNUP] Erreur création admin:', userError);
+      throw new Error('Erreur lors de la création du compte');
+    }
+
+    console.log(`[SIGNUP] ✅ Nouveau compte créé: ${email} (tenant: ${finalSlug}, plan: ${plan})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Compte créé avec succès',
+      tenant: {
+        id: tenant.id,
+        slug: finalSlug,
+        plan: plan
+      }
+    });
+
+  } catch (error) {
+    console.error('[SIGNUP] Erreur:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la création du compte' });
+  }
+});
+
 // GET /api/admin/auth/me (vérifier token)
 router.get('/me', authenticateAdmin, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)
