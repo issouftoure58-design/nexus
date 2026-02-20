@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { api } from '@/lib/api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -10,7 +11,7 @@ interface LayoutProps {
 
 export function Layout({ children, title, subtitle }: LayoutProps) {
   const handleLogout = () => {
-    localStorage.removeItem('nexus_admin_token');
+    api.clearToken();
     window.location.href = '/login';
   };
 

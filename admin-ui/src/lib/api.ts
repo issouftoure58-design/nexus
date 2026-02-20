@@ -31,21 +31,69 @@ function extractTenantFromJWT(token: string): { tenant_id?: string; tenant_slug?
   }
 }
 
+/**
+ * Génère la clé localStorage pour un tenant donné
+ */
+function getTokenKey(tenantSlug?: string): string {
+  return tenantSlug ? `nexus_admin_token_${tenantSlug}` : 'nexus_admin_token';
+}
+
 class ApiClient {
   private token: string | null = null;
+  private currentTenant: string | null = null;
 
   constructor() {
-    this.token = localStorage.getItem('nexus_admin_token');
+    // Récupérer le tenant actuel
+    this.currentTenant = localStorage.getItem('nexus_current_tenant');
+
+    // Charger le token du tenant actuel
+    if (this.currentTenant) {
+      this.token = localStorage.getItem(getTokenKey(this.currentTenant));
+    }
+
+    // Fallback: ancien système (migration)
+    if (!this.token) {
+      this.token = localStorage.getItem('nexus_admin_token');
+      // Si on a un ancien token, extraire le tenant et migrer
+      if (this.token) {
+        const { tenant_slug } = extractTenantFromJWT(this.token);
+        if (tenant_slug) {
+          this.currentTenant = tenant_slug;
+          localStorage.setItem('nexus_current_tenant', tenant_slug);
+          localStorage.setItem(getTokenKey(tenant_slug), this.token);
+          // Garder l'ancien pour compatibilité temporaire
+        }
+      }
+    }
   }
 
   setToken(token: string) {
     this.token = token;
+
+    // Extraire le tenant du JWT et stocker avec clé spécifique
+    const { tenant_slug } = extractTenantFromJWT(token);
+    if (tenant_slug) {
+      this.currentTenant = tenant_slug;
+      localStorage.setItem('nexus_current_tenant', tenant_slug);
+      localStorage.setItem(getTokenKey(tenant_slug), token);
+    }
+
+    // Garder aussi l'ancien système pour compatibilité
     localStorage.setItem('nexus_admin_token', token);
   }
 
   clearToken() {
+    // Supprimer le token du tenant actuel
+    if (this.currentTenant) {
+      localStorage.removeItem(getTokenKey(this.currentTenant));
+    }
+
     this.token = null;
+    this.currentTenant = null;
+
+    // Nettoyer l'ancien système aussi
     localStorage.removeItem('nexus_admin_token');
+    localStorage.removeItem('nexus_current_tenant');
     localStorage.removeItem('nexus_tenant_slug');
   }
 

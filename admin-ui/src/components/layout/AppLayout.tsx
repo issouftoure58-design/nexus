@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { GlobalMenu } from './GlobalMenu';
 import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
+import { api } from '@/lib/api';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -41,22 +42,25 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Récupérer les infos user du token
   const getUserInfo = () => {
-    const token = localStorage.getItem('nexus_admin_token');
+    // Utiliser le token du tenant actuel
+    const currentTenant = localStorage.getItem('nexus_current_tenant');
+    const tokenKey = currentTenant ? `nexus_admin_token_${currentTenant}` : 'nexus_admin_token';
+    const token = localStorage.getItem(tokenKey) || localStorage.getItem('nexus_admin_token');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         return {
           email: payload.email || 'admin@nexus.dev',
-          initials: payload.email?.[0]?.toUpperCase() || 'U'
+          initials: payload.email?.[0]?.toUpperCase() || 'U',
+          tenant: payload.tenant_slug
         };
       } catch { /* ignore */ }
     }
-    return { email: 'admin@nexus.dev', initials: 'U' };
+    return { email: 'admin@nexus.dev', initials: 'U', tenant: null };
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('nexus_admin_token');
-    localStorage.removeItem('nexus_admin_user');
+    api.clearToken();
     window.location.href = '/login';
   };
 

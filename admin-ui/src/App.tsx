@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import ErrorBoundary from './components/ErrorBoundary';
-import { authApi } from './lib/api';
+import { authApi, api } from './lib/api';
 import { TenantProvider } from './contexts/TenantContext';
 import { ModuleGate } from './components/ModuleGate/ModuleGate';
 
@@ -37,12 +37,22 @@ import IAAdmin from './pages/IAAdmin';
 import IATelephone from './pages/IATelephone';
 import IAWhatsApp from './pages/IAWhatsApp';
 
+// Helper pour récupérer le token du tenant actuel
+function getCurrentToken(): string | null {
+  const currentTenant = localStorage.getItem('nexus_current_tenant');
+  if (currentTenant) {
+    return localStorage.getItem(`nexus_admin_token_${currentTenant}`);
+  }
+  // Fallback ancien système
+  return localStorage.getItem('nexus_admin_token');
+}
+
 // Auth guard component
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   // DEMO_MODE désactivé - authentification réelle requise
   const DEMO_MODE = false;
 
-  const token = localStorage.getItem('nexus_admin_token');
+  const token = getCurrentToken();
 
   const { isLoading, isError } = useQuery({
     queryKey: ['auth-verify'],
@@ -64,7 +74,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isError) {
-    localStorage.removeItem('nexus_admin_token');
+    api.clearToken();
     return <Navigate to="/login" replace />;
   }
 

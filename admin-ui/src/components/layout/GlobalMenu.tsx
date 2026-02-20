@@ -9,6 +9,7 @@ import {
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { api } from '@/lib/api';
 
 interface GlobalMenuProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('nexus_admin_token');
+    api.clearToken();
     window.location.href = '/login';
   };
 
