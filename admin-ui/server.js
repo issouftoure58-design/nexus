@@ -18,6 +18,7 @@ app.use('/api', createProxyMiddleware({
   target: API_BASE_URL,
   changeOrigin: true,
   secure: true,
+  pathRewrite: (path) => `/api${path}`, // Préserver le prefix /api
 }));
 
 // Serve static files from dist
