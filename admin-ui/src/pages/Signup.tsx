@@ -115,10 +115,10 @@ export default function Signup() {
               {Object.keys(PLANS).map(p => (
                 <button
                   key={p}
-                  onClick={() => navigate(\`/signup?plan=\${p}\`)}
-                  className={\`px-3 py-1 rounded-full text-sm transition \${
+                  onClick={() => navigate(`/signup?plan=${p}`)}
+                  className={`px-3 py-1 rounded-full text-sm transition ${
                     p === selectedPlan ? 'bg-white text-cyan-600' : 'bg-white/20 hover:bg-white/30'
-                  }\`}
+                  }`}
                 >
                   {PLANS[p as keyof typeof PLANS].name}
                 </button>
