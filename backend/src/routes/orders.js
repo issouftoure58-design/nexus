@@ -545,7 +545,9 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
     const serviceNom = item.service_nom || item.serviceNom;
 
     // Utiliser createReservationUnified via NEXUS CORE
+    // 🔒 TENANT ISOLATION: Passer le tenant_id pour la création de réservation
     const result = await createReservationUnified({
+      tenant_id: tenantId,  // 🔒 CRITICAL: tenant_id requis pour créer la réservation
       service_name: serviceNom,
       date: dateRdv,
       heure: currentTime,
@@ -557,7 +559,7 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
       order_id: orderId,
       statut: statut,
       notes: `Commande panier #${orderId}`,
-      duree_minutes: dureeMinutes  // 🔧 FIX: Passer la durée dynamique (ex: Réparation Locks × N)
+      duree_minutes: dureeMinutes
     }, 'panier', {
       sendSMS: false,  // SMS envoyé séparément pour la commande complète
       skipValidation: true  // Validation déjà faite au niveau panier

@@ -3,6 +3,8 @@ import { useChat } from "@/hooks/use-chat";
 import { ChatMessage } from "@/components/chat-message";
 import { ChatInput } from "@/components/chat-input";
 import { Navigation } from "@/components/navigation";
+import { ChatBookingProvider, useChatBooking } from "@/contexts/ChatBookingContext";
+import InteractiveMessage from "@/components/halimah/InteractiveMessage";
 import {
   MessageCircle,
   Calendar,
@@ -15,8 +17,10 @@ import {
   Send
 } from "lucide-react";
 
-export default function ChatPage() {
+function ChatPageInner() {
   const { messages, sendMessage, isLoading } = useChat();
+  const { stage, startBooking } = useChatBooking();
+  const isBookingActive = stage !== 'idle';
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when messages change
@@ -111,8 +115,22 @@ export default function ChatPage() {
 
             {/* Suggestions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+              {/* Bouton principal de réservation rapide */}
+              <button
+                onClick={startBooking}
+                className="col-span-1 md:col-span-2 group relative bg-gradient-to-r from-amber-500/20 to-orange-500/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-amber-500/30 hover:border-amber-500/60 transition-all duration-300 text-left flex items-center gap-4"
+              >
+                <div className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <span className="text-white font-semibold text-lg block">Prendre rendez-vous</span>
+                  <span className="text-white/50 text-sm">Reservation rapide en quelques clics</span>
+                </div>
+                <Send className="ml-auto h-5 w-5 text-amber-400 group-hover:translate-x-1 transition-transform" />
+              </button>
+
               {[
-                { text: "Je voudrais prendre rendez-vous", icon: <Calendar className="h-5 w-5" />, color: "from-amber-500 to-orange-500" },
                 { text: "Quels sont vos services ?", icon: <Scissors className="h-5 w-5" />, color: "from-pink-500 to-rose-500" },
                 { text: "Quels sont vos horaires ?", icon: <Clock className="h-5 w-5" />, color: "from-emerald-500 to-teal-500" },
                 { text: "Je veux annuler mon RDV", icon: <XCircle className="h-5 w-5" />, color: "from-violet-500 to-purple-500" },
@@ -156,7 +174,17 @@ export default function ChatPage() {
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} onQuickReply={sendMessage} />
             ))}
-            {isLoading && (
+
+            {/* Flow de réservation interactif */}
+            {isBookingActive && (
+              <div className="w-full p-6">
+                <div className="mx-auto max-w-3xl">
+                  <InteractiveMessage />
+                </div>
+              </div>
+            )}
+
+            {isLoading && !isBookingActive && (
               <div className="w-full p-6 animate-pulse">
                 <div className="mx-auto max-w-3xl flex gap-6">
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-500/30 to-orange-500/30 shrink-0 border border-amber-500/20" />
@@ -175,5 +203,14 @@ export default function ChatPage() {
       {/* Input Area */}
       <ChatInput onSend={sendMessage} isLoading={isLoading} />
     </div>
+  );
+}
+
+// Export avec le provider de booking
+export default function ChatPage() {
+  return (
+    <ChatBookingProvider>
+      <ChatPageInner />
+    </ChatBookingProvider>
   );
 }

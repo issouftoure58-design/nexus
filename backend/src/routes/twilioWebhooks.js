@@ -552,23 +552,15 @@ router.post('/voice/transfer-result', async (req, res) => {
   } else {
     // Fatou n'a pas répondu ou a refusé
     console.log(`[HALIMAH VOICE] Transfert échoué: ${DialCallStatus}`);
-    await sayWithElevenLabs(twiml,
-      "Fatou n'est pas disponible actuellement. Souhaitez-vous laisser un message ou que je prenne votre rendez-vous ?"
+
+    // 🔧 FIX: Utiliser gatherWithBargeIn pour que l'audio soit DANS le gather
+    // Cela permet au client d'interrompre Halimah
+    await gatherWithBargeIn(twiml,
+      "Fatou n'est pas disponible actuellement. Souhaitez-vous laisser un message ou que je prenne votre rendez-vous ?",
+      { timeout: 8 }
     );
 
-    twiml.gather({
-      input: 'speech',
-      language: 'fr-FR',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
-      hints: SPEECH_HINTS,
-      action: '/api/twilio/voice/conversation',
-      method: 'POST',
-      timeout: 8,
-      bargeIn: true  // Permet d'interrompre Halimah
-    });
-
-    // Timeout
+    // Timeout - si pas de réponse
     await sayWithElevenLabs(twiml, "Je n'entends rien. Merci d'avoir appelé. Au revoir !");
   }
 
