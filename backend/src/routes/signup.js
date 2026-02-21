@@ -25,13 +25,36 @@ router.get('/plans', async (req, res) => {
   try {
     const { data: plans, error } = await supabase
       .from('plans')
-      .select('id, nom, prix_mensuel, prix_annuel, limites, modules, features, populaire, ordre')
+      .select(`
+        id, nom, description, prix_mensuel, ordre,
+        clients_max, stockage_mb, posts_ia_mois, images_dalle_mois,
+        utilisateurs_inclus, reservations_mois, commandes_mois,
+        comptabilite, crm_avance, marketing_automation, commercial,
+        stock_inventaire, analytics_avances, seo_visibilite, rh_multiemployes,
+        api_integrations, white_label, sentinel_niveau, assistant_mode,
+        support_email_heures, support_chat, support_telephone, account_manager
+      `)
       .eq('actif', true)
       .order('ordre');
 
     if (error) throw error;
 
-    res.json({ success: true, plans });
+    // Transformer pour le frontend
+    const formattedPlans = plans.map(plan => ({
+      ...plan,
+      prix_annuel: Math.round(plan.prix_mensuel * 10), // -17% annuel
+      populaire: plan.id === 'pro',
+      features: [
+        `${plan.clients_max} clients max`,
+        `${plan.stockage_mb} MB stockage`,
+        `${plan.posts_ia_mois} posts IA/mois`,
+        plan.crm_avance && 'CRM avancé',
+        plan.marketing_automation && 'Marketing automation',
+        plan.analytics_avances && 'Analytics avancés',
+      ].filter(Boolean)
+    }));
+
+    res.json({ success: true, plans: formattedPlans });
   } catch (err) {
     console.error('[SIGNUP] Erreur plans:', err);
     res.status(500).json({ error: 'Erreur chargement plans' });
@@ -171,6 +194,18 @@ router.post('/', async (req, res) => {
     const essai_fin = new Date();
     essai_fin.setDate(essai_fin.getDate() + 14); // 14 jours
 
+    // Construire modules actifs depuis les flags du plan
+    const modules_actifs = [];
+    if (plan.comptabilite) modules_actifs.push('comptabilite');
+    if (plan.crm_avance) modules_actifs.push('crm');
+    if (plan.marketing_automation) modules_actifs.push('marketing');
+    if (plan.commercial) modules_actifs.push('commercial');
+    if (plan.stock_inventaire) modules_actifs.push('stock');
+    if (plan.analytics_avances) modules_actifs.push('analytics');
+    if (plan.seo_visibilite) modules_actifs.push('seo');
+    if (plan.rh_multiemployes) modules_actifs.push('rh');
+    if (plan.api_integrations) modules_actifs.push('api');
+
     const { data: newTenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -179,8 +214,8 @@ router.post('/', async (req, res) => {
         domain: `${tenant_id}.nexus.app`,
         plan_id,
         secteur_id,
-        modules_actifs: plan.modules,
-        modules_metier_actifs: secteur.modules_metier,
+        modules_actifs,
+        modules_metier_actifs: secteur.modules_metier || [],
         periode_facturation: periode || 'monthly',
         essai_fin: essai_fin.toISOString(),
         statut: 'essai'
@@ -281,10 +316,20 @@ router.post('/', async (req, res) => {
     firstDayOfMonth.setDate(1);
     firstDayOfMonth.setHours(0, 0, 0, 0);
 
+    // Construire limites depuis les colonnes du plan
+    const limites_plan = {
+      clients_max: plan.clients_max,
+      stockage_mb: plan.stockage_mb,
+      posts_ia_mois: plan.posts_ia_mois,
+      images_dalle_mois: plan.images_dalle_mois,
+      reservations_mois: plan.reservations_mois,
+      commandes_mois: plan.commandes_mois
+    };
+
     await supabase.from('usage_tracking').insert({
       tenant_id,
       mois: firstDayOfMonth.toISOString().split('T')[0],
-      limites_plan: plan.limites
+      limites_plan
     });
 
     // ═══════════════════════════════════════════════════
