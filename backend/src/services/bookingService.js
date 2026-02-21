@@ -38,6 +38,16 @@ async function getCreateReservationUnified() {
   return createReservationUnifiedFn;
 }
 
+/**
+ * Wrapper exporté pour createReservationUnified
+ * Permet aux routes d'appeler bookingService.createReservationUnified()
+ */
+export async function createReservationUnified(data, options = {}) {
+  const fn = await getCreateReservationUnified();
+  const { channel = 'web', sendSMS = true } = options;
+  return fn(data, channel, { sendSMS });
+}
+
 // Exporter les fonctions de dates
 export const { getTodayInfo, getDateInfo, getJourSemaine, validateDate } = dateService;
 
@@ -2050,7 +2060,9 @@ export default {
   // Nouvelles fonctions strictes
   SERVICES_AMBIGUS,
   checkServiceAmbiguity,
-  checkStrictAvailability
+  checkStrictAvailability,
+  // Création unifiée (via nexusCore)
+  createReservationUnified
 };
 // test auto-deploy
 // test auto-deploy

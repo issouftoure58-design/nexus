@@ -290,18 +290,31 @@ router.post('/rendez-vous', async (req, res) => {
   }
 
   try {
+    // Récupérer le nom du service depuis la BDD
+    const { data: serviceData, error: serviceError } = await supabase
+      .from('services')
+      .select('nom')
+      .eq('id', service_id)
+      .eq('tenant_id', req.tenantId)
+      .single();
+
+    if (serviceError || !serviceData) {
+      return res.status(400).json({ error: 'Service non trouvé' });
+    }
+
     // Import du service de booking
     const bookingService = await import('../services/bookingService.js');
 
+    // Mapper les champs vers les noms attendus par createReservationUnified
     const result = await bookingService.createReservationUnified({
       tenant_id: req.tenantId,
-      client_name,
-      client_phone,
+      client_nom: client_name,
+      client_telephone: client_phone,
       client_email,
-      service_id,
+      service_name: serviceData.nom,
       date,
       heure,
-      lieu_type: lieu_type || 'domicile',
+      lieu: lieu_type || 'salon',
       adresse
     }, {
       channel: 'web',
@@ -309,12 +322,12 @@ router.post('/rendez-vous', async (req, res) => {
     });
 
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      return res.status(400).json({ error: result.error || result.errors?.join(', ') });
     }
 
     res.json({
       success: true,
-      reservation: result.reservation,
+      reservation: result,
       message: 'Rendez-vous cree avec succes'
     });
 

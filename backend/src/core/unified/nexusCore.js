@@ -924,18 +924,25 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
     console.log(`💾 ✅ Validation nom/tel OK`);
 
-    // 1. VALIDER LE SERVICE (config hardcodée → fallback BDD)
+    // 1. VALIDER LE SERVICE (config hardcodée → fallback BDD avec tenant_id)
     console.log(`💾 STEP BOOKING 2.3: Validation service "${data.service_name}"...`);
     let service = findServiceByName(data.service_name);
     console.log(`💾 Service trouvé en config: ${service ? '✅ ' + service.name : '❌ NON'}`);
     if (!service) {
       // Fallback: chercher dans la table services de la BDD (services ajoutés via admin)
-      console.log(`💾 Recherche en BDD...`);
-      const { data: dbService } = await db
+      // 🔒 TENANT ISOLATION: Filtrer par tenant_id
+      console.log(`💾 Recherche en BDD pour tenant ${data.tenant_id}...`);
+      let serviceQuery = db
         .from('services')
         .select('id, nom, duree, prix, description')
-        .ilike('nom', data.service_name)
-        .single();
+        .ilike('nom', `%${data.service_name}%`);  // Recherche partielle avec wildcards
+
+      // Filtrer par tenant si fourni
+      if (data.tenant_id) {
+        serviceQuery = serviceQuery.eq('tenant_id', data.tenant_id);
+      }
+
+      const { data: dbService } = await serviceQuery.limit(1).single();
 
       if (dbService) {
         // Note: dbService.prix est en EUROS dans la BDD, pas en centimes
@@ -953,7 +960,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         };
         console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix}€)`);
       } else {
-        console.error(`[NEXUS CORE] ❌ Service non trouvé ni en config ni en BDD: "${data.service_name}"`);
+        console.error(`[NEXUS CORE] ❌ Service non trouvé ni en config ni en BDD: "${data.service_name}" (tenant: ${data.tenant_id})`);
         return { success: false, error: `Service non trouvé: "${data.service_name}"` };
       }
     }
