@@ -32,7 +32,7 @@ const resolveTenant = async (req, res, next) => {
   // - /voice/* : TTS routes
   // - /reviews/* : Public + Admin routes
   // - /payment/* : Routes de paiement
-  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules', '/whatsapp', '/twilio', '/voice', '/reviews', '/payment'];
+  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules', '/whatsapp', '/twilio', '/voice', '/reviews', '/payment', '/provisioning', '/webhooks'];
   if (skipPrefixes.some(prefix => req.path.startsWith(prefix))) {
     return next();
   }
