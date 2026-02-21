@@ -82,12 +82,33 @@ async function getRdvTerminesHier() {
 
   console.log(`[Scheduler] Recherche RDV terminés du ${hierStr}`);
 
-  const { data, error } = await db
+  // 🔒 TENANT ISOLATION: Get all tenants with RDVs from yesterday
+  const { data: tenantData } = await db
     .from('reservations')
-    .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, remerciement_envoye, clients(nom, prenom, telephone, email)')
+    .select('tenant_id')
     .eq('date', hierStr)
     .eq('statut', 'termine')
     .eq('remerciement_envoye', false);
+
+  const tenantIds = [...new Set((tenantData || []).map(t => t.tenant_id).filter(Boolean))];
+  let allResults = [];
+
+  for (const tenantId of tenantIds) {
+    const { data, error } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, remerciement_envoye, tenant_id, clients(nom, prenom, telephone, email)')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+      .eq('date', hierStr)
+      .eq('statut', 'termine')
+      .eq('remerciement_envoye', false);
+
+    if (!error && data) {
+      allResults = allResults.concat(data);
+    }
+  }
+
+  const data = allResults;
+  const error = null;
 
   if (error) {
     console.error('[Scheduler] Erreur query RDV hier:', error.message);
@@ -139,46 +160,60 @@ async function getRdvDans24h() {
   // Si les dates sont différentes (fenêtre traverse minuit), on doit faire 2 requêtes
   let allData = [];
 
-  if (date24h === date30h) {
-    // Même jour : simple query
-    const { data, error } = await db
-      .from('reservations')
-      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
-      .eq('date', date24h)
-      .gte('heure', heure24h)
-      .lte('heure', heure30h)
-      .in('statut', ['demande', 'confirme'])
-      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+  // 🔒 TENANT ISOLATION: Get all tenants with upcoming RDVs
+  const { data: tenantData } = await db
+    .from('reservations')
+    .select('tenant_id')
+    .in('statut', ['demande', 'confirme'])
+    .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
 
-    if (error) {
-      console.error('[Scheduler] ❌ Erreur query RDV 24h:', error.message);
-      return [];
+  const tenantIds = [...new Set((tenantData || []).map(t => t.tenant_id).filter(Boolean))];
+
+  for (const tenantId of tenantIds) {
+    if (date24h === date30h) {
+      // Même jour : simple query
+      const { data, error } = await db
+        .from('reservations')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+        .eq('date', date24h)
+        .gte('heure', heure24h)
+        .lte('heure', heure30h)
+        .in('statut', ['demande', 'confirme'])
+        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+      if (error) {
+        console.error(`[Scheduler] ❌ Erreur query RDV 24h tenant ${tenantId}:`, error.message);
+        continue;
+      }
+      allData = allData.concat(data || []);
+    } else {
+      // Fenêtre traverse minuit : 2 requêtes
+      // Partie 1 : date24h de heure24h à 23:59
+      const { data: data1, error: error1 } = await db
+        .from('reservations')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+        .eq('date', date24h)
+        .gte('heure', heure24h)
+        .in('statut', ['demande', 'confirme'])
+        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+      // Partie 2 : date30h de 00:00 à heure30h
+      const { data: data2, error: error2 } = await db
+        .from('reservations')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+        .eq('date', date30h)
+        .lte('heure', heure30h)
+        .in('statut', ['demande', 'confirme'])
+        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+
+      if (error1) console.error(`[Scheduler] ❌ Erreur query date1 tenant ${tenantId}:`, error1.message);
+      if (error2) console.error(`[Scheduler] ❌ Erreur query date2 tenant ${tenantId}:`, error2.message);
+
+      allData = allData.concat([...(data1 || []), ...(data2 || [])]);
     }
-    allData = data || [];
-  } else {
-    // Fenêtre traverse minuit : 2 requêtes
-    // Partie 1 : date24h de heure24h à 23:59
-    const { data: data1, error: error1 } = await db
-      .from('reservations')
-      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
-      .eq('date', date24h)
-      .gte('heure', heure24h)
-      .in('statut', ['demande', 'confirme'])
-      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
-
-    // Partie 2 : date30h de 00:00 à heure30h
-    const { data: data2, error: error2 } = await db
-      .from('reservations')
-      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
-      .eq('date', date30h)
-      .lte('heure', heure30h)
-      .in('statut', ['demande', 'confirme'])
-      .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
-
-    if (error1) console.error('[Scheduler] ❌ Erreur query date1:', error1.message);
-    if (error2) console.error('[Scheduler] ❌ Erreur query date2:', error2.message);
-
-    allData = [...(data1 || []), ...(data2 || [])];
   }
 
   console.log(`[Scheduler] 📋 ${allData.length} RDV trouvés pour relance 24h`);
@@ -209,33 +244,55 @@ async function getRdvDemain() {
 
   console.log(`[Scheduler] Recherche RDV du ${demainStr} pour rappel J-1`);
 
-  const { data, error } = await db
+  // 🔒 TENANT ISOLATION: Get all tenants with tomorrow RDVs
+  const { data: tenantData } = await db
     .from('reservations')
-    .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, rappel_j1_envoye, clients(nom, prenom, telephone, email)')
+    .select('tenant_id')
     .eq('date', demainStr)
-    .in('statut', ['demande', 'confirme'])
-    .eq('rappel_j1_envoye', false);
+    .in('statut', ['demande', 'confirme']);
 
-  if (error) {
-    // Column may not exist yet - graceful degradation
-    if (error.message?.includes('rappel_j1_envoye')) {
-      console.log('[Scheduler] ⚠️ Colonne rappel_j1_envoye manquante, query sans filtre');
-      const { data: fallback } = await db
-        .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, clients(nom, prenom, telephone, email)')
-        .eq('date', demainStr)
-        .in('statut', ['demande', 'confirme']);
-      return (fallback || []).map(r => ({
-        ...r,
-        client_nom: r.clients?.nom || '',
-        client_prenom: r.clients?.prenom || '',
-        client_telephone: r.telephone || r.clients?.telephone || '',
-        client_email: r.clients?.email || '',
-      }));
+  const tenantIds = [...new Set((tenantData || []).map(t => t.tenant_id).filter(Boolean))];
+  let allResults = [];
+
+  for (const tenantId of tenantIds) {
+    const { data, error } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, clients(nom, prenom, telephone, email)')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+      .eq('date', demainStr)
+      .in('statut', ['demande', 'confirme'])
+      .eq('rappel_j1_envoye', false);
+
+    if (error) {
+      // Column may not exist yet - graceful degradation
+      if (error.message?.includes('rappel_j1_envoye')) {
+        console.log('[Scheduler] ⚠️ Colonne rappel_j1_envoye manquante, query sans filtre');
+        const { data: fallback } = await db
+          .from('reservations')
+          .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, clients(nom, prenom, telephone, email)')
+          .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+          .eq('date', demainStr)
+          .in('statut', ['demande', 'confirme']);
+        allResults = allResults.concat((fallback || []).map(r => ({
+          ...r,
+          client_nom: r.clients?.nom || '',
+          client_prenom: r.clients?.prenom || '',
+          client_telephone: r.telephone || r.clients?.telephone || '',
+          client_email: r.clients?.email || '',
+        })));
+        continue;
+      }
+      console.error(`[Scheduler] Erreur query RDV demain tenant ${tenantId}:`, error.message);
+      continue;
     }
-    console.error('[Scheduler] Erreur query RDV demain:', error.message);
-    return [];
+
+    if (data) {
+      allResults = allResults.concat(data);
+    }
   }
+
+  const data = allResults;
+  const error = null;
 
   console.log(`[Scheduler] ${data?.length || 0} RDV demain trouvés`);
   return (data || []).map(r => ({
@@ -261,18 +318,35 @@ async function getRdvPourAvis() {
 
   console.log(`[Scheduler] Recherche RDV du ${j2Str} pour demande d'avis`);
 
-  const { data, error } = await db
+  // 🔒 TENANT ISOLATION: Get all tenants with J-2 RDVs
+  const { data: tenantData } = await db
     .from('reservations')
-    .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, clients(nom, prenom, telephone, email)')
+    .select('tenant_id')
     .eq('date', j2Str)
     .eq('statut', 'termine');
 
-  if (error) {
-    console.error('[Scheduler] Erreur query RDV avis:', error.message);
-    return [];
+  const tenantIds = [...new Set((tenantData || []).map(t => t.tenant_id).filter(Boolean))];
+  let allResults = [];
+
+  for (const tenantId of tenantIds) {
+    const { data, error } = await db
+      .from('reservations')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, clients(nom, prenom, telephone, email)')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+      .eq('date', j2Str)
+      .eq('statut', 'termine');
+
+    if (error) {
+      console.error(`[Scheduler] Erreur query RDV avis tenant ${tenantId}:`, error.message);
+      continue;
+    }
+
+    if (data) {
+      allResults = allResults.concat(data);
+    }
   }
 
-  return (data || []).map(r => ({
+  return allResults.map(r => ({
     ...r,
     client_nom: r.clients?.nom || '',
     client_prenom: r.clients?.prenom || '',
@@ -285,13 +359,18 @@ async function getRdvPourAvis() {
  * Marque un RDV comme remerciement envoyé
  * @param {string} rdvId - ID du RDV
  */
-async function markRemerciementEnvoye(rdvId) {
+async function markRemerciementEnvoye(rdvId, tenantId) {
   const db = getSupabase();
   if (!db) return;
+  if (!tenantId) {
+    console.error(`[Scheduler] ❌ markRemerciementEnvoye requires tenantId`);
+    return;
+  }
   const { error } = await db
     .from('reservations')
     .update({ remerciement_envoye: true, remerciement_date: new Date().toISOString() })
-    .eq('id', rdvId);
+    .eq('id', rdvId)
+    .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
   if (error) console.error(`[Scheduler] Erreur mark remerciement RDV ${rdvId}:`, error.message);
   else console.log(`[Scheduler] RDV ${rdvId} marqué comme remerciement envoyé`);
 }
@@ -301,13 +380,18 @@ async function markRemerciementEnvoye(rdvId) {
  * @param {string} rdvId - ID du RDV
  * @deprecated Utiliser markRelance24hEnvoyee()
  */
-async function markRappelJ1Envoye(rdvId) {
+async function markRappelJ1Envoye(rdvId, tenantId) {
   const db = getSupabase();
   if (!db) return;
+  if (!tenantId) {
+    console.error(`[Scheduler] ❌ markRappelJ1Envoye requires tenantId`);
+    return;
+  }
   const { error } = await db
     .from('reservations')
     .update({ rappel_j1_envoye: true, rappel_j1_date: new Date().toISOString() })
-    .eq('id', rdvId);
+    .eq('id', rdvId)
+    .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
   if (error) console.error(`[Scheduler] Erreur mark rappel RDV ${rdvId}:`, error.message);
   else console.log(`[Scheduler] RDV ${rdvId} marqué comme rappel J-1 envoyé`);
 }
@@ -320,9 +404,13 @@ async function markRappelJ1Envoye(rdvId) {
  * @param {string} telephone - Téléphone du client (pour log)
  * @returns {Promise<boolean>} true si marqué avec succès, false si déjà marqué
  */
-async function markRelance24hEnvoyee(rdvId, telephone = '') {
+async function markRelance24hEnvoyee(rdvId, telephone = '', tenantId = null) {
   const db = getSupabase();
   if (!db) return false;
+  if (!tenantId) {
+    console.error(`[Scheduler] ❌ markRelance24hEnvoyee requires tenantId`);
+    return false;
+  }
 
   const now = new Date().toISOString();
 
@@ -338,6 +426,7 @@ async function markRelance24hEnvoyee(rdvId, telephone = '') {
       rappel_j1_date: now
     })
     .eq('id', rdvId)
+    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
     .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false')
     .select('id');
 
@@ -361,13 +450,18 @@ async function markRelance24hEnvoyee(rdvId, telephone = '') {
  * @param {string} rdvId - ID du RDV
  * @param {string} token - Token généré pour le lien
  */
-async function markAvisDemande(rdvId, token) {
+async function markAvisDemande(rdvId, token, tenantId) {
   const db = getSupabase();
   if (!db) return;
+  if (!tenantId) {
+    console.error(`[Scheduler] ❌ markAvisDemande requires tenantId`);
+    return;
+  }
   const { error } = await db
     .from('reservations')
     .update({ avis_demande: true, avis_date: new Date().toISOString(), avis_token: token })
-    .eq('id', rdvId);
+    .eq('id', rdvId)
+    .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
   if (error) console.error(`[Scheduler] Erreur mark avis RDV ${rdvId}:`, error.message);
   else console.log(`[Scheduler] RDV ${rdvId} marqué comme avis demandé (token: ${token.substring(0, 8)}...)`);
 }
@@ -453,7 +547,7 @@ export async function sendRemerciementsJ1() {
 
         // Au moins un canal a fonctionné
         if (result.email.success || result.whatsapp.success) {
-          await markRemerciementEnvoye(rdv.id);
+          await markRemerciementEnvoye(rdv.id, tenantId);
           sent++;
           console.log(`[Scheduler] ✅ Remerciement envoyé pour RDV ${rdv.id} (${rdv.client_prenom || rdv.client_nom})`);
         } else {
@@ -522,7 +616,13 @@ export async function sendRelance24hJob() {
 
         // CORRECTION BUG #1: Marquer AVANT d'envoyer (atomique)
         // Si retourne false = déjà marqué par un autre processus
-        const marked = await markRelance24hEnvoyee(rdv.id, telephone);
+        const tenantId = rdv.tenant_id;
+        if (!tenantId) {
+          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP relance 24h`);
+          errors++;
+          continue;
+        }
+        const marked = await markRelance24hEnvoyee(rdv.id, telephone, tenantId);
         if (!marked) {
           console.log(`[Scheduler] ⏭️ RDV ${rdv.id}: déjà traité (race condition), skip`);
           skipped++;
@@ -610,7 +710,7 @@ export async function sendRappelsJ1Job() {
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
         if (result.email.success || result.whatsapp.success) {
-          await markRappelJ1Envoye(rdv.id);
+          await markRappelJ1Envoye(rdv.id, tenantId);
           sent++;
           console.log(`[Scheduler] ✅ Rappel J-1 envoyé pour RDV ${rdv.id}`);
         } else {
@@ -688,7 +788,7 @@ export async function sendDemandeAvisJ2() {
 
         // Au moins un canal a fonctionné
         if (result.email.success || result.whatsapp.success) {
-          await markAvisDemande(rdv.id, token);
+          await markAvisDemande(rdv.id, token, tenantId);
           sent++;
           console.log(`[Scheduler] ✅ Demande d'avis envoyée pour RDV ${rdv.id} (${rdv.client_prenom || rdv.client_nom})`);
         } else {

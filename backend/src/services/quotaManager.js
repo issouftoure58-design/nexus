@@ -186,8 +186,11 @@ class QuotaManager {
 
   /**
    * Récupère l'usage actuel d'un tenant pour le mois en cours
+   * @param {string} tenantId - ID du tenant (obligatoire)
    */
   async getCurrentUsage(tenantId) {
+    if (!tenantId) throw new Error('tenant_id requis');
+
     const cacheKey = `usage-${tenantId}`;
     const cached = this.usageCache[cacheKey];
 
@@ -229,8 +232,11 @@ class QuotaManager {
 
   /**
    * Calcule l'usage depuis les logs si pas de données quota_usage
+   * @param {string} tenantId - ID du tenant (obligatoire)
    */
   async calculateUsageFromLogs(tenantId, startDate) {
+    if (!tenantId) throw new Error('tenant_id requis');
+
     const usage = this.getEmptyUsage(tenantId);
 
     try {
@@ -308,8 +314,11 @@ class QuotaManager {
 
   /**
    * Incrémente l'usage d'un module
+   * @param {string} tenantId - ID du tenant (obligatoire)
    */
   async incrementUsage(tenantId, moduleId, metric, amount = 1) {
+    if (!tenantId) throw new Error('tenant_id requis');
+
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -337,6 +346,7 @@ class QuotaManager {
         await supabase
           .from('quota_usage')
           .update(updateData)
+          .eq('tenant_id', tenantId)
           .eq('id', existing.id);
       } else {
         // Insert
@@ -360,8 +370,11 @@ class QuotaManager {
 
   /**
    * Vérifie si un tenant peut utiliser un module (quota non dépassé ou overage autorisé)
+   * @param {string} tenantId - ID du tenant (obligatoire)
    */
   async checkQuota(tenantId, moduleId, metric, amount = 1) {
+    if (!tenantId) throw new Error('tenant_id requis');
+
     const quota = MODULE_QUOTAS[moduleId];
     if (!quota || quota.unlimited) {
       return { allowed: true, remaining: Infinity, overage: 0 };

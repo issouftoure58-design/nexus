@@ -320,6 +320,11 @@ export async function createAutomation({ automation_description, tenant_id }) {
       automation.config.action = 'notification';
     }
 
+    // Ensure tenant_id is explicitly included
+    if (!automation.tenant_id) {
+      throw new Error('tenant_id is required for creating automation');
+    }
+
     const { data, error } = await db
       .from('automations')
       .insert(automation)
@@ -443,6 +448,11 @@ export async function scheduleTask({ task_description, tenant_id }) {
     } else {
       task.action_type = 'custom';
       task.action_params = {};
+    }
+
+    // Ensure tenant_id is explicitly included
+    if (!task.tenant_id) {
+      throw new Error('tenant_id is required for scheduling task');
     }
 
     const { data, error } = await db

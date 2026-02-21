@@ -39,9 +39,14 @@ export async function handleSocialMediaTask(job) {
  * Prépare et publie un post Instagram
  */
 async function postToInstagram(data, tenantId) {
+  if (!tenantId) {
+    console.error('[SOCIAL] ❌ postToInstagram requires tenantId');
+    return { platform: 'instagram', status: 'error', error: 'tenant_id requis' };
+  }
+
   const { template, service, customText, imagePrompt, autoPublish } = data;
 
-  console.log('[SOCIAL] 📸 Préparation post Instagram...');
+  console.log(`[SOCIAL] 📸 Préparation post Instagram (tenant: ${tenantId})...`);
 
   let image = null;
   let caption = null;
@@ -124,7 +129,7 @@ async function postToInstagram(data, tenantId) {
     // 4. Mémoriser le post
     if (remember) {
       await remember({
-        tenantId: tenantId || 'default',
+        tenantId,  // 🔒 TENANT ISOLATION - No fallback
         type: 'fact',
         category: 'content',
         key: 'last_instagram_post',
@@ -166,9 +171,14 @@ async function postToInstagram(data, tenantId) {
  * Prépare et publie un post Facebook
  */
 async function postToFacebook(data, tenantId) {
+  if (!tenantId) {
+    console.error('[SOCIAL] ❌ postToFacebook requires tenantId');
+    return { platform: 'facebook', status: 'error', error: 'tenant_id requis' };
+  }
+
   const { template, service, customText, pageUrl, autoPublish } = data;
 
-  console.log('[SOCIAL] 📘 Préparation post Facebook...');
+  console.log(`[SOCIAL] 📘 Préparation post Facebook (tenant: ${tenantId})...`);
 
   try {
     // Générer l'image si nécessaire
@@ -237,7 +247,7 @@ async function postToFacebook(data, tenantId) {
     // Mémoriser
     if (remember) {
       await remember({
-        tenantId: tenantId || 'default',
+        tenantId,  // 🔒 TENANT ISOLATION - No fallback
         type: 'fact',
         category: 'content',
         key: 'last_facebook_post',
@@ -268,9 +278,14 @@ async function postToFacebook(data, tenantId) {
  * Prépare et publie un post TikTok
  */
 async function postToTiktok(data, tenantId) {
+  if (!tenantId) {
+    console.error('[SOCIAL] ❌ postToTiktok requires tenantId');
+    return { platform: 'tiktok', status: 'error', error: 'tenant_id requis' };
+  }
+
   const { videoPath, caption, hashtags, autoPublish } = data;
 
-  console.log('[SOCIAL] 🎵 Préparation post TikTok...');
+  console.log(`[SOCIAL] 🎵 Préparation post TikTok (tenant: ${tenantId})...`);
 
   try {
     // TikTok nécessite une vidéo
@@ -416,11 +431,16 @@ async function analyzeEngagement(data, tenantId) {
  * Récupère les identifiants depuis la mémoire ou les variables d'environnement
  */
 async function getCredentials(tenantId, platform) {
+  if (!tenantId) {
+    console.error('[SOCIAL] ❌ getCredentials requires tenantId');
+    return null;
+  }
+
   // D'abord essayer la mémoire
   if (recall) {
     try {
       const stored = await recall({
-        tenantId: tenantId || 'default',
+        tenantId,  // 🔒 TENANT ISOLATION - No fallback
         category: 'credentials',
         key: platform
       });

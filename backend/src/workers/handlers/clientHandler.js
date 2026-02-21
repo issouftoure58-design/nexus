@@ -28,9 +28,14 @@ export async function handleClientTask(job) {
  * Envoie un rappel de RDV
  */
 async function sendReminder(data, tenantId) {
+  if (!tenantId) {
+    console.error('[CLIENT] ❌ sendReminder requires tenantId');
+    return { sent: false, error: 'tenant_id requis' };
+  }
+
   const { clientId, bookingId, channel, customMessage } = data;
 
-  console.log(`[CLIENT] 📱 Envoi rappel RDV ${bookingId}...`);
+  console.log(`[CLIENT] 📱 Envoi rappel RDV ${bookingId} (tenant: ${tenantId})...`);
 
   try {
     // Récupérer les infos du RDV
@@ -40,6 +45,7 @@ async function sendReminder(data, tenantId) {
         *,
         clients (nom, prenom, telephone, email)
       `)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', bookingId)
       .single();
 
@@ -98,15 +104,21 @@ function formatReminderMessage(booking, client) {
  * Relance un client inactif
  */
 async function followupClient(data, tenantId) {
+  if (!tenantId) {
+    console.error('[CLIENT] ❌ followupClient requires tenantId');
+    return { followed: false, error: 'tenant_id requis' };
+  }
+
   const { clientId, daysSinceLastVisit, customMessage } = data;
 
-  console.log(`[CLIENT] 📞 Relance client ${clientId}...`);
+  console.log(`[CLIENT] 📞 Relance client ${clientId} (tenant: ${tenantId})...`);
 
   try {
     // Récupérer les infos du client
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', clientId)
       .single();
 
@@ -119,6 +131,7 @@ async function followupClient(data, tenantId) {
     const { data: lastBooking } = await supabase
       .from('rendezvous')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('client_id', clientId)
       .order('date', { ascending: false })
       .limit(1)
@@ -165,9 +178,14 @@ function formatFollowupMessage(client, lastBooking) {
  * Envoie un message d'anniversaire
  */
 async function sendBirthdayWish(data, tenantId) {
+  if (!tenantId) {
+    console.error('[CLIENT] ❌ sendBirthdayWish requires tenantId');
+    return { wished: false, error: 'tenant_id requis' };
+  }
+
   const { clientId, checkAll } = data;
 
-  console.log('[CLIENT] 🎂 Vérification anniversaires...');
+  console.log(`[CLIENT] 🎂 Vérification anniversaires (tenant: ${tenantId})...`);
 
   try {
     // Si checkAll, on vérifie tous les clients dont c'est l'anniversaire aujourd'hui
@@ -192,6 +210,7 @@ async function sendBirthdayWish(data, tenantId) {
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('id', clientId)
       .single();
 

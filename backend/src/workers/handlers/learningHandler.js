@@ -25,9 +25,14 @@ export async function handleLearningTask(job) {
  * Apprend à partir d'un feedback
  */
 async function learnFromFeedback(data, tenantId) {
+  if (!tenantId) {
+    console.error('[LEARNING] ❌ learnFromFeedback requires tenantId');
+    return { learned: false, error: 'tenant_id requis' };
+  }
+
   const { feedback, context, source } = data;
 
-  console.log('[LEARNING] 📝 Apprentissage à partir du feedback...');
+  console.log(`[LEARNING] 📝 Apprentissage à partir du feedback (tenant: ${tenantId})...`);
   console.log(`[LEARNING]    Source: ${source || 'inconnu'}`);
   console.log(`[LEARNING]    Rating: ${feedback?.rating || 'N/A'}`);
 
@@ -38,7 +43,7 @@ async function learnFromFeedback(data, tenantId) {
 
       if (remember) {
         await remember({
-          tenantId: tenantId || 'default',
+          tenantId,  // 🔒 TENANT ISOLATION - No fallback
           type: 'learning',
           category: 'positive_pattern',
           key: `pattern_${Date.now()}`,
@@ -55,7 +60,7 @@ async function learnFromFeedback(data, tenantId) {
       // Créer un insight si le pattern est notable
       if (feedback.comment && createInsight) {
         await createInsight({
-          tenantId: tenantId || 'default',
+          tenantId,  // 🔒 TENANT ISOLATION - No fallback
           category: 'learning',
           insight: `Pattern positif identifié: ${feedback.comment.substring(0, 100)}`,
           data: { context, feedback },
@@ -70,7 +75,7 @@ async function learnFromFeedback(data, tenantId) {
 
       if (createInsight) {
         await createInsight({
-          tenantId: tenantId || 'default',
+          tenantId,  // 🔒 TENANT ISOLATION - No fallback
           category: 'improvement',
           insight: `Point d'amélioration: ${feedback.comment || 'Pas de commentaire'}`,
           data: { context, feedback },
@@ -100,12 +105,17 @@ async function learnFromFeedback(data, tenantId) {
  * Met à jour les insights basés sur les données accumulées
  */
 async function updateInsights(tenantId) {
-  console.log('[LEARNING] 🔄 Mise à jour des insights...');
+  if (!tenantId) {
+    console.error('[LEARNING] ❌ updateInsights requires tenantId');
+    return { updated: false, error: 'tenant_id requis' };
+  }
+
+  console.log(`[LEARNING] 🔄 Mise à jour des insights (tenant: ${tenantId})...`);
 
   try {
     // Récupérer les insights existants
     const existingInsights = getPendingInsights
-      ? await getPendingInsights(100)
+      ? await getPendingInsights(100, tenantId)
       : [];
 
     // Analyser les patterns
@@ -145,7 +155,7 @@ async function updateInsights(tenantId) {
     for (const insight of newInsights) {
       if (createInsight) {
         await createInsight({
-          tenantId: tenantId || 'default',
+          tenantId,  // 🔒 TENANT ISOLATION - No fallback
           ...insight,
           data: { generatedFrom: 'pattern_analysis' }
         });

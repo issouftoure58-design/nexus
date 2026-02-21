@@ -8,8 +8,11 @@ const scheduledJobs = new Map();
 /**
  * Initialise toutes les tâches planifiées
  * Le scheduler fonctionne même sans Redis (les tâches seront simplement ignorées)
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function initScheduler(tenantId = 'default') {
+export async function initScheduler(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   if (schedulerInitialized) {
     console.log('[SCHEDULER] ⚠️ Déjà initialisé');
     return;

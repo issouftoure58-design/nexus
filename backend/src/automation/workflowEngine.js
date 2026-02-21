@@ -48,8 +48,14 @@ export async function triggerWorkflows(triggerType, data) {
   try {
     const { tenant_id, entity } = data;
 
-    if (!tenant_id || !entity) {
-      console.warn('[WORKFLOWS] Données manquantes pour trigger:', { triggerType, tenant_id, hasEntity: !!entity });
+    // CRITICAL: Validate tenant_id before any database operation
+    if (!tenant_id) {
+      console.error('[WORKFLOWS] CRITICAL: tenant_id manquant pour trigger:', triggerType);
+      return;
+    }
+
+    if (!entity) {
+      console.warn('[WORKFLOWS] Entity manquante pour trigger:', { triggerType, tenant_id });
       return;
     }
 
@@ -89,6 +95,13 @@ export async function triggerWorkflows(triggerType, data) {
  */
 export async function executeWorkflow(workflow, entity) {
   const { id, tenant_id, nom, config, actions, trigger_config } = workflow;
+
+  // CRITICAL: Validate tenant_id before any database operation
+  if (!tenant_id) {
+    console.error('[WORKFLOWS] CRITICAL: tenant_id manquant dans workflow:', id);
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   let executionId = null;
 
   // Support des deux formats de structure (config.actions ou actions directement)
@@ -156,7 +169,7 @@ export async function executeWorkflow(workflow, entity) {
       }
     }
 
-    // Mettre à jour statut exécution
+    // Mettre à jour statut exécution - avec tenant_id pour sécurité
     if (executionId) {
       await supabase
         .from('workflow_executions')
@@ -165,17 +178,19 @@ export async function executeWorkflow(workflow, entity) {
           resultat: { actions: results },
           completed_at: new Date().toISOString()
         })
-        .eq('id', executionId);
+        .eq('id', executionId)
+        .eq('tenant_id', tenant_id);
     }
 
-    // Mettre à jour compteur workflow
+    // Mettre à jour compteur workflow - avec tenant_id pour sécurité
     await supabase
       .from('workflows')
       .update({
         executions_count: (workflow.executions_count || 0) + 1,
         last_execution_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenant_id);
 
     console.log(`[WORKFLOWS] Workflow ${id} exécuté avec succès`);
     return { success: true, results };
@@ -183,7 +198,7 @@ export async function executeWorkflow(workflow, entity) {
   } catch (error) {
     console.error(`[WORKFLOWS] Erreur exécution workflow ${id}:`, error);
 
-    // Logger erreur
+    // Logger erreur - avec tenant_id pour sécurité
     if (executionId) {
       await supabase
         .from('workflow_executions')
@@ -193,7 +208,8 @@ export async function executeWorkflow(workflow, entity) {
           resultat: { error: error.message },
           completed_at: new Date().toISOString()
         })
-        .eq('id', executionId);
+        .eq('id', executionId)
+        .eq('tenant_id', tenant_id);
     }
 
     return { success: false, error: error.message };

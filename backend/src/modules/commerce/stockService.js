@@ -195,6 +195,7 @@ async function checkStockAlert(tenantId, productId, currentQuantity) {
       .from('products')
       .select('min_stock_alert, name')
       .eq('id', productId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !product) return;

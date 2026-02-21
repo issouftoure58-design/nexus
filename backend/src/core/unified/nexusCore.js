@@ -935,15 +935,17 @@ export async function createReservationUnified(data, channel = 'web', options = 
       // Fallback: chercher dans la table services de la BDD (services ajoutés via admin)
       // 🔒 TENANT ISOLATION: Filtrer par tenant_id
       console.log(`💾 Recherche en BDD pour tenant ${data.tenant_id}...`);
+      // 🔒 TENANT ISOLATION: tenant_id est OBLIGATOIRE pour la recherche de service
+      if (!data.tenant_id) {
+        console.error(`[NEXUS CORE] ❌ CRITICAL: tenant_id manquant pour recherche service`);
+        return { success: false, error: 'tenant_id est requis pour rechercher un service' };
+      }
+
       let serviceQuery = db
         .from('services')
         .select('id, nom, duree, prix, description')
+        .eq('tenant_id', data.tenant_id)  // 🔒 TENANT ISOLATION: Toujours filtrer
         .ilike('nom', `%${data.service_name}%`);  // Recherche partielle avec wildcards
-
-      // Filtrer par tenant si fourni
-      if (data.tenant_id) {
-        serviceQuery = serviceQuery.eq('tenant_id', data.tenant_id);
-      }
 
       const { data: dbService, error: serviceError } = await serviceQuery.limit(1).maybeSingle();
 
@@ -1051,15 +1053,12 @@ export async function createReservationUnified(data, channel = 'web', options = 
     console.log(`💾 STEP BOOKING 4: Recherche/création client...`);
     console.log(`💾 Téléphone recherché: ${telephone.replace('+33', '0')}, Tenant: ${data.tenant_id}`);
     let clientId;
+    // 🔒 TENANT ISOLATION: tenant_id est OBLIGATOIRE (vérifié plus haut)
     let clientQuery = db
       .from('clients')
       .select('id')
+      .eq('tenant_id', data.tenant_id)  // 🔒 TENANT ISOLATION: Toujours filtrer
       .eq('telephone', telephone.replace('+33', '0'));
-
-    // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
-    if (data.tenant_id) {
-      clientQuery = clientQuery.eq('tenant_id', data.tenant_id);
-    }
 
     const { data: existingClient } = await clientQuery.single();
 

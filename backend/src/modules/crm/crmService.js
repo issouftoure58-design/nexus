@@ -38,12 +38,14 @@ export async function getContactById(tenantId, contactId) {
   const { data: interactions } = await supabase
     .from('contact_interactions')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false });
 
   const { data: quotes } = await supabase
     .from('quotes')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('contact_id', contactId)
     .order('issue_date', { ascending: false });
 
@@ -156,6 +158,7 @@ export async function getQuoteById(tenantId, quoteId) {
     .from('quote_items')
     .select('*')
     .eq('quote_id', quoteId)
+    .eq('tenant_id', tenantId)
     .order('sort_order');
 
   return { success: true, data: { ...quote, quote_items: items || [] } };
@@ -200,6 +203,7 @@ export async function createQuote(tenantId, quoteData) {
 
   if (items.length > 0) {
     const itemsToInsert = items.map((item, i) => ({
+      tenant_id: tenantId,
       quote_id: quote.id,
       description: item.description,
       quantity: parseFloat(item.quantity),
@@ -238,8 +242,9 @@ export async function updateQuote(tenantId, quoteId, quoteData) {
     updates.tax_amount = taxAmount;
     updates.total = Math.round((subtotal + taxAmount) * 100) / 100;
 
-    await supabase.from('quote_items').delete().eq('quote_id', quoteId);
+    await supabase.from('quote_items').delete().eq('quote_id', quoteId).eq('tenant_id', tenantId);
     const itemsToInsert = items.map((item, i) => ({
+      tenant_id: tenantId,
       quote_id: quoteId,
       description: item.description,
       quantity: parseFloat(item.quantity),
@@ -316,6 +321,7 @@ export async function acceptQuote(tenantId, quoteId) {
       .from('crm_contacts')
       .select('status')
       .eq('id', data.contact_id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (contact && (contact.status === 'lead' || contact.status === 'prospect')) {
@@ -376,7 +382,8 @@ export async function convertQuoteToInvoice(tenantId, quoteId) {
   await supabase
     .from('quotes')
     .update({ invoice_id: invoiceResult.data.id, updated_at: new Date().toISOString() })
-    .eq('id', quoteId);
+    .eq('id', quoteId)
+    .eq('tenant_id', tenantId);
 
   return { success: true, data: invoiceResult.data };
 }

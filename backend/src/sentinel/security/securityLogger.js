@@ -164,14 +164,21 @@ export async function getRecentLogs(limit = 100, filters = {}) {
   }
 }
 
-export async function getSecurityStats(hours = 24) {
+export async function getSecurityStats(hours = 24, tenantId = null) {
   try {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('sentinel_security_logs')
       .select('event_type, severity')
       .gte('created_at', since);
+
+    // TENANT SHIELD: filtrer par tenant si spécifié
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 

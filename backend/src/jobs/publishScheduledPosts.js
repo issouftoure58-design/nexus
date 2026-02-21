@@ -27,12 +27,39 @@ export async function publishScheduledPosts() {
 
     const now = new Date();
 
-    // Récupérer les posts programmés dont l'heure est passée
-    const { data: posts, error } = await supabase
+    // Récupérer tous les tenants ayant des posts programmés
+    const { data: tenantPosts, error: tenantsError } = await supabase
       .from('social_posts')
-      .select('*')
+      .select('tenant_id')
       .eq('status', 'scheduled')
       .lte('scheduled_at', now.toISOString());
+
+    if (tenantsError) {
+      if (tenantsError.code === '42P01') {
+        return;
+      }
+      console.error('[SCHEDULED] Erreur fetch tenants:', tenantsError);
+      return;
+    }
+
+    // Dédupliquer les tenant_ids
+    const tenantIds = [...new Set((tenantPosts || []).map(p => p.tenant_id).filter(Boolean))];
+
+    if (tenantIds.length === 0) {
+      return;
+    }
+
+    // Traiter chaque tenant séparément pour l'isolation
+    for (const tenantId of tenantIds) {
+      if (!tenantId) continue;
+
+      // Récupérer les posts programmés pour ce tenant
+      const { data: posts, error } = await supabase
+        .from('social_posts')
+        .select('*')
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+        .eq('status', 'scheduled')
+        .lte('scheduled_at', now.toISOString());
 
     if (error) {
       // Si la table n'existe pas, ne pas logger d'erreur
@@ -76,7 +103,8 @@ export async function publishScheduledPosts() {
             error_message: allSuccess ? null : JSON.stringify(results.resultats?.filter(r => !r.success) || []),
             updated_at: new Date().toISOString()
           })
-          .eq('id', post.id);
+          .eq('id', post.id)
+          .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
         if (updateError) {
           console.error(`[SCHEDULED] Erreur update post ${post.id}:`, updateError);
@@ -106,9 +134,11 @@ export async function publishScheduledPosts() {
             error_message: postError.message,
             updated_at: new Date().toISOString()
           })
-          .eq('id', post.id);
+          .eq('id', post.id)
+          .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
       }
     }
+    } // End tenant loop
 
   } catch (error) {
     console.error('[SCHEDULED] Erreur générale:', error);

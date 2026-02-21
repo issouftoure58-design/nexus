@@ -46,6 +46,7 @@ export async function captureMetrics(tenantId) {
       .from('si_metrics')
       .update(metrics)
       .eq('id', existing.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
     if (error) return { success: false, error: error.message };

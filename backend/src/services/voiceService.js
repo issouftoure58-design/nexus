@@ -40,8 +40,12 @@ let stats = {
 };
 
 // 📊 Logger l'usage ElevenLabs pour tracking des coûts
-async function logElevenLabsUsage(characters, voiceId, cached = false) {
+async function logElevenLabsUsage(tenantId, characters, voiceId, cached = false) {
   if (cached) return; // Ne pas logger les hits de cache (pas de coût)
+  if (!tenantId) {
+    console.warn('[VOICE] ⚠️ tenant_id requis pour logging usage');
+    return;
+  }
 
   try {
     const { supabase } = await import('../config/supabase.js');
@@ -50,7 +54,7 @@ async function logElevenLabsUsage(characters, voiceId, cached = false) {
       direction: 'outbound',
       call_duration: characters, // On réutilise ce champ pour stocker les caractères
       from_number: voiceId,
-      tenant_id: 'fatshairafro',
+      tenant_id: tenantId,
       sms_body: `TTS: ${characters} chars`,
     });
     console.log(`[VOICE] ✅ Usage loggé: ${characters} caractères`);
@@ -315,9 +319,10 @@ function findPregeneratedMatch(text) {
  * Appelle l'API ElevenLabs (seulement si pas en cache)
  * @param {string} text - Texte à synthétiser
  * @param {string} voiceId - ID de la voix
+ * @param {string} tenantId - ID du tenant pour le logging (optionnel)
  * @returns {Promise<Buffer>} - Buffer audio
  */
-async function callElevenLabsAPI(text, voiceId = DEFAULT_VOICE_ID) {
+async function callElevenLabsAPI(text, voiceId = DEFAULT_VOICE_ID, tenantId = null) {
   if (!ELEVENLABS_API_KEY) {
     throw new Error('ELEVENLABS_API_KEY non configurée');
   }
@@ -350,7 +355,9 @@ async function callElevenLabsAPI(text, voiceId = DEFAULT_VOICE_ID) {
   const audioBuffer = Buffer.from(await response.arrayBuffer());
 
   // 📊 Logger l'usage pour tracking des coûts
-  await logElevenLabsUsage(text.length, voiceId);
+  if (tenantId) {
+    await logElevenLabsUsage(tenantId, text.length, voiceId);
+  }
 
   return audioBuffer;
 }
@@ -362,14 +369,15 @@ async function callElevenLabsAPI(text, voiceId = DEFAULT_VOICE_ID) {
 /**
  * Convertit du texte en audio avec optimisation maximale
  * @param {string} text - Texte à convertir
- * @param {Object} options - Options
+ * @param {Object} options - Options (incluant tenantId pour le logging)
  * @returns {Promise<Object>} - Résultat avec audio et stats
  */
 async function textToSpeech(text, options = {}) {
   const {
     voiceId = DEFAULT_VOICE_ID,
     useCache = true,
-    optimize = true
+    optimize = true,
+    tenantId = null
   } = options;
 
   // 1. Optimiser le texte si demandé
@@ -396,7 +404,7 @@ async function textToSpeech(text, options = {}) {
 
   // 3. Appeler l'API
   try {
-    const audio = await callElevenLabsAPI(processedText, voiceId);
+    const audio = await callElevenLabsAPI(processedText, voiceId, tenantId);
 
     // 4. Mettre en cache
     if (useCache) {
@@ -419,11 +427,11 @@ async function textToSpeech(text, options = {}) {
 /**
  * Génère l'audio pour une réponse complète (découpe en segments)
  * @param {string} text - Texte complet
- * @param {Object} options - Options
+ * @param {Object} options - Options (incluant tenantId pour le logging)
  * @returns {Promise<Object>} - Résultat avec audio et stats
  */
 async function textToSpeechSmart(text, options = {}) {
-  const { voiceId = DEFAULT_VOICE_ID } = options;
+  const { voiceId = DEFAULT_VOICE_ID, tenantId = null } = options;
 
   // Découper en segments (par phrase)
   const segments = text
@@ -441,7 +449,7 @@ async function textToSpeechSmart(text, options = {}) {
       ? PREGENERATED_PHRASES[pregenKey]
       : segment;
 
-    const result = await textToSpeech(textToGenerate, { voiceId });
+    const result = await textToSpeech(textToGenerate, { voiceId, tenantId });
 
     if (result.success) {
       audioBuffers.push(result.audio);
@@ -473,7 +481,7 @@ async function textToSpeechSmart(text, options = {}) {
 /**
  * Synthèse vocale en streaming pour réponses temps réel
  * @param {string} text - Texte à convertir
- * @param {Object} options - Options
+ * @param {Object} options - Options (incluant tenantId pour le logging)
  * @returns {Promise<ReadableStream>} - Stream audio
  */
 async function textToSpeechStream(text, options = {}) {
@@ -484,6 +492,7 @@ async function textToSpeechStream(text, options = {}) {
 
   const processedText = optimizeText(text);
   const voiceId = options.voiceId || DEFAULT_VOICE_ID;
+  const tenantId = options.tenantId || null;
 
   console.log(`[VOICE] Stream: "${processedText.substring(0, 50)}..."`);
 
@@ -513,7 +522,9 @@ async function textToSpeechStream(text, options = {}) {
     stats.totalCharacters += processedText.length;
 
     // 📊 Logger l'usage pour tracking des coûts
-    await logElevenLabsUsage(processedText.length, voiceId);
+    if (tenantId) {
+      await logElevenLabsUsage(tenantId, processedText.length, voiceId);
+    }
 
     return response.body;
 

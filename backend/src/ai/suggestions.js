@@ -269,6 +269,12 @@ export async function generateOptimizationSuggestions(tenant_id, process) {
  * Sauvegarde suggestions en base
  */
 export async function saveSuggestions(tenant_id, context, suggestions) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[SUGGESTIONS] CRITICAL: tenant_id requis pour saveSuggestions');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { error } = await supabase
       .from('intelligence_suggestions')
@@ -290,6 +296,12 @@ export async function saveSuggestions(tenant_id, context, suggestions) {
  * Marque une suggestion comme appliquee
  */
 export async function markSuggestionApplied(suggestion_id, tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[SUGGESTIONS] CRITICAL: tenant_id requis pour markSuggestionApplied');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { error } = await supabase
       .from('intelligence_suggestions')

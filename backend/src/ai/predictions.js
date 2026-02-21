@@ -10,6 +10,11 @@ import { supabase } from '../config/supabase.js';
  * Utilise regression lineaire simple sur 6 derniers mois
  */
 export async function predictCAnextMonth(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: predictCAnextMonth requires explicit tenant_id');
+  }
+
   try {
     // Recuperer CA des 6 derniers mois
     const data = [];
@@ -129,6 +134,11 @@ function getMonthName(monthIndex) {
  * Prediction risque churn client
  */
 export async function predictClientChurn(tenant_id, client_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: predictClientChurn requires explicit tenant_id');
+  }
+
   try {
     // Recuperer client avec ses RDV et avis
     const { data: client, error } = await supabase
@@ -270,6 +280,11 @@ function getChurnRecommendation(risk, factors) {
  * Prediction RDV semaine prochaine
  */
 export async function predictRdvNextWeek(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: predictRdvNextWeek requires explicit tenant_id');
+  }
+
   try {
     // Recuperer RDV des 4 dernieres semaines (meme jour)
     const data = [];
@@ -328,6 +343,11 @@ export async function predictRdvNextWeek(tenant_id) {
  * Analyse clients a risque de churn
  */
 export async function analyzeChurnRisk(tenant_id, limit = 10) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: analyzeChurnRisk requires explicit tenant_id');
+  }
+
   try {
     // Recuperer clients avec derniere visite > 60 jours
     const date60j = new Date();
@@ -373,6 +393,11 @@ export async function analyzeChurnRisk(tenant_id, limit = 10) {
  * Retourne clients à risque triés par priorité
  */
 export async function analyzeChurnRiskAll(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: analyzeChurnRiskAll requires explicit tenant_id');
+  }
+
   try {
     const { data: clients } = await supabase
       .from('clients')
@@ -427,6 +452,11 @@ export async function analyzeChurnRiskAll(tenant_id) {
  * Programme action anti-churn automatique
  */
 export async function scheduleChurnPrevention(tenant_id, client_id, action_type) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: scheduleChurnPrevention requires explicit tenant_id');
+  }
+
   try {
     // action_type: 'email', 'sms', 'call', 'promo'
 

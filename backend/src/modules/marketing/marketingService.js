@@ -34,6 +34,7 @@ export async function getCampaignById(tenantId, id) {
   const { data: sends } = await supabase
     .from('campaign_sends')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('campaign_id', id)
     .order('sent_at', { ascending: false })
     .limit(100);
@@ -129,7 +130,7 @@ export async function sendCampaign(tenantId, id) {
     await supabase.from('marketing_campaigns').update({
       status: 'completed', completed_at: new Date().toISOString(),
       stats_sent: 0, stats_delivered: 0, stats_opened: 0, stats_clicked: 0, stats_bounced: 0,
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', tenantId);
     return { success: true, data: { ...data, stats_sent: 0, stats_delivered: 0, status: 'completed' } };
   }
 
@@ -174,7 +175,7 @@ export async function sendCampaign(tenantId, id) {
     stats_bounced: failedCount,
   };
 
-  await supabase.from('marketing_campaigns').update(finalStats).eq('id', id);
+  await supabase.from('marketing_campaigns').update(finalStats).eq('id', id).eq('tenant_id', tenantId);
 
   return { success: true, data: { ...data, ...finalStats, recipients_total: recipients.length } };
 }
@@ -430,13 +431,15 @@ export async function applyPromoCode(tenantId, code, { orderAmount, customerEmai
     .from('promo_codes')
     .select('current_uses')
     .eq('id', validation.data.promo_code_id)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (currentPromo) {
     await supabase
       .from('promo_codes')
       .update({ current_uses: (currentPromo.current_uses || 0) + 1 })
-      .eq('id', validation.data.promo_code_id);
+      .eq('id', validation.data.promo_code_id)
+      .eq('tenant_id', tenantId);
   }
 
   return { success: true, data: { ...validation.data, applied: true } };
@@ -455,6 +458,7 @@ export async function getPromoCodeStats(tenantId, id) {
   const { data: uses } = await supabase
     .from('promo_code_uses')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('promo_code_id', id)
     .order('used_at', { ascending: false });
 
@@ -645,6 +649,7 @@ export async function getPromoPerformance(tenantId) {
     const { data: uses } = await supabase
       .from('promo_code_uses')
       .select('discount_amount, order_amount')
+      .eq('tenant_id', tenantId)
       .in('promo_code_id', promoIds);
 
     (uses || []).forEach(u => {

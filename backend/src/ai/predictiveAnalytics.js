@@ -96,6 +96,11 @@ function calculateDaysSinceLastVisit(reservations) {
  * Utilise moyenne mobile pondérée basée sur les réservations
  */
 export async function forecastRevenue(tenant_id, months = 3) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: forecastRevenue requires explicit tenant_id');
+  }
+
   try {
     const historique = [];
     const now = new Date();
@@ -205,6 +210,11 @@ function calculateForecastConfidence(historique, monthsAhead) {
  * Analyse tendances clients (RFM simplifié)
  */
 export async function analyzeClientTrends(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: analyzeClientTrends requires explicit tenant_id');
+  }
+
   try {
     const { data: clients } = await supabase
       .from('clients')
@@ -306,6 +316,11 @@ export async function analyzeClientTrends(tenant_id) {
  * Retourne les segments avec détails des clients
  */
 export async function clusterClients(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: clusterClients requires explicit tenant_id');
+  }
+
   try {
     const { data: clients } = await supabase
       .from('clients')
@@ -512,6 +527,11 @@ function generateSegmentRecommendations(segmentsStats) {
  * Détection patterns
  */
 export async function detectPatterns(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: detectPatterns requires explicit tenant_id');
+  }
+
   try {
     const patterns = [];
 

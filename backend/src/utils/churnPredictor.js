@@ -104,6 +104,7 @@ export async function calculerScoreChurn(clientId, tenantId) {
       const { data: rdvRecents } = await supabase
         .from('rendez_vous')
         .select('prix, date_rdv')
+        .eq('tenant_id', tenantId)
         .eq('client_id', clientId)
         .gte('date_rdv', date6mois.toISOString().split('T')[0])
         .order('date_rdv', { ascending: false });

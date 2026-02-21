@@ -410,6 +410,7 @@ export async function approveLeave(tenantId, leaveId, reviewerId) {
     .from('hr_leaves')
     .update({ status: 'approved', reviewed_by: reviewerId, reviewed_at: new Date().toISOString() })
     .eq('id', leaveId)
+    .eq('tenant_id', tenantId)
     .select()
     .single();
   if (error) return { success: false, error: error.message };
@@ -420,6 +421,7 @@ export async function approveLeave(tenantId, leaveId, reviewerId) {
     const { data: bal } = await supabase
       .from('hr_leave_balances')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('employee_id', leave.employee_id)
       .eq('year', year)
       .eq('type', leave.type)
@@ -431,7 +433,8 @@ export async function approveLeave(tenantId, leaveId, reviewerId) {
       await supabase
         .from('hr_leave_balances')
         .update({ taken: newTaken, balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', bal.id);
+        .eq('id', bal.id)
+        .eq('tenant_id', tenantId);
     }
   }
 
@@ -479,6 +482,7 @@ export async function cancelLeave(tenantId, leaveId) {
     const { data: bal } = await supabase
       .from('hr_leave_balances')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('employee_id', leave.employee_id)
       .eq('year', year)
       .eq('type', leave.type)
@@ -486,7 +490,7 @@ export async function cancelLeave(tenantId, leaveId) {
     if (bal) {
       const newTaken = Math.max(0, parseFloat(bal.taken) - parseFloat(leave.days_count));
       const newBalance = parseFloat(bal.earned) - newTaken;
-      await supabase.from('hr_leave_balances').update({ taken: newTaken, balance: newBalance }).eq('id', bal.id);
+      await supabase.from('hr_leave_balances').update({ taken: newTaken, balance: newBalance }).eq('id', bal.id).eq('tenant_id', tenantId);
     }
   }
 
@@ -498,6 +502,7 @@ export async function getLeaveBalance(tenantId, employeeId, year) {
   const { data, error } = await supabase
     .from('hr_leave_balances')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('employee_id', employeeId)
     .eq('year', y);
   if (error) return { success: false, error: error.message };
@@ -508,6 +513,7 @@ export async function updateLeaveBalance(tenantId, employeeId, year, type, days)
   const { data: existing } = await supabase
     .from('hr_leave_balances')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('employee_id', employeeId)
     .eq('year', year)
     .eq('type', type)
@@ -520,6 +526,7 @@ export async function updateLeaveBalance(tenantId, employeeId, year, type, days)
       .from('hr_leave_balances')
       .update({ earned: newEarned, balance: newBalance, updated_at: new Date().toISOString() })
       .eq('id', existing.id)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
     if (error) return { success: false, error: error.message };
@@ -579,6 +586,7 @@ export async function generatePayslip(tenantId, employeeId, month, year) {
   const { data: timeRecords } = await supabase
     .from('hr_timeclock')
     .select('total_hours')
+    .eq('tenant_id', tenantId)
     .eq('employee_id', employeeId)
     .gte('clock_in', startDate)
     .lt('clock_in', endDate);

@@ -319,7 +319,9 @@ export async function publishToSocialMedia(platforms, content, mediaUrl = null, 
 }
 
 // === PLANIFICATION DE POSTS ===
-export async function schedulePost(platforms, content, mediaUrl, scheduledTime) {
+export async function schedulePost(tenantId, platforms, content, mediaUrl, scheduledTime) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { supabase } = await import('../config/supabase.js');
 
@@ -332,6 +334,7 @@ export async function schedulePost(platforms, content, mediaUrl, scheduledTime) 
     const { data, error } = await supabase
       .from('scheduled_posts')
       .insert({
+        tenant_id: tenantId,
         platforms: platforms,
         content: content,
         media_url: mediaUrl,
@@ -375,13 +378,16 @@ export async function schedulePost(platforms, content, mediaUrl, scheduledTime) 
 }
 
 // === RÉCUPÉRER LES POSTS PROGRAMMÉS ===
-export async function getScheduledPosts() {
+export async function getScheduledPosts(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { supabase } = await import('../config/supabase.js');
 
     const { data, error } = await supabase
       .from('scheduled_posts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('status', 'pending')
       .order('scheduled_time', { ascending: true });
 
@@ -424,13 +430,16 @@ export async function getScheduledPosts() {
 }
 
 // === ANNULER UN POST PROGRAMMÉ ===
-export async function cancelScheduledPost(postId) {
+export async function cancelScheduledPost(tenantId, postId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { supabase } = await import('../config/supabase.js');
 
     const { error } = await supabase
       .from('scheduled_posts')
       .update({ status: 'cancelled' })
+      .eq('tenant_id', tenantId)
       .eq('id', postId);
 
     if (error) {

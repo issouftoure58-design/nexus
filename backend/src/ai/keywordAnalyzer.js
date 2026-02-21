@@ -94,6 +94,12 @@ function generateDefaultKeywords(secteur) {
  * Recommandations SEO basées sur analyse
  */
 export async function generateSEORecommendations(tenant_id, data) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[SEO] CRITICAL: tenant_id requis pour generateSEORecommendations');
+    return [];
+  }
+
   const recommendations = [];
 
   // Récupérer recommandations existantes pour éviter doublons

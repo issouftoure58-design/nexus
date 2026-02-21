@@ -16,30 +16,56 @@ export async function jobSEOTracking() {
   console.log('[SEO] 📊 Début tracking positions...');
 
   try {
-    // Récupérer tous les keywords actifs de tous les tenants Business
-    // Schéma: mot_cle, position_actuelle, url_cible, actif (migration 010)
-    const { data: keywords, error: kwError } = await supabase
+    // Récupérer tous les tenants avec keywords actifs
+    const { data: tenantKeywords, error: tenantError } = await supabase
       .from('seo_keywords')
-      .select(`
-        id,
-        tenant_id,
-        mot_cle,
-        url_cible,
-        position_actuelle
-      `)
+      .select('tenant_id')
       .eq('actif', true);
 
-    if (kwError) {
-      console.error('[SEO] Erreur récupération keywords:', kwError);
+    if (tenantError) {
+      console.error('[SEO] Erreur récupération tenants:', tenantError);
       return;
+    }
+
+    // Dédupliquer les tenant_ids
+    const tenantIds = [...new Set((tenantKeywords || []).map(k => k.tenant_id).filter(Boolean))];
+
+    if (tenantIds.length === 0) {
+      console.log('[SEO] Aucun tenant avec mots-clés actifs');
+      return;
+    }
+
+    let totalTracked = 0;
+    let totalErrors = 0;
+
+    // Traiter chaque tenant séparément pour l'isolation
+    for (const tenantId of tenantIds) {
+      if (!tenantId) continue;
+
+      // Récupérer les keywords actifs pour ce tenant
+      // Schéma: mot_cle, position_actuelle, url_cible, actif (migration 010)
+      const { data: keywords, error: kwError } = await supabase
+        .from('seo_keywords')
+        .select(`
+          id,
+          tenant_id,
+          mot_cle,
+          url_cible,
+          position_actuelle
+        `)
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
+        .eq('actif', true);
+
+    if (kwError) {
+      console.error(`[SEO] Erreur récupération keywords pour tenant ${tenantId}:`, kwError);
+      continue;
     }
 
     if (!keywords || keywords.length === 0) {
-      console.log('[SEO] Aucun mot-clé actif à tracker');
-      return;
+      continue;
     }
 
-    console.log(`[SEO] ${keywords.length} mots-clés à tracker`);
+    console.log(`[SEO] Tenant ${tenantId}: ${keywords.length} mots-clés à tracker`);
 
     let tracked = 0;
     let errors = 0;
@@ -54,6 +80,7 @@ export async function jobSEOTracking() {
         const { error: histError } = await supabase
           .from('seo_positions_history')
           .insert({
+            tenant_id: tenantId,  // 🔒 TENANT ISOLATION
             keyword_id: keyword.id,
             position,
             url_classee: keyword.url_cible,
@@ -72,7 +99,8 @@ export async function jobSEOTracking() {
           .update({
             position_actuelle: position
           })
-          .eq('id', keyword.id);
+          .eq('id', keyword.id)
+          .eq('tenant_id', tenantId);  // 🔒 TENANT ISOLATION
 
         if (updateError) {
           console.error(`[SEO] Erreur update keyword ${keyword.id}:`, updateError.message);
@@ -93,10 +121,14 @@ export async function jobSEOTracking() {
       }
     }
 
-    console.log(`[SEO] ✅ Tracking terminé: ${tracked} positions mises à jour, ${errors} erreurs`);
+    totalTracked += tracked;
+    totalErrors += errors;
 
     // Générer alertes si positions importantes perdues
-    await checkPositionAlerts(keywords);
+    await checkPositionAlerts(keywords, tenantId);
+    } // End tenant loop
+
+    console.log(`[SEO] ✅ Tracking terminé: ${totalTracked} positions mises à jour, ${totalErrors} erreurs`);
 
   } catch (error) {
     console.error('[SEO] ❌ Erreur job tracking:', error);
@@ -124,13 +156,19 @@ function simulateGooglePosition(currentPosition) {
 /**
  * Vérifie les alertes de position
  */
-async function checkPositionAlerts(keywords) {
+async function checkPositionAlerts(keywords, tenantId) {
+  if (!tenantId) {
+    console.error('[SEO] checkPositionAlerts requires tenantId');
+    return;
+  }
+
   try {
     for (const keyword of keywords) {
       // Récupérer les 2 dernières positions depuis seo_positions_history
       const { data: history } = await supabase
         .from('seo_positions_history')
         .select('position, date_mesure')
+        .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('keyword_id', keyword.id)
         .order('date_mesure', { ascending: false })
         .limit(2);
@@ -147,7 +185,7 @@ async function checkPositionAlerts(keywords) {
           await supabase
             .from('seo_recommendations')
             .insert({
-              tenant_id: keyword.tenant_id,
+              tenant_id: tenantId,  // 🔒 TENANT ISOLATION - Use passed tenantId
               type: 'technical',
               titre: `Perte de position: ${keyword.mot_cle}`,
               description: `Le mot-clé "${keyword.mot_cle}" a perdu ${drop} positions cette semaine (${previous.position} → ${current.position}). Vérifier le contenu et les backlinks.`,

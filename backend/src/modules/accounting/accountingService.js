@@ -176,6 +176,7 @@ export async function getInvoiceById(tenantId, id) {
     .from('invoice_items')
     .select('*')
     .eq('invoice_id', id)
+    .eq('tenant_id', tenantId)
     .order('sort_order');
 
   return { success: true, data: { ...invoice, items: items || [] } };
@@ -221,6 +222,7 @@ export async function createInvoice(tenantId, { client, items, notes, due_date, 
 
   // Insert items
   const itemsToInsert = totals.items.map(item => ({
+    tenant_id: tenantId,
     invoice_id: invoice.id,
     description: item.description,
     quantity: item.quantity,
@@ -267,8 +269,9 @@ export async function updateInvoice(tenantId, id, { client, items, notes, due_da
     updates.total = totals.total;
 
     // Replace items
-    await supabase.from('invoice_items').delete().eq('invoice_id', id);
+    await supabase.from('invoice_items').delete().eq('invoice_id', id).eq('tenant_id', tenantId);
     const itemsToInsert = totals.items.map(item => ({
+      tenant_id: tenantId,
       invoice_id: id,
       description: item.description,
       quantity: item.quantity,
@@ -345,6 +348,7 @@ export async function markInvoicePaid(tenantId, id, { payment_method, date } = {
       updated_at: new Date().toISOString()
     })
     .eq('id', id)
+    .eq('tenant_id', tenantId)
     .select()
     .single();
 

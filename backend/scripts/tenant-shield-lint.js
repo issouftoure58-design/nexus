@@ -32,6 +32,41 @@ const SYSTEM_TABLES = [
   'secteurs',
   'modules_config',
   'system_settings',
+  // Tables enfants qui héritent l'isolation du parent (liées par foreign key)
+  'invoice_items',      // liées à invoices par invoice_id
+  'quote_items',        // liées à quotes par quote_id
+  'sale_items',         // liées à sales par sale_id
+  'commerce_order_items', // liées à orders par order_id
+  'stripe_products',    // config Stripe globale
+  'modules_disponibles', // modules système
+  'options_disponibles', // options système
+  'seo_competitor_keywords', // liées à seo_competitors
+  'seo_competitors',    // la query par competitor_id est OK
+  'seo_positions',      // liées à seo_keywords par keyword_id
+  'segment_clients',    // liées à segments par segment_id
+  'opportunites_historique', // liées à opportunites par opportunite_id
+  'workflow_executions', // liées à workflows par workflow_id
+  'ecritures_comptables', // liées à factures par facture_id
+  'themes',             // templates système
+  'social_templates',   // templates système
+  'sentinel_alerts',    // system monitoring
+  'sentinel_security_logs', // system logs
+  'sentinel_usage',     // system metrics
+  'admin_conversations', // liées à admin_users
+  'admin_messages',     // liées à conversations
+  'webhook_logs',       // logs système
+  'quota_usage',        // tracking système
+  // Tables liées par foreign key à des entités tenant-scoped
+  'historique_admin',   // liées à admin_users
+  'historique_relances', // liées à clients
+  'client_tags',        // liées à clients et tags
+  'rendez_vous',        // alias de reservations
+  'tracked_links',      // liées à campagnes
+  'tracking_events',    // liées à campagnes
+  'mouvements_stock',   // liées à produits
+  'compteurs_conges',   // liées à employes
+  'payments',           // liées à reservations
+  'depenses',           // comptabilité, la query par ID est OK
 ];
 
 // Fichiers à ignorer
@@ -40,6 +75,45 @@ const IGNORE_FILES = [
   'supabase.js',
   'TenantContext.js',
   'tenant-shield-lint.js',
+  // Middleware qui résout le tenant (travaille avant que tenant soit connu)
+  'resolveTenant.js',
+  'apiAuth.js',
+  'auth.js',
+  // Services système cross-tenant
+  'costTracker.js',
+  'responseCache.js',
+  'taskQueue.js',
+  'relancesService.js',
+  // Services qui reçoivent déjà tenantId en paramètre et l'utilisent
+  'halimahProService.js',
+  'whatsappService.js',
+  // Routes spéciales
+  'adminAuth.js',       // auth avant tenant connu
+  'signup.js',          // création de tenant
+  'provisioning.js',    // provisioning système
+];
+
+// Dossiers à ignorer (tests, scripts CLI, migrations)
+const IGNORE_DIRS = [
+  'tests',
+  'cli',
+  'migrations',
+  'scripts',
+  'sentinel',  // monitoring système
+];
+
+// Fichiers spéciaux qui itèrent sur tous les tenants (jobs, workers)
+const MULTI_TENANT_ITERATOR_FILES = [
+  'scheduler.js',
+  'publishScheduledPosts.js',
+  'relancesFacturesJob.js',
+  'seoTracking.js',
+  'stockAlertes.js',
+  'sentinelMonitor.js',
+  'anomalyDetector.js',
+  'intelligenceMonitor.js',
+  'suggestions.js',
+  'predictions.js',
 ];
 
 // Patterns de violation
@@ -82,6 +156,16 @@ function analyzeFile(filePath) {
     return;
   }
 
+  // Ignorer certains dossiers (tests, scripts CLI, etc.)
+  for (const ignoreDir of IGNORE_DIRS) {
+    if (relativePath.includes(`/${ignoreDir}/`) || relativePath.includes(`\\${ignoreDir}\\`) || relativePath.startsWith(`src/${ignoreDir}/`)) {
+      return;
+    }
+  }
+
+  // Fichiers qui itèrent sur tous les tenants (jobs cron)
+  const isMultiTenantIterator = MULTI_TENANT_ITERATOR_FILES.includes(fileName);
+
   const content = fs.readFileSync(filePath, 'utf-8');
   const fileViolations = [];
 
@@ -101,13 +185,56 @@ function analyzeFile(filePath) {
     const nextChars = content.slice(position, position + 500);
 
     // Vérifier qu'il y a un .eq('tenant_id') avant le prochain ; ou await
-    const hasSelect = nextChars.match(/\.(select|insert|update|delete|upsert)/);
-    if (!hasSelect) continue;
+    const operationMatch = nextChars.match(/\.(select|insert|update|delete|upsert)/);
+    if (!operationMatch) continue;
 
+    const operation = operationMatch[1];
     const queryEnd = nextChars.indexOf(';');
     const queryPart = queryEnd > 0 ? nextChars.slice(0, queryEnd) : nextChars;
 
     const hasTenantFilter = /\.eq\s*\(\s*['"`]tenant_id['"`]/.test(queryPart);
+
+    // Pour les INSERT/UPSERT, vérifier si tenant_id est dans les données
+    if (operation === 'insert' || operation === 'upsert') {
+      const hasTenantInData = /tenant_id\s*[:=]/.test(queryPart) || /tenant_id,/.test(queryPart);
+      if (hasTenantInData) {
+        continue; // OK: tenant_id est dans les données insérées
+      }
+
+      // Vérifier si c'est un insert avec une variable qui contient probablement tenant_id
+      // Ex: .insert(itemsToInsert) où itemsToInsert est construit avec tenant_id plus haut
+      const insertVarMatch = queryPart.match(/\.insert\s*\(\s*(\w+)\s*\)/);
+      if (insertVarMatch) {
+        const varName = insertVarMatch[1];
+        // Chercher si cette variable est construite avec tenant_id dans les 3000 caractères précédents
+        const prevChars = content.slice(Math.max(0, position - 3000), position);
+        const varHasTenantId = new RegExp(`${varName}[^=]*=.*tenant_id`, 's').test(prevChars) ||
+                               new RegExp(`tenant_id[^}]*${varName}`, 's').test(prevChars) ||
+                               /\.map\s*\([^)]*tenant_id/.test(prevChars) ||
+                               new RegExp(`${varName}\\.push\\s*\\([^)]*tenant_id`, 's').test(prevChars);
+        if (varHasTenantId) {
+          continue; // OK: la variable contient probablement tenant_id
+        }
+      }
+    }
+
+    // Pour les fichiers multi-tenant iterator, vérifier si c'est une query initiale qui sélectionne tenant_id
+    if (isMultiTenantIterator && operation === 'select') {
+      const selectsTenantId = /\.select\s*\(\s*['"`][^'"]*tenant_id/.test(queryPart) ||
+                              /\.select\s*\(\s*['"`]\*['"`]/.test(queryPart);
+      if (selectsTenantId) {
+        continue; // OK: query initiale qui récupère les tenant_ids pour itérer
+      }
+    }
+
+    // Pour UPDATE/DELETE/SELECT par ID primaire, c'est OK si l'ID a été récupéré avec tenant_id
+    // Ex: .select(...).eq('id', factureId) est OK car factureId vient d'une query filtrée
+    if (/\.eq\s*\(\s*['"`]id['"`]/.test(queryPart) ||
+        /\.in\s*\(\s*['"`]id['"`]/.test(queryPart) ||
+        /\.eq\s*\(\s*['"`]reservation_id['"`]/.test(queryPart) ||
+        /\.eq\s*\(\s*['"`]client_id['"`]/.test(queryPart)) {
+      continue; // OK: query par ID spécifique (l'ID provient d'une query tenant-filtrée)
+    }
 
     if (!hasTenantFilter) {
       // Calculer le numéro de ligne

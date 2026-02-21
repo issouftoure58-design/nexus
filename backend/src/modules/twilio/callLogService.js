@@ -40,7 +40,7 @@ export async function logCallStart(tenantId, callData) {
   }
 }
 
-export async function logCallEnd(callData) {
+export async function logCallEnd(tenantId, callData) {
   const { CallSid, CallStatus, CallDuration } = callData;
 
   try {
@@ -52,6 +52,7 @@ export async function logCallEnd(callData) {
         ended_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
+      .eq('tenant_id', tenantId)
       .eq('call_sid', CallSid)
       .select()
       .single();
@@ -92,7 +93,7 @@ export async function logSMS(tenantId, smsData) {
   }
 }
 
-export async function logSMSStatus(smsData) {
+export async function logSMSStatus(tenantId, smsData) {
   const { MessageSid, MessageStatus } = smsData;
 
   try {
@@ -102,6 +103,7 @@ export async function logSMSStatus(smsData) {
         sms_status: MessageStatus,
         updated_at: new Date().toISOString(),
       })
+      .eq('tenant_id', tenantId)
       .eq('message_sid', MessageSid)
       .select()
       .single();
@@ -114,11 +116,12 @@ export async function logSMSStatus(smsData) {
   }
 }
 
-export async function updateCallSummary(callSid, summary) {
+export async function updateCallSummary(tenantId, callSid, summary) {
   try {
     const { data, error } = await supabase
       .from('twilio_call_logs')
       .update({ ai_summary: summary, updated_at: new Date().toISOString() })
+      .eq('tenant_id', tenantId)
       .eq('call_sid', callSid)
       .select()
       .single();
@@ -157,11 +160,12 @@ export async function getCallLogs(tenantId, options = {}) {
   }
 }
 
-export async function getCallLogByCallSid(callSid) {
+export async function getCallLogByCallSid(tenantId, callSid) {
   try {
     const { data, error } = await supabase
       .from('twilio_call_logs')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('call_sid', callSid)
       .single();
 

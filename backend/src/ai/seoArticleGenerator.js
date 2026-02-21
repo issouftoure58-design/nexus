@@ -18,6 +18,11 @@ export async function generateArticle({
   mots_cles_secondaires = [],
   longueur = 'moyen'
 }) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: generateArticle requires explicit tenant_id');
+  }
+
   try {
     const longueurs = {
       court: 500,
@@ -199,6 +204,11 @@ export function slugify(text) {
  * Améliorer article existant
  */
 export async function improveArticle(articleId, tenant_id, instructions) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    throw new Error('TENANT_ID_REQUIRED: improveArticle requires explicit tenant_id');
+  }
+
   try {
     // Récupérer article existant
     const { data: article, error: fetchError } = await supabase

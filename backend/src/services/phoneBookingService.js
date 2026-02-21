@@ -191,8 +191,11 @@ export function checkHoraires(jour, heure) {
 
 /**
  * Vérifier disponibilité d'un créneau
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function checkAvailability(jour, heure) {
+export async function checkAvailability(tenantId, jour, heure) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const db = getSupabase();
     if (!db) return { available: true, conflits: [] };
@@ -205,6 +208,7 @@ export async function checkAvailability(jour, heure) {
     const { data, error } = await db
       .from('reservations')
       .select('id, heure')
+      .eq('tenant_id', tenantId)
       .eq('date', dateRdv)
       .in('statut', ['demande', 'confirme']);
 
@@ -235,8 +239,11 @@ export async function checkAvailability(jour, heure) {
 
 /**
  * Créer un RDV complet en base de données
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function createFullAppointment(bookingData) {
+export async function createFullAppointment(tenantId, bookingData) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const db = getSupabase();
     if (!db) {
@@ -273,6 +280,7 @@ export async function createFullAppointment(bookingData) {
       const { data: existingClient } = await db
         .from('clients')
         .select('id')
+        .eq('tenant_id', tenantId)
         .eq('telephone', clientPhone)
         .single();
 
@@ -283,6 +291,7 @@ export async function createFullAppointment(bookingData) {
         const { data: newClient, error: insertError } = await db
           .from('clients')
           .insert({
+            tenant_id: tenantId,
             nom: clientName,
             telephone: clientPhone
           })
@@ -304,6 +313,7 @@ export async function createFullAppointment(bookingData) {
 
     // Créer le RDV dans la table rendezvous avec tous les champs
     const rdvData = {
+      tenant_id: tenantId,
       client_id: clientId,
       service_nom: service,
       date: dateRdv,
@@ -345,8 +355,10 @@ export async function createFullAppointment(bookingData) {
 
 /**
  * Envoyer SMS de confirmation via Twilio
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function sendConfirmationSMS(phoneNumber, bookingDetails) {
+export async function sendConfirmationSMS(tenantId, phoneNumber, bookingDetails) {
+  if (!tenantId) throw new Error('tenant_id requis');
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
@@ -393,15 +405,13 @@ Fatou - 09 39 24 02 69`;
     // 📊 Logger le SMS sortant pour tracking des coûts
     try {
       const { supabase } = await import('../config/supabase.js');
-      // 🔒 TENANT ISOLATION: Le tenantId doit être passé en paramètre
-      // Note: Cette fonction devra être mise à jour pour recevoir tenantId
       await supabase.from('twilio_call_logs').insert({
         channel: 'sms',
         direction: 'outbound',
         from_number: twilioPhone,
         to_number: formattedPhone,
         message_sid: result.sid,
-        tenant_id: tenantId || null, // 🔒 Pas de fallback hardcodé
+        tenant_id: tenantId,
       });
       console.log('[SMS] ✅ SMS loggé pour tracking coûts');
     } catch (logErr) {

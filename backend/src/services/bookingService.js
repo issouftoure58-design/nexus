@@ -761,12 +761,15 @@ function formatDateFr(dateISO) {
  * Vérification STRICTE de disponibilité avec règles métier
  * ⚠️ GÈRE : journée entière, 2 jours consécutifs, chevauchements
  *
+ * @param {string} tenantId - ID du tenant (obligatoire)
  * @param {string} dateISO - Date au format YYYY-MM-DD
  * @param {string} serviceNom - Nom du service
  * @param {Array} existingBookings - RDV existants ce jour (optionnel, sera récupéré si non fourni)
  * @returns {Object} { available, slots, message, blocksFullDay, blocksDays }
  */
-export async function checkStrictAvailability(dateISO, serviceNom, existingBookings = null) {
+export async function checkStrictAvailability(tenantId, dateISO, serviceNom, existingBookings = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   console.log(`[BOOKING] === VÉRIFICATION STRICTE: ${serviceNom} le ${dateISO} ===`);
 
   // 1. Obtenir les infos du service
@@ -798,6 +801,7 @@ export async function checkStrictAvailability(dateISO, serviceNom, existingBooki
       const { data } = await db
         .from('reservations')
         .select('id, heure, service_nom, duree_minutes')
+        .eq('tenant_id', tenantId)
         .eq('date', dateISO)
         .in('statut', ['demande', 'confirme']);
       existingBookings = data || [];
@@ -845,6 +849,7 @@ export async function checkStrictAvailability(dateISO, serviceNom, existingBooki
         const { data } = await db
           .from('reservations')
           .select('id, heure, service_nom')
+          .eq('tenant_id', tenantId)
           .eq('date', nextDay)
           .in('statut', ['demande', 'confirme']);
         nextDayBookings = data || [];
@@ -1103,12 +1108,15 @@ export function checkHorairesComplet(jour, heureRdv, dureeMinutes, tempsTrajetMi
 
 /**
  * Vérifier si un créneau est disponible (pas de chevauchement)
+ * @param {string} tenantId - ID du tenant (obligatoire)
  * @param {string} dateRdv - Date au format YYYY-MM-DD
  * @param {string|number} heureRdv - Heure de début
  * @param {number} dureeMinutes - Durée du service en minutes
  * @returns {Object} { available, conflits, suggestion }
  */
-export async function checkAvailability(dateRdv, heureRdv, dureeMinutes = 120) {
+export async function checkAvailability(tenantId, dateRdv, heureRdv, dureeMinutes = 120) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   console.log(`[BOOKING] Vérification disponibilité: ${dateRdv} ${heureRdv}h (${dureeMinutes}min)`);
 
   if (!dateRdv) {
@@ -1126,6 +1134,7 @@ export async function checkAvailability(dateRdv, heureRdv, dureeMinutes = 120) {
     const { data: rdvsJour, error } = await db
       .from('reservations')
       .select('id, heure, service_nom, notes')
+      .eq('tenant_id', tenantId)
       .eq('date', dateRdv)
       .in('statut', ['demande', 'confirme']);
 
@@ -1230,13 +1239,16 @@ function findNextAvailableSlot(rdvsJour, heureVoulue, dureeMinutes) {
  * Vérifier si un créneau est disponible (pas de chevauchement RÉEL)
  * Prend en compte la durée + trajet + marge de TOUS les RDV
  *
+ * @param {string} tenantId - ID du tenant (obligatoire)
  * @param {string} dateRdv - Date au format YYYY-MM-DD
  * @param {number} heureRdv - Heure de début du RDV
  * @param {number} dureeMinutes - Durée de la prestation
  * @param {number} tempsTrajetMinutes - Temps de trajet (aller simple)
  * @returns {Object} { available, conflits, suggestion }
  */
-export async function checkAvailabilityComplete(dateRdv, heureRdv, dureeMinutes = 120, tempsTrajetMinutes = 0) {
+export async function checkAvailabilityComplete(tenantId, dateRdv, heureRdv, dureeMinutes = 120, tempsTrajetMinutes = 0) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   console.log(`[BOOKING] Vérification disponibilité COMPLÈTE:`);
   console.log(`[BOOKING]   Date: ${dateRdv}, Heure: ${heureRdv}h`);
   console.log(`[BOOKING]   Durée: ${dureeMinutes}min, Trajet: ${tempsTrajetMinutes}min`);
@@ -1262,6 +1274,7 @@ export async function checkAvailabilityComplete(dateRdv, heureRdv, dureeMinutes 
     const { data: rdvsJour, error } = await db
       .from('reservations')
       .select('id, heure, service_nom, notes, distance_km')
+      .eq('tenant_id', tenantId)
       .eq('date', dateRdv)
       .in('statut', ['demande', 'confirme']);
 
@@ -1418,11 +1431,14 @@ function findNextAvailableSlotComplete(rdvsJour, heureVoulue, dureeMinutes, temp
 
 /**
  * Trouver ou créer un client
+ * @param {string} tenantId - ID du tenant (obligatoire)
  * @param {string} clientNom - Nom de famille du client
  * @param {string} clientPhone - Téléphone du client (identifiant unique)
  * @param {string} clientPrenom - Prénom du client (optionnel)
  */
-async function findOrCreateClient(clientNom, clientPhone, clientPrenom = null) {
+async function findOrCreateClient(tenantId, clientNom, clientPhone, clientPrenom = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   const db = getSupabase();
   if (!db || !clientPhone) return null;
 
@@ -1431,6 +1447,7 @@ async function findOrCreateClient(clientNom, clientPhone, clientPrenom = null) {
     const { data: existingClient } = await db
       .from('clients')
       .select('id, nom, prenom')
+      .eq('tenant_id', tenantId)
       .eq('telephone', clientPhone)
       .single();
 
@@ -1447,7 +1464,7 @@ async function findOrCreateClient(clientNom, clientPhone, clientPrenom = null) {
       }
 
       if (Object.keys(updates).length > 0) {
-        await db.from('clients').update(updates).eq('id', existingClient.id);
+        await db.from('clients').update(updates).eq('tenant_id', tenantId).eq('id', existingClient.id);
         console.log(`[BOOKING] Client mis à jour:`, updates);
       }
 
@@ -1456,6 +1473,7 @@ async function findOrCreateClient(clientNom, clientPhone, clientPrenom = null) {
 
     // Créer un nouveau client avec nom ET prénom
     const clientData = {
+      tenant_id: tenantId,
       nom: clientNom || 'Client',
       telephone: clientPhone
     };
@@ -1597,11 +1615,13 @@ export async function createAppointment(bookingData) {
 
 /**
  * Envoyer un SMS de confirmation
+ * @param {string} tenantId - ID du tenant (obligatoire)
  * @param {string} phoneNumber - Numéro du client
  * @param {Object} bookingDetails - Détails du RDV
  * @returns {boolean} Succès ou échec
  */
-export async function sendConfirmationSMS(phoneNumber, bookingDetails) {
+export async function sendConfirmationSMS(tenantId, phoneNumber, bookingDetails) {
+  if (!tenantId) throw new Error('tenant_id requis');
   console.log('[BOOKING] Envoi SMS à:', phoneNumber);
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -1666,7 +1686,7 @@ Fatou - 07 82 23 50 20`;
         from_number: twilioPhone,
         to_number: formattedPhone,
         message_sid: result.sid,
-        tenant_id: 'fatshairafro',
+        tenant_id: tenantId,
       });
       console.log('[BOOKING] ✅ SMS loggé pour tracking coûts');
     } catch (logErr) {

@@ -11,12 +11,16 @@ import { supabase } from '../config/supabase.js';
 
 /**
  * Sauvegarde un message dans l'historique
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function saveMessage(sessionId, role, content, attachments = null, toolCalls = null, metadata = null) {
+export async function saveMessage(tenantId, sessionId, role, content, attachments = null, toolCalls = null, metadata = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_memory')
       .insert({
+        tenant_id: tenantId,
         session_id: sessionId,
         role,
         content,
@@ -42,12 +46,16 @@ export async function saveMessage(sessionId, role, content, attachments = null, 
 
 /**
  * Charge l'historique récent des conversations
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function loadHistory(sessionId, limit = 50) {
+export async function loadHistory(tenantId, sessionId, limit = 50) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('session_id', sessionId)
       .order('created_at', { ascending: true })
       .limit(limit);
@@ -72,12 +80,16 @@ export async function loadHistory(sessionId, limit = 50) {
 
 /**
  * Charge tout l'historique (toutes sessions) pour le contexte global
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function loadAllHistory(limit = 100) {
+export async function loadAllHistory(tenantId, limit = 100) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_memory')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -99,8 +111,11 @@ export async function loadAllHistory(limit = 100) {
 
 /**
  * Mémorise un fait important
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function rememberFact(category, fact, sourceMessageId = null, confidence = 1.0, expiresAt = null) {
+export async function rememberFact(tenantId, category, fact, sourceMessageId = null, confidence = 1.0, expiresAt = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     console.log(`[MEMORY] 💾 Tentative mémorisation: "${fact}" (${category})`);
 
@@ -108,6 +123,7 @@ export async function rememberFact(category, fact, sourceMessageId = null, confi
     const { data: existing, error: existingError } = await supabase
       .from('halimah_facts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('fact', fact)
       .eq('is_active', true)
       .single();
@@ -123,6 +139,7 @@ export async function rememberFact(category, fact, sourceMessageId = null, confi
       const { data, error } = await supabase
         .from('halimah_facts')
         .update({ confidence: Math.min(1.0, existing.confidence + 0.1) })
+        .eq('tenant_id', tenantId)
         .eq('id', existing.id)
         .select()
         .single();
@@ -135,6 +152,7 @@ export async function rememberFact(category, fact, sourceMessageId = null, confi
     const { data, error } = await supabase
       .from('halimah_facts')
       .insert({
+        tenant_id: tenantId,
         category,
         fact,
         source_message_id: sourceMessageId,
@@ -164,12 +182,16 @@ export async function rememberFact(category, fact, sourceMessageId = null, confi
 
 /**
  * Recherche des faits pertinents pour une requête
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function recallFacts(query, category = null, limit = 10) {
+export async function recallFacts(tenantId, query, category = null, limit = 10) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     let queryBuilder = supabase
       .from('halimah_facts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('confidence', { ascending: false })
       .order('created_at', { ascending: false })
@@ -202,12 +224,16 @@ export async function recallFacts(query, category = null, limit = 10) {
 
 /**
  * Récupère tous les faits actifs
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function getAllFacts(category = null) {
+export async function getAllFacts(tenantId, category = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     let query = supabase
       .from('halimah_facts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
@@ -231,12 +257,16 @@ export async function getAllFacts(category = null) {
 
 /**
  * Oublie un fait (le désactive)
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function forgetFact(factId) {
+export async function forgetFact(tenantId, factId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_facts')
       .update({ is_active: false })
+      .eq('tenant_id', tenantId)
       .eq('id', factId)
       .select()
       .single();
@@ -256,12 +286,16 @@ export async function forgetFact(factId) {
 
 /**
  * Oublie un fait par son contenu
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function forgetFactByContent(content) {
+export async function forgetFactByContent(tenantId, content) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_facts')
       .update({ is_active: false })
+      .eq('tenant_id', tenantId)
       .ilike('fact', `%${content}%`)
       .select();
 
@@ -285,8 +319,10 @@ export async function forgetFactByContent(content) {
 /**
  * Extrait automatiquement les faits importants d'un échange
  * Utilise des patterns pour détecter les préférences, décisions, etc.
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function extractAndSaveFacts(userMessage, assistantResponse, messageId = null) {
+export async function extractAndSaveFacts(tenantId, userMessage, assistantResponse, messageId = null) {
+  if (!tenantId) throw new Error('tenant_id requis');
   const factsToSave = [];
 
   // Patterns pour détecter les préférences
@@ -379,7 +415,7 @@ export async function extractAndSaveFacts(userMessage, assistantResponse, messag
 
   // Sauvegarder les faits extraits
   for (const fact of factsToSave) {
-    await rememberFact(fact.category, fact.fact, messageId, fact.confidence);
+    await rememberFact(tenantId, fact.category, fact.fact, messageId, fact.confidence);
   }
 
   return factsToSave.length;
@@ -391,10 +427,13 @@ export async function extractAndSaveFacts(userMessage, assistantResponse, messag
 
 /**
  * Génère un contexte de mémoire à inclure dans le system prompt
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function generateMemoryContext(currentQuery) {
-  const facts = await recallFacts(currentQuery, null, 15);
-  const recentHistory = await loadAllHistory(20);
+export async function generateMemoryContext(tenantId, currentQuery) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  const facts = await recallFacts(tenantId, currentQuery, null, 15);
+  const recentHistory = await loadAllHistory(tenantId, 20);
 
   if (facts.length === 0 && recentHistory.length === 0) {
     return '';
@@ -434,8 +473,11 @@ export async function generateMemoryContext(currentQuery) {
 
 /**
  * Supprime les messages anciens (plus de 30 jours)
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function cleanOldMessages(daysToKeep = 30) {
+export async function cleanOldMessages(tenantId, daysToKeep = 30) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -443,6 +485,7 @@ export async function cleanOldMessages(daysToKeep = 30) {
     const { data, error } = await supabase
       .from('halimah_memory')
       .delete()
+      .eq('tenant_id', tenantId)
       .lt('created_at', cutoffDate.toISOString())
       .select();
 
@@ -461,12 +504,16 @@ export async function cleanOldMessages(daysToKeep = 30) {
 
 /**
  * Désactive les faits expirés
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function cleanExpiredFacts() {
+export async function cleanExpiredFacts(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { data, error } = await supabase
       .from('halimah_facts')
       .update({ is_active: false })
+      .eq('tenant_id', tenantId)
       .lt('expires_at', new Date().toISOString())
       .not('expires_at', 'is', null)
       .select();
@@ -492,21 +539,27 @@ export async function cleanExpiredFacts() {
 
 /**
  * Obtient des statistiques sur la mémoire
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export async function getMemoryStats() {
+export async function getMemoryStats(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
   try {
     const { count: messageCount } = await supabase
       .from('halimah_memory')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     const { count: factCount } = await supabase
       .from('halimah_facts')
       .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
       .eq('is_active', true);
 
     const { data: categories } = await supabase
       .from('halimah_facts')
       .select('category')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true);
 
     const categoryCounts = {};

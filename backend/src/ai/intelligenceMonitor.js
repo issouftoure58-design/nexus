@@ -33,6 +33,12 @@ const THRESHOLDS = {
  * Collecte metrique CA quotidien
  */
 export async function collectCADaily(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour collectCADaily');
+    return null;
+  }
+
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -88,6 +94,12 @@ export async function collectCADaily(tenant_id) {
  * Collecte taux de remplissage agenda
  */
 export async function collectTauxRemplissage(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour collectTauxRemplissage');
+    return null;
+  }
+
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -127,6 +139,12 @@ export async function collectTauxRemplissage(tenant_id) {
  * Collecte taux d'annulation (30 derniers jours)
  */
 export async function collectTauxAnnulation(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour collectTauxAnnulation');
+    return null;
+  }
+
   try {
     const date30j = new Date();
     date30j.setDate(date30j.getDate() - 30);
@@ -160,6 +178,12 @@ export async function collectTauxAnnulation(tenant_id) {
  * Collecte note satisfaction moyenne
  */
 export async function collectSatisfaction(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour collectSatisfaction');
+    return null;
+  }
+
   try {
     const date30j = new Date();
     date30j.setDate(date30j.getDate() - 30);
@@ -193,6 +217,12 @@ export async function collectSatisfaction(tenant_id) {
  * Collecte alertes stock bas
  */
 export async function collectStockBas(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour collectStockBas');
+    return null;
+  }
+
   try {
     const { data: alertes, error } = await supabase
       .from('alertes_stock')
@@ -375,6 +405,12 @@ export async function jobIntelligenceMonitoring() {
 
       // Enregistrer anomalies en base
       if (allAnomalies.length > 0) {
+        // Validate tenant_id before insert
+        if (!tenant_id) {
+          console.error('[INTELLIGENCE] CRITICAL: tenant_id manquant pour insert alertes');
+          continue;
+        }
+
         const { error: errInsert } = await supabase
           .from('intelligence_alertes')
           .insert(
@@ -419,6 +455,12 @@ export async function jobIntelligenceMonitoring() {
  * Sauvegarde l'historique des metriques
  */
 async function saveMetricsHistory(tenant_id, metrics) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour saveMetricsHistory');
+    return;
+  }
+
   try {
     const { error } = await supabase
       .from('intelligence_metrics_history')
@@ -440,6 +482,12 @@ async function saveMetricsHistory(tenant_id, metrics) {
  * Recupere les alertes actives pour un tenant
  */
 export async function getActiveAlertes(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour getActiveAlertes');
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('intelligence_alertes')
@@ -461,6 +509,12 @@ export async function getActiveAlertes(tenant_id) {
  * Marque une alerte comme resolue
  */
 export async function resolveAlerte(alerte_id, tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour resolveAlerte');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { error } = await supabase
       .from('intelligence_alertes')
@@ -480,6 +534,12 @@ export async function resolveAlerte(alerte_id, tenant_id) {
  * Ignore une alerte
  */
 export async function ignoreAlerte(alerte_id, tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour ignoreAlerte');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { error } = await supabase
       .from('intelligence_alertes')
@@ -499,6 +559,12 @@ export async function ignoreAlerte(alerte_id, tenant_id) {
  * Recupere le dashboard metriques pour un tenant
  */
 export async function getMetricsDashboard(tenant_id) {
+  // Validate tenant_id before any operation
+  if (!tenant_id) {
+    console.error('[INTELLIGENCE] CRITICAL: tenant_id requis pour getMetricsDashboard');
+    return { metrics: {}, alertes: [], timestamp: new Date() };
+  }
+
   const [caData, remplissageData, annulationData, satisfactionData, stockData] = await Promise.all([
     collectCADaily(tenant_id),
     collectTauxRemplissage(tenant_id),

@@ -206,18 +206,22 @@ class CostTracker {
 
   /**
    * Coûts Twilio calculés depuis twilio_call_logs
+   * @param {Object} options - Options incluant tenantId obligatoire
    */
   async getTwilioCosts(options = {}) {
     const {
+      tenantId,
       startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1),
       endDate = new Date()
     } = options;
+
+    if (!tenantId) throw new Error('tenant_id requis');
 
     const startDateStr = startDate.toISOString();
     const endDateStr = endDate.toISOString();
 
     // Cache
-    const cacheKey = `twilio-${startDateStr}-${endDateStr}`;
+    const cacheKey = `twilio-${tenantId}-${startDateStr}-${endDateStr}`;
     if (this.twilioCostCache[cacheKey] && Date.now() - this.twilioCostCacheTs < this.cacheTTL) {
       return this.twilioCostCache[cacheKey];
     }
@@ -226,6 +230,7 @@ class CostTracker {
       const { data, error } = await supabase
         .from('twilio_call_logs')
         .select('channel, direction, call_duration, created_at')
+        .eq('tenant_id', tenantId)
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr);
 
@@ -269,18 +274,22 @@ class CostTracker {
 
   /**
    * Coûts ElevenLabs depuis les logs (twilio_call_logs avec channel='elevenlabs')
+   * @param {Object} options - Options incluant tenantId obligatoire
    */
   async getElevenLabsCosts(options = {}) {
     const {
+      tenantId,
       startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1),
       endDate = new Date()
     } = options;
+
+    if (!tenantId) throw new Error('tenant_id requis');
 
     const startDateStr = startDate.toISOString();
     const endDateStr = endDate.toISOString();
 
     // Cache
-    const cacheKey = `elevenlabs-${startDateStr}-${endDateStr}`;
+    const cacheKey = `elevenlabs-${tenantId}-${startDateStr}-${endDateStr}`;
     if (this.elevenLabsCache && this.elevenLabsCache._cacheKey === cacheKey && Date.now() - this.elevenLabsCacheTs < this.cacheTTL) {
       return this.elevenLabsCache;
     }
@@ -291,6 +300,7 @@ class CostTracker {
       const { data, error } = await supabase
         .from('twilio_call_logs')
         .select('call_duration, created_at')
+        .eq('tenant_id', tenantId)
         .eq('channel', 'elevenlabs')
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr);
@@ -329,10 +339,13 @@ class CostTracker {
 
   /**
    * Coûts complets agrégés de tous les services
+   * @param {Object} options - Options incluant tenantId obligatoire
    */
   async getFullCostBreakdown(options = {}) {
+    if (!options.tenantId) throw new Error('tenant_id requis');
+
     const [anthropicData, twilioData, elevenLabsData] = await Promise.all([
-      this.getCurrentMonthCosts(options.tenantId || null),
+      this.getCurrentMonthCosts(options.tenantId),
       this.getTwilioCosts(options),
       this.getElevenLabsCosts(options),
     ]);
@@ -356,16 +369,19 @@ class CostTracker {
 
   /**
    * Coûts d'aujourd'hui pour tous les services
+   * @param {string} tenantId - ID du tenant (obligatoire)
    */
-  async getTodayFullCosts(tenantId = null) {
+  async getTodayFullCosts(tenantId) {
+    if (!tenantId) throw new Error('tenant_id requis');
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const now = new Date();
 
     const [anthropicToday, twilioToday, elevenLabsToday] = await Promise.all([
       this.getTodayCosts(tenantId),
-      this.getTwilioCosts({ startDate: startOfDay, endDate: now }),
-      this.getElevenLabsCosts({ startDate: startOfDay, endDate: now }),
+      this.getTwilioCosts({ tenantId, startDate: startOfDay, endDate: now }),
+      this.getElevenLabsCosts({ tenantId, startDate: startOfDay, endDate: now }),
     ]);
 
     return {

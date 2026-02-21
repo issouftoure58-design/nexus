@@ -48,18 +48,25 @@ export function stopSocialScheduler() {
 }
 
 /**
- * Publier posts programmés
+ * Publier posts programmés pour un tenant spécifique
+ * @param {string} tenantId - ID du tenant (requis)
  */
-async function publishScheduledPosts() {
+async function publishScheduledPosts(tenantId) {
+  if (!tenantId) {
+    console.error('[SOCIAL SCHEDULER] tenant_id requis');
+    return;
+  }
+
   try {
     const now = new Date().toISOString();
     const db = getSupabase();
 
-    console.log('[SOCIAL SCHEDULER] Vérification posts à publier...');
+    console.log(`[SOCIAL SCHEDULER] Vérification posts à publier pour tenant ${tenantId}...`);
 
     const { data: posts } = await db
       .from('social_posts')
       .select('*, social_accounts(*)')
+      .eq('tenant_id', tenantId)
       .eq('status', 'scheduled')
       .lte('scheduled_at', now);
 
@@ -81,8 +88,14 @@ async function publishScheduledPosts() {
 
 /**
  * Publier un post
+ * @param {object} post - Post avec tenant_id inclus
  */
 async function publishPost(post) {
+  if (!post.tenant_id) {
+    console.error('[SOCIAL SCHEDULER] tenant_id requis pour publication');
+    return;
+  }
+
   const db = getSupabase();
 
   try {
@@ -116,6 +129,7 @@ async function publishPost(post) {
         post_id: result.postId,
         published_at: new Date().toISOString()
       })
+      .eq('tenant_id', post.tenant_id)
       .eq('id', post.id);
 
     console.log(`[SOCIAL SCHEDULER] ✅ Post ${post.id} publié sur ${post.platform}`);
@@ -129,6 +143,7 @@ async function publishPost(post) {
         status: 'error',
         error_message: error.message
       })
+      .eq('tenant_id', post.tenant_id)
       .eq('id', post.id);
   }
 }

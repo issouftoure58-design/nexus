@@ -29,7 +29,12 @@ export async function handleAnalyticsTask(job) {
  * Génère le rapport quotidien
  */
 async function generateDailyReport(tenantId) {
-  console.log('[ANALYTICS] 📈 Génération rapport quotidien...');
+  if (!tenantId) {
+    console.error('[ANALYTICS] ❌ generateDailyReport requires tenantId');
+    return { error: 'tenant_id requis' };
+  }
+
+  console.log(`[ANALYTICS] 📈 Génération rapport quotidien (tenant: ${tenantId})...`);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -42,6 +47,7 @@ async function generateDailyReport(tenantId) {
         clients (nom, prenom),
         services (nom, prix)
       `)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', today);
 
     if (bookingsError) {
@@ -52,6 +58,7 @@ async function generateDailyReport(tenantId) {
     const { data: payments } = await supabase
       .from('rendezvous')
       .select('prix_total')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', today)
       .eq('statut', 'termine');
 
@@ -61,6 +68,7 @@ async function generateDailyReport(tenantId) {
     const { data: newClients } = await supabase
       .from('clients')
       .select('id')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('created_at', today);
 
     const report = {
@@ -82,7 +90,7 @@ async function generateDailyReport(tenantId) {
     // Sauvegarder comme insight
     if (createInsight) {
       await createInsight({
-        tenantId: tenantId || 'default',
+        tenantId,  // 🔒 TENANT ISOLATION - No fallback
         category: 'business',
         insight: `Rapport du ${today}: ${report.bookings.total} RDV, CA: ${report.revenue.formatted}`,
         data: report,
@@ -110,7 +118,12 @@ async function generateDailyReport(tenantId) {
  * Génère l'analyse hebdomadaire
  */
 async function generateWeeklyAnalytics(tenantId) {
-  console.log('[ANALYTICS] 📊 Génération analytics hebdomadaires...');
+  if (!tenantId) {
+    console.error('[ANALYTICS] ❌ generateWeeklyAnalytics requires tenantId');
+    return { error: 'tenant_id requis' };
+  }
+
+  console.log(`[ANALYTICS] 📊 Génération analytics hebdomadaires (tenant: ${tenantId})...`);
 
   const today = new Date();
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -120,6 +133,7 @@ async function generateWeeklyAnalytics(tenantId) {
     const { data: bookings } = await supabase
       .from('rendezvous')
       .select('*')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .gte('date', weekAgo.toISOString().split('T')[0])
       .lte('date', today.toISOString().split('T')[0]);
 

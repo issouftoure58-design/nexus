@@ -41,15 +41,16 @@ export async function getAuditById(tenantId, auditId) {
   return { success: true, data };
 }
 
-export async function runAudit(auditId) {
+export async function runAudit(tenantId, auditId) {
   // Mark as running
-  await supabase.from('seo_audits').update({ status: 'running' }).eq('id', auditId);
+  await supabase.from('seo_audits').update({ status: 'running' }).eq('id', auditId).eq('tenant_id', tenantId);
 
   // Get audit info
   const { data: audit, error } = await supabase
     .from('seo_audits')
     .select('*')
     .eq('id', auditId)
+    .eq('tenant_id', tenantId)
     .single();
   if (error) return { success: false, error: error.message };
 
@@ -76,6 +77,7 @@ export async function runAudit(auditId) {
       completed_at: new Date().toISOString(),
     })
     .eq('id', auditId)
+    .eq('tenant_id', tenantId)
     .select()
     .single();
 
@@ -166,11 +168,12 @@ export async function deleteKeyword(tenantId, keywordId) {
   return { success: true, message: 'Keyword supprimé' };
 }
 
-export async function checkKeywordPosition(keywordId) {
+export async function checkKeywordPosition(tenantId, keywordId) {
   const { data: kw, error } = await supabase
     .from('seo_keywords')
     .select('*')
     .eq('id', keywordId)
+    .eq('tenant_id', tenantId)
     .single();
   if (error) return { success: false, error: error.message };
 
@@ -201,6 +204,7 @@ export async function checkKeywordPosition(keywordId) {
   // Record position history only if we have a real position
   if (position !== null) {
     await supabase.from('seo_positions').insert({
+      tenant_id: tenantId,
       keyword_id: keywordId,
       position,
       url: kw.target_url,
@@ -223,6 +227,7 @@ export async function checkKeywordPosition(keywordId) {
     .from('seo_keywords')
     .update(updates)
     .eq('id', keywordId)
+    .eq('tenant_id', tenantId)
     .select()
     .single();
   if (updateError) return { success: false, error: updateError.message };
@@ -237,13 +242,14 @@ export async function checkKeywordPosition(keywordId) {
   };
 }
 
-export async function getKeywordHistory(keywordId, days = 30) {
+export async function getKeywordHistory(tenantId, keywordId, days = 30) {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
   const { data, error } = await supabase
     .from('seo_positions')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('keyword_id', keywordId)
     .gte('checked_at', since.toISOString())
     .order('checked_at', { ascending: true });
@@ -633,6 +639,7 @@ export async function getKeywordsTrends(tenantId, days = 30) {
     const { data: positions } = await supabase
       .from('seo_positions')
       .select('position, checked_at')
+      .eq('tenant_id', tenantId)
       .eq('keyword_id', kw.id)
       .gte('checked_at', since.toISOString())
       .order('checked_at', { ascending: true });

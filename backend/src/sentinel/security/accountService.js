@@ -62,13 +62,20 @@ export async function createProvisionalAccount(email, tenantId, role = 'admin') 
 }
 
 // Changer le mot de passe
-export async function changePassword(userId, currentPassword, newPassword) {
+export async function changePassword(userId, currentPassword, newPassword, tenantId = null) {
   try {
-    const { data: user, error: fetchError } = await supabase
+    // TENANT SHIELD: Query par userId avec vérification tenant optionnelle
+    let query = supabase
       .from('admin_users')
       .select('*')
-      .eq('id', userId)
-      .single();
+      .eq('id', userId);
+
+    // Si tenantId fourni, ajouter le filtre pour isolation
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data: user, error: fetchError } = await query.single();
 
     if (fetchError || !user) {
       return { success: false, error: 'Utilisateur non trouvé' };

@@ -45,6 +45,7 @@ export async function checkStockLevels() {
         const { data: existingAlerte } = await supabase
           .from('alertes_stock')
           .select('id')
+          .eq('tenant_id', produit.tenant_id)  // 🔒 TENANT ISOLATION
           .eq('produit_id', produit.id)
           .eq('resolue', false)
           .single();
@@ -199,6 +200,11 @@ async function sendStockAlertEmail(tenantId, alertes) {
  * Récupère le résumé des alertes pour un tenant
  */
 export async function getAlertsSummary(tenantId) {
+  if (!tenantId) {
+    console.error('[STOCK-ALERTES] getAlertsSummary requires tenantId');
+    return { total: 0, ruptures: 0, seuils_bas: 0, alertes: [] };
+  }
+
   try {
     const { data, error } = await supabase
       .from('alertes_stock')
@@ -206,7 +212,7 @@ export async function getAlertsSummary(tenantId) {
         *,
         produits (id, nom, reference, stock_actuel)
       `)
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('resolue', false)
       .order('created_at', { ascending: false });
 
@@ -229,13 +235,21 @@ export async function getAlertsSummary(tenantId) {
 
 /**
  * Marque une alerte comme vue
+ * @param {string} alerteId - ID de l'alerte
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export async function marquerVue(alerteId) {
+export async function marquerVue(alerteId, tenantId) {
+  if (!tenantId) {
+    console.error('[STOCK-ALERTES] marquerVue requires tenantId');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { data, error } = await supabase
       .from('alertes_stock')
       .update({ vue: true })
       .eq('id', alerteId)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .select()
       .single();
 
@@ -249,8 +263,15 @@ export async function marquerVue(alerteId) {
 
 /**
  * Résout une alerte (stock réapprovisionné)
+ * @param {string} alerteId - ID de l'alerte
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export async function resoudreAlerte(alerteId) {
+export async function resoudreAlerte(alerteId, tenantId) {
+  if (!tenantId) {
+    console.error('[STOCK-ALERTES] resoudreAlerte requires tenantId');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { data, error } = await supabase
       .from('alertes_stock')
@@ -259,6 +280,7 @@ export async function resoudreAlerte(alerteId) {
         date_resolution: new Date().toISOString()
       })
       .eq('id', alerteId)
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .select()
       .single();
 
@@ -274,8 +296,15 @@ export async function resoudreAlerte(alerteId) {
 
 /**
  * Résout toutes les alertes d'un produit (après réapprovisionnement)
+ * @param {string} produitId - ID du produit
+ * @param {string} tenantId - 🔒 REQUIS - Identifiant du tenant
  */
-export async function resoudreAlerteProduit(produitId) {
+export async function resoudreAlerteProduit(produitId, tenantId) {
+  if (!tenantId) {
+    console.error('[STOCK-ALERTES] resoudreAlerteProduit requires tenantId');
+    return { success: false, error: 'tenant_id requis' };
+  }
+
   try {
     const { data, error } = await supabase
       .from('alertes_stock')
@@ -283,6 +312,7 @@ export async function resoudreAlerteProduit(produitId) {
         resolue: true,
         date_resolution: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('produit_id', produitId)
       .eq('resolue', false)
       .select();

@@ -300,6 +300,7 @@ export async function updateOrderStatus(tenantId, orderId, newStatus, adminNotes
       .from('commerce_orders')
       .update(updates)
       .eq('id', orderId)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
@@ -331,7 +332,8 @@ export async function cancelOrder(tenantId, orderId, reason) {
     await supabase
       .from('commerce_orders')
       .update({ cancellation_reason: reason })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('tenant_id', tenantId);
   }
 
   return result;

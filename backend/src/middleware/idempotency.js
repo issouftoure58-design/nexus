@@ -39,7 +39,13 @@ export async function idempotencyMiddleware(req, res, next) {
   }
 
   // Identifier le tenant
-  const tenantId = req.admin?.tenant_id || req.body?.tenant_id || 'default';
+  const tenantId = req.admin?.tenant_id || req.body?.tenant_id;
+
+  // TENANT SHIELD: Pas de fallback - tenant requis pour idempotence
+  if (!tenantId) {
+    console.log('[IDEMPOTENCY] Pas de tenant_id, skip idempotence check');
+    return next();
+  }
 
   try {
     // Vérifier si cette clé existe déjà

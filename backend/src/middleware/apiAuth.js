@@ -168,6 +168,7 @@ export const authenticateApiKey = async (req, res, next) => {
     const keyPrefix = extractPrefix(apiKey);
 
     // 3. Chercher API key par prefix
+    // Note: api_keys is searched by key_prefix only - tenant isolation happens after hash verification
     const { data: keys, error: fetchError } = await supabase
       .from('api_keys')
       .select('*')
