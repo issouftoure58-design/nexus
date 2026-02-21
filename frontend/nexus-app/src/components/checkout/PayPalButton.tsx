@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiUrl } from '@/lib/api-config';
+import { apiUrl, getTenantFromHostname } from '@/lib/api-config';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // PayPal Client ID (sandbox ou live)
@@ -98,7 +98,10 @@ export default function PayPalButton({
           try {
             const response = await fetch(apiUrl('/api/payment/order/create-paypal'), {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Tenant-ID': getTenantFromHostname(),
+              },
               body: JSON.stringify({
                 amount,
                 clientEmail,
@@ -126,7 +129,10 @@ export default function PayPalButton({
           try {
             const response = await fetch(apiUrl('/api/payment/order/capture-paypal'), {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Tenant-ID': getTenantFromHostname(),
+              },
               body: JSON.stringify({
                 orderId: data.orderID,
               }),

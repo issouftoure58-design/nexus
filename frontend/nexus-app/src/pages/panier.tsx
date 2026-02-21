@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useCart } from '@/contexts/CartContext';
-import { apiUrl } from '@/lib/api-config';
+import { apiUrl, apiFetch } from '@/lib/api-config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -168,7 +168,7 @@ export default function PanierPage() {
   useEffect(() => {
     const fetchCheckoutConfig = async () => {
       try {
-        const response = await fetch(apiUrl('/api/orders/checkout/config'));
+        const response = await apiFetch('/api/orders/checkout/config');
         const data = await response.json();
         if (data.success && data.config) {
           setCheckoutConfig(data.config);
@@ -218,7 +218,7 @@ export default function PanierPage() {
     setLoadingWeek(true);
     try {
       const startDateStr = `${weekStartDate.getFullYear()}-${String(weekStartDate.getMonth() + 1).padStart(2, '0')}-${String(weekStartDate.getDate()).padStart(2, '0')}`;
-      const response = await fetch(apiUrl(`/api/orders/checkout/week-availability?startDate=${startDateStr}&duration=${dureeTotaleAvecTrajet}&blocksDays=${blocksDaysTotal}`));
+      const response = await apiFetch(`/api/orders/checkout/week-availability?startDate=${startDateStr}&duration=${dureeTotaleAvecTrajet}&blocksDays=${blocksDaysTotal}`);
       const data = await response.json();
       if (data.success) {
         setWeekAvailability(data.week);
@@ -270,7 +270,7 @@ export default function PanierPage() {
   const fetchAvailableDates = async () => {
     setLoadingDates(true);
     try {
-      const response = await fetch(apiUrl(`/api/orders/checkout/available-dates?duration=${dureeTotaleAvecTrajet}&days=14`));
+      const response = await apiFetch(`/api/orders/checkout/available-dates?duration=${dureeTotaleAvecTrajet}&days=14`);
       const data = await response.json();
       if (data.success) {
         setAvailableDates(data.dates);
@@ -287,7 +287,7 @@ export default function PanierPage() {
     setLoadingSlots(true);
     setAvailableSlots([]);
     try {
-      const response = await fetch(apiUrl(`/api/orders/checkout/available-slots?date=${date}&duration=${dureeTotaleAvecTrajet}`));
+      const response = await apiFetch(`/api/orders/checkout/available-slots?date=${date}&duration=${dureeTotaleAvecTrajet}`);
       const data = await response.json();
       if (data.success) {
         setAvailableSlots(data.slots);
@@ -307,7 +307,7 @@ export default function PanierPage() {
     }
 
     try {
-      const response = await fetch(apiUrl('/api/orders/checkout/calculate'), {
+      const response = await apiFetch('/api/orders/checkout/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -426,7 +426,7 @@ export default function PanierPage() {
     setAuthLoading(true);
 
     try {
-      const response = await fetch(apiUrl('/api/client/auth/login'), {
+      const response = await apiFetch('/api/client/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm),
@@ -496,7 +496,7 @@ export default function PanierPage() {
     setAuthLoading(true);
 
     try {
-      const response = await fetch(apiUrl('/api/client/auth/register'), {
+      const response = await apiFetch('/api/client/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -520,7 +520,7 @@ export default function PanierPage() {
       });
 
       // Connexion automatique après inscription
-      const loginResponse = await fetch(apiUrl('/api/client/auth/login'), {
+      const loginResponse = await apiFetch('/api/client/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -591,7 +591,7 @@ export default function PanierPage() {
       ...(paiementId && { paiementId }),
     };
 
-    const response = await fetch(apiUrl('/api/orders'), {
+    const response = await apiFetch('/api/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -620,7 +620,7 @@ export default function PanierPage() {
 
       console.log('[Stripe] Initialisation paiement:', { amountInCents, total, items: cart.items.length });
 
-      const response = await fetch(apiUrl('/api/payment/order/create-intent'), {
+      const response = await apiFetch('/api/payment/order/create-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
