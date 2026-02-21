@@ -211,8 +211,11 @@ router.post('/', async (req, res) => {
       .insert({
         id: tenant_id,
         name: company_name,
+        tier: plan_id, // Required field
+        status: 'trial',
         domain: `${tenant_id}.nexus.app`,
         plan_id,
+        plan: plan_id,
         secteur_id,
         modules_actifs,
         modules_metier_actifs: secteur.modules_metier || [],
@@ -230,19 +233,19 @@ router.post('/', async (req, res) => {
     // ═══════════════════════════════════════════════════
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const fullName = [prenom, nom].filter(Boolean).join(' ') || 'Admin';
 
     const { data: newAdmin, error: adminError } = await supabase
       .from('admin_users')
       .insert({
         tenant_id,
         email: email.toLowerCase(),
-        password: hashedPassword,
-        prenom: prenom || '',
-        nom: nom || '',
-        telephone: telephone || '',
-        role: 'owner'
+        password_hash: hashedPassword,
+        nom: fullName,
+        role: 'owner',
+        actif: true
       })
-      .select('id, email, prenom, nom, role')
+      .select('id, email, nom, role')
       .single();
 
     if (adminError) throw adminError;
@@ -344,7 +347,6 @@ router.post('/', async (req, res) => {
       admin: {
         id: newAdmin.id,
         email: newAdmin.email,
-        prenom: newAdmin.prenom,
         nom: newAdmin.nom
       },
       plan: {
