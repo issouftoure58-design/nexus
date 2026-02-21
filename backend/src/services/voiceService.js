@@ -204,6 +204,99 @@ function cacheAudio(text, voiceId, audioBuffer) {
 // ============================================
 
 /**
+ * Formate un numéro de téléphone français pour une meilleure prononciation TTS
+ * @param {string} phone - Numéro de téléphone (ex: "0612345678", "06 12 34 56 78", "+33612345678")
+ * @returns {string} - Format prononcé (ex: "zéro six, douze, trente-quatre, cinquante-six, soixante-dix-huit")
+ */
+function formatPhoneForTTS(phone) {
+  // Nettoyer et normaliser le numéro
+  let cleaned = phone.replace(/[\s.-]/g, '');
+
+  // Gérer +33 → 0
+  if (cleaned.startsWith('+33')) {
+    cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.startsWith('33')) {
+    cleaned = '0' + cleaned.slice(2);
+  }
+
+  // Doit être 10 chiffres
+  if (!/^\d{10}$/.test(cleaned)) {
+    return phone; // Retourner l'original si format non reconnu
+  }
+
+  // Table de conversion des paires de chiffres en mots français
+  const pairToWords = {
+    '00': 'zéro zéro', '01': 'zéro un', '02': 'zéro deux', '03': 'zéro trois', '04': 'zéro quatre',
+    '05': 'zéro cinq', '06': 'zéro six', '07': 'zéro sept', '08': 'zéro huit', '09': 'zéro neuf',
+    '10': 'dix', '11': 'onze', '12': 'douze', '13': 'treize', '14': 'quatorze',
+    '15': 'quinze', '16': 'seize', '17': 'dix-sept', '18': 'dix-huit', '19': 'dix-neuf',
+    '20': 'vingt', '21': 'vingt-et-un', '22': 'vingt-deux', '23': 'vingt-trois', '24': 'vingt-quatre',
+    '25': 'vingt-cinq', '26': 'vingt-six', '27': 'vingt-sept', '28': 'vingt-huit', '29': 'vingt-neuf',
+    '30': 'trente', '31': 'trente-et-un', '32': 'trente-deux', '33': 'trente-trois', '34': 'trente-quatre',
+    '35': 'trente-cinq', '36': 'trente-six', '37': 'trente-sept', '38': 'trente-huit', '39': 'trente-neuf',
+    '40': 'quarante', '41': 'quarante-et-un', '42': 'quarante-deux', '43': 'quarante-trois', '44': 'quarante-quatre',
+    '45': 'quarante-cinq', '46': 'quarante-six', '47': 'quarante-sept', '48': 'quarante-huit', '49': 'quarante-neuf',
+    '50': 'cinquante', '51': 'cinquante-et-un', '52': 'cinquante-deux', '53': 'cinquante-trois', '54': 'cinquante-quatre',
+    '55': 'cinquante-cinq', '56': 'cinquante-six', '57': 'cinquante-sept', '58': 'cinquante-huit', '59': 'cinquante-neuf',
+    '60': 'soixante', '61': 'soixante-et-un', '62': 'soixante-deux', '63': 'soixante-trois', '64': 'soixante-quatre',
+    '65': 'soixante-cinq', '66': 'soixante-six', '67': 'soixante-sept', '68': 'soixante-huit', '69': 'soixante-neuf',
+    '70': 'soixante-dix', '71': 'soixante-et-onze', '72': 'soixante-douze', '73': 'soixante-treize', '74': 'soixante-quatorze',
+    '75': 'soixante-quinze', '76': 'soixante-seize', '77': 'soixante-dix-sept', '78': 'soixante-dix-huit', '79': 'soixante-dix-neuf',
+    '80': 'quatre-vingts', '81': 'quatre-vingt-un', '82': 'quatre-vingt-deux', '83': 'quatre-vingt-trois', '84': 'quatre-vingt-quatre',
+    '85': 'quatre-vingt-cinq', '86': 'quatre-vingt-six', '87': 'quatre-vingt-sept', '88': 'quatre-vingt-huit', '89': 'quatre-vingt-neuf',
+    '90': 'quatre-vingt-dix', '91': 'quatre-vingt-onze', '92': 'quatre-vingt-douze', '93': 'quatre-vingt-treize', '94': 'quatre-vingt-quatorze',
+    '95': 'quatre-vingt-quinze', '96': 'quatre-vingt-seize', '97': 'quatre-vingt-dix-sept', '98': 'quatre-vingt-dix-huit', '99': 'quatre-vingt-dix-neuf'
+  };
+
+  // Découper en paires et convertir
+  const pairs = [];
+  for (let i = 0; i < 10; i += 2) {
+    const pair = cleaned.slice(i, i + 2);
+    pairs.push(pairToWords[pair] || pair);
+  }
+
+  // Joindre avec des virgules pour créer des pauses naturelles
+  return pairs.join(', ');
+}
+
+/**
+ * Convertit un nombre en mots français pour meilleure prononciation TTS
+ * @param {number|string} num - Le nombre à convertir
+ * @returns {string} - Le nombre en mots
+ */
+function numberToWordsFR(num) {
+  const n = parseInt(num, 10);
+  if (isNaN(n) || n < 0 || n > 999) return String(num);
+
+  const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+    'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+  const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
+
+  if (n === 0) return 'zéro';
+  if (n < 20) return units[n];
+
+  if (n < 100) {
+    const t = Math.floor(n / 10);
+    const u = n % 10;
+    if (t === 7 || t === 9) {
+      // 70-79 et 90-99 (soixante-dix, quatre-vingt-dix)
+      return tens[t] + (u === 0 ? (t === 8 ? 's' : '-dix') : '-' + units[10 + u]);
+    }
+    if (u === 0) return tens[t] + (t === 8 ? 's' : '');
+    if (u === 1 && t !== 8) return tens[t] + '-et-un';
+    return tens[t] + '-' + units[u];
+  }
+
+  // 100-999
+  const c = Math.floor(n / 100);
+  const rest = n % 100;
+  let result = c === 1 ? 'cent' : units[c] + ' cent';
+  if (rest === 0 && c > 1) result += 's';
+  else if (rest > 0) result += ' ' + numberToWordsFR(rest);
+  return result;
+}
+
+/**
  * Optimise le texte pour réduire les caractères sans perdre le naturel
  * @param {string} text - Texte à optimiser
  * @returns {string} - Texte optimisé
@@ -251,9 +344,30 @@ function optimizeText(text) {
     optimized = optimized.replace(new RegExp(long, 'gi'), short);
   }
 
-  // 4. Convertir les symboles
-  optimized = optimized.replace(/(\d+)\s*€/g, '$1 euro');
-  optimized = optimized.replace(/(\d+)\s*EUR/gi, '$1 euro');
+  // 4. Convertir les numéros de téléphone français pour meilleure prononciation
+  // Format: 06 12 34 56 78, 0612345678, +33 6 12 34 56 78
+  optimized = optimized.replace(/(?:\+33\s?|0)([1-9])(?:[\s.-]?\d{2}){4}/g, (match) => {
+    return formatPhoneForTTS(match);
+  });
+
+  // 5. Convertir les prix pour une meilleure prononciation
+  // Ex: "80€" → "quatre-vingts euros", "150€" → "cent cinquante euros"
+  optimized = optimized.replace(/(\d+)\s*€/g, (_, num) => {
+    const n = parseInt(num, 10);
+    if (n <= 200) {
+      return numberToWordsFR(n) + ' euro' + (n > 1 ? 's' : '');
+    }
+    return num + ' euros';
+  });
+  optimized = optimized.replace(/(\d+)\s*EUR/gi, (_, num) => {
+    const n = parseInt(num, 10);
+    if (n <= 200) {
+      return numberToWordsFR(n) + ' euro' + (n > 1 ? 's' : '');
+    }
+    return num + ' euros';
+  });
+
+  // 6. Convertir les heures
   // D'abord les heures rondes (9h00, 17H00 → "9 heures", "17 heures")
   optimized = optimized.replace(/(\d{1,2})\s*[hH]00(?!\s*heure)/g, '$1 heures');
   // Puis les heures avec minutes (9h30 → "9 heures 30")
@@ -261,12 +375,16 @@ function optimizeText(text) {
   // Puis les heures sans minutes (9h → "9 heures") — (?![a-zà-ü\d]) évite de matcher le h de "heures"
   optimized = optimized.replace(/(\d{1,2})\s*[hH](?![a-z\u00e0-\u00fc\d])/gi, '$1 heures');
 
-  // 5. Nettoyer les espaces créés
+  // 7. Ajouter des micro-pauses avec des virgules pour un rythme plus naturel
+  // Après "Bonjour" ou "Bonsoir" au début
+  optimized = optimized.replace(/^(Bonjour|Bonsoir)([^,!])/i, '$1,$2');
+
+  // 8. Nettoyer les espaces créés
   optimized = optimized.replace(/\s+/g, ' ').trim();
   optimized = optimized.replace(/\s+([,.\?!])/g, '$1');
   optimized = optimized.replace(/,\s*,/g, ',');
 
-  // 6. Supprimer le markdown
+  // 9. Supprimer le markdown
   optimized = optimized.replace(/\*\*(.*?)\*\*/g, '$1');
   optimized = optimized.replace(/\*(.*?)\*/g, '$1');
   optimized = optimized.replace(/`(.*?)`/g, '$1');

@@ -65,7 +65,7 @@ function ChatPageInner() {
 
       {/* Main Chat Area */}
       <main className="flex-1 pt-20 pb-44 relative z-10">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !isBookingActive ? (
           <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 animate-in fade-in duration-500">
             {/* Header badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 backdrop-blur-sm rounded-full border border-amber-500/30 mb-8">
