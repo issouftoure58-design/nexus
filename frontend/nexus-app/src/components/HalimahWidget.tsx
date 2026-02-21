@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageCircle, X, Send, Loader2, Volume2, VolumeX, Mic, MicOff } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiUrl, getTenantFromHostname } from '@/lib/api-config';
+import { ChatBookingProvider, useChatBooking } from '@/contexts/ChatBookingContext';
+import InteractiveMessage from './halimah/InteractiveMessage';
 
 interface Message {
   id: string;
@@ -25,7 +27,10 @@ type VoiceInputStatus = 'inactive' | 'listening' | 'processing';
 // Timeout auto-stop (10 secondes max d'écoute)
 const VOICE_TIMEOUT_MS = 10000;
 
-export default function HalimahWidget() {
+// Composant interne qui utilise le contexte de booking
+function HalimahWidgetInner() {
+  const { stage, startBooking, resetBooking } = useChatBooking();
+  const isBookingActive = stage !== 'idle';
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -490,7 +495,32 @@ export default function HalimahWidget() {
                 </div>
               </div>
             ))}
-            {isLoading && (
+
+            {/* Bouton reservation rapide (affiché après le premier message) */}
+            {messages.length === 1 && !isBookingActive && (
+              <div className="flex justify-start">
+                <button
+                  onClick={startBooking}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500
+                    text-white text-sm font-medium rounded-xl shadow-md
+                    hover:from-amber-600 hover:to-orange-600 transition-all"
+                >
+                  <Calendar className="h-4 w-4" />
+                  Prendre rendez-vous
+                </button>
+              </div>
+            )}
+
+            {/* Composant interactif de réservation */}
+            {isBookingActive && (
+              <div className="flex justify-start w-full">
+                <div className="w-full max-w-[95%]">
+                  <InteractiveMessage />
+                </div>
+              </div>
+            )}
+
+            {isLoading && !isBookingActive && (
               <div className="flex justify-start">
                 <div className="bg-white border border-amber-100 px-4 py-3 rounded-2xl rounded-bl-md shadow-sm">
                   <div className="flex items-center gap-2">
@@ -555,5 +585,14 @@ export default function HalimahWidget() {
         </div>
       )}
     </>
+  );
+}
+
+// Export avec le provider de booking
+export default function HalimahWidget() {
+  return (
+    <ChatBookingProvider>
+      <HalimahWidgetInner />
+    </ChatBookingProvider>
   );
 }
