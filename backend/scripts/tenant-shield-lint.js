@@ -53,7 +53,7 @@ const VIOLATIONS = {
 
   // Fallback tenant par défaut
   DEFAULT_TENANT_FALLBACK: {
-    pattern: /tenantId\s*(?:\|\||??)\s*['"`]\w+['"`]/g,
+    pattern: /tenantId\s*(?:\|\||[\?]{2})\s*['"`]\w+['"`]/g,
     message: () => 'Fallback sur tenant par défaut interdit',
     severity: 'ERROR',
   },
