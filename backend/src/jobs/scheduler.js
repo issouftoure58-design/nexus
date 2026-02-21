@@ -632,13 +632,7 @@ export async function sendRelance24hJob() {
         console.log(`[Scheduler] 📤 Envoi relance 24h RDV ${rdv.id} - ${rdv.date} ${rdv.heure} - Tel: ...${telephone.slice(-4)}`);
 
         const acompte = rdv.acompte || 10;
-        // 🔒 TENANT ISOLATION: tenant_id obligatoire
-        const tenantId = rdv.tenant_id;
-        if (!tenantId) {
-          console.error(`[Scheduler] ❌ RDV ${rdv.id} sans tenant_id - SKIP relance 24h`);
-          errors++;
-          continue;
-        }
+        // tenantId déjà validé plus haut (ligne 619-624)
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
         // Au moins un canal a fonctionné = succès
