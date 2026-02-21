@@ -289,6 +289,88 @@ export async function getTwilioBalance() {
   };
 }
 
+/**
+ * Enregistre un numéro existant (déjà acheté) pour un tenant
+ * Utilisé pour mapper des numéros Twilio existants sans les racheter
+ * @param {string} tenantId - ID du tenant
+ * @param {string} phoneNumber - Numéro en format E.164 (+33...)
+ * @param {string} type - Type de service (voice, whatsapp, both)
+ */
+export async function registerExistingNumber(tenantId, phoneNumber, type = 'whatsapp') {
+  console.log(`[PROVISIONING] Enregistrement manuel: ${phoneNumber} → ${tenantId}`);
+
+  // Normaliser le numéro (enlever espaces, etc.)
+  let normalizedNumber = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+
+  // Convertir format français (09...) en E.164 (+33...)
+  if (normalizedNumber.startsWith('0') && normalizedNumber.length === 10) {
+    normalizedNumber = '+33' + normalizedNumber.substring(1);
+  }
+  // S'assurer qu'il commence par +
+  if (!normalizedNumber.startsWith('+')) {
+    normalizedNumber = '+' + normalizedNumber;
+  }
+
+  try {
+    // 1. Vérifier que le tenant existe
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenants')
+      .select('id, slug')
+      .or(`id.eq.${tenantId},slug.eq.${tenantId}`)
+      .single();
+
+    if (tenantError || !tenant) {
+      throw new Error(`Tenant ${tenantId} non trouvé`);
+    }
+
+    const actualTenantId = tenant.slug || tenant.id;
+
+    // 2. Insérer/mettre à jour dans tenant_phone_numbers
+    const { error: dbError } = await supabase
+      .from('tenant_phone_numbers')
+      .upsert({
+        tenant_id: actualTenantId,
+        phone_number: normalizedNumber,
+        type: type,
+        status: 'active',
+        created_at: new Date().toISOString(),
+      }, {
+        onConflict: 'phone_number'
+      });
+
+    if (dbError) {
+      console.error('[PROVISIONING] Erreur DB:', dbError);
+      throw dbError;
+    }
+
+    // 3. Mettre à jour le tenant si c'est le numéro principal
+    if (type === 'whatsapp' || type === 'both') {
+      await supabase
+        .from('tenants')
+        .update({ whatsapp_number: normalizedNumber })
+        .eq('slug', actualTenantId);
+    }
+    if (type === 'voice' || type === 'both') {
+      await supabase
+        .from('tenants')
+        .update({ phone_number: normalizedNumber })
+        .eq('slug', actualTenantId);
+    }
+
+    console.log(`[PROVISIONING] ✅ Numéro enregistré: ${normalizedNumber} → ${actualTenantId}`);
+
+    return {
+      success: true,
+      tenantId: actualTenantId,
+      phoneNumber: normalizedNumber,
+      type: type,
+    };
+  } catch (error) {
+    console.error('[PROVISIONING] Erreur enregistrement:', error.message);
+    throw error;
+  }
+}
+
 export default {
   searchAvailableNumbers,
   purchasePhoneNumber,
@@ -298,4 +380,5 @@ export default {
   getProvisioningStatus,
   listActiveNumbers,
   getTwilioBalance,
+  registerExistingNumber,
 };

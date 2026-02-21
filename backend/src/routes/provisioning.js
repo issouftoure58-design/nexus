@@ -220,4 +220,35 @@ router.get('/numbers', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/provisioning/phone/register
+ * Enregistre manuellement un mapping numéro → tenant (pour numéros existants)
+ */
+router.post('/phone/register', async (req, res) => {
+  try {
+    const { tenantId, phoneNumber, type = 'whatsapp' } = req.body;
+
+    if (!tenantId || !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'tenantId et phoneNumber requis',
+      });
+    }
+
+    const result = await provisioningService.registerExistingNumber(tenantId, phoneNumber, type);
+
+    res.json({
+      success: true,
+      message: 'Numéro enregistré avec succès',
+      ...result,
+    });
+  } catch (error) {
+    console.error('[PROVISIONING API] Erreur register:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export default router;
