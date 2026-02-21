@@ -32,7 +32,7 @@ const resolveTenant = async (req, res, next) => {
   // - /voice/* : TTS routes
   // - /reviews/* : Public + Admin routes
   // - /payment/* : Routes de paiement
-  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules', '/whatsapp', '/twilio', '/voice', '/reviews', '/payment', '/provisioning', '/webhooks'];
+  const skipPrefixes = ['/admin', '/sentinel', '/tenants', '/billing', '/quotas', '/trial', '/modules', '/whatsapp', '/twilio', '/voice', '/reviews', '/payment', '/provisioning', '/webhooks', '/signup'];
   if (skipPrefixes.some(prefix => req.path.startsWith(prefix))) {
     return next();
   }
@@ -254,9 +254,39 @@ router.get('/disponibilites', async (req, res) => {
   }
 
   try {
+    // Récupérer la durée du service si fourni
+    let duree_minutes = 60; // Durée par défaut
+    if (service_id) {
+      const { data: service } = await supabase
+        .from('services')
+        .select('duree')
+        .eq('id', service_id)
+        .eq('tenant_id', req.tenantId)
+        .maybeSingle();
+
+      if (service?.duree) {
+        duree_minutes = service.duree;
+      }
+    }
+
+    // Récupérer les RDV existants pour cette date
+    const { data: rdvExistants } = await supabase
+      .from('reservations')
+      .select('id, heure, duree_minutes, client_nom, service_nom')
+      .eq('tenant_id', req.tenantId)
+      .eq('date', date)
+      .in('statut', ['confirmé', 'en_attente']);
+
     // Import du service de disponibilites
     const dispoService = await import('../services/dispoService.js');
-    const creneaux = await dispoService.getCreneauxDisponibles(req.tenantId, date, service_id);
+
+    // Appel avec les bons paramètres: (date, duree, adresse, rdv_existants)
+    const creneaux = await dispoService.getCreneauxDisponibles(
+      date,
+      duree_minutes,
+      null, // pas d'adresse client pour l'instant
+      rdvExistants || []
+    );
 
     res.json({ creneaux });
   } catch (error) {
