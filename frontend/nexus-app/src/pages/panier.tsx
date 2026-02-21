@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
@@ -29,13 +28,7 @@ import {
   Loader2,
   User,
   Mail,
-  Lock,
   Phone,
-  Eye,
-  EyeOff,
-  LogIn,
-  UserPlus,
-  Gift,
 } from 'lucide-react';
 
 type Step = 'panier' | 'lieu' | 'date' | 'compte' | 'paiement' | 'confirmation';
@@ -79,8 +72,6 @@ export default function PanierPage() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>('panier');
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [clientId, setClientId] = useState<number | null>(null);
   const [clientInfo, setClientInfo] = useState({
     nom: '',
     prenom: '',
@@ -89,21 +80,7 @@ export default function PanierPage() {
   });
   const [paiementMethode, setPaiementMethode] = useState<'stripe' | 'paypal' | 'sur_place'>('sur_place');
 
-  // État pour le formulaire de connexion/inscription
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({
-    nom: '',
-    prenom: '',
-    email: '',
-    telephone: '',
-    password: '',
-    confirmPassword: '',
-  });
-
+  
   // État pour Stripe
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
   const [showStripeForm, setShowStripeForm] = useState(false);
@@ -184,28 +161,7 @@ export default function PanierPage() {
     fetchCheckoutConfig();
   }, []);
 
-  // Vérifier si l'utilisateur est connecté au chargement
-  useEffect(() => {
-    const token = localStorage.getItem('client_token');
-    const userData = localStorage.getItem('client_user');
-
-    if (token && userData) {
-      try {
-        const user = JSON.parse(userData);
-        setIsLoggedIn(true);
-        setClientId(user.id);
-        setClientInfo({
-          nom: user.nom || '',
-          prenom: user.prenom || '',
-          telephone: user.telephone || '',
-          email: user.email || '',
-        });
-      } catch (e) {
-        console.error('Erreur parsing user data:', e);
-      }
-    }
-  }, []);
-
+  
   // Charger les disponibilités de la semaine quand on arrive à l'étape date
   useEffect(() => {
     if (step === 'date' && dureeTotaleAvecTrajet > 0) {
@@ -328,14 +284,13 @@ export default function PanierPage() {
     }
   };
 
-  // Étapes du checkout (compte est conditionnel)
+  // Étapes du checkout (sans compte - infos client saisies à l'étape paiement)
   const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
     { id: 'panier', label: 'Panier', icon: <ShoppingBag className="h-4 w-4" /> },
     { id: 'lieu', label: 'Lieu', icon: <MapPin className="h-4 w-4" /> },
     { id: 'date', label: 'Date', icon: <Calendar className="h-4 w-4" /> },
-    ...(isLoggedIn ? [] : [{ id: 'compte' as Step, label: 'Compte', icon: <User className="h-4 w-4" /> }]),
-    { id: 'paiement', label: 'Paiement', icon: <CreditCard className="h-4 w-4" /> },
-    { id: 'confirmation', label: 'Confirmation', icon: <CheckCircle2 className="h-4 w-4" /> },
+    { id: 'paiement', label: 'Finaliser', icon: <CreditCard className="h-4 w-4" /> },
+    { id: 'confirmation', label: 'Confirmé', icon: <CheckCircle2 className="h-4 w-4" /> },
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === step);
@@ -407,12 +362,20 @@ export default function PanierPage() {
     return true;
   };
 
-  // Valider infos client (toujours valide si connecté)
+  // Valider infos client (nom et téléphone obligatoires)
   const validateClientInfo = () => {
-    if (!isLoggedIn) {
+    if (!clientInfo.nom.trim()) {
       toast({
-        title: 'Connexion requise',
-        description: 'Veuillez vous connecter pour finaliser votre réservation.',
+        title: 'Nom requis',
+        description: 'Veuillez saisir votre nom.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    if (!clientInfo.telephone.trim() || clientInfo.telephone.replace(/\s/g, '').length < 10) {
+      toast({
+        title: 'Téléphone requis',
+        description: 'Veuillez saisir un numéro de téléphone valide.',
         variant: 'destructive',
       });
       return false;
@@ -420,144 +383,7 @@ export default function PanierPage() {
     return true;
   };
 
-  // Connexion
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-
-    try {
-      const response = await apiFetch('/api/client/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur de connexion');
-      }
-
-      // Stocker les tokens
-      localStorage.setItem('client_token', data.accessToken);
-      localStorage.setItem('client_refresh_token', data.refreshToken);
-      localStorage.setItem('client_user', JSON.stringify(data.client));
-
-      // Mettre à jour l'état
-      setIsLoggedIn(true);
-      setClientId(data.client.id);
-      setClientInfo({
-        nom: data.client.nom || '',
-        prenom: data.client.prenom || '',
-        telephone: data.client.telephone || '',
-        email: data.client.email || '',
-      });
-
-      toast({
-        title: 'Connexion réussie',
-        description: `Bienvenue ${data.client.prenom || data.client.nom} !`,
-      });
-
-      // Passer directement à l'étape paiement
-      goToStep('paiement');
-    } catch (error: any) {
-      toast({
-        title: 'Erreur',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  // Inscription
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (registerForm.password !== registerForm.confirmPassword) {
-      toast({
-        title: 'Erreur',
-        description: 'Les mots de passe ne correspondent pas',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!acceptTerms) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez accepter les conditions générales',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setAuthLoading(true);
-
-    try {
-      const response = await apiFetch('/api/client/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nom: registerForm.nom,
-          prenom: registerForm.prenom,
-          email: registerForm.email,
-          telephone: registerForm.telephone,
-          password: registerForm.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de l\'inscription');
-      }
-
-      toast({
-        title: 'Compte créé !',
-        description: `Vous avez reçu ${data.bonusPoints} points de bienvenue !`,
-      });
-
-      // Connexion automatique après inscription
-      const loginResponse = await apiFetch('/api/client/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: registerForm.email,
-          password: registerForm.password,
-        }),
-      });
-
-      const loginData = await loginResponse.json();
-
-      if (loginResponse.ok) {
-        localStorage.setItem('client_token', loginData.accessToken);
-        localStorage.setItem('client_refresh_token', loginData.refreshToken);
-        localStorage.setItem('client_user', JSON.stringify(loginData.client));
-
-        setIsLoggedIn(true);
-        setClientId(loginData.client.id);
-        setClientInfo({
-          nom: loginData.client.nom || '',
-          prenom: loginData.client.prenom || '',
-          telephone: loginData.client.telephone || '',
-          email: loginData.client.email || '',
-        });
-
-        goToStep('paiement');
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erreur',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
+  
   // Préparer les données de commande
   const getOrderData = () => ({
     items: cart.items.map((item, index) => ({
@@ -567,7 +393,7 @@ export default function PanierPage() {
       prix: Math.round(item.prix * 100), // Convertir en centimes
       ordre: index,
     })),
-    clientId: clientId,
+    clientId: null, // Pas de compte client
     lieu: cart.lieu,
     adresseClient: cart.adresse || null,
     distanceKm: cart.distanceKm || null,
@@ -585,7 +411,6 @@ export default function PanierPage() {
 
   // Créer la commande (sur place ou après paiement Stripe)
   const createOrder = async (paiementId?: string) => {
-    const token = localStorage.getItem('client_token');
     const orderData = {
       ...getOrderData(),
       ...(paiementId && { paiementId }),
@@ -595,7 +420,6 @@ export default function PanierPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify(orderData),
     });
@@ -1291,284 +1115,12 @@ export default function PanierPage() {
     );
   };
 
-  // Rendu étape Compte (authentification)
-  const renderCompteStep = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-zinc-900">Connexion requise</h2>
-      <p className="text-zinc-500">
-        Pour finaliser votre réservation, veuillez vous connecter ou créer un compte.
-      </p>
-
-      {/* Toggle Login/Register */}
-      <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg">
-        <button
-          onClick={() => setAuthMode('login')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            authMode === 'login'
-              ? 'bg-white text-amber-600 shadow-sm'
-              : 'text-zinc-600 hover:text-zinc-900'
-          }`}
-        >
-          <LogIn className="h-4 w-4 inline mr-2" />
-          Connexion
-        </button>
-        <button
-          onClick={() => setAuthMode('register')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            authMode === 'register'
-              ? 'bg-white text-amber-600 shadow-sm'
-              : 'text-zinc-600 hover:text-zinc-900'
-          }`}
-        >
-          <UserPlus className="h-4 w-4 inline mr-2" />
-          Inscription
-        </button>
-      </div>
-
-      {authMode === 'login' ? (
-        // Formulaire de connexion
-        <Card>
-          <CardContent className="p-6">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="votre@email.com"
-                    value={loginForm.email}
-                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Votre mot de passe"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    className="pl-10 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="text-right">
-                <Link
-                  href="/mon-compte/mot-de-passe-oublie"
-                  className="text-sm text-amber-600 hover:text-amber-700"
-                >
-                  Mot de passe oublié ?
-                </Link>
-              </div>
-              <Button
-                type="submit"
-                disabled={authLoading}
-                className="w-full bg-amber-500 hover:bg-amber-600"
-              >
-                {authLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connexion...
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="mr-2 h-4 w-4" />
-                    Se connecter
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : (
-        // Formulaire d'inscription
-        <Card>
-          <CardContent className="p-6">
-            {/* Bonus de bienvenue */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl flex items-center gap-3">
-              <div className="p-2 bg-amber-500 rounded-lg">
-                <Gift className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="font-semibold text-amber-700">50 points offerts</p>
-                <p className="text-sm text-amber-600">Bonus de bienvenue à l'inscription</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="register-nom">Nom *</Label>
-                  <Input
-                    id="register-nom"
-                    placeholder="Diallo"
-                    value={registerForm.nom}
-                    onChange={(e) => setRegisterForm({ ...registerForm, nom: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-prenom">Prénom</Label>
-                  <Input
-                    id="register-prenom"
-                    placeholder="Aminata"
-                    value={registerForm.prenom}
-                    onChange={(e) => setRegisterForm({ ...registerForm, prenom: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-email">Email *</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="register-email"
-                    type="email"
-                    placeholder="votre@email.com"
-                    value={registerForm.email}
-                    onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-telephone">Téléphone *</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="register-telephone"
-                    type="tel"
-                    placeholder="06 12 34 56 78"
-                    value={registerForm.telephone}
-                    onChange={(e) => setRegisterForm({ ...registerForm, telephone: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-password">Mot de passe *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="register-password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Min. 8 caractères"
-                    value={registerForm.password}
-                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                    className="pl-10 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-confirm">Confirmer le mot de passe *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="register-confirm"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Confirmez votre mot de passe"
-                    value={registerForm.confirmPassword}
-                    onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="accept-terms"
-                  checked={acceptTerms}
-                  onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-                  className="mt-1"
-                />
-                <Label htmlFor="accept-terms" className="text-sm text-zinc-600 leading-relaxed">
-                  J'accepte les{' '}
-                  <Link href="/cgv" className="text-amber-600 hover:underline">
-                    conditions générales
-                  </Link>{' '}
-                  et la{' '}
-                  <Link href="/confidentialite" className="text-amber-600 hover:underline">
-                    politique de confidentialité
-                  </Link>
-                </Label>
-              </div>
-              <Button
-                type="submit"
-                disabled={authLoading}
-                className="w-full bg-amber-500 hover:bg-amber-600"
-              >
-                {authLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Création en cours...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Créer mon compte
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={prevStep}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Retour
-        </Button>
-      </div>
-    </div>
-  );
-
   // Rendu étape Paiement
   const renderPaiementStep = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-zinc-900">Récapitulatif & paiement</h2>
+      <h2 className="text-2xl font-bold text-zinc-900">Finalisez votre réservation</h2>
 
-      {/* Message de bienvenue si connecté */}
-      {isLoggedIn && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <div>
-              <p className="font-medium text-green-800">
-                Connecté en tant que {clientInfo.prenom || clientInfo.nom}
-              </p>
-              <p className="text-sm text-green-600">{clientInfo.email}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Informations client (lecture seule depuis compte) */}
+      {/* Informations client (saisie directe) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -1578,30 +1130,59 @@ export default function PanierPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-zinc-500">Nom</Label>
-              <p className="font-medium">{clientInfo.nom || '-'}</p>
+            <div className="space-y-2">
+              <Label htmlFor="client-nom">Nom *</Label>
+              <Input
+                id="client-nom"
+                placeholder="Votre nom"
+                value={clientInfo.nom}
+                onChange={(e) => setClientInfo({ ...clientInfo, nom: e.target.value })}
+                required
+              />
             </div>
-            <div>
-              <Label className="text-zinc-500">Prénom</Label>
-              <p className="font-medium">{clientInfo.prenom || '-'}</p>
+            <div className="space-y-2">
+              <Label htmlFor="client-prenom">Prénom</Label>
+              <Input
+                id="client-prenom"
+                placeholder="Votre prénom"
+                value={clientInfo.prenom}
+                onChange={(e) => setClientInfo({ ...clientInfo, prenom: e.target.value })}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-zinc-500">Téléphone</Label>
-              <p className="font-medium">{clientInfo.telephone || '-'}</p>
+            <div className="space-y-2">
+              <Label htmlFor="client-telephone">Téléphone *</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                <Input
+                  id="client-telephone"
+                  type="tel"
+                  placeholder="06 12 34 56 78"
+                  value={clientInfo.telephone}
+                  onChange={(e) => setClientInfo({ ...clientInfo, telephone: e.target.value })}
+                  className="pl-10"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-zinc-500">Email</Label>
-              <p className="font-medium">{clientInfo.email || '-'}</p>
+            <div className="space-y-2">
+              <Label htmlFor="client-email">Email (optionnel)</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                <Input
+                  id="client-email"
+                  type="email"
+                  placeholder="votre@email.com"
+                  value={clientInfo.email}
+                  onChange={(e) => setClientInfo({ ...clientInfo, email: e.target.value })}
+                  className="pl-10"
+                />
+              </div>
             </div>
           </div>
-          <p className="text-xs text-zinc-400 pt-2">
-            Ces informations proviennent de votre compte.{' '}
-            <Link href="/mon-compte" className="text-amber-600 hover:underline">
-              Modifier mon profil
-            </Link>
+          <p className="text-xs text-zinc-500">
+            * Champs obligatoires. Vous recevrez un SMS de confirmation.
           </p>
         </CardContent>
       </Card>
@@ -1877,7 +1458,6 @@ export default function PanierPage() {
           {step === 'panier' && renderPanierStep()}
           {step === 'lieu' && renderLieuStep()}
           {step === 'date' && renderDateStep()}
-          {step === 'compte' && renderCompteStep()}
           {step === 'paiement' && renderPaiementStep()}
           {step === 'confirmation' && renderConfirmationStep()}
         </div>
