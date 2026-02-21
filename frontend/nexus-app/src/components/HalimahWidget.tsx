@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Loader2, Volume2, VolumeX, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { apiUrl } from '@/lib/api-config';
+import { apiUrl, getTenantFromHostname } from '@/lib/api-config';
 
 interface Message {
   id: string;
@@ -256,7 +256,10 @@ export default function HalimahWidget() {
     try {
       const response = await fetch(apiUrl('/api/chat/stream'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': getTenantFromHostname(),
+        },
         body: JSON.stringify({
           message: userMessage.content,
           sessionId: sessionId,
