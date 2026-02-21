@@ -325,17 +325,20 @@ export async function registerExistingNumber(tenantId, phoneNumber, type = 'what
 
     const actualTenantId = tenant.slug || tenant.id;
 
-    // 2. Insérer/mettre à jour dans tenant_phone_numbers
+    // 2. Supprimer l'ancien mapping si existe, puis insérer
+    await supabase
+      .from('tenant_phone_numbers')
+      .delete()
+      .eq('phone_number', normalizedNumber);
+
     const { error: dbError } = await supabase
       .from('tenant_phone_numbers')
-      .upsert({
+      .insert({
         tenant_id: actualTenantId,
         phone_number: normalizedNumber,
         type: type,
         status: 'active',
         created_at: new Date().toISOString(),
-      }, {
-        onConflict: 'phone_number'
       });
 
     if (dbError) {
