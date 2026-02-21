@@ -251,4 +251,40 @@ router.post('/phone/register', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/provisioning/debug/phone-cache
+ * Debug: affiche le contenu du cache de routing téléphonique
+ */
+router.get('/debug/phone-cache', async (req, res) => {
+  try {
+    const { getTenantByPhone } = await import('../config/tenants/index.js');
+
+    // Test quelques numéros
+    const testNumbers = [
+      '+14155238886',
+      'whatsapp:+14155238886',
+      '+33939240269',
+    ];
+
+    const results = {};
+    for (const num of testNumbers) {
+      try {
+        const result = getTenantByPhone(num);
+        results[num] = result.tenantId || 'NOT_FOUND';
+      } catch (e) {
+        results[num] = `ERROR: ${e.message}`;
+      }
+    }
+
+    res.json({
+      success: true,
+      phoneCache: results,
+      message: 'Debug phone cache lookup'
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] Debug error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
