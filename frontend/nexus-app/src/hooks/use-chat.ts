@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { apiUrl } from "@/lib/api-config";
+import { apiUrl, getTenantFromHostname } from "@/lib/api-config";
 
 export type QuickReply = {
   label: string;
@@ -52,9 +52,13 @@ export function useChat() {
 
     try {
       const isFirstMessage = messages.length === 0;
+
       const res = await fetch(apiUrl('/api/chat/stream'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': getTenantFromHostname(),
+        },
         body: JSON.stringify({
           message: messageText,
           sessionId,

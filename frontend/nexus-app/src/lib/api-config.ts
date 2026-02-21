@@ -15,10 +15,29 @@ export function apiUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
-// Wrapper fetch qui ajoute automatiquement l'URL de base pour les appels API
+/**
+ * Detect tenant ID from hostname
+ * Used for multi-tenant routing
+ */
+export function getTenantFromHostname(): string {
+  if (typeof window === 'undefined') return 'fatshairafro';
+
+  const hostname = window.location.hostname;
+  if (hostname.includes('decoevent')) return 'decoevent';
+  if (hostname.includes('nexus-test')) return 'nexus-test';
+  // Default to fatshairafro for Fat's Hair Afro
+  return 'fatshairafro';
+}
+
+// Wrapper fetch qui ajoute automatiquement l'URL de base et le tenant header
 export function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (typeof input === 'string' && input.startsWith('/api')) {
-    return fetch(apiUrl(input), init);
+    const tenantId = getTenantFromHostname();
+    const headers = new Headers(init?.headers);
+    if (!headers.has('X-Tenant-ID')) {
+      headers.set('X-Tenant-ID', tenantId);
+    }
+    return fetch(apiUrl(input), { ...init, headers });
   }
   return fetch(input, init);
 }
