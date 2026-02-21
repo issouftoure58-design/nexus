@@ -942,7 +942,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
         serviceQuery = serviceQuery.eq('tenant_id', data.tenant_id);
       }
 
-      const { data: dbService } = await serviceQuery.limit(1).single();
+      const { data: dbService, error: serviceError } = await serviceQuery.limit(1).maybeSingle();
+
+      if (serviceError) {
+        console.error(`[NEXUS CORE] ❌ Erreur recherche service:`, serviceError.message);
+      }
 
       if (dbService) {
         // Note: dbService.prix est en EUROS dans la BDD, pas en centimes
