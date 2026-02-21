@@ -55,6 +55,7 @@ import usageRoutes from './routes/usage.js';
 import adminServicesRoutes from './routes/adminServices.js';
 import adminStatsRoutes from './routes/adminStats.js';
 import adminOrdersRoutes from './routes/adminOrders.js';
+import ordersRoutes from './routes/orders.js';
 import adminDisponibilitesRoutes from './routes/adminDisponibilites.js';
 import adminParametresRoutes from './routes/adminParametres.js';
 import adminAgentsRoutes from './routes/adminAgents.js';
@@ -157,6 +158,10 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// 🔒 TENANT RESOLUTION: Appliqué globalement pour toutes les routes /api
+// Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine
+app.use('/api', resolveTenantByDomain);
 
 // ============= ROUTES PUBLIQUES (sans auth) =============
 // Services, Chat, Rendez-vous pour les clients
@@ -269,6 +274,7 @@ app.use('/api/admin/reservations', adminReservationsRoutes);
 app.use('/api/admin/services', adminServicesRoutes);
 app.use('/api/admin/stats', adminStatsRoutes);
 app.use('/api/admin/orders', adminOrdersRoutes);
+app.use('/api/orders', ordersRoutes);  // Routes publiques checkout panier
 app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
 app.use('/api/admin/parametres', adminParametresRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
