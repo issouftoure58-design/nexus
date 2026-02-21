@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { QuantityModal } from "@/components/QuantityModal";
 import { Clock, Calendar, Sparkles, Info, Phone, MessageCircle, CheckCircle2, Home, Star, ShoppingBag, Check, Loader2 } from "lucide-react";
+import { apiFetch } from "@/lib/api-config";
 
 interface Service {
   id: number;
@@ -126,7 +127,7 @@ export default function ServicesPage() {
 
   const fetchServices = async () => {
     try {
-      const response = await fetch('/api/services');
+      const response = await apiFetch('/api/services');
       const data = await response.json();
 
       if (data.error) {

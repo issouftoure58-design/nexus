@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Star, ChevronLeft, ChevronRight, Quote, Sparkles, Heart, MessageCircle } from 'lucide-react';
+import { apiFetch } from '@/lib/api-config';
 
 interface Testimonial {
   id: number;
@@ -110,7 +111,7 @@ export default function Testimonials() {
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
-    fetch('/api/reviews')
+    apiFetch('/api/reviews')
       .then(r => r.json())
       .then(data => {
         if (data.reviews && data.reviews.length > 0) {
