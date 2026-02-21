@@ -216,11 +216,15 @@ export function findTenantByDomain(host) {
  */
 export function findTenantByPhone(phoneNumber) {
   if (!phoneNumber) return null;
-  // Normaliser le numéro (enlever espaces, +, etc.)
+  // Normaliser le numéro (enlever espaces, tirets, parenthèses - mais garder le +)
   const normalized = phoneNumber.replace(/[\s\-\(\)]/g, '');
+
+  console.log(`[TenantCache] findTenantByPhone: "${phoneNumber}" → normalized: "${normalized}"`);
+  console.log(`[TenantCache] phoneMap has ${phoneMap.size} entries`);
 
   // Chercher exact match
   if (phoneMap.has(normalized)) {
+    console.log(`[TenantCache] ✅ Exact match found: ${phoneMap.get(normalized)}`);
     return phoneMap.get(normalized);
   }
 
@@ -230,8 +234,15 @@ export function findTenantByPhone(phoneNumber) {
     if (phoneNorm === normalized ||
         phoneNorm.endsWith(normalized.slice(-9)) ||
         normalized.endsWith(phoneNorm.slice(-9))) {
+      console.log(`[TenantCache] ✅ Variant match: "${phone}" → ${tenantId}`);
       return tenantId;
     }
+  }
+
+  // Debug: afficher toutes les entrées du cache pour diagnostic
+  console.log(`[TenantCache] ❌ No match. phoneMap entries:`);
+  for (const [phone, tenantId] of phoneMap) {
+    console.log(`  - "${phone}" → ${tenantId}`);
   }
 
   return null;
@@ -256,4 +267,20 @@ export function isLoadedFromDb() {
  */
 export function getTemplate() {
   return templateStatic;
+}
+
+/**
+ * Get all phone mappings (for debug).
+ */
+export function getPhoneMapDebug() {
+  const entries = {};
+  for (const [phone, tenantId] of phoneMap) {
+    entries[phone] = tenantId;
+  }
+  return {
+    size: phoneMap.size,
+    entries,
+    lastRefresh: lastRefresh?.toISOString() || null,
+    loadedFromDb,
+  };
 }

@@ -23,15 +23,18 @@ function getTenantByWhatsAppNumber(toNumber) {
   // Enlever le préfixe whatsapp: si présent
   const cleanNumber = toNumber.replace('whatsapp:', '');
 
+  console.log(`[WhatsApp ROUTING] Looking up tenant for: ${cleanNumber}`);
+
   const { tenantId, config } = getTenantByPhone(cleanNumber);
 
   if (tenantId && config) {
-    console.log(`[WhatsApp ROUTING] ${cleanNumber} → Tenant: ${tenantId}`);
+    console.log(`[WhatsApp ROUTING] ✅ ${cleanNumber} → Tenant: ${tenantId}`);
     return { tenantId, config };
   }
 
   // 🔒 TENANT ISOLATION: Pas de fallback - rejeter si numéro inconnu
   console.error(`[WhatsApp ROUTING] ❌ TENANT_NOT_FOUND: No tenant configured for number ${cleanNumber}`);
+  console.error(`[WhatsApp ROUTING] 💡 Fix: POST /api/provisioning/phone/register with tenantId and phoneNumber`);
   return { tenantId: null, config: null, error: 'TENANT_NOT_FOUND' };
 }
 
@@ -238,6 +241,34 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     twilioNumber: process.env.TWILIO_WHATSAPP_NUMBER || 'non configuré',
     configured: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
+  });
+});
+
+/**
+ * Endpoint de debug pour le routing téléphone
+ * GET /api/whatsapp/debug/routing/:phoneNumber
+ */
+router.get('/debug/routing/:phoneNumber', (req, res) => {
+  const { phoneNumber } = req.params;
+
+  // Décoder le numéro (au cas où il est URL-encoded)
+  const decodedNumber = decodeURIComponent(phoneNumber);
+
+  console.log(`[WhatsApp DEBUG] Testing routing for: ${decodedNumber}`);
+
+  // Tester avec et sans préfixe whatsapp:
+  const cleanNumber = decodedNumber.replace('whatsapp:', '');
+
+  const result = getTenantByPhone(cleanNumber);
+
+  res.json({
+    input: decodedNumber,
+    cleanNumber: cleanNumber,
+    tenantId: result.tenantId || null,
+    hasConfig: !!result.config,
+    message: result.tenantId
+      ? `Tenant found: ${result.tenantId}`
+      : 'No tenant found for this number'
   });
 });
 

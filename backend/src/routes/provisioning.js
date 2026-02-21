@@ -258,6 +258,7 @@ router.post('/phone/register', async (req, res) => {
 router.get('/debug/phone-cache', async (req, res) => {
   try {
     const { getTenantByPhone } = await import('../config/tenants/index.js');
+    const { getPhoneMapDebug } = await import('../config/tenants/tenantCache.js');
 
     // Test quelques numéros
     const testNumbers = [
@@ -266,24 +267,84 @@ router.get('/debug/phone-cache', async (req, res) => {
       '+33939240269',
     ];
 
-    const results = {};
+    const lookupResults = {};
     for (const num of testNumbers) {
       try {
         const result = getTenantByPhone(num);
-        results[num] = result.tenantId || 'NOT_FOUND';
+        lookupResults[num] = result.tenantId || 'NOT_FOUND';
       } catch (e) {
-        results[num] = `ERROR: ${e.message}`;
+        lookupResults[num] = `ERROR: ${e.message}`;
       }
     }
 
+    // Get raw cache state
+    const cacheState = getPhoneMapDebug();
+
     res.json({
       success: true,
-      phoneCache: results,
+      lookupResults,
+      cacheState,
       message: 'Debug phone cache lookup'
     });
   } catch (error) {
     console.error('[PROVISIONING] Debug error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/provisioning/debug/refresh-cache
+ * Force le rafraîchissement du cache des tenants et numéros
+ */
+router.post('/debug/refresh-cache', async (req, res) => {
+  try {
+    const { loadAllTenants } = await import('../config/tenants/tenantCache.js');
+
+    console.log('[PROVISIONING] Force cache refresh requested...');
+
+    const result = await loadAllTenants();
+
+    res.json({
+      success: true,
+      loadedFromDb: result,
+      message: 'Cache refreshed successfully'
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] Cache refresh error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/provisioning/debug/db-phones
+ * Debug: liste les numéros directement depuis la BDD (bypass cache)
+ */
+router.get('/debug/db-phones', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data: phones, error } = await supabase
+      .from('tenant_phone_numbers')
+      .select('*')
+      .eq('status', 'active');
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    res.json({
+      success: true,
+      count: phones?.length || 0,
+      phones: phones || [],
+      message: 'Direct DB query (bypasses cache)'
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] DB debug error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
