@@ -45,6 +45,7 @@ router.post('/', async (req, res) => {
       clientTelephone,
       clientEmail,
       paiementMethode,
+      paiementId,  // ID PayPal si paiement déjà capturé
       notes,
     } = req.body;
 
@@ -279,23 +280,37 @@ router.post('/', async (req, res) => {
     // CRÉER LES RÉSERVATIONS POUR TOUS LES MODES DE PAIEMENT
     // Statut différent selon le mode de paiement:
     // - sur_place → 'demande' (confirmé immédiatement)
-    // - stripe/paypal → 'en_attente_paiement' (confirmé après paiement)
+    // - paypal avec paiementId → 'demande' (paiement déjà capturé)
+    // - stripe/paypal sans paiementId → 'en_attente_paiement' (confirmé après paiement)
     // ═══════════════════════════════════════════════════════════════════════
-    const statutReservation = paiementMethode === 'sur_place' ? 'demande' : 'en_attente_paiement';
+    const isPaymentAlreadyCaptured = paiementMethode === 'paypal' && paiementId;
+    const statutReservation = (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) ? 'demande' : 'en_attente_paiement';
     // 🔒 TENANT ISOLATION: Passer le tenantId
     await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation, {}, tenantId);
     console.log(`[ORDERS] ✅ Réservations créées avec statut: ${statutReservation}`);
 
-    if (paiementMethode === 'sur_place') {
-      // Envoyer notifications pour paiement sur place
+    if (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) {
+      // Envoyer notifications pour paiement sur place ou PayPal déjà capturé
       await sendOrderConfirmation(order, items, clientTelephone, clientEmail);
 
       // Mettre à jour statut commande (🔒 TENANT ISOLATION)
+      const updateData = {
+        statut: 'confirme',
+        ...(isPaymentAlreadyCaptured && {
+          paiement_statut: 'paye',
+          paiement_id: paiementId,
+          paiement_date: new Date().toISOString(),
+        }),
+      };
       await supabase
         .from('orders')
-        .update({ statut: 'confirme' })
+        .update(updateData)
         .eq('id', order.id)
         .eq('tenant_id', tenantId);
+
+      if (isPaymentAlreadyCaptured) {
+        console.log(`[ORDERS] ✅ Commande PayPal confirmée automatiquement (paiement déjà capturé)`);
+      }
     }
 
     res.json({
@@ -1024,6 +1039,21 @@ router.get('/checkout/week-availability', async (req, res) => {
       date.setDate(start.getDate() + i);
       const dateStr = formatDateStr(date);
       const dayOfWeek = date.getDay();
+
+      // Vérifier si le jour est dans le passé (avant aujourd'hui)
+      const isDateInPast = dateStr < todayStr;
+
+      if (isDateInPast) {
+        result[dateStr] = {
+          jour: JOURS_FR[dayOfWeek],
+          label: date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }),
+          slots: [],
+          allSlots: [],
+          closed: true,
+          isPast: true  // Indicateur pour le frontend
+        };
+        continue;
+      }
 
       const horaires = getHoraires(dayOfWeek);
 

@@ -113,6 +113,7 @@ export default function PanierPage() {
     slots: string[];
     allSlots: string[];
     closed: boolean;
+    isPast?: boolean;  // Jour dans le passé (grisé)
   }
   interface WeekAvailability {
     [date: string]: DayAvailability;
@@ -977,17 +978,18 @@ export default function PanierPage() {
                       {dates.map(date => {
                         const day = weekAvailability[date];
                         const isToday = date === new Date().toISOString().split('T')[0];
+                        const isPast = day.isPast || false;
                         return (
                           <div
                             key={date}
                             className={`text-center p-2 rounded-t-lg ${
-                              isToday ? 'bg-amber-100' : 'bg-zinc-100'
+                              isPast ? 'bg-zinc-200 opacity-50' : isToday ? 'bg-amber-100' : 'bg-zinc-100'
                             }`}
                           >
-                            <div className="text-xs uppercase font-medium text-zinc-500">
+                            <div className={`text-xs uppercase font-medium ${isPast ? 'text-zinc-400' : 'text-zinc-500'}`}>
                               {day.jour}.
                             </div>
-                            <div className={`font-semibold ${isToday ? 'text-amber-600' : 'text-zinc-800'}`}>
+                            <div className={`font-semibold ${isPast ? 'text-zinc-400' : isToday ? 'text-amber-600' : 'text-zinc-800'}`}>
                               {formatDayMonth(date)}
                             </div>
                           </div>
