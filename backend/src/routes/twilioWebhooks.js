@@ -318,7 +318,8 @@ router.all('/voice', async (req, res) => {
       hints: SPEECH_HINTS,
       action: '/api/twilio/voice/conversation',
       method: 'POST',
-      timeout: 3
+      timeout: 3,
+      bargeIn: true  // Permet d'interrompre Halimah
     });
 
     // Si pas de réponse après le timeout
@@ -333,7 +334,8 @@ router.all('/voice', async (req, res) => {
       hints: SPEECH_HINTS,
       action: '/api/twilio/voice/conversation',
       method: 'POST',
-      timeout: 3
+      timeout: 3,
+      bargeIn: true  // Permet d'interrompre Halimah
     });
 
     // Si toujours pas de réponse
@@ -381,7 +383,8 @@ router.post('/voice/conversation', async (req, res) => {
       hints: SPEECH_HINTS,
       action: '/api/twilio/voice/conversation',
       method: 'POST',
-      timeout: 3
+      timeout: 3,
+      bargeIn: true  // Permet d'interrompre Halimah
     });
 
     // Après timeout sans réponse
@@ -429,7 +432,8 @@ router.post('/voice/conversation', async (req, res) => {
         hints: SPEECH_HINTS,
         action: '/api/twilio/voice/conversation',
         method: 'POST',
-        timeout: 8
+        timeout: 8,
+        bargeIn: true  // Permet d'interrompre Halimah
       });
 
     } else if (shouldEndCall) {
@@ -448,7 +452,8 @@ router.post('/voice/conversation', async (req, res) => {
         hints: SPEECH_HINTS,
         action: '/api/twilio/voice/conversation',
         method: 'POST',
-        timeout: 8
+        timeout: 8,
+        bargeIn: true  // Permet d'interrompre Halimah
       });
 
       // Timeout - relancer
@@ -461,7 +466,8 @@ router.post('/voice/conversation', async (req, res) => {
         speechModel: 'phone_call',
         action: '/api/twilio/voice/conversation',
         method: 'POST',
-        timeout: 3
+        timeout: 3,
+        bargeIn: true  // Permet d'interrompre Halimah
       });
 
       // Fin après double timeout
@@ -595,7 +601,8 @@ router.post('/voice/transfer-result', async (req, res) => {
       hints: SPEECH_HINTS,
       action: '/api/twilio/voice/conversation',
       method: 'POST',
-      timeout: 8
+      timeout: 8,
+      bargeIn: true  // Permet d'interrompre Halimah
     });
 
     // Timeout

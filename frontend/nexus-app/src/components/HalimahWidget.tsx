@@ -232,6 +232,56 @@ export default function HalimahWidget() {
     }
   }, [voiceEnabled]);
 
+  // Vérifie si ReadableStream est supporté (problème sur certains Android)
+  const supportsReadableStream = () => {
+    try {
+      return typeof ReadableStream !== 'undefined' &&
+             typeof Response !== 'undefined' &&
+             'body' in Response.prototype;
+    } catch {
+      return false;
+    }
+  };
+
+  // Fallback: utilise l'endpoint non-streaming pour les navigateurs incompatibles
+  const sendMessageFallback = async (userContent: string, assistantId: string) => {
+    try {
+      const response = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': getTenantFromHostname(),
+        },
+        body: JSON.stringify({
+          message: userContent,
+          sessionId: sessionId,
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Request failed');
+      }
+
+      const data = await response.json();
+
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId ? { ...m, content: data.response || data.message || "Réponse reçue." } : m
+      ));
+
+      if (data.sessionId && data.sessionId !== sessionId) {
+        setSessionId(data.sessionId);
+        sessionStorage.setItem('halimah_session_id', data.sessionId);
+      }
+    } catch (error) {
+      console.error('[HALIMAH] Fallback error:', error);
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId
+          ? { ...m, content: "Désolée, une erreur s'est produite. Veuillez réessayer." }
+          : m
+      ));
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -253,7 +303,18 @@ export default function HalimahWidget() {
       content: ''
     }]);
 
+    // Utiliser fallback si ReadableStream n'est pas supporté (Android ancien)
+    if (!supportsReadableStream()) {
+      console.log('[HALIMAH] ReadableStream non supporté, utilisation du fallback');
+      await sendMessageFallback(userMessage.content, assistantId);
+      setIsLoading(false);
+      return;
+    }
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
       const response = await fetch(apiUrl('/api/chat/stream'), {
         method: 'POST',
         headers: {
@@ -264,11 +325,22 @@ export default function HalimahWidget() {
           message: userMessage.content,
           sessionId: sessionId,
           isFirstMessage: messages.length === 1
-        })
+        }),
+        signal: controller.signal
       });
 
-      if (!response.ok || !response.body) {
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
         throw new Error('Stream failed');
+      }
+
+      // Fallback si response.body n'est pas disponible
+      if (!response.body) {
+        console.log('[HALIMAH] response.body non disponible, utilisation du fallback');
+        await sendMessageFallback(userMessage.content, assistantId);
+        setIsLoading(false);
+        return;
       }
 
       const reader = response.body.getReader();
@@ -311,15 +383,26 @@ export default function HalimahWidget() {
         }
       }
 
-      // Audio désactivé sur web chat - uniquement texte
-      // speak() réservé au canal téléphone (Twilio)
-    } catch (error) {
-      console.error('Erreur:', error);
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId
-          ? { ...m, content: "Désolée, une erreur s'est produite. Veuillez réessayer." }
-          : m
-      ));
+      // Si aucun texte reçu après streaming, fallback
+      if (!fullText.trim()) {
+        console.log('[HALIMAH] Streaming vide, utilisation du fallback');
+        await sendMessageFallback(userMessage.content, assistantId);
+      }
+    } catch (error: any) {
+      console.error('[HALIMAH] Erreur streaming:', error);
+
+      // Si erreur de streaming, essayer le fallback
+      if (error.name === 'AbortError') {
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: "La réponse prend trop de temps. Veuillez réessayer." }
+            : m
+        ));
+      } else {
+        // Essayer le fallback en cas d'erreur
+        console.log('[HALIMAH] Tentative fallback après erreur streaming');
+        await sendMessageFallback(userMessage.content, assistantId);
+      }
     } finally {
       setIsLoading(false);
     }

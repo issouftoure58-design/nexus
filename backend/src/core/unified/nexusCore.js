@@ -1124,7 +1124,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
       const reservationDate = reservationDates[dayIndex];
       const isFirstDay = dayIndex === 0;
 
-      // 💰 IMPORTANT: La BDD stocke en EUROS, pas en centimes
+      // 💰 IMPORTANT: La BDD stocke en CENTIMES (standard financier)
     const reservationData = {
         tenant_id: data.tenant_id,  // 🔒 TENANT ISOLATION
         client_id: clientId,
@@ -1132,10 +1132,10 @@ export async function createReservationUnified(data, channel = 'web', options = 
         heure: data.heure,
         duree_minutes: data.duree_minutes || service.durationMinutes,
         service_nom: service.name,
-        prix_service: isFirstDay ? Math.round(prixService / 100 * 100) / 100 : 0,  // Centimes → Euros
+        prix_service: isFirstDay ? prixService : 0,  // En centimes
         distance_km: isFirstDay ? (distanceKm || null) : null,
-        frais_deplacement: isFirstDay ? Math.round(fraisDeplacementCents / 100 * 100) / 100 : 0,  // Centimes → Euros
-        prix_total: isFirstDay ? Math.round(prixTotal / 100 * 100) / 100 : 0,  // Centimes → Euros
+        frais_deplacement: isFirstDay ? fraisDeplacementCents : 0,  // En centimes
+        prix_total: isFirstDay ? prixTotal : 0,  // En centimes
         adresse_client: data.lieu === 'domicile' ? data.adresse : null,
         telephone: telephone.replace('+33', '0'),
         statut: data.statut || 'demande',
@@ -1357,7 +1357,7 @@ async function findAppointmentByPhone(telephone, tenantId) {
         heure: r.heure,
         service: r.service_nom,
         duree: r.duree_minutes,
-        prix: r.prix_service ? (r.prix_service / 100) + '€' : null,
+        prix: r.prix_service ? (r.prix_service / 100) + '€' : null,  // Centimes → Euros
         statut: r.statut
       })),
       message: `${unique.length} rendez-vous trouvé(s).`

@@ -571,7 +571,7 @@ async function executeTool(toolName, toolInput, tenantId) {
         heure: `${toolInput.heure}:00`,
         duree_minutes: service.duree,
         service_nom: service.nom,
-        prix_service: service.prix * 100, // en centimes
+        prix_service: service.prix * 100, // euros → centimes
         adresse_client: toolInput.lieu === 'domicile' ? toolInput.adresse : null,
         telephone: telephone,
         statut: 'demande',
