@@ -5,6 +5,9 @@ services:
     rootDir: frontend/nexus-app
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://nexus-backend-dev.onrender.com
     routes:
       - type: rewrite
         source: /*
