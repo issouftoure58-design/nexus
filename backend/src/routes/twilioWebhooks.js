@@ -243,9 +243,14 @@ const SPEECH_HINTS = [
 
 const BASE_URL = process.env.BASE_URL || 'https://nexus-backend-dev.onrender.com';
 
-async function sayWithElevenLabs(twiml, text) {
+/**
+ * Joue l'audio ElevenLabs ou fallback sur Polly
+ * @param {object} parent - twiml ou gather element
+ * @param {string} text - texte à prononcer
+ */
+async function sayWithElevenLabs(parent, text) {
   if (!voiceService.isConfigured()) {
-    twiml.say(VOICE_CONFIG, text);
+    parent.say(VOICE_CONFIG, text);
     return;
   }
 
@@ -260,11 +265,34 @@ async function sayWithElevenLabs(twiml, text) {
     const publicUrl = `${BASE_URL}/api/voice/audio/${filename}`;
 
     console.log(`[VOICE] ElevenLabs → ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
-    twiml.play(publicUrl);
+    parent.play(publicUrl);
   } catch (error) {
     console.error('[VOICE] ElevenLabs failed, fallback Polly:', error.message);
-    twiml.say(VOICE_CONFIG, text);
+    parent.say(VOICE_CONFIG, text);
   }
+}
+
+/**
+ * Crée un gather avec audio interruptible (barge-in)
+ * L'audio est joué À L'INTÉRIEUR du gather pour permettre l'interruption
+ */
+async function gatherWithBargeIn(twiml, text, options = {}) {
+  const gather = twiml.gather({
+    input: 'speech',
+    language: 'fr-FR',
+    speechTimeout: 'auto',
+    speechModel: 'phone_call',
+    hints: SPEECH_HINTS,
+    action: options.action || '/api/twilio/voice/conversation',
+    method: 'POST',
+    timeout: options.timeout || 5,
+    bargeIn: true  // Permet d'interrompre pendant que l'audio joue
+  });
+
+  // Jouer l'audio À L'INTÉRIEUR du gather pour que bargeIn fonctionne
+  await sayWithElevenLabs(gather, text);
+
+  return gather;
 }
 
 // ============================================================
@@ -287,6 +315,11 @@ router.all('/voice', async (req, res) => {
   console.log(`[VOICE] CallSid: ${CallSid}`);
   if (CallerCity) console.log(`[VOICE] Localisation: ${CallerCity}, ${CallerCountry}`);
 
+  // 🔒 IMPORTANT: Nettoyer toute conversation précédente avec ce CallSid
+  // pour éviter que des données d'appels précédents polluent le nouvel appel
+  const conversationId = `voice_${CallSid}`;
+  clearConversation(conversationId);
+
   // Stocker la config du tenant dans la session pour les appels suivants
   voiceSessions.set(CallSid, {
     startTime: Date.now(),
@@ -306,37 +339,11 @@ router.all('/voice', async (req, res) => {
     // Message d'accueil avec Halimah IA
     const { response } = await handleVoice(CallSid, '', true);
 
-    // Dire le message d'accueil
-    await sayWithElevenLabs(twiml, response);
-
-    // Écouter la réponse du client (reconnaissance vocale)
-    twiml.gather({
-      input: 'speech',
-      language: 'fr-FR',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
-      hints: SPEECH_HINTS,
-      action: '/api/twilio/voice/conversation',
-      method: 'POST',
-      timeout: 3,
-      bargeIn: true  // Permet d'interrompre Halimah
-    });
+    // Accueil + écoute avec barge-in (client peut interrompre)
+    await gatherWithBargeIn(twiml, response, { timeout: 5 });
 
     // Si pas de réponse après le timeout
-    await sayWithElevenLabs(twiml, "Vous êtes toujours là ? Je vous écoute.");
-
-    // Deuxième tentative d'écoute
-    twiml.gather({
-      input: 'speech',
-      language: 'fr-FR',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
-      hints: SPEECH_HINTS,
-      action: '/api/twilio/voice/conversation',
-      method: 'POST',
-      timeout: 3,
-      bargeIn: true  // Permet d'interrompre Halimah
-    });
+    await gatherWithBargeIn(twiml, "Vous êtes toujours là ? Je vous écoute.", { timeout: 3 });
 
     // Si toujours pas de réponse
     await sayWithElevenLabs(twiml, "Je n'entends rien. N'hésitez pas à rappeler ou à nous contacter par WhatsApp. Au revoir !");
@@ -373,23 +380,11 @@ router.post('/voice/conversation', async (req, res) => {
   if (!SpeechResult || SpeechResult.trim() === '') {
     console.log('[HALIMAH VOICE] Pas de speech détecté');
 
-    await sayWithElevenLabs(twiml, "Excusez-moi, je n'ai pas bien entendu. Pouvez-vous répéter ?");
-
-    twiml.gather({
-      input: 'speech',
-      language: 'fr-FR',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
-      hints: SPEECH_HINTS,
-      action: '/api/twilio/voice/conversation',
-      method: 'POST',
-      timeout: 3,
-      bargeIn: true  // Permet d'interrompre Halimah
-    });
+    // Demander de répéter avec barge-in
+    await gatherWithBargeIn(twiml, "Excusez-moi, je n'ai pas bien entendu. Pouvez-vous répéter ?", { timeout: 5 });
 
     // Après timeout sans réponse
     await sayWithElevenLabs(twiml, "Je n'entends plus rien. Si vous avez des questions, n'hésitez pas à rappeler. Au revoir !");
-    // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
 
     res.type('text/xml');
     return res.send(twiml.toString());
@@ -402,12 +397,12 @@ router.post('/voice/conversation', async (req, res) => {
     console.log(`[HALIMAH VOICE] Halimah répond: "${response}"`);
     console.log(`[HALIMAH VOICE] Fin: ${shouldEndCall}, Transfert: ${shouldTransfer}`);
 
-    // Dire la réponse
-    await sayWithElevenLabs(twiml, response);
-
     // === TRANSFERT VERS FATOU ===
     if (shouldTransfer) {
       console.log(`[HALIMAH VOICE] Transfert vers Fatou pour ${clientName}`);
+
+      // Dire qu'on transfère (sans gather car on va dial après)
+      await sayWithElevenLabs(twiml, response);
 
       // Appeler Fatou
       const dial = twiml.dial({
@@ -418,61 +413,29 @@ router.post('/voice/conversation', async (req, res) => {
       });
       dial.number(FATOU_PHONE);
 
-      // Si Fatou ne répond pas (après le dial)
-      await sayWithElevenLabs(twiml,
+      // Si Fatou ne répond pas (après le dial) - avec barge-in
+      await gatherWithBargeIn(twiml,
         `Désolée ${clientName || ''}, Fatou n'est pas disponible pour le moment. ` +
-        `Puis-je prendre un message ou préférez-vous rappeler plus tard ?`
+        `Puis-je prendre un message ou préférez-vous rappeler plus tard ?`,
+        { timeout: 8 }
       );
 
-      twiml.gather({
-        input: 'speech',
-        language: 'fr-FR',
-        speechTimeout: 'auto',
-        speechModel: 'phone_call',
-        hints: SPEECH_HINTS,
-        action: '/api/twilio/voice/conversation',
-        method: 'POST',
-        timeout: 8,
-        bargeIn: true  // Permet d'interrompre Halimah
-      });
-
     } else if (shouldEndCall) {
-      // Terminer l'appel proprement
+      // Terminer l'appel proprement - dire au revoir puis raccrocher
+      await sayWithElevenLabs(twiml, response);
       console.log(`[HALIMAH VOICE] Fin de conversation pour ${CallSid}`);
       cleanupVoiceService(CallSid);
       cleanupVoiceSession(CallSid);
       twiml.hangup();
     } else {
-      // Continuer la conversation - écouter la suite
-      twiml.gather({
-        input: 'speech',
-        language: 'fr-FR',
-        speechTimeout: 'auto',
-        speechModel: 'phone_call',
-        hints: SPEECH_HINTS,
-        action: '/api/twilio/voice/conversation',
-        method: 'POST',
-        timeout: 8,
-        bargeIn: true  // Permet d'interrompre Halimah
-      });
+      // Continuer la conversation - répondre avec barge-in pour que le client puisse interrompre
+      await gatherWithBargeIn(twiml, response, { timeout: 8 });
 
-      // Timeout - relancer
-      await sayWithElevenLabs(twiml, "Vous êtes toujours là ?");
-
-      twiml.gather({
-        input: 'speech',
-        language: 'fr-FR',
-        speechTimeout: 'auto',
-        speechModel: 'phone_call',
-        action: '/api/twilio/voice/conversation',
-        method: 'POST',
-        timeout: 3,
-        bargeIn: true  // Permet d'interrompre Halimah
-      });
+      // Timeout - relancer avec barge-in
+      await gatherWithBargeIn(twiml, "Vous êtes toujours là ?", { timeout: 3 });
 
       // Fin après double timeout
       await sayWithElevenLabs(twiml, `Je n'entends plus rien. Merci d'avoir appelé ${SALON_INFO.nom}. À bientôt !`);
-      // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
     }
 
   } catch (error) {
