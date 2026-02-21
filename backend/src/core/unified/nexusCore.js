@@ -333,10 +333,11 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
       case 'create_booking':
         console.log(`\n🔍 ════════════════════════════════════════════════════════`);
         console.log(`🔍 STEP BOOKING 1: Tool create_booking APPELÉ`);
-        console.log(`🔍 Channel: ${channel}`);
+        console.log(`🔍 Channel: ${channel}, Tenant: ${tenantId}`);
         console.log(`🔍 Input reçu:`, JSON.stringify(toolInput, null, 2));
         console.log(`🔍 ════════════════════════════════════════════════════════`);
-        result = await createBookingUnified(toolInput, channel);
+        // 🔒 TENANT ISOLATION: Injecter tenant_id dans toolInput
+        result = await createBookingUnified({ ...toolInput, tenant_id: tenantId }, channel);
         console.log(`\n🔍 ════════════════════════════════════════════════════════`);
         console.log(`🔍 STEP BOOKING 5: Résultat final create_booking`);
         console.log(`🔍 Success: ${result?.success}`);
@@ -347,11 +348,13 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         break;
 
       case 'find_appointment':
-        result = await findAppointmentByPhone(toolInput.telephone);
+        // 🔒 TENANT ISOLATION: Passer tenantId pour filtrer par tenant
+        result = await findAppointmentByPhone(toolInput.telephone, tenantId);
         break;
 
       case 'cancel_appointment':
-        result = await cancelAppointmentById(toolInput.appointment_id, toolInput.reason);
+        // 🔒 TENANT ISOLATION: Passer tenantId pour vérifier la propriété
+        result = await cancelAppointmentById(toolInput.appointment_id, toolInput.reason, tenantId);
         break;
 
       case 'get_salon_info':
@@ -1276,7 +1279,13 @@ async function createBookingUnified(data, channel) {
 }
 
 // --- FIND APPOINTMENT BY PHONE ---
-async function findAppointmentByPhone(telephone) {
+// 🔒 TENANT ISOLATION: Filtrer par tenant_id obligatoire
+async function findAppointmentByPhone(telephone, tenantId) {
+  if (!tenantId) {
+    console.error('[NEXUS CORE] ❌ find_appointment: tenant_id manquant');
+    return { success: false, error: "tenant_id requis pour rechercher des rendez-vous" };
+  }
+
   const db = getSupabase();
   if (!db) return { success: false, error: "Base de données non disponible" };
 
@@ -1284,19 +1293,22 @@ async function findAppointmentByPhone(telephone) {
   const today = new Date().toISOString().split('T')[0];
 
   try {
+    // 🔒 Filtrer par tenant_id
     const { data, error } = await db
       .from('reservations')
       .select('id, date, heure, service_nom, duree_minutes, prix_service, statut, notes, clients(nom, prenom, telephone)')
+      .eq('tenant_id', tenantId)
       .eq('telephone', cleanPhone)
       .gte('date', today)
       .in('statut', ['confirme', 'demande'])
       .order('date', { ascending: true });
 
-    // Also search via client table
+    // Also search via client table - 🔒 Filtrer par tenant_id
     let clientResults = [];
     const { data: clients } = await db
       .from('clients')
       .select('id')
+      .eq('tenant_id', tenantId)
       .eq('telephone', cleanPhone)
       .limit(1);
 
@@ -1304,6 +1316,7 @@ async function findAppointmentByPhone(telephone) {
       const { data: byClient } = await db
         .from('reservations')
         .select('id, date, heure, service_nom, duree_minutes, prix_service, statut, notes')
+        .eq('tenant_id', tenantId)
         .eq('client_id', clients[0].id)
         .gte('date', today)
         .in('statut', ['confirme', 'demande'])
@@ -1324,10 +1337,15 @@ async function findAppointmentByPhone(telephone) {
       return { success: true, appointments: [], message: "Aucun rendez-vous trouvé pour ce numéro." };
     }
 
-    // Fetch client info
+    // Fetch client info - 🔒 Filtrer par tenant_id
     let clientInfo = null;
     if (clients && clients.length > 0) {
-      const { data: clientData } = await db.from('clients').select('nom, prenom, telephone').eq('id', clients[0].id).single();
+      const { data: clientData } = await db
+        .from('clients')
+        .select('nom, prenom, telephone')
+        .eq('id', clients[0].id)
+        .eq('tenant_id', tenantId)
+        .single();
       clientInfo = clientData;
     }
 
@@ -1352,16 +1370,23 @@ async function findAppointmentByPhone(telephone) {
 }
 
 // --- CANCEL APPOINTMENT ---
-async function cancelAppointmentById(appointmentId, reason) {
+// 🔒 TENANT ISOLATION: Vérifier propriété du RDV par tenant_id
+async function cancelAppointmentById(appointmentId, reason, tenantId) {
+  if (!tenantId) {
+    console.error('[NEXUS CORE] ❌ cancel_appointment: tenant_id manquant');
+    return { success: false, error: "tenant_id requis pour annuler un rendez-vous" };
+  }
+
   const db = getSupabase();
   if (!db) return { success: false, error: "Base de données non disponible" };
 
   try {
-    // Fetch appointment
+    // Fetch appointment - 🔒 Filtrer par tenant_id
     const { data: rdv, error: fetchErr } = await db
       .from('reservations')
       .select('id, date, heure, service_nom, statut, client_id, telephone, clients(nom, prenom, telephone)')
       .eq('id', appointmentId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchErr || !rdv) {
@@ -1371,7 +1396,7 @@ async function cancelAppointmentById(appointmentId, reason) {
       return { success: false, error: "Ce rendez-vous est déjà annulé." };
     }
 
-    // Cancel
+    // Cancel - 🔒 Filtrer par tenant_id pour éviter annulation cross-tenant
     const noteAnnulation = reason
       ? `Annulé via Halimah: ${reason}`
       : 'Annulé via Halimah (demande client)';
@@ -1380,7 +1405,8 @@ async function cancelAppointmentById(appointmentId, reason) {
     const { error: updateErr } = await db
       .from('reservations')
       .update({ statut: 'annule', notes: existingNotes + noteAnnulation })
-      .eq('id', appointmentId);
+      .eq('id', appointmentId)
+      .eq('tenant_id', tenantId);
 
     if (updateErr) throw updateErr;
 

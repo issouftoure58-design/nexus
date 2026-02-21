@@ -2162,9 +2162,10 @@ async function createRdvInDb(data) {
 
 /**
  * Met à jour le statut d'un RDV
+ * 🔒 TENANT ISOLATION: tenantId optionnel mais recommandé pour sécurité
  */
-async function updateRdvStatus(rdvId, statut, additionalData = {}) {
-  console.log('[WhatsApp] Mise à jour RDV:', rdvId, statut, additionalData);
+async function updateRdvStatus(rdvId, statut, additionalData = {}, tenantId = null) {
+  console.log('[WhatsApp] Mise à jour RDV:', rdvId, statut, tenantId ? `(tenant: ${tenantId})` : '');
 
   const db = getSupabase();
   if (!db) {
@@ -2179,12 +2180,17 @@ async function updateRdvStatus(rdvId, statut, additionalData = {}) {
       return { id: rdvId, statut, ...additionalData };
     }
 
-    const { data, error } = await db
+    let query = db
       .from('reservations')
       .update({ statut, ...additionalData, updated_at: new Date().toISOString() })
-      .eq('id', rdvId)
-      .select()
-      .single();
+      .eq('id', rdvId);
+
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       console.error('[WhatsApp] Erreur updateRdvStatus:', error);
@@ -2201,9 +2207,10 @@ async function updateRdvStatus(rdvId, statut, additionalData = {}) {
 
 /**
  * Récupère un RDV par ID
+ * 🔒 TENANT ISOLATION: tenantId optionnel mais recommandé pour sécurité
  */
-async function getRdvById(rdvId) {
-  console.log('[WhatsApp] Récupération RDV:', rdvId);
+async function getRdvById(rdvId, tenantId = null) {
+  console.log('[WhatsApp] Récupération RDV:', rdvId, tenantId ? `(tenant: ${tenantId})` : '');
 
   const db = getSupabase();
   if (!db) {
@@ -2218,11 +2225,17 @@ async function getRdvById(rdvId) {
       return null;
     }
 
-    const { data, error } = await db
+    let query = db
       .from('reservations')
       .select('*')
-      .eq('id', rdvId)
-      .single();
+      .eq('id', rdvId);
+
+    // 🔒 TENANT ISOLATION: Filtrer par tenant_id si fourni
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       console.error('[WhatsApp] Erreur getRdvById:', error);
@@ -2372,10 +2385,11 @@ export async function handleCreneauConfirmation({
 
 /**
  * Appelée quand un paiement est confirmé
+ * 🔒 TENANT ISOLATION: Utilise tenant_id du RDV pour updateRdvStatus
  */
-export async function handlePaymentConfirmed(rdvId) {
+export async function handlePaymentConfirmed(rdvId, tenantId = null) {
   try {
-    console.log(`[WhatsApp] Paiement confirmé pour RDV ${rdvId}`);
+    console.log(`[WhatsApp] Paiement confirmé pour RDV ${rdvId}${tenantId ? ` (tenant: ${tenantId})` : ''}`);
 
     // 1. Annuler le timeout
     const timeoutInfo = paymentTimeouts.get(rdvId);
@@ -2384,13 +2398,16 @@ export async function handlePaymentConfirmed(rdvId) {
       paymentTimeouts.delete(rdvId);
     }
 
-    // 2. Récupérer les infos du RDV
-    const rdv = await getRdvById(rdvId);
+    // 2. Récupérer les infos du RDV - 🔒 avec tenant_id si fourni
+    const rdv = await getRdvById(rdvId, tenantId);
 
-    // 3. Mettre à jour le statut
+    // 🔒 TENANT ISOLATION: Utiliser le tenant_id du RDV si pas fourni
+    const effectiveTenantId = tenantId || rdv?.tenant_id;
+
+    // 3. Mettre à jour le statut - 🔒 avec tenant_id
     await updateRdvStatus(rdvId, 'confirme', {
       paiement_date: new Date().toISOString(),
-    });
+    }, effectiveTenantId);
 
     // 4. Envoyer confirmation
     const clientPhone = rdv?.client_telephone || timeoutInfo?.clientPhone;

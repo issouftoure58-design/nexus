@@ -153,10 +153,11 @@ router.post('/status', (req, res) => {
 /**
  * Webhook pour confirmation de paiement (appelé par Stripe/PayPal)
  * POST /api/whatsapp/payment-confirmed
+ * 🔒 TENANT ISOLATION: tenant_id optionnel mais recommandé
  */
 router.post('/payment-confirmed', async (req, res) => {
   try {
-    const { rdv_id } = req.body;
+    const { rdv_id, tenant_id } = req.body;
 
     if (!rdv_id) {
       return res.status(400).json({
@@ -165,9 +166,10 @@ router.post('/payment-confirmed', async (req, res) => {
       });
     }
 
-    console.log('[WhatsApp] Confirmation de paiement pour RDV:', rdv_id);
+    console.log('[WhatsApp] Confirmation de paiement pour RDV:', rdv_id, tenant_id ? `(tenant: ${tenant_id})` : '');
 
-    await handlePaymentConfirmed(rdv_id);
+    // 🔒 Passer tenant_id si fourni pour isolation multi-tenant
+    await handlePaymentConfirmed(rdv_id, tenant_id);
 
     res.json({
       success: true,
@@ -186,12 +188,13 @@ router.post('/payment-confirmed', async (req, res) => {
 /**
  * Endpoint de test pour simuler un message entrant
  * POST /api/whatsapp/test
+ * 🔒 TENANT ISOLATION: tenant_id requis
  *
- * Body: { phone: "+33612345678", message: "Bonjour", name: "Test" }
+ * Body: { phone: "+33612345678", message: "Bonjour", name: "Test", tenant_id: "fatshairafro" }
  */
 router.post('/test', async (req, res) => {
   try {
-    const { phone, message, name } = req.body;
+    const { phone, message, name, tenant_id } = req.body;
 
     if (!phone || !message) {
       return res.status(400).json({
@@ -200,9 +203,14 @@ router.post('/test', async (req, res) => {
       });
     }
 
-    console.log('[WhatsApp Test] Simulation message:', { phone, message, name, handler: 'nexusCore' });
+    // 🔒 TENANT ISOLATION: Avertir si tenant_id manquant
+    if (!tenant_id) {
+      console.warn('[WhatsApp Test] ⚠️ tenant_id non fourni - utilisation non recommandée');
+    }
 
-    const result = await handleIncomingMessageNexus(phone, message, name);
+    console.log('[WhatsApp Test] Simulation message:', { phone, message, name, tenant_id, handler: 'nexusCore' });
+
+    const result = await handleIncomingMessageNexus(phone, message, name, tenant_id);
 
     res.json({
       success: true,
