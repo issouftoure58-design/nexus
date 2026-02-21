@@ -1,0 +1,239 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║                    🛡️ TENANT SHIELD MIDDLEWARE 🛡️                         ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                           ║
+ * ║  Middleware de protection runtime qui garantit l'isolation multi-tenant  ║
+ * ║  à chaque requête API.                                                   ║
+ * ║                                                                           ║
+ * ║  FONCTIONNALITÉS:                                                         ║
+ * ║  1. Valide la présence de tenant_id sur chaque requête                   ║
+ * ║  2. Log les tentatives d'accès cross-tenant                              ║
+ * ║  3. Bloque les requêtes sans tenant_id (sauf routes système)             ║
+ * ║  4. Ajoute des headers de sécurité                                       ║
+ * ║                                                                           ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ */
+
+/**
+ * Routes système qui n'ont pas besoin de tenant_id
+ * Ces routes gèrent la plateforme NEXUS, pas les données tenant
+ */
+const SYSTEM_ROUTES = [
+  '/health',
+  '/api/admin/auth',
+  '/api/signup',
+  '/api/trial',
+  '/api/webhooks',
+  '/api/whatsapp/webhook',
+  '/api/whatsapp/status',
+  '/api/whatsapp/health',
+  '/api/twilio',
+  '/api/voice',
+  '/api/provisioning',
+  '/api/billing/webhook',
+];
+
+/**
+ * Vérifie si une route est une route système
+ */
+function isSystemRoute(path) {
+  return SYSTEM_ROUTES.some(route => path.startsWith(route));
+}
+
+/**
+ * Erreur spécifique pour les violations tenant
+ */
+export class TenantShieldError extends Error {
+  constructor(message, code = 'TENANT_SHIELD_VIOLATION') {
+    super(message);
+    this.name = 'TenantShieldError';
+    this.code = code;
+    this.statusCode = 403;
+  }
+}
+
+/**
+ * Middleware principal TENANT SHIELD
+ *
+ * Doit être utilisé APRÈS le middleware de résolution tenant
+ * et AVANT les routes API.
+ */
+export function tenantShield(options = {}) {
+  const {
+    strict = true,           // Mode strict: bloque les requêtes sans tenant
+    logViolations = true,    // Log les violations
+    allowSystemRoutes = true // Permet les routes système sans tenant
+  } = options;
+
+  return (req, res, next) => {
+    // Ajouter header de sécurité
+    res.setHeader('X-Tenant-Shield', 'active');
+
+    // Routes système autorisées sans tenant
+    if (allowSystemRoutes && isSystemRoute(req.path)) {
+      return next();
+    }
+
+    // Vérifier la présence de tenant_id
+    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.query.tenant_id;
+
+    if (!tenantId) {
+      if (logViolations) {
+        console.error(`[TENANT SHIELD] ❌ VIOLATION: Requête sans tenant_id`);
+        console.error(`[TENANT SHIELD]    Path: ${req.method} ${req.path}`);
+        console.error(`[TENANT SHIELD]    IP: ${req.ip}`);
+        console.error(`[TENANT SHIELD]    Headers: ${JSON.stringify(req.headers)}`);
+      }
+
+      if (strict) {
+        return res.status(403).json({
+          success: false,
+          error: 'TENANT_REQUIRED',
+          message: 'Cette requête nécessite un tenant_id valide',
+          shield: 'TENANT_SHIELD_ACTIVE',
+        });
+      }
+    }
+
+    // Attacher tenantId à req pour usage ultérieur
+    req.tenantId = tenantId;
+
+    // Ajouter helper pour validation dans les services
+    req.validateTenant = (dataOrTenantId) => {
+      const checkId = typeof dataOrTenantId === 'object'
+        ? dataOrTenantId.tenant_id
+        : dataOrTenantId;
+
+      if (checkId && checkId !== tenantId) {
+        const error = new TenantShieldError(
+          `Accès cross-tenant bloqué: tentative d'accès à ${checkId} depuis ${tenantId}`
+        );
+
+        if (logViolations) {
+          console.error(`[TENANT SHIELD] 🚨 CROSS-TENANT ATTEMPT BLOCKED`);
+          console.error(`[TENANT SHIELD]    Current: ${tenantId}`);
+          console.error(`[TENANT SHIELD]    Attempted: ${checkId}`);
+          console.error(`[TENANT SHIELD]    Path: ${req.method} ${req.path}`);
+        }
+
+        throw error;
+      }
+
+      return true;
+    };
+
+    // Log de debug (désactivé en prod)
+    if (process.env.NODE_ENV !== 'production' && process.env.TENANT_SHIELD_DEBUG) {
+      console.log(`[TENANT SHIELD] ✅ ${req.method} ${req.path} → tenant: ${tenantId}`);
+    }
+
+    next();
+  };
+}
+
+/**
+ * Middleware pour valider le tenant dans le body des requêtes POST/PUT
+ * Empêche l'injection de tenant_id différent dans le body
+ */
+export function validateBodyTenant() {
+  return (req, res, next) => {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
+      // Si le body contient un tenant_id, il DOIT matcher req.tenantId
+      if (req.body.tenant_id && req.body.tenant_id !== req.tenantId) {
+        console.error(`[TENANT SHIELD] 🚨 BODY TENANT MISMATCH`);
+        console.error(`[TENANT SHIELD]    req.tenantId: ${req.tenantId}`);
+        console.error(`[TENANT SHIELD]    body.tenant_id: ${req.body.tenant_id}`);
+
+        return res.status(403).json({
+          success: false,
+          error: 'TENANT_MISMATCH',
+          message: 'Le tenant_id du body ne correspond pas à votre session',
+          shield: 'TENANT_SHIELD_ACTIVE',
+        });
+      }
+
+      // Forcer le tenant_id correct dans le body
+      if (req.tenantId) {
+        req.body.tenant_id = req.tenantId;
+      }
+    }
+
+    next();
+  };
+}
+
+/**
+ * Helper pour les services: valide et injecte tenant_id
+ *
+ * Usage:
+ *   import { withTenant } from '../middleware/tenantShield.js';
+ *
+ *   async function createReservation(data, tenantId) {
+ *     const safeData = withTenant(data, tenantId);
+ *     // safeData.tenant_id est garanti d'être correct
+ *   }
+ */
+export function withTenant(data, tenantId) {
+  if (!tenantId) {
+    throw new TenantShieldError('tenant_id requis', 'TENANT_MISSING');
+  }
+
+  if (data.tenant_id && data.tenant_id !== tenantId) {
+    throw new TenantShieldError(
+      `Conflit tenant: données pour ${data.tenant_id}, session ${tenantId}`,
+      'TENANT_CONFLICT'
+    );
+  }
+
+  return {
+    ...data,
+    tenant_id: tenantId,
+  };
+}
+
+/**
+ * Helper pour les requêtes Supabase: ajoute automatiquement le filtre tenant
+ *
+ * Usage:
+ *   import { tenantQuery } from '../middleware/tenantShield.js';
+ *
+ *   const query = tenantQuery(supabase.from('reservations'), tenantId);
+ *   // Équivalent à: supabase.from('reservations').eq('tenant_id', tenantId)
+ */
+export function tenantQuery(query, tenantId) {
+  if (!tenantId) {
+    throw new TenantShieldError('tenant_id requis pour cette requête', 'TENANT_MISSING');
+  }
+  return query.eq('tenant_id', tenantId);
+}
+
+/**
+ * Décorateur pour les fonctions de service
+ * Garantit que le premier paramètre est toujours tenantId
+ *
+ * Usage:
+ *   const safeGetClients = requireTenant(getClients);
+ *   safeGetClients(null); // Throw TenantShieldError
+ *   safeGetClients('fatshairafro'); // OK
+ */
+export function requireTenant(fn) {
+  return function(tenantId, ...args) {
+    if (!tenantId) {
+      throw new TenantShieldError(
+        `${fn.name || 'Function'} requiert tenant_id en premier paramètre`,
+        'TENANT_MISSING'
+      );
+    }
+    return fn(tenantId, ...args);
+  };
+}
+
+export default {
+  tenantShield,
+  validateBodyTenant,
+  withTenant,
+  tenantQuery,
+  requireTenant,
+  TenantShieldError,
+};

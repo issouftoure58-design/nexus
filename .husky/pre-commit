@@ -1,0 +1,33 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo ""
+echo "╔═══════════════════════════════════════════════════════════════╗"
+echo "║           🛡️  TENANT SHIELD - PRE-COMMIT CHECK  🛡️            ║"
+echo "╚═══════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Run tenant isolation linter
+npm run lint:tenant
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "╔═══════════════════════════════════════════════════════════════╗"
+  echo "║  ❌ COMMIT BLOQUÉ - VIOLATION TENANT SHIELD DÉTECTÉE ❌       ║"
+  echo "╠═══════════════════════════════════════════════════════════════╣"
+  echo "║                                                               ║"
+  echo "║  Ton code viole les règles d'isolation multi-tenant.         ║"
+  echo "║                                                               ║"
+  echo "║  📖 LIS: TENANT_SHIELD.md                                     ║"
+  echo "║  🔧 FIX: Ajoute .eq('tenant_id', tenantId) à tes requêtes    ║"
+  echo "║                                                               ║"
+  echo "║  Après correction, relance: git commit                        ║"
+  echo "║                                                               ║"
+  echo "╚═══════════════════════════════════════════════════════════════╝"
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ TENANT SHIELD: Code validé - Commit autorisé"
+echo ""
