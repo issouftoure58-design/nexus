@@ -378,6 +378,59 @@ export const comptaApi = {
     if (params?.exercice) query.set('exercice', params.exercice.toString());
     return api.get<{ balance: BalanceCompte[]; totaux: { debit: number; credit: number; solde_debiteur: number; solde_crediteur: number } }>(`/journaux/balance?${query}`);
   },
+
+  // États comptables avancés
+  getPlanComptable: () => api.get<{ comptes: CompteComptable[]; classes: Record<string, { libelle: string; comptes: CompteComptable[] }> }>('/journaux/plan-comptable'),
+
+  getGrandLivre: (params?: { compte?: string; periode_debut?: string; periode_fin?: string; exercice?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.compte) query.set('compte', params.compte);
+    if (params?.periode_debut) query.set('periode_debut', params.periode_debut);
+    if (params?.periode_fin) query.set('periode_fin', params.periode_fin);
+    if (params?.exercice) query.set('exercice', params.exercice.toString());
+    return api.get<GrandLivreResponse>(`/journaux/grand-livre?${query}`);
+  },
+
+  getGrandLivreCompte: (compte: string, exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<CompteDetailResponse>(`/journaux/grand-livre/${compte}${query}`);
+  },
+
+  getBalanceGenerale: (params?: { periode?: string; exercice?: number; avec_sous_comptes?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.periode) query.set('periode', params.periode);
+    if (params?.exercice) query.set('exercice', params.exercice.toString());
+    if (params?.avec_sous_comptes) query.set('avec_sous_comptes', 'true');
+    return api.get<BalanceGeneraleResponse>(`/journaux/balance-generale?${query}`);
+  },
+
+  getBalanceClients: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<BalanceAuxiliaireResponse>(`/journaux/balance-clients${query}`);
+  },
+
+  getBalanceFournisseurs: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<BalanceAuxiliaireResponse>(`/journaux/balance-fournisseurs${query}`);
+  },
+
+  getBilan: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<BilanResponse>(`/journaux/bilan${query}`);
+  },
+
+  getCompteResultat: (params?: { exercice?: number; periode?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.exercice) query.set('exercice', params.exercice.toString());
+    if (params?.periode) query.set('periode', params.periode);
+    return api.get<CompteResultatResponse>(`/journaux/compte-resultat?${query}`);
+  },
+
+  getBalanceAgee: () => api.get<BalanceAgeeResponse>('/journaux/balance-agee'),
+
+  exportFEC: (exercice: number) => {
+    window.open(`${API_BASE}/journaux/fec?exercice=${exercice}`, '_blank');
+  },
 };
 
 // Types Journaux
@@ -951,5 +1004,192 @@ export interface QuotasData {
     clients: { used: number; limit: number };
     messages_ia: { used: number; limit: number };
     reservations: { used: number; limit: number };
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TYPES COMPTABILITÉ AVANCÉS
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface CompteComptable {
+  numero: string;
+  libelle: string;
+  classe: number;
+  type: 'general' | 'auxiliaire';
+  nature?: 'debit' | 'credit';
+}
+
+export interface EcritureGrandLivre {
+  id: number;
+  date_ecriture: string;
+  journal_code: string;
+  numero_piece?: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  lettrage?: string;
+  solde_progressif?: number;
+}
+
+export interface GrandLivreCompte {
+  numero: string;
+  libelle: string;
+  ecritures: EcritureGrandLivre[];
+  total_debit: number;
+  total_credit: number;
+  solde: number;
+}
+
+export interface GrandLivreResponse {
+  exercice: number;
+  periode_debut?: string;
+  periode_fin?: string;
+  comptes: GrandLivreCompte[];
+  totaux: {
+    debit: number;
+    credit: number;
+  };
+}
+
+export interface CompteDetailResponse {
+  compte: string;
+  libelle: string;
+  exercice: number;
+  ecritures: EcritureGrandLivre[];
+  totaux: {
+    debit: number;
+    credit: number;
+    solde: number;
+  };
+  solde_ouverture?: number;
+  solde_cloture?: number;
+}
+
+export interface BalanceGeneraleLigne {
+  numero: string;
+  libelle: string;
+  mouvement_debit: number;
+  mouvement_credit: number;
+  solde_debiteur: number;
+  solde_crediteur: number;
+  sous_comptes?: BalanceGeneraleLigne[];
+}
+
+export interface BalanceGeneraleResponse {
+  exercice: number;
+  periode?: string;
+  avec_sous_comptes: boolean;
+  comptes: BalanceGeneraleLigne[];
+  totaux: {
+    mouvement_debit: number;
+    mouvement_credit: number;
+    solde_debiteur: number;
+    solde_crediteur: number;
+  };
+}
+
+export interface BalanceAuxiliaireLigne {
+  compte: string;
+  nom: string;
+  mouvement_debit: number;
+  mouvement_credit: number;
+  solde: number;
+  dernier_mouvement?: string;
+}
+
+export interface BalanceAuxiliaireResponse {
+  type: 'clients' | 'fournisseurs';
+  compte_collectif: string;
+  exercice: number;
+  comptes: BalanceAuxiliaireLigne[];
+  totaux: {
+    mouvement_debit: number;
+    mouvement_credit: number;
+    solde: number;
+    nb_comptes: number;
+  };
+}
+
+export interface BilanLigne {
+  numero?: string;
+  libelle: string;
+  montant: number;
+  niveau?: number;
+  type?: 'titre' | 'compte' | 'total';
+}
+
+export interface BilanResponse {
+  exercice: number;
+  date_cloture: string;
+  actif: {
+    immobilisations: BilanLigne[];
+    actif_circulant: BilanLigne[];
+    tresorerie: BilanLigne[];
+    total: number;
+  };
+  passif: {
+    capitaux_propres: BilanLigne[];
+    dettes: BilanLigne[];
+    total: number;
+  };
+  equilibre: boolean;
+}
+
+export interface CompteResultatLigne {
+  numero?: string;
+  libelle: string;
+  montant: number;
+  niveau?: number;
+  type?: 'titre' | 'compte' | 'total';
+}
+
+export interface CompteResultatResponse {
+  exercice: number;
+  periode?: string;
+  charges: {
+    exploitation: CompteResultatLigne[];
+    financieres: CompteResultatLigne[];
+    exceptionnelles: CompteResultatLigne[];
+    total: number;
+  };
+  produits: {
+    exploitation: CompteResultatLigne[];
+    financiers: CompteResultatLigne[];
+    exceptionnels: CompteResultatLigne[];
+    total: number;
+  };
+  resultat: {
+    exploitation: number;
+    financier: number;
+    exceptionnel: number;
+    net: number;
+    benefice: boolean;
+  };
+}
+
+export interface BalanceAgeeLigne {
+  client_id: number;
+  client_nom: string;
+  compte: string;
+  total_du: number;
+  non_echu: number;
+  echu_0_30: number;
+  echu_31_60: number;
+  echu_61_90: number;
+  echu_plus_90: number;
+  plus_ancienne_facture?: string;
+}
+
+export interface BalanceAgeeResponse {
+  date_reference: string;
+  clients: BalanceAgeeLigne[];
+  totaux: {
+    total_du: number;
+    non_echu: number;
+    echu_0_30: number;
+    echu_31_60: number;
+    echu_61_90: number;
+    echu_plus_90: number;
+    nb_clients: number;
   };
 }

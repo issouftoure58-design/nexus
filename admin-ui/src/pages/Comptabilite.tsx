@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal } from '@/lib/api';
+import { comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse } from '@/lib/api';
 import {
   Euro,
   TrendingUp,
@@ -204,6 +204,44 @@ export default function Comptabilite() {
     queryKey: ['ecritures-journal', selectedJournal, journalPeriode],
     queryFn: () => comptaApi.getEcritures({ journal: selectedJournal, periode: journalPeriode }),
     enabled: activeTab === 'expert' && !!selectedJournal,
+  });
+
+  // Sous-onglet expert
+  const [expertSubTab, setExpertSubTab] = useState<'transmission' | 'grand-livre' | 'balance' | 'balance-agee'>('transmission');
+
+  // Query pour le Grand Livre
+  const { data: grandLivreData, isLoading: grandLivreLoading } = useQuery<GrandLivreResponse>({
+    queryKey: ['grand-livre', statsYear],
+    queryFn: () => comptaApi.getGrandLivre({ exercice: statsYear }),
+    enabled: activeTab === 'expert' && expertSubTab === 'grand-livre',
+  });
+
+  // Query pour la Balance Générale (avec sous-comptes)
+  const { data: balanceGeneraleData, isLoading: balanceGeneraleLoading } = useQuery<BalanceGeneraleResponse>({
+    queryKey: ['balance-generale', statsYear],
+    queryFn: () => comptaApi.getBalanceGenerale({ exercice: statsYear, avec_sous_comptes: true }),
+    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+  });
+
+  // Query pour la Balance Clients
+  const { data: balanceClientsData, isLoading: balanceClientsLoading } = useQuery<BalanceAuxiliaireResponse>({
+    queryKey: ['balance-clients', statsYear],
+    queryFn: () => comptaApi.getBalanceClients(statsYear),
+    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+  });
+
+  // Query pour la Balance Fournisseurs
+  const { data: balanceFournisseursData, isLoading: balanceFournisseursLoading } = useQuery<BalanceAuxiliaireResponse>({
+    queryKey: ['balance-fournisseurs', statsYear],
+    queryFn: () => comptaApi.getBalanceFournisseurs(statsYear),
+    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+  });
+
+  // Query pour la Balance Âgée
+  const { data: balanceAgeeData, isLoading: balanceAgeeLoading } = useQuery<BalanceAgeeResponse>({
+    queryKey: ['balance-agee'],
+    queryFn: () => comptaApi.getBalanceAgee(),
+    enabled: activeTab === 'expert' && expertSubTab === 'balance-agee',
   });
 
   // Effect pour mettre à jour les délais quand les settings sont chargés
@@ -710,63 +748,10 @@ export default function Comptabilite() {
     }
   };
 
-  // Export FEC (Fichier des Écritures Comptables)
+  // Export FEC (Fichier des Écritures Comptables) - Via API backend
   const exportFEC = () => {
-    const factures = invoicesData?.factures || [];
-    const depenses = expensesData?.depenses || [];
-
-    // FEC format columns
-    const fecEntries = [
-      ...factures.map(f => ({
-        journalcode: 'VE',
-        journallib: 'Journal des Ventes',
-        ecriturenum: f.numero,
-        ecrituredate: f.date_facture?.replace(/-/g, ''),
-        comptenum: '411000',
-        comptelib: 'Clients',
-        pieceref: f.numero,
-        piecedate: f.date_facture?.replace(/-/g, ''),
-        ecriturelib: `Facture ${f.client_nom}`,
-        debit: ((f.montant_ttc || 0) / 100).toFixed(2).replace('.', ','),
-        credit: '0,00',
-        montantdevise: '',
-        idevise: 'EUR'
-      })),
-      ...factures.map(f => ({
-        journalcode: 'VE',
-        journallib: 'Journal des Ventes',
-        ecriturenum: f.numero,
-        ecrituredate: f.date_facture?.replace(/-/g, ''),
-        comptenum: '701000',
-        comptelib: 'Ventes de prestations',
-        pieceref: f.numero,
-        piecedate: f.date_facture?.replace(/-/g, ''),
-        ecriturelib: `Facture ${f.client_nom}`,
-        debit: '0,00',
-        credit: ((f.montant_ht || 0) / 100).toFixed(2).replace('.', ','),
-        montantdevise: '',
-        idevise: 'EUR'
-      })),
-      ...depenses.filter(d => d.payee !== false).map((d, i) => ({
-        journalcode: 'AC',
-        journallib: 'Journal des Achats',
-        ecriturenum: `AC${String(i + 1).padStart(5, '0')}`,
-        ecrituredate: d.date_depense?.replace(/-/g, ''),
-        comptenum: '401000',
-        comptelib: 'Fournisseurs',
-        pieceref: `DEP${d.id}`,
-        piecedate: d.date_depense?.replace(/-/g, ''),
-        ecriturelib: d.libelle || d.categorie,
-        debit: '0,00',
-        credit: ((d.montant || 0) / 100).toFixed(2).replace('.', ','),
-        montantdevise: '',
-        idevise: 'EUR'
-      }))
-    ];
-
-    const headers = ['JournalCode', 'JournalLib', 'EcritureNum', 'EcritureDate', 'CompteNum', 'CompteLib', 'PieceRef', 'PieceDate', 'EcritureLib', 'Debit', 'Credit', 'MontantDevise', 'Idevise'];
-    exportToCSV(fecEntries, `FEC_${statsYear}`, headers);
-    setNotification({ type: 'success', message: `FEC ${statsYear} généré avec succès` });
+    comptaApi.exportFEC(statsYear);
+    setNotification({ type: 'success', message: `FEC ${statsYear} en cours de téléchargement...` });
     setTimeout(() => setNotification(null), 3000);
   };
 
@@ -3009,6 +2994,32 @@ export default function Comptabilite() {
         {/* Expert-Comptable Tab */}
         {activeTab === 'expert' && (
           <div className="space-y-6">
+            {/* Sous-onglets Expert */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+              {[
+                { id: 'transmission', label: 'Transmission', icon: Share2 },
+                { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
+                { id: 'balance', label: 'Balances', icon: Scale },
+                { id: 'balance-agee', label: 'Balance Âgée', icon: Clock },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setExpertSubTab(tab.id as typeof expertSubTab)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
+                    expertSubTab === tab.id
+                      ? "bg-white text-purple-600 shadow-sm"
+                      : "text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  <tab.icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Transmission Sub-tab */}
+            {expertSubTab === 'transmission' && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -3157,8 +3168,10 @@ export default function Comptabilite() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* Journaux Comptables */}
+            {/* Journaux Comptables - also in transmission sub-tab */}
+            {expertSubTab === 'transmission' && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -3421,6 +3434,358 @@ export default function Comptabilite() {
                 </div>
               </CardContent>
             </Card>
+            )}
+
+            {/* Grand Livre Sub-tab */}
+            {expertSubTab === 'grand-livre' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    Grand Livre - Exercice {statsYear}
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">Détail des mouvements par compte avec sous-comptes auxiliaires</p>
+                </CardHeader>
+                <CardContent>
+                  {grandLivreLoading ? (
+                    <div className="py-8 text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                      <p className="text-gray-500 mt-2">Chargement du Grand Livre...</p>
+                    </div>
+                  ) : grandLivreData?.comptes && grandLivreData.comptes.length > 0 ? (
+                    <div className="space-y-6">
+                      {grandLivreData.comptes.map((compte) => (
+                        <div key={compte.numero} className="border rounded-lg overflow-hidden">
+                          <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
+                            <div>
+                              <span className="font-mono text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{compte.numero}</span>
+                              <span className="ml-2 font-medium">{compte.libelle}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-green-600 mr-4">D: {formatCurrency(compte.total_debit / 100)}</span>
+                              <span className="text-red-600 mr-4">C: {formatCurrency(compte.total_credit / 100)}</span>
+                              <span className={compte.solde >= 0 ? "text-blue-600 font-medium" : "text-orange-600 font-medium"}>
+                                Solde: {formatCurrency(compte.solde / 100)}
+                              </span>
+                            </div>
+                          </div>
+                          {compte.ecritures && compte.ecritures.length > 0 && (
+                            <div className="max-h-48 overflow-y-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-100 sticky top-0">
+                                  <tr>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Jnl</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
+                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
+                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Solde</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {compte.ecritures.map((e, idx) => (
+                                    <tr key={idx} className="border-t hover:bg-gray-50">
+                                      <td className="py-1.5 px-3">{formatDate(e.date_ecriture)}</td>
+                                      <td className="py-1.5 px-3 text-xs text-gray-500">{e.journal_code}</td>
+                                      <td className="py-1.5 px-3">{e.libelle}</td>
+                                      <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit / 100) : ''}</td>
+                                      <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit / 100) : ''}</td>
+                                      <td className="py-1.5 px-3 text-right font-medium">{formatCurrency((e.solde_progressif || 0) / 100)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div className="bg-purple-50 rounded-lg p-4 flex justify-between items-center">
+                        <span className="font-medium text-purple-700">Totaux Grand Livre</span>
+                        <div>
+                          <span className="text-green-600 mr-6">Total Débit: {formatCurrency((grandLivreData.totaux?.debit || 0) / 100)}</span>
+                          <span className="text-red-600">Total Crédit: {formatCurrency((grandLivreData.totaux?.credit || 0) / 100)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-gray-500">
+                      Aucune écriture trouvée pour cet exercice
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Balances Sub-tab */}
+            {expertSubTab === 'balance' && (
+              <div className="space-y-6">
+                {/* Balance Générale */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Scale className="h-5 w-5 text-green-500" />
+                      Balance Générale - Exercice {statsYear}
+                    </CardTitle>
+                    <p className="text-sm text-gray-500">Soldes de tous les comptes avec sous-comptes auxiliaires</p>
+                  </CardHeader>
+                  <CardContent>
+                    {balanceGeneraleLoading ? (
+                      <div className="py-8 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                      </div>
+                    ) : balanceGeneraleData?.comptes && balanceGeneraleData.comptes.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
+                              <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                              <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Débit</th>
+                              <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Crédit</th>
+                              <th className="text-right py-2 px-3 font-medium text-gray-600">Solde D</th>
+                              <th className="text-right py-2 px-3 font-medium text-gray-600">Solde C</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balanceGeneraleData.comptes.map((c) => (
+                              <>
+                                <tr key={c.numero} className="border-t hover:bg-gray-50 font-medium">
+                                  <td className="py-2 px-3">
+                                    <span className="font-mono bg-gray-100 px-1.5 rounded">{c.numero}</span>
+                                  </td>
+                                  <td className="py-2 px-3">{c.libelle}</td>
+                                  <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
+                                  <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
+                                  <td className="py-2 px-3 text-right">{c.solde_debiteur > 0 ? formatCurrency(c.solde_debiteur / 100) : ''}</td>
+                                  <td className="py-2 px-3 text-right">{c.solde_crediteur > 0 ? formatCurrency(c.solde_crediteur / 100) : ''}</td>
+                                </tr>
+                                {c.sous_comptes?.map((sc) => (
+                                  <tr key={sc.numero} className="border-t hover:bg-blue-50 text-sm text-gray-600 bg-gray-50">
+                                    <td className="py-1.5 px-3 pl-8">
+                                      <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sc.numero}</span>
+                                    </td>
+                                    <td className="py-1.5 px-3">{sc.libelle}</td>
+                                    <td className="py-1.5 px-3 text-right text-green-500">{formatCurrency(sc.mouvement_debit / 100)}</td>
+                                    <td className="py-1.5 px-3 text-right text-red-500">{formatCurrency(sc.mouvement_credit / 100)}</td>
+                                    <td className="py-1.5 px-3 text-right">{sc.solde_debiteur > 0 ? formatCurrency(sc.solde_debiteur / 100) : ''}</td>
+                                    <td className="py-1.5 px-3 text-right">{sc.solde_crediteur > 0 ? formatCurrency(sc.solde_crediteur / 100) : ''}</td>
+                                  </tr>
+                                ))}
+                              </>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-green-50 font-bold">
+                            <tr>
+                              <td colSpan={2} className="py-2 px-3">TOTAUX</td>
+                              <td className="py-2 px-3 text-right text-green-700">{formatCurrency((balanceGeneraleData.totaux?.mouvement_debit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right text-red-700">{formatCurrency((balanceGeneraleData.totaux?.mouvement_credit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceGeneraleData.totaux?.solde_debiteur || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceGeneraleData.totaux?.solde_crediteur || 0) / 100)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-gray-500">Aucune donnée</div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Balance Clients */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-blue-500" />
+                      Balance Clients (411)
+                    </CardTitle>
+                    <p className="text-sm text-gray-500">Sous-comptes auxiliaires clients</p>
+                  </CardHeader>
+                  <CardContent>
+                    {balanceClientsLoading ? (
+                      <div className="py-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+                    ) : balanceClientsData?.comptes && balanceClientsData.comptes.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-blue-50">
+                            <tr>
+                              <th className="text-left py-2 px-3 font-medium text-blue-700">Compte</th>
+                              <th className="text-left py-2 px-3 font-medium text-blue-700">Client</th>
+                              <th className="text-right py-2 px-3 font-medium text-blue-700">Débit</th>
+                              <th className="text-right py-2 px-3 font-medium text-blue-700">Crédit</th>
+                              <th className="text-right py-2 px-3 font-medium text-blue-700">Solde</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balanceClientsData.comptes.map((c) => (
+                              <tr key={c.compte} className="border-t hover:bg-blue-50">
+                                <td className="py-2 px-3">
+                                  <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{c.compte}</span>
+                                </td>
+                                <td className="py-2 px-3">{c.nom}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
+                                <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
+                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.solde / 100)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-blue-100 font-bold">
+                            <tr>
+                              <td colSpan={2} className="py-2 px-3">TOTAL ({balanceClientsData.totaux?.nb_comptes} clients)</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.mouvement_debit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.mouvement_credit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.solde || 0) / 100)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-4 text-center text-gray-500">Aucun sous-compte client</div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Balance Fournisseurs */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-orange-500" />
+                      Balance Fournisseurs (401)
+                    </CardTitle>
+                    <p className="text-sm text-gray-500">Sous-comptes auxiliaires fournisseurs</p>
+                  </CardHeader>
+                  <CardContent>
+                    {balanceFournisseursLoading ? (
+                      <div className="py-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+                    ) : balanceFournisseursData?.comptes && balanceFournisseursData.comptes.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-orange-50">
+                            <tr>
+                              <th className="text-left py-2 px-3 font-medium text-orange-700">Compte</th>
+                              <th className="text-left py-2 px-3 font-medium text-orange-700">Fournisseur</th>
+                              <th className="text-right py-2 px-3 font-medium text-orange-700">Débit</th>
+                              <th className="text-right py-2 px-3 font-medium text-orange-700">Crédit</th>
+                              <th className="text-right py-2 px-3 font-medium text-orange-700">Solde</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balanceFournisseursData.comptes.map((c) => (
+                              <tr key={c.compte} className="border-t hover:bg-orange-50">
+                                <td className="py-2 px-3">
+                                  <span className="font-mono text-xs bg-orange-100 text-orange-700 px-1.5 rounded">{c.compte}</span>
+                                </td>
+                                <td className="py-2 px-3">{c.nom}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
+                                <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
+                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.solde / 100)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-orange-100 font-bold">
+                            <tr>
+                              <td colSpan={2} className="py-2 px-3">TOTAL ({balanceFournisseursData.totaux?.nb_comptes} fournisseurs)</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.mouvement_debit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.mouvement_credit || 0) / 100)}</td>
+                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.solde || 0) / 100)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-4 text-center text-gray-500">Aucun sous-compte fournisseur</div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Balance Âgée Sub-tab */}
+            {expertSubTab === 'balance-agee' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-amber-500" />
+                    Balance Âgée des Créances
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">Analyse du vieillissement des créances clients</p>
+                </CardHeader>
+                <CardContent>
+                  {balanceAgeeLoading ? (
+                    <div className="py-8 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                    </div>
+                  ) : balanceAgeeData?.clients && balanceAgeeData.clients.length > 0 ? (
+                    <>
+                      {/* KPIs */}
+                      <div className="grid grid-cols-6 gap-3 mb-6">
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-gray-500">Total dû</p>
+                          <p className="text-lg font-bold text-gray-800">{formatCurrency((balanceAgeeData.totaux?.total_du || 0) / 100)}</p>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-green-600">Non échu</p>
+                          <p className="text-lg font-bold text-green-700">{formatCurrency((balanceAgeeData.totaux?.non_echu || 0) / 100)}</p>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-yellow-600">0-30 jours</p>
+                          <p className="text-lg font-bold text-yellow-700">{formatCurrency((balanceAgeeData.totaux?.echu_0_30 || 0) / 100)}</p>
+                        </div>
+                        <div className="bg-orange-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-orange-600">31-60 jours</p>
+                          <p className="text-lg font-bold text-orange-700">{formatCurrency((balanceAgeeData.totaux?.echu_31_60 || 0) / 100)}</p>
+                        </div>
+                        <div className="bg-red-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-red-600">61-90 jours</p>
+                          <p className="text-lg font-bold text-red-700">{formatCurrency((balanceAgeeData.totaux?.echu_61_90 || 0) / 100)}</p>
+                        </div>
+                        <div className="bg-rose-50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-rose-600">+90 jours</p>
+                          <p className="text-lg font-bold text-rose-700">{formatCurrency((balanceAgeeData.totaux?.echu_plus_90 || 0) / 100)}</p>
+                        </div>
+                      </div>
+
+                      {/* Tableau */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-amber-50">
+                            <tr>
+                              <th className="text-left py-2 px-3 font-medium text-amber-700">Compte</th>
+                              <th className="text-left py-2 px-3 font-medium text-amber-700">Client</th>
+                              <th className="text-right py-2 px-3 font-medium text-amber-700">Total dû</th>
+                              <th className="text-right py-2 px-3 font-medium text-green-600">Non échu</th>
+                              <th className="text-right py-2 px-3 font-medium text-yellow-600">0-30j</th>
+                              <th className="text-right py-2 px-3 font-medium text-orange-600">31-60j</th>
+                              <th className="text-right py-2 px-3 font-medium text-red-600">61-90j</th>
+                              <th className="text-right py-2 px-3 font-medium text-rose-600">+90j</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balanceAgeeData.clients.map((c) => (
+                              <tr key={c.client_id} className="border-t hover:bg-amber-50">
+                                <td className="py-2 px-3">
+                                  <span className="font-mono text-xs bg-amber-100 text-amber-700 px-1.5 rounded">{c.compte}</span>
+                                </td>
+                                <td className="py-2 px-3">{c.client_nom}</td>
+                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.total_du / 100)}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{c.non_echu > 0 ? formatCurrency(c.non_echu / 100) : '-'}</td>
+                                <td className="py-2 px-3 text-right text-yellow-600">{c.echu_0_30 > 0 ? formatCurrency(c.echu_0_30 / 100) : '-'}</td>
+                                <td className="py-2 px-3 text-right text-orange-600">{c.echu_31_60 > 0 ? formatCurrency(c.echu_31_60 / 100) : '-'}</td>
+                                <td className="py-2 px-3 text-right text-red-600">{c.echu_61_90 > 0 ? formatCurrency(c.echu_61_90 / 100) : '-'}</td>
+                                <td className="py-2 px-3 text-right text-rose-600">{c.echu_plus_90 > 0 ? formatCurrency(c.echu_plus_90 / 100) : '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="py-8 text-center text-gray-500">
+                      Aucune créance client à analyser
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

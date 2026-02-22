@@ -856,14 +856,18 @@ async function generateFactureEcritures(tenantId, factureId) {
   const montantHT = facture.montant_ht || montantTTC;
   const montantTVA = facture.montant_tva || 0;
 
+  // Sous-compte client (411 + client_id sur 5 chiffres)
+  const compteClient = facture.client_id ? getCompteClient(facture.client_id) : '411';
+  const libelleClient = facture.client_nom ? `Client ${facture.client_nom}` : 'Clients';
+
   const ecritures = [
     {
       tenant_id: tenantId,
       journal_code: 'VT',
       date_ecriture: dateFacture,
       numero_piece: facture.numero,
-      compte_numero: '411',
-      compte_libelle: 'Clients',
+      compte_numero: compteClient,
+      compte_libelle: libelleClient,
       libelle: `Facture ${facture.numero} - ${facture.client_nom}`,
       debit: montantTTC,
       credit: 0,
@@ -935,8 +939,8 @@ async function generateFactureEcritures(tenantId, factureId) {
         journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
-        compte_numero: '411',
-        compte_libelle: 'Clients',
+        compte_numero: compteClient,
+        compte_libelle: libelleClient,
         libelle: `Règlement ${facture.numero}`,
         debit: 0,
         credit: montantTTC,
@@ -979,6 +983,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
   const montantTVA = depense.montant_tva || 0;
   const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
+  // Sous-compte fournisseur (401 + depense_id sur 5 chiffres)
+  const compteFournisseur = getCompteFournisseur(depenseId);
+  const libelleFournisseur = depense.fournisseur || depense.libelle || 'Fournisseur';
+
   const ecritures = [
     {
       tenant_id: tenantId,
@@ -999,8 +1007,8 @@ async function generateDepenseEcritures(tenantId, depenseId) {
       journal_code: 'AC',
       date_ecriture: dateDepense,
       numero_piece: `DEP-${depense.id}`,
-      compte_numero: '401',
-      compte_libelle: 'Fournisseurs',
+      compte_numero: compteFournisseur,
+      compte_libelle: libelleFournisseur,
       libelle: depense.libelle || depense.categorie,
       debit: 0,
       credit: montantTTC,
@@ -1037,8 +1045,8 @@ async function generateDepenseEcritures(tenantId, depenseId) {
         journal_code: 'BQ',
         date_ecriture: datePaiement,
         numero_piece: `DEP-${depense.id}`,
-        compte_numero: '401',
-        compte_libelle: 'Fournisseurs',
+        compte_numero: compteFournisseur,
+        compte_libelle: libelleFournisseur,
         libelle: `Règlement ${depense.libelle || depense.categorie}`,
         debit: montantTTC,
         credit: 0,
@@ -1387,5 +1395,969 @@ router.get('/a-nouveaux/status', async (req, res) => {
     res.status(500).json({ error: 'Erreur vérification à nouveaux' });
   }
 });
+
+// ============================================
+// SOUS-COMPTES AUXILIAIRES
+// ============================================
+
+/**
+ * Génère un numéro de sous-compte client (411XXXXX)
+ * @param {number} clientId - ID du client
+ * @returns {string} - Numéro de compte (ex: 41100001)
+ */
+function getCompteClient(clientId) {
+  return `411${String(clientId).padStart(5, '0')}`;
+}
+
+/**
+ * Génère un numéro de sous-compte fournisseur (401XXXXX)
+ * @param {number} fournisseurId - ID du fournisseur ou dépense
+ * @returns {string} - Numéro de compte (ex: 40100001)
+ */
+function getCompteFournisseur(fournisseurId) {
+  return `401${String(fournisseurId).padStart(5, '0')}`;
+}
+
+/**
+ * GET /api/journaux/plan-comptable
+ * Retourne le plan comptable avec tous les comptes utilisés
+ */
+router.get('/plan-comptable', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer tous les comptes distincts utilisés
+    const { data: ecritures, error } = await supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle')
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+
+    // Dédupliquer et trier
+    const comptesMap = new Map();
+    ecritures?.forEach(e => {
+      if (!comptesMap.has(e.compte_numero)) {
+        comptesMap.set(e.compte_numero, {
+          numero: e.compte_numero,
+          libelle: e.compte_libelle || getLibelleCompte(e.compte_numero),
+          classe: e.compte_numero.charAt(0)
+        });
+      }
+    });
+
+    const comptes = Array.from(comptesMap.values())
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+
+    // Grouper par classe
+    const classes = {
+      '1': { libelle: 'Capitaux', comptes: [] },
+      '2': { libelle: 'Immobilisations', comptes: [] },
+      '3': { libelle: 'Stocks', comptes: [] },
+      '4': { libelle: 'Tiers', comptes: [] },
+      '5': { libelle: 'Trésorerie', comptes: [] },
+      '6': { libelle: 'Charges', comptes: [] },
+      '7': { libelle: 'Produits', comptes: [] }
+    };
+
+    comptes.forEach(c => {
+      if (classes[c.classe]) {
+        classes[c.classe].comptes.push(c);
+      }
+    });
+
+    res.json({ comptes, classes });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur plan comptable:', error);
+    res.status(500).json({ error: 'Erreur récupération plan comptable' });
+  }
+});
+
+// ============================================
+// GRAND LIVRE
+// ============================================
+
+/**
+ * GET /api/journaux/grand-livre
+ * Grand livre par compte avec détail des mouvements
+ */
+router.get('/grand-livre', async (req, res) => {
+  try {
+    const { compte, periode_debut, periode_fin, exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('compte_numero', { ascending: true })
+      .order('date_ecriture', { ascending: true });
+
+    // Filtres
+    if (compte) {
+      // Permet de filtrer par préfixe (ex: 411 pour tous les clients)
+      query = query.like('compte_numero', `${compte}%`);
+    }
+    if (periode_debut) {
+      query = query.gte('periode', periode_debut);
+    }
+    if (periode_fin) {
+      query = query.lte('periode', periode_fin);
+    }
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Grouper par compte
+    const grandLivre = {};
+    let soldeGlobal = 0;
+
+    ecritures?.forEach(e => {
+      const num = e.compte_numero;
+      if (!grandLivre[num]) {
+        grandLivre[num] = {
+          compte_numero: num,
+          compte_libelle: e.compte_libelle || getLibelleCompte(num),
+          mouvements: [],
+          total_debit: 0,
+          total_credit: 0,
+          solde: 0
+        };
+      }
+
+      grandLivre[num].mouvements.push({
+        id: e.id,
+        date: e.date_ecriture,
+        journal: e.journal_code,
+        piece: e.numero_piece,
+        libelle: e.libelle,
+        debit: e.debit / 100,
+        credit: e.credit / 100,
+        lettrage: e.lettrage
+      });
+
+      grandLivre[num].total_debit += e.debit || 0;
+      grandLivre[num].total_credit += e.credit || 0;
+    });
+
+    // Calculer les soldes
+    Object.values(grandLivre).forEach(compte => {
+      compte.solde = (compte.total_debit - compte.total_credit) / 100;
+      compte.total_debit /= 100;
+      compte.total_credit /= 100;
+      soldeGlobal += compte.solde;
+    });
+
+    // Convertir en array trié
+    const comptes = Object.values(grandLivre)
+      .sort((a, b) => a.compte_numero.localeCompare(b.compte_numero));
+
+    res.json({
+      grand_livre: comptes,
+      totaux: {
+        debit: comptes.reduce((s, c) => s + c.total_debit, 0),
+        credit: comptes.reduce((s, c) => s + c.total_credit, 0),
+        solde: soldeGlobal
+      },
+      nb_comptes: comptes.length,
+      nb_ecritures: ecritures?.length || 0
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur grand livre:', error);
+    res.status(500).json({ error: 'Erreur génération grand livre' });
+  }
+});
+
+/**
+ * GET /api/journaux/grand-livre/:compte
+ * Détail d'un compte spécifique avec solde progressif
+ */
+router.get('/grand-livre/:compte', async (req, res) => {
+  try {
+    const { compte } = req.params;
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .like('compte_numero', `${compte}%`)
+      .order('date_ecriture', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Calculer le solde progressif
+    let soldeProgressif = 0;
+    const mouvements = ecritures?.map(e => {
+      soldeProgressif += (e.debit - e.credit) / 100;
+      return {
+        id: e.id,
+        date: e.date_ecriture,
+        journal: e.journal_code,
+        piece: e.numero_piece,
+        libelle: e.libelle,
+        debit: e.debit / 100,
+        credit: e.credit / 100,
+        solde_progressif: soldeProgressif,
+        lettrage: e.lettrage,
+        facture_id: e.facture_id,
+        depense_id: e.depense_id
+      };
+    }) || [];
+
+    const totalDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) / 100 || 0;
+    const totalCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) / 100 || 0;
+
+    res.json({
+      compte_numero: compte,
+      compte_libelle: ecritures?.[0]?.compte_libelle || getLibelleCompte(compte),
+      mouvements,
+      totaux: {
+        debit: totalDebit,
+        credit: totalCredit,
+        solde: totalDebit - totalCredit
+      },
+      nb_ecritures: mouvements.length
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur détail compte:', error);
+    res.status(500).json({ error: 'Erreur récupération compte' });
+  }
+});
+
+// ============================================
+// BALANCE DÉTAILLÉE
+// ============================================
+
+/**
+ * GET /api/journaux/balance-generale
+ * Balance générale avec sous-comptes
+ */
+router.get('/balance-generale', async (req, res) => {
+  try {
+    const { periode, exercice, avec_sous_comptes } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit')
+      .eq('tenant_id', tenantId);
+
+    if (periode) {
+      query = query.eq('periode', periode);
+    }
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par compte
+    const comptes = {};
+    ecritures?.forEach(e => {
+      const num = avec_sous_comptes === 'true' ? e.compte_numero : e.compte_numero.substring(0, 3);
+      if (!comptes[num]) {
+        comptes[num] = {
+          numero: num,
+          libelle: e.compte_libelle || getLibelleCompte(num),
+          debit: 0,
+          credit: 0,
+          sous_comptes: {}
+        };
+      }
+      comptes[num].debit += e.debit || 0;
+      comptes[num].credit += e.credit || 0;
+
+      // Ajouter aux sous-comptes si différent du compte principal
+      if (avec_sous_comptes === 'true' && e.compte_numero.length > 3) {
+        const sousCompte = e.compte_numero;
+        if (!comptes[num].sous_comptes[sousCompte]) {
+          comptes[num].sous_comptes[sousCompte] = {
+            numero: sousCompte,
+            libelle: e.compte_libelle,
+            debit: 0,
+            credit: 0
+          };
+        }
+        comptes[num].sous_comptes[sousCompte].debit += e.debit || 0;
+        comptes[num].sous_comptes[sousCompte].credit += e.credit || 0;
+      }
+    });
+
+    // Calculer soldes et formater
+    const balance = Object.values(comptes).map(c => ({
+      numero: c.numero,
+      libelle: c.libelle,
+      debit: c.debit / 100,
+      credit: c.credit / 100,
+      solde_debiteur: c.debit > c.credit ? (c.debit - c.credit) / 100 : 0,
+      solde_crediteur: c.credit > c.debit ? (c.credit - c.debit) / 100 : 0,
+      sous_comptes: Object.values(c.sous_comptes).map(sc => ({
+        ...sc,
+        debit: sc.debit / 100,
+        credit: sc.credit / 100,
+        solde: (sc.debit - sc.credit) / 100
+      }))
+    })).sort((a, b) => a.numero.localeCompare(b.numero));
+
+    // Totaux
+    const totaux = {
+      debit: balance.reduce((s, c) => s + c.debit, 0),
+      credit: balance.reduce((s, c) => s + c.credit, 0),
+      solde_debiteur: balance.reduce((s, c) => s + c.solde_debiteur, 0),
+      solde_crediteur: balance.reduce((s, c) => s + c.solde_crediteur, 0)
+    };
+
+    res.json({ balance, totaux, nb_comptes: balance.length });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur balance générale:', error);
+    res.status(500).json({ error: 'Erreur génération balance' });
+  }
+});
+
+/**
+ * GET /api/journaux/balance-clients
+ * Balance auxiliaire clients (comptes 411)
+ */
+router.get('/balance-clients', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit, facture_id')
+      .eq('tenant_id', tenantId)
+      .like('compte_numero', '411%');
+
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par sous-compte client
+    const clients = {};
+    ecritures?.forEach(e => {
+      const num = e.compte_numero;
+      if (!clients[num]) {
+        clients[num] = {
+          compte: num,
+          libelle: e.compte_libelle || 'Client',
+          debit: 0,
+          credit: 0,
+          nb_factures: new Set()
+        };
+      }
+      clients[num].debit += e.debit || 0;
+      clients[num].credit += e.credit || 0;
+      if (e.facture_id) clients[num].nb_factures.add(e.facture_id);
+    });
+
+    const balance = Object.values(clients).map(c => ({
+      compte: c.compte,
+      libelle: c.libelle,
+      debit: c.debit / 100,
+      credit: c.credit / 100,
+      solde: (c.debit - c.credit) / 100,
+      nb_factures: c.nb_factures.size
+    })).sort((a, b) => b.solde - a.solde); // Plus gros soldes en premier
+
+    const totaux = {
+      debit: balance.reduce((s, c) => s + c.debit, 0),
+      credit: balance.reduce((s, c) => s + c.credit, 0),
+      solde: balance.reduce((s, c) => s + c.solde, 0)
+    };
+
+    res.json({ balance, totaux, nb_clients: balance.length });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur balance clients:', error);
+    res.status(500).json({ error: 'Erreur génération balance clients' });
+  }
+});
+
+/**
+ * GET /api/journaux/balance-fournisseurs
+ * Balance auxiliaire fournisseurs (comptes 401)
+ */
+router.get('/balance-fournisseurs', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit, depense_id')
+      .eq('tenant_id', tenantId)
+      .like('compte_numero', '401%');
+
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par sous-compte fournisseur
+    const fournisseurs = {};
+    ecritures?.forEach(e => {
+      const num = e.compte_numero;
+      if (!fournisseurs[num]) {
+        fournisseurs[num] = {
+          compte: num,
+          libelle: e.compte_libelle || 'Fournisseur',
+          debit: 0,
+          credit: 0,
+          nb_factures: new Set()
+        };
+      }
+      fournisseurs[num].debit += e.debit || 0;
+      fournisseurs[num].credit += e.credit || 0;
+      if (e.depense_id) fournisseurs[num].nb_factures.add(e.depense_id);
+    });
+
+    const balance = Object.values(fournisseurs).map(f => ({
+      compte: f.compte,
+      libelle: f.libelle,
+      debit: f.debit / 100,
+      credit: f.credit / 100,
+      solde: (f.credit - f.debit) / 100, // Créditeur pour les fournisseurs
+      nb_factures: f.nb_factures.size
+    })).sort((a, b) => b.solde - a.solde);
+
+    const totaux = {
+      debit: balance.reduce((s, f) => s + f.debit, 0),
+      credit: balance.reduce((s, f) => s + f.credit, 0),
+      solde: balance.reduce((s, f) => s + f.solde, 0)
+    };
+
+    res.json({ balance, totaux, nb_fournisseurs: balance.length });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur balance fournisseurs:', error);
+    res.status(500).json({ error: 'Erreur génération balance fournisseurs' });
+  }
+});
+
+// ============================================
+// BILAN & COMPTE DE RÉSULTAT
+// ============================================
+
+/**
+ * GET /api/journaux/bilan
+ * Bilan comptable (Actif / Passif)
+ */
+router.get('/bilan', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit')
+      .eq('tenant_id', tenantId);
+
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par compte (racine 3 caractères)
+    const comptes = {};
+    ecritures?.forEach(e => {
+      const num = e.compte_numero.substring(0, 3);
+      if (!comptes[num]) {
+        comptes[num] = {
+          numero: num,
+          libelle: getLibelleCompte(num),
+          debit: 0,
+          credit: 0
+        };
+      }
+      comptes[num].debit += e.debit || 0;
+      comptes[num].credit += e.credit || 0;
+    });
+
+    // Séparer Actif (classes 2, 3, 4 débiteur, 5) et Passif (classes 1, 4 créditeur)
+    const actif = {
+      immobilisations: [], // Classe 2
+      stocks: [],          // Classe 3
+      creances: [],        // Classe 4 débiteur
+      tresorerie: []       // Classe 5
+    };
+
+    const passif = {
+      capitaux: [],        // Classe 1
+      dettes: []           // Classe 4 créditeur
+    };
+
+    Object.values(comptes).forEach(c => {
+      const classe = c.numero.charAt(0);
+      const solde = (c.debit - c.credit) / 100;
+
+      if (classe === '2') {
+        actif.immobilisations.push({ ...c, solde });
+      } else if (classe === '3') {
+        actif.stocks.push({ ...c, solde });
+      } else if (classe === '5') {
+        actif.tresorerie.push({ ...c, solde: Math.abs(solde), sens: solde >= 0 ? 'debiteur' : 'crediteur' });
+      } else if (classe === '4') {
+        if (solde > 0) {
+          actif.creances.push({ ...c, solde });
+        } else {
+          passif.dettes.push({ ...c, solde: Math.abs(solde) });
+        }
+      } else if (classe === '1') {
+        passif.capitaux.push({ ...c, solde: Math.abs(solde) });
+      }
+    });
+
+    // Calculer le résultat (classes 6 et 7)
+    let produits = 0;
+    let charges = 0;
+    Object.values(comptes).forEach(c => {
+      const classe = c.numero.charAt(0);
+      if (classe === '7') {
+        produits += (c.credit - c.debit) / 100;
+      } else if (classe === '6') {
+        charges += (c.debit - c.credit) / 100;
+      }
+    });
+    const resultat = produits - charges;
+
+    // Ajouter le résultat au passif
+    if (resultat !== 0) {
+      passif.capitaux.push({
+        numero: resultat >= 0 ? '120' : '129',
+        libelle: resultat >= 0 ? 'Résultat de l\'exercice (bénéfice)' : 'Résultat de l\'exercice (perte)',
+        solde: Math.abs(resultat)
+      });
+    }
+
+    // Totaux
+    const totalActif =
+      actif.immobilisations.reduce((s, c) => s + c.solde, 0) +
+      actif.stocks.reduce((s, c) => s + c.solde, 0) +
+      actif.creances.reduce((s, c) => s + c.solde, 0) +
+      actif.tresorerie.filter(c => c.sens === 'debiteur').reduce((s, c) => s + c.solde, 0);
+
+    const totalPassif =
+      passif.capitaux.reduce((s, c) => s + c.solde, 0) +
+      passif.dettes.reduce((s, c) => s + c.solde, 0);
+
+    res.json({
+      actif,
+      passif,
+      totaux: {
+        actif: totalActif,
+        passif: totalPassif,
+        equilibre: Math.abs(totalActif - totalPassif) < 0.01
+      },
+      resultat: {
+        produits,
+        charges,
+        resultat,
+        type: resultat >= 0 ? 'bénéfice' : 'perte'
+      },
+      exercice: exercice || new Date().getFullYear()
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur bilan:', error);
+    res.status(500).json({ error: 'Erreur génération bilan' });
+  }
+});
+
+/**
+ * GET /api/journaux/compte-resultat
+ * Compte de résultat (Charges / Produits)
+ */
+router.get('/compte-resultat', async (req, res) => {
+  try {
+    const { exercice, periode } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit')
+      .eq('tenant_id', tenantId);
+
+    if (exercice) {
+      query = query.eq('exercice', parseInt(exercice));
+    }
+    if (periode) {
+      query = query.eq('periode', periode);
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par compte (racine 3 caractères)
+    const comptes = {};
+    ecritures?.forEach(e => {
+      const classe = e.compte_numero.charAt(0);
+      if (classe !== '6' && classe !== '7') return; // Que charges et produits
+
+      const num = e.compte_numero.substring(0, 3);
+      if (!comptes[num]) {
+        comptes[num] = {
+          numero: num,
+          libelle: getLibelleCompte(num),
+          debit: 0,
+          credit: 0
+        };
+      }
+      comptes[num].debit += e.debit || 0;
+      comptes[num].credit += e.credit || 0;
+    });
+
+    // Séparer charges (classe 6) et produits (classe 7)
+    const charges = {
+      exploitation: [],    // 60-65
+      financieres: [],     // 66
+      exceptionnelles: []  // 67
+    };
+
+    const produits = {
+      exploitation: [],    // 70-75
+      financiers: [],      // 76
+      exceptionnels: []    // 77
+    };
+
+    Object.values(comptes).forEach(c => {
+      const num = parseInt(c.numero);
+      const montant = c.numero.charAt(0) === '6'
+        ? (c.debit - c.credit) / 100   // Charges = débiteur
+        : (c.credit - c.debit) / 100;  // Produits = créditeur
+
+      if (num >= 600 && num <= 659) {
+        charges.exploitation.push({ ...c, montant });
+      } else if (num >= 660 && num <= 669) {
+        charges.financieres.push({ ...c, montant });
+      } else if (num >= 670 && num <= 679) {
+        charges.exceptionnelles.push({ ...c, montant });
+      } else if (num >= 700 && num <= 759) {
+        produits.exploitation.push({ ...c, montant });
+      } else if (num >= 760 && num <= 769) {
+        produits.financiers.push({ ...c, montant });
+      } else if (num >= 770 && num <= 779) {
+        produits.exceptionnels.push({ ...c, montant });
+      }
+    });
+
+    // Calculs
+    const totalChargesExploitation = charges.exploitation.reduce((s, c) => s + c.montant, 0);
+    const totalChargesFinancieres = charges.financieres.reduce((s, c) => s + c.montant, 0);
+    const totalChargesExceptionnelles = charges.exceptionnelles.reduce((s, c) => s + c.montant, 0);
+    const totalCharges = totalChargesExploitation + totalChargesFinancieres + totalChargesExceptionnelles;
+
+    const totalProduitsExploitation = produits.exploitation.reduce((s, c) => s + c.montant, 0);
+    const totalProduitsFinanciers = produits.financiers.reduce((s, c) => s + c.montant, 0);
+    const totalProduitsExceptionnels = produits.exceptionnels.reduce((s, c) => s + c.montant, 0);
+    const totalProduits = totalProduitsExploitation + totalProduitsFinanciers + totalProduitsExceptionnels;
+
+    const resultatExploitation = totalProduitsExploitation - totalChargesExploitation;
+    const resultatFinancier = totalProduitsFinanciers - totalChargesFinancieres;
+    const resultatExceptionnel = totalProduitsExceptionnels - totalChargesExceptionnelles;
+    const resultatNet = totalProduits - totalCharges;
+
+    res.json({
+      charges,
+      produits,
+      totaux: {
+        charges: {
+          exploitation: totalChargesExploitation,
+          financieres: totalChargesFinancieres,
+          exceptionnelles: totalChargesExceptionnelles,
+          total: totalCharges
+        },
+        produits: {
+          exploitation: totalProduitsExploitation,
+          financiers: totalProduitsFinanciers,
+          exceptionnels: totalProduitsExceptionnels,
+          total: totalProduits
+        },
+        resultats: {
+          exploitation: resultatExploitation,
+          financier: resultatFinancier,
+          exceptionnel: resultatExceptionnel,
+          net: resultatNet,
+          type: resultatNet >= 0 ? 'bénéfice' : 'perte'
+        }
+      },
+      exercice: exercice || new Date().getFullYear(),
+      periode: periode || 'annuel'
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur compte résultat:', error);
+    res.status(500).json({ error: 'Erreur génération compte de résultat' });
+  }
+});
+
+// ============================================
+// BALANCE ÂGÉE (Créances et Dettes)
+// ============================================
+
+/**
+ * GET /api/journaux/balance-agee
+ * Balance âgée des créances clients
+ */
+router.get('/balance-agee', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const today = new Date();
+
+    // Récupérer les factures non soldées
+    const { data: factures, error } = await supabase
+      .from('factures')
+      .select('id, numero, client_nom, montant_ttc, date_facture, statut')
+      .eq('tenant_id', tenantId)
+      .in('statut', ['generee', 'envoyee'])
+      .order('date_facture', { ascending: true });
+
+    if (error) throw error;
+
+    // Catégoriser par ancienneté
+    const tranches = {
+      non_echu: { label: 'Non échu', factures: [], total: 0 },
+      de_0_30: { label: '0-30 jours', factures: [], total: 0 },
+      de_31_60: { label: '31-60 jours', factures: [], total: 0 },
+      de_61_90: { label: '61-90 jours', factures: [], total: 0 },
+      plus_90: { label: '> 90 jours', factures: [], total: 0 }
+    };
+
+    factures?.forEach(f => {
+      const dateFacture = new Date(f.date_facture);
+      const echeance = new Date(dateFacture);
+      echeance.setDate(echeance.getDate() + 30); // Échéance 30 jours par défaut
+
+      const joursRetard = Math.floor((today - echeance) / (1000 * 60 * 60 * 24));
+      const montant = f.montant_ttc / 100;
+
+      const factureData = {
+        id: f.id,
+        numero: f.numero,
+        client: f.client_nom,
+        date: f.date_facture,
+        montant,
+        jours_retard: Math.max(0, joursRetard)
+      };
+
+      if (joursRetard < 0) {
+        tranches.non_echu.factures.push(factureData);
+        tranches.non_echu.total += montant;
+      } else if (joursRetard <= 30) {
+        tranches.de_0_30.factures.push(factureData);
+        tranches.de_0_30.total += montant;
+      } else if (joursRetard <= 60) {
+        tranches.de_31_60.factures.push(factureData);
+        tranches.de_31_60.total += montant;
+      } else if (joursRetard <= 90) {
+        tranches.de_61_90.factures.push(factureData);
+        tranches.de_61_90.total += montant;
+      } else {
+        tranches.plus_90.factures.push(factureData);
+        tranches.plus_90.total += montant;
+      }
+    });
+
+    const totalCreances = Object.values(tranches).reduce((s, t) => s + t.total, 0);
+
+    res.json({
+      tranches,
+      total: totalCreances,
+      nb_factures: factures?.length || 0,
+      date_analyse: today.toISOString().split('T')[0]
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur balance âgée:', error);
+    res.status(500).json({ error: 'Erreur génération balance âgée' });
+  }
+});
+
+// ============================================
+// FEC - FICHIER DES ÉCRITURES COMPTABLES
+// ============================================
+
+/**
+ * GET /api/journaux/fec
+ * Export FEC (Fichier des Écritures Comptables) - Format légal français
+ */
+router.get('/fec', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    if (!exercice) {
+      return res.status(400).json({ error: 'Exercice requis pour le FEC' });
+    }
+
+    // Récupérer le tenant pour le SIREN
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('name, slug')
+      .eq('id', tenantId)
+      .single();
+
+    // Récupérer toutes les écritures de l'exercice
+    const { data: ecritures, error } = await supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('exercice', parseInt(exercice))
+      .order('date_ecriture', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+
+    // Format FEC (18 colonnes obligatoires)
+    const fecLines = [];
+
+    // En-tête
+    fecLines.push([
+      'JournalCode',
+      'JournalLib',
+      'EcritureNum',
+      'EcritureDate',
+      'CompteNum',
+      'CompteLib',
+      'CompAuxNum',
+      'CompAuxLib',
+      'PieceRef',
+      'PieceDate',
+      'EcritureLib',
+      'Debit',
+      'Credit',
+      'EcritureLet',
+      'DateLet',
+      'ValidDate',
+      'Montantdevise',
+      'Idevise'
+    ].join('\t'));
+
+    let ecritureNum = 1;
+    ecritures?.forEach(e => {
+      const line = [
+        e.journal_code,                                          // JournalCode
+        JOURNAUX[e.journal_code]?.libelle || e.journal_code,    // JournalLib
+        String(ecritureNum++).padStart(8, '0'),                 // EcritureNum
+        formatDateFEC(e.date_ecriture),                         // EcritureDate
+        e.compte_numero,                                         // CompteNum
+        e.compte_libelle || '',                                  // CompteLib
+        '',                                                      // CompAuxNum (auxiliaire)
+        '',                                                      // CompAuxLib
+        e.numero_piece || '',                                    // PieceRef
+        formatDateFEC(e.date_ecriture),                         // PieceDate
+        (e.libelle || '').replace(/\t/g, ' '),                  // EcritureLib
+        formatMontantFEC(e.debit),                              // Debit
+        formatMontantFEC(e.credit),                             // Credit
+        e.lettrage || '',                                        // EcritureLet
+        e.date_lettrage ? formatDateFEC(e.date_lettrage) : '',  // DateLet
+        formatDateFEC(e.date_ecriture),                         // ValidDate
+        '',                                                      // Montantdevise
+        ''                                                       // Idevise
+      ];
+      fecLines.push(line.join('\t'));
+    });
+
+    // Nom du fichier FEC: SIREN + FEC + date de clôture
+    const siren = '000000000'; // À remplacer par le vrai SIREN
+    const dateClot = `${exercice}1231`;
+    const filename = `${siren}FEC${dateClot}.txt`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(fecLines.join('\n'));
+
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur export FEC:', error);
+    res.status(500).json({ error: 'Erreur export FEC' });
+  }
+});
+
+// Helpers pour le FEC
+function formatDateFEC(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatMontantFEC(centimes) {
+  if (!centimes) return '0,00';
+  return (centimes / 100).toFixed(2).replace('.', ',');
+}
+
+/**
+ * Retourne le libellé standard d'un compte
+ */
+function getLibelleCompte(numero) {
+  const libelles = {
+    '101': 'Capital social',
+    '106': 'Réserves',
+    '120': 'Résultat de l\'exercice (bénéfice)',
+    '129': 'Résultat de l\'exercice (perte)',
+    '164': 'Emprunts',
+    '401': 'Fournisseurs',
+    '411': 'Clients',
+    '421': 'Personnel - Rémunérations dues',
+    '431': 'Sécurité sociale',
+    '44566': 'TVA déductible',
+    '44571': 'TVA collectée',
+    '512': 'Banque',
+    '530': 'Caisse',
+    '601': 'Achats fournitures',
+    '606': 'Achats non stockés',
+    '613': 'Locations',
+    '615': 'Entretien et réparations',
+    '616': 'Assurances',
+    '618': 'Divers',
+    '622': 'Honoraires',
+    '623': 'Publicité',
+    '625': 'Déplacements',
+    '626': 'Frais postaux et télécom',
+    '627': 'Services bancaires',
+    '635': 'Impôts et taxes',
+    '641': 'Rémunérations du personnel',
+    '645': 'Charges sociales',
+    '651': 'Redevances',
+    '658': 'Charges diverses',
+    '706': 'Prestations de services',
+    '707': 'Ventes de marchandises',
+    '708': 'Produits annexes',
+    '761': 'Produits financiers',
+    '771': 'Produits exceptionnels'
+  };
+
+  // Chercher correspondance exacte ou par préfixe
+  if (libelles[numero]) return libelles[numero];
+
+  const prefixes = ['44571', '44566', '411', '401', '512', '530', '706', '707'];
+  for (const prefix of prefixes) {
+    if (numero.startsWith(prefix)) {
+      return libelles[prefix] || numero;
+    }
+  }
+
+  return numero;
+}
 
 export default router;
