@@ -227,23 +227,23 @@ export async function getBusinessHoursForTenant(tenantId) {
     return normalizeBusinessHours(FROZEN_HOURS);
   }
 
-  // Try disponibilites table first
+  // Try business_hours table first
   try {
-    const { data: dispo, error } = await rawSupabase
-      .from('disponibilites')
-      .select('jour_semaine, heure_debut, heure_fin, actif')
+    const { data: businessHours, error } = await rawSupabase
+      .from('business_hours')
+      .select('day_of_week, open_time, close_time, is_closed')
       .eq('tenant_id', tenantId);
 
-    if (!error && dispo && dispo.length > 0) {
+    if (!error && businessHours && businessHours.length > 0) {
       const hours = {};
       for (let i = 0; i < 7; i++) {
-        const d = dispo.find(x => x.jour_semaine === i);
-        hours[i] = d?.actif ? { open: d.heure_debut, close: d.heure_fin } : null;
+        const h = businessHours.find(x => x.day_of_week === i);
+        hours[i] = h && !h.is_closed ? { open: h.open_time, close: h.close_time } : null;
       }
       return normalizeBusinessHours({ SCHEDULE: hours });
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading disponibilites:`, err.message);
+    console.warn(`[BUSINESS_RULES] Error loading business_hours:`, err.message);
   }
 
   // Fallback to config

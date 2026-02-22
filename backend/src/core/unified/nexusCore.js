@@ -295,6 +295,69 @@ function invalidateCache(pattern) {
 // Note: TOOLS_CLIENT est importé depuis '../../tools/toolsRegistry.js'
 
 // ============================================
+// TENANT CONFIG LOADER
+// ============================================
+// 🔒 TENANT ISOLATION: Charge la config d'un tenant depuis la DB
+async function getTenantConfigById(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getTenantConfigById requires explicit tenantId');
+  }
+
+  const cacheKey = `tenant_config_${tenantId}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  const db = getSupabase();
+  if (!db) {
+    console.warn('[NEXUS CORE] Supabase non disponible, utilisation fallback');
+    return null;
+  }
+
+  try {
+    const { data: tenant, error } = await db
+      .from('tenants')
+      .select('*')
+      .eq('id', tenantId)
+      .single();
+
+    if (error || !tenant) {
+      console.warn(`[NEXUS CORE] Tenant non trouvé: ${tenantId}`);
+      return null;
+    }
+
+    // Normaliser la config
+    const config = {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      domain: tenant.domain,
+      concept: tenant.concept,
+      gerante: tenant.gerante,
+      adresse: tenant.adresse,
+      telephone: tenant.telephone,
+      ville: tenant.ville,
+      secteur: tenant.secteur_id,
+      template_id: tenant.template_id || 'salon',
+      assistant_name: tenant.assistant_name || 'l\'assistant',
+      assistant_gender: tenant.assistant_gender || 'F',
+      personality: tenant.personality || {},
+      business_hours: tenant.business_hours || {},
+      service_options: tenant.service_options || {},
+      prompt_overrides: tenant.prompt_overrides || {},
+      voice_config: tenant.voice_config || {},
+      features: tenant.features || {},
+      branding: tenant.branding || {},
+    };
+
+    setCache(cacheKey, config, 5 * 60 * 1000); // Cache 5 min
+    return config;
+  } catch (err) {
+    console.error(`[NEXUS CORE] Erreur chargement tenant ${tenantId}:`, err.message);
+    return null;
+  }
+}
+
+// ============================================
 // IMPLÉMENTATION DES OUTILS
 // ============================================
 
@@ -314,11 +377,13 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         break;
 
       case 'get_services':
-        result = getServicesFormatted(toolInput.categorie);
+        // 🔒 TENANT ISOLATION: Services dynamiques par tenant
+        result = await getServicesFormatted(toolInput.categorie, tenantId);
         break;
 
       case 'get_price':
-        result = getPriceForService(toolInput.service_name);
+        // 🔒 TENANT ISOLATION: Prix dynamiques par tenant
+        result = await getPriceForService(toolInput.service_name, tenantId);
         break;
 
       case 'check_availability':
@@ -330,16 +395,8 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         break;
 
       case 'calculate_travel_fee':
-        // Bloquer si domicile désactivé
-        if (!SERVICE_OPTIONS.DOMICILE_ENABLED) {
-          result = {
-            success: false,
-            error: SERVICE_OPTIONS.DOMICILE_DISABLED_MESSAGE,
-            domicile_disabled: true
-          };
-        } else {
-          result = calculateTravelFeeUnified(toolInput.distance_km);
-        }
+        // 🔒 TENANT ISOLATION: Frais de déplacement dynamiques par tenant
+        result = await calculateTravelFeeUnified(toolInput.distance_km, tenantId);
         break;
 
       case 'create_booking':
@@ -370,11 +427,13 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         break;
 
       case 'get_salon_info':
-        result = getSalonInfoUnified();
+        // 🔒 TENANT ISOLATION: Infos business dynamiques par tenant
+        result = await getBusinessInfoUnified(tenantId);
         break;
 
       case 'get_business_hours':
-        result = getBusinessHoursUnified(toolInput.jour);
+        // 🔒 TENANT ISOLATION: Horaires dynamiques par tenant
+        result = await getBusinessHoursUnified(toolInput.jour, tenantId);
         break;
 
       case 'get_upcoming_days':
@@ -693,8 +752,14 @@ function parseDate(dateText, heure) {
 }
 
 // --- GET SERVICES ---
-function getServicesFormatted(categorie = 'all') {
-  const allServices = getAllServices();
+// 🔒 TENANT ISOLATION: Services dynamiques par tenant
+async function getServicesFormatted(categorie = 'all', tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getServicesFormatted requires explicit tenantId');
+  }
+
+  // Utiliser le système multi-tenant
+  const allServices = await getServicesForTenant(tenantId);
   const filtered = categorie === 'all'
     ? allServices
     : allServices.filter(s => s.category === categorie);
@@ -717,8 +782,13 @@ function getServicesFormatted(categorie = 'all') {
 }
 
 // --- GET PRICE ---
-function getPriceForService(serviceName) {
-  const service = findServiceByName(serviceName);
+// 🔒 TENANT ISOLATION: Prix dynamiques par tenant
+async function getPriceForService(serviceName, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getPriceForService requires explicit tenantId');
+  }
+
+  const service = await findServiceByNameForTenant(tenantId, serviceName);
   if (!service) {
     return { success: false, error: `Service non trouvé: "${serviceName}"` };
   }
@@ -734,7 +804,7 @@ function getPriceForService(serviceName) {
 }
 
 // --- CHECK AVAILABILITY ---
-// 🔒 TENANT ISOLATION: Filtre par tenant_id
+// 🔒 TENANT ISOLATION: Filtre par tenant_id et services dynamiques
 async function checkAvailabilityUnified(date, heure, serviceName, tenantId) {
   if (!tenantId) {
     throw new Error('TENANT_ID_REQUIRED: checkAvailabilityUnified requires explicit tenantId');
@@ -744,12 +814,13 @@ async function checkAvailabilityUnified(date, heure, serviceName, tenantId) {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  const service = findServiceByName(serviceName);
+  // 🔒 TENANT ISOLATION: Utiliser le système multi-tenant pour trouver le service
+  const service = await findServiceByNameForTenant(tenantId, serviceName);
   if (!service) {
     return { success: false, error: `Service non trouvé: "${serviceName}"` };
   }
 
-  // Vérifier ambiguïté
+  // Vérifier ambiguïté (TODO: rendre multi-tenant via template)
   const ambiguity = checkAmbiguousTerm(serviceName);
   if (ambiguity) {
     return {
@@ -802,7 +873,7 @@ async function checkAvailabilityUnified(date, heure, serviceName, tenantId) {
 }
 
 // --- GET AVAILABLE SLOTS ---
-// 🔒 TENANT ISOLATION: Filtre par tenant_id
+// 🔒 TENANT ISOLATION: Filtre par tenant_id et services dynamiques
 async function getAvailableSlotsUnified(date, serviceName, tenantId) {
   if (!tenantId) {
     throw new Error('TENANT_ID_REQUIRED: getAvailableSlotsUnified requires explicit tenantId');
@@ -812,7 +883,8 @@ async function getAvailableSlotsUnified(date, serviceName, tenantId) {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  const service = findServiceByName(serviceName);
+  // 🔒 TENANT ISOLATION: Utiliser le système multi-tenant pour trouver le service
+  const service = await findServiceByNameForTenant(tenantId, serviceName);
   if (!service) {
     return { success: false, error: `Service non trouvé: "${serviceName}"` };
   }
@@ -845,21 +917,45 @@ async function getAvailableSlotsUnified(date, serviceName, tenantId) {
 }
 
 // --- CALCULATE TRAVEL FEE ---
-function calculateTravelFeeUnified(distanceKm) {
-  const fee = TRAVEL_FEES.calculate(distanceKm);
-  const feeCents = TRAVEL_FEES.calculateCents(distanceKm);
+// 🔒 TENANT ISOLATION: Frais de déplacement dynamiques par tenant
+async function calculateTravelFeeUnified(distanceKm, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: calculateTravelFeeUnified requires explicit tenantId');
+  }
+
+  // Vérifier si le domicile est activé pour ce tenant
+  const tenantConfig = await getTenantConfigById(tenantId);
+  const serviceOptions = tenantConfig?.service_options || tenantConfig?.serviceOptions || {};
+
+  if (serviceOptions.domicile_enabled === false) {
+    return {
+      success: false,
+      error: serviceOptions.domicile_disabled_message || "Le service à domicile n'est pas disponible pour le moment.",
+      domicile_disabled: true
+    };
+  }
+
+  // Calculer les frais via le système multi-tenant
+  const result = await calculateTravelFeeForTenant(tenantId, distanceKm);
+
+  if (!result.success) {
+    // Pas de frais configurés - utiliser fallback
+    return {
+      success: true,
+      distance_km: distanceKm,
+      frais: 0,
+      fraisCentimes: 0,
+      message: "Frais de déplacement non configurés pour ce tenant"
+    };
+  }
 
   return {
     success: true,
-    distance_km: distanceKm,
-    frais: fee,
-    fraisCentimes: feeCents,
-    forfaitBase: TRAVEL_FEES.BASE_FEE,
-    distanceBase: TRAVEL_FEES.BASE_DISTANCE_KM,
-    prixKmSupp: TRAVEL_FEES.PER_KM_BEYOND,
-    message: distanceKm <= TRAVEL_FEES.BASE_DISTANCE_KM
-      ? `Frais de déplacement: ${fee}€ (forfait jusqu'à ${TRAVEL_FEES.BASE_DISTANCE_KM}km)`
-      : `Frais de déplacement: ${fee}€ (${TRAVEL_FEES.BASE_FEE}€ + ${(distanceKm - TRAVEL_FEES.BASE_DISTANCE_KM).toFixed(1)}km × ${TRAVEL_FEES.PER_KM_BEYOND}€)`
+    distance_km: result.distanceKm,
+    frais: result.frais,
+    fraisCentimes: result.fraisInCents,
+    gratuit: result.gratuit,
+    message: result.details
   };
 }
 
@@ -1445,38 +1541,63 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
   }
 }
 
-// --- GET SALON INFO ---
-function getSalonInfoUnified() {
+// --- GET BUSINESS INFO ---
+// 🔒 TENANT ISOLATION: Infos business dynamiques par tenant
+async function getBusinessInfoUnified(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getBusinessInfoUnified requires explicit tenantId');
+  }
+
+  const tenantConfig = await getTenantConfigById(tenantId);
+  if (!tenantConfig) {
+    return { success: false, error: 'Tenant non trouvé' };
+  }
+
+  const hoursResult = await getBusinessHoursUnified(null, tenantId);
+
   return {
     success: true,
-    ...SALON_INFO,
-    horaires: getBusinessHoursUnified().horaires
+    nom: tenantConfig.name,
+    concept: tenantConfig.concept || '',
+    gerante: tenantConfig.gerante || '',
+    adresse: tenantConfig.adresse || '',
+    telephone: tenantConfig.telephone || '',
+    ville: tenantConfig.ville || '',
+    horaires: hoursResult.horaires || []
   };
 }
 
 // --- GET BUSINESS HOURS ---
-function getBusinessHoursUnified(jour = null) {
+// 🔒 TENANT ISOLATION: Horaires dynamiques par tenant
+async function getBusinessHoursUnified(jour = null, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getBusinessHoursUnified requires explicit tenantId');
+  }
+
   const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+  // Charger les horaires depuis le système multi-tenant
+  const businessHours = await getBusinessHoursForTenant(tenantId);
 
   if (jour) {
     const dayIndex = jours.indexOf(jour.toLowerCase());
     if (dayIndex === -1) {
       return { success: false, error: `Jour invalide: ${jour}` };
     }
-    const hours = BUSINESS_HOURS.getHours(dayIndex);
+    const hours = businessHours.getHours(dayIndex);
     return {
       success: true,
       jour,
-      ouvert: BUSINESS_HOURS.isOpen(dayIndex),
+      ouvert: businessHours.isOpen(dayIndex),
       horaires: hours ? `${hours.open} - ${hours.close}` : 'Fermé'
     };
   }
 
   const horaires = jours.map((j, i) => {
-    const hours = BUSINESS_HOURS.getHours(i);
+    const hours = businessHours.getHours(i);
     return {
       jour: j,
-      ouvert: BUSINESS_HOURS.isOpen(i),
+      ouvert: businessHours.isOpen(i),
       horaires: hours ? `${hours.open} - ${hours.close}` : 'Fermé'
     };
   });
