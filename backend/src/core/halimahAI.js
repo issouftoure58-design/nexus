@@ -564,6 +564,7 @@ async function executeTool(toolName, toolInput, tenantId) {
 
       // Créer la réservation
       // Note: pas de colonne "lieu", on utilise adresse_client (null = salon)
+      const prixEnCentimes = service.prix * 100; // euros → centimes
       const { error } = await db.from('reservations').insert({
         client_id: clientId,
         tenant_id: tenantId,
@@ -571,7 +572,7 @@ async function executeTool(toolName, toolInput, tenantId) {
         heure: `${toolInput.heure}:00`,
         duree_minutes: service.duree,
         service_nom: service.nom,
-        prix_service: service.prix * 100, // euros → centimes
+        prix_total: prixEnCentimes, // Prix en centimes (divisé par 100 à l'affichage)
         adresse_client: toolInput.lieu === 'domicile' ? toolInput.adresse : null,
         telephone: telephone,
         statut: 'demande',

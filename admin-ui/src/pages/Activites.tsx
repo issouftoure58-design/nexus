@@ -272,7 +272,7 @@ export default function Activites() {
           duree: r.duree || r.duree_minutes || serviceDuree,
           date: r.date || r.date_rdv,
           heure: r.heure || r.heure_rdv,
-          prix: r.prix_total || r.montant || r.prix || 0,
+          prix: r.prix_total ?? r.montant ?? r.prix ?? 0,
         };
       });
 
