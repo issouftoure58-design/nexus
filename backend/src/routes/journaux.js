@@ -754,27 +754,46 @@ router.post('/generer/paie', async (req, res) => {
 router.post('/generer/tout', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
+    console.log(`[JOURNAUX] Début régénération complète pour tenant ${tenantId}`);
 
     // Supprimer les anciennes écritures
-    await supabase
+    const { error: deleteError } = await supabase
       .from('ecritures_comptables')
       .delete()
       .eq('tenant_id', tenantId);
 
-    // Récupérer toutes les factures
-    const { data: factures } = await supabase
+    if (deleteError) {
+      console.error('[JOURNAUX] Erreur suppression anciennes écritures:', deleteError);
+    }
+
+    // Récupérer toutes les factures (sauf annulées)
+    const { data: factures, error: factError } = await supabase
       .from('factures')
-      .select('id')
-      .eq('tenant_id', tenantId);
+      .select('id, numero, statut')
+      .eq('tenant_id', tenantId)
+      .neq('statut', 'annulee');
+
+    if (factError) {
+      console.error('[JOURNAUX] Erreur récupération factures:', factError);
+    }
+
+    console.log(`[JOURNAUX] ${factures?.length || 0} factures à traiter`);
 
     // Récupérer toutes les dépenses
-    const { data: depenses } = await supabase
+    const { data: depenses, error: depError } = await supabase
       .from('depenses')
       .select('id')
       .eq('tenant_id', tenantId);
 
+    if (depError) {
+      console.error('[JOURNAUX] Erreur récupération dépenses:', depError);
+    }
+
+    console.log(`[JOURNAUX] ${depenses?.length || 0} dépenses à traiter`);
+
     let nbFactures = 0;
     let nbDepenses = 0;
+    const erreurs = [];
 
     // Générer écritures factures
     for (const f of factures || []) {
@@ -782,7 +801,8 @@ router.post('/generer/tout', async (req, res) => {
         await generateFactureEcritures(tenantId, f.id);
         nbFactures++;
       } catch (e) {
-        console.error(`Erreur facture ${f.id}:`, e);
+        console.error(`[JOURNAUX] Erreur facture ${f.numero || f.id}:`, e.message);
+        erreurs.push({ type: 'facture', id: f.id, numero: f.numero, error: e.message });
       }
     }
 
@@ -792,29 +812,42 @@ router.post('/generer/tout', async (req, res) => {
         await generateDepenseEcritures(tenantId, d.id);
         nbDepenses++;
       } catch (e) {
-        console.error(`Erreur dépense ${d.id}:`, e);
+        console.error(`[JOURNAUX] Erreur dépense ${d.id}:`, e.message);
+        erreurs.push({ type: 'depense', id: d.id, error: e.message });
       }
     }
 
+    console.log(`[JOURNAUX] Régénération terminée: ${nbFactures} factures, ${nbDepenses} dépenses, ${erreurs.length} erreurs`);
+
     res.json({
       success: true,
-      message: `Écritures générées: ${nbFactures} factures, ${nbDepenses} dépenses`
+      message: `Écritures générées: ${nbFactures} factures, ${nbDepenses} dépenses`,
+      details: {
+        factures: nbFactures,
+        depenses: nbDepenses,
+        erreurs: erreurs.length
+      },
+      erreurs: erreurs.length > 0 ? erreurs : undefined
     });
   } catch (error) {
     console.error('[JOURNAUX] Erreur génération complète:', error);
-    res.status(500).json({ error: 'Erreur génération écritures' });
+    res.status(500).json({ error: 'Erreur génération écritures', details: error.message });
   }
 });
 
 // Fonction helper pour générer écritures facture
 async function generateFactureEcritures(tenantId, factureId) {
-  const { data: facture } = await supabase
+  const { data: facture, error } = await supabase
     .from('factures')
     .select('*')
     .eq('id', factureId)
+    .eq('tenant_id', tenantId)
     .single();
 
-  if (!facture) return;
+  if (error || !facture) {
+    console.error(`[JOURNAUX] Facture ${factureId} non trouvée:`, error?.message);
+    return;
+  }
 
   const dateFacture = facture.date_facture;
   const periode = dateFacture.slice(0, 7);
@@ -914,18 +947,29 @@ async function generateFactureEcritures(tenantId, factureId) {
     );
   }
 
-  await supabase.from('ecritures_comptables').insert(ecritures);
+  if (ecritures.length > 0) {
+    const { error: insertError } = await supabase.from('ecritures_comptables').insert(ecritures);
+    if (insertError) {
+      console.error(`[JOURNAUX] Erreur insertion écritures facture ${facture.numero}:`, insertError.message);
+      throw insertError;
+    }
+    console.log(`[JOURNAUX] ${ecritures.length} écritures générées pour facture ${facture.numero}`);
+  }
 }
 
 // Fonction helper pour générer écritures dépense
 async function generateDepenseEcritures(tenantId, depenseId) {
-  const { data: depense } = await supabase
+  const { data: depense, error } = await supabase
     .from('depenses')
     .select('*')
     .eq('id', depenseId)
+    .eq('tenant_id', tenantId)
     .single();
 
-  if (!depense) return;
+  if (error || !depense) {
+    console.error(`[JOURNAUX] Dépense ${depenseId} non trouvée:`, error?.message);
+    return;
+  }
 
   const dateDepense = depense.date_depense;
   const periode = dateDepense.slice(0, 7);
@@ -1019,7 +1063,14 @@ async function generateDepenseEcritures(tenantId, depenseId) {
     );
   }
 
-  await supabase.from('ecritures_comptables').insert(ecritures);
+  if (ecritures.length > 0) {
+    const { error: insertError } = await supabase.from('ecritures_comptables').insert(ecritures);
+    if (insertError) {
+      console.error(`[JOURNAUX] Erreur insertion écritures dépense ${depenseId}:`, insertError.message);
+      throw insertError;
+    }
+    console.log(`[JOURNAUX] ${ecritures.length} écritures générées pour dépense ${depenseId}`);
+  }
 }
 
 // ============================================
