@@ -329,6 +329,7 @@ export const comptaApi = {
     return api.get<{ factures: Invoice[] }>(`/factures?${query}`);
   },
   getDepenses: () => api.get<{ depenses: Expense[] }>('/depenses'),
+  getCategorieDetail: (categorie: string) => api.get<CategorieDetailResponse>(`/depenses/categories/${categorie}`),
   createDepense: (data: CreateExpenseData) => api.post<{ depense: Expense }>('/depenses', data),
   marquerDepensePayee: (id: number, payee: boolean, mode_paiement?: string) =>
     api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee, mode_paiement }),
@@ -1192,4 +1193,38 @@ export interface BalanceAgeeResponse {
     echu_plus_90: number;
     nb_clients: number;
   };
+}
+
+export interface CategorieDetailResponse {
+  success: boolean;
+  categorie: {
+    id: string;
+    label: string;
+    compte: {
+      numero: string;
+      libelle: string;
+    };
+  };
+  stats: {
+    total_ttc: number;
+    total_ttc_euros: string;
+    total_ht: number;
+    total_ht_euros: string;
+    total_tva: number;
+    total_tva_euros: string;
+    nb_depenses: number;
+    nb_payees: number;
+    nb_non_payees: number;
+    moyenne_ttc: number;
+    derniere_depense: string | null;
+  };
+  depenses: Array<{
+    id: number;
+    date: string;
+    libelle: string;
+    montant_ttc: number;
+    montant_ttc_euros: string;
+    payee: boolean;
+    recurrence: string;
+  }>;
 }

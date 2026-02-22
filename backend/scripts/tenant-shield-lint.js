@@ -32,6 +32,8 @@ const SYSTEM_TABLES = [
   'secteurs',
   'modules_config',
   'system_settings',
+  'business_templates',  // templates métier partagés (salon, restaurant, etc.)
+  'agent_roles',         // rôles d'agent IA partagés
   // Tables enfants qui héritent l'isolation du parent (liées par foreign key)
   'invoice_items',      // liées à invoices par invoice_id
   'quote_items',        // liées à quotes par quote_id

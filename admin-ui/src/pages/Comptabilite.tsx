@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
+import { EntityLink } from '@/components/EntityLink';
 
 const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
   brouillon: { label: 'Brouillon', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
@@ -134,6 +135,7 @@ export default function Comptabilite() {
   const [invoiceClientFilter, setInvoiceClientFilter] = useState<string>('all');
   const [invoiceServiceFilter, setInvoiceServiceFilter] = useState<string>('all');
   const [invoiceDateFilter, setInvoiceDateFilter] = useState<string>('all');
+  const [invoiceMontantFilter, setInvoiceMontantFilter] = useState<string>('all');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('all');
 
   // Filtres dépenses (dans les en-têtes)
@@ -141,6 +143,8 @@ export default function Comptabilite() {
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
   const [expenseDescFilter, setExpenseDescFilter] = useState<string>('all');
   const [expenseMontantFilter, setExpenseMontantFilter] = useState<string>('all');
+  const [expensePayeeFilter, setExpensePayeeFilter] = useState<string>('all');
+  const [expenseTVAFilter, setExpenseTVAFilter] = useState<string>('all');
 
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1042,6 +1046,20 @@ export default function Comptabilite() {
     return { dates, descriptions, montants };
   }, [expensesData]);
 
+  // Helper pour filtrer par tranche de montant
+  const matchesMontantRange = (montantCentimes: number, range: string): boolean => {
+    if (range === 'all') return true;
+    const montant = montantCentimes / 100;
+    switch (range) {
+      case '0-50': return montant >= 0 && montant <= 50;
+      case '50-100': return montant > 50 && montant <= 100;
+      case '100-200': return montant > 100 && montant <= 200;
+      case '200-500': return montant > 200 && montant <= 500;
+      case '500+': return montant > 500;
+      default: return true;
+    }
+  };
+
   // Filtrer les factures
   const filteredInvoices = useMemo(() => {
     return (invoicesData?.factures || []).filter(invoice => {
@@ -1049,10 +1067,11 @@ export default function Comptabilite() {
       if (invoiceClientFilter !== 'all' && invoice.client_nom !== invoiceClientFilter) return false;
       if (invoiceServiceFilter !== 'all' && invoice.service_nom !== invoiceServiceFilter) return false;
       if (invoiceDateFilter !== 'all' && invoice.date_facture?.slice(0, 7) !== invoiceDateFilter) return false;
+      if (!matchesMontantRange(invoice.montant_ttc || 0, invoiceMontantFilter)) return false;
       if (invoiceStatusFilter !== 'all' && invoice.statut !== invoiceStatusFilter) return false;
       return true;
     });
-  }, [invoicesData, invoiceNumeroFilter, invoiceClientFilter, invoiceServiceFilter, invoiceDateFilter, invoiceStatusFilter]);
+  }, [invoicesData, invoiceNumeroFilter, invoiceClientFilter, invoiceServiceFilter, invoiceDateFilter, invoiceMontantFilter, invoiceStatusFilter]);
 
   // Filtrer les dépenses
   const filteredExpenses = useMemo(() => {
@@ -1060,10 +1079,20 @@ export default function Comptabilite() {
       if (expenseDateFilter !== 'all' && expense.date_depense?.slice(0, 7) !== expenseDateFilter) return false;
       if (expenseCategoryFilter !== 'all' && expense.categorie !== expenseCategoryFilter) return false;
       if (expenseDescFilter !== 'all' && (expense.libelle || expense.description) !== expenseDescFilter) return false;
-      if (expenseMontantFilter !== 'all' && expense.montant !== Number(expenseMontantFilter)) return false;
+      if (!matchesMontantRange(expense.montant_ttc || expense.montant || 0, expenseMontantFilter)) return false;
+      if (expensePayeeFilter !== 'all') {
+        const isPayee = expense.payee !== false;
+        if (expensePayeeFilter === 'oui' && !isPayee) return false;
+        if (expensePayeeFilter === 'non' && isPayee) return false;
+      }
+      if (expenseTVAFilter !== 'all') {
+        const isTVA = expense.deductible_tva !== false && (expense.montant_tva || 0) > 0;
+        if (expenseTVAFilter === 'oui' && !isTVA) return false;
+        if (expenseTVAFilter === 'non' && isTVA) return false;
+      }
       return true;
     });
-  }, [expensesData, expenseDateFilter, expenseCategoryFilter, expenseDescFilter, expenseMontantFilter]);
+  }, [expensesData, expenseDateFilter, expenseCategoryFilter, expenseDescFilter, expenseMontantFilter, expensePayeeFilter, expenseTVAFilter]);
 
   // Fonction pour imprimer une facture
   const handlePrintInvoice = async (invoiceId: number) => {
@@ -1397,7 +1426,7 @@ export default function Comptabilite() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">
                 {filteredInvoices.length} facture{filteredInvoices.length > 1 ? 's' : ''}
-                {(invoiceNumeroFilter !== 'all' || invoiceClientFilter !== 'all' || invoiceServiceFilter !== 'all' || invoiceDateFilter !== 'all' || invoiceStatusFilter !== 'all') && (
+                {(invoiceNumeroFilter !== 'all' || invoiceClientFilter !== 'all' || invoiceServiceFilter !== 'all' || invoiceDateFilter !== 'all' || invoiceMontantFilter !== 'all' || invoiceStatusFilter !== 'all') && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1406,6 +1435,7 @@ export default function Comptabilite() {
                       setInvoiceClientFilter('all');
                       setInvoiceServiceFilter('all');
                       setInvoiceDateFilter('all');
+                      setInvoiceMontantFilter('all');
                       setInvoiceStatusFilter('all');
                     }}
                     className="ml-2 text-xs h-6"
@@ -1501,7 +1531,20 @@ export default function Comptabilite() {
                               ))}
                             </select>
                           </th>
-                          <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Montant</th>
+                          <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">
+                            <select
+                              value={invoiceMontantFilter}
+                              onChange={(e) => setInvoiceMontantFilter(e.target.value)}
+                              className="w-full h-8 text-xs px-2 border rounded bg-white font-medium text-right"
+                            >
+                              <option value="all">Montant</option>
+                              <option value="0-50">0 - 50€</option>
+                              <option value="50-100">50 - 100€</option>
+                              <option value="100-200">100 - 200€</option>
+                              <option value="200-500">200 - 500€</option>
+                              <option value="500+">500€+</option>
+                            </select>
+                          </th>
                           <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">
                             <select
                               value={invoiceStatusFilter}
@@ -1578,7 +1621,7 @@ export default function Comptabilite() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">
                 {filteredExpenses.length} dépense{filteredExpenses.length > 1 ? 's' : ''}
-                {(expenseDateFilter !== 'all' || expenseCategoryFilter !== 'all' || expenseDescFilter !== 'all' || expenseMontantFilter !== 'all') && (
+                {(expenseDateFilter !== 'all' || expenseCategoryFilter !== 'all' || expenseDescFilter !== 'all' || expenseMontantFilter !== 'all' || expensePayeeFilter !== 'all' || expenseTVAFilter !== 'all') && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1587,6 +1630,8 @@ export default function Comptabilite() {
                       setExpenseCategoryFilter('all');
                       setExpenseDescFilter('all');
                       setExpenseMontantFilter('all');
+                      setExpensePayeeFilter('all');
+                      setExpenseTVAFilter('all');
                     }}
                     className="ml-2 text-xs h-6"
                   >
@@ -1690,12 +1735,24 @@ export default function Comptabilite() {
                               className="w-full h-8 text-xs px-2 border rounded bg-white font-medium text-right"
                             >
                               <option value="all">Montant</option>
-                              {expenseFilterOptions.montants.map(m => (
-                                <option key={m} value={m}>{(m / 100).toFixed(2)} €</option>
-                              ))}
+                              <option value="0-50">0 - 50€</option>
+                              <option value="50-100">50 - 100€</option>
+                              <option value="100-200">100 - 200€</option>
+                              <option value="200-500">200 - 500€</option>
+                              <option value="500+">500€+</option>
                             </select>
                           </th>
-                          <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">Statut</th>
+                          <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">
+                            <select
+                              value={expensePayeeFilter}
+                              onChange={(e) => setExpensePayeeFilter(e.target.value)}
+                              className="w-full h-8 text-xs px-2 border rounded bg-white font-medium"
+                            >
+                              <option value="all">Statut</option>
+                              <option value="oui">Payée</option>
+                              <option value="non">Non payée</option>
+                            </select>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1703,7 +1760,11 @@ export default function Comptabilite() {
                           <tr key={expense.id} className="border-b last:border-0 hover:bg-gray-50">
                             <td className="py-4 px-4 text-sm">{formatDate(expense.date_depense)}</td>
                             <td className="py-4 px-4">
-                              <Badge variant="outline">{EXPENSE_CATEGORIES[expense.categorie] || expense.categorie}</Badge>
+                              <EntityLink
+                                type="categorie"
+                                entity={expense.categorie}
+                                label={EXPENSE_CATEGORIES[expense.categorie] || expense.categorie}
+                              />
                             </td>
                             <td className="py-4 px-4 text-sm text-gray-600">{expense.libelle || expense.description || '-'}</td>
                             <td className="py-4 px-4 text-right font-semibold text-red-600">-{formatCurrency((expense.montant || 0) / 100)}</td>

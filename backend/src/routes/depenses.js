@@ -923,6 +923,95 @@ router.get('/categories', (req, res) => {
 });
 
 /**
+ * GET /api/depenses/categories/:categorie
+ * Détail d'une catégorie avec historique des dépenses
+ */
+router.get('/categories/:categorie', async (req, res) => {
+  const tenantId = req.tenantId;
+  const { categorie } = req.params;
+
+  if (!tenantId) {
+    return res.status(403).json({ error: 'TENANT_ID_REQUIRED' });
+  }
+
+  try {
+    // Toutes les dépenses de cette catégorie
+    const { data: depenses, error } = await supabase
+      .from('depenses')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('categorie', categorie)
+      .order('date_depense', { ascending: false });
+
+    if (error) {
+      console.error('[DEPENSES] Erreur récupération catégorie:', error);
+      return res.status(500).json({ error: 'Erreur serveur' });
+    }
+
+    // Calculer les stats
+    const totalTTC = (depenses || []).reduce((s, d) => s + (d.montant_ttc || d.montant || 0), 0);
+    const totalHT = (depenses || []).reduce((s, d) => s + (d.montant || 0), 0);
+    const totalTVA = (depenses || []).reduce((s, d) => s + (d.montant_tva || 0), 0);
+    const nbDepenses = (depenses || []).length;
+    const nbPayees = (depenses || []).filter(d => d.payee !== false).length;
+
+    // Labels des catégories
+    const categoriesLabels = {
+      fournitures: 'Fournitures (produits)',
+      loyer: 'Loyer / Local',
+      charges: 'Charges (électricité, eau)',
+      telecom: 'Téléphone / Internet',
+      assurance: 'Assurances',
+      transport: 'Transport / Essence',
+      marketing: 'Marketing / Publicité',
+      bancaire: 'Frais bancaires',
+      formation: 'Formation',
+      materiel: 'Matériel / Équipement',
+      logiciel: 'Logiciels / Abonnements',
+      comptabilite: 'Comptabilité',
+      taxes: 'Taxes / Impôts',
+      salaires: 'Salaires',
+      cotisations_sociales: 'Cotisations sociales',
+      autre: 'Autre'
+    };
+
+    res.json({
+      success: true,
+      categorie: {
+        id: categorie,
+        label: categoriesLabels[categorie] || categorie,
+        compte: COMPTE_DEPENSE[categorie] || COMPTE_DEPENSE.autre
+      },
+      stats: {
+        total_ttc: totalTTC,
+        total_ttc_euros: (totalTTC / 100).toFixed(2),
+        total_ht: totalHT,
+        total_ht_euros: (totalHT / 100).toFixed(2),
+        total_tva: totalTVA,
+        total_tva_euros: (totalTVA / 100).toFixed(2),
+        nb_depenses: nbDepenses,
+        nb_payees: nbPayees,
+        nb_non_payees: nbDepenses - nbPayees,
+        moyenne_ttc: nbDepenses > 0 ? Math.round(totalTTC / nbDepenses) : 0,
+        derniere_depense: depenses?.[0]?.date_depense || null
+      },
+      depenses: (depenses || []).map(d => ({
+        id: d.id,
+        date: d.date_depense,
+        libelle: d.libelle || d.description,
+        montant_ttc: d.montant_ttc || d.montant,
+        montant_ttc_euros: ((d.montant_ttc || d.montant || 0) / 100).toFixed(2),
+        payee: d.payee !== false,
+        recurrence: d.recurrence || 'ponctuelle'
+      }))
+    });
+  } catch (error) {
+    console.error('[DEPENSES] Erreur catégorie detail:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
  * POST /api/depenses/upload-facture
  * Upload une facture (image/PDF) et extrait automatiquement les données via IA
  */
