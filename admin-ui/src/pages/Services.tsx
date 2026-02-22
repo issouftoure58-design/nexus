@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,9 @@ import {
   Eye,
   Users,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +35,13 @@ export default function Services() {
   const [searchInput, setSearchInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Filters
+  const [filters, setFilters] = useState({
+    priceRange: 'all', // all, cheap (<25€), medium (25-50€), expensive (>50€)
+    duration: 'all', // all, short (<30min), medium (30-60min), long (>60min)
+    status: 'all', // all, active, inactive
+  });
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -50,15 +59,50 @@ export default function Services() {
     queryFn: servicesApi.list,
   });
 
-  // Filter services based on search
-  const filteredServices = data?.services?.filter(service =>
-    !searchInput || service.nom.toLowerCase().includes(searchInput.toLowerCase())
-  ) || [];
+  // Filter services based on all filters
+  const filteredServices = useMemo(() => {
+    if (!data?.services) return [];
+
+    return data.services.filter(service => {
+      // Search filter
+      if (searchInput && !service.nom.toLowerCase().includes(searchInput.toLowerCase())) {
+        return false;
+      }
+
+      // Price range filter (prix is in centimes)
+      const prixEuros = service.prix / 100;
+      if (filters.priceRange === 'cheap' && prixEuros >= 25) return false;
+      if (filters.priceRange === 'medium' && (prixEuros < 25 || prixEuros > 50)) return false;
+      if (filters.priceRange === 'expensive' && prixEuros <= 50) return false;
+
+      // Duration filter
+      if (filters.duration === 'short' && service.duree >= 30) return false;
+      if (filters.duration === 'medium' && (service.duree < 30 || service.duree > 60)) return false;
+      if (filters.duration === 'long' && service.duree <= 60) return false;
+
+      // Status filter
+      if (filters.status === 'active' && !service.actif) return false;
+      if (filters.status === 'inactive' && service.actif) return false;
+
+      return true;
+    });
+  }, [data?.services, searchInput, filters]);
 
   // Suggestions for search
   const suggestions = searchInput.length >= 1
     ? data?.services?.filter(s => s.nom.toLowerCase().includes(searchInput.toLowerCase())).slice(0, 5)
     : [];
+
+  const resetFilters = () => {
+    setFilters({
+      priceRange: 'all',
+      duration: 'all',
+      status: 'all',
+    });
+    setSearchInput('');
+  };
+
+  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || searchInput;
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => servicesApi.delete(id),
@@ -134,6 +178,61 @@ export default function Services() {
             Nouveau service
           </Button>
         </div>
+
+        {/* Filters */}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            {/* Price range filter */}
+            <select
+              value={filters.priceRange}
+              onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Tous les prix</option>
+              <option value="cheap">&lt; 25€</option>
+              <option value="medium">25€ - 50€</option>
+              <option value="expensive">&gt; 50€</option>
+            </select>
+
+            {/* Duration filter */}
+            <select
+              value={filters.duration}
+              onChange={(e) => setFilters({ ...filters, duration: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Toutes les durées</option>
+              <option value="short">&lt; 30 min</option>
+              <option value="medium">30 - 60 min</option>
+              <option value="long">&gt; 60 min</option>
+            </select>
+
+            {/* Status filter */}
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="active">Actifs seulement</option>
+              <option value="inactive">Inactifs seulement</option>
+            </select>
+
+            {hasActiveFilters && (
+              <Button onClick={resetFilters} variant="outline" size="sm">
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            )}
+
+            {hasActiveFilters && (
+              <span className="text-sm text-gray-500">
+                {filteredServices.length} / {data?.services?.length || 0} services
+              </span>
+            )}
+          </div>
+        </Card>
 
         {/* Loading */}
         {isLoading && (
@@ -228,23 +327,23 @@ export default function Services() {
               </Card>
             ))}
 
-            {filteredServices.length === 0 && searchInput && (
+            {filteredServices.length === 0 && hasActiveFilters && (
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Search className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Aucun service trouvé pour "{searchInput}"</p>
+                  <p className="text-gray-500">Aucun service trouvé avec ces filtres</p>
                   <Button
                     variant="link"
-                    onClick={() => setSearchInput('')}
+                    onClick={resetFilters}
                     className="mt-2"
                   >
-                    Effacer la recherche
+                    Effacer les filtres
                   </Button>
                 </CardContent>
               </Card>
             )}
 
-            {(!data?.services || data.services.length === 0) && !searchInput && (
+            {filteredServices.length === 0 && !hasActiveFilters && (
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Briefcase className="h-12 w-12 mx-auto text-gray-300 mb-4" />

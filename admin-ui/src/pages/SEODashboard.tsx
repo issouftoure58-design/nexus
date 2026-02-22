@@ -3,10 +3,11 @@
  * Vue d'ensemble SEO avec KPIs et recommandations
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Search,
   TrendingUp,
@@ -16,7 +17,9 @@ import {
   ArrowDown,
   Minus,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 
 interface SEOStats {
@@ -52,6 +55,20 @@ export default function SEODashboard() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters for keywords
+  const [keywordFilters, setKeywordFilters] = useState({
+    search: '',
+    positionRange: 'all', // all, top10, top30, beyond30
+    trend: 'all', // all, improving, declining, stable
+  });
+
+  // Filters for recommendations
+  const [recoFilters, setRecoFilters] = useState({
+    priority: 'all', // all, high, medium, low
+    type: 'all', // all, technical, content, backlinks, local
+    status: 'pending', // pending, appliquee, ignoree, all
+  });
 
   useEffect(() => {
     fetchDashboardData();
@@ -116,6 +133,60 @@ export default function SEODashboard() {
     }
   };
 
+  // Filtered keywords
+  const filteredKeywords = useMemo(() => {
+    return keywords
+      .filter(k => k.position_actuelle !== null)
+      .filter(k => {
+        // Search filter
+        if (keywordFilters.search && !k.mot_cle.toLowerCase().includes(keywordFilters.search.toLowerCase())) {
+          return false;
+        }
+
+        // Position range filter
+        const pos = k.position_actuelle || 100;
+        if (keywordFilters.positionRange === 'top10' && pos > 10) return false;
+        if (keywordFilters.positionRange === 'top30' && (pos <= 10 || pos > 30)) return false;
+        if (keywordFilters.positionRange === 'beyond30' && pos <= 30) return false;
+
+        // Trend filter
+        const variation = k.variation || 0;
+        if (keywordFilters.trend === 'improving' && variation >= 0) return false; // lower is better
+        if (keywordFilters.trend === 'declining' && variation <= 0) return false;
+        if (keywordFilters.trend === 'stable' && variation !== 0) return false;
+
+        return true;
+      })
+      .sort((a, b) => (a.position_actuelle || 100) - (b.position_actuelle || 100));
+  }, [keywords, keywordFilters]);
+
+  // Filtered recommendations
+  const filteredRecos = useMemo(() => {
+    return recommendations.filter(r => {
+      // Status filter
+      if (recoFilters.status !== 'all' && r.statut !== recoFilters.status) return false;
+
+      // Priority filter
+      if (recoFilters.priority !== 'all' && r.priorite !== recoFilters.priority) return false;
+
+      // Type filter
+      if (recoFilters.type !== 'all' && r.type !== recoFilters.type) return false;
+
+      return true;
+    });
+  }, [recommendations, recoFilters]);
+
+  const resetKeywordFilters = () => {
+    setKeywordFilters({ search: '', positionRange: 'all', trend: 'all' });
+  };
+
+  const resetRecoFilters = () => {
+    setRecoFilters({ priority: 'all', type: 'all', status: 'pending' });
+  };
+
+  const hasActiveKeywordFilters = keywordFilters.search || keywordFilters.positionRange !== 'all' || keywordFilters.trend !== 'all';
+  const hasActiveRecoFilters = recoFilters.priority !== 'all' || recoFilters.type !== 'all' || recoFilters.status !== 'pending';
+
   const getPriorityColor = (priorite: string) => {
     const colors: Record<string, string> = {
       high: 'bg-red-100 text-red-800',
@@ -162,8 +233,6 @@ export default function SEODashboard() {
       </div>
     );
   }
-
-  const pendingRecos = recommendations.filter(r => r.statut === 'pending');
 
   return (
     <div className="p-6 space-y-6">
@@ -246,14 +315,60 @@ export default function SEODashboard() {
             Recommandations SEO
           </h3>
 
-          {pendingRecos.length === 0 ? (
+          {/* Recommendation Filters */}
+          <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            <select
+              value={recoFilters.status}
+              onChange={(e) => setRecoFilters({ ...recoFilters, status: e.target.value })}
+              className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="all">Tous statuts</option>
+              <option value="pending">En attente</option>
+              <option value="appliquee">Appliquées</option>
+              <option value="ignoree">Ignorées</option>
+            </select>
+
+            <select
+              value={recoFilters.priority}
+              onChange={(e) => setRecoFilters({ ...recoFilters, priority: e.target.value })}
+              className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="all">Toutes priorités</option>
+              <option value="high">Haute</option>
+              <option value="medium">Moyenne</option>
+              <option value="low">Basse</option>
+            </select>
+
+            <select
+              value={recoFilters.type}
+              onChange={(e) => setRecoFilters({ ...recoFilters, type: e.target.value })}
+              className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="all">Tous types</option>
+              <option value="technical">🔧 Technique</option>
+              <option value="content">📝 Contenu</option>
+              <option value="backlinks">🔗 Backlinks</option>
+              <option value="local">📍 Local</option>
+            </select>
+
+            {hasActiveRecoFilters && (
+              <Button onClick={resetRecoFilters} variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Reset
+              </Button>
+            )}
+          </div>
+
+          {filteredRecos.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-300" />
-              <p>Toutes les recommandations ont ete traitees</p>
+              <p>{hasActiveRecoFilters ? 'Aucune recommandation avec ces filtres' : 'Toutes les recommandations ont ete traitees'}</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[400px] overflow-auto">
-              {pendingRecos.slice(0, 5).map(reco => (
+              {filteredRecos.slice(0, 10).map(reco => (
                 <div
                   key={reco.id}
                   className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
@@ -308,11 +423,64 @@ export default function SEODashboard() {
             Positions mots-cles
           </h3>
 
+          {/* Keyword Filters */}
+          <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            <div className="relative flex-1 min-w-[120px] max-w-[150px]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher..."
+                value={keywordFilters.search}
+                onChange={(e) => setKeywordFilters({ ...keywordFilters, search: e.target.value })}
+                className="pl-7 h-7 text-xs"
+              />
+            </div>
+
+            <select
+              value={keywordFilters.positionRange}
+              onChange={(e) => setKeywordFilters({ ...keywordFilters, positionRange: e.target.value })}
+              className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Toutes positions</option>
+              <option value="top10">Top 10</option>
+              <option value="top30">11-30</option>
+              <option value="beyond30">&gt; 30</option>
+            </select>
+
+            <select
+              value={keywordFilters.trend}
+              onChange={(e) => setKeywordFilters({ ...keywordFilters, trend: e.target.value })}
+              className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Toutes tendances</option>
+              <option value="improving">↑ En hausse</option>
+              <option value="declining">↓ En baisse</option>
+              <option value="stable">→ Stable</option>
+            </select>
+
+            {hasActiveKeywordFilters && (
+              <Button onClick={resetKeywordFilters} variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Reset
+              </Button>
+            )}
+          </div>
+
           {keywords.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Search className="w-12 h-12 mx-auto mb-2 text-gray-300" />
               <p>Aucun mot-cle suivi</p>
               <p className="text-xs mt-1">Ajoutez des mots-cles pour suivre vos positions</p>
+            </div>
+          ) : filteredKeywords.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Search className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <p>Aucun mot-clé avec ces filtres</p>
+              <Button variant="link" onClick={resetKeywordFilters} className="mt-2 text-xs">
+                Effacer les filtres
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -325,11 +493,7 @@ export default function SEODashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {keywords
-                    .filter(k => k.position_actuelle !== null)
-                    .sort((a, b) => (a.position_actuelle || 100) - (b.position_actuelle || 100))
-                    .slice(0, 10)
-                    .map(keyword => (
+                  {filteredKeywords.slice(0, 10).map(keyword => (
                       <tr key={keyword.id} className="border-b last:border-0">
                         <td className="py-2">
                           <div className="font-medium">{keyword.mot_cle}</div>

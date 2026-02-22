@@ -532,7 +532,31 @@ export const rhApi = {
   createMember: (data: CreateMemberData) => api.post<{ member: TeamMember }>('/admin/rh/team', data),
   updateMember: (id: number, data: Partial<TeamMember>) => api.put<{ member: TeamMember }>(`/admin/rh/team/${id}`, data),
   deleteMember: (id: number) => api.delete(`/admin/rh/team/${id}`),
+  getEmployeeDetail: (id: number) => api.get<EmployeeDetailResponse>(`/rh/employes/${id}`),
 };
+
+export interface EmployeeDetailResponse {
+  success: boolean;
+  employe: {
+    id: number;
+    nom: string;
+    prenom: string;
+    email: string;
+    telephone: string;
+    poste: string;
+    departement: string;
+    date_embauche: string;
+    salaire_mensuel: number;
+    type_contrat: string;
+    actif: boolean;
+  };
+  compteur_conges: {
+    cp_acquis: number;
+    cp_pris: number;
+    rtt_acquis: number;
+    rtt_pris: number;
+  } | null;
+}
 
 // Quotas
 export const quotasApi = {

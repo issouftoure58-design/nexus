@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +20,9 @@ import {
   Edit,
   Trash2,
   Eye,
-  X
+  X,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +36,12 @@ export default function Clients() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Additional filters
+  const [filters, setFilters] = useState({
+    nbRdv: 'all', // all, zero, low (1-5), high (5+)
+    inscriptionDate: 'all', // all, 30days, 90days, year
+  });
 
   // Debounce search input for suggestions
   useEffect(() => {
@@ -76,6 +84,38 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
   });
+
+  // Filter clients locally
+  const filteredClients = useMemo(() => {
+    if (!data?.clients) return [];
+
+    return data.clients.filter(client => {
+      // RDV count filter
+      const nbRdv = client.nb_rdv || 0;
+      if (filters.nbRdv === 'zero' && nbRdv > 0) return false;
+      if (filters.nbRdv === 'low' && (nbRdv < 1 || nbRdv > 5)) return false;
+      if (filters.nbRdv === 'high' && nbRdv <= 5) return false;
+
+      // Inscription date filter
+      if (filters.inscriptionDate !== 'all') {
+        const inscriptionDate = new Date(client.created_at);
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - inscriptionDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (filters.inscriptionDate === '30days' && daysDiff > 30) return false;
+        if (filters.inscriptionDate === '90days' && daysDiff > 90) return false;
+        if (filters.inscriptionDate === 'year' && daysDiff > 365) return false;
+      }
+
+      return true;
+    });
+  }, [data?.clients, filters]);
+
+  const resetFilters = () => {
+    setFilters({ nbRdv: 'all', inscriptionDate: 'all' });
+  };
+
+  const hasActiveFilters = filters.nbRdv !== 'all' || filters.inscriptionDate !== 'all';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +195,50 @@ export default function Clients() {
           </Button>
         </div>
 
+        {/* Filters */}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            {/* Number of RDV filter */}
+            <select
+              value={filters.nbRdv}
+              onChange={(e) => setFilters({ ...filters, nbRdv: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Tous les clients</option>
+              <option value="zero">Jamais venu (0 RDV)</option>
+              <option value="low">Occasionnel (1-5 RDV)</option>
+              <option value="high">Fidèle (5+ RDV)</option>
+            </select>
+
+            {/* Registration date filter */}
+            <select
+              value={filters.inscriptionDate}
+              onChange={(e) => setFilters({ ...filters, inscriptionDate: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Toutes les dates</option>
+              <option value="30days">Inscrit ces 30 derniers jours</option>
+              <option value="90days">Inscrit ces 3 derniers mois</option>
+              <option value="year">Inscrit cette année</option>
+            </select>
+
+            {hasActiveFilters && (
+              <Button onClick={resetFilters} variant="outline" size="sm">
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            )}
+
+            {hasActiveFilters && (
+              <span className="text-sm text-gray-500">
+                {filteredClients.length} / {data?.clients?.length || 0} clients
+              </span>
+            )}
+          </div>
+        </Card>
+
         {/* Loading state */}
         {isLoading && (
           <div className="flex items-center justify-center h-64">
@@ -192,7 +276,7 @@ export default function Clients() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.clients.map((client) => (
+                    {filteredClients.map((client) => (
                       <tr key={client.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
@@ -273,18 +357,22 @@ export default function Clients() {
                         </td>
                       </tr>
                     ))}
-                    {(!data?.clients || data.clients.length === 0) && (
+                    {filteredClients.length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-500">
                           <Users className="h-12 w-12 mx-auto text-gray-300 mb-4" />
                           <p>Aucun client trouvé</p>
-                          {search && (
+                          {(search || hasActiveFilters) && (
                             <Button
                               variant="link"
-                              onClick={() => { setSearch(''); setSearchInput(''); }}
+                              onClick={() => {
+                                setSearch('');
+                                setSearchInput('');
+                                resetFilters();
+                              }}
                               className="mt-2"
                             >
-                              Effacer la recherche
+                              Effacer les filtres
                             </Button>
                           )}
                         </td>

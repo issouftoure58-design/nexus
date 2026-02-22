@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,10 @@ import {
   AlertCircle,
   AlertTriangle,
   TrendingDown,
-  Euro
+  Euro,
+  Filter,
+  RotateCcw,
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,10 +29,64 @@ export default function Stock() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
 
+  // Filters
+  const [filters, setFilters] = useState({
+    search: '',
+    stockLevel: 'all', // all, low, out
+    margin: 'all', // all, negative, low, high
+  });
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['stock'],
     queryFn: stockApi.list,
   });
+
+  // Filtered products
+  const filteredProducts = useMemo(() => {
+    if (!data?.produits) return [];
+
+    return data.produits.filter(product => {
+      // Search filter
+      if (filters.search && !product.nom.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false;
+      }
+
+      // Stock level filter
+      if (filters.stockLevel === 'low' && product.quantite > product.seuil_alerte) {
+        return false;
+      }
+      if (filters.stockLevel === 'out' && product.quantite > 0) {
+        return false;
+      }
+
+      // Margin filter
+      const margin = product.prix_achat > 0
+        ? ((product.prix_vente - product.prix_achat) / product.prix_achat) * 100
+        : 0;
+
+      if (filters.margin === 'negative' && margin >= 0) {
+        return false;
+      }
+      if (filters.margin === 'low' && (margin < 0 || margin >= 50)) {
+        return false;
+      }
+      if (filters.margin === 'high' && margin < 50) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data?.produits, filters]);
+
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      stockLevel: 'all',
+      margin: 'all',
+    });
+  };
+
+  const hasActiveFilters = filters.search || filters.stockLevel !== 'all' || filters.margin !== 'all';
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => stockApi.delete(id),
@@ -45,6 +102,7 @@ export default function Stock() {
   // Count low stock items
   const lowStockCount = data?.produits?.filter(p => p.quantite <= p.seuil_alerte).length || 0;
   const totalValue = data?.produits?.reduce((sum, p) => sum + (p.quantite * p.prix_achat), 0) || 0;
+  const filteredCount = filteredProducts.length;
 
   return (
     <div className="p-6">
@@ -127,6 +185,61 @@ export default function Stock() {
           </Button>
         </div>
 
+        {/* Filters */}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher un produit..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Stock level filter */}
+            <select
+              value={filters.stockLevel}
+              onChange={(e) => setFilters({ ...filters, stockLevel: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Tous les stocks</option>
+              <option value="low">Stock faible</option>
+              <option value="out">Rupture de stock</option>
+            </select>
+
+            {/* Margin filter */}
+            <select
+              value={filters.margin}
+              onChange={(e) => setFilters({ ...filters, margin: e.target.value })}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="all">Toutes les marges</option>
+              <option value="negative">Marge négative</option>
+              <option value="low">Marge &lt; 50%</option>
+              <option value="high">Marge &gt; 50%</option>
+            </select>
+
+            {hasActiveFilters && (
+              <Button onClick={resetFilters} variant="outline" size="sm">
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            )}
+
+            {hasActiveFilters && (
+              <span className="text-sm text-gray-500">
+                {filteredCount} / {data?.produits?.length || 0} produits
+              </span>
+            )}
+          </div>
+        </Card>
+
         {/* Loading */}
         {isLoading && (
           <div className="flex items-center justify-center h-64">
@@ -164,7 +277,7 @@ export default function Stock() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.produits?.map((product) => {
+                    {filteredProducts.map((product) => {
                       const isLowStock = product.quantite <= product.seuil_alerte;
                       const margin = product.prix_vente - product.prix_achat;
                       const marginPercent = product.prix_achat > 0 ? (margin / product.prix_achat) * 100 : 0;
@@ -255,18 +368,33 @@ export default function Stock() {
                         </tr>
                       );
                     })}
-                    {(!data?.produits || data.produits.length === 0) && (
+                    {filteredProducts.length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-500">
                           <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                          <p>Aucun produit en stock</p>
-                          <Button
-                            variant="link"
-                            onClick={() => setShowNewModal(true)}
-                            className="mt-2"
-                          >
-                            Ajouter votre premier produit
-                          </Button>
+                          {hasActiveFilters ? (
+                            <>
+                              <p>Aucun produit trouvé avec ces filtres</p>
+                              <Button
+                                variant="link"
+                                onClick={resetFilters}
+                                className="mt-2"
+                              >
+                                Effacer les filtres
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <p>Aucun produit en stock</p>
+                              <Button
+                                variant="link"
+                                onClick={() => setShowNewModal(true)}
+                                className="mt-2"
+                              >
+                                Ajouter votre premier produit
+                              </Button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     )}

@@ -3,10 +3,11 @@
  * Gestion equipe simplifiee
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { EntityLink } from '@/components/EntityLink';
 import {
   Users,
   UserPlus,
@@ -35,7 +36,9 @@ import {
   Printer,
   Eye,
   UserCheck,
-  ClipboardList
+  ClipboardList,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 
 interface Membre {
@@ -229,6 +232,49 @@ export default function RH() {
     date_limite: ''
   });
   const [generatingPaie, setGeneratingPaie] = useState(false);
+
+  // Employee filters
+  const [employeeFilters, setEmployeeFilters] = useState({
+    role: 'all',
+    status: 'all',
+    search: ''
+  });
+
+  // Filtered employees
+  const filteredMembres = useMemo(() => {
+    return membres.filter(m => {
+      // Only active employees in main list
+      if (m.statut === 'inactif') return false;
+
+      // Search filter
+      if (employeeFilters.search) {
+        const searchLower = employeeFilters.search.toLowerCase();
+        if (!m.nom.toLowerCase().includes(searchLower) &&
+            !m.prenom.toLowerCase().includes(searchLower) &&
+            !m.email?.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+
+      // Role filter
+      if (employeeFilters.role !== 'all' && m.role !== employeeFilters.role) {
+        return false;
+      }
+
+      // Status filter
+      if (employeeFilters.status !== 'all' && m.statut !== employeeFilters.status) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [membres, employeeFilters]);
+
+  const resetEmployeeFilters = () => {
+    setEmployeeFilters({ role: 'all', status: 'all', search: '' });
+  };
+
+  const hasActiveEmployeeFilters = employeeFilters.role !== 'all' || employeeFilters.status !== 'all' || employeeFilters.search;
 
   useEffect(() => {
     fetchAll();
@@ -793,7 +839,64 @@ export default function RH() {
       {/* Tab Equipe */}
       {tab === 'equipe' && (
         <div>
-          <div className="flex justify-end mb-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+            {/* Filters */}
+            <Card className="p-4 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <Filter className="w-4 h-4 text-gray-400" />
+
+                {/* Search */}
+                <div className="relative flex-1 min-w-[150px] max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={employeeFilters.search}
+                    onChange={(e) => setEmployeeFilters({ ...employeeFilters, search: e.target.value })}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Role filter */}
+                <select
+                  value={employeeFilters.role}
+                  onChange={(e) => setEmployeeFilters({ ...employeeFilters, role: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Tous les rôles</option>
+                  <option value="manager">Manager</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="technicien">Technicien</option>
+                  <option value="admin">Admin</option>
+                  <option value="autre">Autre</option>
+                </select>
+
+                {/* Status filter */}
+                <select
+                  value={employeeFilters.status}
+                  onChange={(e) => setEmployeeFilters({ ...employeeFilters, status: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Tous les statuts</option>
+                  <option value="actif">Actif</option>
+                  <option value="conge">En congé</option>
+                </select>
+
+                {hasActiveEmployeeFilters && (
+                  <Button onClick={resetEmployeeFilters} variant="outline" size="sm">
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Reset
+                  </Button>
+                )}
+
+                {hasActiveEmployeeFilters && (
+                  <span className="text-sm text-gray-500">
+                    {filteredMembres.length} / {membres.filter(m => m.statut !== 'inactif').length}
+                  </span>
+                )}
+              </div>
+            </Card>
+
             <Button onClick={() => { setShowForm(true); setEditMembre(null); }}>
               <UserPlus className="w-4 h-4 mr-2" />
               Ajouter membre
@@ -888,7 +991,7 @@ export default function RH() {
           )}
 
           <div className="grid gap-4">
-            {membres.filter(m => m.statut !== 'inactif').map(membre => (
+            {filteredMembres.map(membre => (
               <Card key={membre.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -898,7 +1001,17 @@ export default function RH() {
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-semibold">{membre.prenom} {membre.nom}</h3>
+                      <EntityLink
+                        type="employee"
+                        entity={{
+                          id: membre.id,
+                          nom: membre.nom,
+                          prenom: membre.prenom,
+                          role: membre.role
+                        }}
+                        label={`${membre.prenom} ${membre.nom}`}
+                        className="font-semibold"
+                      />
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Briefcase className="w-3 h-3" />
                         {getRoleLabel(membre.role)}
@@ -921,9 +1034,18 @@ export default function RH() {
               </Card>
             ))}
 
-            {membres.filter(m => m.statut !== 'inactif').length === 0 && (
+            {filteredMembres.length === 0 && (
               <Card className="p-8 text-center text-gray-500">
-                Aucun membre dans l'equipe
+                {hasActiveEmployeeFilters ? (
+                  <>
+                    <p>Aucun membre trouvé avec ces filtres</p>
+                    <Button variant="link" onClick={resetEmployeeFilters} className="mt-2">
+                      Effacer les filtres
+                    </Button>
+                  </>
+                ) : (
+                  'Aucun membre dans l\'equipe'
+                )}
               </Card>
             )}
           </div>

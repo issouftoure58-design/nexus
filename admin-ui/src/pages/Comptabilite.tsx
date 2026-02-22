@@ -51,6 +51,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { EntityLink } from '@/components/EntityLink';
+import { AuxiliaryLedgerModal } from '@/components/modals/AuxiliaryLedgerModal';
 
 const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
   brouillon: { label: 'Brouillon', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
@@ -106,12 +107,13 @@ const AVAILABLE_YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullY
 
 export default function Comptabilite() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'expenses' | 'tva' | 'relances' | 'rapprochement' | 'resultat' | 'bilan' | 'expert'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'expenses' | 'tva' | 'relances' | 'rapprochement' | 'resultat' | 'bilan' | 'auxiliaires' | 'expert'>('overview');
   const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
   const [showExpensePaymentModal, setShowExpensePaymentModal] = useState(false);
   const [pendingExpenseId, setPendingExpenseId] = useState<number | null>(null);
   const [expensePaymentMode, setExpensePaymentMode] = useState('cb');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedAuxiliary, setSelectedAuxiliary] = useState<{ type: 'client' | 'fournisseur'; id: number; nom: string } | null>(null);
   const [isUploadingExpense, setIsUploadingExpense] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRelanceSettings, setShowRelanceSettings] = useState(false);
@@ -231,14 +233,14 @@ export default function Comptabilite() {
   const { data: balanceClientsData, isLoading: balanceClientsLoading } = useQuery<BalanceAuxiliaireResponse>({
     queryKey: ['balance-clients', statsYear],
     queryFn: () => comptaApi.getBalanceClients(statsYear),
-    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+    enabled: activeTab === 'auxiliaires' || (activeTab === 'expert' && expertSubTab === 'balance'),
   });
 
   // Query pour la Balance Fournisseurs
   const { data: balanceFournisseursData, isLoading: balanceFournisseursLoading } = useQuery<BalanceAuxiliaireResponse>({
     queryKey: ['balance-fournisseurs', statsYear],
     queryFn: () => comptaApi.getBalanceFournisseurs(statsYear),
-    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+    enabled: activeTab === 'auxiliaires' || (activeTab === 'expert' && expertSubTab === 'balance'),
   });
 
   // Query pour la Balance Âgée
@@ -1314,7 +1316,7 @@ export default function Comptabilite() {
           <div className="border-l border-gray-200 mx-2 my-1" />
 
           {/* Onglets comptabilité avancée */}
-          {(['rapprochement', 'resultat', 'bilan', 'expert'] as const).map((tab) => (
+          {(['rapprochement', 'resultat', 'bilan', 'auxiliaires', 'expert'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1328,6 +1330,7 @@ export default function Comptabilite() {
               {tab === 'rapprochement' && <><Landmark className="h-3.5 w-3.5" /> Rapprochement</>}
               {tab === 'resultat' && <><BarChart3 className="h-3.5 w-3.5" /> Compte de résultat</>}
               {tab === 'bilan' && <><Wallet className="h-3.5 w-3.5" /> Bilan</>}
+              {tab === 'auxiliaires' && <><Users className="h-3.5 w-3.5" /> Comptes Auxiliaires</>}
               {tab === 'expert' && <><UserCheck className="h-3.5 w-3.5" /> Expert-comptable</>}
             </button>
           ))}
@@ -3050,6 +3053,162 @@ export default function Comptabilite() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Comptes Auxiliaires Tab */}
+        {activeTab === 'auxiliaires' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Balance Clients */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Users className="h-5 w-5 text-blue-600" />
+                      </div>
+                      Balance Clients (411)
+                    </CardTitle>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      {balanceClientsData?.comptes?.length || 0} comptes
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {balanceClientsLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                    </div>
+                  ) : balanceClientsData?.comptes && balanceClientsData.comptes.length > 0 ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {balanceClientsData.comptes.map((compte) => (
+                        <div
+                          key={compte.compte}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedAuxiliary({
+                            type: 'client',
+                            id: parseInt(compte.compte.substring(3)),
+                            nom: compte.nom
+                          })}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-semibold">
+                              {compte.nom.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{compte.nom}</p>
+                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-semibold ${compte.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(Math.abs(compte.solde))}
+                            </p>
+                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 py-8">Aucun compte client auxiliaire</p>
+                  )}
+                  {balanceClientsData?.totaux && (
+                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                      <span className="font-medium text-gray-600">Total Clients</span>
+                      <span className={`font-bold ${balanceClientsData.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(Math.abs(balanceClientsData.totaux.solde))}
+                        <span className="text-xs ml-1">{balanceClientsData.totaux.solde >= 0 ? 'D' : 'C'}</span>
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Balance Fournisseurs */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <div className="p-2 bg-orange-100 rounded-lg">
+                        <Building2 className="h-5 w-5 text-orange-600" />
+                      </div>
+                      Balance Fournisseurs (401)
+                    </CardTitle>
+                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                      {balanceFournisseursData?.comptes?.length || 0} comptes
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {balanceFournisseursLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+                    </div>
+                  ) : balanceFournisseursData?.comptes && balanceFournisseursData.comptes.length > 0 ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {balanceFournisseursData.comptes.map((compte) => (
+                        <div
+                          key={compte.compte}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedAuxiliary({
+                            type: 'fournisseur',
+                            id: parseInt(compte.compte.substring(3)),
+                            nom: compte.nom
+                          })}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-semibold">
+                              {compte.nom.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{compte.nom}</p>
+                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-semibold ${compte.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(Math.abs(compte.solde))}
+                            </p>
+                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 py-8">Aucun compte fournisseur auxiliaire</p>
+                  )}
+                  {balanceFournisseursData?.totaux && (
+                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                      <span className="font-medium text-gray-600">Total Fournisseurs</span>
+                      <span className={`font-bold ${balanceFournisseursData.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(Math.abs(balanceFournisseursData.totaux.solde))}
+                        <span className="text-xs ml-1">{balanceFournisseursData.totaux.solde >= 0 ? 'D' : 'C'}</span>
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Info */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-700">
+              <p className="font-medium mb-1">Comptes Auxiliaires</p>
+              <p className="text-purple-600">
+                Cliquez sur un compte pour voir le grand livre détaillé avec toutes les écritures et le solde progressif.
+                Les comptes 411 correspondent aux clients et les comptes 401 aux fournisseurs.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Auxiliary Ledger Modal */}
+        {selectedAuxiliary && (
+          <AuxiliaryLedgerModal
+            type={selectedAuxiliary.type}
+            id={selectedAuxiliary.id}
+            nom={selectedAuxiliary.nom}
+            onClose={() => setSelectedAuxiliary(null)}
+          />
         )}
 
         {/* Expert-Comptable Tab */}

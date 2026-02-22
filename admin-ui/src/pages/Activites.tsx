@@ -13,6 +13,7 @@ import {
 import { ServiceLayout } from '../components/layout/ServiceLayout';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { EntityLink } from '../components/EntityLink';
 
 // Tabs de navigation
 const tabs = [
@@ -874,9 +875,18 @@ export default function Activites() {
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4 text-gray-400" />
                               <div>
-                                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {rdv.client.prenom} {rdv.client.nom}
-                                </div>
+                                <EntityLink
+                                  type="client"
+                                  entity={{
+                                    id: rdv.client.id,
+                                    nom: rdv.client.nom,
+                                    prenom: rdv.client.prenom,
+                                    telephone: rdv.client.telephone,
+                                    email: rdv.client.email || undefined
+                                  }}
+                                  label={`${rdv.client.prenom} ${rdv.client.nom}`}
+                                  className="text-sm font-medium"
+                                />
                                 <div className="text-sm text-gray-500">{rdv.client.telephone}</div>
                               </div>
                             </div>
@@ -885,15 +895,32 @@ export default function Activites() {
                           )}
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-sm text-gray-900 dark:text-white">{rdv.service_nom}</div>
+                          <EntityLink
+                            type="service"
+                            entity={{
+                              id: typeof rdv.service === 'object' && rdv.service?.id ? rdv.service.id : 0,
+                              nom: rdv.service_nom || '',
+                              prix: typeof rdv.service === 'object' && rdv.service?.prix ? rdv.service.prix : (rdv.prix || 0) * 100,
+                              duree: rdv.duree || 60
+                            }}
+                            label={rdv.service_nom || ''}
+                            className="text-sm"
+                          />
                           {rdv.duree && <div className="text-xs text-gray-500">{rdv.duree} min</div>}
                         </td>
                         <td className="px-4 py-4">
                           {rdv.membre ? (
-                            <div className="text-sm">
-                              <span className="text-gray-900 dark:text-white">{rdv.membre.prenom}</span>
-                              <span className="text-xs text-gray-500 ml-1">({rdv.membre.role})</span>
-                            </div>
+                            <EntityLink
+                              type="employee"
+                              entity={{
+                                id: rdv.membre.id,
+                                nom: rdv.membre.nom,
+                                prenom: rdv.membre.prenom,
+                                role: rdv.membre.role
+                              }}
+                              label={`${rdv.membre.prenom} ${rdv.membre.nom}`}
+                              className="text-sm"
+                            />
                           ) : (
                             <span className="text-xs text-gray-400">Non assigné</span>
                           )}
@@ -969,12 +996,34 @@ export default function Activites() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-900 dark:text-white">
-                          {rdv.client ? `${rdv.client.prenom} ${rdv.client.nom}` : 'Client inconnu'}
-                        </span>
+                        {rdv.client ? (
+                          <EntityLink
+                            type="client"
+                            entity={{
+                              id: rdv.client.id,
+                              nom: rdv.client.nom,
+                              prenom: rdv.client.prenom,
+                              telephone: rdv.client.telephone,
+                              email: rdv.client.email || undefined
+                            }}
+                            label={`${rdv.client.prenom} ${rdv.client.nom}`}
+                          />
+                        ) : (
+                          <span className="text-gray-400">Client inconnu</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{rdv.service_nom}</span>
+                        <EntityLink
+                          type="service"
+                          entity={{
+                            id: typeof rdv.service === 'object' && rdv.service?.id ? rdv.service.id : 0,
+                            nom: rdv.service_nom || '',
+                            prix: typeof rdv.service === 'object' && rdv.service?.prix ? rdv.service.prix : (rdv.prix || 0) * 100,
+                            duree: rdv.duree || 60
+                          }}
+                          label={rdv.service_nom || ''}
+                          className="text-sm text-gray-600 dark:text-gray-400"
+                        />
                         <span className="font-medium text-green-600">{formatCurrency(rdv.prix || 0)}</span>
                       </div>
                     </div>
@@ -1061,9 +1110,18 @@ export default function Activites() {
                       {selectedRdv.client.prenom?.[0] || selectedRdv.client.nom?.[0]}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedRdv.client.prenom} {selectedRdv.client.nom}
-                      </p>
+                      <EntityLink
+                        type="client"
+                        entity={{
+                          id: selectedRdv.client.id,
+                          nom: selectedRdv.client.nom,
+                          prenom: selectedRdv.client.prenom,
+                          telephone: selectedRdv.client.telephone,
+                          email: selectedRdv.client.email || undefined
+                        }}
+                        label={`${selectedRdv.client.prenom} ${selectedRdv.client.nom}`}
+                        className="font-medium"
+                      />
                       <p className="text-sm text-gray-500">{selectedRdv.client.telephone}</p>
                     </div>
                   </div>
@@ -1073,7 +1131,17 @@ export default function Activites() {
               {/* Service + Prix */}
               <div className="flex items-center justify-between p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">
                 <div>
-                  <p className="font-medium text-gray-900 dark:text-white">{selectedRdv.service_nom}</p>
+                  <EntityLink
+                    type="service"
+                    entity={{
+                      id: typeof selectedRdv.service === 'object' && selectedRdv.service?.id ? selectedRdv.service.id : 0,
+                      nom: selectedRdv.service_nom || '',
+                      prix: typeof selectedRdv.service === 'object' && selectedRdv.service?.prix ? selectedRdv.service.prix : (selectedRdv.prix || 0) * 100,
+                      duree: selectedRdv.duree || 60
+                    }}
+                    label={selectedRdv.service_nom || ''}
+                    className="font-medium"
+                  />
                   {selectedRdv.duree && <p className="text-xs text-gray-500">{selectedRdv.duree} min</p>}
                 </div>
                 <span className="text-xl font-bold text-green-600">{formatCurrency(selectedRdv.prix || selectedRdv.prix_total || 0)}</span>
@@ -1083,10 +1151,18 @@ export default function Activites() {
               {selectedRdv.membre && (
                 <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                   <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Employé assigné</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {selectedRdv.membre.prenom} {selectedRdv.membre.nom}
-                    <span className="text-sm text-gray-500 ml-2">({selectedRdv.membre.role})</span>
-                  </p>
+                  <EntityLink
+                    type="employee"
+                    entity={{
+                      id: selectedRdv.membre.id,
+                      nom: selectedRdv.membre.nom,
+                      prenom: selectedRdv.membre.prenom,
+                      role: selectedRdv.membre.role
+                    }}
+                    label={`${selectedRdv.membre.prenom} ${selectedRdv.membre.nom}`}
+                    className="font-medium"
+                  />
+                  <span className="text-sm text-gray-500 ml-2">({selectedRdv.membre.role})</span>
                 </div>
               )}
 
