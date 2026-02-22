@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertCircle, Lock, Mail, User, Building, Phone, Check } from 'lucide-react';
+import { Loader2, AlertCircle, Lock, Mail, User, Building, Phone, Check, ArrowLeft } from 'lucide-react';
 
 const PLANS = {
   starter: { name: 'Starter', price: 199, features: ['1 assistant IA', 'CRM & Agenda', 'Support email'] },
@@ -79,6 +79,15 @@ export default function Signup() {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
       </div>
+
+      {/* Bouton retour */}
+      <a
+        href="http://localhost:3000"
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+      >
+        <ArrowLeft className="h-5 w-5" />
+        <span className="text-sm">Retour au site</span>
+      </a>
 
       <div className="w-full max-w-4xl relative z-10 grid md:grid-cols-2 gap-6">
         <Card className="shadow-2xl border-0 bg-gradient-to-br from-cyan-500 to-blue-600 text-white">

@@ -71,6 +71,7 @@ import reviewsRoutes from './routes/reviews.js';
 import twilioWebhooksRoutes from './routes/twilioWebhooks.js';
 import voiceRoutes from './routes/voice.js';
 import agendaRoutes from './routes/agenda.js';
+import landingAgentRoutes from './routes/landingAgent.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -158,6 +159,10 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// ============= LANDING PAGE AGENT (Public, avant tenant resolution) =============
+// Agent commercial IA pour le site vitrine - pas besoin de tenant
+app.use('/api/landing', landingAgentRoutes);
 
 // 🔒 TENANT RESOLUTION: Appliqué globalement pour toutes les routes /api
 // Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine

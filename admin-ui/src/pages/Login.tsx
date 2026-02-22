@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authApi, api } from '@/lib/api';
-import { Loader2, AlertCircle, Lock, Mail, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle, Lock, Mail, Sparkles, ArrowLeft } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -36,6 +36,15 @@ export default function Login() {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
       </div>
+
+      {/* Bouton retour */}
+      <a
+        href="http://localhost:3000"
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+      >
+        <ArrowLeft className="h-5 w-5" />
+        <span className="text-sm">Retour au site</span>
+      </a>
 
       <Card className="w-full max-w-md relative z-10 shadow-2xl border-0 bg-white/95 backdrop-blur">
         <CardHeader className="text-center pb-2">

@@ -561,9 +561,21 @@ function NexusRobot({ state = 'idle', onAnimationComplete }) {
 }
 
 // ============================================
-// NEXUS CHAT - Chat avec streaming
+// NEXUS CHAT - Chat avec streaming + Voice
 // ============================================
-function NexusChat({ messages, onSend, isTyping, inputDisabled, disableAutoScroll = false }) {
+function NexusChat({
+  messages,
+  onSend,
+  isTyping,
+  inputDisabled,
+  disableAutoScroll = false,
+  voiceEnabled = false,
+  isListening = false,
+  transcript = '',
+  onStartVoice,
+  onStopVoice,
+  isSpeaking = false
+}) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -576,11 +588,33 @@ function NexusChat({ messages, onSend, isTyping, inputDisabled, disableAutoScrol
     }
   }, [messages, disableAutoScroll])
 
+  // Mettre à jour l'input avec le transcript vocal
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript)
+    }
+  }, [transcript])
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (input.trim() && !inputDisabled) {
       onSend(input.trim())
       setInput('')
+    }
+  }
+
+  const handleVoiceClick = () => {
+    if (isListening) {
+      onStopVoice?.()
+      // Envoyer automatiquement si on a du texte
+      if (input.trim()) {
+        setTimeout(() => {
+          onSend(input.trim())
+          setInput('')
+        }, 300)
+      }
+    } else {
+      onStartVoice?.()
     }
   }
 
@@ -638,31 +672,208 @@ function NexusChat({ messages, onSend, isTyping, inputDisabled, disableAutoScrol
 
         {/* Input area */}
         <form onSubmit={handleSubmit} className="border-t border-neon-cyan/10 p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez votre question sur NEXUS..."
-              disabled={inputDisabled}
-              className="flex-1 bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all disabled:opacity-50"
+              placeholder={isListening ? "Je vous écoute..." : "Posez votre question..."}
+              disabled={inputDisabled || isListening}
+              className={clsx(
+                "flex-1 bg-dark-800 border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none transition-all disabled:opacity-50",
+                isListening
+                  ? "border-red-500/50 ring-2 ring-red-500/30 animate-pulse"
+                  : "border-dark-600 focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30"
+              )}
             />
+            {/* Bouton micro */}
+            {voiceEnabled && (
+              <button
+                type="button"
+                onClick={handleVoiceClick}
+                disabled={inputDisabled || isSpeaking}
+                className={clsx(
+                  "p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                  isListening
+                    ? "bg-red-500 text-white animate-pulse"
+                    : "bg-dark-700 text-gray-400 hover:bg-dark-600 hover:text-white border border-dark-600"
+                )}
+                title={isListening ? "Arrêter l'écoute" : "Parler"}
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+            )}
+            {/* Bouton envoyer */}
             <button
               type="submit"
-              disabled={!input.trim() || inputDisabled}
+              disabled={!input.trim() || inputDisabled || isListening}
               className="p-3 bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2 text-center">
-            NEXUS peut repondre a toutes vos questions sur nos services
+            {isSpeaking ? (
+              <span className="text-neon-cyan flex items-center justify-center gap-2">
+                <Volume2 className="w-3 h-3 animate-pulse" /> NEXUS parle...
+              </span>
+            ) : isListening ? (
+              <span className="text-red-400 flex items-center justify-center gap-2">
+                <Mic className="w-3 h-3 animate-pulse" /> Parlez maintenant...
+              </span>
+            ) : voiceEnabled ? (
+              "Tapez ou cliquez sur le micro pour parler"
+            ) : (
+              "NEXUS peut répondre à toutes vos questions"
+            )}
           </p>
         </form>
       </div>
     </div>
   )
+}
+
+// ============================================
+// UTILITAIRE - Nettoyage texte pour TTS
+// ============================================
+
+/**
+ * Nettoie le texte pour une lecture TTS naturelle
+ * - Supprime emojis, markdown, caractères spéciaux
+ * - Convertit les prix et pourcentages en format parlé
+ * - Améliore la ponctuation pour des pauses naturelles
+ */
+function cleanTextForTTS(text) {
+  if (!text) return ''
+
+  let cleaned = text
+    // Supprimer tous les emojis
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols
+    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols Extended-A
+    .replace(/[\u{231A}-\u{231B}]/gu, '')   // Watch, Hourglass
+    .replace(/[\u{23E9}-\u{23F3}]/gu, '')   // Various symbols
+    .replace(/[\u{23F8}-\u{23FA}]/gu, '')   // Various symbols
+    .replace(/[\u{25AA}-\u{25AB}]/gu, '')   // Squares
+    .replace(/[\u{25B6}]/gu, '')            // Play button
+    .replace(/[\u{25C0}]/gu, '')            // Reverse button
+    .replace(/[\u{25FB}-\u{25FE}]/gu, '')   // Squares
+    .replace(/[\u{2614}-\u{2615}]/gu, '')   // Umbrella, Coffee
+    .replace(/[\u{2648}-\u{2653}]/gu, '')   // Zodiac
+    .replace(/[\u{267F}]/gu, '')            // Wheelchair
+    .replace(/[\u{2693}]/gu, '')            // Anchor
+    .replace(/[\u{26A1}]/gu, '')            // High voltage
+    .replace(/[\u{26AA}-\u{26AB}]/gu, '')   // Circles
+    .replace(/[\u{26BD}-\u{26BE}]/gu, '')   // Soccer, Baseball
+    .replace(/[\u{26C4}-\u{26C5}]/gu, '')   // Snowman, Sun
+    .replace(/[\u{26CE}]/gu, '')            // Ophiuchus
+    .replace(/[\u{26D4}]/gu, '')            // No entry
+    .replace(/[\u{26EA}]/gu, '')            // Church
+    .replace(/[\u{26F2}-\u{26F3}]/gu, '')   // Fountain, Golf
+    .replace(/[\u{26F5}]/gu, '')            // Sailboat
+    .replace(/[\u{26FA}]/gu, '')            // Tent
+    .replace(/[\u{26FD}]/gu, '')            // Fuel pump
+    .replace(/[\u{2702}]/gu, '')            // Scissors
+    .replace(/[\u{2705}]/gu, '')            // Check mark
+    .replace(/[\u{2708}-\u{270D}]/gu, '')   // Airplane to Writing hand
+    .replace(/[\u{270F}]/gu, '')            // Pencil
+    .replace(/[\u{2712}]/gu, '')            // Black nib
+    .replace(/[\u{2714}]/gu, '')            // Check mark
+    .replace(/[\u{2716}]/gu, '')            // X mark
+    .replace(/[\u{271D}]/gu, '')            // Latin cross
+    .replace(/[\u{2721}]/gu, '')            // Star of David
+    .replace(/[\u{2728}]/gu, '')            // Sparkles
+    .replace(/[\u{2733}-\u{2734}]/gu, '')   // Eight spoked asterisk
+    .replace(/[\u{2744}]/gu, '')            // Snowflake
+    .replace(/[\u{2747}]/gu, '')            // Sparkle
+    .replace(/[\u{274C}]/gu, '')            // Cross mark
+    .replace(/[\u{274E}]/gu, '')            // Cross mark
+    .replace(/[\u{2753}-\u{2755}]/gu, '')   // Question marks
+    .replace(/[\u{2757}]/gu, '')            // Exclamation
+    .replace(/[\u{2763}-\u{2764}]/gu, '')   // Heart exclamation
+    .replace(/[\u{2795}-\u{2797}]/gu, '')   // Plus, Minus, Division
+    .replace(/[\u{27A1}]/gu, '')            // Right arrow
+    .replace(/[\u{27B0}]/gu, '')            // Curly loop
+    .replace(/[\u{27BF}]/gu, '')            // Double curly loop
+    .replace(/[\u{2934}-\u{2935}]/gu, '')   // Arrows
+    .replace(/[\u{2B05}-\u{2B07}]/gu, '')   // Arrows
+    .replace(/[\u{2B1B}-\u{2B1C}]/gu, '')   // Squares
+    .replace(/[\u{2B50}]/gu, '')            // Star
+    .replace(/[\u{2B55}]/gu, '')            // Circle
+    .replace(/[\u{3030}]/gu, '')            // Wavy dash
+    .replace(/[\u{303D}]/gu, '')            // Part alternation mark
+    .replace(/[\u{3297}]/gu, '')            // Circled Ideograph Congratulation
+    .replace(/[\u{3299}]/gu, '')            // Circled Ideograph Secret
+
+    // Supprimer le markdown
+    .replace(/\*\*/g, '')           // Bold
+    .replace(/\*/g, '')             // Italic
+    .replace(/__/g, '')             // Bold alt
+    .replace(/_/g, ' ')             // Italic alt -> espace
+    .replace(/`/g, '')              // Code
+    .replace(/#{1,6}\s/g, '')       // Headers
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links -> texte seul
+
+    // Convertir les prix en format parlé
+    .replace(/(\d+)€\/mois/g, '$1 euros par mois')
+    .replace(/(\d+)€/g, '$1 euros')
+    .replace(/(\d+)\$/g, '$1 dollars')
+
+    // Convertir les pourcentages
+    .replace(/(\d+)%/g, '$1 pour cent')
+
+    // Convertir les fractions de temps
+    .replace(/24h\/24/g, 'vingt-quatre heures sur vingt-quatre')
+    .replace(/7j\/7/g, 'sept jours sur sept')
+    .replace(/24\/7/g, 'vingt-quatre sept')
+
+    // Améliorer les nombres pour une meilleure lecture
+    .replace(/(\d+)-(\d+)/g, '$1 à $2')  // Plages: 2-3 -> 2 à 3
+
+    // Nettoyer les listes
+    .replace(/^[-•]\s*/gm, '')      // Puces en début de ligne
+    .replace(/\n[-•]\s*/g, ', ')    // Puces -> virgules
+    .replace(/^\d+\.\s*/gm, '')     // Numéros de liste
+
+    // Nettoyer la ponctuation excessive
+    .replace(/\.{2,}/g, '.')        // Multiple points -> un seul
+    .replace(/!{2,}/g, '!')         // Multiple exclamations
+    .replace(/\?{2,}/g, '?')        // Multiple questions
+    .replace(/,{2,}/g, ',')         // Multiple virgules
+    .replace(/:\s*$/gm, '.')        // Deux-points en fin -> point
+    .replace(/;\s/g, ', ')          // Point-virgule -> virgule
+
+    // Améliorer les pauses
+    .replace(/\n+/g, '. ')          // Sauts de ligne -> pauses
+    .replace(/\s*\.\s*\.\s*/g, '. ') // Double points -> simple
+
+    // Nettoyer les espaces
+    .replace(/\s+/g, ' ')           // Espaces multiples -> simple
+    .replace(/\s+\./g, '.')         // Espace avant point
+    .replace(/\s+,/g, ',')          // Espace avant virgule
+    .replace(/\(\s+/g, '(')         // Espace après parenthèse ouvrante
+    .replace(/\s+\)/g, ')')         // Espace avant parenthèse fermante
+
+    // Supprimer les parenthèses vides ou avec juste des espaces
+    .replace(/\(\s*\)/g, '')
+
+    // Trim final
+    .trim()
+
+  // S'assurer que le texte se termine par une ponctuation
+  if (cleaned && !/[.!?]$/.test(cleaned)) {
+    cleaned += '.'
+  }
+
+  return cleaned
 }
 
 // ============================================
@@ -821,6 +1032,212 @@ function useSoundEffects() {
   return { playBeep, playRobotBeeps, playConfirmBeep }
 }
 
+// Hook pour la synthèse vocale (TTS) - Stable et performant
+function useTextToSpeech() {
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [voicesLoaded, setVoicesLoaded] = useState(false)
+  const voiceRef = useRef(null)
+  const queueRef = useRef([])
+  const isProcessingRef = useRef(false)
+
+  // Charger les voix
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis?.getVoices() || []
+      if (voices.length > 0) {
+        // Chercher une voix française de qualité
+        const frenchVoices = voices.filter(v => v.lang.startsWith('fr'))
+        // Préférer les voix "premium" ou "enhanced"
+        const premiumFr = frenchVoices.find(v =>
+          v.name.toLowerCase().includes('premium') ||
+          v.name.toLowerCase().includes('enhanced') ||
+          v.name.toLowerCase().includes('google') ||
+          v.name.toLowerCase().includes('microsoft')
+        )
+        voiceRef.current = premiumFr || frenchVoices[0] || voices[0]
+        setVoicesLoaded(true)
+      }
+    }
+
+    loadVoices()
+    window.speechSynthesis?.addEventListener?.('voiceschanged', loadVoices)
+
+    return () => {
+      window.speechSynthesis?.removeEventListener?.('voiceschanged', loadVoices)
+    }
+  }, [])
+
+  // Traiter la queue de parole
+  const processQueue = useCallback(() => {
+    if (isProcessingRef.current || queueRef.current.length === 0) return
+
+    isProcessingRef.current = true
+    const { text, onEnd } = queueRef.current.shift()
+
+    if (!window.speechSynthesis || !text) {
+      isProcessingRef.current = false
+      onEnd?.()
+      processQueue()
+      return
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text)
+
+    if (voiceRef.current) utterance.voice = voiceRef.current
+    utterance.lang = 'fr-FR'
+    utterance.rate = 0.95   // Un peu plus lent pour clarté
+    utterance.pitch = 1.0
+    utterance.volume = 1.0
+
+    utterance.onstart = () => setIsSpeaking(true)
+
+    utterance.onend = () => {
+      setIsSpeaking(false)
+      isProcessingRef.current = false
+      onEnd?.()
+      // Traiter le prochain élément
+      setTimeout(processQueue, 100)
+    }
+
+    utterance.onerror = (e) => {
+      console.warn('TTS error:', e.error)
+      setIsSpeaking(false)
+      isProcessingRef.current = false
+      onEnd?.()
+      setTimeout(processQueue, 100)
+    }
+
+    // Workaround pour Chrome qui coupe parfois la synthèse
+    const resumeInterval = setInterval(() => {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume()
+      }
+    }, 500)
+
+    utterance.onend = () => {
+      clearInterval(resumeInterval)
+      setIsSpeaking(false)
+      isProcessingRef.current = false
+      onEnd?.()
+      setTimeout(processQueue, 100)
+    }
+
+    window.speechSynthesis.speak(utterance)
+  }, [])
+
+  const speak = useCallback((text, onEnd) => {
+    if (!text) {
+      onEnd?.()
+      return
+    }
+
+    // Découper en phrases pour une meilleure fluidité
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
+
+    sentences.forEach((sentence, index) => {
+      queueRef.current.push({
+        text: sentence.trim(),
+        onEnd: index === sentences.length - 1 ? onEnd : undefined
+      })
+    })
+
+    processQueue()
+  }, [processQueue])
+
+  const stop = useCallback(() => {
+    window.speechSynthesis?.cancel()
+    queueRef.current = []
+    isProcessingRef.current = false
+    setIsSpeaking(false)
+  }, [])
+
+  return { speak, stop, isSpeaking, voicesLoaded }
+}
+
+// Hook pour la reconnaissance vocale (Speech-to-Text)
+function useSpeechRecognition() {
+  const [isListening, setIsListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [isSupported, setIsSupported] = useState(false)
+  const recognitionRef = useRef(null)
+
+  useEffect(() => {
+    // Vérifier le support
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SpeechRecognition) {
+      setIsSupported(true)
+
+      const recognition = new SpeechRecognition()
+      recognition.continuous = false
+      recognition.interimResults = true
+      recognition.lang = 'fr-FR'
+      recognition.maxAlternatives = 1
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        setTranscript('')
+      }
+
+      recognition.onresult = (event) => {
+        let finalTranscript = ''
+        let interimTranscript = ''
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript
+          } else {
+            interimTranscript += result[0].transcript
+          }
+        }
+
+        setTranscript(finalTranscript || interimTranscript)
+      }
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error)
+        setIsListening(false)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      recognitionRef.current = recognition
+    }
+
+    return () => {
+      recognitionRef.current?.stop()
+    }
+  }, [])
+
+  const startListening = useCallback(() => {
+    if (recognitionRef.current && !isListening) {
+      setTranscript('')
+      try {
+        recognitionRef.current.start()
+      } catch (e) {
+        // Peut arriver si déjà en cours
+        console.warn('Recognition already started')
+      }
+    }
+  }, [isListening])
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop()
+    }
+  }, [isListening])
+
+  return {
+    isListening,
+    transcript,
+    isSupported,
+    startListening,
+    stopListening
+  }
+}
+
 // Hook pour gérer l'audio principal (voix)
 function useNexusAudio() {
   const audioRef = useRef(null)
@@ -899,6 +1316,15 @@ function App() {
   const [showStartButton, setShowStartButton] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { playAudio, stopAudio, isPlaying, audioEnabled, setAudioEnabled } = useNexusAudio()
+  const { speak: speakTTS, stop: stopTTS, isSpeaking } = useTextToSpeech()
+  const { playRobotBeeps, playConfirmBeep } = useSoundEffects()
+  const {
+    isListening,
+    transcript,
+    isSupported: voiceSupported,
+    startListening,
+    stopListening
+  } = useSpeechRecognition()
 
   // Activer l'ambiance spatiale quand le son est activé
   useSpaceAmbient(audioEnabled && hasStarted)
@@ -969,36 +1395,172 @@ function App() {
     setRobotState('idle')
   }
 
-  // Gerer l'envoi d'un message utilisateur
+  // API URL pour l'agent commercial
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+  // Gerer l'envoi d'un message utilisateur - Appel API avec streaming + TTS
   const handleSend = async (text) => {
-    // Arrêter l'audio en cours si nécessaire
+    // Arrêter l'audio et TTS en cours
     stopAudio()
+    stopTTS()
 
     // Ajouter le message utilisateur
     setMessages(prev => [...prev, { role: 'user', content: text }])
 
     // Robot ecoute puis repond
     setRobotState('listening')
+    setHasStarted(true)
 
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // Trouver la reponse appropriee
-    const lowerText = text.toLowerCase()
-    let messageKey = 'default'
-
-    if (lowerText.includes('prix') || lowerText.includes('tarif') || lowerText.includes('cout') || lowerText.includes('combien')) {
-      messageKey = 'prix'
-    } else if (lowerText.includes('telephone') || lowerText.includes('appel')) {
-      messageKey = 'telephone'
-    } else if (lowerText.includes('whatsapp')) {
-      messageKey = 'whatsapp'
-    } else if (lowerText.includes('reservation') || lowerText.includes('rdv') || lowerText.includes('rendez')) {
-      messageKey = 'reservation'
-    } else if (lowerText.includes('essai') || lowerText.includes('gratuit') || lowerText.includes('test')) {
-      messageKey = 'essai'
+    // Jouer les bips robotiques
+    if (audioEnabled) {
+      playRobotBeeps()
     }
 
-    await speakMessage(messageKey)
+    await new Promise(resolve => setTimeout(resolve, 400))
+
+    // Préparer l'historique des messages pour l'API (sans les messages système)
+    const chatHistory = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({ role: m.role, content: m.content }))
+
+    // Ajouter le nouveau message
+    chatHistory.push({ role: 'user', content: text })
+
+    // Ajouter un message vide qui va se remplir en streaming
+    setMessages(prev => [...prev, { role: 'assistant', content: '', isStreaming: true }])
+    setIsTyping(true)
+    setRobotState('talking')
+
+    let fullResponse = ''
+    let spokenText = ''
+    let sentenceBuffer = ''
+
+    // Fonction pour parler une phrase complète
+    const speakSentence = (sentence) => {
+      if (!audioEnabled || !sentence.trim()) return
+      const cleanSentence = cleanTextForTTS(sentence)
+      if (cleanSentence && cleanSentence !== spokenText) {
+        speakTTS(cleanSentence)
+        spokenText += cleanSentence
+      }
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/landing/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: chatHistory,
+          stream: true
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('API error')
+      }
+
+      // Lire le stream
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.text) {
+                fullResponse += parsed.text
+                sentenceBuffer += parsed.text
+
+                // Mettre à jour le message en streaming
+                setMessages(prev => {
+                  const updated = [...prev]
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: fullResponse
+                  }
+                  return updated
+                })
+
+                // Vérifier si on a une phrase complète à lire
+                const sentenceMatch = sentenceBuffer.match(/^(.+?[.!?])\s*/)
+                if (sentenceMatch) {
+                  speakSentence(sentenceMatch[1])
+                  sentenceBuffer = sentenceBuffer.slice(sentenceMatch[0].length)
+                }
+              }
+            } catch (e) {
+              // Ignorer les erreurs de parsing JSON
+            }
+          }
+        }
+      }
+
+      // Lire le reste du buffer s'il reste du texte
+      if (sentenceBuffer.trim()) {
+        speakSentence(sentenceBuffer)
+      }
+
+      // Terminer le streaming texte
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          isStreaming: false
+        }
+        return updated
+      })
+
+      // Attendre que la synthèse vocale termine
+      if (audioEnabled) {
+        await new Promise(resolve => {
+          const checkSpeaking = setInterval(() => {
+            if (!window.speechSynthesis.speaking) {
+              clearInterval(checkSpeaking)
+              playConfirmBeep()
+              resolve()
+            }
+          }, 100)
+          // Timeout de sécurité
+          setTimeout(() => {
+            clearInterval(checkSpeaking)
+            resolve()
+          }, 30000)
+        })
+      }
+
+    } catch (error) {
+      console.error('Chat API error:', error)
+      // En cas d'erreur, afficher un message d'erreur
+      const errorMsg = "Désolé, je rencontre un problème technique. Vous pouvez me contacter directement via le formulaire de contact ou essayer de nouveau dans quelques instants."
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          role: 'assistant',
+          content: errorMsg,
+          isStreaming: false
+        }
+        return updated
+      })
+
+      if (audioEnabled) {
+        speakTTS(errorMsg)
+      }
+    }
+
+    setIsTyping(false)
+    setRobotState('idle')
   }
 
   return (
@@ -1031,11 +1593,11 @@ function App() {
             </div>
 
             <div className="flex items-center gap-4">
-              <a href="http://localhost:3003/login" className="text-gray-400 hover:text-white transition hidden sm:block">
+              <a href="http://localhost:3001/login" className="text-gray-400 hover:text-white transition hidden sm:block">
                 Connexion
               </a>
               <a
-                href="http://localhost:3003/signup"
+                href="http://localhost:3001/signup"
                 className="bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-semibold py-2 px-5 rounded-xl hover:opacity-90 transition-opacity"
               >
                 Essai gratuit
@@ -1057,7 +1619,7 @@ function App() {
               <a href="#gallery" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Galerie</a>
               <a href="#demo" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Demo</a>
               <a href="#pricing" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
-              <a href="http://localhost:3003/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
+              <a href="http://localhost:3001/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
             </div>
           </div>
         )}
@@ -1115,7 +1677,13 @@ function App() {
             messages={messages}
             onSend={handleSend}
             isTyping={isTyping}
-            inputDisabled={isTyping}
+            inputDisabled={isTyping || isSpeaking}
+            voiceEnabled={voiceSupported && audioEnabled}
+            isListening={isListening}
+            transcript={transcript}
+            onStartVoice={startListening}
+            onStopVoice={stopListening}
+            isSpeaking={isSpeaking}
           />
         )}
 
@@ -1254,7 +1822,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3003/signup?plan=starter"
+                href="http://localhost:3001/signup?plan=starter"
                 className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-white/10 rounded-xl font-semibold transition-colors"
               >
                 Commencer l'essai
@@ -1301,7 +1869,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3003/signup?plan=pro"
+                href="http://localhost:3001/signup?plan=pro"
                 className="block w-full py-3 px-6 text-center bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl font-semibold hover:opacity-90 transition-opacity"
               >
                 Commencer l'essai
@@ -1345,7 +1913,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3003/signup?plan=business"
+                href="http://localhost:3001/signup?plan=business"
                 className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
               >
                 Contacter les ventes
@@ -1385,7 +1953,7 @@ function App() {
               Rejoignez des centaines de professionnels qui gagnent du temps chaque jour grace a NEXUS.
             </p>
             <a
-              href="http://localhost:3003/signup"
+              href="http://localhost:3001/signup"
               className="inline-flex items-center gap-2 bg-white text-dark-900 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors"
             >
               Demarrer l'essai gratuit
