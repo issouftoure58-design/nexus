@@ -145,6 +145,9 @@ export default function Comptabilite() {
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // État pour la régénération des écritures
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
   // État pour la consultation des journaux comptables
   const [selectedJournal, setSelectedJournal] = useState<string>('BQ');
   const [journalPeriode, setJournalPeriode] = useState<string>(() => {
@@ -183,7 +186,7 @@ export default function Comptabilite() {
   });
 
   // Query pour les écritures du journal banque (BQ) pour le rapprochement
-  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number }>({
+  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number }>({
     queryKey: ['ecritures-banque'],
     queryFn: () => comptaApi.getEcrituresBanque(),
     enabled: activeTab === 'rapprochement',
@@ -2287,9 +2290,15 @@ export default function Comptabilite() {
                 Rapprochement Bancaire
               </h2>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="gap-1" onClick={() => refetchEcrituresBanque()}>
-                  <RefreshCw className="h-4 w-4" />
-                  Actualiser
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => refetchEcrituresBanque()}
+                  disabled={ecrituresBanqueFetching}
+                >
+                  <RefreshCw className={cn("h-4 w-4", ecrituresBanqueFetching && "animate-spin")} />
+                  {ecrituresBanqueFetching ? 'Chargement...' : 'Actualiser'}
                 </Button>
                 <Button variant="outline" size="sm" className="gap-1" onClick={exportRapprochement}>
                   <Download className="h-4 w-4" />
@@ -3387,20 +3396,26 @@ export default function Comptabilite() {
                       variant="outline"
                       size="sm"
                       className="gap-2"
+                      disabled={isRegenerating}
                       onClick={async () => {
+                        setIsRegenerating(true);
                         try {
                           const result = await comptaApi.genererToutesEcritures();
                           setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
-                          // Refetch des écritures
-                          window.location.reload();
-                        } catch {
+                          // Refetch des écritures après un court délai
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 1500);
+                        } catch (err) {
+                          console.error('[COMPTA] Erreur régénération:', err);
                           setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
+                          setIsRegenerating(false);
+                          setTimeout(() => setNotification(null), 3000);
                         }
-                        setTimeout(() => setNotification(null), 3000);
                       }}
                     >
-                      <RefreshCw className="h-4 w-4" />
-                      Régénérer
+                      <RefreshCw className={cn("h-4 w-4", isRegenerating && "animate-spin")} />
+                      {isRegenerating ? 'Régénération...' : 'Régénérer'}
                     </Button>
                   </div>
                 </div>
