@@ -50,6 +50,18 @@ import {
   findServiceForTenant,
 } from '../TenantAwareValidator.js';
 
+// 🆕 TEMPLATE ENGINE: Prompts et règles dynamiques par tenant
+import { isFrozenTenant, getEffectiveConfig, getFullAgentConfig } from '../../templates/templateLoader.js';
+import { generateSystemPrompt as dynamicSystemPrompt } from '../../templates/promptEngine.js';
+import {
+  getServicesForTenant,
+  findServiceByNameForTenant,
+  getTravelFeesForTenant,
+  calculateTravelFeeForTenant,
+  getBusinessHoursForTenant,
+  getBookingRulesForTenant,
+} from '../../services/tenantBusinessRules.js';
+
 // 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
 import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
 
@@ -1727,6 +1739,40 @@ RÈGLES :
 - Réponses courtes et claires${isVoice ? ', phrases de 1-2 secondes maximum' : ''}`;
 }
 
+/**
+ * 🆕 Wrapper unifié pour getSystemPrompt
+ * - Tenants frozen (fatshairafro) → utilise le prompt hardcodé ci-dessus
+ * - Autres tenants → utilise le moteur dynamique (promptEngine.js)
+ *
+ * @param {string} channel - Canal ('phone', 'chat', 'whatsapp', etc.)
+ * @param {Object} tenantConfig - Configuration du tenant
+ * @returns {Promise<string>|string} - System prompt
+ */
+async function getSystemPromptUnified(channel, tenantConfig) {
+  if (!tenantConfig) {
+    throw new Error('TENANT_CONFIG_REQUIRED');
+  }
+
+  const tenantId = tenantConfig.id || tenantConfig.tenant_id || tenantConfig.slug;
+
+  // 🔒 Tenants frozen = prompt hardcodé (backward compatibility)
+  if (isFrozenTenant(tenantId)) {
+    console.log(`[NEXUS CORE] Using frozen prompt for ${tenantId}`);
+    return getSystemPrompt(channel, tenantConfig);
+  }
+
+  // 🆕 Autres tenants = prompt dynamique
+  try {
+    console.log(`[NEXUS CORE] Generating dynamic prompt for ${tenantId}`);
+    const dynamicPrompt = await dynamicSystemPrompt(channel, tenantConfig);
+    return dynamicPrompt;
+  } catch (err) {
+    console.error(`[NEXUS CORE] Error generating dynamic prompt, falling back to frozen:`, err.message);
+    // Fallback to hardcoded prompt if dynamic fails
+    return getSystemPrompt(channel, tenantConfig);
+  }
+}
+
 // ============================================
 // HISTORIQUE DE CONVERSATION
 // ============================================
@@ -1857,7 +1903,8 @@ export async function processMessage(message, channel, context = {}) {
     const modelEmoji = selectedModel.includes('haiku') ? '⚡' : '🧠';
 
     // 💰 OPTIMISATION 3: Optimiser le prompt système
-    const rawSystemPrompt = getSystemPrompt(channel, tenantConfig);
+    // 🆕 Utilise le prompt dynamique pour tenants non-frozen
+    const rawSystemPrompt = await getSystemPromptUnified(channel, tenantConfig);
     const optimizedSystemPrompt = promptOptimizer.optimize(rawSystemPrompt, {
       isSimple: routerResult.complexity < 3
     });
@@ -2478,7 +2525,16 @@ export {
   invalidateCache,
 
   // Tools execution (pour tests)
-  executeTool
+  executeTool,
+
+  // 🆕 Dynamic tenant-aware functions
+  getSystemPromptUnified,
+  getServicesForTenant,
+  findServiceByNameForTenant,
+  getTravelFeesForTenant,
+  calculateTravelFeeForTenant,
+  getBusinessHoursForTenant,
+  isFrozenTenant,
 };
 
 // ============================================
