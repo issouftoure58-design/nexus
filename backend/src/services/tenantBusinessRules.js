@@ -343,12 +343,14 @@ export function getBlockingStatuts() {
 // ============================================
 
 function normalizeService(svc) {
+  // Note: Si svc vient de la BDD, prix est en centimes. Si de businessRules.js, price est en euros.
+  const priceInCents = svc.priceInCents || svc.prix || (svc.price ? svc.price * 100 : 0);
   return {
     id: svc.id,
     name: svc.name || svc.nom,
     category: svc.category || 'other',
-    price: svc.price || svc.prix,
-    priceInCents: svc.priceInCents || (svc.price || svc.prix) * 100,
+    price: svc.price || (priceInCents / 100),
+    priceInCents: priceInCents,
     priceIsMinimum: svc.priceIsMinimum || svc.price_is_minimum || false,
     durationMinutes: svc.durationMinutes || svc.duree || 60,
     blocksFullDay: svc.blocksFullDay || svc.blocks_full_day || false,
@@ -358,12 +360,13 @@ function normalizeService(svc) {
 }
 
 function normalizeServiceFromDb(svc) {
+  // Note: svc.prix est en CENTIMES dans la BDD
   return {
     id: svc.id,
     name: svc.nom,
     category: svc.category || 'other',
-    price: svc.prix,
-    priceInCents: svc.prix * 100,
+    price: svc.prix / 100,  // Centimes → euros
+    priceInCents: svc.prix,  // Déjà en centimes
     priceIsMinimum: svc.price_is_minimum || false,
     durationMinutes: svc.duree || 60,
     blocksFullDay: svc.blocks_full_day || false,

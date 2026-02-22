@@ -175,11 +175,13 @@ export async function findServiceForTenant(tenantId, serviceName) {
     .single();
 
   if (dbService) {
+    // Note: dbService.prix est toujours en CENTIMES dans la BDD
+    const priceInCents = dbService.prix_centimes || dbService.prix;
     return {
       id: dbService.id,
       name: dbService.nom,
-      price: dbService.prix_centimes ? dbService.prix_centimes / 100 : dbService.prix,
-      priceInCents: dbService.prix_centimes || dbService.prix * 100,
+      price: priceInCents / 100,  // Centimes → euros
+      priceInCents: priceInCents,
       durationMinutes: dbService.duree_minutes || 60,
       blocksFullDay: dbService.bloque_journee || false,
       category: dbService.categorie,

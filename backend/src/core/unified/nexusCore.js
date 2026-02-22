@@ -1062,20 +1062,20 @@ export async function createReservationUnified(data, channel = 'web', options = 
       }
 
       if (dbService) {
-        // Note: dbService.prix est en EUROS dans la BDD, pas en centimes
+        // Note: dbService.prix est en CENTIMES dans la BDD (ex: 6000 = 60€)
         service = {
           key: `db_${dbService.id}`,
           id: `db_${dbService.id}`,
           name: dbService.nom,
           durationMinutes: dbService.duree,
-          price: dbService.prix,  // Déjà en euros
-          priceInCents: Math.round(dbService.prix * 100),  // Convertir en centimes
+          price: dbService.prix / 100,  // Convertir centimes → euros
+          priceInCents: dbService.prix,  // Déjà en centimes
           priceIsMinimum: false,
           category: 'other',
           blocksFullDay: dbService.duree >= 480,
           blocksDays: 1,
         };
-        console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix}€)`);
+        console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix / 100}€)`);
       } else {
         console.error(`[NEXUS CORE] ❌ Service non trouvé ni en config ni en BDD: "${data.service_name}" (tenant: ${data.tenant_id})`);
         return { success: false, error: `Service non trouvé: "${data.service_name}"` };
