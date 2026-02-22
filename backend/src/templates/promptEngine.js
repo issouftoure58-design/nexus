@@ -269,6 +269,7 @@ export async function generateSystemPrompt(channel, tenantConfig, options = {}) 
   const hoursSection = buildHoursText(tc.businessHours);
   const servicesSection = buildServicesText(tc.services, tc.categoryLabels);
   const travelSection = tc.serviceOptions?.domicile_enabled ? buildTravelFeesText(tc.travelFees) : '';
+  const taxSection = buildTaxInfo(tc);
   const personalitySection = buildPersonalityText(tc.personality, isVoice);
   const rulesSection = buildRulesText(agentConfig.roleId, agentConfig.enabledCapabilities, agentConfig.autonomy);
   const capabilitiesSection = buildCapabilitiesText(agentConfig.enabledCapabilities);
@@ -288,6 +289,8 @@ ${hoursSection}
 ${servicesSection}
 
 ${travelSection}
+
+${taxSection}
 
 === TON RÔLE : ${agentConfig.roleName?.toUpperCase() || 'AGENT'} ===
 ${agentConfig.roleDescription || ''}
@@ -355,6 +358,34 @@ function buildBusinessInfo(tc) {
   if (tc.secteur) lines.push(`• Secteur : ${tc.secteur}`);
 
   return lines.join('\n');
+}
+
+/**
+ * Construit le texte sur la fiscalité/TVA
+ * @param {Object} tc - Tenant config
+ * @returns {string}
+ */
+function buildTaxInfo(tc) {
+  const businessType = tc.business_type || tc.businessType || 'company';
+  const taxStatus = tc.tax_status || tc.taxStatus || 'franchise_tva';
+
+  if (taxStatus === 'franchise_tva') {
+    return `=== FISCALITÉ ===
+• Statut : ${businessType === 'independent' ? 'Auto-entrepreneur / Indépendant' : 'Entreprise'}
+• TVA : Non assujetti (franchise en base)
+• Prix affichés : Prix NETS (pas de TVA à ajouter)
+• Mention légale : "TVA non applicable, art. 293 B du CGI"
+
+IMPORTANT : Quand tu donnes un prix, c'est le prix final. Ne mentionne JAMAIS la TVA.`;
+  } else {
+    const tvaRate = tc.tva_rate || tc.tvaRate || 20;
+    return `=== FISCALITÉ ===
+• Statut : Entreprise assujettie à la TVA
+• Taux TVA : ${tvaRate}%
+• Prix affichés : TTC (TVA incluse)
+
+IMPORTANT : Les prix que tu donnes sont TTC. Si le client demande le prix HT, calcule : prix / 1.${tvaRate}.`;
+  }
 }
 
 // ============================================

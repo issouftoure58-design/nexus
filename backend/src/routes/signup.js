@@ -87,6 +87,48 @@ router.get('/secteurs', async (req, res) => {
 });
 
 /**
+ * GET /api/signup/business-types
+ * Liste des types de structure juridique
+ */
+router.get('/business-types', (req, res) => {
+  const businessTypes = [
+    {
+      id: 'independent',
+      name: 'Indépendant / Auto-entrepreneur',
+      description: 'Freelance, service à domicile, micro-entreprise',
+      examples: ['Coiffeur à domicile', 'Coach sportif', 'Consultant', 'Artisan'],
+      default_tax_status: 'franchise_tva',
+      tax_info: 'Non assujetti à la TVA (franchise en base)',
+    },
+    {
+      id: 'company',
+      name: 'Entreprise / Société',
+      description: 'Salon, restaurant, hôtel, commerce avec local',
+      examples: ['Salon de coiffure', 'Restaurant', 'Hôtel', 'Boutique'],
+      default_tax_status: 'assujetti_tva',
+      tax_info: 'Assujetti à la TVA (20%)',
+    },
+  ];
+
+  const taxStatuses = [
+    {
+      id: 'franchise_tva',
+      name: 'Franchise en base de TVA',
+      description: 'Non assujetti à la TVA - Prix affichés = prix nets',
+      mention: 'TVA non applicable, art. 293 B du CGI',
+    },
+    {
+      id: 'assujetti_tva',
+      name: 'Assujetti à la TVA',
+      description: 'Collecte et reverse la TVA - Prix affichés TTC',
+      default_rate: 20.00,
+    },
+  ];
+
+  res.json({ success: true, businessTypes, taxStatuses });
+});
+
+/**
  * POST /api/signup
  * Creer nouveau tenant + admin + abonnement
  */
@@ -95,6 +137,11 @@ router.post('/', async (req, res) => {
     // Entreprise
     company_name,
     secteur_id,
+
+    // Type de structure (nouveau)
+    business_type,  // 'independent' ou 'company'
+    tax_status,     // 'franchise_tva' ou 'assujetti_tva'
+    siret,          // Optionnel
 
     // Admin
     email,
@@ -210,6 +257,10 @@ router.post('/', async (req, res) => {
     if (plan.rh_multiemployes) modules_actifs.push('rh');
     if (plan.api_integrations) modules_actifs.push('api');
 
+    // Déterminer le statut TVA selon le type de structure
+    const effectiveBusinessType = business_type || 'company';
+    const effectiveTaxStatus = tax_status || (effectiveBusinessType === 'independent' ? 'franchise_tva' : 'assujetti_tva');
+
     const { data: newTenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -225,7 +276,12 @@ router.post('/', async (req, res) => {
         modules_metier_actifs: secteur.modules_metier || [],
         periode_facturation: periode || 'monthly',
         essai_fin: essai_fin.toISOString(),
-        statut: 'essai'
+        statut: 'essai',
+        // Nouveau: type de structure et fiscalité
+        business_type: effectiveBusinessType,
+        tax_status: effectiveTaxStatus,
+        tva_rate: effectiveTaxStatus === 'assujetti_tva' ? 20.00 : 0,
+        siret: siret || null,
       })
       .select()
       .single();
