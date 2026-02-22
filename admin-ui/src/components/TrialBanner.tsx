@@ -38,13 +38,16 @@ export function TrialBanner() {
   const isExpired = status.isExpired;
 
   // Calculer le pourcentage d'usage le plus critique
+  // Handle unlimited quotas (limit <= 0)
   const usagePercentages = Object.entries(status.limits).map(([key, limit]) => {
     const used = status.usage[key as keyof typeof status.usage] || 0;
+    const isUnlimited = limit <= 0;
     return {
       key,
       used,
       limit,
-      percentage: Math.round((used / limit) * 100),
+      isUnlimited,
+      percentage: isUnlimited ? 0 : Math.round((used / limit) * 100),
     };
   });
 
@@ -96,10 +99,10 @@ export function TrialBanner() {
           </span>
 
           {/* Usage le plus critique */}
-          {highestUsage.percentage > 0 && (
+          {(highestUsage.percentage > 0 || highestUsage.isUnlimited) && (
             <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <span className="text-xs">|</span>
-              <span>{resourceNames[highestUsage.key]}: {highestUsage.used}/{highestUsage.limit}</span>
+              <span>{resourceNames[highestUsage.key]}: {highestUsage.used}/{highestUsage.isUnlimited ? '∞' : highestUsage.limit}</span>
               <div className="w-20 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${

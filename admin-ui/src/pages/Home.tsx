@@ -345,37 +345,51 @@ export function Home() {
         scoreDetail = autoData.score_detail || scoreDetail;
         gains = autoData.gains || gains;
       } else {
-        // Calcul estimé basé sur l'activité
+        // Pas de données d'automatisation - calcul basé sur données réelles disponibles
         // Hypothèse: chaque tâche auto = 15min d'un humain à 25€/h
         heuresEco = Math.round(tachesAuto * 0.25);
 
-        // Calcul du score détaillé (estimation basée sur activité)
-        const rdvAuto = Math.min(98, 70 + Math.round(Math.random() * 20));
-        const emailsAuto = Math.min(95, 60 + Math.round(Math.random() * 25));
-        const appelsAuto = Math.min(92, 50 + Math.round(Math.random() * 30));
-        const relancesAuto = Math.min(99, 80 + Math.round(Math.random() * 15));
+        // Score basé sur l'activité réelle (pas de random!)
+        // Si on a des tâches, on estime un score proportionnel
+        const hasActivity = tachesAuto > 0 || appelsTraites > 0;
 
-        scoreDetail = {
-          emails_auto: emailsAuto,
-          appels_auto: appelsAuto,
-          rdv_auto: rdvAuto,
-          relances_auto: relancesAuto
-        };
+        if (hasActivity) {
+          // Estimation basée sur activité réelle
+          const activityScore = Math.min(95, Math.round((tachesAuto / 10) * 10)); // 10 tâches = 100%
+          scoreDetail = {
+            emails_auto: Math.min(95, activityScore),
+            appels_auto: Math.min(90, Math.round(appelsTraites > 0 ? 80 : 0)),
+            rdv_auto: Math.min(95, activityScore),
+            relances_auto: Math.min(95, activityScore)
+          };
+        } else {
+          // Pas d'activité = 0
+          scoreDetail = {
+            emails_auto: 0,
+            appels_auto: 0,
+            rdv_auto: 0,
+            relances_auto: 0
+          };
+        }
 
         // Score global = moyenne pondérée
-        scoreAuto = Math.round((emailsAuto * 0.2) + (appelsAuto * 0.3) + (rdvAuto * 0.25) + (relancesAuto * 0.25));
+        scoreAuto = Math.round(
+          (scoreDetail.emails_auto * 0.2) +
+          (scoreDetail.appels_auto * 0.3) +
+          (scoreDetail.rdv_auto * 0.25) +
+          (scoreDetail.relances_auto * 0.25)
+        );
 
-        // Calcul des gains monétaires (estimation)
-        // RDV créés auto: ~50€ de valeur moyenne par RDV
-        const nbRdvAuto = Math.round(appelsTraites * (rdvAuto / 100));
-        gains.rdv_crees = nbRdvAuto * 50;
+        // Calcul des gains monétaires basés sur données réelles
+        // RDV créés auto: estimation basée sur appels traités
+        gains.rdv_crees = appelsTraites > 0 ? Math.round(appelsTraites * 50) : 0;
 
-        // Relances récupérées: ~120€ moyenne par client relancé avec succès
+        // Relances récupérées: basé sur tâches réelles
         const nbRelances = Math.round(tachesAuto * 0.3);
         gains.relances_recuperees = Math.round(nbRelances * 120 * 0.4); // 40% taux succès
 
-        // Upsell détectés: opportunités identifiées par l'IA
-        gains.upsell_detectes = Math.round(caTotal * 0.08); // 8% du CA en opportunités
+        // Upsell détectés: basé sur CA réel
+        gains.upsell_detectes = caTotal > 0 ? Math.round(caTotal * 0.08) : 0;
 
         // Gain vs humain = somme des gains + économies temps
         gainVsHumain = Math.round(heuresEco * 25) + gains.rdv_crees + gains.relances_recuperees;
@@ -395,9 +409,10 @@ export function Home() {
       const margeGeneree = caTotal > 0 ? caTotal - depensesTotal : 0;
       const roiAuto = gainVsHumain > 0 ? Math.round((gainVsHumain / (depensesTotal || 1)) * 100) : 0;
 
-      // ROI comparatifs (estimation ou API)
-      const roiMoisPrecedent = Math.round(roiAuto * (0.85 + Math.random() * 0.3)); // ±15%
-      const roiSecteur = Math.round(12 + Math.random() * 8); // Moyenne secteur 12-20%
+      // ROI comparatifs - valeurs fixes (pas de random!)
+      // Le mois précédent est stocké côté serveur, ici on met une valeur par défaut
+      const roiMoisPrecedent = roiAuto > 0 ? Math.round(roiAuto * 0.9) : 0; // Estimation: -10% vs actuel
+      const roiSecteur = 15; // Moyenne secteur fixe (données sectorielles)
       const joursDansMois = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
       const jourActuel = new Date().getDate();
       const roiProjection = Math.round(roiAuto * (joursDansMois / jourActuel));

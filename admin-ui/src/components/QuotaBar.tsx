@@ -52,9 +52,12 @@ export function QuotaBar({ className = '' }: QuotaBarProps) {
     fetchQuotas();
   }, []);
 
-  const percentage = Math.min((quotaData.used / quotaData.limit) * 100, 100);
+  // Handle unlimited quota (limit = -1) and avoid division by zero
+  const isUnlimited = quotaData.limit <= 0;
+  const percentage = isUnlimited ? 0 : Math.min((quotaData.used / quotaData.limit) * 100, 100);
 
   const getBarColor = () => {
+    if (isUnlimited) return 'bg-cyan-500'; // Unlimited = always green/cyan
     if (percentage >= 90) return 'bg-red-500';
     if (percentage >= 75) return 'bg-amber-500';
     return 'bg-cyan-500';
@@ -90,15 +93,15 @@ export function QuotaBar({ className = '' }: QuotaBarProps) {
         <span className="text-gray-600 dark:text-gray-400">
           <span className="font-semibold text-gray-900 dark:text-white">{quotaData.used.toLocaleString()}</span>
           {' / '}
-          {quotaData.limit.toLocaleString()}
+          {isUnlimited ? <span className="text-cyan-600 dark:text-cyan-400 font-medium">Illimité</span> : quotaData.limit.toLocaleString()}
         </span>
         <span className="text-gray-500 dark:text-gray-400">
           Renouvellement: {quotaData.nextReset}
         </span>
       </div>
 
-      {/* Warning if near limit */}
-      {percentage >= 75 && (
+      {/* Warning if near limit (not shown for unlimited) */}
+      {!isUnlimited && percentage >= 75 && (
         <div className={`mt-3 px-3 py-2 rounded-md text-sm ${
           percentage >= 90
             ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'

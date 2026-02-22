@@ -44,6 +44,10 @@ interface ChurnAnalysis {
 
 type ActionType = 'email_retention' | 'sms_rappel' | 'promo_personnalisee';
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+};
+
 export default function ChurnPrevention() {
   const [analysis, setAnalysis] = useState<ChurnAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,7 +255,7 @@ export default function ChurnPrevention() {
                     </div>
                     <div>
                       <p className="text-gray-400">CA Total</p>
-                      <p className="font-medium">{(client.total_spent ?? 0).toFixed(0)}EUR</p>
+                      <p className="font-medium">{formatCurrency(client.total_spent ?? 0)}</p>
                     </div>
                     <div>
                       <p className="text-gray-400">Facteur principal</p>
