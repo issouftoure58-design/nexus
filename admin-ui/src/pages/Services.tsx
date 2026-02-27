@@ -23,15 +23,18 @@ import {
   Calendar,
   TrendingUp,
   Filter,
-  RotateCcw
+  RotateCcw,
+  UtensilsCrossed,
+  Bed,
+  MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
-import { PricingFields, PriceDisplay, ServiceLabel } from '@/components/forms';
+import { PricingFields, PriceDisplay, ServiceLabel, BusinessTypeField, FeatureField } from '@/components/forms';
 
 export default function Services() {
   const queryClient = useQueryClient();
-  const { t, isPricingMode, getPricingModes } = useProfile();
+  const { t, isPricingMode, getPricingModes, isBusinessType } = useProfile();
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -39,11 +42,16 @@ export default function Services() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Filters
+  // Filters - adaptatifs selon business type
   const [filters, setFilters] = useState({
     priceRange: 'all', // all, cheap (<25€), medium (25-50€), expensive (>50€)
     duration: 'all', // all, short (<30min), medium (30-60min), long (>60min)
     status: 'all', // all, active, inactive
+    // Restaurant specific
+    capacity: 'all', // all, small (1-2), medium (3-4), large (5+)
+    zone: 'all', // all, interieur, terrasse, prive
+    // Hotel specific
+    floor: 'all', // all, rdc, 1, 2, etc.
   });
 
   // Close suggestions when clicking outside
@@ -101,11 +109,14 @@ export default function Services() {
       priceRange: 'all',
       duration: 'all',
       status: 'all',
+      capacity: 'all',
+      zone: 'all',
+      floor: 'all',
     });
     setSearchInput('');
   };
 
-  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || searchInput;
+  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || filters.capacity !== 'all' || filters.zone !== 'all' || filters.floor !== 'all' || searchInput;
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => servicesApi.delete(id),
@@ -182,44 +193,107 @@ export default function Services() {
           </Button>
         </div>
 
-        {/* Filters */}
+        {/* Filters - adaptatifs selon business type */}
         <Card className="p-4">
           <div className="flex flex-wrap items-center gap-3">
             <Filter className="w-4 h-4 text-gray-400" />
 
-            {/* Price range filter */}
-            <select
-              value={filters.priceRange}
-              onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
-              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="all">Tous les prix</option>
-              <option value="cheap">&lt; 25€</option>
-              <option value="medium">25€ - 50€</option>
-              <option value="expensive">&gt; 50€</option>
-            </select>
+            {/* Salon/Service domicile: Prix + Durée */}
+            {(isBusinessType('salon') || isBusinessType('service_domicile')) && (
+              <>
+                {/* Price range filter */}
+                <select
+                  value={filters.priceRange}
+                  onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous les prix</option>
+                  <option value="cheap">&lt; 25€</option>
+                  <option value="medium">25€ - 50€</option>
+                  <option value="expensive">&gt; 50€</option>
+                </select>
 
-            {/* Duration filter */}
-            <select
-              value={filters.duration}
-              onChange={(e) => setFilters({ ...filters, duration: e.target.value })}
-              className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="all">Toutes les durées</option>
-              <option value="short">&lt; 30 min</option>
-              <option value="medium">30 - 60 min</option>
-              <option value="long">&gt; 60 min</option>
-            </select>
+                {/* Duration filter */}
+                <select
+                  value={filters.duration}
+                  onChange={(e) => setFilters({ ...filters, duration: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Toutes les durées</option>
+                  <option value="short">&lt; 30 min</option>
+                  <option value="medium">30 - 60 min</option>
+                  <option value="long">&gt; 60 min</option>
+                </select>
+              </>
+            )}
 
-            {/* Status filter */}
+            {/* Restaurant: Capacité + Zone */}
+            {isBusinessType('restaurant') && (
+              <>
+                {/* Capacity filter */}
+                <select
+                  value={filters.capacity}
+                  onChange={(e) => setFilters({ ...filters, capacity: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Toutes capacités</option>
+                  <option value="small">1-2 places</option>
+                  <option value="medium">3-4 places</option>
+                  <option value="large">5+ places</option>
+                </select>
+
+                {/* Zone filter */}
+                <select
+                  value={filters.zone}
+                  onChange={(e) => setFilters({ ...filters, zone: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Toutes zones</option>
+                  <option value="interieur">Intérieur</option>
+                  <option value="terrasse">Terrasse</option>
+                  <option value="prive">Privé</option>
+                </select>
+              </>
+            )}
+
+            {/* Hotel: Capacité + Étage + Prix */}
+            {isBusinessType('hotel') && (
+              <>
+                {/* Capacity filter */}
+                <select
+                  value={filters.capacity}
+                  onChange={(e) => setFilters({ ...filters, capacity: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Toutes capacités</option>
+                  <option value="small">1-2 pers.</option>
+                  <option value="medium">3-4 pers.</option>
+                  <option value="large">5+ pers.</option>
+                </select>
+
+                {/* Price range filter */}
+                <select
+                  value={filters.priceRange}
+                  onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous les prix</option>
+                  <option value="cheap">&lt; 100€/nuit</option>
+                  <option value="medium">100-200€/nuit</option>
+                  <option value="expensive">&gt; 200€/nuit</option>
+                </select>
+              </>
+            )}
+
+            {/* Status filter - pour tous */}
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="all">Tous les statuts</option>
-              <option value="active">Actifs seulement</option>
-              <option value="inactive">Inactifs seulement</option>
+              <option value="active">{isBusinessType('restaurant') ? 'Disponibles' : 'Actifs'}</option>
+              <option value="inactive">{isBusinessType('restaurant') ? 'Indisponibles' : 'Inactifs'}</option>
             </select>
 
             {hasActiveFilters && (
@@ -231,7 +305,7 @@ export default function Services() {
 
             {hasActiveFilters && (
               <span className="text-sm text-gray-500">
-                {filteredServices.length} / {data?.services?.length || 0} services
+                {filteredServices.length} / {data?.services?.length || 0} {t('service', true).toLowerCase()}
               </span>
             )}
           </div>
@@ -317,14 +391,50 @@ export default function Services() {
                   )}
 
                   <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Clock className="h-4 w-4 text-cyan-500" />
-                      <span className="text-sm font-medium">{formatDuration(service.duree)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <Euro className="h-4 w-4 text-green-500" />
-                      <span className="text-lg font-bold">{formatCurrency(service.prix)}</span>
-                    </div>
+                    {/* Salon / Service domicile: Durée + Prix */}
+                    {(isBusinessType('salon') || isBusinessType('service_domicile')) && (
+                      <>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Clock className="h-4 w-4 text-cyan-500" />
+                          <span className="text-sm font-medium">{formatDuration(service.duree)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <Euro className="h-4 w-4 text-green-500" />
+                          <span className="text-lg font-bold">{formatCurrency(service.prix)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Restaurant: Capacité + Zone */}
+                    {isBusinessType('restaurant') && (
+                      <>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Users className="h-4 w-4 text-cyan-500" />
+                          <span className="text-sm font-medium">{(service as any).capacite || 4} places</span>
+                        </div>
+                        {(service as any).zone && (
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Badge variant="outline" className="text-xs">
+                              {(service as any).zone}
+                            </Badge>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Hotel: Capacité + Prix/nuit */}
+                    {isBusinessType('hotel') && (
+                      <>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Users className="h-4 w-4 text-cyan-500" />
+                          <span className="text-sm font-medium">{(service as any).capacite_max || 2} pers.</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <Euro className="h-4 w-4 text-green-500" />
+                          <span className="text-lg font-bold">{formatCurrency(service.prix)}/nuit</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -349,14 +459,32 @@ export default function Services() {
             {filteredServices.length === 0 && !hasActiveFilters && (
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
-                  <Briefcase className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Aucun {t('service').toLowerCase()} configuré</p>
+                  {isBusinessType('restaurant') ? (
+                    <UtensilsCrossed className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  ) : isBusinessType('hotel') ? (
+                    <Bed className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  ) : (
+                    <Briefcase className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  )}
+                  <p className="text-gray-500">
+                    {isBusinessType('restaurant')
+                      ? 'Aucune table configurée'
+                      : isBusinessType('hotel')
+                        ? 'Aucune chambre configurée'
+                        : `Aucun ${t('service').toLowerCase()} configuré`
+                    }
+                  </p>
                   <Button
                     variant="link"
                     onClick={() => setShowNewModal(true)}
                     className="mt-2"
                   >
-                    Créer votre premier {t('service').toLowerCase()}
+                    {isBusinessType('restaurant')
+                      ? 'Créer votre première table'
+                      : isBusinessType('hotel')
+                        ? 'Créer votre première chambre'
+                        : `Créer votre premier ${t('service').toLowerCase()}`
+                    }
                   </Button>
                 </CardContent>
               </Card>
@@ -403,7 +531,7 @@ const TAUX_TVA = [
 // Service Modal Component
 function ServiceModal({ service, onClose }: { service: Service | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { t, isPricingMode, getPricingModes, hasFeature } = useProfile();
+  const { t, isPricingMode, getPricingModes, hasFeature, isBusinessType } = useProfile();
   const isEditing = !!service;
 
   // Mode de pricing actuel
@@ -422,6 +550,14 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     taxe_cnaps: service?.taxe_cnaps ?? false,
     taux_cnaps: service?.taux_cnaps ?? 0.50,
     categorie: service?.categorie || '',
+    // Restaurant specific
+    capacite: (service as any)?.capacite || 4,
+    zone: (service as any)?.zone || 'interieur',
+    // Hotel specific
+    etage: (service as any)?.etage || 0,
+    capacite_max: (service as any)?.capacite_max || 2,
+    equipements: (service as any)?.equipements || [],
+    vue: (service as any)?.vue || '',
   });
   const [error, setError] = useState('');
 
@@ -449,19 +585,46 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     e.preventDefault();
     setError('');
 
-    const data = {
+    // Données de base
+    const data: any = {
       nom: formData.nom,
       description: formData.description || undefined,
-      duree: formData.duree,
-      prix: Math.round(formData.prix * 100), // Convert to cents
-      taux_horaire: formData.pricing_mode === 'hourly' ? Math.round(formData.taux_horaire * 100) : undefined,
-      pricing_mode: formData.pricing_mode,
-      taux_tva: formData.taux_tva,
-      taxe_cnaps: formData.taxe_cnaps,
-      taux_cnaps: formData.taux_cnaps,
-      categorie: formData.categorie || undefined,
       actif: formData.actif,
     };
+
+    // Salon / Service domicile: durée + prix + TVA
+    if (isBusinessType('salon') || isBusinessType('service_domicile')) {
+      data.duree = formData.duree;
+      data.prix = Math.round(formData.prix * 100);
+      data.taux_horaire = formData.pricing_mode === 'hourly' ? Math.round(formData.taux_horaire * 100) : undefined;
+      data.pricing_mode = formData.pricing_mode;
+      data.taux_tva = formData.taux_tva;
+      data.taxe_cnaps = formData.taxe_cnaps;
+      data.taux_cnaps = formData.taux_cnaps;
+      data.categorie = formData.categorie || undefined;
+    }
+
+    // Restaurant: capacité + zone (pas de prix)
+    if (isBusinessType('restaurant')) {
+      data.capacite = formData.capacite;
+      data.zone = formData.zone;
+      data.categorie = formData.categorie || undefined;
+      // Tables n'ont pas de prix ni durée
+      data.prix = 0;
+      data.duree = 0;
+    }
+
+    // Hotel: capacité + étage + prix/nuit + équipements
+    if (isBusinessType('hotel')) {
+      data.capacite_max = formData.capacite_max;
+      data.etage = formData.etage;
+      data.equipements = formData.equipements;
+      data.vue = formData.vue;
+      data.prix = Math.round(formData.prix * 100); // Prix par nuit
+      data.pricing_mode = 'daily';
+      data.duree = 0; // Pas de durée fixe
+      data.categorie = formData.categorie || undefined;
+    }
 
     if (isEditing) {
       updateMutation.mutate(data);
@@ -504,100 +667,254 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData(d => ({ ...d, description: e.target.value }))}
-                placeholder="Description du service..."
+                placeholder={isBusinessType('restaurant') ? "Description de la table..." : isBusinessType('hotel') ? "Description de la chambre..." : "Description du service..."}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 rows={3}
               />
             </div>
 
-            {/* Durée */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('duration')} (minutes) *</label>
-              <Input
-                type="number"
-                min={5}
-                step={5}
-                value={formData.duree}
-                onChange={(e) => setFormData(d => ({ ...d, duree: parseInt(e.target.value) || 0 }))}
-                required
-              />
-            </div>
-
-            {/* Tarification avec mode adaptatif */}
-            <PricingFields
-              value={formData.prix}
-              onChange={(prix) => setFormData(d => ({ ...d, prix }))}
-              tauxHoraire={formData.taux_horaire}
-              onTauxHoraireChange={(taux) => setFormData(d => ({ ...d, taux_horaire: taux }))}
-              allowModeSwitch={pricingModes.length > 1}
-              currentMode={formData.pricing_mode}
-              onModeChange={(mode) => setFormData(d => ({ ...d, pricing_mode: mode }))}
-            />
-
-            {/* TVA */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Taux de TVA</label>
-              <select
-                value={formData.taux_tva}
-                onChange={(e) => setFormData(d => ({ ...d, taux_tva: parseFloat(e.target.value) }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-              >
-                {TAUX_TVA.map((taux) => (
-                  <option key={taux.value} value={taux.value}>{taux.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Catégorie */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-              <Input
-                value={formData.categorie}
-                onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
-                placeholder="Ex: Coiffure, Sécurité, etc."
-              />
-            </div>
-
-            {/* Taxe CNAPS (Sécurité privée) */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
-              <div className="flex items-center justify-between">
+            {/* ═══════════════════════════════════════════════════════════════
+                SALON / SERVICE DOMICILE: Durée + Prix + TVA + CNAPS
+            ═══════════════════════════════════════════════════════════════ */}
+            {(isBusinessType('salon') || isBusinessType('service_domicile')) && (
+              <>
+                {/* Durée */}
                 <div>
-                  <p className="font-medium text-sm text-amber-900">Taxe CNAPS</p>
-                  <p className="text-xs text-amber-700">Pour les activités de sécurité privée uniquement</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('duration')} (minutes) *</label>
+                  <Input
+                    type="number"
+                    min={5}
+                    step={5}
+                    value={formData.duree}
+                    onChange={(e) => setFormData(d => ({ ...d, duree: parseInt(e.target.value) || 0 }))}
+                    required
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData(d => ({ ...d, taxe_cnaps: !d.taxe_cnaps }))}
-                  className={cn(
-                    'w-12 h-6 rounded-full transition-colors relative',
-                    formData.taxe_cnaps ? 'bg-amber-500' : 'bg-gray-300'
-                  )}
-                >
-                  <div className={cn(
-                    'w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow',
-                    formData.taxe_cnaps ? 'translate-x-6' : 'translate-x-0.5'
-                  )} />
-                </button>
-              </div>
 
-              {formData.taxe_cnaps && (
+                {/* Tarification avec mode adaptatif */}
+                <PricingFields
+                  value={formData.prix}
+                  onChange={(prix) => setFormData(d => ({ ...d, prix }))}
+                  tauxHoraire={formData.taux_horaire}
+                  onTauxHoraireChange={(taux) => setFormData(d => ({ ...d, taux_horaire: taux }))}
+                  allowModeSwitch={pricingModes.length > 1}
+                  currentMode={formData.pricing_mode}
+                  onModeChange={(mode) => setFormData(d => ({ ...d, pricing_mode: mode }))}
+                />
+
+                {/* TVA */}
                 <div>
-                  <label className="block text-xs font-medium text-amber-800 mb-1">Taux CNAPS (%)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Taux de TVA</label>
+                  <select
+                    value={formData.taux_tva}
+                    onChange={(e) => setFormData(d => ({ ...d, taux_tva: parseFloat(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    {TAUX_TVA.map((taux) => (
+                      <option key={taux.value} value={taux.value}>{taux.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                  <Input
+                    value={formData.categorie}
+                    onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                    placeholder="Ex: Coiffure, Sécurité, etc."
+                  />
+                </div>
+
+                {/* Taxe CNAPS (Sécurité privée) */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm text-amber-900">Taxe CNAPS</p>
+                      <p className="text-xs text-amber-700">Pour les activités de sécurité privée uniquement</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(d => ({ ...d, taxe_cnaps: !d.taxe_cnaps }))}
+                      className={cn(
+                        'w-12 h-6 rounded-full transition-colors relative',
+                        formData.taxe_cnaps ? 'bg-amber-500' : 'bg-gray-300'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow',
+                        formData.taxe_cnaps ? 'translate-x-6' : 'translate-x-0.5'
+                      )} />
+                    </button>
+                  </div>
+
+                  {formData.taxe_cnaps && (
+                    <div>
+                      <label className="block text-xs font-medium text-amber-800 mb-1">Taux CNAPS (%)</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={5}
+                        step={0.01}
+                        value={formData.taux_cnaps}
+                        onChange={(e) => setFormData(d => ({ ...d, taux_cnaps: parseFloat(e.target.value) || 0 }))}
+                        className="bg-white"
+                      />
+                      <p className="text-xs text-amber-600 mt-1">
+                        Taux historique : 0,40% à 0,50% (supprimée depuis 01/2020)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                RESTAURANT: Capacité + Zone (pas de prix ni durée)
+            ═══════════════════════════════════════════════════════════════ */}
+            {isBusinessType('restaurant') && (
+              <>
+                {/* Capacité */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacité (places) *</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={formData.capacite}
+                    onChange={(e) => setFormData(d => ({ ...d, capacite: parseInt(e.target.value) || 1 }))}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Nombre de couverts maximum pour cette table</p>
+                </div>
+
+                {/* Zone */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Zone</label>
+                  <select
+                    value={formData.zone}
+                    onChange={(e) => setFormData(d => ({ ...d, zone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    <option value="interieur">Intérieur</option>
+                    <option value="terrasse">Terrasse</option>
+                    <option value="prive">Salon privé</option>
+                    <option value="bar">Bar</option>
+                  </select>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                  <Input
+                    value={formData.categorie}
+                    onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                    placeholder="Ex: Standard, VIP, etc."
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                HOTEL: Capacité + Étage + Prix/nuit + Équipements
+            ═══════════════════════════════════════════════════════════════ */}
+            {isBusinessType('hotel') && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Capacité max */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Capacité max *</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={formData.capacite_max}
+                      onChange={(e) => setFormData(d => ({ ...d, capacite_max: parseInt(e.target.value) || 1 }))}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Personnes</p>
+                  </div>
+
+                  {/* Étage */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Étage</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={50}
+                      value={formData.etage}
+                      onChange={(e) => setFormData(d => ({ ...d, etage: parseInt(e.target.value) || 0 }))}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">0 = RDC</p>
+                  </div>
+                </div>
+
+                {/* Prix par nuit */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix par nuit (€) *</label>
                   <Input
                     type="number"
                     min={0}
-                    max={5}
                     step={0.01}
-                    value={formData.taux_cnaps}
-                    onChange={(e) => setFormData(d => ({ ...d, taux_cnaps: parseFloat(e.target.value) || 0 }))}
-                    className="bg-white"
+                    value={formData.prix}
+                    onChange={(e) => setFormData(d => ({ ...d, prix: parseFloat(e.target.value) || 0 }))}
+                    required
                   />
-                  <p className="text-xs text-amber-600 mt-1">
-                    Taux historique : 0,40% à 0,50% (supprimée depuis 01/2020)
-                  </p>
                 </div>
-              )}
-            </div>
+
+                {/* Vue */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vue</label>
+                  <select
+                    value={formData.vue}
+                    onChange={(e) => setFormData(d => ({ ...d, vue: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    <option value="">Non spécifié</option>
+                    <option value="mer">Mer</option>
+                    <option value="montagne">Montagne</option>
+                    <option value="jardin">Jardin</option>
+                    <option value="piscine">Piscine</option>
+                    <option value="ville">Ville</option>
+                    <option value="cour">Cour intérieure</option>
+                  </select>
+                </div>
+
+                {/* Équipements */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Équipements</label>
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg">
+                    {['WiFi', 'TV', 'Climatisation', 'Minibar', 'Coffre-fort', 'Balcon', 'Baignoire', 'Douche'].map(equip => (
+                      <label key={equip} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.equipements.includes(equip)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData(d => ({ ...d, equipements: [...d.equipements, equip] }));
+                            } else {
+                              setFormData(d => ({ ...d, equipements: d.equipements.filter((eq: string) => eq !== equip) }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                        />
+                        {equip}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de chambre</label>
+                  <Input
+                    value={formData.categorie}
+                    onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                    placeholder="Ex: Standard, Suite, Deluxe, etc."
+                  />
+                </div>
+              </>
+            )}
 
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div>
