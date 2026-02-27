@@ -30,9 +30,19 @@ import {
 import fatshairafro from './fatshairafro.js';
 import decoevent from './decoevent.js';
 import nexustest from './nexustest.js';
+import testsecurity from './testsecurity.js';
+import testconsulting from './testconsulting.js';
+import testevents from './testevents.js';
 import template from './template.js';
 
-const staticTenants = { fatshairafro, decoevent, 'nexus-test': nexustest };
+const staticTenants = {
+  fatshairafro,
+  decoevent,
+  'nexus-test': nexustest,
+  'test-security': testsecurity,
+  'test-consulting': testconsulting,
+  'test-events': testevents,
+};
 
 /**
  * Retourne la config complète d'un tenant par son ID.
@@ -81,6 +91,9 @@ export function identifyTenant(req) {
   if (host.includes('fatshairafro')) return 'fatshairafro';
   if (host.includes('decoevent')) return 'decoevent';
   if (host.includes('nexus-test') || host.includes('test.nexus')) return 'nexus-test';
+  if (host.includes('test-security') || host.includes('atlas-securite')) return 'test-security';
+  if (host.includes('test-consulting') || host.includes('clara-conseil')) return 'test-consulting';
+  if (host.includes('test-events') || host.includes('emma-events')) return 'test-events';
 
   // 5. Pas de tenant detecte = contexte NEXUS
   return null;

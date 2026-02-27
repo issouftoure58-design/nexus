@@ -72,7 +72,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       .select('*')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 

@@ -13,6 +13,8 @@ import {
 } from '../services/whatsappService.js';
 import usageTracking from '../services/usageTrackingService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
+import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 /**
  * Identifie le tenant par le numéro WhatsApp appelé
@@ -43,10 +45,11 @@ const router = express.Router();
 /**
  * Webhook pour recevoir les messages WhatsApp entrants (Twilio)
  * POST /api/whatsapp/webhook
+ * ⚠️ SECURED: Validates Twilio signature to prevent spoofing
  *
  * Twilio envoie les messages au format application/x-www-form-urlencoded
  */
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', validateTwilioSignature, async (req, res) => {
   try {
     console.log('[WhatsApp Webhook] Requête reçue:', {
       body: req.body,
@@ -139,8 +142,9 @@ router.post('/webhook', async (req, res) => {
 /**
  * Webhook pour les notifications de statut (delivery reports)
  * POST /api/whatsapp/status
+ * ⚠️ SECURED: Validates Twilio signature
  */
-router.post('/status', (req, res) => {
+router.post('/status', validateTwilioSignatureLoose, (req, res) => {
   const { MessageSid, MessageStatus, To, ErrorCode, ErrorMessage } = req.body;
 
   console.log('[WhatsApp Status]', {
@@ -156,11 +160,16 @@ router.post('/status', (req, res) => {
 /**
  * Webhook pour confirmation de paiement (appelé par Stripe/PayPal)
  * POST /api/whatsapp/payment-confirmed
- * 🔒 TENANT ISOLATION: tenant_id optionnel mais recommandé
+ * ⚠️ SECURED: Requires admin authentication + tenant isolation
  */
-router.post('/payment-confirmed', async (req, res) => {
+router.post('/payment-confirmed', authenticateAdmin, async (req, res) => {
   try {
-    const { rdv_id, tenant_id } = req.body;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
+    const { rdv_id } = req.body;
 
     if (!rdv_id) {
       return res.status(400).json({
@@ -169,10 +178,10 @@ router.post('/payment-confirmed', async (req, res) => {
       });
     }
 
-    console.log('[WhatsApp] Confirmation de paiement pour RDV:', rdv_id, tenant_id ? `(tenant: ${tenant_id})` : '');
+    console.log('[WhatsApp] Confirmation de paiement pour RDV:', rdv_id, `(tenant: ${tenantId})`);
 
-    // 🔒 Passer tenant_id si fourni pour isolation multi-tenant
-    await handlePaymentConfirmed(rdv_id, tenant_id);
+    // 🔒 Utiliser tenant_id depuis l'auth - JAMAIS depuis le body
+    await handlePaymentConfirmed(rdv_id, tenantId);
 
     res.json({
       success: true,
@@ -191,13 +200,18 @@ router.post('/payment-confirmed', async (req, res) => {
 /**
  * Endpoint de test pour simuler un message entrant
  * POST /api/whatsapp/test
- * 🔒 TENANT ISOLATION: tenant_id requis
+ * ⚠️ SECURED: Requires admin authentication - tenant from auth
  *
- * Body: { phone: "+33612345678", message: "Bonjour", name: "Test", tenant_id: "fatshairafro" }
+ * Body: { phone: "+33612345678", message: "Bonjour", name: "Test" }
  */
-router.post('/test', async (req, res) => {
+router.post('/test', authenticateAdmin, async (req, res) => {
   try {
-    const { phone, message, name, tenant_id } = req.body;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
+    const { phone, message, name } = req.body;
 
     if (!phone || !message) {
       return res.status(400).json({
@@ -206,14 +220,9 @@ router.post('/test', async (req, res) => {
       });
     }
 
-    // 🔒 TENANT ISOLATION: Avertir si tenant_id manquant
-    if (!tenant_id) {
-      console.warn('[WhatsApp Test] ⚠️ tenant_id non fourni - utilisation non recommandée');
-    }
+    console.log('[WhatsApp Test] Simulation message:', { phone, message, name, tenantId, handler: 'nexusCore' });
 
-    console.log('[WhatsApp Test] Simulation message:', { phone, message, name, tenant_id, handler: 'nexusCore' });
-
-    const result = await handleIncomingMessageNexus(phone, message, name, tenant_id);
+    const result = await handleIncomingMessageNexus(phone, message, name, tenantId);
 
     res.json({
       success: true,
@@ -233,13 +242,14 @@ router.post('/test', async (req, res) => {
 /**
  * Endpoint de santé du webhook
  * GET /api/whatsapp/health
+ * ⚠️ SECURED: No sensitive info exposed
  */
 router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'WhatsApp Webhook',
     timestamp: new Date().toISOString(),
-    twilioNumber: process.env.TWILIO_WHATSAPP_NUMBER || 'non configuré',
+    // ⚠️ SECURITY: Ne pas exposer les numéros ou configs
     configured: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
   });
 });
@@ -247,27 +257,36 @@ router.get('/health', (req, res) => {
 /**
  * Endpoint de debug pour le routing téléphone
  * GET /api/whatsapp/debug/routing/:phoneNumber
+ * ⚠️ SECURED: Requires admin authentication - can expose tenant info
  */
-router.get('/debug/routing/:phoneNumber', (req, res) => {
+router.get('/debug/routing/:phoneNumber', authenticateAdmin, (req, res) => {
+  const tenantId = req.admin?.tenant_id;
+  if (!tenantId) {
+    return res.status(403).json({ error: 'TENANT_REQUIRED' });
+  }
+
   const { phoneNumber } = req.params;
 
   // Décoder le numéro (au cas où il est URL-encoded)
   const decodedNumber = decodeURIComponent(phoneNumber);
 
-  console.log(`[WhatsApp DEBUG] Testing routing for: ${decodedNumber}`);
+  console.log(`[WhatsApp DEBUG] Testing routing for: ${decodedNumber} (admin: ${tenantId})`);
 
   // Tester avec et sans préfixe whatsapp:
   const cleanNumber = decodedNumber.replace('whatsapp:', '');
 
   const result = getTenantByPhone(cleanNumber);
 
+  // 🔒 Ne pas exposer les détails d'autres tenants
+  const isSameTenant = result.tenantId === tenantId;
+
   res.json({
     input: decodedNumber,
     cleanNumber: cleanNumber,
-    tenantId: result.tenantId || null,
-    hasConfig: !!result.config,
+    tenantFound: !!result.tenantId,
+    isSameTenant: isSameTenant,
     message: result.tenantId
-      ? `Tenant found: ${result.tenantId}`
+      ? (isSameTenant ? `This number belongs to your tenant` : 'Number belongs to another tenant')
       : 'No tenant found for this number'
   });
 });

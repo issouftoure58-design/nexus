@@ -19,6 +19,7 @@ import { getDistanceFromSalon } from '../services/googleMapsService.js';
 import { calculerFraisDepl } from '../utils/tarification.js';
 import { sendConfirmation, sendAnnulation } from '../services/notificationService.js';
 import { idempotencyMiddleware } from '../middleware/idempotency.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 // ============= SUPABASE CLIENT =============
 
@@ -107,8 +108,14 @@ async function saveTransaction(data) {
 
 /**
  * Récupère un RDV par ID avec les infos client
+ * ⚠️ SECURITY: tenant_id REQUIRED for isolation
  */
-async function getRdvById(rdvId) {
+async function getRdvById(rdvId, tenantId) {
+  if (!tenantId) {
+    console.error('[Payment] SECURITY: getRdvById called without tenantId!');
+    return null;
+  }
+
   const db = getSupabase();
   if (!db) return null;
 
@@ -118,10 +125,11 @@ async function getRdvById(rdvId) {
       id, date, heure, statut, service_nom, duree_minutes,
       prix_service, frais_deplacement, prix_total,
       adresse_client, telephone, notes, created_via,
-      client_id, created_at, updated_at,
+      client_id, created_at, updated_at, tenant_id,
       clients ( id, nom, prenom, telephone, email )
     `)
     .eq('id', rdvId)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (error) {
@@ -134,8 +142,14 @@ async function getRdvById(rdvId) {
 
 /**
  * Met à jour un RDV (statut sur reservations + paiement dans payments)
+ * ⚠️ SECURITY: tenant_id REQUIRED for isolation
  */
-async function updateRdv(rdvId, data) {
+async function updateRdv(rdvId, tenantId, data) {
+  if (!tenantId) {
+    console.error('[Payment] SECURITY: updateRdv called without tenantId!');
+    return { id: rdvId, error: 'TENANT_REQUIRED' };
+  }
+
   const db = getSupabase();
   if (!db) return { id: rdvId, ...data };
 
@@ -145,12 +159,13 @@ async function updateRdv(rdvId, data) {
   if (data.notes) rdvUpdate.notes = data.notes;
   rdvUpdate.updated_at = new Date().toISOString();
 
-  // Mettre à jour la réservation
+  // Mettre à jour la réservation avec filtre tenant_id
   if (Object.keys(rdvUpdate).length > 1) {
     const { error: rdvError } = await db
       .from('reservations')
       .update(rdvUpdate)
-      .eq('id', rdvId);
+      .eq('id', rdvId)
+      .eq('tenant_id', tenantId);
 
     if (rdvError) {
       console.error('[Payment] Erreur updateRdv reservations:', rdvError);
@@ -175,6 +190,7 @@ async function updateRdv(rdvId, data) {
       .from('payments')
       .update(paymentUpdate)
       .eq('reservation_id', rdvId)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -183,14 +199,20 @@ async function updateRdv(rdvId, data) {
     }
   }
 
-  console.log(`[Payment] RDV #${rdvId} mis à jour:`, data.statut || 'pas de changement statut');
+  console.log(`[Payment] RDV #${rdvId} (tenant: ${tenantId}) mis à jour:`, data.statut || 'pas de changement statut');
   return { id: rdvId, ...data };
 }
 
 /**
  * Récupère les infos de paiement d'un RDV (le plus récent)
+ * ⚠️ SECURITY: tenant_id REQUIRED for isolation
  */
-async function getPaymentInfoByRdvId(rdvId) {
+async function getPaymentInfoByRdvId(rdvId, tenantId) {
+  if (!tenantId) {
+    console.error('[Payment] SECURITY: getPaymentInfoByRdvId called without tenantId!');
+    return null;
+  }
+
   const db = getSupabase();
   if (!db) return null;
 
@@ -198,6 +220,7 @@ async function getPaymentInfoByRdvId(rdvId) {
     .from('payments')
     .select('*')
     .eq('reservation_id', rdvId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
@@ -214,8 +237,8 @@ async function getPaymentInfoByRdvId(rdvId) {
 /**
  * Envoie une notification de confirmation (email + WhatsApp via notificationService)
  */
-async function sendConfirmationEmail(rdvId, paymentInfo) {
-  const rdv = await getRdvById(rdvId);
+async function sendConfirmationEmail(rdvId, tenantId, paymentInfo) {
+  const rdv = await getRdvById(rdvId, tenantId);
   if (!rdv) {
     console.error(`[Payment] RDV #${rdvId} introuvable pour envoi confirmation`);
     return;
@@ -248,8 +271,8 @@ async function sendConfirmationEmail(rdvId, paymentInfo) {
 /**
  * Envoie une notification d'annulation (email + WhatsApp via notificationService)
  */
-async function sendCancellationEmail(rdvId, refundInfo) {
-  const rdv = await getRdvById(rdvId);
+async function sendCancellationEmail(rdvId, tenantId, refundInfo) {
+  const rdv = await getRdvById(rdvId, tenantId);
   if (!rdv) {
     console.error(`[Payment] RDV #${rdvId} introuvable pour envoi annulation`);
     return;
@@ -278,9 +301,15 @@ async function sendCancellationEmail(rdvId, refundInfo) {
 /**
  * POST /api/payment/create-intent
  * Crée un PaymentIntent Stripe
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/create-intent', async (req, res) => {
+router.post('/create-intent', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { amount, type, rdv_id, adresse_client, prix_service } = req.body;
 
     // Validation
@@ -295,6 +324,15 @@ router.post('/create-intent', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'rdv_id requis',
+      });
+    }
+
+    // Vérifier que le RDV appartient au tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
       });
     }
 
@@ -319,8 +357,9 @@ router.post('/create-intent', async (req, res) => {
       montantAPayer = montantDetails.total;
     }
 
-    // Créer le PaymentIntent Stripe (montant en centimes)
+    // 🔒 TENANT SHIELD: Créer le PaymentIntent Stripe avec tenantId
     const paymentIntent = await createStripePaymentIntent(
+      tenantId,
       eurosToCents(montantAPayer),
       {
         rdv_id: rdv_id.toString(),
@@ -330,9 +369,10 @@ router.post('/create-intent', async (req, res) => {
       }
     );
 
-    // Sauvegarder la transaction
+    // Sauvegarder la transaction avec tenant_id
     await saveTransaction({
       rdv_id,
+      tenant_id: tenantId,
       payment_intent_id: paymentIntent.payment_intent_id,
       amount: montantAPayer,
       type,
@@ -355,7 +395,7 @@ router.post('/create-intent', async (req, res) => {
     console.error('[Payment] Erreur create-intent:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Erreur création paiement',
+      error: 'Erreur création paiement',
     });
   }
 });
@@ -363,9 +403,15 @@ router.post('/create-intent', async (req, res) => {
 /**
  * POST /api/payment/confirm-stripe
  * Confirme un paiement Stripe et met à jour le RDV
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/confirm-stripe', async (req, res) => {
+router.post('/confirm-stripe', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { payment_intent_id, rdv_id } = req.body;
 
     if (!payment_intent_id || !rdv_id) {
@@ -375,8 +421,17 @@ router.post('/confirm-stripe', async (req, res) => {
       });
     }
 
-    // Vérifier le paiement
-    const paymentStatus = await confirmStripePayment(payment_intent_id);
+    // Vérifier que le RDV appartient au tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
+      });
+    }
+
+    // 🔒 TENANT SHIELD: Vérifier le paiement avec tenantId
+    const paymentStatus = await confirmStripePayment(tenantId, payment_intent_id);
 
     if (!paymentStatus.confirmed) {
       return res.status(400).json({
@@ -391,7 +446,7 @@ router.post('/confirm-stripe', async (req, res) => {
     const montant = centsToEuros(paymentStatus.amount);
 
     // Mettre à jour le RDV
-    await updateRdv(rdv_id, {
+    await updateRdv(rdv_id, tenantId, {
       statut: 'confirme',
       paiement_statut: type === 'total' ? 'paye' : 'acompte',
       paiement_montant: montant,
@@ -401,7 +456,7 @@ router.post('/confirm-stripe', async (req, res) => {
     });
 
     // Envoyer email de confirmation
-    await sendConfirmationEmail(rdv_id, {
+    await sendConfirmationEmail(rdv_id, tenantId, {
       montant,
       type,
       methode: 'Carte bancaire',
@@ -433,9 +488,15 @@ router.post('/confirm-stripe', async (req, res) => {
 /**
  * POST /api/payment/create-paypal-order
  * Crée une commande PayPal
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/create-paypal-order', async (req, res) => {
+router.post('/create-paypal-order', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { amount, type, rdv_id, adresse_client, prix_service, description } = req.body;
 
     // Validation
@@ -450,6 +511,15 @@ router.post('/create-paypal-order', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'rdv_id requis',
+      });
+    }
+
+    // Vérifier que le RDV appartient au tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
       });
     }
 
@@ -473,15 +543,16 @@ router.post('/create-paypal-order', async (req, res) => {
       montantAPayer = montantDetails.total;
     }
 
-    // Créer la commande PayPal
-    const order = await createPayPalOrder(montantAPayer, {
+    // 🔒 TENANT SHIELD: Créer la commande PayPal avec tenantId
+    const order = await createPayPalOrder(tenantId, montantAPayer, {
       rdv_id: rdv_id.toString(),
       description: description || `Réservation Fat's Hair-Afro - ${type}`,
     });
 
-    // Sauvegarder la transaction
+    // Sauvegarder la transaction avec tenant_id
     await saveTransaction({
       rdv_id,
+      tenant_id: tenantId,
       paypal_order_id: order.order_id,
       amount: montantAPayer,
       type,
@@ -503,7 +574,7 @@ router.post('/create-paypal-order', async (req, res) => {
     console.error('[Payment] Erreur create-paypal-order:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Erreur création commande PayPal',
+      error: 'Erreur création commande PayPal',
     });
   }
 });
@@ -511,9 +582,15 @@ router.post('/create-paypal-order', async (req, res) => {
 /**
  * POST /api/payment/capture-paypal
  * Capture une commande PayPal après validation
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/capture-paypal', async (req, res) => {
+router.post('/capture-paypal', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { order_id, rdv_id } = req.body;
 
     if (!order_id || !rdv_id) {
@@ -523,8 +600,17 @@ router.post('/capture-paypal', async (req, res) => {
       });
     }
 
-    // Capturer le paiement
-    const capture = await capturePayPalOrder(order_id);
+    // Vérifier que le RDV appartient au tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
+      });
+    }
+
+    // 🔒 TENANT SHIELD: Capturer le paiement avec tenantId
+    const capture = await capturePayPalOrder(tenantId, order_id);
 
     if (!capture.captured) {
       return res.status(400).json({
@@ -538,7 +624,7 @@ router.post('/capture-paypal', async (req, res) => {
     const type = montant <= MONTANT_ACOMPTE ? 'acompte' : 'total';
 
     // Mettre à jour le RDV
-    await updateRdv(rdv_id, {
+    await updateRdv(rdv_id, tenantId, {
       statut: 'confirme',
       paiement_statut: type === 'total' ? 'paye' : 'acompte',
       paiement_montant: montant,
@@ -549,7 +635,7 @@ router.post('/capture-paypal', async (req, res) => {
     });
 
     // Envoyer email de confirmation
-    await sendConfirmationEmail(rdv_id, {
+    await sendConfirmationEmail(rdv_id, tenantId, {
       montant,
       type,
       methode: 'PayPal',
@@ -584,9 +670,15 @@ router.post('/capture-paypal', async (req, res) => {
 /**
  * POST /api/payment/refund
  * Rembourse un paiement (Stripe ou PayPal)
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/refund', async (req, res) => {
+router.post('/refund', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { rdv_id, raison } = req.body;
 
     if (!rdv_id) {
@@ -596,9 +688,16 @@ router.post('/refund', async (req, res) => {
       });
     }
 
-    // Récupérer les infos du RDV et du paiement
-    const rdv = await getRdvById(rdv_id);
-    const paymentInfo = await getPaymentInfoByRdvId(rdv_id);
+    // Récupérer les infos du RDV et du paiement avec isolation tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
+      });
+    }
+
+    const paymentInfo = await getPaymentInfoByRdvId(rdv_id, tenantId);
 
     if (!paymentInfo) {
       return res.status(404).json({
@@ -628,13 +727,16 @@ router.post('/refund', async (req, res) => {
     // Effectuer le remboursement selon le provider
     let refundResult;
 
+    // 🔒 TENANT SHIELD: Remboursement avec tenantId
     if (paymentInfo.provider === 'stripe') {
       refundResult = await refundStripePayment(
+        tenantId,
         paymentInfo.payment_intent_id,
         montantRembourse > 0 ? eurosToCents(montantRembourse) : null
       );
     } else if (paymentInfo.provider === 'paypal') {
       refundResult = await refundPayPalPayment(
+        tenantId,
         paymentInfo.capture_id,
         montantRembourse > 0 ? montantRembourse : null
       );
@@ -646,7 +748,7 @@ router.post('/refund', async (req, res) => {
     }
 
     // Mettre à jour le RDV
-    await updateRdv(rdv_id, {
+    await updateRdv(rdv_id, tenantId, {
       statut: 'annule',
       annulation_date: new Date().toISOString(),
       annulation_raison: raison || 'Non spécifiée',
@@ -656,7 +758,7 @@ router.post('/refund', async (req, res) => {
     });
 
     // Envoyer email d'annulation
-    await sendCancellationEmail(rdv_id, {
+    await sendCancellationEmail(rdv_id, tenantId, {
       montant_initial: paymentInfo.amount,
       montant_rembourse: montantRembourse,
       montant_retenu: paymentInfo.amount - montantRembourse,
@@ -692,12 +794,27 @@ router.post('/refund', async (req, res) => {
 /**
  * GET /api/payment/status/:rdv_id
  * Récupère le statut de paiement d'un RDV
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.get('/status/:rdv_id', async (req, res) => {
+router.get('/status/:rdv_id', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { rdv_id } = req.params;
 
-    const paymentInfo = await getPaymentInfoByRdvId(rdv_id);
+    // Vérifier que le RDV appartient au tenant
+    const rdv = await getRdvById(rdv_id, tenantId);
+    if (!rdv) {
+      return res.status(404).json({
+        success: false,
+        error: 'RDV non trouvé ou accès refusé',
+      });
+    }
+
+    const paymentInfo = await getPaymentInfoByRdvId(rdv_id, tenantId);
 
     if (!paymentInfo) {
       return res.status(404).json({
@@ -715,7 +832,7 @@ router.get('/status/:rdv_id', async (req, res) => {
     console.error('[Payment] Erreur status:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Erreur récupération statut',
+      error: 'Erreur récupération statut',
     });
   }
 });
@@ -725,9 +842,15 @@ router.get('/status/:rdv_id', async (req, res) => {
 /**
  * POST /api/payment/order/create-intent
  * Crée un PaymentIntent Stripe pour une commande panier
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/order/create-intent', async (req, res) => {
+router.post('/order/create-intent', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { amount, orderId, clientEmail, clientName, items } = req.body;
 
     // Validation
@@ -738,8 +861,16 @@ router.post('/order/create-intent', async (req, res) => {
       });
     }
 
-    // Créer le PaymentIntent Stripe
-    const paymentIntent = await createStripePaymentIntent(amount, {
+    // Validation montant positif
+    if (amount < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Montant invalide (doit être positif)',
+      });
+    }
+
+    // 🔒 TENANT SHIELD: Créer le PaymentIntent Stripe avec tenantId
+    const paymentIntent = await createStripePaymentIntent(tenantId, amount, {
       order_id: orderId?.toString() || 'pending',
       client_email: clientEmail || '',
       client_name: clientName || '',
@@ -768,9 +899,15 @@ router.post('/order/create-intent', async (req, res) => {
 /**
  * POST /api/payment/order/confirm
  * Confirme un paiement Stripe et crée la commande
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/order/confirm', async (req, res) => {
+router.post('/order/confirm', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { paymentIntentId, orderData } = req.body;
 
     if (!paymentIntentId) {
@@ -780,8 +917,8 @@ router.post('/order/confirm', async (req, res) => {
       });
     }
 
-    // Vérifier le paiement
-    const paymentStatus = await confirmStripePayment(paymentIntentId);
+    // 🔒 TENANT SHIELD: Vérifier le paiement avec tenantId
+    const paymentStatus = await confirmStripePayment(tenantId, paymentIntentId);
 
     if (!paymentStatus.confirmed) {
       return res.status(400).json({
@@ -791,7 +928,7 @@ router.post('/order/confirm', async (req, res) => {
       });
     }
 
-    console.log(`[Payment] Paiement confirmé: ${paymentIntentId}`);
+    console.log(`[Payment] Paiement confirmé: ${paymentIntentId} (tenant: ${tenantId})`);
 
     res.json({
       success: true,
@@ -817,9 +954,15 @@ router.post('/order/confirm', async (req, res) => {
 /**
  * POST /api/payment/order/create-paypal
  * Crée une commande PayPal pour le panier
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/order/create-paypal', async (req, res) => {
+router.post('/order/create-paypal', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { amount, clientEmail, clientName, items } = req.body;
 
     // Validation
@@ -827,6 +970,14 @@ router.post('/order/create-paypal', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Montant invalide (minimum 1€)',
+      });
+    }
+
+    // Validation montant positif
+    if (amount < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Montant invalide (doit être positif)',
       });
     }
 
@@ -838,8 +989,8 @@ router.post('/order/create-paypal', async (req, res) => {
       ? `Fat's Hair-Afro - ${items.map(i => i.serviceNom).join(', ')}`
       : 'Réservation Fat\'s Hair-Afro';
 
-    // Créer la commande PayPal
-    const order = await createPayPalOrder(amountEuros, {
+    // 🔒 TENANT SHIELD: Créer la commande PayPal avec tenantId
+    const order = await createPayPalOrder(tenantId, amountEuros, {
       description,
       client_email: clientEmail || '',
       client_name: clientName || '',
@@ -868,9 +1019,15 @@ router.post('/order/create-paypal', async (req, res) => {
 /**
  * POST /api/payment/order/capture-paypal
  * Capture le paiement PayPal après approbation
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/order/capture-paypal', async (req, res) => {
+router.post('/order/capture-paypal', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
     const { orderId } = req.body;
 
     if (!orderId) {
@@ -880,8 +1037,8 @@ router.post('/order/capture-paypal', async (req, res) => {
       });
     }
 
-    // Capturer le paiement
-    const capture = await capturePayPalOrder(orderId);
+    // 🔒 TENANT SHIELD: Capturer le paiement avec tenantId
+    const capture = await capturePayPalOrder(tenantId, orderId);
 
     if (!capture.captured) {
       return res.status(400).json({
@@ -891,7 +1048,7 @@ router.post('/order/capture-paypal', async (req, res) => {
       });
     }
 
-    console.log(`[Payment] PayPal capturé: ${orderId} - ${capture.amount}€`);
+    console.log(`[Payment] PayPal capturé: ${orderId} - ${capture.amount}€ (tenant: ${tenantId})`);
 
     res.json({
       success: true,

@@ -64,11 +64,17 @@ async function getPayPalAccessToken() {
 
 /**
  * Crée un PaymentIntent Stripe
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {number} amount - Montant en centimes (ex: 1000 = 10€)
  * @param {Object} metadata - Métadonnées (client_id, rdv_id, etc.)
  * @returns {Promise<Object>} { client_secret, payment_intent_id }
  */
-export async function createStripePaymentIntent(amount, metadata = {}) {
+export async function createStripePaymentIntent(tenantId, amount, metadata = {}) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE pour traçabilité
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour createStripePaymentIntent');
+  }
+
   try {
     if (!stripe) {
       throw new Error('Stripe not configured - STRIPE_SECRET_KEY missing');
@@ -78,11 +84,13 @@ export async function createStripePaymentIntent(amount, metadata = {}) {
       throw new Error('Amount must be at least 50 centimes (0.50€)');
     }
 
+    // 🔒 TENANT SHIELD: Inclure tenant_id dans les métadonnées Stripe
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount), // Assurer un entier
       currency: 'eur',
       metadata: {
         ...metadata,
+        tenant_id: tenantId,
         created_at: new Date().toISOString(),
         source: 'halimah-booking',
       },
@@ -108,10 +116,16 @@ export async function createStripePaymentIntent(amount, metadata = {}) {
 
 /**
  * Vérifie le statut d'un paiement Stripe
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} paymentIntentId - ID du PaymentIntent
  * @returns {Promise<Object>} Statut du paiement
  */
-export async function confirmStripePayment(paymentIntentId) {
+export async function confirmStripePayment(tenantId, paymentIntentId) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour confirmStripePayment');
+  }
+
   try {
     if (!stripe) {
       throw new Error('Stripe not configured');
@@ -122,6 +136,12 @@ export async function confirmStripePayment(paymentIntentId) {
     }
 
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    // 🔒 TENANT SHIELD: Vérifier que le paiement appartient au tenant
+    if (paymentIntent.metadata?.tenant_id && paymentIntent.metadata.tenant_id !== tenantId) {
+      console.error(`[Stripe] 🚨 CROSS-TENANT ACCESS BLOCKED: ${tenantId} tried to access payment of ${paymentIntent.metadata.tenant_id}`);
+      throw new Error('Accès non autorisé à ce paiement');
+    }
 
     console.log(`[Stripe] PaymentIntent ${paymentIntentId} - Status: ${paymentIntent.status}`);
 
@@ -142,11 +162,17 @@ export async function confirmStripePayment(paymentIntentId) {
 
 /**
  * Rembourse un paiement Stripe (total ou partiel)
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} paymentIntentId - ID du PaymentIntent
  * @param {number|null} amount - Montant en centimes (null = remboursement total)
  * @returns {Promise<Object>} Détails du remboursement
  */
-export async function refundStripePayment(paymentIntentId, amount = null) {
+export async function refundStripePayment(tenantId, paymentIntentId, amount = null) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour refundStripePayment');
+  }
+
   try {
     if (!stripe) {
       throw new Error('Stripe not configured');
@@ -154,6 +180,13 @@ export async function refundStripePayment(paymentIntentId, amount = null) {
 
     if (!paymentIntentId) {
       throw new Error('PaymentIntent ID required');
+    }
+
+    // 🔒 TENANT SHIELD: Vérifier que le paiement appartient au tenant AVANT remboursement
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.metadata?.tenant_id && paymentIntent.metadata.tenant_id !== tenantId) {
+      console.error(`[Stripe] 🚨 CROSS-TENANT REFUND BLOCKED: ${tenantId} tried to refund payment of ${paymentIntent.metadata.tenant_id}`);
+      throw new Error('Accès non autorisé - remboursement bloqué');
     }
 
     const refundParams = {
@@ -166,7 +199,7 @@ export async function refundStripePayment(paymentIntentId, amount = null) {
 
     const refund = await stripe.refunds.create(refundParams);
 
-    console.log(`[Stripe] Remboursement créé: ${refund.id} - ${refund.amount / 100}€`);
+    console.log(`[Stripe] Remboursement créé: ${refund.id} - ${refund.amount / 100}€ (tenant: ${tenantId})`);
 
     return {
       refund_id: refund.id,
@@ -186,11 +219,17 @@ export async function refundStripePayment(paymentIntentId, amount = null) {
 
 /**
  * Crée une commande PayPal
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {number} amount - Montant en euros (ex: 10.00)
  * @param {Object} metadata - Métadonnées
  * @returns {Promise<Object>} { order_id, approval_url }
  */
-export async function createPayPalOrder(amount, metadata = {}) {
+export async function createPayPalOrder(tenantId, amount, metadata = {}) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour createPayPalOrder');
+  }
+
   try {
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
       throw new Error('PayPal not configured - credentials missing');
@@ -202,6 +241,7 @@ export async function createPayPalOrder(amount, metadata = {}) {
 
     const accessToken = await getPayPalAccessToken();
 
+    // 🔒 TENANT SHIELD: Inclure tenant_id dans custom_id pour traçabilité
     const orderData = {
       intent: 'CAPTURE',
       purchase_units: [{
@@ -210,7 +250,8 @@ export async function createPayPalOrder(amount, metadata = {}) {
           value: amount.toFixed(2),
         },
         description: metadata.description || 'Réservation Fat\'s Hair-Afro',
-        custom_id: metadata.rdv_id || '',
+        custom_id: `${tenantId}:${metadata.rdv_id || ''}`,
+        reference_id: tenantId,
         soft_descriptor: 'FATS HAIR AFRO',
       }],
       application_context: {
@@ -260,10 +301,16 @@ export async function createPayPalOrder(amount, metadata = {}) {
 
 /**
  * Capture un paiement PayPal après validation client
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} orderId - ID de la commande PayPal
  * @returns {Promise<Object>} Détails de la capture
  */
-export async function capturePayPalOrder(orderId) {
+export async function capturePayPalOrder(tenantId, orderId) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour capturePayPalOrder');
+  }
+
   try {
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
       throw new Error('PayPal not configured');
@@ -274,6 +321,24 @@ export async function capturePayPalOrder(orderId) {
     }
 
     const accessToken = await getPayPalAccessToken();
+
+    // 🔒 TENANT SHIELD: Vérifier que l'order appartient au tenant AVANT capture
+    const orderResponse = await fetch(`${PAYPAL_API_URL}/v2/checkout/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (orderResponse.ok) {
+      const order = await orderResponse.json();
+      const orderTenantId = order.purchase_units?.[0]?.reference_id;
+      if (orderTenantId && orderTenantId !== tenantId) {
+        console.error(`[PayPal] 🚨 CROSS-TENANT CAPTURE BLOCKED: ${tenantId} tried to capture order of ${orderTenantId}`);
+        throw new Error('Accès non autorisé - capture bloquée');
+      }
+    }
 
     const response = await fetch(`${PAYPAL_API_URL}/v2/checkout/orders/${orderId}/capture`, {
       method: 'POST',
@@ -293,7 +358,7 @@ export async function capturePayPalOrder(orderId) {
     // Extraire les détails de la capture
     const captureDetails = capture.purchase_units?.[0]?.payments?.captures?.[0];
 
-    console.log(`[PayPal] Order capturé: ${orderId} - Status: ${capture.status}`);
+    console.log(`[PayPal] Order capturé: ${orderId} - Status: ${capture.status} (tenant: ${tenantId})`);
 
     return {
       order_id: capture.id,
@@ -314,11 +379,17 @@ export async function capturePayPalOrder(orderId) {
 
 /**
  * Rembourse un paiement PayPal
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} captureId - ID de la capture PayPal
  * @param {number|null} amount - Montant en euros (null = remboursement total)
  * @returns {Promise<Object>} Détails du remboursement
  */
-export async function refundPayPalPayment(captureId, amount = null) {
+export async function refundPayPalPayment(tenantId, captureId, amount = null) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour refundPayPalPayment');
+  }
+
   try {
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
       throw new Error('PayPal not configured');
@@ -329,6 +400,10 @@ export async function refundPayPalPayment(captureId, amount = null) {
     }
 
     const accessToken = await getPayPalAccessToken();
+
+    // Note: PayPal ne permet pas de récupérer le tenant depuis captureId directement
+    // La vérification se fait via l'historique en base de données (à implémenter côté route)
+    console.log(`[PayPal] Refund demandé par tenant ${tenantId} pour capture ${captureId}`);
 
     const refundData = {};
     if (amount) {
@@ -354,7 +429,7 @@ export async function refundPayPalPayment(captureId, amount = null) {
 
     const refund = await response.json();
 
-    console.log(`[PayPal] Remboursement créé: ${refund.id} - ${refund.amount?.value}€`);
+    console.log(`[PayPal] Remboursement créé: ${refund.id} - ${refund.amount?.value}€ (tenant: ${tenantId})`);
 
     return {
       refund_id: refund.id,

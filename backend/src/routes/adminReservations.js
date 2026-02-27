@@ -59,13 +59,47 @@ router.get('/', authenticateAdmin, async (req, res) => {
           nom,
           prenom,
           telephone,
-          email
+          email,
+          type_client,
+          raison_sociale,
+          adresse,
+          code_postal,
+          ville
         ),
         membre:rh_membres (
           id,
           nom,
           prenom,
           role
+        ),
+        reservation_lignes (
+          id,
+          service_id,
+          service_nom,
+          quantite,
+          duree_minutes,
+          prix_unitaire,
+          prix_total,
+          membre_id,
+          heure_debut,
+          heure_fin,
+          membre:rh_membres (
+            id,
+            nom,
+            prenom,
+            role
+          )
+        ),
+        reservation_membres (
+          id,
+          membre_id,
+          role,
+          membre:rh_membres (
+            id,
+            nom,
+            prenom,
+            role
+          )
         )
       `, { count: 'exact' })
       .eq('tenant_id', tenantId);
@@ -101,37 +135,85 @@ router.get('/', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     // Formater les réservations
-    const formattedReservations = (reservations || []).map(r => ({
-      id: r.id,
-      date_rdv: r.date,
-      heure_rdv: r.heure,
-      statut: r.statut,
-      lieu: r.lieu || 'salon',
-      prix_total: r.prix_total ? r.prix_total / 100 : 0,
-      frais_deplacement: r.frais_deplacement ? r.frais_deplacement / 100 : 0,
-      notes: r.notes,
-      created_at: r.created_at,
-      client: r.clients ? {
-        id: r.clients.id,
-        nom: r.clients.nom,
-        prenom: r.clients.prenom,
-        telephone: r.clients.telephone,
-        email: r.clients.email
-      } : null,
-      service: {
-        nom: r.service_nom || r.service,
-        duree_minutes: r.duree_minutes
-      },
-      adresse_client: r.adresse_client,
-      distance_km: r.distance_km,
-      duree_trajet_minutes: r.duree_trajet_minutes,
-      membre: r.membre ? {
-        id: r.membre.id,
-        nom: r.membre.nom,
-        prenom: r.membre.prenom,
-        role: r.membre.role
-      } : null
-    }));
+    const formattedReservations = (reservations || []).map(r => {
+      // Calculer la durée totale à partir des services
+      const lignes = r.reservation_lignes || [];
+      const dureeTotale = lignes.length > 0
+        ? lignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0)
+        : r.duree_minutes || 60;
+
+      return {
+        id: r.id,
+        date_rdv: r.date,
+        heure_rdv: r.heure,
+        statut: r.statut,
+        lieu: r.lieu || 'salon',
+        prix_total: r.prix_total ? r.prix_total / 100 : 0,
+        frais_deplacement: r.frais_deplacement ? r.frais_deplacement / 100 : 0,
+        notes: r.notes,
+        created_at: r.created_at,
+        created_via: r.created_via,
+        client: r.clients ? {
+          id: r.clients.id,
+          nom: r.clients.nom,
+          prenom: r.clients.prenom,
+          telephone: r.clients.telephone,
+          email: r.clients.email,
+          type_client: r.clients.type_client,
+          raison_sociale: r.clients.raison_sociale,
+          adresse: r.clients.adresse,
+          code_postal: r.clients.code_postal,
+          ville: r.clients.ville
+        } : null,
+        // Service principal (rétro-compatibilité)
+        service: {
+          nom: r.service_nom || r.service,
+          duree_minutes: r.duree_minutes
+        },
+        service_nom: r.service_nom || r.service,
+        // Durée totale calculée
+        duree_totale: dureeTotale,
+        duree: dureeTotale,
+        // Multi-services avec membres assignés et heures effectives
+        services: lignes.map(l => ({
+          id: l.id,
+          service_id: l.service_id,
+          service_nom: l.service_nom,
+          quantite: l.quantite,
+          duree_minutes: l.duree_minutes,
+          prix_unitaire: l.prix_unitaire ? l.prix_unitaire / 100 : 0,
+          prix_total: l.prix_total ? l.prix_total / 100 : 0,
+          membre_id: l.membre_id,
+          heure_debut: l.heure_debut || null,
+          heure_fin: l.heure_fin || null,
+          // Supabase nested join: membre est dans l.membre
+          membre: l.membre ? {
+            id: l.membre.id,
+            nom: l.membre.nom,
+            prenom: l.membre.prenom,
+            role: l.membre.role
+          } : null
+        })),
+        adresse_client: r.adresse_client,
+        distance_km: r.distance_km,
+        duree_trajet_minutes: r.duree_trajet_minutes,
+        // Membre principal (rétro-compatibilité)
+        membre: r.membre ? {
+          id: r.membre.id,
+          nom: r.membre.nom,
+          prenom: r.membre.prenom,
+          role: r.membre.role
+        } : null,
+        // Tous les membres assignés
+        membres: (r.reservation_membres || []).map(rm => ({
+          id: rm.membre?.id,
+          nom: rm.membre?.nom,
+          prenom: rm.membre?.prenom,
+          role: rm.membre?.role,
+          assignment_role: rm.role
+        }))
+      };
+    });
 
     res.json({
       reservations: formattedReservations,
@@ -155,7 +237,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    // 🔒 TENANT ISOLATION
+    // 🔒 TENANT ISOLATION - Inclure lignes et membres
     const { data: reservation, error } = await supabase
       .from('reservations')
       .select(`
@@ -165,13 +247,47 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
           nom,
           prenom,
           telephone,
-          email
+          email,
+          type_client,
+          raison_sociale,
+          adresse,
+          code_postal,
+          ville
         ),
         membre:rh_membres (
           id,
           nom,
           prenom,
           role
+        ),
+        reservation_lignes (
+          id,
+          service_id,
+          service_nom,
+          quantite,
+          duree_minutes,
+          prix_unitaire,
+          prix_total,
+          membre_id,
+          heure_debut,
+          heure_fin,
+          membre:rh_membres (
+            id,
+            nom,
+            prenom,
+            role
+          )
+        ),
+        reservation_membres (
+          id,
+          membre_id,
+          role,
+          membre:rh_membres (
+            id,
+            nom,
+            prenom,
+            role
+          )
         )
       `)
       .eq('id', req.params.id)
@@ -193,6 +309,12 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       .ilike('nom', serviceName || '')
       .single();
 
+    // Calculer la durée totale à partir des services
+    const lignes = reservation.reservation_lignes || [];
+    const dureeTotale = lignes.length > 0
+      ? lignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0)
+      : reservation.duree_minutes || 60;
+
     // Formater la réponse
     const formattedReservation = {
       id: reservation.id,
@@ -210,7 +332,12 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         nom: reservation.clients.nom,
         prenom: reservation.clients.prenom,
         telephone: reservation.clients.telephone,
-        email: reservation.clients.email
+        email: reservation.clients.email,
+        type_client: reservation.clients.type_client,
+        raison_sociale: reservation.clients.raison_sociale,
+        adresse: reservation.clients.adresse,
+        code_postal: reservation.clients.code_postal,
+        ville: reservation.clients.ville
       } : null,
       service: {
         id: serviceInfo?.id || null,
@@ -219,6 +346,37 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         duree_minutes: reservation.duree_minutes || serviceInfo?.duree || 0,
         description: serviceInfo?.description || null
       },
+      service_nom: reservation.service_nom || reservation.service,
+      // Durée totale calculée
+      duree_totale: dureeTotale,
+      duree: dureeTotale,
+      // Multi-services avec membres assignés et heures effectives
+      services: lignes.map(l => ({
+        id: l.id,
+        service_id: l.service_id,
+        service_nom: l.service_nom,
+        quantite: l.quantite,
+        duree_minutes: l.duree_minutes,
+        prix_unitaire: l.prix_unitaire ? l.prix_unitaire / 100 : 0,
+        prix_total: l.prix_total ? l.prix_total / 100 : 0,
+        membre_id: l.membre_id,
+        heure_debut: l.heure_debut || null,
+        heure_fin: l.heure_fin || null,
+        membre: l.membre ? {
+          id: l.membre.id,
+          nom: l.membre.nom,
+          prenom: l.membre.prenom,
+          role: l.membre.role
+        } : null
+      })),
+      // Tous les membres assignés
+      membres: (reservation.reservation_membres || []).map(rm => ({
+        id: rm.membre?.id,
+        nom: rm.membre?.nom,
+        prenom: rm.membre?.prenom,
+        role: rm.membre?.role,
+        assignment_role: rm.role
+      })),
       deplacement: reservation.lieu === 'domicile' ? {
         adresse_client: reservation.adresse_client,
         distance_km: reservation.distance_km,
@@ -246,7 +404,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 
 // POST /api/admin/reservations
-// Créer une réservation manuellement
+// Créer une réservation/prestation avec multi-services et multi-membres
 router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
@@ -257,19 +415,45 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       service,
       date_rdv,
       heure_rdv,
+      heure_fin,
+      date_fin,
       lieu,
       adresse_client,
-      distance_km,
-      duree_trajet_minutes,
-      frais_deplacement,
+      adresse_facturation,
       notes,
-      membre_id
+      membre_id,
+      // Nouvelles données multi-services/membres
+      services = [],
+      membre_ids = [],
+      // Mode de tarification
+      pricing_mode,
+      // Geste commercial
+      remise_type,
+      remise_valeur,
+      remise_motif,
+      // Totaux calculés
+      montant_ht,
+      montant_tva,
+      prix_total,
+      duree_totale_minutes,
+      frais_deplacement
     } = req.body;
 
     // Validation
-    if (!client_id || !service || !date_rdv || !heure_rdv) {
+    const hasServices = services && services.length > 0;
+    const isHourlyMode = pricing_mode === 'hourly';
+
+    // En mode horaire, les heures sont définies par affectation (agent), pas globalement
+    if (!client_id || (!service && !hasServices) || !date_rdv) {
       return res.status(400).json({
-        error: 'Champs requis : client_id, service, date_rdv, heure_rdv'
+        error: 'Champs requis : client_id, service(s), date_rdv'
+      });
+    }
+
+    // Heure requise sauf en mode horaire (où les heures sont par agent)
+    if (!isHourlyMode && !heure_rdv) {
+      return res.status(400).json({
+        error: 'Champs requis : heure_rdv'
       });
     }
 
@@ -285,21 +469,45 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       return res.status(404).json({ error: 'Client introuvable' });
     }
 
+    // Nom du premier service (rétro-compatibilité)
+    const servicePrincipal = hasServices ? services[0].service_nom : service;
+
+    // En mode horaire, extraire l'heure de début du premier agent si pas d'heure globale
+    let heureEffective = heure_rdv;
+    if (isHourlyMode && !heure_rdv && hasServices) {
+      // Chercher l'heure de début du premier agent dans les affectations
+      for (const svc of services) {
+        if (svc.affectations && svc.affectations.length > 0) {
+          const firstAff = svc.affectations.find(a => a.heure_debut);
+          if (firstAff && firstAff.heure_debut) {
+            heureEffective = firstAff.heure_debut;
+            break;
+          }
+        }
+      }
+      // Fallback si aucune heure trouvée
+      if (!heureEffective) heureEffective = '08:00';
+    }
+
     // Créer via createReservationUnified (même logique que tous les canaux)
     const { createReservationUnified } = await import('../core/unified/nexusCore.js');
 
     const result = await createReservationUnified({
       tenant_id: tenantId,  // 🔒 TENANT ISOLATION
-      service_name: service,
+      service_name: servicePrincipal,
       date: date_rdv,
-      heure: heure_rdv,
+      heure: heureEffective,
       client_nom: `${client.prenom || ''} ${client.nom || ''}`.trim() || 'Client',
       client_telephone: client.telephone || '',
-      lieu: lieu || 'chez_fatou',
-      adresse: lieu === 'domicile' ? adresse_client : null,
+      lieu: lieu || 'salon',
+      adresse: adresse_client || null,
       notes: notes || '[Via admin]',
       statut: 'confirme'
-    }, 'admin', { sendSMS: false, skipValidation: false });
+    }, 'admin', {
+      sendSMS: false,
+      // Skip validation horaires pour admin (surtout mode horaire = sécurité 24/7)
+      skipValidation: true
+    });
 
     if (!result.success) {
       // Conflit horaire
@@ -312,13 +520,143 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       return res.status(400).json({ error: result.error || 'Erreur création' });
     }
 
-    // Assigner un membre si spécifié
-    if (membre_id) {
-      await supabase
-        .from('reservations')
-        .update({ membre_id })
-        .eq('id', result.reservationId)
-        .eq('tenant_id', tenantId);
+    const reservationId = result.reservationId;
+
+    // Mise à jour avec les données enrichies (🔒 TENANT ISOLATION)
+    const updateData = {
+      client_id: client_id,
+      adresse_client: adresse_client || null,
+      adresse_facturation: adresse_facturation || null
+    };
+
+    // Ajouter les totaux si fournis
+    if (montant_ht !== undefined) updateData.montant_ht = montant_ht;
+    if (montant_tva !== undefined) updateData.montant_tva = montant_tva;
+    if (prix_total !== undefined) updateData.prix_total = prix_total;
+    if (duree_totale_minutes !== undefined) updateData.duree_totale_minutes = duree_totale_minutes;
+    if (frais_deplacement !== undefined) updateData.frais_deplacement = frais_deplacement;
+
+    // Ajouter les infos de remise
+    if (remise_type) {
+      updateData.remise_type = remise_type;
+      updateData.remise_valeur = remise_valeur || 0;
+      updateData.remise_motif = remise_motif || null;
+    }
+
+    // Premier membre comme membre principal (rétro-compatibilité)
+    if (membre_id || (membre_ids && membre_ids.length > 0)) {
+      updateData.membre_id = membre_id || membre_ids[0];
+    }
+
+    await supabase
+      .from('reservations')
+      .update(updateData)
+      .eq('id', reservationId)
+      .eq('tenant_id', tenantId);
+
+    // === INSERTION MULTI-SERVICES (reservation_lignes) avec membre assigné ===
+    if (hasServices && services.length > 0) {
+      console.log('[ADMIN RESERVATIONS] Services reçus:', JSON.stringify(services, null, 2));
+      const lignesData = [];
+
+      for (const s of services) {
+        // Si le service a des affectations (mode horaire avec plusieurs agents)
+        if (s.affectations && s.affectations.length > 0) {
+          console.log(`[ADMIN RESERVATIONS] Service ${s.service_nom} a ${s.affectations.length} affectations:`, s.affectations);
+          for (const aff of s.affectations) {
+            if (aff.membre_id) {
+              // Calculer la durée depuis les heures si disponibles
+              let dureeMinutes = s.duree_minutes || 60;
+              if (aff.heure_debut && aff.heure_fin) {
+                const [startH, startM] = aff.heure_debut.replace('--', '00').split(':').map(Number);
+                const [endH, endM] = aff.heure_fin.replace('--', '00').split(':').map(Number);
+                let startMinutes = startH * 60 + (startM || 0);
+                let endMinutes = endH * 60 + (endM || 0);
+                // Gestion passage minuit
+                if (endMinutes < startMinutes) endMinutes += 24 * 60;
+                dureeMinutes = endMinutes - startMinutes;
+              }
+
+              const ligneData = {
+                reservation_id: reservationId,
+                tenant_id: tenantId,
+                service_id: s.service_id || null,
+                service_nom: s.service_nom,
+                quantite: 1, // Chaque affectation = 1 agent
+                duree_minutes: dureeMinutes,
+                prix_unitaire: s.prix_unitaire || s.taux_horaire || 0,
+                prix_total: s.prix_unitaire || s.taux_horaire || 0,
+                membre_id: aff.membre_id
+              };
+              // Ajouter heures si présentes (colonnes optionnelles)
+              if (aff.heure_debut) ligneData.heure_debut = aff.heure_debut;
+              if (aff.heure_fin) ligneData.heure_fin = aff.heure_fin;
+              lignesData.push(ligneData);
+            }
+          }
+        } else {
+          // Mode classique: une ligne par service
+          lignesData.push({
+            reservation_id: reservationId,
+            tenant_id: tenantId,
+            service_id: s.service_id || null,
+            service_nom: s.service_nom,
+            quantite: s.quantite || 1,
+            duree_minutes: s.duree_minutes || 60,
+            prix_unitaire: s.prix_unitaire || 0,
+            prix_total: (s.prix_unitaire || 0) * (s.quantite || 1),
+            membre_id: s.membre_id || null
+          });
+        }
+      }
+
+      if (lignesData.length > 0) {
+        const { error: lignesError } = await supabase
+          .from('reservation_lignes')
+          .insert(lignesData);
+
+        if (lignesError) {
+          console.error('[ADMIN RESERVATIONS] Erreur insertion lignes:', lignesError);
+        }
+      }
+    }
+
+    // === INSERTION MULTI-MEMBRES (reservation_membres) ===
+    // Extraire tous les membres uniques des lignes de service et affectations
+    const membresFromServices = [];
+    if (hasServices) {
+      for (const s of services) {
+        if (s.affectations && s.affectations.length > 0) {
+          for (const aff of s.affectations) {
+            if (aff.membre_id) membresFromServices.push(aff.membre_id);
+          }
+        } else if (s.membre_id) {
+          membresFromServices.push(s.membre_id);
+        }
+      }
+    }
+    const uniqueMembresFromServices = [...new Set(membresFromServices)];
+
+    // Combiner avec membre_ids fournis directement
+    const allMembreIds = [...new Set([...uniqueMembresFromServices, ...(membre_ids || [])])];
+
+    if (allMembreIds.length > 0) {
+      const membresData = allMembreIds.map((mid, index) => ({
+        reservation_id: reservationId,
+        tenant_id: tenantId,
+        membre_id: mid,
+        role: index === 0 ? 'principal' : 'executant'
+      }));
+
+      const { error: membresError } = await supabase
+        .from('reservation_membres')
+        .insert(membresData);
+
+      if (membresError) {
+        console.error('[ADMIN RESERVATIONS] Erreur insertion membres:', membresError);
+      } else {
+        console.log(`[ADMIN RESERVATIONS] ${allMembreIds.length} membre(s) assigné(s):`, allMembreIds);
+      }
     }
 
     // Logger l'action (🔒 TENANT ISOLATION)
@@ -327,8 +665,18 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       admin_id: req.admin.id,
       action: 'create',
       entite: 'reservation',
-      entite_id: result.reservationId,
-      details: { client_id, service, date_rdv, heure_rdv, lieu, membre_id }
+      entite_id: reservationId,
+      details: {
+        client_id,
+        services: hasServices ? services.map(s => s.service_nom) : [service],
+        date_rdv,
+        heure_rdv,
+        lieu,
+        membre_ids: membre_ids || (membre_id ? [membre_id] : []),
+        prix_total,
+        remise_type,
+        remise_valeur
+      }
     });
 
     // Récupérer la réservation complète pour la réponse (🔒 TENANT ISOLATION)
@@ -336,25 +684,22 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       .from('reservations')
       .select(`
         *,
-        membre:rh_membres (id, nom, prenom, role)
+        membre:rh_membres (id, nom, prenom, role),
+        clients (id, nom, prenom, telephone, email)
       `)
-      .eq('id', result.reservationId)
+      .eq('id', reservationId)
       .eq('tenant_id', tenantId)
       .single();
 
-    // 📄 Créer automatiquement une facture en mode brouillon
-    let facture = null;
-    try {
-      const factureResult = await createFactureFromReservation(result.reservationId, tenantId, { statut: 'brouillon' });
-      if (factureResult.success) {
-        facture = factureResult.facture;
-        console.log(`[ADMIN RESERVATIONS] Facture brouillon ${facture.numero} créée`);
-      }
-    } catch (factureErr) {
-      console.error('[ADMIN RESERVATIONS] Erreur création facture brouillon:', factureErr.message);
-    }
+    // 📄 Note: Pas de création de facture à ce stade
+    // La facture sera créée quand la réservation passera en statut "terminé"
 
-    res.json({ reservation, facture });
+    res.json({
+      reservation,
+      facture: null,
+      lignes_count: hasServices ? services.length : 1,
+      membres_count: membre_ids ? membre_ids.length : (membre_id ? 1 : 0)
+    });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur création:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -606,7 +951,154 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       }
     }
 
-    res.json({ reservation, changes: updates, facture });
+    // 📝 Mise à jour des lignes de réservation (heures effectives par salarié)
+    const { lignes } = req.body;
+    let updatedLignes = [];
+    let prixTotalRecalcule = 0;
+
+    if (lignes && Array.isArray(lignes) && lignes.length > 0) {
+      console.log(`[ADMIN EDIT] Mise à jour de ${lignes.length} lignes pour réservation ${req.params.id}`);
+      console.log(`[ADMIN EDIT] IDs reçus du frontend:`, lignes.map(l => l.id));
+
+      // Vérifier quelles lignes existent réellement pour cette réservation
+      const { data: existingLignes } = await supabase
+        .from('reservation_lignes')
+        .select('id, service_nom')
+        .eq('reservation_id', req.params.id)
+        .eq('tenant_id', tenantId);
+      console.log(`[ADMIN EDIT] Lignes existantes en base:`, existingLignes?.map(l => ({ id: l.id, nom: l.service_nom })));
+
+      for (const ligne of lignes) {
+        if (!ligne.id) {
+          console.warn('[ADMIN EDIT] Ligne sans ID ignorée:', ligne);
+          continue;
+        }
+
+        // Récupérer la ligne actuelle pour avoir le service_id et le taux
+        const { data: currentLigne, error: ligneErr } = await supabase
+          .from('reservation_lignes')
+          .select('*')
+          .eq('id', ligne.id)
+          .eq('reservation_id', req.params.id)
+          .single();
+
+        if (ligneErr || !currentLigne) {
+          console.warn(`[ADMIN EDIT] Ligne ${ligne.id} introuvable:`, ligneErr?.message);
+          continue;
+        }
+
+        console.log(`[ADMIN EDIT] Ligne ${ligne.id} (${currentLigne.service_nom}): prix_unitaire=${currentLigne.prix_unitaire/100}€/h`);
+
+        const ligneUpdate = {};
+
+        // Mise à jour des heures si fournies
+        if (ligne.heure_debut !== undefined) {
+          // Tronquer au format HH:MM (VARCHAR(5))
+          ligneUpdate.heure_debut = ligne.heure_debut ? ligne.heure_debut.slice(0, 5) : null;
+        }
+        if (ligne.heure_fin !== undefined) {
+          ligneUpdate.heure_fin = ligne.heure_fin ? ligne.heure_fin.slice(0, 5) : null;
+        }
+
+        // Recalculer la durée et le prix si les deux heures sont fournies
+        const heureDebut = ligneUpdate.heure_debut || currentLigne.heure_debut;
+        const heureFin = ligneUpdate.heure_fin || currentLigne.heure_fin;
+
+        if (heureDebut && heureFin) {
+          const [startH, startM] = heureDebut.split(':').map(Number);
+          const [endH, endM] = heureFin.split(':').map(Number);
+          let dureeMins = (endH * 60 + endM) - (startH * 60 + startM);
+          if (dureeMins < 0) dureeMins += 24 * 60; // Passage minuit
+          ligneUpdate.duree_minutes = dureeMins;
+
+          // Recalculer le prix : prix_unitaire = taux horaire
+          // nouveau_prix_total = prix_unitaire × nouvelles_heures
+          const quantite = currentLigne.quantite || 1;
+          const heures = dureeMins / 60;
+          const tauxHoraire = currentLigne.prix_unitaire; // Le taux horaire en centimes
+
+          if (tauxHoraire) {
+            const nouveauPrix = Math.round(tauxHoraire * heures);
+            ligneUpdate.prix_total = nouveauPrix * quantite;
+            console.log(`[ADMIN EDIT] Ligne ${ligne.id}: ${heures}h x ${tauxHoraire/100}€/h = ${ligneUpdate.prix_total/100}€`);
+          }
+        }
+
+        // Ne mettre à jour que s'il y a des champs à modifier
+        if (Object.keys(ligneUpdate).length > 0) {
+          const { data: updatedLigne, error: ligneError } = await supabase
+            .from('reservation_lignes')
+            .update(ligneUpdate)
+            .eq('id', ligne.id)
+            .eq('tenant_id', tenantId)
+            .eq('reservation_id', req.params.id)
+            .select()
+            .single();
+
+          if (ligneError) {
+            console.error(`[ADMIN EDIT] Erreur mise à jour ligne ${ligne.id}:`, ligneError.message);
+          } else {
+            updatedLignes.push(updatedLigne);
+            console.log(`[ADMIN EDIT] Ligne ${ligne.id} mise à jour: ${ligneUpdate.heure_debut || heureDebut} - ${ligneUpdate.heure_fin || heureFin}`);
+          }
+        }
+      }
+
+      // Recalculer la durée totale et le prix total de la réservation
+      const { data: allLignes } = await supabase
+        .from('reservation_lignes')
+        .select('duree_minutes, quantite, prix_total')
+        .eq('reservation_id', req.params.id)
+        .eq('tenant_id', tenantId);
+
+      if (allLignes && allLignes.length > 0) {
+        const dureeTotale = allLignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0);
+        prixTotalRecalcule = allLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
+
+        // Ajouter les frais de déplacement existants
+        const fraisDeplacement = currentRdv.frais_deplacement || 0;
+        const prixHT = prixTotalRecalcule + fraisDeplacement;
+        const prixTTC = Math.round(prixHT * 1.2); // TVA 20%
+
+        await supabase
+          .from('reservations')
+          .update({
+            duree_minutes: dureeTotale,
+            prix_total: prixTTC // Stocker le TTC
+          })
+          .eq('id', req.params.id)
+          .eq('tenant_id', tenantId);
+
+        console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
+
+        // Mettre à jour la facture associée si elle existe et n'est pas payée
+        const { data: factureExistante } = await supabase
+          .from('factures')
+          .select('id, numero, statut, montant_ht, montant_ttc')
+          .eq('reservation_id', req.params.id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        console.log(`[ADMIN EDIT] Facture trouvée:`, factureExistante ? `${factureExistante.numero} (${factureExistante.statut})` : 'aucune');
+
+        if (factureExistante && factureExistante.statut !== 'payee') {
+          await supabase
+            .from('factures')
+            .update({
+              montant_ht: prixHT,
+              montant_ttc: prixTTC
+            })
+            .eq('id', factureExistante.id)
+            .eq('tenant_id', tenantId);
+
+          console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} mise à jour: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
+        } else if (factureExistante) {
+          console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} déjà payée, non modifiée`);
+        }
+      }
+    }
+
+    res.json({ reservation, changes: updates, facture, lignes: updatedLignes });
   } catch (error) {
     console.error('[ADMIN RESERVATIONS] Erreur modification:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -620,7 +1112,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { statut, mode_paiement } = req.body;
+    const { statut, mode_paiement, membre_id } = req.body;
 
     if (!statut || !STATUTS_VALIDES.includes(statut)) {
       return res.status(400).json({
@@ -628,20 +1120,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Mode de paiement obligatoire pour marquer comme terminé
-    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
-    if (statut === 'termine') {
-      if (!mode_paiement) {
-        return res.status(400).json({
-          error: 'Mode de paiement requis pour marquer comme terminé'
-        });
-      }
-      if (!modesPaiementValides.includes(mode_paiement)) {
-        return res.status(400).json({
-          error: `Mode de paiement invalide. Valeurs acceptées : ${modesPaiementValides.join(', ')}`
-        });
-      }
-    }
+    // Note: mode_paiement n'est plus requis ici
+    // Le paiement sera enregistré séparément via POST /factures/:id/paiement
 
     // Récupérer la réservation actuelle (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
@@ -662,16 +1142,29 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       });
     }
 
+    // ⚠️ VALIDATION: Personnel obligatoire pour terminer une réservation
+    if (statut === 'termine') {
+      const membreAssigne = membre_id || currentRdv.membre_id;
+      if (!membreAssigne) {
+        return res.status(400).json({
+          error: 'Affectation du personnel obligatoire pour terminer la prestation',
+          code: 'MEMBRE_REQUIS'
+        });
+      }
+    }
+
     // Préparer les données de mise à jour
     const updateData = {
       statut,
       updated_at: new Date().toISOString()
     };
 
-    // Ajouter mode_paiement si terminé
-    if (statut === 'termine' && mode_paiement) {
-      updateData.mode_paiement = mode_paiement;
+    // Si membre_id fourni, l'ajouter à la mise à jour
+    if (membre_id) {
+      updateData.membre_id = membre_id;
     }
+
+    // Note: mode_paiement sera enregistré lors du paiement de la facture
 
     // Mettre à jour le statut (🔒 TENANT ISOLATION)
     const { data: reservation, error } = await supabase
@@ -698,36 +1191,36 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     let facture = null;
 
     if (statut === 'termine') {
-      // RDV terminé → Facture payée avec mode de paiement
+      // RDV terminé → Créer facture en attente de paiement (statut: 'generee')
+      // La facture entre automatiquement dans le système de relance
       try {
         const factureResult = await createFactureFromReservation(req.params.id, tenantId, {
-          statut: 'payee',
+          statut: 'generee',  // Pas 'payee' - le paiement sera enregistré séparément
           updateIfExists: true
         });
         if (factureResult.success) {
           facture = factureResult.facture;
-          // Ajouter la date de paiement et le mode de paiement
+
+          // Calculer date_echeance = date_facture + 30 jours
+          const dateFacture = new Date(facture.date_facture || new Date());
+          const dateEcheance = new Date(dateFacture);
+          dateEcheance.setDate(dateEcheance.getDate() + 30);
+
+          // Mettre à jour la date d'échéance (pour le système de relance)
           await supabase
             .from('factures')
             .update({
-              date_paiement: new Date().toISOString(),
-              mode_paiement: mode_paiement
+              date_echeance: dateEcheance.toISOString().split('T')[0]
             })
             .eq('id', facture.id);
-          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} marquée payée (${mode_paiement})`);
 
-          // Régénérer les écritures comptables avec le bon journal (BQ ou CA)
-          try {
-            const { genererEcrituresFacture } = await import('./journaux.js');
-            if (genererEcrituresFacture) {
-              await genererEcrituresFacture(tenantId, facture.id);
-            }
-          } catch (ecrituresErr) {
-            console.error('[ADMIN RESERVATIONS] Erreur génération écritures:', ecrituresErr.message);
-          }
+          console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} créée (en attente de paiement, échéance: ${dateEcheance.toISOString().split('T')[0]})`);
+
+          // Note: Les écritures VT (créance client) sont générées automatiquement par createFactureFromReservation
+          // Les écritures BQ/CA seront générées lors de l'enregistrement du paiement
         }
       } catch (factureErr) {
-        console.error('[ADMIN RESERVATIONS] Erreur marquage facture payée:', factureErr.message);
+        console.error('[ADMIN RESERVATIONS] Erreur création facture:', factureErr.message);
       }
 
       // Déclencher workflows "rdv_completed"
@@ -786,20 +1279,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       }
     }
 
-    if (statut === 'confirme' && currentRdv.statut === 'demande') {
-      // RDV confirmé depuis demande → Créer facture brouillon si pas encore faite
-      try {
-        const factureResult = await createFactureFromReservation(req.params.id, tenantId, {
-          statut: 'brouillon'
-        });
-        if (factureResult.success && factureResult.message !== 'Facture déjà existante') {
-          facture = factureResult.facture;
-          console.log(`[ADMIN RESERVATIONS] Facture brouillon ${facture.numero} créée`);
-        }
-      } catch (factureErr) {
-        console.error('[ADMIN RESERVATIONS] Erreur création facture brouillon:', factureErr.message);
-      }
-    }
+    // Note: Pas de création de facture lors de la confirmation
+    // La facture sera créée quand la réservation passera en statut "terminé"
 
     if (statut === 'annule') {
       // RDV annulé → Annuler la facture associée

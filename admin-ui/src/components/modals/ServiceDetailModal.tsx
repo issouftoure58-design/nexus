@@ -104,11 +104,11 @@ export function ServiceDetailModal({ service, onClose, onEdit }: ServiceDetailMo
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-blue-700">{data.stats.nb_rdv_total}</p>
-                  <p className="text-xs text-blue-600">RDV Total</p>
+                  <p className="text-xs text-blue-600">Prestations</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-purple-700">{data.stats.nb_rdv_termines}</p>
-                  <p className="text-xs text-purple-600">RDV Terminés</p>
+                  <p className="text-xs text-purple-600">Terminées</p>
                 </div>
                 <div className="bg-cyan-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-cyan-700">{data.stats.nb_clients_uniques}</p>
@@ -143,7 +143,7 @@ export function ServiceDetailModal({ service, onClose, onEdit }: ServiceDetailMo
                           <p className="font-medium text-sm">{client.prenom} {client.nom}</p>
                         </div>
                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {client.nb_rdv} RDV
+                          {client.nb_rdv} prestations
                         </Badge>
                       </div>
                     ))}
@@ -151,7 +151,7 @@ export function ServiceDetailModal({ service, onClose, onEdit }: ServiceDetailMo
                 </div>
               )}
 
-              {/* Historique RDV */}
+              {/* Historique Prestations */}
               <div>
                 <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />

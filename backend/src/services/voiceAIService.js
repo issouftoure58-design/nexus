@@ -58,8 +58,55 @@ const {
   createAppointment,
   sendConfirmationSMS,
   parseJourToDate,
-  formatDateToText
+  formatDateToText,
+  // V2 - Multi-tenant
+  getSalonInfo
 } = bookingService;
+
+// V2 - Import service business pour messages dynamiques
+import { getBusinessInfoSync, getAIContext } from './tenantBusinessService.js';
+
+/**
+ * Génère le message d'accueil dynamique selon le tenant
+ */
+function getGreeting(tenantId, salutation = 'bonjour') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return `${info.nom} ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`;
+  } catch (e) {
+    return `Fat's Hair-Afro ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`;
+  }
+}
+
+/**
+ * Génère le message de transfert vers le gérant
+ */
+function getTransferMessage(tenantId, prenom = '') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const gerant = info.gerant || 'le responsable';
+    return prenom
+      ? `Merci ${prenom} ! Je vous passe ${gerant}. Ne quittez pas !`
+      : `Je vous passe ${gerant}. Ne quittez pas !`;
+  } catch (e) {
+    return prenom
+      ? `Merci ${prenom} ! Je vous passe Fatou. Ne quittez pas !`
+      : `Je vous passe Fatou. Ne quittez pas !`;
+  }
+}
+
+/**
+ * Génère le message de confirmation de demande
+ */
+function getConfirmationMessage(tenantId, prenom = '') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const gerant = info.gerant || 'nous';
+    return `Merci ${prenom} ! Je transmets votre demande à ${gerant} qui vous rappellera pour confirmer. À bientôt !`;
+  } catch (e) {
+    return `Merci ${prenom} ! Je transmets votre demande à Fatou qui vous rappellera pour confirmer. À bientôt !`;
+  }
+}
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -112,7 +159,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
       const salutation = heure >= 18 ? 'bonsoir' : 'bonjour';
 
       return response(
-        `Fat's Hair-Afro ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`,
+        getGreeting(conv.tenantId, salutation),
         false
       );
     }
@@ -127,7 +174,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
         return saveAndRespond(conv, "Bien sûr ! C'est de la part de qui ?", false);
       }
       return {
-        response: `Je vous passe Fatou, ${conv.data.prenom}. Ne quittez pas !`,
+        response: getTransferMessage(conv.tenantId || 'fatshairafro', conv.data.prenom),
         shouldEndCall: false,
         shouldTransfer: true,
         clientName: conv.data.prenom
@@ -139,7 +186,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
       if (prenom) {
         conv.data.prenom = prenom;
         return {
-          response: `Merci ${prenom} ! Je vous passe Fatou. Ne quittez pas !`,
+          response: getTransferMessage(conv.tenantId || 'fatshairafro', prenom),
           shouldEndCall: false,
           shouldTransfer: true,
           clientName: prenom
@@ -158,8 +205,10 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
     if (conv.data.jour && conv.state === STATES.ATTENTE_JOUR) {
       if (conv.data.jour.toLowerCase() === 'dimanche') {
         conv.data.jour = null;
+        const info = getBusinessInfoSync(conv.tenantId || 'fatshairafro');
+        const sujet = info.gerant || 'Nous';
         return saveAndRespond(conv,
-          "Fatou ne travaille pas le dimanche. Quel autre jour vous conviendrait ?",
+          `${sujet} ne travaille${sujet === 'Nous' ? 'ons' : ''} pas le dimanche. Quel autre jour vous conviendrait ?`,
           false
         );
       }
@@ -339,7 +388,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
             conv.state = STATES.TERMINE;
 
             return response(
-              `Merci ${conv.data.prenom} ! Je transmets votre demande à Fatou qui vous rappellera pour confirmer. À bientôt !`,
+              getConfirmationMessage(conv.tenantId || 'fatshairafro', conv.data.prenom),
               true
             );
           }
@@ -395,8 +444,10 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
       // Bonjour/Bonsoir selon l'heure (bonsoir à partir de 18h)
       const heure = new Date().getHours();
       const salutation = heure >= 18 ? 'bonsoir' : 'bonjour';
+      // TODO: Passer tenantId à cette fonction pour greeting dynamique
+      const tenantIdForGreeting = ctx?.data?.tenantId || 'fatshairafro';
       return {
-        response: `Fat's Hair-Afro ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`,
+        response: getGreeting(tenantIdForGreeting, salutation),
         shouldEndCall: false
       };
     }
@@ -413,8 +464,9 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
           shouldEndCall: false
         };
       }
+      const tenantIdCtx = ctx.data?.tenantId || 'fatshairafro';
       return {
-        response: `Je vous passe Fatou, ${ctx.data.prenom}. Ne quittez pas !`,
+        response: getTransferMessage(tenantIdCtx, ctx.data.prenom),
         shouldEndCall: false,
         shouldTransfer: true,
         clientName: ctx.data.prenom
@@ -428,8 +480,9 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
         ctx.data.prenom = prenom;
         ctx.wantsTransfer = false;
         nexusPhoneContexts.set(callSid, ctx);
+        const tenantIdCtx = ctx.data?.tenantId || 'fatshairafro';
         return {
-          response: `Merci ${prenom} ! Je vous passe Fatou. Ne quittez pas !`,
+          response: getTransferMessage(tenantIdCtx, prenom),
           shouldEndCall: false,
           shouldTransfer: true,
           clientName: prenom

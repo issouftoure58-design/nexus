@@ -151,6 +151,7 @@ export async function getFacturesARelancer(tenantId) {
     .select(`
       id,
       numero,
+      client_id,
       client_nom,
       client_email,
       client_telephone,
@@ -164,8 +165,7 @@ export async function getFacturesARelancer(tenantId) {
     `)
     .eq('tenant_id', tenantId)
     .not('statut', 'in', '(payee,annulee)')
-    .not('date_echeance', 'is', null)
-    .order('date_echeance', { ascending: true });
+    .order('date_echeance', { ascending: true, nullsFirst: false });
 
   if (error) {
     console.error('[Relances] Erreur récupération factures:', error.message);
@@ -174,11 +174,17 @@ export async function getFacturesARelancer(tenantId) {
 
   // Calculer les jours de retard et le niveau pour chaque facture
   return (data || []).map(f => {
-    const joursRetard = calculerJoursRetard(f.date_echeance);
+    // Si pas de date_echeance, utiliser date_facture + 30 jours
+    const dateEcheance = f.date_echeance || (f.date_facture ?
+      new Date(new Date(f.date_facture).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] :
+      new Date().toISOString().split('T')[0]);
+
+    const joursRetard = calculerJoursRetard(dateEcheance);
     const niveauCalcule = determinerNiveauRelance(joursRetard);
 
     return {
       ...f,
+      date_echeance: dateEcheance, // Utiliser la date calculée
       jours_retard: joursRetard,
       niveau_relance: f.niveau_relance || 0,
       niveau_attendu: niveauCalcule,
@@ -196,10 +202,9 @@ export async function getStatsRelances(tenantId) {
 
   const { data, error } = await db
     .from('factures')
-    .select('id, date_echeance, montant_ttc, niveau_relance, en_contentieux')
+    .select('id, numero, date_echeance, date_facture, montant_ttc, niveau_relance, en_contentieux, statut')
     .eq('tenant_id', tenantId)
-    .not('statut', 'in', '(payee,annulee)')
-    .not('date_echeance', 'is', null);
+    .not('statut', 'in', '(payee,annulee)');
 
   if (error) {
     console.error('[Relances] Erreur stats:', error.message);
@@ -218,7 +223,11 @@ export async function getStatsRelances(tenantId) {
   };
 
   (data || []).forEach(f => {
-    const joursRetard = calculerJoursRetard(f.date_echeance);
+    // Si pas de date_echeance, utiliser date_facture + 30 jours
+    const dateEcheance = f.date_echeance || (f.date_facture ?
+      new Date(new Date(f.date_facture).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] :
+      null);
+    const joursRetard = calculerJoursRetard(dateEcheance);
     const niveau = determinerNiveauRelance(joursRetard);
 
     stats.total_impayees++;

@@ -14,7 +14,9 @@ import { supabase } from '../config/supabase.js';
  */
 export function requireModule(moduleName) {
   return async (req, res, next) => {
-    const tenantId = req.admin?.tenant_id || req.body?.tenant_id || req.headers['x-tenant-id'];
+    // 🔒 TENANT SHIELD: tenant_id UNIQUEMENT depuis l'authentification
+    // NEVER from req.body or headers - that would allow spoofing
+    const tenantId = req.admin?.tenant_id;
 
     if (!tenantId) {
       return res.status(401).json({
@@ -143,7 +145,9 @@ export function requireModule(moduleName) {
  */
 export function checkUsageLimit(resource) {
   return async (req, res, next) => {
-    const tenantId = req.admin?.tenant_id || req.body?.tenant_id || req.headers['x-tenant-id'];
+    // 🔒 TENANT SHIELD: tenant_id UNIQUEMENT depuis l'authentification
+    // NEVER from req.body or headers - that would allow spoofing
+    const tenantId = req.admin?.tenant_id;
 
     if (!tenantId) {
       return res.status(401).json({ error: 'Non authentifie' });
@@ -330,7 +334,9 @@ function getRequiredPlans(moduleName) {
  */
 export function requireModuleMetier(moduleMetierName) {
   return async (req, res, next) => {
-    const tenantId = req.admin?.tenant_id || req.body?.tenant_id || req.headers['x-tenant-id'];
+    // 🔒 TENANT SHIELD: tenant_id UNIQUEMENT depuis l'authentification
+    // NEVER from req.body or headers - that would allow spoofing
+    const tenantId = req.admin?.tenant_id;
 
     if (!tenantId) {
       return res.status(401).json({ error: 'Non authentifie' });

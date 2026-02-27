@@ -400,10 +400,12 @@ router.post('/insights/ask', authenticateAdmin, requireAdminPlan('business'), as
  */
 router.patch('/insights/:id/dismiss', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const { id } = req.params;
     const { reason } = req.body;
 
-    const result = await sentinelInsights.dismissInsight(id, reason);
+    // TENANT SHIELD: Passer tenantId pour isolation
+    const result = await sentinelInsights.dismissInsight(tenantId, id, reason);
 
     if (!result.success) {
       return res.status(404).json({ success: false, error: 'Insight not found' });
@@ -423,10 +425,12 @@ router.patch('/insights/:id/dismiss', authenticateAdmin, async (req, res) => {
  */
 router.patch('/insights/:id/implement', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const { id } = req.params;
     const { notes } = req.body;
 
-    const result = await sentinelInsights.markAsImplemented(id, notes);
+    // TENANT SHIELD: Passer tenantId pour isolation
+    const result = await sentinelInsights.markAsImplemented(tenantId, id, notes);
 
     if (!result.success) {
       return res.status(404).json({ success: false, error: 'Insight not found' });

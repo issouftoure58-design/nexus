@@ -158,23 +158,22 @@ export async function saveAlert(tenantId, level, percentage, message) {
 
 /**
  * Charger les alertes récentes depuis Supabase.
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {number} limit - Nombre max d'alertes
- * @param {string|null} tenantId - ID du tenant (null = toutes alertes, pour admin système)
  */
-export async function loadRecentAlerts(limit = 10, tenantId = null) {
+export async function loadRecentAlerts(tenantId, limit = 10) {
+  // TENANT SHIELD: tenantId OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour loadRecentAlerts');
+  }
+
   try {
-    let query = supabase
+    const { data, error } = await supabase
       .from('sentinel_alerts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(limit);
-
-    // TENANT SHIELD: filtrer par tenant si spécifié
-    if (tenantId) {
-      query = query.eq('tenant_id', tenantId);
-    }
-
-    const { data, error } = await query;
 
     if (error) throw error;
     return data || [];

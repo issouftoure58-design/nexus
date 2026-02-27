@@ -34,8 +34,8 @@ interface EmployeeEntity {
 }
 
 interface AuxiliaryEntity {
-  type: 'client' | 'fournisseur';
-  id: number;
+  type: 'client' | 'fournisseur' | 'personnel';
+  compte: string;
   nom: string;
 }
 
@@ -166,8 +166,8 @@ export function EntityLink({ type, entity, label, className = '' }: EntityLinkPr
     );
   }
 
-  // Auxiliary (accounting ledger) - requires type, id, and name
-  if (type === 'auxiliary' && typeof entity === 'object' && 'type' in entity && 'id' in entity && 'nom' in entity) {
+  // Auxiliary (accounting ledger) - requires type, compte, and name
+  if (type === 'auxiliary' && typeof entity === 'object' && 'type' in entity && 'compte' in entity && 'nom' in entity) {
     const auxEntity = entity as AuxiliaryEntity;
 
     return (
@@ -178,7 +178,7 @@ export function EntityLink({ type, entity, label, className = '' }: EntityLinkPr
         {showModal && (
           <AuxiliaryLedgerModal
             type={auxEntity.type}
-            id={auxEntity.id}
+            compte={auxEntity.compte}
             nom={auxEntity.nom}
             onClose={() => setShowModal(false)}
           />

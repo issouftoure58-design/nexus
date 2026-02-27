@@ -6,7 +6,14 @@
 import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nexus-dev-secret-change-in-production';
+// ⚠️ SECURITY: JWT_SECRET MUST be set in environment - NO FALLBACK ALLOWED
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is not set!');
+  console.error('   Set JWT_SECRET in your .env file with a secure random string (min 32 chars)');
+  process.exit(1);
+}
 
 /**
  * Middleware d'authentification par token JWT

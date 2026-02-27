@@ -1292,27 +1292,10 @@ export async function createReservationUnified(data, channel = 'web', options = 
       invalidateCache(`availability_${reservationDate}`);
     }
 
-    // 10. CRÉER FACTURE BROUILLON (pour la réservation principale seulement)
+    // 10. FACTURE: Pas de création automatique ici
+    // La facture sera créée quand la réservation passera en statut "terminé"
+    // (voir adminReservations.js - PATCH /:id/statut)
     let facture = null;
-    const primaryReservationId = createdReservations[0]?.id;
-    if (primaryReservationId && data.tenant_id) {
-      try {
-        // Import dynamique pour éviter les cycles de dépendances
-        const { createFactureFromReservation } = await import('../../routes/factures.js');
-        const factureResult = await createFactureFromReservation(
-          primaryReservationId,
-          data.tenant_id,
-          { statut: 'brouillon' }
-        );
-        if (factureResult.success) {
-          facture = factureResult.facture;
-          console.log(`[NEXUS CORE] 📄 Facture brouillon ${facture.numero} créée`);
-        }
-      } catch (factureErr) {
-        // Non bloquant - la facture peut être créée plus tard
-        console.warn('[NEXUS CORE] ⚠️ Erreur création facture brouillon:', factureErr.message);
-      }
-    }
 
     // 11. ENVOYER SMS DE CONFIRMATION (une seule fois, pour toutes les dates)
     if (sendSMS && data.client_telephone) {

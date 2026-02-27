@@ -11,7 +11,9 @@ import { isProduction, isTestTenant, canModifyTenant, isDevelopment } from '../u
  * Empêcher modifications tenant test en production
  */
 export function protectProductionData(req, res, next) {
-  const tenantId = req.admin?.tenant_id || req.body?.tenant_id || req.params?.tenant_id;
+  // 🔒 TENANT SHIELD: tenant_id UNIQUEMENT depuis l'authentification
+  // NEVER from req.body or req.params - that would allow spoofing
+  const tenantId = req.admin?.tenant_id;
 
   if (!canModifyTenant(tenantId)) {
     return res.status(403).json({

@@ -1598,18 +1598,18 @@ router.get('/grand-livre/:compte', async (req, res) => {
 
     if (error) throw error;
 
-    // Calculer le solde progressif
+    // Calculer le solde progressif (toujours D - C)
     let soldeProgressif = 0;
-    const mouvements = ecritures?.map(e => {
-      soldeProgressif += (e.debit - e.credit) / 100;
+    const ecrituresFormatted = ecritures?.map(e => {
+      soldeProgressif += (e.debit || 0) - (e.credit || 0);
       return {
         id: e.id,
-        date: e.date_ecriture,
-        journal: e.journal_code,
-        piece: e.numero_piece,
+        date_ecriture: e.date_ecriture,
+        journal_code: e.journal_code,
+        numero_piece: e.numero_piece,
         libelle: e.libelle,
-        debit: e.debit / 100,
-        credit: e.credit / 100,
+        debit: e.debit || 0,
+        credit: e.credit || 0,
         solde_progressif: soldeProgressif,
         lettrage: e.lettrage,
         facture_id: e.facture_id,
@@ -1617,19 +1617,20 @@ router.get('/grand-livre/:compte', async (req, res) => {
       };
     }) || [];
 
-    const totalDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) / 100 || 0;
-    const totalCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) / 100 || 0;
+    const totalDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
+    const totalCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
 
     res.json({
-      compte_numero: compte,
-      compte_libelle: ecritures?.[0]?.compte_libelle || getLibelleCompte(compte),
-      mouvements,
+      compte: compte,
+      libelle: ecritures?.[0]?.compte_libelle || getLibelleCompte(compte),
+      exercice: parseInt(exercice) || new Date().getFullYear(),
+      ecritures: ecrituresFormatted,
       totaux: {
-        debit: totalDebit,
-        credit: totalCredit,
-        solde: totalDebit - totalCredit
+        debit: totalDebit / 100,
+        credit: totalCredit / 100,
+        solde: (totalDebit - totalCredit) / 100
       },
-      nb_ecritures: mouvements.length
+      nb_ecritures: ecrituresFormatted.length
     });
   } catch (error) {
     console.error('[JOURNAUX] Erreur détail compte:', error);
@@ -1647,7 +1648,7 @@ router.get('/grand-livre/:compte', async (req, res) => {
  */
 router.get('/balance-generale', async (req, res) => {
   try {
-    const { periode, exercice, avec_sous_comptes } = req.query;
+    const { periode, exercice, avec_sous_comptes, compte } = req.query;
     const tenantId = req.admin.tenant_id;
 
     let query = supabase
@@ -1655,6 +1656,10 @@ router.get('/balance-generale', async (req, res) => {
       .select('compte_numero, compte_libelle, debit, credit')
       .eq('tenant_id', tenantId);
 
+    // Filtre par compte (préfixe) - ex: 606, 411004, etc.
+    if (compte) {
+      query = query.like('compte_numero', `${compte}%`);
+    }
     if (periode) {
       query = query.eq('periode', periode);
     }
@@ -1737,15 +1742,16 @@ router.get('/balance-clients', async (req, res) => {
   try {
     const { exercice } = req.query;
     const tenantId = req.admin.tenant_id;
+    const exerciceNum = exercice ? parseInt(exercice) : new Date().getFullYear();
 
     let query = supabase
       .from('ecritures_comptables')
-      .select('compte_numero, compte_libelle, debit, credit, facture_id')
+      .select('compte_numero, compte_libelle, debit, credit, facture_id, date_ecriture')
       .eq('tenant_id', tenantId)
       .like('compte_numero', '411%');
 
     if (exercice) {
-      query = query.eq('exercice', parseInt(exercice));
+      query = query.eq('exercice', exerciceNum);
     }
 
     const { data: ecritures, error } = await query;
@@ -1759,33 +1765,45 @@ router.get('/balance-clients', async (req, res) => {
       if (!clients[num]) {
         clients[num] = {
           compte: num,
-          libelle: e.compte_libelle || 'Client',
-          debit: 0,
-          credit: 0,
+          nom: e.compte_libelle || 'Client',
+          mouvement_debit: 0,
+          mouvement_credit: 0,
+          dernier_mouvement: null,
           nb_factures: new Set()
         };
       }
-      clients[num].debit += e.debit || 0;
-      clients[num].credit += e.credit || 0;
+      clients[num].mouvement_debit += e.debit || 0;
+      clients[num].mouvement_credit += e.credit || 0;
+      if (e.date_ecriture && (!clients[num].dernier_mouvement || e.date_ecriture > clients[num].dernier_mouvement)) {
+        clients[num].dernier_mouvement = e.date_ecriture;
+      }
       if (e.facture_id) clients[num].nb_factures.add(e.facture_id);
     });
 
-    const balance = Object.values(clients).map(c => ({
+    const comptes = Object.values(clients).map(c => ({
       compte: c.compte,
-      libelle: c.libelle,
-      debit: c.debit / 100,
-      credit: c.credit / 100,
-      solde: (c.debit - c.credit) / 100,
+      nom: c.nom,
+      mouvement_debit: c.mouvement_debit / 100,
+      mouvement_credit: c.mouvement_credit / 100,
+      solde: (c.mouvement_debit - c.mouvement_credit) / 100,
+      dernier_mouvement: c.dernier_mouvement,
       nb_factures: c.nb_factures.size
     })).sort((a, b) => b.solde - a.solde); // Plus gros soldes en premier
 
     const totaux = {
-      debit: balance.reduce((s, c) => s + c.debit, 0),
-      credit: balance.reduce((s, c) => s + c.credit, 0),
-      solde: balance.reduce((s, c) => s + c.solde, 0)
+      mouvement_debit: comptes.reduce((s, c) => s + c.mouvement_debit, 0),
+      mouvement_credit: comptes.reduce((s, c) => s + c.mouvement_credit, 0),
+      solde: comptes.reduce((s, c) => s + c.solde, 0),
+      nb_comptes: comptes.length
     };
 
-    res.json({ balance, totaux, nb_clients: balance.length });
+    res.json({
+      type: 'clients',
+      compte_collectif: '411',
+      exercice: exerciceNum,
+      comptes,
+      totaux
+    });
   } catch (error) {
     console.error('[JOURNAUX] Erreur balance clients:', error);
     res.status(500).json({ error: 'Erreur génération balance clients' });
@@ -1800,15 +1818,16 @@ router.get('/balance-fournisseurs', async (req, res) => {
   try {
     const { exercice } = req.query;
     const tenantId = req.admin.tenant_id;
+    const exerciceNum = exercice ? parseInt(exercice) : new Date().getFullYear();
 
     let query = supabase
       .from('ecritures_comptables')
-      .select('compte_numero, compte_libelle, debit, credit, depense_id')
+      .select('compte_numero, compte_libelle, debit, credit, depense_id, date_ecriture')
       .eq('tenant_id', tenantId)
       .like('compte_numero', '401%');
 
     if (exercice) {
-      query = query.eq('exercice', parseInt(exercice));
+      query = query.eq('exercice', exerciceNum);
     }
 
     const { data: ecritures, error } = await query;
@@ -1822,36 +1841,125 @@ router.get('/balance-fournisseurs', async (req, res) => {
       if (!fournisseurs[num]) {
         fournisseurs[num] = {
           compte: num,
-          libelle: e.compte_libelle || 'Fournisseur',
-          debit: 0,
-          credit: 0,
+          nom: e.compte_libelle || 'Fournisseur',
+          mouvement_debit: 0,
+          mouvement_credit: 0,
+          dernier_mouvement: null,
           nb_factures: new Set()
         };
       }
-      fournisseurs[num].debit += e.debit || 0;
-      fournisseurs[num].credit += e.credit || 0;
+      fournisseurs[num].mouvement_debit += e.debit || 0;
+      fournisseurs[num].mouvement_credit += e.credit || 0;
+      if (e.date_ecriture && (!fournisseurs[num].dernier_mouvement || e.date_ecriture > fournisseurs[num].dernier_mouvement)) {
+        fournisseurs[num].dernier_mouvement = e.date_ecriture;
+      }
       if (e.depense_id) fournisseurs[num].nb_factures.add(e.depense_id);
     });
 
-    const balance = Object.values(fournisseurs).map(f => ({
+    const comptes = Object.values(fournisseurs).map(f => ({
       compte: f.compte,
-      libelle: f.libelle,
-      debit: f.debit / 100,
-      credit: f.credit / 100,
-      solde: (f.credit - f.debit) / 100, // Créditeur pour les fournisseurs
+      nom: f.nom,
+      mouvement_debit: f.mouvement_debit / 100,
+      mouvement_credit: f.mouvement_credit / 100,
+      solde: (f.mouvement_debit - f.mouvement_credit) / 100, // D - C standard
+      dernier_mouvement: f.dernier_mouvement,
       nb_factures: f.nb_factures.size
-    })).sort((a, b) => b.solde - a.solde);
+    })).sort((a, b) => a.solde - b.solde); // Plus négatif (on doit plus) en premier
 
     const totaux = {
-      debit: balance.reduce((s, f) => s + f.debit, 0),
-      credit: balance.reduce((s, f) => s + f.credit, 0),
-      solde: balance.reduce((s, f) => s + f.solde, 0)
+      mouvement_debit: comptes.reduce((s, f) => s + f.mouvement_debit, 0),
+      mouvement_credit: comptes.reduce((s, f) => s + f.mouvement_credit, 0),
+      solde: comptes.reduce((s, f) => s + f.solde, 0),
+      nb_comptes: comptes.length
     };
 
-    res.json({ balance, totaux, nb_fournisseurs: balance.length });
+    res.json({
+      type: 'fournisseurs',
+      compte_collectif: '401',
+      exercice: exerciceNum,
+      comptes,
+      totaux
+    });
   } catch (error) {
     console.error('[JOURNAUX] Erreur balance fournisseurs:', error);
     res.status(500).json({ error: 'Erreur génération balance fournisseurs' });
+  }
+});
+
+/**
+ * GET /api/journaux/balance-personnel
+ * Balance auxiliaire personnel (comptes 421, 431)
+ */
+router.get('/balance-personnel', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const tenantId = req.admin.tenant_id;
+    const exerciceNum = exercice ? parseInt(exercice) : new Date().getFullYear();
+
+    // Récupérer les écritures des comptes 421 et 431
+    let query = supabase
+      .from('ecritures_comptables')
+      .select('compte_numero, compte_libelle, debit, credit, depense_id, date_ecriture')
+      .eq('tenant_id', tenantId)
+      .or('compte_numero.like.421%,compte_numero.like.431%');
+
+    if (exercice) {
+      query = query.eq('exercice', exerciceNum);
+    }
+
+    const { data: ecritures, error } = await query;
+
+    if (error) throw error;
+
+    // Agréger par compte
+    const personnel = {};
+    ecritures?.forEach(e => {
+      const num = e.compte_numero;
+      if (!personnel[num]) {
+        personnel[num] = {
+          compte: num,
+          nom: e.compte_libelle || (num.startsWith('421') ? 'Personnel' : 'Organismes sociaux'),
+          mouvement_debit: 0,
+          mouvement_credit: 0,
+          dernier_mouvement: null,
+          nb_ecritures: new Set()
+        };
+      }
+      personnel[num].mouvement_debit += e.debit || 0;
+      personnel[num].mouvement_credit += e.credit || 0;
+      if (e.date_ecriture && (!personnel[num].dernier_mouvement || e.date_ecriture > personnel[num].dernier_mouvement)) {
+        personnel[num].dernier_mouvement = e.date_ecriture;
+      }
+      if (e.depense_id) personnel[num].nb_ecritures.add(e.depense_id);
+    });
+
+    const comptes = Object.values(personnel).map(p => ({
+      compte: p.compte,
+      nom: p.nom,
+      mouvement_debit: p.mouvement_debit / 100,
+      mouvement_credit: p.mouvement_credit / 100,
+      solde: (p.mouvement_debit - p.mouvement_credit) / 100, // D - C standard
+      dernier_mouvement: p.dernier_mouvement,
+      nb_ecritures: p.nb_ecritures.size
+    })).sort((a, b) => a.solde - b.solde); // Plus négatif (on doit plus) en premier
+
+    const totaux = {
+      mouvement_debit: comptes.reduce((s, p) => s + p.mouvement_debit, 0),
+      mouvement_credit: comptes.reduce((s, p) => s + p.mouvement_credit, 0),
+      solde: comptes.reduce((s, p) => s + p.solde, 0),
+      nb_comptes: comptes.length
+    };
+
+    res.json({
+      type: 'personnel',
+      compte_collectif: '421/431',
+      exercice: exerciceNum,
+      comptes,
+      totaux
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur balance personnel:', error);
+    res.status(500).json({ error: 'Erreur génération balance personnel' });
   }
 });
 
@@ -1862,52 +1970,94 @@ router.get('/balance-fournisseurs', async (req, res) => {
 /**
  * GET /api/journaux/bilan
  * Bilan comptable (Actif / Passif)
+ * Params: exercice, periode (YYYY-MM), date_fin (YYYY-MM-DD)
  */
 router.get('/bilan', async (req, res) => {
   try {
-    const { exercice } = req.query;
+    const { exercice, periode, date_fin } = req.query;
     const tenantId = req.admin.tenant_id;
 
     let query = supabase
       .from('ecritures_comptables')
-      .select('compte_numero, compte_libelle, debit, credit')
+      .select('compte_numero, compte_libelle, debit, credit, date_ecriture')
       .eq('tenant_id', tenantId);
 
     if (exercice) {
       query = query.eq('exercice', parseInt(exercice));
     }
 
+    // Filtre par période (mois) - cumulatif jusqu'à fin du mois
+    if (periode) {
+      const [year, month] = periode.split('-').map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const endOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+      query = query.lte('date_ecriture', endOfMonth);
+    }
+
+    // Filtre par date exacte - cumulatif jusqu'à cette date
+    if (date_fin) {
+      query = query.lte('date_ecriture', date_fin);
+    }
+
     const { data: ecritures, error } = await query;
 
     if (error) throw error;
 
+    // Séparer les "à nouveaux" (1er janvier) des écritures courantes
+    const exerciceYear = exercice || new Date().getFullYear();
+    const dateANouveaux = `${exerciceYear}-01-01`;
+
     // Agréger par compte (racine 3 caractères)
+    // On sépare les "à nouveaux" pour 120/129 qui représentent le report des exercices précédents
     const comptes = {};
+    let reportANouveauBenefice = 0; // À nouveaux compte 120
+    let reportANouveauPerte = 0;    // À nouveaux compte 129
+
     ecritures?.forEach(e => {
       const num = e.compte_numero.substring(0, 3);
-      if (!comptes[num]) {
-        comptes[num] = {
-          numero: num,
-          libelle: getLibelleCompte(num),
-          debit: 0,
-          credit: 0
-        };
+
+      // Identifier les "à nouveaux" pour les comptes de résultat (120/129)
+      // Ce sont les écritures au 1er janvier ou avec libellé contenant "Report" ou "à nouveau"
+      const isANouveau = e.date_ecriture === dateANouveaux ||
+                         (e.libelle && (e.libelle.toLowerCase().includes('report') ||
+                                       e.libelle.toLowerCase().includes('nouveau') ||
+                                       e.libelle.toLowerCase().includes('exercice précédent')));
+
+      if ((num === '120' || num === '129') && isANouveau) {
+        // Report à nouveau des exercices précédents
+        // 120 au crédit = bénéfice reporté, 129 au débit = perte reportée
+        if (num === '120') {
+          reportANouveauBenefice += ((e.credit || 0) - (e.debit || 0)) / 100;
+        } else {
+          reportANouveauPerte += ((e.debit || 0) - (e.credit || 0)) / 100;
+        }
+      } else {
+        // Écritures normales
+        if (!comptes[num]) {
+          comptes[num] = {
+            numero: num,
+            libelle: getLibelleCompte(num),
+            debit: 0,
+            credit: 0
+          };
+        }
+        comptes[num].debit += e.debit || 0;
+        comptes[num].credit += e.credit || 0;
       }
-      comptes[num].debit += e.debit || 0;
-      comptes[num].credit += e.credit || 0;
     });
 
-    // Séparer Actif (classes 2, 3, 4 débiteur, 5) et Passif (classes 1, 4 créditeur)
+    // Séparer Actif (classes 2, 3, 4 débiteur, 5 débiteur) et Passif (classes 1, 4 créditeur, 5 créditeur)
     const actif = {
       immobilisations: [], // Classe 2
       stocks: [],          // Classe 3
       creances: [],        // Classe 4 débiteur
-      tresorerie: []       // Classe 5
+      tresorerie: []       // Classe 5 débiteur (avoir en banque/caisse)
     };
 
     const passif = {
       capitaux: [],        // Classe 1
-      dettes: []           // Classe 4 créditeur
+      dettes: [],          // Classe 4 créditeur
+      decouvertsBancaires: [] // Classe 5 créditeur (découvert bancaire)
     };
 
     Object.values(comptes).forEach(c => {
@@ -1919,19 +2069,43 @@ router.get('/bilan', async (req, res) => {
       } else if (classe === '3') {
         actif.stocks.push({ ...c, solde });
       } else if (classe === '5') {
-        actif.tresorerie.push({ ...c, solde: Math.abs(solde), sens: solde >= 0 ? 'debiteur' : 'crediteur' });
+        // Classe 5 - Trésorerie
+        // Solde débiteur (positif) = avoir en banque/caisse → Actif
+        // Solde créditeur (négatif) = découvert bancaire → Passif (dettes financières)
+        if (solde >= 0) {
+          actif.tresorerie.push({ ...c, solde });
+        } else {
+          // Découvert bancaire : va au passif avec valeur positive
+          passif.decouvertsBancaires.push({ ...c, solde: Math.abs(solde), libelle: c.libelle + ' (découvert)' });
+        }
       } else if (classe === '4') {
         if (solde > 0) {
           actif.creances.push({ ...c, solde });
-        } else {
+        } else if (solde < 0) {
           passif.dettes.push({ ...c, solde: Math.abs(solde) });
         }
+        // Si solde = 0, on ignore
       } else if (classe === '1') {
-        passif.capitaux.push({ ...c, solde: Math.abs(solde) });
+        // Exclure 120/129 car traités séparément (à nouveaux + résultat calculé)
+        if (c.numero !== '120' && c.numero !== '129') {
+          // Pour les capitaux propres, le solde est généralement créditeur (négatif en solde débit-crédit)
+          // On garde la valeur absolue pour l'affichage
+          passif.capitaux.push({ ...c, solde: -solde }); // Inverser car crédit = positif en capitaux
+        }
       }
     });
 
-    // Calculer le résultat (classes 6 et 7)
+    // Ajouter le report à nouveau si existant
+    const totalReportANouveau = reportANouveauBenefice - reportANouveauPerte;
+    if (Math.abs(totalReportANouveau) > 0.01) {
+      passif.capitaux.push({
+        numero: totalReportANouveau >= 0 ? '110' : '119',
+        libelle: 'Report à nouveau',
+        solde: totalReportANouveau
+      });
+    }
+
+    // Calculer le résultat de l'exercice (classes 6 et 7)
     let produits = 0;
     let charges = 0;
     Object.values(comptes).forEach(c => {
@@ -1944,12 +2118,12 @@ router.get('/bilan', async (req, res) => {
     });
     const resultat = produits - charges;
 
-    // Ajouter le résultat au passif
-    if (resultat !== 0) {
+    // Ajouter le résultat de l'exercice au passif
+    if (Math.abs(resultat) > 0.01) {
       passif.capitaux.push({
         numero: resultat >= 0 ? '120' : '129',
         libelle: resultat >= 0 ? 'Résultat de l\'exercice (bénéfice)' : 'Résultat de l\'exercice (perte)',
-        solde: Math.abs(resultat)
+        solde: resultat
       });
     }
 
@@ -1958,11 +2132,12 @@ router.get('/bilan', async (req, res) => {
       actif.immobilisations.reduce((s, c) => s + c.solde, 0) +
       actif.stocks.reduce((s, c) => s + c.solde, 0) +
       actif.creances.reduce((s, c) => s + c.solde, 0) +
-      actif.tresorerie.filter(c => c.sens === 'debiteur').reduce((s, c) => s + c.solde, 0);
+      actif.tresorerie.reduce((s, c) => s + c.solde, 0);
 
     const totalPassif =
       passif.capitaux.reduce((s, c) => s + c.solde, 0) +
-      passif.dettes.reduce((s, c) => s + c.solde, 0);
+      passif.dettes.reduce((s, c) => s + c.solde, 0) +
+      passif.decouvertsBancaires.reduce((s, c) => s + c.solde, 0);
 
     res.json({
       actif,
@@ -1992,19 +2167,35 @@ router.get('/bilan', async (req, res) => {
  */
 router.get('/compte-resultat', async (req, res) => {
   try {
-    const { exercice, periode } = req.query;
+    const { exercice, periode, date_fin } = req.query;
     const tenantId = req.admin.tenant_id;
 
     let query = supabase
       .from('ecritures_comptables')
-      .select('compte_numero, compte_libelle, debit, credit')
+      .select('compte_numero, compte_libelle, debit, credit, date_ecriture')
       .eq('tenant_id', tenantId);
 
     if (exercice) {
       query = query.eq('exercice', parseInt(exercice));
     }
+
+    // Filtre par période (mois) - du début d'année jusqu'à fin du mois
     if (periode) {
-      query = query.eq('periode', periode);
+      const [year, month] = periode.split('-').map(Number);
+      const startOfYear = `${year}-01-01`;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const endOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+      query = query
+        .gte('date_ecriture', startOfYear)
+        .lte('date_ecriture', endOfMonth);
+    }
+
+    // Filtre par date exacte - du début d'année jusqu'à cette date
+    if (date_fin) {
+      const year = date_fin.substring(0, 4);
+      query = query
+        .gte('date_ecriture', `${year}-01-01`)
+        .lte('date_ecriture', date_fin);
     }
 
     const { data: ecritures, error } = await query;

@@ -829,7 +829,7 @@ export function Home() {
                         <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.appels_auto}%</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">RDV créés auto</span>
+                        <span className="text-xs text-gray-300">Prestations créées auto</span>
                         <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.rdv_auto}%</span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -852,7 +852,7 @@ export function Home() {
                     <p className="text-xs text-gray-400 mb-2 font-medium">Détail des gains :</p>
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">RDV créés</span>
+                        <span className="text-xs text-gray-300">Prestations créées</span>
                         <span className="text-xs font-bold text-emerald-400">+{businessKPIs.gains.rdv_crees}€</span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -1122,7 +1122,7 @@ export function Home() {
                     <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-lg">
                       <Calendar className="w-4 h-4 text-emerald-500" />
                       <div className="text-left">
-                        <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">RDV créés</p>
+                        <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">Prestations créées</p>
                         <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+{businessKPIs.gains.rdv_crees}€</p>
                       </div>
                     </div>
@@ -1275,7 +1275,7 @@ export function Home() {
         <div className="flex-shrink-0 border-t border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <div className="flex items-center justify-center gap-1 py-2">
             {[
-              { path: '/reservations', icon: Calendar, label: 'RDV' },
+              { path: '/reservations', icon: Calendar, label: 'Prestations' },
               { path: '/clients', icon: Users, label: 'Clients' },
               { path: '/comptabilite', icon: DollarSign, label: 'Compta' },
               { path: '/parametres', icon: Settings, label: 'Config' },

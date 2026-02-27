@@ -42,8 +42,8 @@ interface WorkflowStats {
 
 const TRIGGER_LABELS: Record<string, string> = {
   new_client: 'Nouveau client',
-  rdv_completed: 'RDV termine',
-  rdv_cancelled: 'RDV annule',
+  rdv_completed: 'Prestation terminée',
+  rdv_cancelled: 'Prestation annulée',
   facture_payee: 'Facture payee',
   facture_en_retard: 'Facture en retard',
   client_inactive: 'Client inactif',

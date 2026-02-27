@@ -78,23 +78,40 @@ export class AnalyticsService {
     const evolutionCA = caPrecedent > 0 ? ((caTotal - caPrecedent) / caPrecedent * 100) : 0;
     const evolutionRDV = rdvPrecedent > 0 ? ((rdvConfirmes - rdvPrecedent) / rdvPrecedent * 100) : 0;
 
-    // Nouveaux clients période
+    // 🚀 OPTIMISATION: 1 requête au lieu de N requêtes (N+1 fix)
+    // Récupérer le premier RDV de chaque client en une seule requête
     const clientIds = [...new Set(reservations?.map(r => r.client_id).filter(Boolean))];
     const nouveauxClients = [];
 
-    for (const clientId of clientIds) {
-      const { data: historique } = await supabase
+    if (clientIds.length > 0) {
+      // Récupérer TOUS les RDV historiques des clients concernés
+      const { data: allHistorique } = await supabase
         .from('reservations')
-        .select('date')
-        .eq('client_id', clientId)
+        .select('client_id, date')
         .eq('tenant_id', tenantId)
-        .order('date', { ascending: true })
-        .limit(1);
+        .in('client_id', clientIds)
+        .order('date', { ascending: true });
 
-      if (historique?.[0]) {
-        const premierRdv = new Date(historique[0].date);
-        if (premierRdv >= new Date(dateDebut) && premierRdv <= new Date(dateFin)) {
-          nouveauxClients.push(clientId);
+      // Grouper par client et trouver le premier RDV de chacun côté JS
+      const premierRdvParClient = {};
+      allHistorique?.forEach(rdv => {
+        // Le premier trouvé est le plus ancien (grâce à l'order ASC)
+        if (!premierRdvParClient[rdv.client_id]) {
+          premierRdvParClient[rdv.client_id] = rdv.date;
+        }
+      });
+
+      // Identifier les nouveaux clients (premier RDV dans la période)
+      const dateDebutObj = new Date(dateDebut);
+      const dateFinObj = new Date(dateFin);
+
+      for (const clientId of clientIds) {
+        const premierRdvDate = premierRdvParClient[clientId];
+        if (premierRdvDate) {
+          const premierRdv = new Date(premierRdvDate);
+          if (premierRdv >= dateDebutObj && premierRdv <= dateFinObj) {
+            nouveauxClients.push(clientId);
+          }
         }
       }
     }

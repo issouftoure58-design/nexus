@@ -26,9 +26,12 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useProfile } from '@/contexts/ProfileContext';
+import { PricingFields, PriceDisplay, ServiceLabel } from '@/components/forms';
 
 export default function Services() {
   const queryClient = useQueryClient();
+  const { t, isPricingMode, getPricingModes } = useProfile();
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -126,8 +129,8 @@ export default function Services() {
     <div className="p-6">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Services</h1>
-        <p className="text-sm text-gray-500">{data?.services?.length || 0} services configurés</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('service', true)}</h1>
+        <p className="text-sm text-gray-500">{data?.services?.length || 0} {t('service', true).toLowerCase()} configurés</p>
       </div>
       <div className="space-y-6">
         {/* Header with search */}
@@ -136,7 +139,7 @@ export default function Services() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
             <Input
               type="search"
-              placeholder="Rechercher un service..."
+              placeholder={`Rechercher un ${t('service').toLowerCase()}...`}
               value={searchInput}
               onChange={(e) => {
                 setSearchInput(e.target.value);
@@ -175,7 +178,7 @@ export default function Services() {
             className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
           >
             <Plus className="h-4 w-4" />
-            Nouveau service
+            Nouveau {t('service').toLowerCase()}
           </Button>
         </div>
 
@@ -331,7 +334,7 @@ export default function Services() {
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Search className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Aucun service trouvé avec ces filtres</p>
+                  <p className="text-gray-500">Aucun {t('service').toLowerCase()} trouvé avec ces filtres</p>
                   <Button
                     variant="link"
                     onClick={resetFilters}
@@ -347,13 +350,13 @@ export default function Services() {
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Briefcase className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Aucun service configuré</p>
+                  <p className="text-gray-500">Aucun {t('service').toLowerCase()} configuré</p>
                   <Button
                     variant="link"
                     onClick={() => setShowNewModal(true)}
                     className="mt-2"
                   >
-                    Créer votre premier service
+                    Créer votre premier {t('service').toLowerCase()}
                   </Button>
                 </CardContent>
               </Card>
@@ -400,13 +403,20 @@ const TAUX_TVA = [
 // Service Modal Component
 function ServiceModal({ service, onClose }: { service: Service | null; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { t, isPricingMode, getPricingModes, hasFeature } = useProfile();
   const isEditing = !!service;
+
+  // Mode de pricing actuel
+  const pricingModes = getPricingModes();
+  const defaultPricingMode = isPricingMode('hourly') ? 'hourly' : isPricingMode('daily') ? 'daily' : 'fixed';
 
   const [formData, setFormData] = useState({
     nom: service?.nom || '',
     description: service?.description || '',
     duree: service?.duree || 60,
     prix: service ? service.prix / 100 : 0,
+    taux_horaire: service?.taux_horaire ? service.taux_horaire / 100 : 0,
+    pricing_mode: (service?.pricing_mode || defaultPricingMode) as 'fixed' | 'hourly' | 'daily' | 'package',
     actif: service?.actif ?? true,
     taux_tva: service?.taux_tva ?? 20,
     taxe_cnaps: service?.taxe_cnaps ?? false,
@@ -444,6 +454,8 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       description: formData.description || undefined,
       duree: formData.duree,
       prix: Math.round(formData.prix * 100), // Convert to cents
+      taux_horaire: formData.pricing_mode === 'hourly' ? Math.round(formData.taux_horaire * 100) : undefined,
+      pricing_mode: formData.pricing_mode,
       taux_tva: formData.taux_tva,
       taxe_cnaps: formData.taxe_cnaps,
       taux_cnaps: formData.taux_cnaps,
@@ -464,7 +476,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
-          <CardTitle>{isEditing ? 'Modifier le service' : 'Nouveau service'}</CardTitle>
+          <CardTitle>{isEditing ? `Modifier le ${t('service').toLowerCase()}` : `Nouveau ${t('service').toLowerCase()}`}</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
@@ -478,7 +490,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nom du service *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom du {t('service').toLowerCase()} *</label>
               <Input
                 value={formData.nom}
                 onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
@@ -498,30 +510,29 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Durée (minutes) *</label>
-                <Input
-                  type="number"
-                  min={5}
-                  step={5}
-                  value={formData.duree}
-                  onChange={(e) => setFormData(d => ({ ...d, duree: parseInt(e.target.value) || 0 }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prix TTC (€) *</label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={formData.prix}
-                  onChange={(e) => setFormData(d => ({ ...d, prix: parseFloat(e.target.value) || 0 }))}
-                  required
-                />
-              </div>
+            {/* Durée */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('duration')} (minutes) *</label>
+              <Input
+                type="number"
+                min={5}
+                step={5}
+                value={formData.duree}
+                onChange={(e) => setFormData(d => ({ ...d, duree: parseInt(e.target.value) || 0 }))}
+                required
+              />
             </div>
+
+            {/* Tarification avec mode adaptatif */}
+            <PricingFields
+              value={formData.prix}
+              onChange={(prix) => setFormData(d => ({ ...d, prix }))}
+              tauxHoraire={formData.taux_horaire}
+              onTauxHoraireChange={(taux) => setFormData(d => ({ ...d, taux_horaire: taux }))}
+              allowModeSwitch={pricingModes.length > 1}
+              currentMode={formData.pricing_mode}
+              onModeChange={(mode) => setFormData(d => ({ ...d, pricing_mode: mode }))}
+            />
 
             {/* TVA */}
             <div>
@@ -622,7 +633,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                 ) : isEditing ? (
                   'Enregistrer'
                 ) : (
-                  'Créer le service'
+                  `Créer le ${t('service').toLowerCase()}`
                 )}
               </Button>
             </div>
@@ -728,11 +739,11 @@ function ServiceDetailModal({
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-blue-700">{data.stats.nb_rdv_total}</p>
-                  <p className="text-xs text-blue-600">RDV Total</p>
+                  <p className="text-xs text-blue-600">Prestations</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-purple-700">{data.stats.nb_rdv_termines}</p>
-                  <p className="text-xs text-purple-600">RDV Terminés</p>
+                  <p className="text-xs text-purple-600">Terminées</p>
                 </div>
                 <div className="bg-cyan-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-cyan-700">{data.stats.nb_clients_uniques}</p>
@@ -767,7 +778,7 @@ function ServiceDetailModal({
                           <p className="font-medium text-sm">{client.prenom} {client.nom}</p>
                         </div>
                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {client.nb_rdv} RDV
+                          {client.nb_rdv} prestations
                         </Badge>
                       </div>
                     ))}
@@ -775,7 +786,7 @@ function ServiceDetailModal({
                 </div>
               )}
 
-              {/* Historique RDV */}
+              {/* Historique Prestations */}
               <div>
                 <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />

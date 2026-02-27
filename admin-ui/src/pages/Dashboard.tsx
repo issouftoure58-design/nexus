@@ -146,13 +146,13 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Prochain RDV */}
+          {/* Prochaine prestation */}
           <Card className="relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full -translate-y-8 translate-x-8" />
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Prochain RDV</p>
+                  <p className="text-sm font-medium text-gray-500">Prochaine prestation</p>
                   {stats?.prochainRdv ? (
                     <p className="text-xl font-bold text-gray-900 mt-1">
                       {formatTime(stats.prochainRdv.heure)}
@@ -282,7 +282,7 @@ export default function Dashboard() {
 
         {/* Bottom Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Statut des RDV */}
+          {/* Statut des prestations */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg font-semibold">Statut des réservations</CardTitle>
@@ -373,7 +373,7 @@ export default function Dashboard() {
                 <Link to="/reservations">
                   <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
                     <Calendar className="h-5 w-5 text-blue-600" />
-                    <span className="text-xs">Nouveau RDV</span>
+                    <span className="text-xs">Nouvelle prestation</span>
                   </Button>
                 </Link>
                 <Link to="/clients">

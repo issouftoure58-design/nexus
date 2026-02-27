@@ -126,7 +126,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     <div className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 border-l-4 border-cyan-500 cursor-pointer">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Nouveau RDV confirmé</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Nouvelle prestation confirmée</p>
                       <p className="text-xs text-gray-500">Marie Dupont - Coupe + Brushing demain 14h</p>
                       <p className="text-xs text-gray-400 mt-1">Il y a 5 min</p>
                     </div>

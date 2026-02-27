@@ -6,7 +6,8 @@
 import {
   X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
-  FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog
+  FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
+  ClipboardList
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -20,7 +21,7 @@ const menuItems = [
   { icon: Home, label: 'Home', path: '/' },
   { type: 'separator', label: 'Principal' },
   { icon: Calendar, label: 'Agenda', path: '/agenda' },
-  { icon: CalendarCheck, label: 'Activités', path: '/activites' },
+  { icon: CalendarCheck, label: 'Prestations', path: '/activites' },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
   { type: 'separator', label: 'Business' },
@@ -32,6 +33,7 @@ const menuItems = [
   { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'pro' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'pro' },
   { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'pro' },
+  { icon: FileText, label: 'Devis', path: '/devis', plan: 'pro' },
   { icon: Search, label: 'SEO', path: '/seo', plan: 'business' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'business' },
   { type: 'separator', label: 'Système' },

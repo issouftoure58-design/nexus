@@ -61,8 +61,8 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
     tenantUsage[tenantId].history.shift();
   }
 
-  // Aussi tracker dans le costMonitor global
-  costMonitor.trackClaudeUsage(tokensIn, tokensOut);
+  // Aussi tracker dans le costMonitor (maintenant multi-tenant)
+  costMonitor.trackClaudeUsage(tenantId, tokensIn, tokensOut);
 
   // Vérifier quota et alerter si nécessaire
   try {
@@ -117,8 +117,27 @@ export function getTenantUsage(tenantId) {
   return tenantUsage[tenantId];
 }
 
-export function getAllTenantUsage() {
+/**
+ * ATTENTION: Cette fonction est réservée au système interne.
+ * Ne JAMAIS exposer via API publique - fuite cross-tenant!
+ * Pour usage admin système uniquement (ex: dashboard superadmin).
+ * @internal
+ */
+export function getAllTenantUsage_SYSTEM_ONLY() {
+  console.warn('[SENTINEL] getAllTenantUsage_SYSTEM_ONLY called - ensure this is internal use only');
   return tenantUsage;
+}
+
+/**
+ * Retourne l'usage pour UN tenant spécifique.
+ * C'est cette fonction qui doit être utilisée par les routes API.
+ */
+export function getAllTenantUsage(tenantId) {
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour getAllTenantUsage');
+  }
+  initTenant(tenantId);
+  return { [tenantId]: tenantUsage[tenantId] };
 }
 
 export function resetTenantUsage(tenantId) {

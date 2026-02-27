@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { clientsApi, type Client, type ClientsResponse } from '@/lib/api';
+import { clientsApi, type Client, type ClientsResponse, type CreateClientData } from '@/lib/api';
 import {
   Users,
   Search,
@@ -25,9 +25,12 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useProfile } from '@/contexts/ProfileContext';
+import { FeatureField, ClientLabel } from '@/components/forms';
 
 export default function Clients() {
   const queryClient = useQueryClient();
+  const { t } = useProfile();
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
@@ -207,9 +210,9 @@ export default function Clients() {
               className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="all">Tous les clients</option>
-              <option value="zero">Jamais venu (0 RDV)</option>
-              <option value="low">Occasionnel (1-5 RDV)</option>
-              <option value="high">Fidèle (5+ RDV)</option>
+              <option value="zero">Jamais venu (0 prestation)</option>
+              <option value="low">Occasionnel (1-5 prestations)</option>
+              <option value="high">Fidèle (5+ prestations)</option>
             </select>
 
             {/* Registration date filter */}
@@ -269,23 +272,47 @@ export default function Clients() {
                     <tr className="border-b bg-gray-50/50">
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Client</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Contact</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">RDV</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernier RDV</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Prestations</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernière</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Inscrit le</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClients.map((client) => (
+                    {filteredClients.map((client) => {
+                      const isPro = client.type_client === 'professionnel' || !!client.raison_sociale;
+                      const displayName = isPro && client.raison_sociale
+                        ? client.raison_sociale
+                        : `${client.prenom || ''} ${client.nom || ''}`.trim();
+                      const initials = isPro && client.raison_sociale
+                        ? client.raison_sociale.substring(0, 2).toUpperCase()
+                        : `${client.prenom?.[0] || ''}${client.nom?.[0] || ''}`;
+
+                      return (
                       <tr key={client.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
-                              {(client.prenom?.[0] || '')}{(client.nom?.[0] || '')}
+                            <div className={cn(
+                              "w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm",
+                              isPro
+                                ? "bg-gradient-to-br from-amber-500 to-orange-500"
+                                : "bg-gradient-to-br from-purple-500 to-blue-500"
+                            )}>
+                              {initials}
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900">{client.prenom} {client.nom}</p>
-                              <p className="text-sm text-gray-500">ID: {client.id}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-900">{displayName}</p>
+                                {isPro && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                    PRO
+                                  </Badge>
+                                )}
+                              </div>
+                              {isPro && client.prenom && (
+                                <p className="text-xs text-gray-500">Contact: {client.prenom} {client.nom}</p>
+                              )}
+                              {!isPro && <p className="text-sm text-gray-500">ID: {client.id}</p>}
                             </div>
                           </div>
                         </td>
@@ -356,7 +383,8 @@ export default function Clients() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                     {filteredClients.length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-500">
@@ -431,16 +459,23 @@ export default function Clients() {
 // New Client Modal Component
 function NewClientModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
+  const [typeClient, setTypeClient] = useState<'particulier' | 'professionnel'>('particulier');
   const [formData, setFormData] = useState({
     prenom: '',
     nom: '',
     telephone: '',
-    email: ''
+    email: '',
+    adresse: '',
+    code_postal: '',
+    ville: '',
+    complement_adresse: '',
+    raison_sociale: '',
+    siret: ''
   });
   const [error, setError] = useState('');
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => clientsApi.create(data),
+    mutationFn: (data: CreateClientData) => clientsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
@@ -453,12 +488,32 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    createMutation.mutate(formData);
+
+    const payload = {
+      type_client: typeClient,
+      telephone: formData.telephone,
+      email: formData.email || null,
+      adresse: formData.adresse || null,
+      code_postal: formData.code_postal || null,
+      ville: formData.ville || null,
+      complement_adresse: formData.complement_adresse || null,
+      ...(typeClient === 'particulier'
+        ? { prenom: formData.prenom, nom: formData.nom }
+        : {
+            raison_sociale: formData.raison_sociale,
+            siret: formData.siret || null,
+            prenom: formData.prenom || null,
+            nom: formData.nom || formData.raison_sociale
+          }
+      )
+    };
+
+    createMutation.mutate(payload);
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Nouveau client</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
@@ -466,30 +521,105 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
           </Button>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-2">
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                <Input
-                  value={formData.prenom}
-                  onChange={(e) => setFormData(d => ({ ...d, prenom: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                <Input
-                  value={formData.nom}
-                  onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
-                  required
-                />
-              </div>
+
+            {/* Toggle Particulier / Professionnel */}
+            <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setTypeClient('particulier')}
+                className={cn(
+                  'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
+                  typeClient === 'particulier'
+                    ? 'bg-white shadow text-cyan-700'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                Particulier
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeClient('professionnel')}
+                className={cn(
+                  'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all',
+                  typeClient === 'professionnel'
+                    ? 'bg-white shadow text-cyan-700'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                Professionnel
+              </button>
             </div>
+
+            {/* Champs Professionnel */}
+            {typeClient === 'professionnel' && (
+              <div className="grid grid-cols-4 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Raison sociale *</label>
+                  <Input
+                    value={formData.raison_sociale}
+                    onChange={(e) => setFormData(d => ({ ...d, raison_sociale: e.target.value }))}
+                    placeholder="Entreprise"
+                    required
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">SIRET</label>
+                  <Input
+                    value={formData.siret}
+                    onChange={(e) => setFormData(d => ({ ...d, siret: e.target.value }))}
+                    placeholder="123 456 789 00012"
+                    maxLength={17}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contact</label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.prenom}
+                      onChange={(e) => setFormData(d => ({ ...d, prenom: e.target.value }))}
+                      placeholder="Prénom"
+                      className="flex-1"
+                    />
+                    <Input
+                      value={formData.nom}
+                      onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
+                      placeholder="Nom"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Champs Particulier */}
+            {typeClient === 'particulier' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
+                  <Input
+                    value={formData.prenom}
+                    onChange={(e) => setFormData(d => ({ ...d, prenom: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                  <Input
+                    value={formData.nom}
+                    onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Champs communs */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
               <Input
@@ -506,9 +636,45 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(d => ({ ...d, email: e.target.value }))}
-                placeholder="client@email.com"
+                placeholder={typeClient === 'professionnel' ? 'contact@entreprise.com' : 'client@email.com'}
               />
             </div>
+            {/* Adresse */}
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-600">Adresse</p>
+              <div>
+                <Input
+                  value={formData.adresse}
+                  onChange={(e) => setFormData(d => ({ ...d, adresse: e.target.value }))}
+                  placeholder="Numéro et nom de rue"
+                />
+              </div>
+              <div>
+                <Input
+                  value={formData.complement_adresse}
+                  onChange={(e) => setFormData(d => ({ ...d, complement_adresse: e.target.value }))}
+                  placeholder="Complément (bâtiment, étage, code...)"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Input
+                    value={formData.code_postal}
+                    onChange={(e) => setFormData(d => ({ ...d, code_postal: e.target.value }))}
+                    placeholder="Code postal"
+                    maxLength={5}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Input
+                    value={formData.ville}
+                    onChange={(e) => setFormData(d => ({ ...d, ville: e.target.value }))}
+                    placeholder="Ville"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={onClose} className="flex-1">
                 Annuler
@@ -543,17 +709,33 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
   };
 
+  const isPro = client.type_client === 'professionnel' || !!client.raison_sociale;
+  const displayName = isPro && client.raison_sociale
+    ? client.raison_sociale
+    : `${client.prenom || ''} ${client.nom || ''}`.trim();
+  const initials = isPro && client.raison_sociale
+    ? client.raison_sociale.substring(0, 2).toUpperCase()
+    : `${client.prenom?.[0] || ''}${client.nom?.[0] || ''}`;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between border-b">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-              {(client.prenom?.[0] || '')}{(client.nom?.[0] || '')}
+            <div className={cn(
+              "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold",
+              isPro ? "bg-gradient-to-br from-orange-500 to-amber-500" : "bg-gradient-to-br from-purple-500 to-blue-500"
+            )}>
+              {initials}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <CardTitle>{client.prenom} {client.nom}</CardTitle>
+                <CardTitle>{displayName}</CardTitle>
+                {isPro && (
+                  <Badge className="bg-orange-100 text-orange-700 border border-orange-300">
+                    PRO
+                  </Badge>
+                )}
                 {client.tags && client.tags.length > 0 && client.tags.map((tag, idx) => (
                   <Badge
                     key={idx}
@@ -564,6 +746,9 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
                   </Badge>
                 ))}
               </div>
+              {isPro && client.raison_sociale && (
+                <p className="text-sm text-gray-600">Contact: {client.prenom} {client.nom}</p>
+              )}
               <p className="text-sm text-gray-500">{client.telephone}</p>
             </div>
           </div>
@@ -586,11 +771,11 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-blue-700">{detail.stats.nb_rdv_total}</p>
-                  <p className="text-xs text-blue-600">RDV Total</p>
+                  <p className="text-xs text-blue-600">Prestations</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-purple-700">{detail.stats.nb_rdv_honores}</p>
-                  <p className="text-xs text-purple-600">RDV Honorés</p>
+                  <p className="text-xs text-purple-600">Honorées</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-orange-700">
@@ -609,9 +794,9 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
                 </div>
               )}
 
-              {/* Historique RDV */}
+              {/* Historique Prestations */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Historique des rendez-vous</h3>
+                <h3 className="font-medium text-gray-900 mb-3">Historique des prestations</h3>
                 <div className="space-y-2">
                   {detail.historique_rdv.map((rdv) => (
                     <div key={rdv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -633,7 +818,7 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
                     </div>
                   ))}
                   {detail.historique_rdv.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">Aucun rendez-vous</p>
+                    <p className="text-sm text-gray-400 text-center py-4">Aucune prestation</p>
                   )}
                 </div>
               </div>

@@ -18,20 +18,40 @@
 /**
  * Routes système qui n'ont pas besoin de tenant_id
  * Ces routes gèrent la plateforme NEXUS, pas les données tenant
+ *
+ * ⚠️ IMPORTANT: Ces routes sont exclues du Tenant Shield
+ * - Webhooks externes (Twilio, Stripe) - tenant résolu par numéro/session
+ * - Auth routes - pas encore de tenant
+ * - Routes publiques - tenant résolu par domaine/header
  */
 const SYSTEM_ROUTES = [
+  // Health & System
   '/health',
+
+  // Auth & Signup (pas encore de tenant)
   '/api/admin/auth',
   '/api/signup',
-  '/api/trial',
+  '/api/trial/limits',  // Info publique sur les limites trial
+
+  // Webhooks externes (tenant résolu autrement)
   '/api/webhooks',
   '/api/whatsapp/webhook',
   '/api/whatsapp/status',
   '/api/whatsapp/health',
   '/api/twilio',
   '/api/voice',
-  '/api/provisioning',
   '/api/billing/webhook',
+
+  // Routes publiques (tenant résolu par domaine/header via resolveTenantByDomain)
+  '/api/landing',       // Agent commercial landing page
+  '/api/public',        // Services, chat, RDV publics
+  '/api/services',      // Liste services (public)
+  '/api/disponibilites',// Créneaux disponibles (public)
+  '/api/reviews',       // Avis clients (public GET)
+  '/api/orders',        // Checkout panier (public)
+
+  // Provisioning (superadmin seulement, auth séparée)
+  '/api/provisioning',
 ];
 
 /**

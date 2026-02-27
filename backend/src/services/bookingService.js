@@ -68,7 +68,23 @@ function getSupabase() {
 }
 
 // Adresse de base de Fatou
+// ⚠️ DEPRECATED: Utiliser getBaseAddress(tenantId) à la place
 const FATOU_ADDRESS = '8 rue des Monts Rouges, 95130 Franconville, France';
+
+/**
+ * Récupère l'adresse de base d'un tenant (pour calcul distance)
+ * @param {string} tenantId - ID du tenant
+ * @returns {string} Adresse de base
+ */
+export function getBaseAddress(tenantId = 'fatshairafro') {
+  try {
+    const { getBusinessInfoSync } = require('./tenantBusinessService.js');
+    const info = getBusinessInfoSync(tenantId);
+    return info.adresse || FATOU_ADDRESS;
+  } catch (e) {
+    return FATOU_ADDRESS;
+  }
+}
 
 // ============================================
 // SERVICES ET TARIFS OFFICIELS FAT'S HAIR-AFRO
@@ -227,15 +243,51 @@ export const HORAIRES = Object.fromEntries(
 // INFORMATIONS DU SERVICE (à domicile)
 // ============================================
 
+// ⚠️ DEPRECATED: Utiliser getSalonInfo(tenantId) à la place
+// Gardé pour rétrocompatibilité avec le code existant
 export const SALON_INFO = {
   nom: "Fat's Hair-Afro",
   description: "Coiffure afro à domicile - Fatou se déplace chez vous (ou vous recevez chez elle sur demande)",
   gerante: "Fatou",
   adresseFatou: "Franconville (sur demande)",  // Pas d'adresse fixe publique
+  adresse: "8 rue des Monts Rouges, 95130 Franconville",
   telephone: "09 39 24 02 69",
   whatsapp: "07 82 23 50 20",
   zone: "Franconville et Île-de-France"
 };
+
+// ============================================
+// SALON INFO DYNAMIQUE (V2 - Multi-tenant)
+// ============================================
+
+import { getBusinessInfoSync } from './tenantBusinessService.js';
+
+/**
+ * Récupère les infos business d'un tenant.
+ * REMPLACE l'ancien SALON_INFO hardcodé.
+ *
+ * @param {string} tenantId - ID du tenant (default: 'fatshairafro')
+ * @returns {Object} Infos business formatées comme SALON_INFO
+ */
+export function getSalonInfo(tenantId = 'fatshairafro') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return {
+      nom: info.nom,
+      description: `${info.businessTypeLabel} - ${info.gerant}`,
+      gerante: info.gerant,
+      adresseFatou: info.adresse || 'Sur demande',
+      adresse: info.adresse,
+      telephone: info.telephone,
+      whatsapp: info.whatsapp,
+      zone: info.zone || ''
+    };
+  } catch (e) {
+    // Fallback sur SALON_INFO hardcodé en cas d'erreur
+    console.warn(`[bookingService] getSalonInfo fallback for ${tenantId}:`, e.message);
+    return SALON_INFO;
+  }
+}
 
 // ============================================
 // LISTE DES SERVICES (format affichage)
@@ -2049,6 +2101,9 @@ export default {
   HORAIRES,
   SALON_INFO,
   DEPLACEMENT,
+  // V2 - Multi-tenant
+  getSalonInfo,
+  getBaseAddress,
   // Fonctions dates
   getTodayInfo,
   getDateInfo,

@@ -51,33 +51,47 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Pour chaque client, récupérer stats RDV (🔒 TENANT ISOLATION)
-    const clientsWithStats = await Promise.all(
-      clients.map(async (client) => {
-        // Count total RDV
-        const { count: nbRdv } = await supabase
-          .from('reservations')
-          .select('*', { count: 'exact', head: true })
-          .eq('client_id', client.id)
-          .eq('tenant_id', tenantId);
+    // 🚀 OPTIMISATION: 1 requête au lieu de 2N requêtes (N+1 fix)
+    // Récupérer tous les RDV des clients en une seule requête
+    const clientIds = clients.map(c => c.id);
 
-        // Dernier RDV
-        const { data: dernierRdv } = await supabase
-          .from('reservations')
-          .select('date, heure, service, statut')
-          .eq('client_id', client.id)
-          .eq('tenant_id', tenantId)
-          .order('date', { ascending: false })
-          .limit(1)
-          .single();
+    let rdvStats = {};
+    let derniersRdv = {};
 
-        return {
-          ...client,
-          nb_rdv: nbRdv || 0,
-          dernier_rdv: dernierRdv
-        };
-      })
-    );
+    if (clientIds.length > 0) {
+      // Une seule requête pour récupérer les stats RDV de tous les clients
+      const { data: allRdv } = await supabase
+        .from('reservations')
+        .select('client_id, date, heure, service, statut')
+        .eq('tenant_id', tenantId)
+        .in('client_id', clientIds)
+        .order('date', { ascending: false });
+
+      // Grouper les RDV par client côté JS (beaucoup plus rapide que N requêtes DB)
+      if (allRdv) {
+        allRdv.forEach(rdv => {
+          // Compter les RDV par client
+          rdvStats[rdv.client_id] = (rdvStats[rdv.client_id] || 0) + 1;
+
+          // Garder le dernier RDV (premier dans l'ordre DESC)
+          if (!derniersRdv[rdv.client_id]) {
+            derniersRdv[rdv.client_id] = {
+              date: rdv.date,
+              heure: rdv.heure,
+              service: rdv.service,
+              statut: rdv.statut
+            };
+          }
+        });
+      }
+    }
+
+    // Enrichir les clients avec leurs stats (sans requête supplémentaire)
+    const clientsWithStats = clients.map(client => ({
+      ...client,
+      nb_rdv: rdvStats[client.id] || 0,
+      dernier_rdv: derniersRdv[client.id] || null
+    }));
 
     res.json({
       clients: clientsWithStats,
@@ -103,14 +117,21 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { prenom, nom, telephone, email } = req.body;
+    const { prenom, nom, telephone, email, adresse, code_postal, ville, complement_adresse, type_client, raison_sociale, siret } = req.body;
+    const isPro = type_client === 'professionnel';
 
     // Validation
-    if (!prenom?.trim()) {
-      return res.status(400).json({ error: 'Le prénom est requis' });
-    }
-    if (!nom?.trim()) {
-      return res.status(400).json({ error: 'Le nom est requis' });
+    if (isPro) {
+      if (!raison_sociale?.trim()) {
+        return res.status(400).json({ error: 'La raison sociale est requise' });
+      }
+    } else {
+      if (!prenom?.trim()) {
+        return res.status(400).json({ error: 'Le prénom est requis' });
+      }
+      if (!nom?.trim()) {
+        return res.status(400).json({ error: 'Le nom est requis' });
+      }
     }
     if (!telephone?.trim()) {
       return res.status(400).json({ error: 'Le téléphone est requis' });
@@ -132,21 +153,31 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
     }
 
     // Créer le client (🔒 TENANT ISOLATION)
+    const clientData = {
+      tenant_id: tenantId,
+      type_client: isPro ? 'professionnel' : 'particulier',
+      prenom: prenom?.trim() || null,
+      nom: isPro ? (nom?.trim() || raison_sociale.trim()) : nom.trim(),
+      telephone: telephone.trim(),
+      email: email?.trim() || null,
+      adresse: adresse?.trim() || null,
+      code_postal: code_postal?.trim() || null,
+      ville: ville?.trim() || null,
+      complement_adresse: complement_adresse?.trim() || null,
+      raison_sociale: isPro ? raison_sociale.trim() : null,
+      siret: isPro && siret?.trim() ? siret.trim() : null
+    };
+
     const { data: client, error } = await supabase
       .from('clients')
-      .insert({
-        tenant_id: tenantId,
-        prenom: prenom.trim(),
-        nom: nom.trim(),
-        telephone: telephone.trim(),
-        email: email?.trim() || null
-      })
+      .insert(clientData)
       .select()
       .single();
 
     if (error) throw error;
 
-    console.log('[ADMIN CLIENTS] Nouveau client créé:', client.id, `${prenom} ${nom}`);
+    const displayName = isPro ? raison_sociale : `${prenom} ${nom}`;
+    console.log('[ADMIN CLIENTS] Nouveau client créé:', client.id, displayName, `(${type_client || 'particulier'})`);
 
     // Déclencher les workflows "new_client"
     try {
@@ -219,10 +250,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     const nbRdvHonores = allRdv?.filter(r => r.statut === 'termine').length || 0;
     const nbRdvAnnules = allRdv?.filter(r => r.statut === 'annule').length || 0;
 
-    // CA total (RDV terminés uniquement) - prix stocké en euros
-    const caTotal = allRdv
+    // CA total (RDV terminés uniquement) - prix stocké en centimes, converti en euros
+    const caTotal = (allRdv
       ?.filter(r => r.statut === 'termine')
-      .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+      .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0) / 100;
 
     // Service favori (le plus demandé)
     const servicesCount = {};

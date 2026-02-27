@@ -4,10 +4,14 @@
  *
  * Ce fichier contient TOUTE la config métier spécifique à ce tenant.
  * businessRules.js reste intact comme backup.
+ *
+ * STRUCTURE V2: Compatible avec le système multi-business-type
  */
 
 const tenant = {
-  // === IDENTITÉ ===
+  // ═══════════════════════════════════════════════════════════════
+  // IDENTITÉ (V1 - rétrocompatibilité)
+  // ═══════════════════════════════════════════════════════════════
   id: 'fatshairafro',
   name: "Fat's Hair-Afro",
   domain: 'fatshairafro.fr',
@@ -20,6 +24,64 @@ const tenant = {
   peutRecevoirChezElle: true,
   secteur: 'Coiffure afro',
   ville: 'Franconville',
+
+  // ═══════════════════════════════════════════════════════════════
+  // TYPE DE BUSINESS (V2 - nouveau système)
+  // ═══════════════════════════════════════════════════════════════
+  business_type: 'service_domicile',
+
+  // ═══════════════════════════════════════════════════════════════
+  // TERMINOLOGIE (V2)
+  // ═══════════════════════════════════════════════════════════════
+  terminology: {
+    reservation: { singular: 'RDV', plural: 'RDV' },
+    service: { singular: 'Prestation', plural: 'Prestations' },
+    client: { singular: 'Cliente', plural: 'Clientes' },
+    employee: { singular: 'Coiffeuse', plural: 'Coiffeuses' }
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // LOCALISATION (V2)
+  // ═══════════════════════════════════════════════════════════════
+  location: {
+    mode: 'mobile', // mobile | fixed | both
+    base_address: '8 rue des Monts Rouges, 95130 Franconville',
+    zone: 'Île-de-France',
+    travel_fees: {
+      enabled: true,
+      free_radius_km: 8,
+      price_per_km: 110 // centimes (1.10€)
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // CONTACT (V2)
+  // ═══════════════════════════════════════════════════════════════
+  contact: {
+    phone: '09 39 24 02 69',
+    whatsapp: '07 82 23 50 20',
+    email: 'contact@fatshairafro.fr'
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // URLs (V2)
+  // ═══════════════════════════════════════════════════════════════
+  urls: {
+    frontend: 'https://fatshairafro.fr',
+    booking: '/reserver',
+    payment: '/paiement',
+    reviews: '/avis'
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // ASSISTANT IA (V2)
+  // ═══════════════════════════════════════════════════════════════
+  assistant: {
+    name: 'Halimah',
+    voice_id: 'FFXYdAYPzn8Tw8KiHZqg',
+    personality: 'friendly',
+    language: 'fr'
+  },
 
   // === BRANDING ===
   branding: {
@@ -328,7 +390,18 @@ const tenant = {
     PER_KM_BEYOND_CENTS: 110,
   },
 
-  // === HORAIRES ===
+  // === HORAIRES (V2) ===
+  horaires: {
+    lundi: { ouvert: true, debut: '09:00', fin: '18:00' },
+    mardi: { ouvert: true, debut: '09:00', fin: '18:00' },
+    mercredi: { ouvert: true, debut: '09:00', fin: '18:00' },
+    jeudi: { ouvert: true, debut: '09:00', fin: '13:00' }, // Demi-journée
+    vendredi: { ouvert: true, debut: '13:00', fin: '18:00' }, // Après-midi
+    samedi: { ouvert: true, debut: '09:00', fin: '18:00' },
+    dimanche: { ouvert: false, debut: null, fin: null }
+  },
+
+  // === HORAIRES (V1 - rétrocompatibilité) ===
   businessHours: {
     // 0 = Dimanche
     0: null,
@@ -403,6 +476,14 @@ const tenant = {
 
   // === FEATURES ACTIVES (validées en prod) ===
   features: {
+    // V2 - Business type features
+    travelFees: true,
+    clientAddress: true,
+    multiStaff: false,
+    onlineBooking: true,
+    deposits: true,
+
+    // V1 - Features existantes (rétrocompatibilité)
     reservations: true,
     reservations_web: true,
     reservations_telephone: true,

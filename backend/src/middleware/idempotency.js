@@ -38,12 +38,13 @@ export async function idempotencyMiddleware(req, res, next) {
     idempotencyKey = generateIdempotencyKey(req.body);
   }
 
-  // Identifier le tenant
-  const tenantId = req.admin?.tenant_id || req.body?.tenant_id;
+  // 🔒 TENANT SHIELD: tenant_id UNIQUEMENT depuis l'authentification
+  // NEVER from req.body - that would allow spoofing
+  const tenantId = req.admin?.tenant_id;
 
   // TENANT SHIELD: Pas de fallback - tenant requis pour idempotence
   if (!tenantId) {
-    console.log('[IDEMPOTENCY] Pas de tenant_id, skip idempotence check');
+    // Skip silently - middleware runs before auth on some routes
     return next();
   }
 

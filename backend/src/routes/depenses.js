@@ -70,13 +70,31 @@ async function genererEcrituresDepense(tenantId, depenseId) {
     const montantTVA = depense.montant_tva || 0;
     const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
+    // Déterminer si c'est une charge de personnel
+    const isChargePersonnel = ['salaires', 'cotisations_sociales'].includes(depense.categorie);
+
+    // Journal et compte contrepartie selon le type de dépense
+    let journalCode, compteContrepartie, libelleContrepartie;
+    if (depense.categorie === 'salaires') {
+      journalCode = 'PA';
+      compteContrepartie = '421';
+      libelleContrepartie = 'Personnel - Rémunérations dues';
+    } else if (depense.categorie === 'cotisations_sociales') {
+      journalCode = 'PA';
+      compteContrepartie = '431';
+      libelleContrepartie = 'Sécurité sociale';
+    } else {
+      journalCode = 'AC';
+      compteContrepartie = '401';
+      libelleContrepartie = 'Fournisseurs';
+    }
+
     const ecritures = [];
 
-    // Journal AC - Écriture d'achat
     // Débit compte de charge
     ecritures.push({
       tenant_id: tenantId,
-      journal_code: 'AC',
+      journal_code: journalCode,
       date_ecriture: dateDepense,
       numero_piece: `DEP-${depense.id}`,
       compte_numero: compteCharge.numero,
@@ -89,11 +107,11 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       exercice
     });
 
-    // Débit 44566 TVA déductible
-    if (montantTVA > 0 && depense.deductible_tva !== false) {
+    // Débit 44566 TVA déductible (pas pour les charges de personnel)
+    if (montantTVA > 0 && depense.deductible_tva !== false && !isChargePersonnel) {
       ecritures.push({
         tenant_id: tenantId,
-        journal_code: 'AC',
+        journal_code: journalCode,
         date_ecriture: dateDepense,
         numero_piece: `DEP-${depense.id}`,
         compte_numero: '44566',
@@ -107,17 +125,17 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       });
     }
 
-    // Crédit 401 Fournisseurs
+    // Crédit compte contrepartie (401 Fournisseurs, 421 Personnel, ou 431 Sécu)
     ecritures.push({
       tenant_id: tenantId,
-      journal_code: 'AC',
+      journal_code: journalCode,
       date_ecriture: dateDepense,
       numero_piece: `DEP-${depense.id}`,
-      compte_numero: '401',
-      compte_libelle: 'Fournisseurs',
+      compte_numero: compteContrepartie,
+      compte_libelle: libelleContrepartie,
       libelle: depense.libelle || depense.categorie,
       debit: 0,
-      credit: montantTTC,
+      credit: isChargePersonnel ? montantHT : montantTTC, // Pas de TVA sur charges personnel
       depense_id: depenseId,
       periode,
       exercice
@@ -139,36 +157,41 @@ async function genererEcrituresDepense(tenantId, depenseId) {
 
       const modePaiement = depense.mode_paiement || 'cb';
       const configPaiement = MODES_PAIEMENT[modePaiement] || MODES_PAIEMENT.cb;
-      const journalCode = configPaiement.journal;
-      const compteNumero = configPaiement.compte;
-      const compteLibelle = configPaiement.libelle;
+      const journalPaiement = configPaiement.journal;
+      const compteTreso = configPaiement.compte;
+      const libelleTreso = configPaiement.libelle;
+
+      // Montant du règlement (HT pour charges personnel, TTC pour autres)
+      const montantReglement = isChargePersonnel ? montantHT : montantTTC;
 
       // Journal BQ/CA - Paiement
+      // Débit du compte tiers (421/431/401) pour solder la dette
       ecritures.push({
         tenant_id: tenantId,
-        journal_code: journalCode,
+        journal_code: journalPaiement,
         date_ecriture: datePaiement,
         numero_piece: `DEP-${depense.id}`,
-        compte_numero: '401',
-        compte_libelle: 'Fournisseurs',
+        compte_numero: compteContrepartie,
+        compte_libelle: libelleContrepartie,
         libelle: `Règlement ${depense.libelle || depense.categorie}`,
-        debit: montantTTC,
+        debit: montantReglement,
         credit: 0,
         depense_id: depenseId,
         periode: periodePaie,
         exercice
       });
 
+      // Crédit du compte de trésorerie
       ecritures.push({
         tenant_id: tenantId,
-        journal_code: journalCode,
+        journal_code: journalPaiement,
         date_ecriture: datePaiement,
         numero_piece: `DEP-${depense.id}`,
-        compte_numero: compteNumero,
-        compte_libelle: compteLibelle,
+        compte_numero: compteTreso,
+        compte_libelle: libelleTreso,
         libelle: `Paiement ${depense.libelle || depense.categorie}`,
         debit: 0,
-        credit: montantTTC,
+        credit: montantReglement,
         depense_id: depenseId,
         periode: periodePaie,
         exercice
@@ -761,17 +784,23 @@ router.get('/tva', async (req, res) => {
     const targetMois = mois || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const [year, month] = targetMois.split('-');
     const startDate = `${year}-${month}-01`;
-    const endDate = new Date(year, parseInt(month), 0).toISOString().split('T')[0];
+    // Calculer le dernier jour du mois sans conversion UTC
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+
+    console.log(`[TVA] Recherche période: ${startDate} -> ${endDate} pour tenant ${tenantId}`);
 
     // 1. TVA COLLECTÉE - depuis les FACTURES (pas les réservations)
     // On prend les factures confirmées, envoyées ou payées du mois
-    const { data: factures } = await supabase
+    const { data: factures, error: facturesError } = await supabase
       .from('factures')
-      .select('montant_ht, montant_ttc, montant_tva, taux_tva, statut')
+      .select('montant_ht, montant_ttc, montant_tva, taux_tva, statut, date_facture')
       .eq('tenant_id', tenantId)
       .gte('date_facture', startDate)
       .lte('date_facture', endDate)
       .in('statut', ['generee', 'envoyee', 'payee']);
+
+    console.log(`[TVA] Factures trouvées: ${factures?.length || 0}`, facturesError || '', factures?.map(f => ({ date: f.date_facture, tva: f.montant_tva })));
 
     // Calcul CA TTC et TVA collectée depuis les factures
     let chiffreAffairesTTC = 0;

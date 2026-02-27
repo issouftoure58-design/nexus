@@ -3,12 +3,33 @@
  * Gestion et génération d'articles SEO via IA
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, FileText, Eye, Trash2, Send } from 'lucide-react';
+
+/**
+ * 🔒 SECURITY: Sanitize HTML to prevent XSS attacks
+ * Escapes HTML entities before applying safe markdown transformations
+ */
+function sanitizeAndFormatMarkdown(content: string): string {
+  // Step 1: Escape ALL HTML to prevent XSS
+  const escaped = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // Step 2: Apply safe markdown transformations (on escaped content)
+  return escaped
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br/>');
+}
 
 interface Article {
   id: number;
@@ -382,13 +403,10 @@ export default function SEOArticles() {
               </Button>
             </div>
             <div className="prose max-w-none">
+              {/* 🔒 SECURITY: Use sanitized HTML to prevent XSS */}
               <div
                 dangerouslySetInnerHTML={{
-                  __html: selectedArticle.contenu
-                    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br/>')
+                  __html: sanitizeAndFormatMarkdown(selectedArticle.contenu)
                 }}
               />
             </div>

@@ -64,11 +64,11 @@ export function ClientDetailModal({ client, onClose }: ClientDetailModalProps) {
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-blue-700">{detail.stats.nb_rdv_total}</p>
-                  <p className="text-xs text-blue-600">RDV Total</p>
+                  <p className="text-xs text-blue-600">Prestations</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-purple-700">{detail.stats.nb_rdv_honores}</p>
-                  <p className="text-xs text-purple-600">RDV Honorés</p>
+                  <p className="text-xs text-purple-600">Honorées</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-orange-700">
@@ -87,9 +87,9 @@ export function ClientDetailModal({ client, onClose }: ClientDetailModalProps) {
                 </div>
               )}
 
-              {/* Historique RDV */}
+              {/* Historique Prestations */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Historique des rendez-vous</h3>
+                <h3 className="font-medium text-gray-900 mb-3">Historique des prestations</h3>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {detail.historique_rdv.map((rdv) => (
                     <div key={rdv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -111,7 +111,7 @@ export function ClientDetailModal({ client, onClose }: ClientDetailModalProps) {
                     </div>
                   ))}
                   {detail.historique_rdv.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">Aucun rendez-vous</p>
+                    <p className="text-sm text-gray-400 text-center py-4">Aucune prestation</p>
                   )}
                 </div>
               </div>

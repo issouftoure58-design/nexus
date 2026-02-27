@@ -8,6 +8,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EntityLink } from '@/components/EntityLink';
+import FormulaireEmploye from '@/components/rh/FormulaireEmploye';
+import GestionAbsences from '@/components/rh/GestionAbsences';
+import GestionPaie from '@/components/rh/GestionPaie';
+import GenerateurDSN from '@/components/rh/GenerateurDSN';
+import ParametresSociaux from '@/components/rh/ParametresSociaux';
+import { DocumentsRH } from '@/components/rh/DocumentsRH';
+import PlanningEmploye from '@/components/rh/PlanningEmploye';
 import {
   Users,
   UserPlus,
@@ -51,13 +58,41 @@ interface Membre {
   statut: string;
   date_embauche: string;
   salaire_mensuel?: number;
-  nir?: string; // Numéro de sécurité sociale
+  nir?: string;
   date_naissance?: string;
-  lieu_naissance?: string;
-  adresse?: string;
-  code_postal?: string;
-  ville?: string;
   notes: string;
+  // Champs enrichis
+  sexe?: string;
+  nationalite?: string;
+  lieu_naissance?: string;
+  adresse_rue?: string;
+  adresse_cp?: string;
+  adresse_ville?: string;
+  adresse_pays?: string;
+  piece_identite_type?: string;
+  piece_identite_numero?: string;
+  piece_identite_expiration?: string;
+  poste?: string;
+  type_contrat?: string;
+  date_fin_contrat?: string;
+  temps_travail?: string;
+  heures_hebdo?: number;
+  heures_mensuelles?: number;
+  jours_travailles?: string[];
+  convention_collective?: string;
+  classification_niveau?: string;
+  classification_echelon?: string;
+  classification_coefficient?: number;
+  categorie_sociopro?: string;
+  regime_ss?: string;
+  mutuelle_obligatoire?: boolean;
+  mutuelle_dispense?: boolean;
+  prevoyance?: boolean;
+  iban?: string;
+  bic?: string;
+  contact_urgence_nom?: string;
+  contact_urgence_tel?: string;
+  contact_urgence_lien?: string;
 }
 
 interface EntrepriseInfo {
@@ -174,7 +209,7 @@ interface Candidature {
   created_at: string;
 }
 
-type TabType = 'equipe' | 'absences' | 'performances' | 'dsn' | 'recrutement' | 'documents';
+type TabType = 'equipe' | 'planning' | 'absences' | 'paie' | 'performances' | 'dsn' | 'recrutement' | 'documents' | 'parametres';
 
 export default function RH() {
   const [tab, setTab] = useState<TabType>('equipe');
@@ -305,8 +340,7 @@ export default function RH() {
     }
   };
 
-  const handleSubmitMembre = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitMembre = async (data: any) => {
     try {
       const headers = {
         'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
@@ -319,29 +353,47 @@ export default function RH() {
 
       const method = editMembre ? 'PUT' : 'POST';
 
-      // Convert salary to centimes
-      const dataToSend = {
-        ...formData,
-        salaire_mensuel: formData.salaire_mensuel ? Math.round(parseFloat(formData.salaire_mensuel) * 100) : 0,
-        nir: formData.nir || null,
-        date_naissance: formData.date_naissance || null
-      };
-
+      // Data is already formatted from FormulaireEmploye
       const response = await fetch(url, {
         method,
         headers,
-        body: JSON.stringify(dataToSend)
+        body: JSON.stringify(data)
       });
 
       if (response.ok) {
+        const membre = await response.json();
+
+        // If diplomas provided, save them
+        if (data.diplomes && data.diplomes.length > 0) {
+          for (const diplome of data.diplomes) {
+            if (diplome.intitule) {
+              await fetch(`/api/admin/rh/membres/${editMembre?.id || membre.id}/diplomes`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(diplome)
+              });
+            }
+          }
+        }
+
         setShowForm(false);
         setEditMembre(null);
-        setFormData({ nom: '', prenom: '', email: '', telephone: '', role: 'commercial', date_embauche: '', salaire_mensuel: '', nir: '', date_naissance: '', notes: '' });
         fetchAll();
       }
     } catch (err) {
       console.error('Erreur save membre:', err);
     }
+  };
+
+  // Legacy form submit handler for simple form
+  const handleSubmitMembreSimple = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSubmitMembre({
+      ...formData,
+      salaire_mensuel: formData.salaire_mensuel ? Math.round(parseFloat(formData.salaire_mensuel) * 100) : 0,
+      nir: formData.nir || null,
+      date_naissance: formData.date_naissance || null
+    });
   };
 
   const handleDeleteMembre = async (id: number) => {
@@ -371,18 +423,6 @@ export default function RH() {
 
   const openEditForm = (membre: Membre) => {
     setEditMembre(membre);
-    setFormData({
-      nom: membre.nom,
-      prenom: membre.prenom,
-      email: membre.email || '',
-      telephone: membre.telephone || '',
-      role: membre.role,
-      date_embauche: membre.date_embauche || '',
-      salaire_mensuel: membre.salaire_mensuel ? String(membre.salaire_mensuel / 100) : '',
-      nir: membre.nir || '',
-      date_naissance: membre.date_naissance || '',
-      notes: membre.notes || ''
-    });
     setShowForm(true);
   };
 
@@ -638,30 +678,29 @@ export default function RH() {
     }
   };
 
-  // Documents RH
+  // Documents RH - Registre unique du personnel (PDF conforme Code du travail)
   const downloadRegistrePersonnel = async () => {
     try {
-      const response = await fetch('/api/admin/rh/documents/registre-personnel', {
+      const response = await fetch('/api/admin/rh/documents/registre-personnel?format=pdf', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
       });
-      const data = await response.json();
 
-      // Créer CSV
-      const headers = ['N°', 'Nom', 'Prénom', 'Date naissance', 'Emploi', 'Date entrée', 'Date sortie', 'Type contrat'];
-      const rows = data.employes.map((e: { numero_ordre: number; nom: string; prenom: string; date_naissance: string; emploi: string; date_entree: string; date_sortie: string; type_contrat: string }) =>
-        [e.numero_ordre, e.nom, e.prenom, e.date_naissance || '', e.emploi, e.date_entree || '', e.date_sortie || '', e.type_contrat]
-      );
+      if (!response.ok) {
+        throw new Error('Erreur téléchargement');
+      }
 
-      const csv = [headers.join(';'), ...rows.map((r: (string | number)[]) => r.join(';'))].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `registre_personnel_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `registre_personnel_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
+      a.remove();
     } catch (err) {
       console.error('Erreur téléchargement registre:', err);
+      alert('Erreur lors du téléchargement du registre');
     }
   };
 
@@ -800,6 +839,13 @@ export default function RH() {
           Equipe
         </button>
         <button
+          className={`px-4 py-2 -mb-px ${tab === 'planning' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('planning')}
+        >
+          <Clock className="w-4 h-4 inline mr-2" />
+          Planning
+        </button>
+        <button
           className={`px-4 py-2 -mb-px ${tab === 'absences' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
           onClick={() => setTab('absences')}
         >
@@ -807,10 +853,10 @@ export default function RH() {
           Absences
         </button>
         <button
-          className={`px-4 py-2 -mb-px ${tab === 'performances' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-          onClick={() => setTab('performances')}
+          className={`px-4 py-2 -mb-px ${tab === 'paie' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('paie')}
         >
-          <Wallet className="w-4 h-4 inline mr-2" />
+          <Euro className="w-4 h-4 inline mr-2" />
           Paie
         </button>
         <button
@@ -833,6 +879,13 @@ export default function RH() {
         >
           <ClipboardList className="w-4 h-4 inline mr-2" />
           Documents
+        </button>
+        <button
+          className={`px-4 py-2 -mb-px ${tab === 'parametres' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('parametres')}
+        >
+          <Percent className="w-4 h-4 inline mr-2" />
+          Taux & Paramètres
         </button>
       </div>
 
@@ -904,89 +957,13 @@ export default function RH() {
           </div>
 
           {showForm && (
-            <Card className="p-4 mb-4">
-              <h3 className="font-semibold mb-4">{editMembre ? 'Modifier' : 'Nouveau'} membre</h3>
-              <form onSubmit={handleSubmitMembre} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  placeholder="Nom"
-                  value={formData.nom}
-                  onChange={e => setFormData({ ...formData, nom: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Prenom"
-                  value={formData.prenom}
-                  onChange={e => setFormData({ ...formData, prenom: e.target.value })}
-                  required
-                />
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                />
-                <Input
-                  placeholder="Telephone"
-                  value={formData.telephone}
-                  onChange={e => setFormData({ ...formData, telephone: e.target.value })}
-                />
-                <select
-                  className="border rounded-md px-3 py-2"
-                  value={formData.role}
-                  onChange={e => setFormData({ ...formData, role: e.target.value })}
-                >
-                  <option value="manager">Manager</option>
-                  <option value="commercial">Commercial</option>
-                  <option value="technicien">Technicien</option>
-                  <option value="admin">Admin</option>
-                  <option value="autre">Autre</option>
-                </select>
-                <Input
-                  type="date"
-                  placeholder="Date embauche"
-                  value={formData.date_embauche}
-                  onChange={e => setFormData({ ...formData, date_embauche: e.target.value })}
-                />
-                <div className="relative">
-                  <Input
-                    type="number"
-                    placeholder="Salaire mensuel brut"
-                    value={formData.salaire_mensuel}
-                    onChange={e => setFormData({ ...formData, salaire_mensuel: e.target.value })}
-                    className="pr-8"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
-                </div>
-                <Input
-                  placeholder="NIR (n° sécurité sociale)"
-                  value={formData.nir}
-                  onChange={e => setFormData({ ...formData, nir: e.target.value.replace(/\s/g, '') })}
-                  maxLength={15}
-                />
-                <Input
-                  type="date"
-                  placeholder="Date de naissance"
-                  value={formData.date_naissance}
-                  onChange={e => setFormData({ ...formData, date_naissance: e.target.value })}
-                />
-                <div className="md:col-span-2">
-                  <Input
-                    placeholder="Notes"
-                    value={formData.notes}
-                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  />
-                </div>
-                <div className="md:col-span-2 flex gap-2">
-                  <Button type="submit">
-                    <Check className="w-4 h-4 mr-2" />
-                    {editMembre ? 'Modifier' : 'Ajouter'}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditMembre(null); }}>
-                    <X className="w-4 h-4 mr-2" />
-                    Annuler
-                  </Button>
-                </div>
-              </form>
+            <Card className="p-6 mb-4">
+              <h3 className="font-semibold text-lg mb-4">{editMembre ? 'Modifier l\'employé' : 'Nouvel employé'}</h3>
+              <FormulaireEmploye
+                editMembre={editMembre}
+                onSubmit={handleSubmitMembre}
+                onCancel={() => { setShowForm(false); setEditMembre(null); }}
+              />
             </Card>
           )}
 
@@ -1052,52 +1029,25 @@ export default function RH() {
         </div>
       )}
 
-      {/* Tab Absences */}
-      {tab === 'absences' && (
-        <div className="space-y-4">
-          {absences.length === 0 ? (
-            <Card className="p-8 text-center text-gray-500">
-              Aucune demande d'absence
-            </Card>
-          ) : (
-            absences.map(absence => (
-              <Card key={absence.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">
-                      {absence.membre?.prenom} {absence.membre?.nom}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {getAbsenceTypeLabel(absence.type)} - Du {new Date(absence.date_debut).toLocaleDateString('fr-FR')} au {new Date(absence.date_fin).toLocaleDateString('fr-FR')}
-                    </p>
-                    {absence.motif && <p className="text-sm text-gray-400 mt-1">{absence.motif}</p>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {absence.statut === 'en_attente' ? (
-                      <>
-                        <Button size="sm" variant="outline" onClick={() => handleAbsenceAction(absence.id, 'approve')}>
-                          <Check className="w-4 h-4 text-green-600" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleAbsenceAction(absence.id, 'refuse')}>
-                          <X className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </>
-                    ) : (
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        absence.statut === 'approuve' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {absence.statut === 'approuve' ? 'Approuve' : 'Refuse'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
+      {/* Tab Planning */}
+      {tab === 'planning' && (
+        <PlanningEmploye />
       )}
 
-      {/* Tab Paie */}
+      {/* Tab Absences */}
+      {tab === 'absences' && (
+        <GestionAbsences
+          membres={membres.filter(m => m.statut === 'actif')}
+          onRefresh={fetchAll}
+        />
+      )}
+
+      {/* Tab Paie - Nouveau composant complet */}
+      {tab === 'paie' && (
+        <GestionPaie />
+      )}
+
+      {/* Tab Performances (ancien - conservé pour compatibilité) */}
       {tab === 'performances' && (
         <div className="space-y-6">
           <Card className="p-6">
@@ -1284,274 +1234,8 @@ export default function RH() {
         </div>
       )}
 
-      {/* Tab DSN */}
-      {tab === 'dsn' && (
-        <div className="space-y-6">
-          {/* Info banner */}
-          <Card className="bg-blue-50 border-blue-200">
-            <div className="p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-800">Déclaration Sociale Nominative (DSN)</p>
-                <p className="text-blue-600 mt-1">
-                  Générez votre fichier DSN mensuel à déposer sur <strong>net-entreprises.fr</strong>.
-                  Ce fichier contient les données de paie de vos employés pour transmission aux organismes sociaux.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Informations entreprise */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-gray-600" />
-              Informations entreprise
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Raison sociale *</label>
-                <Input
-                  value={entrepriseInfo.raison_sociale}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, raison_sociale: e.target.value })}
-                  placeholder="Nom de l'entreprise"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">SIRET *</label>
-                <Input
-                  value={entrepriseInfo.siret}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, siret: e.target.value.replace(/\s/g, '') })}
-                  placeholder="14 chiffres"
-                  maxLength={14}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Code NAF/APE *</label>
-                <Input
-                  value={entrepriseInfo.code_naf}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, code_naf: e.target.value.toUpperCase() })}
-                  placeholder="Ex: 6201Z"
-                  maxLength={5}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Adresse</label>
-                <Input
-                  value={entrepriseInfo.adresse}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, adresse: e.target.value })}
-                  placeholder="Adresse"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Code postal</label>
-                <Input
-                  value={entrepriseInfo.code_postal}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, code_postal: e.target.value })}
-                  placeholder="75001"
-                  maxLength={5}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Ville</label>
-                <Input
-                  value={entrepriseInfo.ville}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, ville: e.target.value })}
-                  placeholder="Paris"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">N° URSSAF</label>
-                <Input
-                  value={entrepriseInfo.urssaf}
-                  onChange={e => setEntrepriseInfo({ ...entrepriseInfo, urssaf: e.target.value })}
-                  placeholder="N° de compte URSSAF"
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* Taux de cotisations */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Percent className="w-5 h-5 text-gray-600" />
-                Taux de cotisations 2026
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTauxSettings(!showTauxSettings)}
-              >
-                {showTauxSettings ? 'Masquer' : 'Voir les taux'}
-              </Button>
-            </div>
-
-            {showTauxSettings && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-gray-500">SMIC horaire</p>
-                    <p className="font-semibold">{tauxCotisations.smic_horaire} €</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-gray-500">SMIC mensuel</p>
-                    <p className="font-semibold">{tauxCotisations.smic_mensuel.toLocaleString('fr-FR')} €</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-gray-500">Plafond SS</p>
-                    <p className="font-semibold">{tauxCotisations.plafond_ss_mensuel.toLocaleString('fr-FR')} €</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-gray-500">Accidents travail</p>
-                    <p className="font-semibold">{tauxCotisations.accidents_travail}%</p>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium text-sm text-gray-700 mb-3">Cotisations patronales</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>Maladie</span>
-                      <span className="font-medium">{tauxCotisations.maladie_employeur}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>Vieillesse plaf.</span>
-                      <span className="font-medium">{tauxCotisations.vieillesse_plafonnee_employeur}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>Vieillesse déplaf.</span>
-                      <span className="font-medium">{tauxCotisations.vieillesse_deplafonnee_employeur}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>Alloc. familiales</span>
-                      <span className="font-medium">{tauxCotisations.allocations_familiales}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>Chômage</span>
-                      <span className="font-medium">{tauxCotisations.chomage_employeur}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-green-50 rounded">
-                      <span>AGS</span>
-                      <span className="font-medium">{tauxCotisations.ags}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium text-sm text-gray-700 mb-3">Cotisations salariales</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                    <div className="flex justify-between p-2 bg-blue-50 rounded">
-                      <span>Vieillesse plaf.</span>
-                      <span className="font-medium">{tauxCotisations.vieillesse_plafonnee_salarie}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-blue-50 rounded">
-                      <span>Vieillesse déplaf.</span>
-                      <span className="font-medium">{tauxCotisations.vieillesse_deplafonnee_salarie}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-blue-50 rounded">
-                      <span>CSG déductible</span>
-                      <span className="font-medium">{tauxCotisations.csg_deductible}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-blue-50 rounded">
-                      <span>CSG non déd.</span>
-                      <span className="font-medium">{tauxCotisations.csg_non_deductible}%</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-blue-50 rounded">
-                      <span>CRDS</span>
-                      <span className="font-medium">{tauxCotisations.crds}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-gray-500 mt-2">
-                  Ces taux sont mis à jour automatiquement chaque année. Dernier ajustement : janvier 2026.
-                </p>
-              </div>
-            )}
-          </Card>
-
-          {/* Période et génération */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-gray-600" />
-              Générer la DSN mensuelle
-            </h3>
-
-            <div className="flex items-end gap-4 mb-6">
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Période</label>
-                <Input
-                  type="month"
-                  value={dsnPeriode}
-                  onChange={e => setDsnPeriode(e.target.value)}
-                  className="w-48"
-                />
-              </div>
-              <Button
-                onClick={generateDSN}
-                disabled={generatingDsn || !entrepriseInfo.siret || !entrepriseInfo.raison_sociale}
-                className="gap-2"
-              >
-                {generatingDsn ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                Générer le fichier DSN
-              </Button>
-            </div>
-
-            {/* Vérification des données */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-700 mb-3">Données à inclure dans la DSN</h4>
-              {membres.filter(m => m.statut === 'actif').length === 0 ? (
-                <div className="flex items-center gap-2 text-orange-600">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm">Aucun employé actif à déclarer</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {membres.filter(m => m.statut === 'actif').map(membre => (
-                    <div key={membre.id} className="flex items-center justify-between p-2 bg-white rounded border">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-semibold text-blue-600">
-                            {membre.prenom[0]}{membre.nom[0]}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{membre.prenom} {membre.nom}</p>
-                          <p className="text-xs text-gray-500">
-                            {membre.nir ? `NIR: ${membre.nir.slice(0, 7)}...` : 'NIR manquant'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {membre.salaire_mensuel ? `${(membre.salaire_mensuel / 100).toLocaleString('fr-FR')} €` : 'Salaire non défini'}
-                        </p>
-                        {!membre.nir && (
-                          <span className="text-xs text-orange-600">Compléter les infos</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Avertissement */}
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
-              <p className="text-sm text-yellow-800">
-                <strong>Important :</strong> Vérifiez que tous les employés ont leur NIR (numéro de sécurité sociale)
-                et leur salaire renseignés avant de générer la DSN. Le fichier généré doit être déposé sur
-                net-entreprises.fr avant le 5 ou 15 du mois suivant.
-              </p>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Tab DSN - Composant dédié */}
+      {tab === 'dsn' && <GenerateurDSN />}
 
       {/* Tab Recrutement */}
       {tab === 'recrutement' && (
@@ -1782,26 +1466,16 @@ export default function RH() {
       {/* Tab Documents */}
       {tab === 'documents' && (
         <div className="space-y-6">
-          {/* Info banner */}
-          <Card className="bg-blue-50 border-blue-200">
-            <div className="p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-800">Documents RH obligatoires</p>
-                <p className="text-blue-600 mt-1">
-                  Téléchargez les documents obligatoires pour la gestion de votre personnel.
-                </p>
-              </div>
-            </div>
-          </Card>
+          {/* Composant DocumentsRH complet */}
+          <DocumentsRH />
 
-          {/* Documents légaux */}
+          {/* Documents légaux rapides */}
           <Card className="p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Documents légaux
+              <ClipboardList className="w-5 h-5" />
+              Documents légaux obligatoires
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="border hover:shadow-md transition-shadow cursor-pointer p-4" onClick={downloadRegistrePersonnel}>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -1809,7 +1483,7 @@ export default function RH() {
                   </div>
                   <div>
                     <p className="font-medium">Registre du personnel</p>
-                    <p className="text-xs text-gray-500">Document obligatoire</p>
+                    <p className="text-xs text-gray-500">Document obligatoire - PDF</p>
                   </div>
                   <Download className="w-4 h-4 text-gray-400 ml-auto" />
                 </div>
@@ -1822,57 +1496,9 @@ export default function RH() {
                   </div>
                   <div>
                     <p className="font-medium">État des cotisations</p>
-                    <p className="text-xs text-gray-500">Récapitulatif mensuel</p>
+                    <p className="text-xs text-gray-500">Récapitulatif mensuel - PDF</p>
                   </div>
                   <Download className="w-4 h-4 text-gray-400 ml-auto" />
-                </div>
-              </Card>
-
-              <Card className="border p-4 opacity-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <UserCheck className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">DPAE</p>
-                    <p className="text-xs text-gray-500">Bientôt disponible</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="border p-4 opacity-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <FileText className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Certificat de travail</p>
-                    <p className="text-xs text-gray-500">Bientôt disponible</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="border p-4 opacity-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <FileText className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Attestation Pôle Emploi</p>
-                    <p className="text-xs text-gray-500">Bientôt disponible</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="border p-4 opacity-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-cyan-100 rounded-lg">
-                    <Wallet className="w-5 h-5 text-cyan-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Solde de tout compte</p>
-                    <p className="text-xs text-gray-500">Bientôt disponible</p>
-                  </div>
                 </div>
               </Card>
             </div>
@@ -1882,7 +1508,7 @@ export default function RH() {
           <Card className="p-6 bg-gradient-to-r from-green-50 to-blue-50">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Euro className="w-5 h-5 text-green-600" />
-              Génération de la paie
+              Génération de la paie vers comptabilité
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               Générez automatiquement les écritures comptables de paie (salaires nets et cotisations sociales)
@@ -1904,6 +1530,9 @@ export default function RH() {
           </Card>
         </div>
       )}
+
+      {/* Tab Paramètres sociaux */}
+      {tab === 'parametres' && <ParametresSociaux />}
     </div>
   );
 }

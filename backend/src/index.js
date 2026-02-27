@@ -9,6 +9,7 @@ import './config/env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 
 // Import des middlewares sécurité
 import { apiLimiter, paymentLimiter } from './middleware/rateLimiter.js';
@@ -43,10 +44,14 @@ import segmentsRoutes from './routes/adminSegments.js';
 import rfmRoutes from './routes/adminRFM.js';
 import workflowsRoutes from './routes/adminWorkflows.js';
 import pipelineRoutes from './routes/adminPipeline.js';
+import devisRoutes from './routes/adminDevis.js';
+import prestationsRoutes from './routes/adminPrestations.js';
+import ressourcesRoutes from './routes/adminRessources.js';
 import comptaRoutes from './routes/adminCompta.js';
 import adminSEORoutes from './routes/adminSEO.js';
 import adminAnalyticsRoutes from './routes/adminAnalytics.js';
 import adminRHRoutes from './routes/adminRH.js';
+import adminProfileRoutes from './routes/adminProfile.js';
 import journauxRoutes from './routes/journaux.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import adminReservationsRoutes from './routes/adminReservations.js';
@@ -75,6 +80,9 @@ import landingAgentRoutes from './routes/landingAgent.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
+
+// 🛡️ TENANT SHIELD - Protection isolation multi-tenant
+import { tenantShield, validateBodyTenant } from './middleware/tenantShield.js';
 
 // Import du scheduler
 import { startScheduler } from './jobs/scheduler.js';
@@ -122,6 +130,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// Compression GZIP - Réduit la taille des réponses de 60-70%
+app.use(compression({
+  level: 6, // Bon compromis vitesse/compression
+  threshold: 1024, // Compresser seulement > 1KB
+  filter: (req, res) => {
+    // Ne pas compresser les streams SSE
+    if (req.headers['accept'] === 'text/event-stream') {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+
 // CORS
 const corsOrigin = process.env.CORS_ORIGIN || '*';
 app.use(cors({
@@ -168,6 +189,13 @@ app.use('/api/landing', landingAgentRoutes);
 // Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine
 app.use('/api', resolveTenantByDomain);
 
+// 🛡️ TENANT SHIELD: Protection multi-tenant activée
+// - Bloque requêtes sans tenant_id (sauf routes système définies dans tenantShield.js)
+// - Valide que body.tenant_id match le tenant de la session
+// - Log les tentatives cross-tenant
+app.use('/api', tenantShield({ strict: true, logViolations: true }));
+app.use('/api', validateBodyTenant());
+
 // ============= ROUTES PUBLIQUES (sans auth) =============
 // Services, Chat, Rendez-vous pour les clients
 app.use('/api', publicRoutes);
@@ -206,6 +234,11 @@ app.use('/api/admin/workflows', workflowsRoutes);
 // Routes Admin Pipeline Commercial (Pro/Business)
 app.use('/api/admin/pipeline', pipelineRoutes);
 
+// Routes Admin Devis & Prestations (Pro/Business)
+app.use('/api/admin/devis', devisRoutes);
+app.use('/api/admin/prestations', prestationsRoutes);
+app.use('/api/admin/ressources', ressourcesRoutes);
+
 // Routes Admin Comptabilité P&L (Pro/Business)
 app.use('/api/admin/compta', comptaRoutes);
 
@@ -217,6 +250,9 @@ app.use('/api/admin/analytics', adminAnalyticsRoutes);
 
 // Routes Admin RH Equipe (Business)
 app.use('/api/admin/rh', adminRHRoutes);
+
+// Routes Admin Profile (Business Profiles)
+app.use('/api/admin/profile', adminProfileRoutes);
 
 // Routes Relances factures
 app.use('/api/relances', relancesRoutes);

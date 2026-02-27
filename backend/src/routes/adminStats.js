@@ -92,29 +92,43 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       return rdv.heure >= nowHeure;
     }) || null;
 
-    // Graphique CA des 7 derniers jours
+    // 🚀 OPTIMISATION: 1 requête au lieu de 7 requêtes séquentielles
+    // Calculer la plage de dates
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    // Une seule requête pour récupérer tous les RDV des 7 derniers jours
+    const { data: rdvWeek } = await supabase
+      .from('reservations')
+      .select('prix_total, date')
+      .eq('tenant_id', tenantId)
+      .gte('date', startDateStr)
+      .lte('date', today)
+      .in('statut', ['confirme', 'termine']);
+
+    // Grouper par date côté JS (beaucoup plus rapide que 7 requêtes DB)
+    const caByDate = {};
+    rdvWeek?.forEach(rdv => {
+      if (!caByDate[rdv.date]) {
+        caByDate[rdv.date] = 0;
+      }
+      caByDate[rdv.date] += (rdv.prix_total || 0);
+    });
+
+    // Construire le tableau des 7 derniers jours
     const last7Days = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
-
-      const dateStr = date.toISOString().split('T')[0]; // Format YYYY-MM-DD
-
-      // Utiliser eq pour une date exacte au format YYYY-MM-DD (🔒 TENANT ISOLATION)
-      const { data: rdvDay } = await supabase
-        .from('reservations')
-        .select('prix_total')
-        .eq('tenant_id', tenantId)
-        .eq('date', dateStr)
-        .in('statut', ['confirme', 'termine']);
-
-      const ca = rdvDay?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+      const dateStr = date.toISOString().split('T')[0];
 
       last7Days.push({
         date: dateStr,
         jour: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
-        ca
+        ca: (caByDate[dateStr] || 0) / 100
       });
     }
 

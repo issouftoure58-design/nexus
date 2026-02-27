@@ -16,6 +16,19 @@ router.use(authenticateAdmin);
 // ============================================
 
 /**
+ * Formate le compte auxiliaire client (411XXXXX)
+ * @param {number} clientId - ID du client
+ * @returns {string} Compte auxiliaire formaté (ex: '41100001', '41100042')
+ *
+ * 🔧 FIXED: Uniformisé avec journaux.js - 5 chiffres pour le suffix
+ */
+function getCompteAuxiliaireClient(clientId) {
+  if (!clientId) return '41100000'; // Compte collectif par défaut
+  // Format: 411 + ID client sur 5 chiffres (ex: 41100001)
+  return `411${String(clientId).padStart(5, '0')}`;
+}
+
+/**
  * Génère les écritures comptables pour une facture (VT + BQ si payée)
  */
 async function genererEcrituresFacture(tenantId, factureId) {
@@ -50,14 +63,15 @@ async function genererEcrituresFacture(tenantId, factureId) {
     const ecritures = [];
 
     // Journal VT - Écriture de vente
-    // Débit 411 Client
+    // Débit 411XXX Client (compte auxiliaire)
+    const compteClient = getCompteAuxiliaireClient(facture.client_id);
     ecritures.push({
       tenant_id: tenantId,
       journal_code: 'VT',
       date_ecriture: dateFacture,
       numero_piece: facture.numero,
-      compte_numero: '411',
-      compte_libelle: 'Clients',
+      compte_numero: compteClient,
+      compte_libelle: `Client ${facture.client_nom || facture.client_id}`,
       libelle: `Facture ${facture.numero} - ${facture.client_nom || 'Client'}`,
       debit: montantTTC,
       credit: 0,
@@ -126,8 +140,8 @@ async function genererEcrituresFacture(tenantId, factureId) {
         journal_code: 'BQ',
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
-        compte_numero: '411',
-        compte_libelle: 'Clients',
+        compte_numero: compteClient,
+        compte_libelle: `Client ${facture.client_nom || facture.client_id}`,
         libelle: `Règlement ${facture.numero}`,
         debit: 0,
         credit: montantTTC,
@@ -225,7 +239,7 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
       .from('reservations')
       .select(`
         *,
-        clients(id, nom, prenom, email, telephone)
+        clients(id, nom, prenom, email, telephone, type_client, raison_sociale)
       `)
       .eq('id', reservationId)
       .eq('tenant_id', tenantId)
@@ -268,7 +282,9 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
         reservation_id: reservationId,
         client_id: reservation.client_id,
         client_nom: reservation.clients
-          ? `${reservation.clients.prenom} ${reservation.clients.nom}`
+          ? (reservation.clients.type_client === 'professionnel' && reservation.clients.raison_sociale
+              ? reservation.clients.raison_sociale
+              : `${reservation.clients.prenom} ${reservation.clients.nom}`)
           : reservation.client_nom || 'Client',
         client_email: reservation.clients?.email || reservation.client_email,
         client_telephone: reservation.clients?.telephone || reservation.client_telephone,
@@ -423,6 +439,51 @@ router.get('/', async (req, res) => {
 
     const { data, error } = await query;
     if (error) throw error;
+
+    // Enrichir les factures sans service_id avec celui de la réservation
+    const reservationIds = data
+      .filter(f => !f.service_id && f.reservation_id)
+      .map(f => f.reservation_id);
+
+    if (reservationIds.length > 0) {
+      const { data: reservations } = await supabase
+        .from('reservations')
+        .select('id, service_id')
+        .eq('tenant_id', tenantId)
+        .in('id', reservationIds);
+
+      const resMap = new Map(reservations?.map(r => [r.id, r.service_id]) || []);
+
+      data.forEach(f => {
+        if (!f.service_id && f.reservation_id && resMap.has(f.reservation_id)) {
+          const serviceId = resMap.get(f.reservation_id);
+          if (serviceId) {
+            f.service_id = serviceId;
+          }
+        }
+      });
+    }
+
+    // 2ème passe: matcher par service_nom pour les factures sans service_id
+    const facturesSansService = data.filter(f => !f.service_id && f.service_nom);
+    if (facturesSansService.length > 0) {
+      const serviceNoms = [...new Set(facturesSansService.map(f => f.service_nom))];
+      const { data: services } = await supabase
+        .from('services')
+        .select('id, nom')
+        .eq('tenant_id', tenantId)
+        .in('nom', serviceNoms);
+
+      if (services && services.length > 0) {
+        const serviceMap = new Map(services.map(s => [s.nom.toLowerCase().trim(), s.id]));
+        facturesSansService.forEach(f => {
+          const serviceId = serviceMap.get(f.service_nom?.toLowerCase().trim());
+          if (serviceId) {
+            f.service_id = serviceId;
+          }
+        });
+      }
+    }
 
     // Formater les factures
     const factures = data.map(f => ({
@@ -656,9 +717,158 @@ router.patch('/:id/statut', async (req, res) => {
 });
 
 /**
+ * POST /api/factures/:id/paiement
+ * Enregistrer le paiement d'une facture
+ * @body {string} mode_paiement - Mode de paiement: especes, cb, virement, prelevement, cheque
+ * @body {string} date_paiement - Date du paiement (optionnel, défaut: maintenant)
+ * @body {string} reference_paiement - Référence du paiement (optionnel)
+ */
+router.post('/:id/paiement', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+    const { mode_paiement, date_paiement, reference_paiement } = req.body;
+
+    // Validation mode de paiement
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    if (!mode_paiement || !modesPaiementValides.includes(mode_paiement)) {
+      return res.status(400).json({
+        success: false,
+        error: `Mode de paiement requis. Valeurs acceptées: ${modesPaiementValides.join(', ')}`
+      });
+    }
+
+    // Récupérer la facture
+    const { data: facture, error: fetchError } = await supabase
+      .from('factures')
+      .select('*')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (fetchError || !facture) {
+      return res.status(404).json({ success: false, error: 'Facture non trouvée' });
+    }
+
+    if (facture.statut === 'payee') {
+      return res.status(400).json({ success: false, error: 'Cette facture est déjà payée' });
+    }
+
+    if (facture.statut === 'annulee') {
+      return res.status(400).json({ success: false, error: 'Impossible de payer une facture annulée' });
+    }
+
+    // Date de paiement (défaut: maintenant)
+    const datePaiementEffective = date_paiement || new Date().toISOString();
+
+    // Mettre à jour la facture
+    const { data: factureUpdated, error: updateError } = await supabase
+      .from('factures')
+      .update({
+        statut: 'payee',
+        mode_paiement,
+        date_paiement: datePaiementEffective,
+        reference_paiement: reference_paiement || null
+      })
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Générer les écritures comptables BQ ou CA (règlement)
+    await genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiementEffective);
+
+    // Fermer la relance si existante
+    await supabase
+      .from('relances_factures')
+      .update({ statut: 'payee', date_cloture: new Date().toISOString() })
+      .eq('facture_id', id)
+      .eq('tenant_id', tenantId);
+
+    console.log(`[FACTURES] Paiement enregistré: Facture ${facture.numero} (${mode_paiement})`);
+
+    res.json({
+      success: true,
+      facture: factureUpdated,
+      message: `Paiement de ${(facture.montant_ttc / 100).toFixed(2)}€ enregistré`
+    });
+  } catch (error) {
+    console.error('[FACTURES] Erreur enregistrement paiement:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Génère les écritures comptables pour le règlement d'une facture (BQ ou CA)
+ */
+async function genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement) {
+  try {
+    // Déterminer le journal et le compte selon le mode de paiement
+    const journalCode = mode_paiement === 'especes' ? 'CA' : 'BQ';
+    const compteBank = mode_paiement === 'especes' ? '530' : '512';
+    const compteLibelle = mode_paiement === 'especes' ? 'Caisse' : 'Banque';
+
+    const dateEcriture = datePaiement?.split('T')[0] || new Date().toISOString().split('T')[0];
+    const periode = dateEcriture?.slice(0, 7);
+    const exercice = parseInt(dateEcriture?.slice(0, 4)) || new Date().getFullYear();
+    const montantTTC = facture.montant_ttc || 0;
+
+    // Compte auxiliaire client (411XXX)
+    const compteClient = getCompteAuxiliaireClient(facture.client_id);
+
+    const ecritures = [
+      // Débit Banque/Caisse
+      {
+        tenant_id: tenantId,
+        journal_code: journalCode,
+        date_ecriture: dateEcriture,
+        numero_piece: facture.numero,
+        compte_numero: compteBank,
+        compte_libelle: compteLibelle,
+        libelle: `Règlement ${facture.numero} - ${facture.client_nom || 'Client'}`,
+        debit: montantTTC,
+        credit: 0,
+        facture_id: facture.id,
+        periode,
+        exercice
+      },
+      // Crédit Client auxiliaire (solde la créance)
+      {
+        tenant_id: tenantId,
+        journal_code: journalCode,
+        date_ecriture: dateEcriture,
+        numero_piece: facture.numero,
+        compte_numero: compteClient,
+        compte_libelle: `Client ${facture.client_nom || facture.client_id}`,
+        libelle: `Règlement ${facture.numero}`,
+        debit: 0,
+        credit: montantTTC,
+        facture_id: facture.id,
+        periode,
+        exercice
+      }
+    ];
+
+    const { error } = await supabase
+      .from('ecritures_comptables')
+      .insert(ecritures);
+
+    if (error) {
+      console.error('[FACTURES] Erreur insertion écritures paiement:', error);
+    } else {
+      console.log(`[FACTURES] Écritures ${journalCode} générées pour règlement ${facture.numero}`);
+    }
+  } catch (error) {
+    console.error('[FACTURES] Erreur génération écritures paiement:', error);
+  }
+}
+
+/**
  * POST /api/factures/generer-manquantes
- * Générer les factures pour TOUTES les réservations (confirmées ou terminées) sans facture
- * et synchroniser les statuts
+ * Générer les factures UNIQUEMENT pour les réservations TERMINÉES sans facture
+ * (Nouveau flux: facture créée seulement quand RDV terminé)
  */
 router.post('/generer-manquantes', async (req, res) => {
   try {
@@ -666,12 +876,12 @@ router.post('/generer-manquantes', async (req, res) => {
 
     console.log(`[FACTURES SYNC] Début sync pour tenant ${tenantId}`);
 
-    // Récupérer TOUTES les réservations (sauf annulées)
+    // Récupérer UNIQUEMENT les réservations terminées (seules éligibles à facturation)
     const { data: reservations, error: resError } = await supabase
       .from('reservations')
       .select('id, statut, date')
       .eq('tenant_id', tenantId)
-      .neq('statut', 'annule')
+      .eq('statut', 'termine')
       .order('date', { ascending: false });
 
     console.log(`[FACTURES SYNC] ${reservations?.length || 0} réservations trouvées`);
@@ -694,13 +904,26 @@ router.post('/generer-manquantes', async (req, res) => {
     for (const reservation of reservations || []) {
       const existingFacture = facturesMap.get(reservation.id);
 
-      // Déterminer le statut de la facture selon la réservation
-      // Terminée → payee, sinon → generee (en attente)
-      const statutFacture = reservation.statut === 'termine' ? 'payee' : 'generee';
+      // Nouveau flux: Toutes les factures sont créées en 'generee'
+      // Le paiement est enregistré séparément via POST /factures/:id/paiement
+      const statutFacture = 'generee';
 
       if (!existingFacture) {
-        // Pas de facture - créer
+        // Pas de facture - créer en 'generee' (en attente de paiement)
         const result = await createFactureFromReservation(reservation.id, tenantId, { statut: statutFacture });
+
+        // Calculer et ajouter date_echeance si création réussie
+        if (result.success && result.facture) {
+          const dateFacture = new Date(result.facture.date_facture || new Date());
+          const dateEcheance = new Date(dateFacture);
+          dateEcheance.setDate(dateEcheance.getDate() + 30);
+
+          await supabase
+            .from('factures')
+            .update({ date_echeance: dateEcheance.toISOString().split('T')[0] })
+            .eq('id', result.facture.id);
+        }
+
         resultats.push({
           reservation_id: reservation.id,
           date: reservation.date,
@@ -711,14 +934,14 @@ router.post('/generer-manquantes', async (req, res) => {
           error: result.error
         });
       } else {
-        // Facture existe - synchroniser le statut si nécessaire
+        // Facture existe - synchroniser uniquement si annulation
         let nouveauStatut = existingFacture.statut;
 
-        // Réservation terminée → facture payée
-        if (reservation.statut === 'termine' && existingFacture.statut !== 'payee') {
-          nouveauStatut = 'payee';
+        // Note: On ne force plus 'payee' automatiquement
+        // Le paiement doit être enregistré explicitement via POST /factures/:id/paiement
+
         // Réservation annulée → facture annulée
-        } else if (reservation.statut === 'annule' && existingFacture.statut !== 'annulee') {
+        if (reservation.statut === 'annule' && existingFacture.statut !== 'annulee') {
           nouveauStatut = 'annulee';
         }
 

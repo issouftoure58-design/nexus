@@ -10,11 +10,16 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 /**
  * Récupère les statistiques du salon
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} periode - jour, semaine, mois, annee
  * @param {string} type - type de stats (all par défaut)
- * @param {string} tenantId - ID du tenant (obligatoire pour multi-tenant)
  */
-export async function getStats(periode = 'mois', type = 'all', tenantId = null) {
+export async function getStats(tenantId, periode = 'mois', type = 'all') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour getStats');
+  }
+
   try {
     const now = new Date();
     let startDate;
@@ -37,18 +42,12 @@ export async function getStats(periode = 'mois', type = 'all', tenantId = null) 
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    // Récupérer les RDV depuis la date de début avec filtre tenant
-    let query = supabase
+    // 🔒 TENANT SHIELD: Filtrer TOUJOURS par tenant_id
+    const { data: rdvs, error } = await supabase
       .from('reservations')
       .select('*')
+      .eq('tenant_id', tenantId)
       .gte('date', startDate.toISOString().split('T')[0]);
-
-    // IMPORTANT: Filtrer par tenant_id si fourni
-    if (tenantId) {
-      query = query.eq('tenant_id', tenantId);
-    }
-
-    const { data: rdvs, error } = await query;
 
     if (error) throw error;
 
@@ -78,16 +77,11 @@ export async function getStats(periode = 'mois', type = 'all', tenantId = null) 
       .slice(0, 5)
       .map(([service, count]) => ({ service, count }));
 
-    // Nombre total de clients (avec filtre tenant)
-    let clientsQuery = supabase
+    // 🔒 TENANT SHIELD: Nombre total de clients AVEC filtre tenant obligatoire
+    const { count: nbClients } = await supabase
       .from('clients')
-      .select('*', { count: 'exact', head: true });
-
-    if (tenantId) {
-      clientsQuery = clientsQuery.eq('tenant_id', tenantId);
-    }
-
-    const { count: nbClients } = await clientsQuery;
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     return {
       periode,
@@ -106,23 +100,25 @@ export async function getStats(periode = 'mois', type = 'all', tenantId = null) 
 
 /**
  * Récupère les rendez-vous selon les critères
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} date - Filtre date (aujourd'hui, demain, semaine, ou date ISO)
  * @param {string} statut - Filtre statut (tous, en_attente, confirme, termine, annule)
  * @param {number} limit - Nombre max de résultats
- * @param {string} tenantId - ID du tenant (obligatoire pour multi-tenant)
  */
-export async function getRdv(date, statut = 'tous', limit = 10, tenantId = null) {
+export async function getRdv(tenantId, date, statut = 'tous', limit = 10) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour getRdv');
+  }
+
   try {
+    // 🔒 TENANT SHIELD: Filtrer TOUJOURS par tenant_id
     let query = supabase
       .from('reservations')
       .select('*, clients(nom, prenom, telephone, email)')
+      .eq('tenant_id', tenantId)
       .order('date', { ascending: true })
       .order('heure', { ascending: true });
-
-    // IMPORTANT: Filtrer par tenant_id si fourni
-    if (tenantId) {
-      query = query.eq('tenant_id', tenantId);
-    }
 
     // Filtre par date
     if (date) {
@@ -187,8 +183,19 @@ export async function getRdv(date, statut = 'tous', limit = 10, tenantId = null)
 
 /**
  * Modifie un rendez-vous
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {number} rdvId - ID du RDV
+ * @param {string} action - Action à effectuer
+ * @param {string} nouvelleDate - Nouvelle date (si déplacement)
+ * @param {string} nouvelleHeure - Nouvelle heure (si déplacement)
+ * @param {boolean} notifierClient - Envoyer notification
  */
-export async function updateRdv(rdvId, action, nouvelleDate, nouvelleHeure, notifierClient = false) {
+export async function updateRdv(tenantId, rdvId, action, nouvelleDate, nouvelleHeure, notifierClient = false) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour updateRdv');
+  }
+
   try {
     const updates = {};
 
@@ -208,10 +215,12 @@ export async function updateRdv(rdvId, action, nouvelleDate, nouvelleHeure, noti
         break;
     }
 
+    // 🔒 TENANT SHIELD: Filtrer par tenant_id pour empêcher modification cross-tenant
     const { data, error } = await supabase
       .from('reservations')
       .update(updates)
       .eq('id', rdvId)
+      .eq('tenant_id', tenantId)
       .select('*, clients(nom, prenom, telephone, email)')
       .single();
 
@@ -248,17 +257,31 @@ export async function updateRdv(rdvId, action, nouvelleDate, nouvelleHeure, noti
 
 /**
  * Envoie un message à un client (email fonctionnel avec Resend)
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {number} clientId - ID du client
+ * @param {string} canal - Canal d'envoi (email, whatsapp, sms)
+ * @param {string} type - Type de message (rappel, remerciement, info)
+ * @param {string} contenu - Contenu personnalisé
  */
-export async function sendMessage(clientId, canal, type, contenu) {
+export async function sendMessage(tenantId, clientId, canal, type, contenu) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour sendMessage');
+  }
+
   try {
-    // Récupérer les infos du client
+    // 🔒 TENANT SHIELD: Récupérer le client avec filtre tenant
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
       .eq('id', clientId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error) throw error;
+    if (!client) {
+      throw new Error('Client non trouvé ou accès non autorisé');
+    }
 
     const clientNom = `${client.prenom || ''} ${client.nom}`.trim();
 
@@ -345,23 +368,35 @@ export async function sendMessage(clientId, canal, type, contenu) {
 
 /**
  * Récupère les informations détaillées d'un client
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {number} clientId - ID du client
  */
-export async function getClientInfo(clientId) {
+export async function getClientInfo(tenantId, clientId) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour getClientInfo');
+  }
+
   try {
-    // Récupérer le client
+    // 🔒 TENANT SHIELD: Récupérer le client avec filtre tenant
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
       .eq('id', clientId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (clientError) throw clientError;
+    if (!client) {
+      throw new Error('Client non trouvé ou accès non autorisé');
+    }
 
-    // Récupérer son historique de RDV
+    // 🔒 TENANT SHIELD: Récupérer historique RDV avec filtre tenant
     const { data: rdvs, error: rdvError } = await supabase
       .from('reservations')
       .select('*')
       .eq('client_id', clientId)
+      .eq('tenant_id', tenantId)
       .order('date', { ascending: false });
 
     if (rdvError) throw rdvError;
@@ -401,12 +436,22 @@ export async function getClientInfo(clientId) {
 
 /**
  * Recherche des clients
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {string} query - Terme de recherche
+ * @param {string} filtre - Filtre (tous, fideles, nouveaux, inactifs)
  */
-export async function searchClients(query, filtre = 'tous') {
+export async function searchClients(tenantId, query, filtre = 'tous') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour searchClients');
+  }
+
   try {
+    // 🔒 TENANT SHIELD: Filtrer TOUJOURS par tenant_id
     let supabaseQuery = supabase
       .from('clients')
       .select('*, reservations(id, statut, date)')
+      .eq('tenant_id', tenantId)
       .order('nom', { ascending: true });
 
     // Recherche par nom ou téléphone si query fournie
@@ -626,12 +671,19 @@ export async function marketingSms(type, message) {
 
 /**
  * Analyse stratégique - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {string} aspect - Aspect à analyser
  */
-export async function strategieAnalyze(aspect = 'global') {
+export async function strategieAnalyze(tenantId, aspect = 'global') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour strategieAnalyze');
+  }
+
   // Récupérer les stats réelles pour enrichir l'analyse
   let stats = null;
   try {
-    stats = await getStats('mois', 'all');
+    stats = await getStats(tenantId, 'mois', 'all');
   } catch (e) {
     console.error('[STRATEGIE] Erreur récupération stats:', e);
   }
@@ -662,11 +714,19 @@ export async function strategieAnalyze(aspect = 'global') {
 
 /**
  * Analyse et optimisation des tarifs - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {string} action - Action pricing
+ * @param {string} service - Service concerné
  */
-export async function strategiePricing(action, service) {
+export async function strategiePricing(tenantId, action, service) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour strategiePricing');
+  }
+
   let stats = null;
   try {
-    stats = await getStats('mois', 'all');
+    stats = await getStats(tenantId, 'mois', 'all');
   } catch (e) {
     console.error('[PRICING] Erreur:', e);
   }
@@ -695,11 +755,17 @@ export async function strategiePricing(action, service) {
 
 /**
  * Gestion des objectifs business - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function strategieObjectifs(action, periode = 'mois', type_objectif) {
+export async function strategieObjectifs(tenantId, action, periode = 'mois', type_objectif) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour strategieObjectifs');
+  }
+
   let stats = null;
   try {
-    stats = await getStats('mois', 'all');
+    stats = await getStats(tenantId, 'mois', 'all');
   } catch (e) {
     console.error('[OBJECTIFS] Erreur:', e);
   }
@@ -730,11 +796,17 @@ export async function strategieObjectifs(action, periode = 'mois', type_objectif
 
 /**
  * Génère un rapport stratégique - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function strategieRapport(periode = 'mois', format = 'resume') {
+export async function strategieRapport(tenantId, periode = 'mois', format = 'resume') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour strategieRapport');
+  }
+
   let stats = null;
   try {
-    stats = await getStats(periode, 'all');
+    stats = await getStats(tenantId, periode, 'all');
   } catch (e) {
     console.error('[RAPPORT] Erreur stats:', e);
   }
@@ -779,19 +851,26 @@ export async function strategieRapport(periode = 'mois', format = 'resume') {
 
 /**
  * Gestion des devis - AVEC GÉNÉRATION PDF RÉELLE
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function commercialDevis(action, clientId, services, notes) {
+export async function commercialDevis(tenantId, action, clientId, services, notes) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour commercialDevis');
+  }
+
   // Action: créer un devis PDF
   if (action === 'creer') {
     try {
       let clientInfo = null;
 
-      // Récupérer les infos du client si ID fourni
+      // 🔒 TENANT SHIELD: Récupérer les infos du client avec filtre tenant
       if (clientId) {
         const { data: client } = await supabase
           .from('clients')
           .select('*')
           .eq('id', clientId)
+          .eq('tenant_id', tenantId)
           .single();
         clientInfo = client;
       }
@@ -862,11 +941,17 @@ export async function commercialDevis(action, clientId, services, notes) {
 
 /**
  * Analyse des ventes
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function commercialVentes(periode = 'mois', typeAnalyse = 'global', comparer = false) {
+export async function commercialVentes(tenantId, periode = 'mois', typeAnalyse = 'global', comparer = false) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour commercialVentes');
+  }
+
   let stats = null;
   try {
-    stats = await getStats(periode, 'all');
+    stats = await getStats(tenantId, periode, 'all');
   } catch (e) {
     console.error('[COMMERCIAL VENTES] Erreur:', e);
   }
@@ -1002,11 +1087,17 @@ export async function commercialRelances(typeRelance, action = 'lister') {
 
 /**
  * Performance commerciale
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function commercialPerformance(indicateurs, periode = 'mois') {
+export async function commercialPerformance(tenantId, indicateurs, periode = 'mois') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour commercialPerformance');
+  }
+
   let stats = null;
   try {
-    stats = await getStats(periode, 'all');
+    stats = await getStats(tenantId, periode, 'all');
   } catch (e) {
     console.error('[COMMERCIAL PERF] Erreur:', e);
   }
@@ -1095,16 +1186,23 @@ export async function commercialPerformance(indicateurs, periode = 'mois') {
 
 /**
  * Gestion de la facturation - AVEC GÉNÉRATION PDF RÉELLE
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function comptableFacturation(action, periode, rdvId, format) {
+export async function comptableFacturation(tenantId, action, periode, rdvId, format) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour comptableFacturation');
+  }
+
   // Action: créer une facture PDF
   if (action === 'creer' && rdvId) {
     try {
-      // Récupérer les infos du RDV
+      // 🔒 TENANT SHIELD: Récupérer les infos du RDV avec filtre tenant
       const { data: rdv, error } = await supabase
         .from('reservations')
         .select('*, clients(nom, prenom, telephone, email)')
         .eq('id', rdvId)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (error || !rdv) {
@@ -1243,11 +1341,17 @@ export function comptableDepenses(action, categorie, montant, description, perio
 
 /**
  * Suivi de trésorerie
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function comptableTresorerie(action, periode) {
+export async function comptableTresorerie(tenantId, action, periode) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour comptableTresorerie');
+  }
+
   let stats = null;
   try {
-    stats = await getStats('mois', 'all');
+    stats = await getStats(tenantId, 'mois', 'all');
   } catch (e) {
     console.error('[TRESORERIE] Erreur:', e);
   }
@@ -1374,11 +1478,17 @@ export function comptableFiscal(type, periode, action = 'calculer') {
 
 /**
  * Rapports comptables
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function comptableRapport(typeRapport, periode, format = 'resume') {
+export async function comptableRapport(tenantId, typeRapport, periode, format = 'resume') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour comptableRapport');
+  }
+
   let stats = null;
   try {
-    stats = await getStats(periode === 'annuel' ? 'annee' : 'mois', 'all');
+    stats = await getStats(tenantId, periode === 'annuel' ? 'annee' : 'mois', 'all');
   } catch (e) {
     console.error('[RAPPORT COMPTA] Erreur:', e);
   }
@@ -1493,11 +1603,17 @@ export async function rhPlanning(action, semaine, modifications) {
 
 /**
  * Suivi du temps de travail - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function rhTempsTravail(periode = 'semaine', type = 'heures_travaillees') {
+export async function rhTempsTravail(tenantId, periode = 'semaine', type = 'heures_travaillees') {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour rhTempsTravail');
+  }
+
   let stats = null;
   try {
-    stats = await getStats(periode === 'mois' ? 'mois' : 'semaine', 'all');
+    stats = await getStats(tenantId, periode === 'mois' ? 'mois' : 'semaine', 'all');
   } catch (e) {
     console.error('[RH TEMPS] Erreur:', e);
   }
@@ -1597,11 +1713,17 @@ export async function rhFormation(action, domaine) {
 
 /**
  * Conseils bien-être - GÉNÉRATION DYNAMIQUE avec Claude + données réelles
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-export async function rhBienEtre(aspect) {
+export async function rhBienEtre(tenantId, aspect) {
+  // 🔒 TENANT SHIELD: tenant_id OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour rhBienEtre');
+  }
+
   let stats = null;
   try {
-    stats = await getStats('semaine', 'all');
+    stats = await getStats(tenantId, 'semaine', 'all');
   } catch (e) {
     console.error('[RH BIEN-ETRE] Erreur:', e);
   }

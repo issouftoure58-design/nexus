@@ -1,11 +1,11 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse } from '@/lib/api';
+import { comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
 import {
   Euro,
   TrendingUp,
@@ -112,8 +112,12 @@ export default function Comptabilite() {
   const [showExpensePaymentModal, setShowExpensePaymentModal] = useState(false);
   const [pendingExpenseId, setPendingExpenseId] = useState<number | null>(null);
   const [expensePaymentMode, setExpensePaymentMode] = useState('cb');
+  // Invoice payment modal
+  const [showInvoicePaymentModal, setShowInvoicePaymentModal] = useState(false);
+  const [pendingInvoiceId, setPendingInvoiceId] = useState<number | null>(null);
+  const [invoicePaymentMode, setInvoicePaymentMode] = useState<'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque'>('cb');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [selectedAuxiliary, setSelectedAuxiliary] = useState<{ type: 'client' | 'fournisseur'; id: number; nom: string } | null>(null);
+  const [selectedAuxiliary, setSelectedAuxiliary] = useState<{ type: 'client' | 'fournisseur' | 'personnel'; compte: string; nom: string } | null>(null);
   const [isUploadingExpense, setIsUploadingExpense] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRelanceSettings, setShowRelanceSettings] = useState(false);
@@ -148,6 +152,32 @@ export default function Comptabilite() {
   const [expensePayeeFilter, setExpensePayeeFilter] = useState<string>('all');
   const [expenseTVAFilter, setExpenseTVAFilter] = useState<string>('all');
 
+  // Filtres relances
+  const [relancesPeriod, setRelancesPeriod] = useState<'jour' | 'mois' | 'annee' | 'all'>('all');
+  const [relancesYear, setRelancesYear] = useState<number>(new Date().getFullYear());
+  const [relancesMonth, setRelancesMonth] = useState<number>(new Date().getMonth() + 1);
+  const [relancesDay, setRelancesDay] = useState<number>(new Date().getDate());
+  const [relanceNumeroFilter, setRelanceNumeroFilter] = useState<string>('all');
+  const [relanceClientFilter, setRelanceClientFilter] = useState<string>('all');
+  const [relanceMontantFilter, setRelanceMontantFilter] = useState<string>('all');
+  const [relanceEcheanceFilter, setRelanceEcheanceFilter] = useState<string>('all');
+  const [relanceRetardFilter, setRelanceRetardFilter] = useState<string>('all');
+  const [relanceNiveauFilter, setRelanceNiveauFilter] = useState<string>('all');
+
+  // Filtres rapprochement (à rapprocher)
+  const [rapproDateFilter, setRapproDateFilter] = useState<string>('all');
+  const [rapproPieceFilter, setRapproPieceFilter] = useState<string>('all');
+  const [rapproLibelleFilter, setRapproLibelleFilter] = useState<string>('all');
+  const [rapproDebitFilter, setRapproDebitFilter] = useState<string>('all');
+  const [rapproCreditFilter, setRapproCreditFilter] = useState<string>('all');
+
+  // Filtres rapprochement (rapprochées)
+  const [rapprocheeDateFilter, setRapprocheeDateFilter] = useState<string>('all');
+  const [rapprocheePieceFilter, setRapprocheePieceFilter] = useState<string>('all');
+  const [rapprocheeLibelleFilter, setRapprocheeLibelleFilter] = useState<string>('all');
+  const [rapprocheeDebitFilter, setRapprocheeDebitFilter] = useState<string>('all');
+  const [rapprocheeCreditFilter, setRapprocheeCreditFilter] = useState<string>('all');
+
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -157,6 +187,12 @@ export default function Comptabilite() {
   // État pour la consultation des journaux comptables
   const [selectedJournal, setSelectedJournal] = useState<string>('BQ');
   const [journalPeriode, setJournalPeriode] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // État pour la période TVA
+  const [tvaPeriode, setTvaPeriode] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
@@ -173,8 +209,8 @@ export default function Comptabilite() {
   });
 
   const { data: tvaData, isLoading: tvaLoading } = useQuery<TVAData>({
-    queryKey: ['tva'],
-    queryFn: () => comptaApi.getTVA(),
+    queryKey: ['tva', tvaPeriode],
+    queryFn: () => comptaApi.getTVA(tvaPeriode),
     enabled: activeTab === 'tva',
   });
 
@@ -212,42 +248,88 @@ export default function Comptabilite() {
     enabled: activeTab === 'expert' && !!selectedJournal,
   });
 
-  // Sous-onglet expert
-  const [expertSubTab, setExpertSubTab] = useState<'transmission' | 'grand-livre' | 'balance' | 'balance-agee'>('transmission');
+  // Documents Comptables - Interface unifiée
+  const [docType, setDocType] = useState<'grand-livre' | 'balance' | 'journaux' | 'balance-agee'>('grand-livre');
+  const [compteFilter, setCompteFilter] = useState<string>('');
+  const [compteFilterApplied, setCompteFilterApplied] = useState<string>('');
 
-  // Query pour le Grand Livre
-  const { data: grandLivreData, isLoading: grandLivreLoading } = useQuery<GrandLivreResponse>({
-    queryKey: ['grand-livre', statsYear],
-    queryFn: () => comptaApi.getGrandLivre({ exercice: statsYear }),
-    enabled: activeTab === 'expert' && expertSubTab === 'grand-livre',
+  // Query pour le Grand Livre (avec filtre compte optionnel)
+  const { data: grandLivreData, isLoading: grandLivreLoading, refetch: refetchGrandLivre } = useQuery<GrandLivreResponse>({
+    queryKey: ['grand-livre', statsYear, compteFilterApplied],
+    queryFn: () => comptaApi.getGrandLivre({
+      exercice: statsYear,
+      compte: compteFilterApplied || undefined
+    }),
+    enabled: activeTab === 'expert' && docType === 'grand-livre',
   });
 
   // Query pour la Balance Générale (avec sous-comptes)
-  const { data: balanceGeneraleData, isLoading: balanceGeneraleLoading } = useQuery<BalanceGeneraleResponse>({
-    queryKey: ['balance-generale', statsYear],
-    queryFn: () => comptaApi.getBalanceGenerale({ exercice: statsYear, avec_sous_comptes: true }),
-    enabled: activeTab === 'expert' && expertSubTab === 'balance',
+  const { data: balanceGeneraleData, isLoading: balanceGeneraleLoading, refetch: refetchBalance } = useQuery<BalanceGeneraleResponse>({
+    queryKey: ['balance-generale', statsYear, compteFilterApplied],
+    queryFn: () => comptaApi.getBalanceGenerale({
+      exercice: statsYear,
+      avec_sous_comptes: true,
+      compte: compteFilterApplied || undefined
+    }),
+    enabled: activeTab === 'expert' && docType === 'balance',
   });
 
   // Query pour la Balance Clients
   const { data: balanceClientsData, isLoading: balanceClientsLoading } = useQuery<BalanceAuxiliaireResponse>({
     queryKey: ['balance-clients', statsYear],
     queryFn: () => comptaApi.getBalanceClients(statsYear),
-    enabled: activeTab === 'auxiliaires' || (activeTab === 'expert' && expertSubTab === 'balance'),
+    enabled: activeTab === 'auxiliaires',
   });
 
   // Query pour la Balance Fournisseurs
   const { data: balanceFournisseursData, isLoading: balanceFournisseursLoading } = useQuery<BalanceAuxiliaireResponse>({
     queryKey: ['balance-fournisseurs', statsYear],
     queryFn: () => comptaApi.getBalanceFournisseurs(statsYear),
-    enabled: activeTab === 'auxiliaires' || (activeTab === 'expert' && expertSubTab === 'balance'),
+    enabled: activeTab === 'auxiliaires',
+  });
+
+  // Query pour la Balance Personnel
+  const { data: balancePersonnelData, isLoading: balancePersonnelLoading } = useQuery<BalanceAuxiliaireResponse>({
+    queryKey: ['balance-personnel', statsYear],
+    queryFn: () => comptaApi.getBalancePersonnel(statsYear),
+    enabled: activeTab === 'auxiliaires',
   });
 
   // Query pour la Balance Âgée
   const { data: balanceAgeeData, isLoading: balanceAgeeLoading } = useQuery<BalanceAgeeResponse>({
     queryKey: ['balance-agee'],
     queryFn: () => comptaApi.getBalanceAgee(),
-    enabled: activeTab === 'expert' && expertSubTab === 'balance-agee',
+    enabled: activeTab === 'expert' && docType === 'balance-agee',
+  });
+
+  // Paramètres de période pour les requêtes comptables
+  const comptaPeriodeParams = useMemo(() => {
+    if (statsPeriod === 'jour') {
+      // Mode jour: filtre jusqu'à cette date
+      const date_fin = `${statsYear}-${String(statsMonth).padStart(2, '0')}-${String(statsDay).padStart(2, '0')}`;
+      return { exercice: statsYear, date_fin };
+    } else if (statsPeriod === 'mois') {
+      // Mode mois: filtre jusqu'à fin du mois
+      const periode = `${statsYear}-${String(statsMonth).padStart(2, '0')}`;
+      return { exercice: statsYear, periode };
+    } else {
+      // Mode année: tout l'exercice
+      return { exercice: statsYear };
+    }
+  }, [statsPeriod, statsYear, statsMonth, statsDay]);
+
+  // Query pour le Compte de Résultat
+  const { data: compteResultatData, isLoading: compteResultatLoading } = useQuery<CompteResultatResponse>({
+    queryKey: ['compte-resultat', comptaPeriodeParams],
+    queryFn: () => comptaApi.getCompteResultat(comptaPeriodeParams),
+    enabled: activeTab === 'resultat',
+  });
+
+  // Query pour le Bilan
+  const { data: bilanData, isLoading: bilanLoading } = useQuery<BilanResponse>({
+    queryKey: ['bilan', comptaPeriodeParams],
+    queryFn: () => comptaApi.getBilan(comptaPeriodeParams),
+    enabled: activeTab === 'bilan',
   });
 
   // Effect pour mettre à jour les délais quand les settings sont chargés
@@ -342,6 +424,24 @@ export default function Comptabilite() {
       queryClient.invalidateQueries({ queryKey: ['relances'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setNotification({ type: 'success', message: 'Facture marquée comme payée' });
+      setTimeout(() => setNotification(null), 5000);
+    }
+  });
+
+  // Nouvelle mutation pour enregistrer un paiement avec mode de paiement
+  const enregistrerPaiementMutation = useMutation({
+    mutationFn: ({ factureId, mode_paiement }: { factureId: number; mode_paiement: 'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque' }) =>
+      comptaApi.enregistrerPaiement(factureId, { mode_paiement }),
+    onSuccess: (data: { success: boolean; facture: Invoice; message: string }) => {
+      queryClient.invalidateQueries({ queryKey: ['relances'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      setNotification({ type: 'success', message: data.message || 'Paiement enregistré' });
+      setTimeout(() => setNotification(null), 5000);
+      setShowInvoicePaymentModal(false);
+      setPendingInvoiceId(null);
+    },
+    onError: (err: Error) => {
+      setNotification({ type: 'error', message: err.message });
       setTimeout(() => setNotification(null), 5000);
     }
   });
@@ -649,21 +749,41 @@ export default function Comptabilite() {
 
   // Export Compte de Résultat
   const exportCompteResultat = () => {
-    const data = [
+    if (!compteResultatData) {
+      setNotification({ type: 'error', message: 'Données non disponibles' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const data: { poste: string; montant: string }[] = [
       { poste: 'PRODUITS D\'EXPLOITATION', montant: '' },
-      { poste: 'Ventes de prestations', montant: formatCurrency(kpis.ca) },
-      { poste: 'Autres produits', montant: '0,00 €' },
-      { poste: 'Total Produits', montant: formatCurrency(kpis.ca) },
+      ...compteResultatData.produits.exploitation.map(c => ({
+        poste: `${c.numero} - ${c.libelle}`,
+        montant: formatCurrency(c.montant)
+      })),
+      { poste: 'Total Produits d\'exploitation', montant: formatCurrency(compteResultatData.totaux.produits.exploitation) },
       { poste: '', montant: '' },
       { poste: 'CHARGES D\'EXPLOITATION', montant: '' },
-      { poste: 'Achats et fournitures', montant: formatCurrency(kpis.totalDepenses * 0.3) },
-      { poste: 'Charges externes', montant: formatCurrency(kpis.totalDepenses * 0.4) },
-      { poste: 'Charges de personnel', montant: formatCurrency(kpis.totalDepenses * 0.2) },
-      { poste: 'Autres charges', montant: formatCurrency(kpis.totalDepenses * 0.1) },
-      { poste: 'Total Charges', montant: formatCurrency(kpis.totalDepenses) },
-      { poste: '', montant: '' },
-      { poste: 'RÉSULTAT D\'EXPLOITATION', montant: formatCurrency(kpis.benefice) }
+      ...compteResultatData.charges.exploitation.map(c => ({
+        poste: `${c.numero} - ${c.libelle}`,
+        montant: formatCurrency(c.montant)
+      })),
+      { poste: 'Total Charges d\'exploitation', montant: formatCurrency(compteResultatData.totaux.charges.exploitation) },
     ];
+
+    // Ajouter charges financières si présentes
+    if (compteResultatData.charges.financieres.length > 0) {
+      data.push({ poste: '', montant: '' });
+      data.push({ poste: 'CHARGES FINANCIERES', montant: '' });
+      compteResultatData.charges.financieres.forEach(c => {
+        data.push({ poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.montant) });
+      });
+      data.push({ poste: 'Total Charges financières', montant: formatCurrency(compteResultatData.totaux.charges.financieres) });
+    }
+
+    data.push({ poste: '', montant: '' });
+    data.push({ poste: 'RÉSULTAT D\'EXPLOITATION', montant: formatCurrency(compteResultatData.totaux.resultats.exploitation) });
+    data.push({ poste: 'RÉSULTAT NET', montant: formatCurrency(compteResultatData.totaux.resultats.net) });
 
     exportToCSV(data, 'compte_resultat', ['Poste', 'Montant']);
     setNotification({ type: 'success', message: 'Compte de résultat exporté' });
@@ -672,24 +792,70 @@ export default function Comptabilite() {
 
   // Export Bilan
   const exportBilan = () => {
-    const creancesClients = (relancesData?.stats?.montant_total || 0) / 100;
-    const disponibilites = kpis.benefice > 0 ? kpis.benefice : 0;
-    const totalActif = creancesClients + disponibilites;
+    if (!bilanData) {
+      setNotification({ type: 'error', message: 'Données non disponibles' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
 
-    const data = [
+    const data: { categorie: string; poste: string; montant: string }[] = [
       { categorie: 'ACTIF', poste: '', montant: '' },
-      { categorie: 'Actif immobilisé', poste: 'Immobilisations corporelles', montant: '0,00 €' },
-      { categorie: 'Actif immobilisé', poste: 'Immobilisations incorporelles', montant: '0,00 €' },
-      { categorie: 'Actif circulant', poste: 'Créances clients', montant: formatCurrency(creancesClients) },
-      { categorie: 'Actif circulant', poste: 'Disponibilités', montant: formatCurrency(disponibilites) },
-      { categorie: '', poste: 'TOTAL ACTIF', montant: formatCurrency(totalActif) },
-      { categorie: '', poste: '', montant: '' },
-      { categorie: 'PASSIF', poste: '', montant: '' },
-      { categorie: 'Capitaux propres', poste: 'Capital social', montant: '0,00 €' },
-      { categorie: 'Capitaux propres', poste: 'Résultat de l\'exercice', montant: formatCurrency(kpis.benefice) },
-      { categorie: 'Dettes', poste: 'Dettes fournisseurs', montant: formatCurrency(creancesClients) },
-      { categorie: '', poste: 'TOTAL PASSIF', montant: formatCurrency(totalActif) }
     ];
+
+    // Immobilisations
+    if (bilanData.actif.immobilisations.length > 0) {
+      bilanData.actif.immobilisations.forEach(c => {
+        data.push({ categorie: 'Actif immobilisé', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    // Stocks
+    if (bilanData.actif.stocks.length > 0) {
+      bilanData.actif.stocks.forEach(c => {
+        data.push({ categorie: 'Stocks', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    // Créances
+    if (bilanData.actif.creances.length > 0) {
+      bilanData.actif.creances.forEach(c => {
+        data.push({ categorie: 'Créances', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    // Trésorerie
+    if (bilanData.actif.tresorerie.length > 0) {
+      bilanData.actif.tresorerie.forEach(c => {
+        data.push({ categorie: 'Trésorerie', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    data.push({ categorie: '', poste: 'TOTAL ACTIF', montant: formatCurrency(bilanData.totaux.actif) });
+    data.push({ categorie: '', poste: '', montant: '' });
+    data.push({ categorie: 'PASSIF', poste: '', montant: '' });
+
+    // Capitaux propres
+    if (bilanData.passif.capitaux.length > 0) {
+      bilanData.passif.capitaux.forEach(c => {
+        data.push({ categorie: 'Capitaux propres', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    // Dettes
+    if (bilanData.passif.dettes.length > 0) {
+      bilanData.passif.dettes.forEach(c => {
+        data.push({ categorie: 'Dettes', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    // Découverts bancaires
+    if (bilanData.passif.decouvertsBancaires && bilanData.passif.decouvertsBancaires.length > 0) {
+      bilanData.passif.decouvertsBancaires.forEach(c => {
+        data.push({ categorie: 'Dettes financières', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
+      });
+    }
+
+    data.push({ categorie: '', poste: 'TOTAL PASSIF', montant: formatCurrency(bilanData.totaux.passif) });
 
     exportToCSV(data, 'bilan', ['Categorie', 'Poste', 'Montant']);
     setNotification({ type: 'success', message: 'Bilan exporté' });
@@ -926,7 +1092,7 @@ export default function Comptabilite() {
   const [bankTransactions, setBankTransactions] = useState<Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}>>([]);
   const bankFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calcul des écritures non rapprochées et rapprochées
+  // Calcul des écritures non rapprochées et rapprochées (base)
   const ecrituresNonRapprochees = useMemo(() =>
     (ecrituresBanqueData?.ecritures || []).filter(e => !e.lettrage),
     [ecrituresBanqueData]
@@ -935,6 +1101,43 @@ export default function Comptabilite() {
     (ecrituresBanqueData?.ecritures || []).filter(e => e.lettrage),
     [ecrituresBanqueData]
   );
+
+  // Fonction de filtrage montant pour rapprochement
+  const matchesRapproMontant = (montant: number, filter: string) => {
+    const m = montant / 100;
+    switch (filter) {
+      case 'all': return true;
+      case '0-50': return m <= 50;
+      case '50-100': return m > 50 && m <= 100;
+      case '100-500': return m > 100 && m <= 500;
+      case '500+': return m > 500;
+      default: return true;
+    }
+  };
+
+  // Écritures à rapprocher filtrées
+  const filteredEcrituresNonRapprochees = useMemo(() => {
+    return ecrituresNonRapprochees.filter(e => {
+      if (rapproDateFilter !== 'all' && e.date_ecriture?.slice(0, 7) !== rapproDateFilter) return false;
+      if (rapproPieceFilter !== 'all' && e.numero_piece !== rapproPieceFilter) return false;
+      if (rapproLibelleFilter !== 'all' && e.libelle !== rapproLibelleFilter) return false;
+      if (rapproDebitFilter !== 'all' && !matchesRapproMontant(e.debit || 0, rapproDebitFilter)) return false;
+      if (rapproCreditFilter !== 'all' && !matchesRapproMontant(e.credit || 0, rapproCreditFilter)) return false;
+      return true;
+    });
+  }, [ecrituresNonRapprochees, rapproDateFilter, rapproPieceFilter, rapproLibelleFilter, rapproDebitFilter, rapproCreditFilter]);
+
+  // Écritures rapprochées filtrées
+  const filteredEcrituresRapprochees = useMemo(() => {
+    return ecrituresRapprochees.filter(e => {
+      if (rapprocheeDateFilter !== 'all' && e.date_ecriture?.slice(0, 7) !== rapprocheeDateFilter) return false;
+      if (rapprocheePieceFilter !== 'all' && e.numero_piece !== rapprocheePieceFilter) return false;
+      if (rapprocheeLibelleFilter !== 'all' && e.libelle !== rapprocheeLibelleFilter) return false;
+      if (rapprocheeDebitFilter !== 'all' && !matchesRapproMontant(e.debit || 0, rapprocheeDebitFilter)) return false;
+      if (rapprocheeCreditFilter !== 'all' && !matchesRapproMontant(e.credit || 0, rapprocheeCreditFilter)) return false;
+      return true;
+    });
+  }, [ecrituresRapprochees, rapprocheeDateFilter, rapprocheePieceFilter, rapprocheeLibelleFilter, rapprocheeDebitFilter, rapprocheeCreditFilter]);
 
   // Solde des écritures non rapprochées (l'écart à résoudre)
   const soldeNonRapproche = useMemo(() => {
@@ -1095,6 +1298,70 @@ export default function Comptabilite() {
       return true;
     });
   }, [expensesData, expenseDateFilter, expenseCategoryFilter, expenseDescFilter, expenseMontantFilter, expensePayeeFilter, expenseTVAFilter]);
+
+  // Filtrer les relances
+  const filteredRelances = useMemo(() => {
+    const relances = relancesData?.factures || [];
+
+    // Fonction de matching période pour relances
+    const matchesRelancesPeriod = (dateStr: string | null | undefined) => {
+      if (relancesPeriod === 'all') return true;
+      if (!dateStr) return false;
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return false;
+
+      if (relancesPeriod === 'jour') {
+        return date.getFullYear() === relancesYear &&
+               date.getMonth() + 1 === relancesMonth &&
+               date.getDate() === relancesDay;
+      } else if (relancesPeriod === 'mois') {
+        return date.getFullYear() === relancesYear && date.getMonth() + 1 === relancesMonth;
+      } else {
+        return date.getFullYear() === relancesYear;
+      }
+    };
+
+    // Fonction pour matcher le retard
+    const matchesRetard = (joursRetard: number, filter: string) => {
+      switch (filter) {
+        case 'all': return true;
+        case 'avenir': return joursRetard < 0;
+        case 'aujourdhui': return joursRetard === 0;
+        case '1-7': return joursRetard >= 1 && joursRetard <= 7;
+        case '8-15': return joursRetard >= 8 && joursRetard <= 15;
+        case '16-30': return joursRetard >= 16 && joursRetard <= 30;
+        case '30+': return joursRetard > 30;
+        default: return true;
+      }
+    };
+
+    return relances.filter(facture => {
+      // Filtre période (basé sur date_echeance)
+      if (!matchesRelancesPeriod(facture.date_echeance)) return false;
+      // Filtre numéro
+      if (relanceNumeroFilter !== 'all' && facture.numero !== relanceNumeroFilter) return false;
+      // Filtre client
+      if (relanceClientFilter !== 'all' && facture.client_nom !== relanceClientFilter) return false;
+      // Filtre montant
+      if (!matchesMontantRange(facture.montant_ttc || 0, relanceMontantFilter)) return false;
+      // Filtre échéance (mois)
+      if (relanceEcheanceFilter !== 'all' && facture.date_echeance?.slice(0, 7) !== relanceEcheanceFilter) return false;
+      // Filtre retard
+      if (!matchesRetard(facture.jours_retard || 0, relanceRetardFilter)) return false;
+      // Filtre niveau
+      if (relanceNiveauFilter !== 'all' && String(facture.niveau_relance) !== relanceNiveauFilter) return false;
+      return true;
+    });
+  }, [relancesData, relancesPeriod, relancesYear, relancesMonth, relancesDay, relanceNumeroFilter, relanceClientFilter, relanceMontantFilter, relanceEcheanceFilter, relanceRetardFilter, relanceNiveauFilter]);
+
+  // Stats filtrées pour relances
+  const filteredRelancesStats = useMemo(() => {
+    const stats = {
+      total: filteredRelances.length,
+      montant: filteredRelances.reduce((sum, f) => sum + (f.montant_ttc || 0), 0) / 100
+    };
+    return stats;
+  }, [filteredRelances]);
 
   // Fonction pour imprimer une facture
   const handlePrintInvoice = async (invoiceId: number) => {
@@ -1482,11 +1749,11 @@ export default function Comptabilite() {
                     <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[500px] overflow-y-auto">
                     <table className="w-full">
-                      <thead>
+                      <thead className="sticky top-0 bg-white z-10">
                         <tr className="border-b bg-gray-50/50">
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-600 bg-gray-50/50">
                             <select
                               value={invoiceNumeroFilter}
                               onChange={(e) => setInvoiceNumeroFilter(e.target.value)}
@@ -1567,8 +1834,34 @@ export default function Comptabilite() {
                         {filteredInvoices.map((invoice) => (
                           <tr key={invoice.id} className="border-b last:border-0 hover:bg-gray-50">
                             <td className="py-4 px-4"><span className="font-mono text-sm">{invoice.numero}</span></td>
-                            <td className="py-4 px-4">{invoice.client_nom || 'Client'}</td>
-                            <td className="py-4 px-4 text-sm text-gray-600">{invoice.service_nom || '-'}</td>
+                            <td className="py-4 px-4">
+                              <EntityLink
+                                type="client"
+                                entity={{
+                                  id: invoice.client_id,
+                                  nom: invoice.client_nom?.split(' ').slice(-1)[0] || '',
+                                  prenom: invoice.client_nom?.split(' ').slice(0, -1).join(' ') || '',
+                                  telephone: invoice.client_telephone || ''
+                                }}
+                                label={invoice.client_nom || 'Client'}
+                              />
+                            </td>
+                            <td className="py-4 px-4 text-sm text-gray-600">
+                              {invoice.service_id ? (
+                                <EntityLink
+                                  type="service"
+                                  entity={{
+                                    id: invoice.service_id,
+                                    nom: invoice.service_nom || '',
+                                    prix: invoice.montant_ttc || 0,
+                                    duree: 60
+                                  }}
+                                  label={invoice.service_nom || '-'}
+                                />
+                              ) : (
+                                invoice.service_nom || '-'
+                              )}
+                            </td>
                             <td className="py-4 px-4 text-sm text-gray-600">{formatDate(invoice.date_facture)}</td>
                             <td className="py-4 px-4 text-right font-semibold">{formatCurrency((invoice.montant_ttc || 0) / 100)}</td>
                             <td className="py-4 px-4">
@@ -1691,11 +1984,11 @@ export default function Comptabilite() {
                     <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[500px] overflow-y-auto">
                     <table className="w-full">
-                      <thead>
+                      <thead className="sticky top-0 bg-white z-10">
                         <tr className="border-b bg-gray-50/50">
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-600 bg-gray-50/50">
                             <select
                               value={expenseDateFilter}
                               onChange={(e) => setExpenseDateFilter(e.target.value)}
@@ -1816,7 +2109,27 @@ export default function Comptabilite() {
         {/* TVA Tab */}
         {activeTab === 'tva' && (
           <div className="space-y-6">
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-600">Période :</label>
+                <select
+                  value={tvaPeriode}
+                  onChange={(e) => setTvaPeriode(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm"
+                >
+                  {(() => {
+                    const options = [];
+                    const now = new Date();
+                    for (let i = -6; i < 24; i++) {
+                      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                      const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                      options.push(<option key={value} value={value}>{label}</option>);
+                    }
+                    return options;
+                  })()}
+                </select>
+              </div>
               <Button
                 variant="outline"
                 onClick={exportTVAToExcel}
@@ -1999,14 +2312,19 @@ export default function Comptabilite() {
               ))}
             </div>
 
-            {/* Montant total impayé */}
+            {/* Montant total impayé - dynamique selon filtres */}
             <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-orange-700">Montant total impayé</p>
+                    <p className="text-sm text-orange-700">
+                      Montant impayé {relancesPeriod !== 'all' || relanceNumeroFilter !== 'all' || relanceClientFilter !== 'all' || relanceMontantFilter !== 'all' || relanceEcheanceFilter !== 'all' || relanceRetardFilter !== 'all' || relanceNiveauFilter !== 'all' ? '(filtré)' : ''}
+                    </p>
                     <p className="text-3xl font-bold text-orange-600">
-                      {formatCurrency((relancesData?.stats?.montant_total || 0) / 100)}
+                      {formatCurrency(filteredRelancesStats.montant)}
+                    </p>
+                    <p className="text-xs text-orange-500 mt-1">
+                      {filteredRelancesStats.total} facture{filteredRelancesStats.total > 1 ? 's' : ''}
                     </p>
                   </div>
                   <AlertTriangle className="h-12 w-12 text-orange-400" />
@@ -2186,39 +2504,192 @@ export default function Comptabilite() {
 
             {/* Liste des factures impayées */}
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5 text-orange-500" />
                   Factures en relance
+                  <span className="text-sm font-normal text-gray-500">
+                    ({filteredRelancesStats.total} facture{filteredRelancesStats.total > 1 ? 's' : ''} - {formatCurrency(filteredRelancesStats.montant)})
+                  </span>
                 </CardTitle>
+                {/* Filtres période */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={relancesPeriod}
+                    onChange={(e) => setRelancesPeriod(e.target.value as 'jour' | 'mois' | 'annee' | 'all')}
+                    className="text-sm border rounded-md px-2 py-1"
+                  >
+                    <option value="all">Toutes les échéances</option>
+                    <option value="jour">Jour</option>
+                    <option value="mois">Mois</option>
+                    <option value="annee">Année</option>
+                  </select>
+                  {relancesPeriod !== 'all' && (
+                    <>
+                      <select
+                        value={relancesYear}
+                        onChange={(e) => setRelancesYear(parseInt(e.target.value))}
+                        className="text-sm border rounded-md px-2 py-1"
+                      >
+                        {AVAILABLE_YEARS.map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                      {(relancesPeriod === 'mois' || relancesPeriod === 'jour') && (
+                        <select
+                          value={relancesMonth}
+                          onChange={(e) => setRelancesMonth(parseInt(e.target.value))}
+                          className="text-sm border rounded-md px-2 py-1"
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                            <option key={m} value={m}>
+                              {new Date(2000, m - 1).toLocaleDateString('fr-FR', { month: 'long' })}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {relancesPeriod === 'jour' && (
+                        <select
+                          value={relancesDay}
+                          onChange={(e) => setRelancesDay(parseInt(e.target.value))}
+                          className="text-sm border rounded-md px-2 py-1"
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      )}
+                    </>
+                  )}
+                  {(relancesPeriod !== 'all' || relanceNumeroFilter !== 'all' || relanceClientFilter !== 'all' || relanceMontantFilter !== 'all' || relanceEcheanceFilter !== 'all' || relanceRetardFilter !== 'all' || relanceNiveauFilter !== 'all') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setRelancesPeriod('all');
+                        setRelanceNumeroFilter('all');
+                        setRelanceClientFilter('all');
+                        setRelanceMontantFilter('all');
+                        setRelanceEcheanceFilter('all');
+                        setRelanceRetardFilter('all');
+                        setRelanceNiveauFilter('all');
+                      }}
+                      className="text-xs text-gray-500"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Effacer filtres
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {relancesLoading ? (
                   <div className="flex items-center justify-center h-32">
                     <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
                   </div>
-                ) : relancesData?.factures?.length === 0 ? (
+                ) : filteredRelances.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-                    <p className="font-medium">Aucune facture impayée</p>
-                    <p className="text-sm">Toutes vos factures sont réglées</p>
+                    <p className="font-medium">
+                      {relancesData?.factures?.length === 0 ? 'Aucune facture impayée' : 'Aucune facture ne correspond aux filtres'}
+                    </p>
+                    <p className="text-sm">
+                      {relancesData?.factures?.length === 0 ? 'Toutes vos factures sont réglées' : 'Modifiez vos critères de recherche'}
+                    </p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b bg-gray-50">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Facture</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Client</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Montant</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">Échéance</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">Retard</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">Niveau</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
+                          <th className="text-left py-2 px-3">
+                            <select
+                              value={relanceNumeroFilter}
+                              onChange={(e) => setRelanceNumeroFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                            >
+                              <option value="all">Facture ▼</option>
+                              {[...new Set((relancesData?.factures || []).map(f => f.numero))].sort().map(num => (
+                                <option key={num} value={num}>{num}</option>
+                              ))}
+                            </select>
+                          </th>
+                          <th className="text-left py-2 px-3">
+                            <select
+                              value={relanceClientFilter}
+                              onChange={(e) => setRelanceClientFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                            >
+                              <option value="all">Client ▼</option>
+                              {[...new Set((relancesData?.factures || []).map(f => f.client_nom).filter(Boolean))].sort().map(nom => (
+                                <option key={nom} value={nom}>{nom}</option>
+                              ))}
+                            </select>
+                          </th>
+                          <th className="text-right py-2 px-3">
+                            <select
+                              value={relanceMontantFilter}
+                              onChange={(e) => setRelanceMontantFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
+                            >
+                              <option value="all">Montant ▼</option>
+                              <option value="0-50">0 - 50€</option>
+                              <option value="50-100">50 - 100€</option>
+                              <option value="100-200">100 - 200€</option>
+                              <option value="200-500">200 - 500€</option>
+                              <option value="500+">500€+</option>
+                            </select>
+                          </th>
+                          <th className="text-center py-2 px-3">
+                            <select
+                              value={relanceEcheanceFilter}
+                              onChange={(e) => setRelanceEcheanceFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-center"
+                            >
+                              <option value="all">Échéance ▼</option>
+                              {[...new Set((relancesData?.factures || []).map(f => f.date_echeance?.slice(0, 7)).filter(Boolean))].sort().reverse().map(mois => (
+                                <option key={mois} value={mois}>
+                                  {new Date(mois + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                                </option>
+                              ))}
+                            </select>
+                          </th>
+                          <th className="text-center py-2 px-3">
+                            <select
+                              value={relanceRetardFilter}
+                              onChange={(e) => setRelanceRetardFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-center"
+                            >
+                              <option value="all">Retard ▼</option>
+                              <option value="avenir">À venir</option>
+                              <option value="aujourdhui">Aujourd'hui</option>
+                              <option value="1-7">1-7 jours</option>
+                              <option value="8-15">8-15 jours</option>
+                              <option value="16-30">16-30 jours</option>
+                              <option value="30+">+30 jours</option>
+                            </select>
+                          </th>
+                          <th className="text-center py-2 px-3">
+                            <select
+                              value={relanceNiveauFilter}
+                              onChange={(e) => setRelanceNiveauFilter(e.target.value)}
+                              className="w-full text-sm font-medium text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-center"
+                            >
+                              <option value="all">Niveau ▼</option>
+                              <option value="0">À venir</option>
+                              <option value="1">R1 Préventive</option>
+                              <option value="2">R2 Échéance</option>
+                              <option value="3">R3 +7j</option>
+                              <option value="4">R4 +15j</option>
+                              <option value="5">R5 Mise en demeure</option>
+                              <option value="6">Contentieux</option>
+                            </select>
+                          </th>
+                          <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {relancesData?.factures?.map((facture) => {
+                        {filteredRelances.map((facture) => {
                           const niveauConfig: Record<number, { label: string; color: string; bg: string }> = {
                             0: { label: 'À venir', color: 'text-gray-600', bg: 'bg-gray-100' },
                             1: { label: 'R1 Préventive', color: 'text-blue-600', bg: 'bg-blue-100' },
@@ -2237,7 +2708,18 @@ export default function Comptabilite() {
                               </td>
                               <td className="py-3 px-4">
                                 <div>
-                                  <p className="font-medium text-gray-900">{facture.client_nom}</p>
+                                  <p className="font-medium text-gray-900">
+                                    <EntityLink
+                                      type="client"
+                                      entity={{
+                                        id: facture.client_id,
+                                        nom: facture.client_nom?.split(' ').slice(-1)[0] || '',
+                                        prenom: facture.client_nom?.split(' ').slice(0, -1).join(' ') || '',
+                                        telephone: facture.client_telephone || ''
+                                      }}
+                                      label={facture.client_nom || 'Client'}
+                                    />
+                                  </p>
                                   <p className="text-xs text-gray-500">{facture.client_email}</p>
                                 </div>
                               </td>
@@ -2303,16 +2785,20 @@ export default function Comptabilite() {
                                     </Button>
                                   )}
 
-                                  {/* Bouton marquer payée */}
+                                  {/* Bouton enregistrer paiement */}
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     className="gap-1 text-green-600 border-green-200 hover:bg-green-50"
-                                    onClick={() => marquerPayeeMutation.mutate(facture.id)}
-                                    disabled={marquerPayeeMutation.isPending}
+                                    onClick={() => {
+                                      setPendingInvoiceId(facture.id);
+                                      setInvoicePaymentMode('cb');
+                                      setShowInvoicePaymentModal(true);
+                                    }}
+                                    disabled={enregistrerPaiementMutation.isPending}
                                   >
                                     <CheckCircle className="h-3 w-3" />
-                                    Marquer payée
+                                    Enregistrer paiement
                                   </Button>
                                 </div>
                               </td>
@@ -2522,23 +3008,41 @@ export default function Comptabilite() {
                     <div className="py-8 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
                     </div>
-                  ) : ecrituresNonRapprochees.length === 0 ? (
+                  ) : filteredEcrituresNonRapprochees.length === 0 ? (
                     <div className="py-8 text-center text-gray-500">
                       <CheckCircle className="h-12 w-12 text-emerald-300 mx-auto mb-3" />
-                      <p className="font-medium text-emerald-600">Toutes les écritures sont rapprochées !</p>
+                      <p className="font-medium text-emerald-600">
+                        {ecrituresNonRapprochees.length === 0 ? 'Toutes les écritures sont rapprochées !' : 'Aucune écriture ne correspond aux filtres'}
+                      </p>
+                      {(rapproDateFilter !== 'all' || rapproPieceFilter !== 'all' || rapproLibelleFilter !== 'all' || rapproDebitFilter !== 'all' || rapproCreditFilter !== 'all') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRapproDateFilter('all');
+                            setRapproPieceFilter('all');
+                            setRapproLibelleFilter('all');
+                            setRapproDebitFilter('all');
+                            setRapproCreditFilter('all');
+                          }}
+                          className="mt-2 text-xs"
+                        >
+                          Effacer les filtres
+                        </Button>
+                      )}
                     </div>
                   ) : (
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
                           <tr>
-                            <th className="w-10 py-2 px-3">
+                            <th className="w-10 py-2 px-3 bg-gray-50">
                               <input
                                 type="checkbox"
-                                checked={selectedEcrituresForPointage.length === ecrituresNonRapprochees.length && ecrituresNonRapprochees.length > 0}
+                                checked={selectedEcrituresForPointage.length === filteredEcrituresNonRapprochees.length && filteredEcrituresNonRapprochees.length > 0}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setSelectedEcrituresForPointage(ecrituresNonRapprochees.map(ec => ec.id));
+                                    setSelectedEcrituresForPointage(filteredEcrituresNonRapprochees.map(ec => ec.id));
                                   } else {
                                     setSelectedEcrituresForPointage([]);
                                   }
@@ -2546,15 +3050,74 @@ export default function Comptabilite() {
                                 className="rounded border-gray-300"
                               />
                             </th>
-                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                            <th className="text-left py-2 px-3 text-gray-600">Pièce</th>
-                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                            <th className="text-right py-2 px-3 text-gray-600">Débit</th>
-                            <th className="text-right py-2 px-3 text-gray-600">Crédit</th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapproDateFilter}
+                                onChange={(e) => setRapproDateFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Date ▼</option>
+                                {[...new Set(ecrituresNonRapprochees.map(e => e.date_ecriture?.slice(0, 7)).filter(Boolean))].sort().reverse().map(mois => (
+                                  <option key={mois} value={mois}>
+                                    {new Date(mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+                                  </option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapproPieceFilter}
+                                onChange={(e) => setRapproPieceFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Pièce ▼</option>
+                                {[...new Set(ecrituresNonRapprochees.map(e => e.numero_piece).filter(Boolean))].sort().map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapproLibelleFilter}
+                                onChange={(e) => setRapproLibelleFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Libellé ▼</option>
+                                {[...new Set(ecrituresNonRapprochees.map(e => e.libelle).filter(Boolean))].sort().map(lib => (
+                                  <option key={lib} value={lib}>{lib.length > 30 ? lib.slice(0, 30) + '...' : lib}</option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-right py-2 px-3">
+                              <select
+                                value={rapproDebitFilter}
+                                onChange={(e) => setRapproDebitFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
+                              >
+                                <option value="all">Débit ▼</option>
+                                <option value="0-50">0-50€</option>
+                                <option value="50-100">50-100€</option>
+                                <option value="100-500">100-500€</option>
+                                <option value="500+">500€+</option>
+                              </select>
+                            </th>
+                            <th className="text-right py-2 px-3">
+                              <select
+                                value={rapproCreditFilter}
+                                onChange={(e) => setRapproCreditFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
+                              >
+                                <option value="all">Crédit ▼</option>
+                                <option value="0-50">0-50€</option>
+                                <option value="50-100">50-100€</option>
+                                <option value="100-500">100-500€</option>
+                                <option value="500+">500€+</option>
+                              </select>
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {ecrituresNonRapprochees.map((e) => (
+                          {filteredEcrituresNonRapprochees.map((e) => (
                             <tr key={e.id} className={cn(
                               "border-t hover:bg-orange-50 cursor-pointer",
                               selectedEcrituresForPointage.includes(e.id) && "bg-orange-100"
@@ -2589,12 +3152,14 @@ export default function Comptabilite() {
                         </tbody>
                         <tfoot className="bg-gray-50 font-medium">
                           <tr>
-                            <td colSpan={4} className="py-2 px-3 text-right">Total à rapprocher :</td>
+                            <td colSpan={4} className="py-2 px-3 text-right">
+                              Total ({filteredEcrituresNonRapprochees.length} écriture{filteredEcrituresNonRapprochees.length > 1 ? 's' : ''}) :
+                            </td>
                             <td className="py-2 px-3 text-right text-green-600">
-                              {formatCurrency(ecrituresNonRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
+                              {formatCurrency(filteredEcrituresNonRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
                             </td>
                             <td className="py-2 px-3 text-right text-red-600">
-                              {formatCurrency(ecrituresNonRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
+                              {formatCurrency(filteredEcrituresNonRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
                             </td>
                           </tr>
                         </tfoot>
@@ -2612,30 +3177,110 @@ export default function Comptabilite() {
                   <CardTitle className="text-sm flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Écritures rapprochées
+                    <span className="text-xs font-normal text-gray-500">
+                      ({filteredEcrituresRapprochees.length} écriture{filteredEcrituresRapprochees.length > 1 ? 's' : ''})
+                    </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {ecrituresRapprochees.length === 0 ? (
+                  {filteredEcrituresRapprochees.length === 0 ? (
                     <div className="py-8 text-center text-gray-500">
                       <Landmark className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p>Aucune écriture rapprochée pour le moment.</p>
-                      <p className="text-xs mt-1">Sélectionnez des écritures dans l'onglet "À rapprocher" et cliquez sur "Pointer".</p>
+                      <p>{ecrituresRapprochees.length === 0 ? 'Aucune écriture rapprochée pour le moment.' : 'Aucune écriture ne correspond aux filtres'}</p>
+                      {ecrituresRapprochees.length === 0 && (
+                        <p className="text-xs mt-1">Sélectionnez des écritures dans l'onglet "À rapprocher" et cliquez sur "Pointer".</p>
+                      )}
+                      {(rapprocheeDateFilter !== 'all' || rapprocheePieceFilter !== 'all' || rapprocheeLibelleFilter !== 'all' || rapprocheeDebitFilter !== 'all' || rapprocheeCreditFilter !== 'all') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRapprocheeDateFilter('all');
+                            setRapprocheePieceFilter('all');
+                            setRapprocheeLibelleFilter('all');
+                            setRapprocheeDebitFilter('all');
+                            setRapprocheeCreditFilter('all');
+                          }}
+                          className="mt-2 text-xs"
+                        >
+                          Effacer les filtres
+                        </Button>
+                      )}
                     </div>
                   ) : (
-                    <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
                           <tr>
-                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                            <th className="text-left py-2 px-3 text-gray-600">Pièce</th>
-                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                            <th className="text-right py-2 px-3 text-gray-600">Débit</th>
-                            <th className="text-right py-2 px-3 text-gray-600">Crédit</th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapprocheeDateFilter}
+                                onChange={(e) => setRapprocheeDateFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Date ▼</option>
+                                {[...new Set(ecrituresRapprochees.map(e => e.date_ecriture?.slice(0, 7)).filter(Boolean))].sort().reverse().map(mois => (
+                                  <option key={mois} value={mois}>
+                                    {new Date(mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+                                  </option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapprocheePieceFilter}
+                                onChange={(e) => setRapprocheePieceFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Pièce ▼</option>
+                                {[...new Set(ecrituresRapprochees.map(e => e.numero_piece).filter(Boolean))].sort().map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-left py-2 px-3">
+                              <select
+                                value={rapprocheeLibelleFilter}
+                                onChange={(e) => setRapprocheeLibelleFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
+                              >
+                                <option value="all">Libellé ▼</option>
+                                {[...new Set(ecrituresRapprochees.map(e => e.libelle).filter(Boolean))].sort().map(lib => (
+                                  <option key={lib} value={lib}>{lib.length > 30 ? lib.slice(0, 30) + '...' : lib}</option>
+                                ))}
+                              </select>
+                            </th>
+                            <th className="text-right py-2 px-3">
+                              <select
+                                value={rapprocheeDebitFilter}
+                                onChange={(e) => setRapprocheeDebitFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
+                              >
+                                <option value="all">Débit ▼</option>
+                                <option value="0-50">0-50€</option>
+                                <option value="50-100">50-100€</option>
+                                <option value="100-500">100-500€</option>
+                                <option value="500+">500€+</option>
+                              </select>
+                            </th>
+                            <th className="text-right py-2 px-3">
+                              <select
+                                value={rapprocheeCreditFilter}
+                                onChange={(e) => setRapprocheeCreditFilter(e.target.value)}
+                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
+                              >
+                                <option value="all">Crédit ▼</option>
+                                <option value="0-50">0-50€</option>
+                                <option value="50-100">50-100€</option>
+                                <option value="100-500">100-500€</option>
+                                <option value="500+">500€+</option>
+                              </select>
+                            </th>
                             <th className="text-center py-2 px-3 text-gray-600">Code</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {ecrituresRapprochees.map((e) => (
+                          {filteredEcrituresRapprochees.map((e) => (
                             <tr key={e.id} className="border-t hover:bg-green-50">
                               <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date_ecriture)}</td>
                               <td className="py-2 px-3 text-xs text-gray-500">{e.numero_piece || '-'}</td>
@@ -2656,12 +3301,14 @@ export default function Comptabilite() {
                         </tbody>
                         <tfoot className="bg-gray-50 font-medium">
                           <tr>
-                            <td colSpan={3} className="py-2 px-3 text-right">Total rapproché :</td>
+                            <td colSpan={3} className="py-2 px-3 text-right">
+                              Total ({filteredEcrituresRapprochees.length} écriture{filteredEcrituresRapprochees.length > 1 ? 's' : ''}) :
+                            </td>
                             <td className="py-2 px-3 text-right text-green-600">
-                              {formatCurrency(ecrituresRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
+                              {formatCurrency(filteredEcrituresRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
                             </td>
                             <td className="py-2 px-3 text-right text-red-600">
-                              {formatCurrency(ecrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
+                              {formatCurrency(filteredEcrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
                             </td>
                             <td></td>
                           </tr>
@@ -2817,6 +3464,11 @@ export default function Comptabilite() {
                 </div>
               </CardHeader>
               <CardContent>
+                {compteResultatLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                  </div>
+                ) : compteResultatData ? (
                 <div className="space-y-6">
                   {/* Produits d'exploitation */}
                   <div>
@@ -2825,17 +3477,22 @@ export default function Comptabilite() {
                       Produits d'exploitation
                     </h3>
                     <div className="bg-green-50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Ventes de prestations</span>
-                        <span className="font-medium">{formatCurrency(kpis.ca)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Autres produits</span>
-                        <span className="font-medium">0,00 €</span>
-                      </div>
+                      {compteResultatData.produits.exploitation.length > 0 ? (
+                        compteResultatData.produits.exploitation.map((compte, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>{compte.numero} - {compte.libelle}</span>
+                            <span className="font-medium">{formatCurrency(compte.montant)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex justify-between text-sm text-gray-400">
+                          <span>Aucun produit</span>
+                          <span>0,00 €</span>
+                        </div>
+                      )}
                       <div className="border-t border-green-200 pt-2 mt-2 flex justify-between font-semibold">
-                        <span>Total Produits</span>
-                        <span className="text-green-700">{formatCurrency(kpis.ca)}</span>
+                        <span>Total Produits d'exploitation</span>
+                        <span className="text-green-700">{formatCurrency(compteResultatData.totaux.produits.exploitation)}</span>
                       </div>
                     </div>
                   </div>
@@ -2847,48 +3504,94 @@ export default function Comptabilite() {
                       Charges d'exploitation
                     </h3>
                     <div className="bg-red-50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Achats et fournitures</span>
-                        <span className="font-medium">{formatCurrency(kpis.totalDepenses * 0.3)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Charges externes</span>
-                        <span className="font-medium">{formatCurrency(kpis.totalDepenses * 0.4)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Charges de personnel</span>
-                        <span className="font-medium">{formatCurrency(kpis.totalDepenses * 0.2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Autres charges</span>
-                        <span className="font-medium">{formatCurrency(kpis.totalDepenses * 0.1)}</span>
-                      </div>
+                      {compteResultatData.charges.exploitation.length > 0 ? (
+                        compteResultatData.charges.exploitation.map((compte, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>{compte.numero} - {compte.libelle}</span>
+                            <span className="font-medium">{formatCurrency(compte.montant)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex justify-between text-sm text-gray-400">
+                          <span>Aucune charge</span>
+                          <span>0,00 €</span>
+                        </div>
+                      )}
                       <div className="border-t border-red-200 pt-2 mt-2 flex justify-between font-semibold">
-                        <span>Total Charges</span>
-                        <span className="text-red-700">{formatCurrency(kpis.totalDepenses)}</span>
+                        <span>Total Charges d'exploitation</span>
+                        <span className="text-red-700">{formatCurrency(compteResultatData.totaux.charges.exploitation)}</span>
                       </div>
                     </div>
                   </div>
 
+                  {/* Charges financières (si présentes) */}
+                  {compteResultatData.charges.financieres.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <TrendingDown className="h-4 w-4 text-orange-500" />
+                        Charges financières
+                      </h3>
+                      <div className="bg-orange-50 rounded-lg p-4 space-y-2">
+                        {compteResultatData.charges.financieres.map((compte, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>{compte.numero} - {compte.libelle}</span>
+                            <span className="font-medium">{formatCurrency(compte.montant)}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-orange-200 pt-2 mt-2 flex justify-between font-semibold">
+                          <span>Total Charges financières</span>
+                          <span className="text-orange-700">{formatCurrency(compteResultatData.totaux.charges.financieres)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Résultat */}
                   <div className={cn(
                     "rounded-lg p-4",
-                    kpis.benefice >= 0 ? "bg-emerald-100" : "bg-red-100"
+                    compteResultatData.totaux.resultats.net >= 0 ? "bg-emerald-100" : "bg-red-100"
                   )}>
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold">Résultat d'exploitation</span>
                       <span className={cn(
                         "text-2xl font-bold",
-                        kpis.benefice >= 0 ? "text-emerald-700" : "text-red-700"
+                        compteResultatData.totaux.resultats.exploitation >= 0 ? "text-emerald-700" : "text-red-700"
                       )}>
-                        {formatCurrency(kpis.benefice)}
+                        {formatCurrency(compteResultatData.totaux.resultats.exploitation)}
+                      </span>
+                    </div>
+                    {compteResultatData.totaux.charges.financieres !== 0 && (
+                      <div className="flex justify-between items-center mt-2 text-sm">
+                        <span>Résultat financier</span>
+                        <span className={cn(
+                          "font-medium",
+                          compteResultatData.totaux.resultats.financier >= 0 ? "text-emerald-600" : "text-red-600"
+                        )}>
+                          {formatCurrency(compteResultatData.totaux.resultats.financier)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
+                      <span className="text-lg font-semibold">Résultat Net</span>
+                      <span className={cn(
+                        "text-2xl font-bold",
+                        compteResultatData.totaux.resultats.net >= 0 ? "text-emerald-700" : "text-red-700"
+                      )}>
+                        {formatCurrency(compteResultatData.totaux.resultats.net)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      Marge : {kpis.ca > 0 ? ((kpis.benefice / kpis.ca) * 100).toFixed(1) : 0}%
+                      Marge : {compteResultatData.totaux.produits.total > 0
+                        ? ((compteResultatData.totaux.resultats.net / compteResultatData.totaux.produits.total) * 100).toFixed(1)
+                        : 0}%
                     </p>
                   </div>
                 </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucune donnée comptable pour cette période
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -2969,6 +3672,11 @@ export default function Comptabilite() {
                 </div>
               </CardHeader>
               <CardContent>
+                {bilanLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                  </div>
+                ) : bilanData ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ACTIF */}
                   <div>
@@ -2976,35 +3684,79 @@ export default function Comptabilite() {
                       ACTIF
                     </h3>
                     <div className="border rounded-b-lg p-4 space-y-4">
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Actif immobilisé</h4>
-                        <div className="space-y-1 text-sm pl-4">
-                          <div className="flex justify-between">
-                            <span>Immobilisations corporelles</span>
-                            <span>0,00 €</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Immobilisations incorporelles</span>
-                            <span>0,00 €</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Actif circulant</h4>
-                        <div className="space-y-1 text-sm pl-4">
-                          <div className="flex justify-between">
-                            <span>Créances clients</span>
-                            <span className="font-medium text-blue-600">{formatCurrency((relancesData?.stats?.montant_total || 0) / 100)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Disponibilités (estimé)</span>
-                            <span className="font-medium">{formatCurrency(kpis.benefice > 0 ? kpis.benefice : 0)}</span>
+                      {/* Actif immobilisé */}
+                      {bilanData.actif.immobilisations.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Actif immobilisé</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.actif.immobilisations.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Stocks */}
+                      {bilanData.actif.stocks.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Stocks</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.actif.stocks.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Créances */}
+                      {bilanData.actif.creances.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Créances</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.actif.creances.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium text-blue-600">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Trésorerie */}
+                      {bilanData.actif.tresorerie.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Trésorerie</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.actif.tresorerie.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium text-green-600">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Message si aucun actif */}
+                      {bilanData.actif.immobilisations.length === 0 &&
+                       bilanData.actif.stocks.length === 0 &&
+                       bilanData.actif.creances.length === 0 &&
+                       bilanData.actif.tresorerie.length === 0 && (
+                        <div className="text-sm text-gray-400 text-center py-4">
+                          Aucun actif comptabilisé
+                        </div>
+                      )}
+
                       <div className="border-t pt-2 flex justify-between font-semibold">
                         <span>Total Actif</span>
-                        <span className="text-blue-700">{formatCurrency((relancesData?.stats?.montant_total || 0) / 100 + (kpis.benefice > 0 ? kpis.benefice : 0))}</span>
+                        <span className="text-blue-700">{formatCurrency(bilanData.totaux.actif)}</span>
                       </div>
                     </div>
                   </div>
@@ -3015,41 +3767,90 @@ export default function Comptabilite() {
                       PASSIF
                     </h3>
                     <div className="border rounded-b-lg p-4 space-y-4">
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Capitaux propres</h4>
-                        <div className="space-y-1 text-sm pl-4">
-                          <div className="flex justify-between">
-                            <span>Capital social</span>
-                            <span>0,00 €</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Résultat de l'exercice</span>
-                            <span className={cn("font-medium", kpis.benefice >= 0 ? "text-green-600" : "text-red-600")}>
-                              {formatCurrency(kpis.benefice)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Dettes</h4>
-                        <div className="space-y-1 text-sm pl-4">
-                          <div className="flex justify-between">
-                            <span>Dettes fournisseurs</span>
-                            <span>0,00 €</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Dettes fiscales (TVA)</span>
-                            <span>0,00 €</span>
+                      {/* Capitaux propres */}
+                      {bilanData.passif.capitaux.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Capitaux propres</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.passif.capitaux.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className={cn(
+                                  "font-medium",
+                                  c.numero === '120' ? "text-green-600" : c.numero === '129' ? "text-red-600" : ""
+                                )}>
+                                  {formatCurrency(c.solde)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Dettes */}
+                      {bilanData.passif.dettes.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Dettes</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.passif.dettes.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium text-orange-600">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Découverts bancaires */}
+                      {bilanData.passif.decouvertsBancaires && bilanData.passif.decouvertsBancaires.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-2">Dettes financières</h4>
+                          <div className="space-y-1 text-sm pl-4">
+                            {bilanData.passif.decouvertsBancaires.map((c, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{c.numero} - {c.libelle}</span>
+                                <span className="font-medium text-red-600">{formatCurrency(c.solde)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Message si aucun passif */}
+                      {bilanData.passif.capitaux.length === 0 &&
+                       bilanData.passif.dettes.length === 0 &&
+                       (!bilanData.passif.decouvertsBancaires || bilanData.passif.decouvertsBancaires.length === 0) && (
+                        <div className="text-sm text-gray-400 text-center py-4">
+                          Aucun passif comptabilisé
+                        </div>
+                      )}
+
                       <div className="border-t pt-2 flex justify-between font-semibold">
                         <span>Total Passif</span>
-                        <span className="text-green-700">{formatCurrency(kpis.benefice)}</span>
+                        <span className="text-green-700">{formatCurrency(bilanData.totaux.passif)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucune donnée comptable pour cet exercice
+                  </div>
+                )}
+
+                {/* Indicateur d'équilibre */}
+                {bilanData && (
+                  <div className={cn(
+                    "mt-4 p-3 rounded-lg text-center text-sm font-medium",
+                    bilanData.totaux.equilibre ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                  )}>
+                    {bilanData.totaux.equilibre
+                      ? "Le bilan est équilibré"
+                      : `Déséquilibre de ${formatCurrency(Math.abs(bilanData.totaux.actif - bilanData.totaux.passif))}`
+                    }
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -3058,7 +3859,7 @@ export default function Comptabilite() {
         {/* Comptes Auxiliaires Tab */}
         {activeTab === 'auxiliaires' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Balance Clients */}
               <Card>
                 <CardHeader className="pb-3">
@@ -3087,7 +3888,7 @@ export default function Comptabilite() {
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
                           onClick={() => setSelectedAuxiliary({
                             type: 'client',
-                            id: parseInt(compte.compte.substring(3)),
+                            compte: compte.compte,
                             nom: compte.nom
                           })}
                         >
@@ -3152,7 +3953,7 @@ export default function Comptabilite() {
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors"
                           onClick={() => setSelectedAuxiliary({
                             type: 'fournisseur',
-                            id: parseInt(compte.compte.substring(3)),
+                            compte: compte.compte,
                             nom: compte.nom
                           })}
                         >
@@ -3166,7 +3967,7 @@ export default function Comptabilite() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className={`font-semibold ${compte.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className={`font-semibold ${compte.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {formatCurrency(Math.abs(compte.solde))}
                             </p>
                             <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
@@ -3180,9 +3981,74 @@ export default function Comptabilite() {
                   {balanceFournisseursData?.totaux && (
                     <div className="mt-4 pt-4 border-t flex justify-between items-center">
                       <span className="font-medium text-gray-600">Total Fournisseurs</span>
-                      <span className={`font-bold ${balanceFournisseursData.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`font-bold ${balanceFournisseursData.totaux.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(Math.abs(balanceFournisseursData.totaux.solde))}
                         <span className="text-xs ml-1">{balanceFournisseursData.totaux.solde >= 0 ? 'D' : 'C'}</span>
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Balance Personnel */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-purple-600" />
+                      </div>
+                      Balance Personnel (421/431)
+                    </CardTitle>
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                      {balancePersonnelData?.comptes?.length || 0} comptes
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {balancePersonnelLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                    </div>
+                  ) : balancePersonnelData?.comptes && balancePersonnelData.comptes.length > 0 ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {balancePersonnelData.comptes.map((compte) => (
+                        <div
+                          key={compte.compte}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-purple-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedAuxiliary({
+                            type: 'personnel',
+                            compte: compte.compte,
+                            nom: compte.nom
+                          })}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-semibold">
+                              {compte.nom.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{compte.nom}</p>
+                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-semibold ${compte.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(Math.abs(compte.solde))}
+                            </p>
+                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 py-8">Aucun compte personnel auxiliaire</p>
+                  )}
+                  {balancePersonnelData?.totaux && (
+                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                      <span className="font-medium text-gray-600">Total Personnel</span>
+                      <span className={`font-bold ${balancePersonnelData.totaux.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(Math.abs(balancePersonnelData.totaux.solde))}
+                        <span className="text-xs ml-1">{balancePersonnelData.totaux.solde >= 0 ? 'D' : 'C'}</span>
                       </span>
                     </div>
                   )}
@@ -3195,7 +4061,7 @@ export default function Comptabilite() {
               <p className="font-medium mb-1">Comptes Auxiliaires</p>
               <p className="text-purple-600">
                 Cliquez sur un compte pour voir le grand livre détaillé avec toutes les écritures et le solde progressif.
-                Les comptes 411 correspondent aux clients et les comptes 401 aux fournisseurs.
+                Les comptes 411 correspondent aux clients, 401 aux fournisseurs, et 421/431 au personnel.
               </p>
             </div>
           </div>
@@ -3205,7 +4071,7 @@ export default function Comptabilite() {
         {selectedAuxiliary && (
           <AuxiliaryLedgerModal
             type={selectedAuxiliary.type}
-            id={selectedAuxiliary.id}
+            compte={selectedAuxiliary.compte}
             nom={selectedAuxiliary.nom}
             onClose={() => setSelectedAuxiliary(null)}
           />
@@ -3214,42 +4080,680 @@ export default function Comptabilite() {
         {/* Expert-Comptable Tab */}
         {activeTab === 'expert' && (
           <div className="space-y-6">
-            {/* Sous-onglets Expert */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-              {[
-                { id: 'transmission', label: 'Transmission', icon: Share2 },
-                { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
-                { id: 'balance', label: 'Balances', icon: Scale },
-                { id: 'balance-agee', label: 'Balance Âgée', icon: Clock },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setExpertSubTab(tab.id as typeof expertSubTab)}
-                  className={cn(
-                    "px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
-                    expertSubTab === tab.id
-                      ? "bg-white text-purple-600 shadow-sm"
-                      : "text-gray-600 hover:bg-gray-200"
-                  )}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Documents Comptables - Interface Unifiée */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-purple-500" />
+                  Documents Comptables - Exercice {statsYear}
+                </CardTitle>
+                <p className="text-sm text-gray-500">Consultez et exportez vos documents comptables avec filtrage par compte</p>
+              </CardHeader>
+              <CardContent>
+                {/* Sélecteur de type de document + Filtre compte */}
+                <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                  {/* Type de document */}
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Type de document</label>
+                    <div className="flex gap-1 bg-white p-1 rounded-lg border">
+                      {[
+                        { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
+                        { id: 'balance', label: 'Balance', icon: Scale },
+                        { id: 'journaux', label: 'Journaux', icon: Calculator },
+                        { id: 'balance-agee', label: 'Balance Âgée', icon: Clock },
+                      ].map((doc) => (
+                        <button
+                          key={doc.id}
+                          onClick={() => {
+                            setDocType(doc.id as typeof docType);
+                            setCompteFilter('');
+                            setCompteFilterApplied('');
+                          }}
+                          className={cn(
+                            "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5",
+                            docType === doc.id
+                              ? "bg-purple-100 text-purple-700"
+                              : "text-gray-600 hover:bg-gray-100"
+                          )}
+                        >
+                          <doc.icon className="h-3.5 w-3.5" />
+                          {doc.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-            {/* Transmission Sub-tab */}
-            {expertSubTab === 'transmission' && (
+                  {/* Filtre par compte */}
+                  {(docType === 'grand-livre' || docType === 'balance') && (
+                    <div className="flex-1 min-w-[400px]">
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Filtrer par compte</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={compteFilter}
+                          onChange={(e) => {
+                            setCompteFilter(e.target.value);
+                            if (e.target.value) {
+                              setCompteFilterApplied(e.target.value);
+                            }
+                          }}
+                          className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
+                        >
+                          <option value="">-- Tous les comptes --</option>
+                          <optgroup label="Classes">
+                            <option value="1">1 - Capitaux</option>
+                            <option value="2">2 - Immobilisations</option>
+                            <option value="3">3 - Stocks</option>
+                            <option value="4">4 - Tiers</option>
+                            <option value="5">5 - Financiers</option>
+                            <option value="6">6 - Charges</option>
+                            <option value="7">7 - Produits</option>
+                          </optgroup>
+                          <optgroup label="Tiers">
+                            <option value="401">401 - Fournisseurs</option>
+                            <option value="411">411 - Clients</option>
+                            <option value="421">421 - Personnel</option>
+                            <option value="431">431 - Sécurité sociale</option>
+                            <option value="445">445 - TVA</option>
+                          </optgroup>
+                          <optgroup label="Financiers">
+                            <option value="512">512 - Banque</option>
+                            <option value="530">530 - Caisse</option>
+                          </optgroup>
+                          <optgroup label="Charges courantes">
+                            <option value="601">601 - Achats matières</option>
+                            <option value="606">606 - Fournitures</option>
+                            <option value="613">613 - Loyers</option>
+                            <option value="616">616 - Assurances</option>
+                            <option value="626">626 - Télécom</option>
+                            <option value="641">641 - Salaires</option>
+                            <option value="645">645 - Charges sociales</option>
+                          </optgroup>
+                          <optgroup label="Produits">
+                            <option value="706">706 - Prestations services</option>
+                            <option value="707">707 - Ventes marchandises</option>
+                          </optgroup>
+                        </select>
+                        <Input
+                          placeholder="Ou saisir un compte..."
+                          value={compteFilter}
+                          onChange={(e) => setCompteFilter(e.target.value)}
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setCompteFilterApplied(compteFilter);
+                            }
+                          }}
+                        />
+                        <Button
+                          onClick={() => setCompteFilterApplied(compteFilter)}
+                          className="gap-2"
+                        >
+                          <Filter className="h-4 w-4" />
+                          Filtrer
+                        </Button>
+                        {compteFilterApplied && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setCompteFilter('');
+                              setCompteFilterApplied('');
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {compteFilterApplied && (
+                        <p className="text-xs text-purple-600 mt-1">
+                          Filtre actif : comptes commençant par "{compteFilterApplied}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Bouton export */}
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        if (docType === 'grand-livre') exportGrandLivre();
+                        else if (docType === 'balance') exportBalance();
+                      }}
+                    >
+                      <Download className="h-4 w-4" />
+                      Exporter
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Contenu du document sélectionné */}
+
+                {/* Grand Livre */}
+                {docType === 'grand-livre' && (
+                  <>
+                    {grandLivreLoading ? (
+                      <div className="py-8 text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                        <p className="text-gray-500 mt-2">Chargement du Grand Livre...</p>
+                      </div>
+                    ) : grandLivreData?.grand_livre && grandLivreData.grand_livre.length > 0 ? (
+                      <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                        {grandLivreData.grand_livre.map((compte) => (
+                          <div key={compte.compte_numero} className="border rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
+                              <div>
+                                <span className="font-mono text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{compte.compte_numero}</span>
+                                <span className="ml-2 font-medium">{compte.compte_libelle}</span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-green-600 mr-4">D: {formatCurrency(compte.total_debit)}</span>
+                                <span className="text-red-600 mr-4">C: {formatCurrency(compte.total_credit)}</span>
+                                <span className={compte.solde >= 0 ? "text-blue-600 font-medium" : "text-orange-600 font-medium"}>
+                                  Solde: {formatCurrency(compte.solde)}
+                                </span>
+                              </div>
+                            </div>
+                            {compte.mouvements && compte.mouvements.length > 0 && (
+                              <div className="max-h-48 overflow-y-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-100 sticky top-0">
+                                    <tr>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Jnl</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                                      <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
+                                      <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {compte.mouvements.map((e, idx) => (
+                                      <tr key={idx} className="border-t hover:bg-gray-50">
+                                        <td className="py-1.5 px-3">{formatDate(e.date)}</td>
+                                        <td className="py-1.5 px-3 text-xs text-gray-500">{e.journal}</td>
+                                        <td className="py-1.5 px-3">{e.libelle}</td>
+                                        <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit) : ''}</td>
+                                        <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit) : ''}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="bg-purple-50 rounded-lg p-4 flex justify-between items-center sticky bottom-0">
+                          <span className="font-medium text-purple-700">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {grandLivreData.nb_comptes} compte(s)</span>
+                          <div>
+                            <span className="text-green-600 mr-6">Total Débit: {formatCurrency(grandLivreData.totaux?.debit || 0)}</span>
+                            <span className="text-red-600">Total Crédit: {formatCurrency(grandLivreData.totaux?.credit || 0)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-gray-500">
+                        {compteFilterApplied
+                          ? `Aucune écriture trouvée pour les comptes commençant par "${compteFilterApplied}"`
+                          : 'Aucune écriture trouvée pour cet exercice'
+                        }
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Balance Générale */}
+                {docType === 'balance' && (
+                  <>
+                    {balanceGeneraleLoading ? (
+                      <div className="py-8 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                      </div>
+                    ) : balanceGeneraleData?.balance && balanceGeneraleData.balance.length > 0 ? (
+                      <>
+                        <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                                <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Débit</th>
+                                <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Crédit</th>
+                                <th className="text-right py-2 px-3 font-medium text-gray-600">Solde D</th>
+                                <th className="text-right py-2 px-3 font-medium text-gray-600">Solde C</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {balanceGeneraleData.balance.map((c) => (
+                                <React.Fragment key={c.numero}>
+                                  <tr className="border-t hover:bg-gray-50 font-medium">
+                                    <td className="py-2 px-3">
+                                      <span className="font-mono bg-gray-100 px-1.5 rounded">{c.numero}</span>
+                                    </td>
+                                    <td className="py-2 px-3">{c.libelle}</td>
+                                    <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.debit)}</td>
+                                    <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.credit)}</td>
+                                    <td className="py-2 px-3 text-right">{c.solde_debiteur > 0 ? formatCurrency(c.solde_debiteur) : ''}</td>
+                                    <td className="py-2 px-3 text-right">{c.solde_crediteur > 0 ? formatCurrency(c.solde_crediteur) : ''}</td>
+                                  </tr>
+                                  {c.sous_comptes?.map((sc) => (
+                                    <tr key={sc.numero} className="border-t hover:bg-blue-50 text-sm text-gray-600 bg-gray-50">
+                                      <td className="py-1.5 px-3 pl-8">
+                                        <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sc.numero}</span>
+                                      </td>
+                                      <td className="py-1.5 px-3">{sc.libelle}</td>
+                                      <td className="py-1.5 px-3 text-right text-green-500">{formatCurrency(sc.debit)}</td>
+                                      <td className="py-1.5 px-3 text-right text-red-500">{formatCurrency(sc.credit)}</td>
+                                      <td className="py-1.5 px-3 text-right" colSpan={2}>{formatCurrency(sc.solde)}</td>
+                                    </tr>
+                                  ))}
+                                </React.Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-3 flex justify-between items-center mt-2">
+                          <span className="font-bold text-green-700">TOTAUX {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {balanceGeneraleData.nb_comptes} compte(s)</span>
+                          <div className="font-bold">
+                            <span className="text-green-700 mr-4">D: {formatCurrency(balanceGeneraleData.totaux?.debit || 0)}</span>
+                            <span className="text-red-700 mr-4">C: {formatCurrency(balanceGeneraleData.totaux?.credit || 0)}</span>
+                            <span className="text-blue-700 mr-4">SD: {formatCurrency(balanceGeneraleData.totaux?.solde_debiteur || 0)}</span>
+                            <span className="text-orange-700">SC: {formatCurrency(balanceGeneraleData.totaux?.solde_crediteur || 0)}</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-8 text-center text-gray-500">
+                        {compteFilterApplied
+                          ? `Aucun compte trouvé commençant par "${compteFilterApplied}"`
+                          : 'Aucune donnée'
+                        }
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Journaux */}
+                {docType === 'journaux' && (
+                  <div className="space-y-4">
+                    <div className="flex gap-4 items-center flex-wrap">
+                      <div className="min-w-[200px]">
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">Journal</label>
+                        <select
+                          value={selectedJournal}
+                          onChange={(e) => setSelectedJournal(e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                        >
+                          <option value="">-- Choisir un journal --</option>
+                          <option value="BQ">BQ - Banque</option>
+                          <option value="CA">CA - Caisse</option>
+                          <option value="VT">VT - Ventes</option>
+                          <option value="AC">AC - Achats</option>
+                          <option value="PA">PA - Paie</option>
+                          <option value="OD">OD - Opérations Diverses</option>
+                          <option value="AN">AN - À-Nouveaux</option>
+                        </select>
+                      </div>
+                      <div className="min-w-[200px]">
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">Période</label>
+                        <select
+                          value={journalPeriode}
+                          onChange={(e) => setJournalPeriode(e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                        >
+                          {(() => {
+                            const options = [];
+                            const now = new Date();
+                            // Inclure 6 mois futurs + 24 mois passés
+                            for (let i = -6; i < 24; i++) {
+                              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                              const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                              const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                              options.push(<option key={value} value={value}>{label}</option>);
+                            }
+                            return options;
+                          })()}
+                        </select>
+                      </div>
+                      {selectedJournal && ecrituresJournalData?.ecritures && (
+                        <div className="ml-auto text-sm text-gray-600">
+                          {ecrituresJournalData.ecritures.length} écriture(s)
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedJournal && (
+                      <>
+                        {ecrituresJournalLoading ? (
+                          <div className="py-8 text-center">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                          </div>
+                        ) : ecrituresJournalData?.ecritures && ecrituresJournalData.ecritures.length > 0 ? (
+                          <>
+                            <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 sticky top-0">
+                                  <tr>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Pièce</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
+                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
+                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {ecrituresJournalData.ecritures.map((e) => (
+                                    <tr key={e.id} className="border-t hover:bg-gray-50">
+                                      <td className="py-1.5 px-3">{formatDate(e.date_ecriture)}</td>
+                                      <td className="py-1.5 px-3 text-xs text-gray-500">{e.numero_piece}</td>
+                                      <td className="py-1.5 px-3">
+                                        <span className="font-mono text-xs bg-gray-100 px-1 rounded">{e.compte_numero}</span>
+                                      </td>
+                                      <td className="py-1.5 px-3">{e.libelle}</td>
+                                      <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit / 100) : ''}</td>
+                                      <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit / 100) : ''}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="bg-gray-100 rounded-lg p-3 flex justify-between items-center">
+                              <span className="font-medium text-gray-700">Totaux Journal {selectedJournal}</span>
+                              <div className="font-medium flex items-center gap-4">
+                                <span className="text-green-700">Débit: {formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}</span>
+                                <span className="text-red-700">Crédit: {formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}</span>
+                                {selectedJournal === 'BQ' && ecrituresJournalData.totaux?.solde_banque !== undefined && (
+                                  <span className={cn(
+                                    "px-3 py-1 rounded-lg",
+                                    ecrituresJournalData.totaux.solde_banque >= 0 ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                  )}>
+                                    Solde Banque: {formatCurrency(ecrituresJournalData.totaux.solde_banque)}
+                                  </span>
+                                )}
+                                {selectedJournal === 'CA' && ecrituresJournalData.totaux?.solde_caisse !== undefined && (
+                                  <span className={cn(
+                                    "px-3 py-1 rounded-lg",
+                                    ecrituresJournalData.totaux.solde_caisse >= 0 ? "bg-amber-100 text-amber-700" : "bg-orange-100 text-orange-700"
+                                  )}>
+                                    Solde Caisse: {formatCurrency(ecrituresJournalData.totaux.solde_caisse)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="py-8 text-center text-gray-500">
+                            Aucune écriture pour ce journal sur cette période
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Balance Âgée */}
+                {docType === 'balance-agee' && (
+                  <>
+                    {balanceAgeeLoading ? (
+                      <div className="py-8 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                      </div>
+                    ) : balanceAgeeData?.clients && balanceAgeeData.clients.length > 0 ? (
+                      <>
+                        {/* KPIs */}
+                        <div className="grid grid-cols-6 gap-3 mb-6">
+                          <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-gray-500">Total dû</p>
+                            <p className="text-lg font-bold text-gray-800">{formatCurrency((balanceAgeeData.totaux?.total_du || 0) / 100)}</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-green-600">Non échu</p>
+                            <p className="text-lg font-bold text-green-700">{formatCurrency((balanceAgeeData.totaux?.non_echu || 0) / 100)}</p>
+                          </div>
+                          <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-yellow-600">0-30 jours</p>
+                            <p className="text-lg font-bold text-yellow-700">{formatCurrency((balanceAgeeData.totaux?.echu_0_30 || 0) / 100)}</p>
+                          </div>
+                          <div className="bg-orange-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-orange-600">31-60 jours</p>
+                            <p className="text-lg font-bold text-orange-700">{formatCurrency((balanceAgeeData.totaux?.echu_31_60 || 0) / 100)}</p>
+                          </div>
+                          <div className="bg-red-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-red-600">61-90 jours</p>
+                            <p className="text-lg font-bold text-red-700">{formatCurrency((balanceAgeeData.totaux?.echu_61_90 || 0) / 100)}</p>
+                          </div>
+                          <div className="bg-rose-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-rose-600">+90 jours</p>
+                            <p className="text-lg font-bold text-rose-700">{formatCurrency((balanceAgeeData.totaux?.echu_plus_90 || 0) / 100)}</p>
+                          </div>
+                        </div>
+
+                        {/* Tableau */}
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-amber-50">
+                              <tr>
+                                <th className="text-left py-2 px-3 font-medium text-amber-700">Compte</th>
+                                <th className="text-left py-2 px-3 font-medium text-amber-700">Client</th>
+                                <th className="text-right py-2 px-3 font-medium text-amber-700">Total dû</th>
+                                <th className="text-right py-2 px-3 font-medium text-green-600">Non échu</th>
+                                <th className="text-right py-2 px-3 font-medium text-yellow-600">0-30j</th>
+                                <th className="text-right py-2 px-3 font-medium text-orange-600">31-60j</th>
+                                <th className="text-right py-2 px-3 font-medium text-red-600">61-90j</th>
+                                <th className="text-right py-2 px-3 font-medium text-rose-600">+90j</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {balanceAgeeData.clients.map((c) => (
+                                <tr key={c.client_id} className="border-t hover:bg-amber-50">
+                                  <td className="py-2 px-3">
+                                    <span className="font-mono text-xs bg-amber-100 text-amber-700 px-1.5 rounded">{c.compte}</span>
+                                  </td>
+                                  <td className="py-2 px-3">{c.client_nom}</td>
+                                  <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.total_du / 100)}</td>
+                                  <td className="py-2 px-3 text-right text-green-600">{c.non_echu > 0 ? formatCurrency(c.non_echu / 100) : '-'}</td>
+                                  <td className="py-2 px-3 text-right text-yellow-600">{c.echu_0_30 > 0 ? formatCurrency(c.echu_0_30 / 100) : '-'}</td>
+                                  <td className="py-2 px-3 text-right text-orange-600">{c.echu_31_60 > 0 ? formatCurrency(c.echu_31_60 / 100) : '-'}</td>
+                                  <td className="py-2 px-3 text-right text-red-600">{c.echu_61_90 > 0 ? formatCurrency(c.echu_61_90 / 100) : '-'}</td>
+                                  <td className="py-2 px-3 text-right text-rose-600">{c.echu_plus_90 > 0 ? formatCurrency(c.echu_plus_90 / 100) : '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-8 text-center text-gray-500">
+                        Aucune créance client à analyser
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Exports pour Transmission */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Share2 className="h-5 w-5 text-purple-500" />
+                  Exports pour Transmission
+                </CardTitle>
+                <p className="text-sm text-gray-500">Exportez vos données comptables pour votre expert-comptable</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportGrandLivre}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-blue-100 rounded-lg">
+                        <FileText className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Grand Livre</h4>
+                        <p className="text-xs text-gray-500">Écritures comptables</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBalance}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-green-100 rounded-lg">
+                        <Scale className="h-6 w-6 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Balance</h4>
+                        <p className="text-xs text-gray-500">Soldes des comptes</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportFacturesToExcel}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-purple-100 rounded-lg">
+                        <Calculator className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Journal Ventes</h4>
+                        <p className="text-xs text-gray-500">Factures</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportDepensesToExcel}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-orange-100 rounded-lg">
+                        <Euro className="h-6 w-6 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Journal Achats</h4>
+                        <p className="text-xs text-gray-500">Dépenses</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportJournalPaie}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-rose-100 rounded-lg">
+                        <Users className="h-6 w-6 text-rose-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Journal Paie</h4>
+                        <p className="text-xs text-gray-500">Salaires</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportCompteResultat}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-cyan-100 rounded-lg">
+                        <BarChart3 className="h-6 w-6 text-cyan-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Compte Résultat</h4>
+                        <p className="text-xs text-gray-500">P&L</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBilan}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-pink-100 rounded-lg">
+                        <Wallet className="h-6 w-6 text-pink-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Bilan</h4>
+                        <p className="text-xs text-gray-500">Actif/Passif</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportFEC}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="p-3 bg-indigo-100 rounded-lg">
+                        <Landmark className="h-6 w-6 text-indigo-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">FEC</h4>
+                        <p className="text-xs text-gray-500">Format légal</p>
+                      </div>
+                      <Download className="h-5 w-5 text-gray-400" />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-4 mt-4 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    disabled={isRegenerating}
+                    onClick={async () => {
+                      setIsRegenerating(true);
+                      try {
+                        const result = await comptaApi.genererToutesEcritures();
+                        setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
+                        setTimeout(() => window.location.reload(), 1500);
+                      } catch (err) {
+                        console.error('[COMPTA] Erreur régénération:', err);
+                        setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
+                        setIsRegenerating(false);
+                        setTimeout(() => setNotification(null), 3000);
+                      }
+                    }}
+                  >
+                    <RefreshCw className={cn("h-4 w-4", isRegenerating && "animate-spin")} />
+                    {isRegenerating ? 'Régénération...' : 'Régénérer les écritures'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={async () => {
+                      const exercicePrecedent = new Date().getFullYear() - 1;
+                      const confirmer = confirm(
+                        `Générer les à nouveaux pour ${exercicePrecedent + 1} à partir de l'exercice ${exercicePrecedent} ?\n\n` +
+                        `Cette action va reporter les soldes des comptes de bilan et affecter le résultat de l'exercice ${exercicePrecedent}.`
+                      );
+                      if (!confirmer) return;
+
+                      try {
+                        const result = await comptaApi.genererANouveaux(exercicePrecedent);
+                        const message = result.resultat !== undefined
+                          ? `${result.message}\nRésultat: ${result.resultat?.toFixed(2)}€ (${result.resultat_type})`
+                          : result.message;
+                        setNotification({ type: 'success', message });
+                        window.location.reload();
+                      } catch (err: unknown) {
+                        const error = err as Error;
+                        setNotification({ type: 'error', message: error.message || 'Erreur génération à nouveaux' });
+                      }
+                      setTimeout(() => setNotification(null), 5000);
+                    }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Générer les À-Nouveaux
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Connexion Expert-Comptable */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserCheck className="h-5 w-5 text-purple-500" />
-                  Transmission Expert-Comptable
+                  Connexion Expert-Comptable
                 </CardTitle>
-                <p className="text-sm text-gray-500">Partagez vos données comptables avec votre expert-comptable</p>
+                <p className="text-sm text-gray-500">Donnez accès à vos données comptables à votre expert</p>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Connexion expert-comptable */}
+              <CardContent>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-6">
                   <div className="text-center">
                     <UserCheck className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -3269,745 +4773,11 @@ export default function Comptabilite() {
                     </div>
                   </div>
                 </div>
-
-                {/* Export pour expert-comptable */}
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Exports pour transmission</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportGrandLivre}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg">
-                          <FileText className="h-6 w-6 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Grand Livre</h4>
-                          <p className="text-xs text-gray-500">Toutes les écritures comptables</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBalance}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-green-100 rounded-lg">
-                          <FileSpreadsheet className="h-6 w-6 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Balance</h4>
-                          <p className="text-xs text-gray-500">Soldes des comptes</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportFacturesToExcel}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-lg">
-                          <Calculator className="h-6 w-6 text-purple-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Journal des ventes</h4>
-                          <p className="text-xs text-gray-500">Toutes les factures</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportDepensesToExcel}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-orange-100 rounded-lg">
-                          <Euro className="h-6 w-6 text-orange-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Journal des achats</h4>
-                          <p className="text-xs text-gray-500">Toutes les dépenses</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportJournalPaie}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-rose-100 rounded-lg">
-                          <Users className="h-6 w-6 text-rose-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Journal de paie</h4>
-                          <p className="text-xs text-gray-500">Salaires et cotisations</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportCompteResultat}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-cyan-100 rounded-lg">
-                          <BarChart3 className="h-6 w-6 text-cyan-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Compte de résultat</h4>
-                          <p className="text-xs text-gray-500">P&L détaillé</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBilan}>
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="p-3 bg-pink-100 rounded-lg">
-                          <Wallet className="h-6 w-6 text-pink-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">Bilan</h4>
-                          <p className="text-xs text-gray-500">Situation patrimoniale</p>
-                        </div>
-                        <Download className="h-5 w-5 text-gray-400" />
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-
-                {/* FEC Export */}
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-purple-100 rounded-lg">
-                      <FilePlus className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">Export FEC (Fichier des Écritures Comptables)</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Générez le fichier normalisé obligatoire pour l'administration fiscale française.
-                        Ce format est également accepté par tous les logiciels comptables.
-                      </p>
-                      <Button className="mt-4 gap-2" onClick={exportFEC}>
-                        <Download className="h-4 w-4" />
-                        Générer le FEC {statsYear}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
-            )}
-
-            {/* Journaux Comptables - also in transmission sub-tab */}
-            {expertSubTab === 'transmission' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-500" />
-                  Journaux Comptables
-                </CardTitle>
-                <p className="text-sm text-gray-500">Consultez vos écritures par journal et par mois</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Sélection Journal et Période */}
-                <div className="flex flex-wrap gap-4 items-center">
-                  {/* Sélection du journal */}
-                  <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-                    {[
-                      { code: 'BQ', label: 'Banque', color: 'purple' },
-                      { code: 'CA', label: 'Caisse', color: 'amber' },
-                      { code: 'VT', label: 'Ventes', color: 'green' },
-                      { code: 'AC', label: 'Achats', color: 'orange' },
-                      { code: 'PA', label: 'Paie', color: 'rose' },
-                      { code: 'OD', label: 'OD', color: 'blue' },
-                      { code: 'AN', label: 'À-nouveaux', color: 'gray' },
-                    ].map((j) => (
-                      <button
-                        key={j.code}
-                        onClick={() => setSelectedJournal(j.code)}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          selectedJournal === j.code
-                            ? j.color === 'purple' ? "bg-purple-600 text-white"
-                            : j.color === 'amber' ? "bg-amber-600 text-white"
-                            : j.color === 'green' ? "bg-green-600 text-white"
-                            : j.color === 'orange' ? "bg-orange-600 text-white"
-                            : j.color === 'rose' ? "bg-rose-600 text-white"
-                            : j.color === 'gray' ? "bg-gray-600 text-white"
-                            : "bg-blue-600 text-white"
-                            : "text-gray-600 hover:bg-gray-200"
-                        )}
-                      >
-                        {j.code}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Sélection du mois */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        const [y, m] = journalPeriode.split('-').map(Number);
-                        const newDate = new Date(y, m - 2, 1);
-                        setJournalPeriode(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <ChevronDown className="h-4 w-4 rotate-90" />
-                    </button>
-                    <Input
-                      type="month"
-                      value={journalPeriode}
-                      onChange={(e) => setJournalPeriode(e.target.value)}
-                      className="w-40"
-                    />
-                    <button
-                      onClick={() => {
-                        const [y, m] = journalPeriode.split('-').map(Number);
-                        const newDate = new Date(y, m, 1);
-                        setJournalPeriode(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <ChevronDown className="h-4 w-4 -rotate-90" />
-                    </button>
-                  </div>
-
-                  {/* Nom du journal */}
-                  <div className="ml-auto text-sm text-gray-600">
-                    {selectedJournal === 'BQ' && 'Journal de Banque'}
-                    {selectedJournal === 'CA' && 'Journal de Caisse'}
-                    {selectedJournal === 'VT' && 'Journal des Ventes'}
-                    {selectedJournal === 'AC' && 'Journal des Achats'}
-                    {selectedJournal === 'PA' && 'Journal de Paie'}
-                    {selectedJournal === 'OD' && 'Opérations Diverses'}
-                    {selectedJournal === 'AN' && 'Journal des À-nouveaux'}
-                  </div>
-                </div>
-
-                {/* Totaux du journal */}
-                {ecrituresJournalData && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-green-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-green-600">Total Débit</p>
-                      <p className="text-lg font-bold text-green-700">
-                        {formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}
-                      </p>
-                    </div>
-                    <div className="bg-red-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-red-600">Total Crédit</p>
-                      <p className="text-lg font-bold text-red-700">
-                        {formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}
-                      </p>
-                    </div>
-                    <div className={cn(
-                      "rounded-lg p-3 text-center",
-                      // Pour BQ/CA: utiliser solde_banque/solde_caisse (déjà en euros), sinon solde normal
-                      (() => {
-                        const solde = selectedJournal === 'BQ'
-                          ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
-                          : selectedJournal === 'CA'
-                          ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
-                          : (ecrituresJournalData.totaux?.solde || 0);
-                        return solde >= 0 ? "bg-blue-50" : "bg-orange-50";
-                      })()
-                    )}>
-                      <p className={cn(
-                        "text-xs",
-                        (() => {
-                          const solde = selectedJournal === 'BQ'
-                            ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
-                            : selectedJournal === 'CA'
-                            ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
-                            : (ecrituresJournalData.totaux?.solde || 0);
-                          return solde >= 0 ? "text-blue-600" : "text-orange-600";
-                        })()
-                      )}>
-                        {selectedJournal === 'BQ' ? 'Solde Banque' : selectedJournal === 'CA' ? 'Solde Caisse' : 'Solde'}
-                      </p>
-                      <p className={cn(
-                        "text-lg font-bold",
-                        (() => {
-                          const solde = selectedJournal === 'BQ'
-                            ? (ecrituresJournalData.totaux?.solde_banque ?? 0)
-                            : selectedJournal === 'CA'
-                            ? (ecrituresJournalData.totaux?.solde_caisse ?? 0)
-                            : (ecrituresJournalData.totaux?.solde || 0);
-                          return solde >= 0 ? "text-blue-700" : "text-orange-700";
-                        })()
-                      )}>
-                        {selectedJournal === 'BQ'
-                          ? formatCurrency(ecrituresJournalData.totaux?.solde_banque ?? 0)
-                          : selectedJournal === 'CA'
-                          ? formatCurrency(ecrituresJournalData.totaux?.solde_caisse ?? 0)
-                          : formatCurrency((ecrituresJournalData.totaux?.solde || 0) / 100)
-                        }
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Liste des écritures */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="max-h-96 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="text-left py-2 px-3 text-gray-600 font-medium">Date</th>
-                          <th className="text-left py-2 px-3 text-gray-600 font-medium">N° Pièce</th>
-                          <th className="text-left py-2 px-3 text-gray-600 font-medium">Compte</th>
-                          <th className="text-left py-2 px-3 text-gray-600 font-medium">Libellé</th>
-                          <th className="text-right py-2 px-3 text-gray-600 font-medium">Débit</th>
-                          <th className="text-right py-2 px-3 text-gray-600 font-medium">Crédit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ecrituresJournalLoading && (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center">
-                              <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                            </td>
-                          </tr>
-                        )}
-                        {!ecrituresJournalLoading && (!ecrituresJournalData?.ecritures || ecrituresJournalData.ecritures.length === 0) && (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center text-gray-500">
-                              Aucune écriture pour cette période
-                            </td>
-                          </tr>
-                        )}
-                        {(ecrituresJournalData?.ecritures || []).map((e) => (
-                          <tr key={e.id} className="border-t hover:bg-gray-50">
-                            <td className="py-2 px-3">{formatDate(e.date_ecriture)}</td>
-                            <td className="py-2 px-3 text-xs text-gray-500">{e.numero_piece || '-'}</td>
-                            <td className="py-2 px-3">
-                              <span className="font-mono text-xs bg-gray-100 px-1 rounded">{e.compte_numero}</span>
-                              <span className="ml-1 text-gray-600">{e.compte_libelle}</span>
-                            </td>
-                            <td className="py-2 px-3">{e.libelle}</td>
-                            <td className="py-2 px-3 text-right font-medium text-green-600">
-                              {e.debit > 0 ? formatCurrency(e.debit / 100) : ''}
-                            </td>
-                            <td className="py-2 px-3 text-right font-medium text-red-600">
-                              {e.credit > 0 ? formatCurrency(e.credit / 100) : ''}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Info et boutons */}
-                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-600">
-                    {ecrituresJournalData?.ecritures?.length || 0} écriture(s) ce mois
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={async () => {
-                        const exercicePrecedent = new Date().getFullYear() - 1;
-                        const confirmer = confirm(
-                          `Générer les à nouveaux pour ${exercicePrecedent + 1} à partir de l'exercice ${exercicePrecedent} ?\n\n` +
-                          `Cette action va reporter les soldes des comptes de bilan et affecter le résultat de l'exercice ${exercicePrecedent}.`
-                        );
-                        if (!confirmer) return;
-
-                        try {
-                          const result = await comptaApi.genererANouveaux(exercicePrecedent);
-                          const message = result.resultat !== undefined
-                            ? `${result.message}\nRésultat: ${result.resultat?.toFixed(2)}€ (${result.resultat_type})`
-                            : result.message;
-                          setNotification({ type: 'success', message });
-                          window.location.reload();
-                        } catch (err: unknown) {
-                          const error = err as Error;
-                          setNotification({ type: 'error', message: error.message || 'Erreur génération à nouveaux' });
-                        }
-                        setTimeout(() => setNotification(null), 5000);
-                      }}
-                    >
-                      <FileText className="h-4 w-4" />
-                      À Nouveaux
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      disabled={isRegenerating}
-                      onClick={async () => {
-                        setIsRegenerating(true);
-                        try {
-                          const result = await comptaApi.genererToutesEcritures();
-                          setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
-                          // Refetch des écritures après un court délai
-                          setTimeout(() => {
-                            window.location.reload();
-                          }, 1500);
-                        } catch (err) {
-                          console.error('[COMPTA] Erreur régénération:', err);
-                          setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
-                          setIsRegenerating(false);
-                          setTimeout(() => setNotification(null), 3000);
-                        }
-                      }}
-                    >
-                      <RefreshCw className={cn("h-4 w-4", isRegenerating && "animate-spin")} />
-                      {isRegenerating ? 'Régénération...' : 'Régénérer'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            )}
-
-            {/* Grand Livre Sub-tab */}
-            {expertSubTab === 'grand-livre' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-500" />
-                    Grand Livre - Exercice {statsYear}
-                  </CardTitle>
-                  <p className="text-sm text-gray-500">Détail des mouvements par compte avec sous-comptes auxiliaires</p>
-                </CardHeader>
-                <CardContent>
-                  {grandLivreLoading ? (
-                    <div className="py-8 text-center">
-                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-                      <p className="text-gray-500 mt-2">Chargement du Grand Livre...</p>
-                    </div>
-                  ) : grandLivreData?.comptes && grandLivreData.comptes.length > 0 ? (
-                    <div className="space-y-6">
-                      {grandLivreData.comptes.map((compte) => (
-                        <div key={compte.numero} className="border rounded-lg overflow-hidden">
-                          <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                            <div>
-                              <span className="font-mono text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{compte.numero}</span>
-                              <span className="ml-2 font-medium">{compte.libelle}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className="text-green-600 mr-4">D: {formatCurrency(compte.total_debit / 100)}</span>
-                              <span className="text-red-600 mr-4">C: {formatCurrency(compte.total_credit / 100)}</span>
-                              <span className={compte.solde >= 0 ? "text-blue-600 font-medium" : "text-orange-600 font-medium"}>
-                                Solde: {formatCurrency(compte.solde / 100)}
-                              </span>
-                            </div>
-                          </div>
-                          {compte.ecritures && compte.ecritures.length > 0 && (
-                            <div className="max-h-48 overflow-y-auto">
-                              <table className="w-full text-sm">
-                                <thead className="bg-gray-100 sticky top-0">
-                                  <tr>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Jnl</th>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
-                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
-                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Solde</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {compte.ecritures.map((e, idx) => (
-                                    <tr key={idx} className="border-t hover:bg-gray-50">
-                                      <td className="py-1.5 px-3">{formatDate(e.date_ecriture)}</td>
-                                      <td className="py-1.5 px-3 text-xs text-gray-500">{e.journal_code}</td>
-                                      <td className="py-1.5 px-3">{e.libelle}</td>
-                                      <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit / 100) : ''}</td>
-                                      <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit / 100) : ''}</td>
-                                      <td className="py-1.5 px-3 text-right font-medium">{formatCurrency((e.solde_progressif || 0) / 100)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <div className="bg-purple-50 rounded-lg p-4 flex justify-between items-center">
-                        <span className="font-medium text-purple-700">Totaux Grand Livre</span>
-                        <div>
-                          <span className="text-green-600 mr-6">Total Débit: {formatCurrency((grandLivreData.totaux?.debit || 0) / 100)}</span>
-                          <span className="text-red-600">Total Crédit: {formatCurrency((grandLivreData.totaux?.credit || 0) / 100)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-gray-500">
-                      Aucune écriture trouvée pour cet exercice
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Balances Sub-tab */}
-            {expertSubTab === 'balance' && (
-              <div className="space-y-6">
-                {/* Balance Générale */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Scale className="h-5 w-5 text-green-500" />
-                      Balance Générale - Exercice {statsYear}
-                    </CardTitle>
-                    <p className="text-sm text-gray-500">Soldes de tous les comptes avec sous-comptes auxiliaires</p>
-                  </CardHeader>
-                  <CardContent>
-                    {balanceGeneraleLoading ? (
-                      <div className="py-8 text-center">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                      </div>
-                    ) : balanceGeneraleData?.comptes && balanceGeneraleData.comptes.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
-                              <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                              <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Débit</th>
-                              <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Crédit</th>
-                              <th className="text-right py-2 px-3 font-medium text-gray-600">Solde D</th>
-                              <th className="text-right py-2 px-3 font-medium text-gray-600">Solde C</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {balanceGeneraleData.comptes.map((c) => (
-                              <>
-                                <tr key={c.numero} className="border-t hover:bg-gray-50 font-medium">
-                                  <td className="py-2 px-3">
-                                    <span className="font-mono bg-gray-100 px-1.5 rounded">{c.numero}</span>
-                                  </td>
-                                  <td className="py-2 px-3">{c.libelle}</td>
-                                  <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
-                                  <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
-                                  <td className="py-2 px-3 text-right">{c.solde_debiteur > 0 ? formatCurrency(c.solde_debiteur / 100) : ''}</td>
-                                  <td className="py-2 px-3 text-right">{c.solde_crediteur > 0 ? formatCurrency(c.solde_crediteur / 100) : ''}</td>
-                                </tr>
-                                {c.sous_comptes?.map((sc) => (
-                                  <tr key={sc.numero} className="border-t hover:bg-blue-50 text-sm text-gray-600 bg-gray-50">
-                                    <td className="py-1.5 px-3 pl-8">
-                                      <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sc.numero}</span>
-                                    </td>
-                                    <td className="py-1.5 px-3">{sc.libelle}</td>
-                                    <td className="py-1.5 px-3 text-right text-green-500">{formatCurrency(sc.mouvement_debit / 100)}</td>
-                                    <td className="py-1.5 px-3 text-right text-red-500">{formatCurrency(sc.mouvement_credit / 100)}</td>
-                                    <td className="py-1.5 px-3 text-right">{sc.solde_debiteur > 0 ? formatCurrency(sc.solde_debiteur / 100) : ''}</td>
-                                    <td className="py-1.5 px-3 text-right">{sc.solde_crediteur > 0 ? formatCurrency(sc.solde_crediteur / 100) : ''}</td>
-                                  </tr>
-                                ))}
-                              </>
-                            ))}
-                          </tbody>
-                          <tfoot className="bg-green-50 font-bold">
-                            <tr>
-                              <td colSpan={2} className="py-2 px-3">TOTAUX</td>
-                              <td className="py-2 px-3 text-right text-green-700">{formatCurrency((balanceGeneraleData.totaux?.mouvement_debit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right text-red-700">{formatCurrency((balanceGeneraleData.totaux?.mouvement_credit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceGeneraleData.totaux?.solde_debiteur || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceGeneraleData.totaux?.solde_crediteur || 0) / 100)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center text-gray-500">Aucune donnée</div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Balance Clients */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5 text-blue-500" />
-                      Balance Clients (411)
-                    </CardTitle>
-                    <p className="text-sm text-gray-500">Sous-comptes auxiliaires clients</p>
-                  </CardHeader>
-                  <CardContent>
-                    {balanceClientsLoading ? (
-                      <div className="py-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
-                    ) : balanceClientsData?.comptes && balanceClientsData.comptes.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-blue-50">
-                            <tr>
-                              <th className="text-left py-2 px-3 font-medium text-blue-700">Compte</th>
-                              <th className="text-left py-2 px-3 font-medium text-blue-700">Client</th>
-                              <th className="text-right py-2 px-3 font-medium text-blue-700">Débit</th>
-                              <th className="text-right py-2 px-3 font-medium text-blue-700">Crédit</th>
-                              <th className="text-right py-2 px-3 font-medium text-blue-700">Solde</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {balanceClientsData.comptes.map((c) => (
-                              <tr key={c.compte} className="border-t hover:bg-blue-50">
-                                <td className="py-2 px-3">
-                                  <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{c.compte}</span>
-                                </td>
-                                <td className="py-2 px-3">{c.nom}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
-                                <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
-                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.solde / 100)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot className="bg-blue-100 font-bold">
-                            <tr>
-                              <td colSpan={2} className="py-2 px-3">TOTAL ({balanceClientsData.totaux?.nb_comptes} clients)</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.mouvement_debit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.mouvement_credit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceClientsData.totaux?.solde || 0) / 100)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="py-4 text-center text-gray-500">Aucun sous-compte client</div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Balance Fournisseurs */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5 text-orange-500" />
-                      Balance Fournisseurs (401)
-                    </CardTitle>
-                    <p className="text-sm text-gray-500">Sous-comptes auxiliaires fournisseurs</p>
-                  </CardHeader>
-                  <CardContent>
-                    {balanceFournisseursLoading ? (
-                      <div className="py-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
-                    ) : balanceFournisseursData?.comptes && balanceFournisseursData.comptes.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-orange-50">
-                            <tr>
-                              <th className="text-left py-2 px-3 font-medium text-orange-700">Compte</th>
-                              <th className="text-left py-2 px-3 font-medium text-orange-700">Fournisseur</th>
-                              <th className="text-right py-2 px-3 font-medium text-orange-700">Débit</th>
-                              <th className="text-right py-2 px-3 font-medium text-orange-700">Crédit</th>
-                              <th className="text-right py-2 px-3 font-medium text-orange-700">Solde</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {balanceFournisseursData.comptes.map((c) => (
-                              <tr key={c.compte} className="border-t hover:bg-orange-50">
-                                <td className="py-2 px-3">
-                                  <span className="font-mono text-xs bg-orange-100 text-orange-700 px-1.5 rounded">{c.compte}</span>
-                                </td>
-                                <td className="py-2 px-3">{c.nom}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.mouvement_debit / 100)}</td>
-                                <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.mouvement_credit / 100)}</td>
-                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.solde / 100)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot className="bg-orange-100 font-bold">
-                            <tr>
-                              <td colSpan={2} className="py-2 px-3">TOTAL ({balanceFournisseursData.totaux?.nb_comptes} fournisseurs)</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.mouvement_debit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.mouvement_credit || 0) / 100)}</td>
-                              <td className="py-2 px-3 text-right">{formatCurrency((balanceFournisseursData.totaux?.solde || 0) / 100)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="py-4 text-center text-gray-500">Aucun sous-compte fournisseur</div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Balance Âgée Sub-tab */}
-            {expertSubTab === 'balance-agee' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-amber-500" />
-                    Balance Âgée des Créances
-                  </CardTitle>
-                  <p className="text-sm text-gray-500">Analyse du vieillissement des créances clients</p>
-                </CardHeader>
-                <CardContent>
-                  {balanceAgeeLoading ? (
-                    <div className="py-8 text-center">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                    </div>
-                  ) : balanceAgeeData?.clients && balanceAgeeData.clients.length > 0 ? (
-                    <>
-                      {/* KPIs */}
-                      <div className="grid grid-cols-6 gap-3 mb-6">
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-gray-500">Total dû</p>
-                          <p className="text-lg font-bold text-gray-800">{formatCurrency((balanceAgeeData.totaux?.total_du || 0) / 100)}</p>
-                        </div>
-                        <div className="bg-green-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-green-600">Non échu</p>
-                          <p className="text-lg font-bold text-green-700">{formatCurrency((balanceAgeeData.totaux?.non_echu || 0) / 100)}</p>
-                        </div>
-                        <div className="bg-yellow-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-yellow-600">0-30 jours</p>
-                          <p className="text-lg font-bold text-yellow-700">{formatCurrency((balanceAgeeData.totaux?.echu_0_30 || 0) / 100)}</p>
-                        </div>
-                        <div className="bg-orange-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-orange-600">31-60 jours</p>
-                          <p className="text-lg font-bold text-orange-700">{formatCurrency((balanceAgeeData.totaux?.echu_31_60 || 0) / 100)}</p>
-                        </div>
-                        <div className="bg-red-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-red-600">61-90 jours</p>
-                          <p className="text-lg font-bold text-red-700">{formatCurrency((balanceAgeeData.totaux?.echu_61_90 || 0) / 100)}</p>
-                        </div>
-                        <div className="bg-rose-50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-rose-600">+90 jours</p>
-                          <p className="text-lg font-bold text-rose-700">{formatCurrency((balanceAgeeData.totaux?.echu_plus_90 || 0) / 100)}</p>
-                        </div>
-                      </div>
-
-                      {/* Tableau */}
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-amber-50">
-                            <tr>
-                              <th className="text-left py-2 px-3 font-medium text-amber-700">Compte</th>
-                              <th className="text-left py-2 px-3 font-medium text-amber-700">Client</th>
-                              <th className="text-right py-2 px-3 font-medium text-amber-700">Total dû</th>
-                              <th className="text-right py-2 px-3 font-medium text-green-600">Non échu</th>
-                              <th className="text-right py-2 px-3 font-medium text-yellow-600">0-30j</th>
-                              <th className="text-right py-2 px-3 font-medium text-orange-600">31-60j</th>
-                              <th className="text-right py-2 px-3 font-medium text-red-600">61-90j</th>
-                              <th className="text-right py-2 px-3 font-medium text-rose-600">+90j</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {balanceAgeeData.clients.map((c) => (
-                              <tr key={c.client_id} className="border-t hover:bg-amber-50">
-                                <td className="py-2 px-3">
-                                  <span className="font-mono text-xs bg-amber-100 text-amber-700 px-1.5 rounded">{c.compte}</span>
-                                </td>
-                                <td className="py-2 px-3">{c.client_nom}</td>
-                                <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.total_du / 100)}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{c.non_echu > 0 ? formatCurrency(c.non_echu / 100) : '-'}</td>
-                                <td className="py-2 px-3 text-right text-yellow-600">{c.echu_0_30 > 0 ? formatCurrency(c.echu_0_30 / 100) : '-'}</td>
-                                <td className="py-2 px-3 text-right text-orange-600">{c.echu_31_60 > 0 ? formatCurrency(c.echu_31_60 / 100) : '-'}</td>
-                                <td className="py-2 px-3 text-right text-red-600">{c.echu_61_90 > 0 ? formatCurrency(c.echu_61_90 / 100) : '-'}</td>
-                                <td className="py-2 px-3 text-right text-rose-600">{c.echu_plus_90 > 0 ? formatCurrency(c.echu_plus_90 / 100) : '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="py-8 text-center text-gray-500">
-                      Aucune créance client à analyser
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
+
       </div>
 
       {/* Invoice Detail Modal */}
@@ -4086,6 +4856,63 @@ export default function Comptabilite() {
           </Card>
         </div>
       )}
+
+      {/* Invoice Payment Modal */}
+      {showInvoicePaymentModal && pendingInvoiceId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Enregistrer le paiement</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => { setShowInvoicePaymentModal(false); setPendingInvoiceId(null); }} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Sélectionnez le mode de paiement pour cette facture.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {MODES_PAIEMENT.map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setInvoicePaymentMode(mode.value as 'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque')}
+                    className={`p-4 rounded-lg border-2 transition-all text-center ${
+                      invoicePaymentMode === mode.value
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">{mode.icon}</span>
+                    <span className={`text-sm font-medium ${
+                      invoicePaymentMode === mode.value ? 'text-green-700' : 'text-gray-700'
+                    }`}>
+                      {mode.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => { setShowInvoicePaymentModal(false); setPendingInvoiceId(null); }}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => enregistrerPaiementMutation.mutate({ factureId: pendingInvoiceId, mode_paiement: invoicePaymentMode })}
+                  disabled={enregistrerPaiementMutation.isPending}
+                  className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
+                >
+                  {enregistrerPaiementMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Confirmer le paiement
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -4153,7 +4980,18 @@ function InvoiceDetailModal({
           <div className="grid grid-cols-2 gap-6">
             <div>
               <h3 className="text-sm font-semibold text-gray-500 mb-2">Client</h3>
-              <p className="font-medium">{invoice.client_nom || '-'}</p>
+              <EntityLink
+                type="client"
+                entity={{
+                  id: invoice.client_id,
+                  nom: invoice.client_nom?.split(' ').slice(-1)[0] || '',
+                  prenom: invoice.client_nom?.split(' ').slice(0, -1).join(' ') || '',
+                  telephone: invoice.client_telephone || '',
+                  email: invoice.client_email || undefined
+                }}
+                label={invoice.client_nom || '-'}
+                className="font-medium"
+              />
               {invoice.client_email && <p className="text-sm text-gray-600">{invoice.client_email}</p>}
               {invoice.client_telephone && <p className="text-sm text-gray-600">{invoice.client_telephone}</p>}
             </div>

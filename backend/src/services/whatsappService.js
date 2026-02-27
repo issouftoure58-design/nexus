@@ -30,8 +30,18 @@ function getSupabase() {
 /**
  * Récupère les RDV existants pour une date donnée depuis la DB
  * Utilisé pour la détection de conflits/chevauchements
+ * 🔒 TENANT ISOLATION: Requiert tenant_id obligatoire
+ *
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  */
-async function getRdvExistantsByDate(date) {
+async function getRdvExistantsByDate(date, tenantId) {
+  // 🔒 TENANT SHIELD: Rejeter si pas de tenantId
+  if (!tenantId) {
+    console.error('[WhatsApp] SECURITY: getRdvExistantsByDate called without tenantId!');
+    return [];
+  }
+
   const db = getSupabase();
   if (!db) return [];
 
@@ -39,6 +49,7 @@ async function getRdvExistantsByDate(date) {
     const { data: bookings, error } = await db
       .from('reservations')
       .select('id, date, heure, duree_minutes, service_nom, statut, duree_trajet_minutes')
+      .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', date)
       .in('statut', BLOCKING_STATUTS);
 
@@ -65,12 +76,68 @@ const {
   SERVICES,
   SERVICES_LIST,
   HORAIRES,
-  SALON_INFO,
+  SALON_INFO, // @deprecated - utiliser getSalonInfo(tenantId)
   DEPLACEMENT,
   getHalimahPrompt,
   createAppointment,
-  parseJourToDate
+  parseJourToDate,
+  // V2 - Multi-tenant
+  getSalonInfo,
+  getBaseAddress
 } = bookingService;
+
+// V2 - Import service business pour config dynamique
+import { getBusinessInfoSync, getAIContext, getTerminology } from './tenantBusinessService.js';
+
+/**
+ * V2 - Récupère l'URL frontend pour un tenant
+ */
+function getFrontendUrl(tenantId) {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return info.urls?.frontend || process.env.FRONTEND_URL || 'https://fatshairafro.fr';
+  } catch (e) {
+    return process.env.FRONTEND_URL || 'https://fatshairafro.fr';
+  }
+}
+
+/**
+ * V2 - Récupère l'adresse de départ pour un tenant
+ */
+function getAdresseDepart(tenantId) {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return info.adresse || '8 rue des Monts Rouges, 95130 Franconville';
+  } catch (e) {
+    return '8 rue des Monts Rouges, 95130 Franconville';
+  }
+}
+
+/**
+ * V2 - Génère la signature de message pour un tenant
+ */
+function getSignature(tenantId) {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return `${info.nom}\n📞 ${info.telephone}`;
+  } catch (e) {
+    return `Fat's Hair-Afro\n📞 07 82 23 50 20`;
+  }
+}
+
+/**
+ * V2 - Génère le message d'accueil WhatsApp
+ */
+function getWhatsAppGreeting(tenantId, clientName = '') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const assistant = info.assistant_name || 'Nexus';
+    const gerant = info.gerant || 'notre équipe';
+    return `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.`;
+  } catch (e) {
+    return `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis Halimah, l'assistante de Fatou.`;
+  }
+}
 
 // Store des contextes nexusCore par numéro de téléphone
 const nexusContexts = new Map();
@@ -424,10 +491,11 @@ export const HALIMAH_TOOLS = [
  * Exécute un outil demandé par l'IA
  * @param {string} toolName - Nom de l'outil
  * @param {Object} toolInput - Paramètres de l'outil
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE pour opérations DB)
  * @returns {Promise<Object>} Résultat de l'outil
  */
-export async function executeHalimahTool(toolName, toolInput) {
-  console.log(`[Halimah] Exécution outil: ${toolName}`, toolInput);
+export async function executeHalimahTool(toolName, toolInput, tenantId = null) {
+  console.log(`[Halimah] Exécution outil: ${toolName} (tenant: ${tenantId})`, toolInput);
 
   try {
     switch (toolName) {
@@ -456,8 +524,8 @@ export async function executeHalimahTool(toolName, toolInput) {
       }
 
       case 'verifier_disponibilite': {
-        // Récupérer les RDV existants depuis la DB
-        const rdvExistants = await getRdvExistantsByDate(toolInput.date);
+        // 🔒 TENANT ISOLATION: Récupérer les RDV existants depuis la DB
+        const rdvExistants = await getRdvExistantsByDate(toolInput.date, tenantId);
 
         const result = await checkDisponibilite(
           toolInput.date,
@@ -476,8 +544,8 @@ export async function executeHalimahTool(toolName, toolInput) {
       }
 
       case 'obtenir_creneaux_disponibles': {
-        // Récupérer les RDV existants depuis la DB
-        const rdvExistants = await getRdvExistantsByDate(toolInput.date);
+        // 🔒 TENANT ISOLATION: Récupérer les RDV existants depuis la DB
+        const rdvExistants = await getRdvExistantsByDate(toolInput.date, tenantId);
 
         // Horaires par défaut
         const horaires = getHorairesJour(toolInput.date);
@@ -572,9 +640,10 @@ function getHorairesJour(dateStr) {
  * @param {string} adresse_client - Adresse du client
  * @param {number} maxDays - Nombre maximum de jours à chercher (défaut: 14)
  * @param {number} maxResults - Nombre de dates à retourner (défaut: 3)
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @returns {Promise<Array>} Liste des prochaines dates avec créneaux
  */
-async function findNextAvailableDates(startDate, duree_minutes, adresse_client, maxDays = 14, maxResults = 3) {
+async function findNextAvailableDates(startDate, duree_minutes, adresse_client, maxDays = 14, maxResults = 3, tenantId = null) {
   const results = [];
   const currentDate = new Date(startDate);
 
@@ -592,8 +661,8 @@ async function findNextAvailableDates(startDate, duree_minutes, adresse_client, 
     }
 
     try {
-      // Récupérer les RDV existants pour cette date depuis la DB
-      const rdvExistants = await getRdvExistantsByDate(dateStr);
+      // 🔒 TENANT ISOLATION: Récupérer les RDV existants pour cette date depuis la DB
+      const rdvExistants = await getRdvExistantsByDate(dateStr, tenantId);
 
       const creneaux = await getCreneauxDisponibles(
         dateStr,
@@ -632,6 +701,9 @@ async function findNextAvailableDates(startDate, duree_minutes, adresse_client, 
 export function getConversationContext(clientPhone) {
   if (!conversationContexts.has(clientPhone)) {
     conversationContexts.set(clientPhone, {
+      // V2 - Tenant ID pour multi-tenant
+      tenantId: 'fatshairafro', // default, sera mis à jour par la route
+
       // État de la conversation
       etape: 'accueil', // accueil, service_choisi, attente_adresse, adresse_recue, attente_date, date_recue, confirmation, paiement
 
@@ -719,6 +791,7 @@ export async function handleIncomingMessage(clientPhone, message, clientName = n
 
   // Si le client envoie "annuler" ou "stop", réinitialiser la conversation
   if (['annuler', 'stop', 'reset', 'recommencer'].includes(messageLower)) {
+    const tenantIdForReset = context.tenantId || 'fatshairafro';
     resetConversationContext(clientPhone);
     return {
       success: true,
@@ -726,8 +799,7 @@ export async function handleIncomingMessage(clientPhone, message, clientName = n
 
 Si vous souhaitez prendre rendez-vous, envoyez "Bonjour" pour commencer. 😊
 
-Fat's Hair-Afro
-📞 07 82 23 50 20`,
+${getSignature(tenantIdForReset)}`,
     };
   }
 
@@ -822,8 +894,7 @@ export async function handleIncomingMessageNexus(clientPhone, message, clientNam
 
 Si vous souhaitez prendre rendez-vous, envoyez "Bonjour" pour commencer. 😊
 
-Fat's Hair-Afro
-📞 07 82 23 50 20`,
+${getSignature(tenantId)}`,
     };
   }
 
@@ -872,8 +943,9 @@ Fat's Hair-Afro
   } catch (error) {
     console.error('[WhatsApp-Nexus] Erreur:', error);
 
+    const info = getBusinessInfoSync(tenantId);
     const errorResponse = `Oups, petit souci technique ! 😅
-Réessayez ou appelez le 07 82 23 50 20`;
+Réessayez ou appelez le ${info.telephone || '07 82 23 50 20'}`;
 
     await sendWhatsAppMessage(clientPhone, errorResponse);
 
@@ -920,9 +992,10 @@ Ex: 15 rue de la Paix, 75002 Paris`,
     updateConversationContext(clientPhone, { client_nom: clientName });
   }
 
+  const tenantIdGreeting = context.tenantId || 'fatshairafro';
   return {
     success: true,
-    response: `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis Halimah, l'assistante de Fatou.
+    response: `${getWhatsAppGreeting(tenantIdGreeting, clientName)}
 
 Comment puis-je vous aider ?`,
   };
@@ -1212,8 +1285,9 @@ Lun-Mer-Sam 9h-18h | Jeu 9h-13h | Ven 13h-18h`,
       };
     }
 
-    // Récupérer les RDV existants depuis la DB
-    const rdvExistants = await getRdvExistantsByDate(dateResult.date);
+    // 🔒 TENANT ISOLATION: Récupérer les RDV existants depuis la DB
+    // Note: Legacy handler - tenantId from context (may be undefined in old code paths)
+    const rdvExistants = await getRdvExistantsByDate(dateResult.date, context.tenantId);
 
     const creneaux = await getCreneauxDisponibles(
       dateResult.date,
@@ -1240,7 +1314,8 @@ Lun-Mer-Sam 9h-18h | Jeu 9h-13h | Ven 13h-18h`,
           context.duree_minutes,
           context.adresse_client,
           14, // Chercher sur 14 jours
-          3   // Retourner 3 dates max
+          3,  // Retourner 3 dates max
+          context.tenantId // 🔒 TENANT ISOLATION
         );
 
         if (alternatives.length > 0) {
@@ -1334,8 +1409,8 @@ Ex: "9h", "14h30", "10:00"`,
 
   // Vérifier la disponibilité du créneau
   try {
-    // Récupérer les RDV existants pour cette date depuis la DB
-    const rdvExistants = await getRdvExistantsByDate(context.date);
+    // 🔒 TENANT ISOLATION: Récupérer les RDV existants pour cette date depuis la DB
+    const rdvExistants = await getRdvExistantsByDate(context.date, context.tenantId);
 
     const dispoResult = await checkDisponibilite(
       context.date,
@@ -1539,11 +1614,13 @@ async function handleEtapePaiement(clientPhone, message, context) {
 
   // Le client a peut-être des questions
   if (messageLower.includes('question') || messageLower.includes('?')) {
+    const tenantIdPaiement = context.tenantId || 'fatshairafro';
+    const infoPaiement = getBusinessInfoSync(tenantIdPaiement);
     return {
       success: true,
       response: `💳 CB/PayPal sécurisé
 💰 Acompte 10€ min
-📞 07 82 23 50 20`,
+📞 ${infoPaiement.telephone || '07 82 23 50 20'}`,
     };
   }
 
@@ -2553,16 +2630,42 @@ function formatDate(dateStr) {
 
 // ============= TEMPLATES DE MESSAGES =============
 
+// V2 - Templates dynamiques avec tenantId
 export const MESSAGE_TEMPLATES = {
-  ACCUEIL: `Bonjour ! ✨ Je suis Halimah, l'assistante de Fatou.
+  // V2 - Converti en fonction
+  ACCUEIL: (tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      const assistant = info.assistant_name || 'Nexus';
+      const gerant = info.gerant || 'notre équipe';
+      return `Bonjour ! ✨ Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.
 
-Comment puis-je vous aider ?`,
+Comment puis-je vous aider ?`;
+    } catch (e) {
+      return `Bonjour ! ✨ Je suis Halimah, l'assistante de Fatou.
 
-  DEMANDE_ADRESSE: (service) => `Parfait pour ${service} ! ✨
+Comment puis-je vous aider ?`;
+    }
+  },
+
+  // V2 - Converti en fonction
+  DEMANDE_ADRESSE: (service, tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      const gerant = info.gerant || 'Notre équipe';
+      return `Parfait pour ${service} ! ✨
+
+${gerant} se déplace directement chez vous. Pourriez-vous me donner votre adresse complète pour que je calcule les frais de déplacement ?
+
+Format : numéro, rue, code postal, ville 📍`;
+    } catch (e) {
+      return `Parfait pour ${service} ! ✨
 
 Fatou se déplace directement chez vous. Pourriez-vous me donner votre adresse complète pour que je calcule les frais de déplacement ?
 
-Format : numéro, rue, code postal, ville 📍`,
+Format : numéro, rue, code postal, ville 📍`;
+    }
+  },
 
   RECAP_FRAIS: (service, prixService, distanceKm, fraisDeplacement, total) => `Merci ! J'ai trouvé votre adresse à ${distanceKm.toFixed(1)} km de notre point de départ.
 
@@ -2594,11 +2697,39 @@ Pourriez-vous me la reformuler avec :
 
 Exemple : 15 rue de la Paix, 75002 Paris`,
 
-  ZONE_TROP_LOIN: (distanceKm) => `Je suis désolée, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle (Île-de-France).
+  // V2 - Converti en fonction
+  ZONE_TROP_LOIN: (distanceKm, tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      const gerant = info.gerant || 'notre équipe';
+      return `Je suis désolé${info.assistant_name === 'Halimah' ? 'e' : ''}, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle (Île-de-France).
 
-Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je peux demander à Fatou. 🤔`,
+Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je peux demander à ${gerant}. 🤔`;
+    } catch (e) {
+      return `Je suis désolée, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle (Île-de-France).
 
-  PAYMENT_CONFIRMED: (date, heure, service, adresse) => `🎉 Votre RDV est confirmé !
+Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je peux demander à Fatou. 🤔`;
+    }
+  },
+
+  // V2 - Converti en fonction
+  PAYMENT_CONFIRMED: (date, heure, service, adresse, tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      const gerant = info.gerant || 'Notre équipe';
+      return `🎉 Votre RDV est confirmé !
+
+📅 ${formatDate(date)} à ${heure}
+💇 ${service}
+📍 ${adresse}
+
+${gerant} viendra directement chez vous ! 🏠
+
+À très bientôt,
+${info.nom} 💖
+📞 ${info.telephone}`;
+    } catch (e) {
+      return `🎉 Votre RDV est confirmé !
 
 📅 ${formatDate(date)} à ${heure}
 💇 ${service}
@@ -2608,22 +2739,51 @@ Fatou viendra directement chez vous ! 🏠
 
 À très bientôt,
 Fat's Hair-Afro 💖
-📞 07 82 23 50 20`,
+📞 07 82 23 50 20`;
+    }
+  },
 
-  PAYMENT_TIMEOUT: `⏰ Votre demande de RDV a expiré.
+  // V2 - Converti en fonction
+  PAYMENT_TIMEOUT: (tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      return `⏰ Votre demande de RDV a expiré.
+
+Le délai de 30 minutes pour effectuer le paiement est dépassé.
+
+Si vous souhaitez toujours prendre rendez-vous, n'hésitez pas à nous recontacter ! 😊
+
+${info.nom}
+📞 ${info.telephone}`;
+    } catch (e) {
+      return `⏰ Votre demande de RDV a expiré.
 
 Le délai de 30 minutes pour effectuer le paiement est dépassé.
 
 Si vous souhaitez toujours prendre rendez-vous, n'hésitez pas à nous recontacter ! 😊
 
 Fat's Hair-Afro
-📞 07 82 23 50 20`,
+📞 07 82 23 50 20`;
+    }
+  },
 
-  PAYMENT_REMINDER: `⏰ Rappel : votre lien de paiement expire dans 15 minutes !
+  // V2 - Converti en fonction
+  PAYMENT_REMINDER: (tenantId = 'fatshairafro') => {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      return `⏰ Rappel : votre lien de paiement expire dans 15 minutes !
 
 N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.
 
-Si vous avez des questions, appelez-nous au 07 82 23 50 20 📞`,
+Si vous avez des questions, appelez-nous au ${info.telephone} 📞`;
+    } catch (e) {
+      return `⏰ Rappel : votre lien de paiement expire dans 15 minutes !
+
+N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.
+
+Si vous avez des questions, appelez-nous au 07 82 23 50 20 📞`;
+    }
+  },
 };
 
 // ============= EXPORT =============

@@ -6,21 +6,19 @@ import { Button } from '@/components/ui/button';
 import { comptaApi, type CompteDetailResponse } from '@/lib/api';
 
 interface AuxiliaryLedgerModalProps {
-  type: 'client' | 'fournisseur';
-  id: number;
+  type: 'client' | 'fournisseur' | 'personnel';
+  compte: string;
   nom: string;
   onClose: () => void;
 }
 
-export function AuxiliaryLedgerModal({ type, id, nom, onClose }: AuxiliaryLedgerModalProps) {
-  // Build the auxiliary account number
-  const compteNumero = type === 'client'
-    ? `411${String(id).padStart(5, '0')}`
-    : `401${String(id).padStart(5, '0')}`;
+// Comptes créditeurs par nature (solde négatif = normal)
+const isCompteCredit = (type: string) => type === 'fournisseur' || type === 'personnel';
 
+export function AuxiliaryLedgerModal({ type, compte, nom, onClose }: AuxiliaryLedgerModalProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ['grand-livre-auxiliaire', compteNumero],
-    queryFn: () => comptaApi.getGrandLivreCompte(compteNumero),
+    queryKey: ['grand-livre-auxiliaire', compte],
+    queryFn: () => comptaApi.getGrandLivreCompte(compte),
   });
 
   const formatCurrency = (amount: number) => {
@@ -41,7 +39,7 @@ export function AuxiliaryLedgerModal({ type, id, nom, onClose }: AuxiliaryLedger
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col print:max-w-none print:max-h-none print:shadow-none" onClick={(e) => e.stopPropagation()}>
+      <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col print:max-w-none print:max-h-none print:shadow-none" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="flex flex-row items-center justify-between border-b print:border-b-2">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${type === 'client' ? 'bg-blue-100' : 'bg-orange-100'}`}>
@@ -50,7 +48,7 @@ export function AuxiliaryLedgerModal({ type, id, nom, onClose }: AuxiliaryLedger
             <div>
               <CardTitle className="text-lg">Grand Livre Auxiliaire</CardTitle>
               <p className="text-sm text-gray-500">
-                {nom} - Compte {compteNumero}
+                {nom} - Compte {compte}
               </p>
             </div>
           </div>
@@ -85,53 +83,69 @@ export function AuxiliaryLedgerModal({ type, id, nom, onClose }: AuxiliaryLedger
                   </p>
                   <p className={`text-xs ${type === 'client' ? 'text-blue-600' : 'text-orange-600'}`}>Total Crédit</p>
                 </div>
-                <div className={`rounded-lg p-4 text-center ${data.totaux.solde >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <p className={`text-xl font-bold ${data.totaux.solde >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                <div className={`rounded-lg p-4 text-center ${
+                    isCompteCredit(type)
+                      ? (data.totaux.solde < 0 ? 'bg-green-50' : 'bg-red-50')
+                      : (data.totaux.solde >= 0 ? 'bg-green-50' : 'bg-red-50')
+                  }`}>
+                  <p className={`text-xl font-bold ${
+                    isCompteCredit(type)
+                      ? (data.totaux.solde < 0 ? 'text-green-700' : 'text-red-700')
+                      : (data.totaux.solde >= 0 ? 'text-green-700' : 'text-red-700')
+                  }`}>
                     {formatCurrency(Math.abs(data.totaux.solde))}
                   </p>
-                  <p className={`text-xs ${data.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-xs ${
+                    isCompteCredit(type)
+                      ? (data.totaux.solde < 0 ? 'text-green-600' : 'text-red-600')
+                      : (data.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600')
+                  }`}>
                     Solde {data.totaux.solde >= 0 ? 'Débiteur' : 'Créditeur'}
                   </p>
                 </div>
               </div>
 
               {/* Movements Table */}
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600">Date</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600">Journal</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600">Pièce</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600">Libellé</th>
-                      <th className="text-right py-3 px-4 font-medium text-gray-600">Débit</th>
-                      <th className="text-right py-3 px-4 font-medium text-gray-600">Crédit</th>
-                      <th className="text-right py-3 px-4 font-medium text-gray-600">Solde</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-600">Let.</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-600 whitespace-nowrap">Date</th>
+                      <th className="text-left py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Jnl</th>
+                      <th className="text-left py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Pièce</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-600 whitespace-nowrap">Débit</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-600 whitespace-nowrap">Crédit</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-600 whitespace-nowrap">Solde</th>
+                      <th className="text-center py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Let.</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.ecritures.map((ecriture) => (
                       <tr key={ecriture.id} className="border-t hover:bg-gray-50">
-                        <td className="py-3 px-4 text-gray-600">{formatDate(ecriture.date_ecriture)}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{formatDate(ecriture.date_ecriture)}</td>
+                        <td className="py-2 px-2">
                           <Badge variant="outline" className="font-mono text-xs">
                             {ecriture.journal_code}
                           </Badge>
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-600">{ecriture.numero_piece || '-'}</td>
-                        <td className="py-3 px-4 text-gray-900 max-w-xs truncate">{ecriture.libelle}</td>
-                        <td className="py-3 px-4 text-right font-mono">
+                        <td className="py-2 px-2 font-mono text-xs text-gray-600 whitespace-nowrap">{ecriture.numero_piece || '-'}</td>
+                        <td className="py-2 px-3 text-gray-900 max-w-[200px] truncate">{ecriture.libelle}</td>
+                        <td className="py-2 px-3 text-right font-mono whitespace-nowrap">
                           {ecriture.debit > 0 ? formatCurrency(ecriture.debit / 100) : ''}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono">
+                        <td className="py-2 px-3 text-right font-mono whitespace-nowrap">
                           {ecriture.credit > 0 ? formatCurrency(ecriture.credit / 100) : ''}
                         </td>
-                        <td className={`py-3 px-4 text-right font-mono font-medium ${(ecriture.solde_progressif || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`py-2 px-3 text-right font-mono font-medium whitespace-nowrap ${
+                          isCompteCredit(type)
+                            ? ((ecriture.solde_progressif || 0) < 0 ? 'text-green-600' : 'text-red-600')
+                            : ((ecriture.solde_progressif || 0) >= 0 ? 'text-green-600' : 'text-red-600')
+                        }`}>
                           {formatCurrency(Math.abs((ecriture.solde_progressif || 0) / 100))}
                           <span className="text-xs ml-1">{(ecriture.solde_progressif || 0) >= 0 ? 'D' : 'C'}</span>
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-2 px-2 text-center">
                           {ecriture.lettrage && (
                             <Badge variant="secondary" className="text-xs font-mono">
                               {ecriture.lettrage}
@@ -151,10 +165,14 @@ export function AuxiliaryLedgerModal({ type, id, nom, onClose }: AuxiliaryLedger
                   {data.ecritures.length > 0 && (
                     <tfoot className="bg-gray-100 font-semibold">
                       <tr>
-                        <td colSpan={4} className="py-3 px-4 text-right">TOTAUX</td>
-                        <td className="py-3 px-4 text-right font-mono">{formatCurrency(data.totaux.debit)}</td>
-                        <td className="py-3 px-4 text-right font-mono">{formatCurrency(data.totaux.credit)}</td>
-                        <td className={`py-3 px-4 text-right font-mono ${data.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td colSpan={4} className="py-2 px-3 text-right">TOTAUX</td>
+                        <td className="py-2 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(data.totaux.debit)}</td>
+                        <td className="py-2 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(data.totaux.credit)}</td>
+                        <td className={`py-2 px-3 text-right font-mono whitespace-nowrap ${
+                          isCompteCredit(type)
+                            ? (data.totaux.solde < 0 ? 'text-green-600' : 'text-red-600')
+                            : (data.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600')
+                        }`}>
                           {formatCurrency(Math.abs(data.totaux.solde))}
                           <span className="text-xs ml-1">{data.totaux.solde >= 0 ? 'D' : 'C'}</span>
                         </td>

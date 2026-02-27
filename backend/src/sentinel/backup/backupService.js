@@ -41,12 +41,25 @@ async function ensureBackupDir() {
   await fs.mkdir(CONFIG.backupDir, { recursive: true });
 }
 
-// Exporter une table
-async function exportTable(tableName) {
+// Exporter une table avec filtre tenant OBLIGATOIRE
+async function exportTable(tableName, tenantId) {
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour exportTable - backup global interdit');
+  }
+
   try {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('*');
+    // Construire la requête de base
+    let query = supabase.from(tableName).select('*');
+
+    // Tables système sans tenant_id (admin_users a tenant_id donc on filtre)
+    const tablesWithoutTenantId = ['parametres'];
+
+    if (!tablesWithoutTenantId.includes(tableName)) {
+      // Filtrer par tenant_id AVANT de charger les données
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(`[BACKUP] Error exporting ${tableName}:`, error.message);
@@ -60,12 +73,15 @@ async function exportTable(tableName) {
   }
 }
 
-// Creer un backup complet
-export async function createBackup(tenantId = null) {
+// Creer un backup pour UN tenant (backup global interdit)
+export async function createBackup(tenantId) {
+  // TENANT SHIELD: tenantId OBLIGATOIRE - pas de backup global
+  if (!tenantId) {
+    throw new Error('tenant_id requis pour createBackup - backup global interdit');
+  }
+
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupName = tenantId
-    ? `backup-${tenantId}-${timestamp}`
-    : `backup-full-${timestamp}`;
+  const backupName = `backup-${tenantId}-${timestamp}`;
 
   console.log(`[BACKUP] Starting backup: ${backupName}`);
 
@@ -85,24 +101,18 @@ export async function createBackup(tenantId = null) {
   };
 
   for (const tableName of CONFIG.tables) {
-    const result = await exportTable(tableName);
+    // Le filtrage par tenant se fait DANS exportTable maintenant
+    const result = await exportTable(tableName, tenantId);
     backup.stats.totalTables++;
 
     if (result.success) {
-      let tableData = result.data;
-      if (tenantId && tableData.length > 0) {
-        if (tableData[0].hasOwnProperty('tenant_id')) {
-          tableData = tableData.filter((row) => row.tenant_id === tenantId);
-        }
-      }
-
       backup.tables[tableName] = {
         success: true,
-        count: tableData.length,
-        data: tableData,
+        count: result.data.length,
+        data: result.data,
       };
       backup.stats.successTables++;
-      backup.stats.totalRecords += tableData.length;
+      backup.stats.totalRecords += result.data.length;
     } else {
       backup.tables[tableName] = {
         success: false,
@@ -247,8 +257,50 @@ export async function restoreBackup(backupName, options = {}) {
   }
 }
 
-// Scheduler pour backup quotidien
+// Scheduler pour backup quotidien - backup TOUS les tenants actifs individuellement
 let backupInterval = null;
+
+async function backupAllTenants() {
+  try {
+    // Récupérer tous les tenants actifs
+    const { data: tenants, error } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('statut', 'actif');
+
+    if (error) {
+      console.error('[BACKUP] Error fetching tenants:', error.message);
+      return;
+    }
+
+    console.log(`[BACKUP] Starting scheduled backup for ${tenants?.length || 0} tenants`);
+
+    for (const tenant of (tenants || [])) {
+      try {
+        const result = await createBackup(tenant.id);
+
+        if (!result.success) {
+          try {
+            const { logSecurityEvent, SEVERITY } = await import('../security/securityLogger.js');
+            await logSecurityEvent({
+              type: 'backup_failed',
+              severity: SEVERITY.HIGH,
+              tenantId: tenant.id,
+              details: {
+                backup: result.name,
+                failedTables: result.stats.failedTables,
+              },
+            });
+          } catch (_) { /* non-blocking */ }
+        }
+      } catch (err) {
+        console.error(`[BACKUP] Backup failed for tenant ${tenant.id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[BACKUP] Scheduled backup failed:', err.message);
+  }
+}
 
 export function startBackupScheduler(intervalHours = 24) {
   if (backupInterval) {
@@ -258,37 +310,10 @@ export function startBackupScheduler(intervalHours = 24) {
   console.log(`[BACKUP] Scheduler started: every ${intervalHours} hours`);
 
   // Premier backup apres 1 minute
-  setTimeout(async () => {
-    try {
-      await createBackup();
-    } catch (err) {
-      console.error('[BACKUP] Scheduled backup failed:', err.message);
-    }
-  }, 60 * 1000);
+  setTimeout(backupAllTenants, 60 * 1000);
 
   // Puis toutes les X heures
-  backupInterval = setInterval(async () => {
-    try {
-      const result = await createBackup();
-
-      // Alerter si echec
-      if (!result.success) {
-        try {
-          const { logSecurityEvent, SEVERITY } = await import('../security/securityLogger.js');
-          await logSecurityEvent({
-            type: 'backup_failed',
-            severity: SEVERITY.HIGH,
-            details: {
-              backup: result.name,
-              failedTables: result.stats.failedTables,
-            },
-          });
-        } catch (_) { /* non-blocking */ }
-      }
-    } catch (err) {
-      console.error('[BACKUP] Scheduled backup failed:', err.message);
-    }
-  }, intervalHours * 60 * 60 * 1000);
+  backupInterval = setInterval(backupAllTenants, intervalHours * 60 * 60 * 1000);
 }
 
 export function stopBackupScheduler() {

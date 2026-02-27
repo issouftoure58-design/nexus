@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import ErrorBoundary from './components/ErrorBoundary';
 import { authApi, api } from './lib/api';
 import { TenantProvider } from './contexts/TenantContext';
+import { ProfileProvider } from './contexts/ProfileContext';
 import { ModuleGate } from './components/ModuleGate/ModuleGate';
 
 // Pages
@@ -27,6 +28,8 @@ import { AppLayout } from './components/layout/AppLayout';
 import SegmentsPage from './pages/Segments';
 import WorkflowsPage from './pages/Workflows';
 import PipelinePage from './pages/Pipeline';
+import DevisPage from './pages/Devis';
+import PrestationsPage from './pages/Prestations';
 import SEODashboard from './pages/SEODashboard';
 import SEOArticles from './pages/SEOArticles';
 // Analytics est maintenant intégré dans Sentinel
@@ -109,6 +112,7 @@ function App() {
   return (
     <ErrorBoundary>
       <TenantProvider>
+        <ProfileProvider>
         <div className="min-h-screen bg-white dark:bg-gray-950">
           <Routes>
             {/* Public routes */}
@@ -144,6 +148,8 @@ function App() {
             <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
             <Route path="/workflows" element={<ModuleRoute module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
             <Route path="/pipeline" element={<ModuleRoute module="marketing" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
+            <Route path="/devis" element={<ModuleRoute module="marketing" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
+            <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
             <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
 
             {/* Modules IA */}
@@ -160,6 +166,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
+        </ProfileProvider>
       </TenantProvider>
     </ErrorBoundary>
   );

@@ -11,6 +11,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTenant, PlanType } from '@/hooks/useTenant';
+import { useProfile } from '@/contexts/ProfileContext';
 import {
   LayoutDashboard,
   Users,
@@ -34,12 +35,14 @@ import {
   GitBranch,
   AlertTriangle,
   Banknote,
+  FileText,
   Share2,
   Sparkles,
   Phone,
   Headphones,
   CalendarCheck,
   Bot,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -69,7 +72,7 @@ interface NavItem {
 const mainNav: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
   { icon: Calendar, label: 'Agenda', path: '/agenda', alwaysShow: true }, // RDV business entrepreneur
-  { icon: CalendarCheck, label: 'Activités', path: '/activites', requiredModule: 'reservations' },
+  { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
 ];
@@ -99,6 +102,7 @@ const marketingNav: NavItem[] = [
   { icon: Target, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredModule: 'marketing' },
   { icon: Megaphone, label: 'Pipeline', path: '/pipeline', requiredModule: 'marketing' },
+  { icon: FileText, label: 'Devis', path: '/devis', requiredModule: 'marketing' },
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
 ];
@@ -121,6 +125,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
+  const { t, businessType, businessInfo } = useProfile();
 
   /**
    * Vérifie si l'item doit être affiché

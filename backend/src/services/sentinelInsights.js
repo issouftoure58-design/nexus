@@ -373,7 +373,11 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
   /**
    * Marque un insight comme implemente
    */
-  async markAsImplemented(insightId, notes = null) {
+  async markAsImplemented(tenantId, insightId, notes = null) {
+    if (!tenantId) {
+      throw new Error('tenant_id requis pour markAsImplemented');
+    }
+
     const { data, error } = await supabase
       .from('sentinel_insights')
       .update({
@@ -382,6 +386,7 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
         implemented_notes: notes
       })
       .eq('id', insightId)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 
@@ -391,7 +396,11 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
   /**
    * Marque un insight comme ignore
    */
-  async dismissInsight(insightId, reason = null) {
+  async dismissInsight(tenantId, insightId, reason = null) {
+    if (!tenantId) {
+      throw new Error('tenant_id requis pour dismissInsight');
+    }
+
     const { data, error } = await supabase
       .from('sentinel_insights')
       .update({
@@ -400,6 +409,7 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
         dismissed_reason: reason
       })
       .eq('id', insightId)
+      .eq('tenant_id', tenantId)
       .select()
       .single();
 

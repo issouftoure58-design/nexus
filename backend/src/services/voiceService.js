@@ -79,15 +79,47 @@ const MODEL_ID = process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5';
 
 // ============================================
 // PHRASES PRÉ-GÉNÉRÉES (à générer 1 fois)
+// V2: Phrases génériques + phrases spécifiques par tenant
 // ============================================
 
-const PREGENERATED_PHRASES = {
+// Import pour phrases dynamiques par tenant
+import { getBusinessInfoSync } from './tenantBusinessService.js';
+
+/**
+ * V2 - Génère les phrases de bienvenue dynamiques pour un tenant
+ */
+function getTenantPhrases(tenantId = 'fatshairafro') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const assistant = info.assistant_name || 'Nexus';
+    const gerant = info.gerant || 'notre équipe';
+    return {
+      'presentation': `Moi c'est ${assistant}, enchanté${assistant === 'Halimah' ? 'e' : ''} !`,
+      'bienvenue': `Bienvenue chez ${info.nom} !`,
+      'bienvenue_complet': `${info.nom} bonjour ! Moi c'est ${assistant}...`,
+      'lieu_question': info.business_type === 'service_domicile'
+        ? `Chez vous ou chez ${gerant} ?`
+        : `Chez vous ou au salon ?`,
+      'adresse': info.adresse ? `C'est au ${info.adresse}.` : null,
+    };
+  } catch (e) {
+    return null; // Utiliser les phrases par défaut
+  }
+}
+
+// Phrases génériques (communes à tous les tenants)
+const GENERIC_PHRASES = {
   // Salutations
   'bonjour': "Bonjour ! Comment allez-vous ?",
   'bonjour_matin': "Bonjour ! Bien dormi ?",
   'bonjour_aprem': "Bonjour ! Comment se passe votre journée ?",
   'bonsoir': "Bonsoir ! Comment allez-vous ?",
 
+  // Confirmations (ci-dessous)
+};
+
+// Phrases spécifiques Fat's Hair Afro (legacy - pour cache existant)
+const FATSHAIRAFRO_PHRASES = {
   // Présentations
   'je_suis_halimah': "Moi c'est Halimah, enchantée !",
   'bienvenue': "Bienvenue chez Fat's Hair-Afro !",
@@ -145,11 +177,37 @@ const PREGENERATED_PHRASES = {
   'tresses_braids': "Des braids, soixante euros.",
   'soin_complet': "Un soin complet, cinquante euros.",
 
-  // Lieux
+  // Lieux (spécifiques Fat's Hair Afro)
   'chez_vous_ou_fatou': "Chez vous ou chez Fatou ?",
   'domicile_ou_salon': "À domicile ou au salon ?",
   'adresse_fatou': "C'est au huit rue des Monts Rouges, à Franconville."
 };
+
+// V2 - Combinaison des phrases pour rétrocompatibilité
+// Les phrases génériques + Fat's Hair Afro pour le tenant par défaut
+const PREGENERATED_PHRASES = {
+  ...GENERIC_PHRASES,
+  ...FATSHAIRAFRO_PHRASES,
+};
+
+/**
+ * V2 - Récupère les phrases pré-générées pour un tenant
+ * Utilise le cache existant pour fatshairafro, génère dynamiquement pour les autres
+ */
+function getPregeneratedPhrasesForTenant(tenantId = 'fatshairafro') {
+  if (tenantId === 'fatshairafro') {
+    return PREGENERATED_PHRASES;
+  }
+  // Pour les autres tenants, combiner les génériques avec les phrases dynamiques
+  const tenantPhrases = getTenantPhrases(tenantId);
+  if (!tenantPhrases) {
+    return GENERIC_PHRASES;
+  }
+  return {
+    ...GENERIC_PHRASES,
+    ...tenantPhrases,
+  };
+}
 
 // ============================================
 // CACHE AUDIO

@@ -1127,13 +1127,17 @@ async function executeTool(toolName, toolInput, context = {}) {
       }
 
       case 'get_stats':
-        return await getStats(toolInput.periode, toolInput.type, tenantId);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await getStats(tenantId, toolInput.periode, toolInput.type);
 
       case 'get_rdv':
-        return await getRdv(toolInput.date, toolInput.statut, toolInput.limit, tenantId);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await getRdv(tenantId, toolInput.date, toolInput.statut, toolInput.limit);
 
       case 'update_rdv':
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
         return await updateRdv(
+          tenantId,
           toolInput.rdv_id,
           toolInput.action,
           toolInput.nouvelle_date,
@@ -1142,7 +1146,9 @@ async function executeTool(toolName, toolInput, context = {}) {
         );
 
       case 'send_message':
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
         return await sendMessage(
+          tenantId,
           toolInput.client_id,
           toolInput.canal,
           toolInput.type,
@@ -1150,10 +1156,12 @@ async function executeTool(toolName, toolInput, context = {}) {
         );
 
       case 'get_client_info':
-        return await getClientInfo(toolInput.client_id);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await getClientInfo(tenantId, toolInput.client_id);
 
       case 'search_clients':
-        return await searchClients(toolInput.query, toolInput.filtre);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await searchClients(tenantId, toolInput.query, toolInput.filtre);
 
       case 'generate_social_post':
         return generateSocialPost(toolInput.plateforme, toolInput.sujet, toolInput.inclure_emojis);
@@ -1183,16 +1191,20 @@ async function executeTool(toolName, toolInput, context = {}) {
 
       // === TOOLS STRATÉGIE ===
       case 'strategie_analyze':
-        return await strategieAnalyze(toolInput.aspect);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await strategieAnalyze(tenantId, toolInput.aspect);
 
       case 'strategie_pricing':
-        return await strategiePricing(toolInput.action, toolInput.service);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await strategiePricing(tenantId, toolInput.action, toolInput.service);
 
       case 'strategie_objectifs':
-        return await strategieObjectifs(toolInput.action, toolInput.periode, toolInput.type_objectif);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await strategieObjectifs(tenantId, toolInput.action, toolInput.periode, toolInput.type_objectif);
 
       case 'strategie_rapport':
-        return await strategieRapport(toolInput.periode, toolInput.format);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await strategieRapport(tenantId, toolInput.periode, toolInput.format);
 
       // === TOOLS RÉSEAUX SOCIAUX ===
       case 'social_publish':
@@ -1255,39 +1267,46 @@ async function executeTool(toolName, toolInput, context = {}) {
 
       // === TOOLS COMMERCIAL ===
       case 'commercial_devis':
-        return commercialDevis(toolInput.action, toolInput.client_id, toolInput.services, toolInput.notes);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return commercialDevis(tenantId, toolInput.action, toolInput.client_id, toolInput.services, toolInput.notes);
 
       case 'commercial_ventes':
-        return await commercialVentes(toolInput.periode, toolInput.type_analyse, toolInput.comparer);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await commercialVentes(tenantId, toolInput.periode, toolInput.type_analyse, toolInput.comparer);
 
       case 'commercial_relances':
         return await commercialRelances(toolInput.type_relance, toolInput.action);
 
       case 'commercial_performance':
-        return await commercialPerformance(toolInput.indicateurs, toolInput.periode);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await commercialPerformance(tenantId, toolInput.indicateurs, toolInput.periode);
 
       // === TOOLS COMPTABLE ===
       case 'comptable_facturation':
-        return await comptableFacturation(toolInput.action, toolInput.periode, toolInput.rdv_id, toolInput.format);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await comptableFacturation(tenantId, toolInput.action, toolInput.periode, toolInput.rdv_id, toolInput.format);
 
       case 'comptable_depenses':
         return comptableDepenses(toolInput.action, toolInput.categorie, toolInput.montant, toolInput.description, toolInput.periode);
 
       case 'comptable_tresorerie':
-        return await comptableTresorerie(toolInput.action, toolInput.periode);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await comptableTresorerie(tenantId, toolInput.action, toolInput.periode);
 
       case 'comptable_fiscal':
         return comptableFiscal(toolInput.type, toolInput.periode, toolInput.action);
 
       case 'comptable_rapport':
-        return await comptableRapport(toolInput.type_rapport, toolInput.periode, toolInput.format);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await comptableRapport(tenantId, toolInput.type_rapport, toolInput.periode, toolInput.format);
 
       // === TOOLS RH ===
       case 'rh_planning':
         return await rhPlanning(toolInput.action, toolInput.semaine, toolInput.modifications);
 
       case 'rh_temps_travail':
-        return await rhTempsTravail(toolInput.periode, toolInput.type);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await rhTempsTravail(tenantId, toolInput.periode, toolInput.type);
 
       case 'rh_conges':
         return rhConges(toolInput.action, toolInput.date_debut, toolInput.date_fin, toolInput.motif);
@@ -1299,7 +1318,8 @@ async function executeTool(toolName, toolInput, context = {}) {
         return rhFormation(toolInput.action, toolInput.domaine);
 
       case 'rh_bien_etre':
-        return await rhBienEtre(toolInput.aspect);
+        // 🔒 TENANT SHIELD: tenantId en premier paramètre
+        return await rhBienEtre(tenantId, toolInput.aspect);
 
       // === TOOLS CRÉATION DE CONTENU ===
       case 'creer_image':

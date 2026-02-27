@@ -11,16 +11,23 @@
 
 import express from 'express';
 import provisioningService from '../services/twilioProvisioningService.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
+
+// ⚠️ SECURITY: All provisioning routes require authentication
 
 /**
  * POST /api/provisioning/phone/auto
  * Provisionne automatiquement un numéro pour le tenant
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/phone/auto', async (req, res) => {
+router.post('/phone/auto', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
     const { country = 'FR' } = req.body;
 
     console.log(`[PROVISIONING API] Auto-provision pour ${tenantId}`);
@@ -46,8 +53,9 @@ router.post('/phone/auto', async (req, res) => {
 /**
  * GET /api/provisioning/phone/available
  * Liste les numéros disponibles à l'achat
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.get('/phone/available', async (req, res) => {
+router.get('/phone/available', authenticateAdmin, async (req, res) => {
   try {
     const { country = 'FR', limit = 5 } = req.query;
 
@@ -73,10 +81,14 @@ router.get('/phone/available', async (req, res) => {
 /**
  * POST /api/provisioning/phone/purchase
  * Achète un numéro spécifique pour le tenant
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/phone/purchase', async (req, res) => {
+router.post('/phone/purchase', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
     const { phoneNumber, type = 'voice' } = req.body;
 
     if (!phoneNumber) {
@@ -109,10 +121,14 @@ router.post('/phone/purchase', async (req, res) => {
 /**
  * GET /api/provisioning/status
  * Récupère le status de provisioning du tenant
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.get('/status', async (req, res) => {
+router.get('/status', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
 
     const status = await provisioningService.getProvisioningStatus(tenantId);
 
@@ -132,10 +148,14 @@ router.get('/status', async (req, res) => {
 /**
  * POST /api/provisioning/whatsapp
  * Configure WhatsApp pour le tenant
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.post('/whatsapp', async (req, res) => {
+router.post('/whatsapp', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
 
     const result = await provisioningService.configureWhatsApp(tenantId);
 
@@ -156,10 +176,14 @@ router.post('/whatsapp', async (req, res) => {
 /**
  * DELETE /api/provisioning/phone
  * Libère le numéro du tenant (annulation module)
+ * ⚠️ SECURED: Requires admin authentication
  */
-router.delete('/phone', async (req, res) => {
+router.delete('/phone', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
 
     const result = await provisioningService.releasePhoneNumber(tenantId);
 
@@ -179,9 +203,14 @@ router.delete('/phone', async (req, res) => {
 
 /**
  * GET /api/provisioning/balance
- * Récupère le solde Twilio (admin seulement)
+ * Récupère le solde Twilio (superadmin seulement)
+ * ⚠️ SECURED: Requires superadmin authentication
  */
-router.get('/balance', async (req, res) => {
+router.get('/balance', authenticateAdmin, async (req, res) => {
+  // Only superadmin can see Twilio balance
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
   try {
     const balance = await provisioningService.getTwilioBalance();
 
@@ -200,9 +229,14 @@ router.get('/balance', async (req, res) => {
 
 /**
  * GET /api/provisioning/numbers
- * Liste tous les numéros actifs (admin seulement)
+ * Liste tous les numéros actifs (superadmin seulement)
+ * ⚠️ SECURED: Requires superadmin authentication
  */
-router.get('/numbers', async (req, res) => {
+router.get('/numbers', authenticateAdmin, async (req, res) => {
+  // Only superadmin can list all numbers
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
   try {
     const numbers = await provisioningService.listActiveNumbers();
 
@@ -223,9 +257,19 @@ router.get('/numbers', async (req, res) => {
 /**
  * POST /api/provisioning/phone/register
  * Enregistre manuellement un mapping numéro → tenant (pour numéros existants)
+ * ⚠️ SECURED: Requires SUPERADMIN - this can assign phones to ANY tenant
  */
-router.post('/phone/register', async (req, res) => {
+router.post('/phone/register', authenticateAdmin, async (req, res) => {
   try {
+    // 🔒 CRITICAL: Only superadmin can register numbers to arbitrary tenants
+    if (req.admin?.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        error: 'SUPERADMIN_REQUIRED',
+        message: 'Seul un superadmin peut enregistrer des numéros pour d\'autres tenants'
+      });
+    }
+
     const { tenantId, phoneNumber, type = 'whatsapp' } = req.body;
 
     if (!tenantId || !phoneNumber) {
@@ -234,6 +278,8 @@ router.post('/phone/register', async (req, res) => {
         error: 'tenantId et phoneNumber requis',
       });
     }
+
+    console.log(`[PROVISIONING] Superadmin ${req.admin.email} registering ${phoneNumber} to tenant ${tenantId}`);
 
     const result = await provisioningService.registerExistingNumber(tenantId, phoneNumber, type);
 
@@ -254,8 +300,12 @@ router.post('/phone/register', async (req, res) => {
 /**
  * GET /api/provisioning/debug/phone-cache
  * Debug: affiche le contenu du cache de routing téléphonique
+ * ⚠️ SECURED: Requires superadmin authentication
  */
-router.get('/debug/phone-cache', async (req, res) => {
+router.get('/debug/phone-cache', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
   try {
     const { getTenantByPhone } = await import('../config/tenants/index.js');
     const { getPhoneMapDebug } = await import('../config/tenants/tenantCache.js');
@@ -295,8 +345,12 @@ router.get('/debug/phone-cache', async (req, res) => {
 /**
  * POST /api/provisioning/debug/refresh-cache
  * Force le rafraîchissement du cache des tenants et numéros
+ * ⚠️ SECURED: Requires superadmin authentication
  */
-router.post('/debug/refresh-cache', async (req, res) => {
+router.post('/debug/refresh-cache', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
   try {
     const { loadAllTenants } = await import('../config/tenants/tenantCache.js');
 
@@ -318,8 +372,12 @@ router.post('/debug/refresh-cache', async (req, res) => {
 /**
  * GET /api/provisioning/debug/db-phones
  * Debug: liste les numéros directement depuis la BDD (bypass cache)
+ * ⚠️ SECURED: Requires superadmin authentication
  */
-router.get('/debug/db-phones', async (req, res) => {
+router.get('/debug/db-phones', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(

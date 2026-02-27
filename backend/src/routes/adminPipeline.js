@@ -131,10 +131,12 @@ router.get('/', async (req, res) => {
 
 /**
  * GET /api/admin/pipeline/:id
- * Détail d'une opportunité
+ * Détail d'une opportunité avec lignes de services
  */
 router.get('/:id', async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
+
     const { data: opportunite, error } = await supabase
       .from('opportunites')
       .select(`
@@ -142,12 +144,20 @@ router.get('/:id', async (req, res) => {
         clients (id, prenom, nom, email, telephone)
       `)
       .eq('id', req.params.id)
-      .eq('tenant_id', req.admin.tenant_id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !opportunite) {
       return res.status(404).json({ error: 'Opportunité introuvable' });
     }
+
+    // Récupérer les lignes de services
+    const { data: lignes } = await supabase
+      .from('opportunite_lignes')
+      .select('*')
+      .eq('opportunite_id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .order('id', { ascending: true });
 
     // Récupérer historique des changements
     const { data: historique } = await supabase
@@ -160,7 +170,8 @@ router.get('/:id', async (req, res) => {
     res.json({
       opportunite: {
         ...opportunite,
-        montant: parseFloat(opportunite.montant || 0)
+        montant: parseFloat(opportunite.montant || 0),
+        lignes: lignes || []
       },
       historique: historique || []
     });
@@ -172,15 +183,32 @@ router.get('/:id', async (req, res) => {
 
 /**
  * POST /api/admin/pipeline
- * Créer opportunité
+ * Créer opportunité (version enrichie)
+ *
+ * Body attendu:
+ * - nom: string (requis)
+ * - client_id?: number (client existant)
+ * - nouveau_client?: { prenom, nom, telephone, email? } (nouveau client)
+ * - services?: [{ service_id, quantite }] (services à ajouter)
+ * - date_debut?: string (date de début prévue)
+ * - lieu?: 'salon' | 'domicile'
+ * - adresse_client?: string (si domicile)
+ * - remise?: { type: 'pourcentage' | 'montant', valeur: number, motif?: string }
+ * - description?, source?, priorite?, date_cloture_prevue?, notes?, tags?
  */
 router.post('/', async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const {
       nom,
       description,
       client_id,
-      montant,
+      nouveau_client,
+      services,
+      date_debut,
+      lieu,
+      adresse_client,
+      remise,
       etape,
       date_cloture_prevue,
       source,
@@ -193,17 +221,154 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Le nom est requis' });
     }
 
+    // 1. Gérer le client (existant ou nouveau)
+    let finalClientId = client_id || null;
+
+    if (!client_id && nouveau_client) {
+      // Créer le nouveau client
+      const { prenom, nom: clientNom, telephone, email } = nouveau_client;
+
+      if (!prenom || !clientNom || !telephone) {
+        return res.status(400).json({
+          error: 'Nouveau client: prénom, nom et téléphone requis'
+        });
+      }
+
+      const { data: newClient, error: clientError } = await supabase
+        .from('clients')
+        .insert({
+          tenant_id: tenantId,
+          prenom,
+          nom: clientNom,
+          telephone,
+          email: email || null,
+          adresse: adresse_client || null
+        })
+        .select()
+        .single();
+
+      if (clientError) {
+        console.error('[PIPELINE] Erreur création client:', clientError);
+        throw clientError;
+      }
+
+      finalClientId = newClient.id;
+      console.log(`[PIPELINE] Nouveau client créé: ${newClient.id} - ${prenom} ${clientNom}`);
+    }
+
+    // 2. Calculer les montants si services fournis
+    let montantHT = 0;
+    let dureeTotale = 0;
+    let lignesServices = [];
+
+    if (services && services.length > 0) {
+      // Récupérer les détails des services
+      const serviceIds = services.map(s => s.service_id);
+      const { data: servicesData, error: servError } = await supabase
+        .from('services')
+        .select('id, nom, prix, duree')
+        .in('id', serviceIds)
+        .eq('tenant_id', tenantId);
+
+      if (servError) throw servError;
+
+      // Créer le mapping service_id -> service
+      const servicesMap = {};
+      (servicesData || []).forEach(s => {
+        servicesMap[s.id] = s;
+      });
+
+      // Calculer pour chaque ligne
+      for (const ligne of services) {
+        const serviceInfo = servicesMap[ligne.service_id];
+        if (!serviceInfo) continue;
+
+        const quantite = ligne.quantite || 1;
+        const prixUnitaire = serviceInfo.prix || 0; // En centimes
+        const prixTotal = prixUnitaire * quantite;
+        const dureeService = (serviceInfo.duree || 0) * quantite;
+
+        montantHT += prixTotal;
+        dureeTotale += dureeService;
+
+        lignesServices.push({
+          tenant_id: tenantId,
+          service_id: ligne.service_id,
+          service_nom: serviceInfo.nom,
+          quantite,
+          duree_minutes: dureeService,
+          prix_unitaire: prixUnitaire,
+          prix_total: prixTotal
+        });
+      }
+    }
+
+    // 3. Frais de déplacement si domicile
+    let fraisDeplacement = 0;
+    if (lieu === 'domicile') {
+      // Récupérer les paramètres du tenant pour frais déplacement
+      const { data: tenantConfig } = await supabase
+        .from('tenants')
+        .select('settings')
+        .eq('id', tenantId)
+        .single();
+
+      fraisDeplacement = tenantConfig?.settings?.frais_deplacement || 2000; // 20€ par défaut
+      montantHT += fraisDeplacement;
+    }
+
+    // 4. Appliquer remise
+    let montantRemise = 0;
+    let remiseType = null;
+    let remiseValeur = 0;
+    let remiseMotif = null;
+
+    if (remise && remise.valeur > 0) {
+      remiseType = remise.type;
+      remiseValeur = remise.valeur;
+      remiseMotif = remise.motif || null;
+
+      if (remise.type === 'pourcentage') {
+        montantRemise = Math.round(montantHT * remise.valeur / 100);
+      } else {
+        montantRemise = remise.valeur; // Montant en centimes
+      }
+
+      montantHT -= montantRemise;
+    }
+
+    // 5. Calculer TVA et TTC
+    const tauxTVA = 20;
+    const montantTVA = Math.round(montantHT * tauxTVA / 100);
+    const montantTTC = montantHT + montantTVA;
+
+    // 6. Créer l'opportunité
     const etapeInitiale = etape || 'prospect';
     const probabilite = PROBABILITIES[etapeInitiale] || 10;
 
-    const { data, error } = await supabase
+    // Montant pour rétrocompatibilité (en euros, pas centimes)
+    const montantEuros = montantTTC / 100;
+
+    const { data: opportunite, error } = await supabase
       .from('opportunites')
       .insert({
-        tenant_id: req.admin.tenant_id,
+        tenant_id: tenantId,
         nom,
         description,
-        client_id: client_id || null,
-        montant: montant || 0,
+        client_id: finalClientId,
+        montant: montantEuros,
+        montant_ht: montantHT,
+        montant_tva: montantTVA,
+        montant_ttc: montantTTC,
+        montant_remise: montantRemise,
+        frais_deplacement: fraisDeplacement,
+        remise_type: remiseType,
+        remise_valeur: remiseValeur,
+        remise_motif: remiseMotif,
+        date_debut,
+        duree_totale_minutes: dureeTotale,
+        lieu: lieu || 'salon',
+        adresse_client: lieu === 'domicile' ? adresse_client : null,
         etape: etapeInitiale,
         probabilite,
         date_cloture_prevue,
@@ -221,21 +386,40 @@ router.post('/', async (req, res) => {
 
     if (error) throw error;
 
-    // Logger dans historique
+    // 7. Créer les lignes de services
+    if (lignesServices.length > 0) {
+      const lignesAvecOppId = lignesServices.map(l => ({
+        ...l,
+        opportunite_id: opportunite.id
+      }));
+
+      const { error: lignesError } = await supabase
+        .from('opportunite_lignes')
+        .insert(lignesAvecOppId);
+
+      if (lignesError) {
+        console.error('[PIPELINE] Erreur création lignes:', lignesError);
+      }
+    }
+
+    // 8. Logger dans historique
     await supabase.from('opportunites_historique').insert({
-      opportunite_id: data.id,
-      tenant_id: req.admin.tenant_id,
+      opportunite_id: opportunite.id,
+      tenant_id: tenantId,
       etape_precedente: null,
       etape_nouvelle: etapeInitiale,
       changed_by: req.admin.id,
-      notes: 'Création de l\'opportunité'
+      notes: `Création de l'opportunité${lignesServices.length > 0 ? ` avec ${lignesServices.length} service(s)` : ''}`
     });
 
-    console.log(`[PIPELINE] Nouvelle opportunité créée: ${data.id} - ${nom}`);
-    res.status(201).json(data);
+    console.log(`[PIPELINE] Nouvelle opportunité créée: ${opportunite.id} - ${nom} (${montantTTC / 100}€)`);
+    res.status(201).json({
+      ...opportunite,
+      lignes: lignesServices
+    });
   } catch (error) {
     console.error('[PIPELINE] Erreur création opportunité:', error);
-    res.status(500).json({ error: 'Erreur création opportunité' });
+    res.status(500).json({ error: 'Erreur création opportunité: ' + error.message });
   }
 });
 
@@ -480,6 +664,118 @@ router.get('/stats/summary', async (req, res) => {
   } catch (error) {
     console.error('[PIPELINE] Erreur stats summary:', error);
     res.status(500).json({ error: 'Erreur récupération stats' });
+  }
+});
+
+// ============================================
+// INTÉGRATION DEVIS
+// ============================================
+
+/**
+ * POST /api/admin/pipeline/:id/devis
+ * Créer un devis depuis une opportunité
+ */
+router.post('/:id/devis', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    // Récupérer l'opportunité avec le client
+    const { data: opp, error: oppError } = await supabase
+      .from('opportunites')
+      .select('*, clients(*)')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (oppError || !opp) {
+      return res.status(404).json({ error: 'Opportunité non trouvée' });
+    }
+
+    // Vérifier si un devis existe déjà pour cette opportunité
+    const { data: existingDevis } = await supabase
+      .from('devis')
+      .select('id, numero')
+      .eq('opportunite_id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (existingDevis) {
+      return res.status(400).json({
+        error: 'Un devis existe déjà pour cette opportunité',
+        devis_id: existingDevis.id,
+        devis_numero: existingDevis.numero
+      });
+    }
+
+    // Générer numéro de devis
+    const year = new Date().getFullYear();
+    const { count } = await supabase
+      .from('devis')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .gte('created_at', `${year}-01-01`);
+
+    const prefix = tenantId.slice(0, 3).toUpperCase();
+    const numero = `${prefix}-${year}-${String((count || 0) + 1).padStart(5, '0')}`;
+
+    // Calculer montants
+    const montantTTC = Math.round((opp.montant || 0) * 100); // En centimes
+    const montantHT = Math.round(montantTTC / 1.2);
+    const montantTVA = montantTTC - montantHT;
+
+    // Créer le devis pré-rempli
+    const devisData = {
+      tenant_id: tenantId,
+      numero,
+      opportunite_id: opp.id,
+      client_id: opp.client_id,
+      client_nom: opp.clients?.nom ? `${opp.clients.prenom || ''} ${opp.clients.nom}`.trim() : opp.nom,
+      client_email: opp.clients?.email,
+      client_telephone: opp.clients?.telephone,
+      client_adresse: opp.clients?.adresse,
+      montant_ht: montantHT,
+      taux_tva: 20,
+      montant_tva: montantTVA,
+      montant_ttc: montantTTC,
+      statut: 'brouillon',
+      date_devis: new Date().toISOString().split('T')[0],
+      validite_jours: 30,
+      date_expiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      notes: opp.notes || null,
+      created_by: req.admin.email
+    };
+
+    const { data: devis, error: devisError } = await supabase
+      .from('devis')
+      .insert(devisData)
+      .select()
+      .single();
+
+    if (devisError) throw devisError;
+
+    // Mettre à jour l'opportunité vers l'étape "devis"
+    await supabase.from('opportunites').update({
+      etape: 'devis',
+      probabilite: PROBABILITIES.devis,
+      updated_at: new Date().toISOString()
+    }).eq('id', id).eq('tenant_id', tenantId);
+
+    // Ajouter à l'historique de l'opportunité
+    await supabase.from('opportunites_historique').insert({
+      opportunite_id: id,
+      tenant_id: tenantId,
+      etape_precedente: opp.etape,
+      etape_nouvelle: 'devis',
+      notes: `Devis ${numero} créé`,
+      changed_by: req.admin.email
+    });
+
+    console.log(`[PIPELINE] Devis ${numero} créé pour opportunité ${id}`);
+    res.json({ success: true, devis });
+  } catch (error) {
+    console.error('[PIPELINE] Erreur création devis:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -341,6 +341,12 @@ export const comptaApi = {
   sendFacture: (id: number) => api.post<{ success: boolean; message: string }>(`/factures/${id}/envoyer`),
   sendAllFactures: () => api.post<{ success: boolean; nb_envoyees: number }>('/factures/envoyer-toutes'),
   syncFactures: () => api.post<{ success: boolean; message: string; nb_creees: number; nb_mises_a_jour: number; nb_echecs?: number; total_reservations?: number }>('/factures/generer-manquantes'),
+  // Enregistrement paiement facture
+  enregistrerPaiement: (factureId: number, data: {
+    mode_paiement: 'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque';
+    date_paiement?: string;
+    reference_paiement?: string;
+  }) => api.post<{ success: boolean; facture: Invoice; message: string }>(`/factures/${factureId}/paiement`, data),
   // Relances
   getRelances: () => api.get<{ success: boolean; factures: RelanceFacture[]; stats: RelanceStats }>('/relances'),
   getRelanceHistorique: (factureId: number) => api.get<{ success: boolean; historique: RelanceHistorique[] }>(`/relances/historique/${factureId}`),
@@ -397,11 +403,12 @@ export const comptaApi = {
     return api.get<CompteDetailResponse>(`/journaux/grand-livre/${compte}${query}`);
   },
 
-  getBalanceGenerale: (params?: { periode?: string; exercice?: number; avec_sous_comptes?: boolean }) => {
+  getBalanceGenerale: (params?: { periode?: string; exercice?: number; avec_sous_comptes?: boolean; compte?: string }) => {
     const query = new URLSearchParams();
     if (params?.periode) query.set('periode', params.periode);
     if (params?.exercice) query.set('exercice', params.exercice.toString());
     if (params?.avec_sous_comptes) query.set('avec_sous_comptes', 'true');
+    if (params?.compte) query.set('compte', params.compte);
     return api.get<BalanceGeneraleResponse>(`/journaux/balance-generale?${query}`);
   },
 
@@ -415,15 +422,24 @@ export const comptaApi = {
     return api.get<BalanceAuxiliaireResponse>(`/journaux/balance-fournisseurs${query}`);
   },
 
-  getBilan: (exercice?: number) => {
+  getBalancePersonnel: (exercice?: number) => {
     const query = exercice ? `?exercice=${exercice}` : '';
-    return api.get<BilanResponse>(`/journaux/bilan${query}`);
+    return api.get<BalanceAuxiliaireResponse>(`/journaux/balance-personnel${query}`);
   },
 
-  getCompteResultat: (params?: { exercice?: number; periode?: string }) => {
+  getBilan: (params?: { exercice?: number; periode?: string; date_fin?: string }) => {
     const query = new URLSearchParams();
     if (params?.exercice) query.set('exercice', params.exercice.toString());
     if (params?.periode) query.set('periode', params.periode);
+    if (params?.date_fin) query.set('date_fin', params.date_fin);
+    return api.get<BilanResponse>(`/journaux/bilan?${query}`);
+  },
+
+  getCompteResultat: (params?: { exercice?: number; periode?: string; date_fin?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.exercice) query.set('exercice', params.exercice.toString());
+    if (params?.periode) query.set('periode', params.periode);
+    if (params?.date_fin) query.set('date_fin', params.date_fin);
     return api.get<CompteResultatResponse>(`/journaux/compte-resultat?${query}`);
   },
 
@@ -432,6 +448,30 @@ export const comptaApi = {
   exportFEC: (exercice: number) => {
     window.open(`${API_BASE}/journaux/fec?exercice=${exercice}`, '_blank');
   },
+
+  // ============================================
+  // DEVIS
+  // ============================================
+  getDevis: (params?: { statut?: string; mois?: string; client_id?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.statut) query.set('statut', params.statut);
+    if (params?.mois) query.set('mois', params.mois);
+    if (params?.client_id) query.set('client_id', params.client_id.toString());
+    return api.get<{ devis: Devis[]; stats: DevisStats }>(`/admin/devis?${query}`);
+  },
+  getDevisById: (id: string) => api.get<{ devis: Devis; historique: DevisHistorique[] }>(`/admin/devis/${id}`),
+  createDevis: (data: DevisCreateData) => api.post<{ success: boolean; devis: Devis }>('/admin/devis', data),
+  updateDevis: (id: string, data: Partial<Devis>) => api.put<{ success: boolean; devis: Devis }>(`/admin/devis/${id}`, data),
+  deleteDevis: (id: string) => api.delete<{ success: boolean; message: string }>(`/admin/devis/${id}`),
+  envoyerDevis: (id: string) => api.post<{ success: boolean; message: string }>(`/admin/devis/${id}/envoyer`),
+  accepterDevis: (id: string, data: { date_rdv: string; heure_rdv: string }) =>
+    api.post<{ success: boolean; message: string; devis: Devis; reservation: Reservation }>(`/admin/devis/${id}/accepter`, data),
+  rejeterDevis: (id: string, data: { raison?: string }) =>
+    api.post<{ success: boolean; message: string }>(`/admin/devis/${id}/rejeter`, data),
+  getDevisPDF: (id: string) => api.get<string>(`/admin/devis/${id}/pdf`),
+  // Création devis depuis pipeline
+  createDevisFromOpportunite: (opportuniteId: number) =>
+    api.post<{ success: boolean; devis: Devis }>(`/admin/pipeline/${opportuniteId}/devis`),
 };
 
 // Types Journaux
@@ -477,6 +517,7 @@ export interface BalanceCompte {
 export interface RelanceFacture {
   id: number;
   numero: string;
+  client_id: number;
   client_nom: string;
   client_email: string;
   client_telephone: string;
@@ -532,7 +573,7 @@ export const rhApi = {
   createMember: (data: CreateMemberData) => api.post<{ member: TeamMember }>('/admin/rh/team', data),
   updateMember: (id: number, data: Partial<TeamMember>) => api.put<{ member: TeamMember }>(`/admin/rh/team/${id}`, data),
   deleteMember: (id: number) => api.delete(`/admin/rh/team/${id}`),
-  getEmployeeDetail: (id: number) => api.get<EmployeeDetailResponse>(`/rh/employes/${id}`),
+  getEmployeeDetail: (id: number) => api.get<EmployeeDetailResponse>(`/admin/rh/employes/${id}`),
 };
 
 export interface EmployeeDetailResponse {
@@ -751,6 +792,12 @@ export interface Client {
   telephone: string;
   email: string | null;
   adresse: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  complement_adresse?: string | null;
+  type_client?: 'particulier' | 'professionnel' | null;
+  raison_sociale?: string | null;
+  siret?: string | null;
   created_at: string;
   nb_rdv?: number;
   dernier_rdv?: { date: string; statut: string } | null;
@@ -783,10 +830,17 @@ export interface ClientsResponse {
 }
 
 export interface CreateClientData {
-  prenom: string;
+  prenom?: string | null;
   nom: string;
   telephone: string;
-  email?: string;
+  email?: string | null;
+  type_client?: 'particulier' | 'professionnel';
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  complement_adresse?: string | null;
+  raison_sociale?: string | null;
+  siret?: string | null;
 }
 
 export interface Reservation {
@@ -832,6 +886,11 @@ export interface Service {
   taxe_cnaps?: boolean;
   taux_cnaps?: number;
   categorie?: string;
+  // V2 - Multi-business pricing
+  taux_horaire?: number;
+  taux_journalier?: number;
+  prix_forfait?: number;
+  pricing_mode?: 'fixed' | 'hourly' | 'daily' | 'package';
   // Champs calculés par le backend
   prix_ht_base?: number;
   prix_ht?: number;
@@ -883,6 +942,7 @@ export interface Invoice {
   client_nom: string;
   client_email?: string;
   client_telephone?: string;
+  service_id?: number;
   service_nom: string;
   service_description?: string;
   // Dates
@@ -898,6 +958,109 @@ export interface Invoice {
   montant_ht_euros?: string;
   montant_ttc_euros?: string;
   montant_tva_euros?: string;
+}
+
+// ============================================
+// DEVIS TYPES
+// ============================================
+export interface Devis {
+  id: string;
+  numero: string;
+  // Client
+  client_id?: number;
+  client_nom?: string;
+  client_email?: string;
+  client_telephone?: string;
+  client_adresse?: string;
+  adresse_facturation?: string;
+  // Service
+  service_id?: string;
+  service_nom?: string;
+  service_description?: string;
+  duree_minutes?: number;
+  lieu?: string;
+  // Montants en centimes
+  montant_ht: number;
+  taux_tva: number;
+  montant_tva: number;
+  montant_ttc: number;
+  frais_deplacement?: number;
+  // Statut
+  statut: 'brouillon' | 'envoye' | 'accepte' | 'rejete' | 'expire' | 'annule' | 'execute';
+  // Dates
+  date_devis: string;
+  validite_jours: number;
+  date_expiration?: string;
+  date_envoi?: string;
+  date_acceptation?: string;
+  date_rejet?: string;
+  date_execution?: string;
+  // Date/heure prévue de la prestation
+  date_prestation?: string;
+  date_fin_prestation?: string;
+  heure_prestation?: string;
+  // Mode horaire
+  pricing_mode?: 'fixed' | 'hourly' | 'daily' | 'package';
+  nb_jours?: number;
+  nb_agents?: number;
+  membre_ids?: number[];
+  // Liens
+  opportunite_id?: number;
+  reservation_id?: string;
+  // Métadonnées
+  notes?: string;
+  raison_rejet?: string;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Relations (jointures)
+  clients?: { id: number; nom: string; prenom?: string; email?: string; telephone?: string };
+  opportunites?: { id: number; nom: string; etape: string };
+  reservations?: { id: string; date: string; heure: string; statut: string };
+}
+
+export interface DevisStats {
+  total: number;
+  brouillon: number;
+  envoye: number;
+  accepte: number;
+  rejete: number;
+  montant_total: number;
+}
+
+export interface DevisHistorique {
+  id: number;
+  devis_id: string;
+  action: string;
+  ancien_statut?: string;
+  nouveau_statut?: string;
+  notes?: string;
+  changed_by?: string;
+  created_at: string;
+}
+
+// Type pour les affectations de devis (membre + horaires)
+export interface DevisAffectation {
+  membre_id?: number;
+  heure_debut?: string;
+  heure_fin?: string;
+}
+
+// Type pour les lignes de devis (services individuels)
+export interface DevisLigne {
+  service_id?: number;
+  service_nom: string;
+  quantite: number;
+  duree_minutes: number;
+  prix_unitaire: number;
+  prix_total: number;
+  taux_horaire?: number | null;
+  affectations?: DevisAffectation[];
+}
+
+// Type pour la création/modification de devis (inclut les lignes)
+export interface DevisCreateData extends Partial<Devis> {
+  lignes?: DevisLigne[];
 }
 
 export interface Expense {
@@ -1057,23 +1220,32 @@ export interface EcritureGrandLivre {
 }
 
 export interface GrandLivreCompte {
-  numero: string;
-  libelle: string;
-  ecritures: EcritureGrandLivre[];
+  compte_numero: string;
+  compte_libelle: string;
+  mouvements: {
+    id: number;
+    date: string;
+    journal: string;
+    piece: string;
+    libelle: string;
+    debit: number;
+    credit: number;
+    lettrage?: string;
+  }[];
   total_debit: number;
   total_credit: number;
   solde: number;
 }
 
 export interface GrandLivreResponse {
-  exercice: number;
-  periode_debut?: string;
-  periode_fin?: string;
-  comptes: GrandLivreCompte[];
+  grand_livre: GrandLivreCompte[];
   totaux: {
     debit: number;
     credit: number;
+    solde: number;
   };
+  nb_comptes: number;
+  nb_ecritures: number;
 }
 
 export interface CompteDetailResponse {
@@ -1093,24 +1265,28 @@ export interface CompteDetailResponse {
 export interface BalanceGeneraleLigne {
   numero: string;
   libelle: string;
-  mouvement_debit: number;
-  mouvement_credit: number;
+  debit: number;
+  credit: number;
   solde_debiteur: number;
   solde_crediteur: number;
-  sous_comptes?: BalanceGeneraleLigne[];
+  sous_comptes?: {
+    numero: string;
+    libelle: string;
+    debit: number;
+    credit: number;
+    solde: number;
+  }[];
 }
 
 export interface BalanceGeneraleResponse {
-  exercice: number;
-  periode?: string;
-  avec_sous_comptes: boolean;
-  comptes: BalanceGeneraleLigne[];
+  balance: BalanceGeneraleLigne[];
   totaux: {
-    mouvement_debit: number;
-    mouvement_credit: number;
+    debit: number;
+    credit: number;
     solde_debiteur: number;
     solde_crediteur: number;
   };
+  nb_comptes: number;
 }
 
 export interface BalanceAuxiliaireLigne {
@@ -1143,21 +1319,35 @@ export interface BilanLigne {
   type?: 'titre' | 'compte' | 'total';
 }
 
+export interface BilanLigneAvecSens extends BilanLigne {
+  solde: number;
+  sens?: 'debiteur' | 'crediteur';
+}
+
 export interface BilanResponse {
   exercice: number;
-  date_cloture: string;
   actif: {
-    immobilisations: BilanLigne[];
-    actif_circulant: BilanLigne[];
-    tresorerie: BilanLigne[];
-    total: number;
+    immobilisations: BilanLigneAvecSens[];
+    stocks: BilanLigneAvecSens[];
+    creances: BilanLigneAvecSens[];
+    tresorerie: BilanLigneAvecSens[];
   };
   passif: {
-    capitaux_propres: BilanLigne[];
-    dettes: BilanLigne[];
-    total: number;
+    capitaux: BilanLigneAvecSens[];
+    dettes: BilanLigneAvecSens[];
+    decouvertsBancaires?: BilanLigneAvecSens[]; // Découverts bancaires (classe 5 créditeur)
   };
-  equilibre: boolean;
+  totaux: {
+    actif: number;
+    passif: number;
+    equilibre: boolean;
+  };
+  resultat: {
+    produits: number;
+    charges: number;
+    resultat: number;
+    type: 'bénéfice' | 'perte';
+  };
 }
 
 export interface CompteResultatLigne {
@@ -1175,20 +1365,32 @@ export interface CompteResultatResponse {
     exploitation: CompteResultatLigne[];
     financieres: CompteResultatLigne[];
     exceptionnelles: CompteResultatLigne[];
-    total: number;
   };
   produits: {
     exploitation: CompteResultatLigne[];
     financiers: CompteResultatLigne[];
     exceptionnels: CompteResultatLigne[];
-    total: number;
   };
-  resultat: {
-    exploitation: number;
-    financier: number;
-    exceptionnel: number;
-    net: number;
-    benefice: boolean;
+  totaux: {
+    charges: {
+      exploitation: number;
+      financieres: number;
+      exceptionnelles: number;
+      total: number;
+    };
+    produits: {
+      exploitation: number;
+      financiers: number;
+      exceptionnels: number;
+      total: number;
+    };
+    resultats: {
+      exploitation: number;
+      financier: number;
+      exceptionnel: number;
+      net: number;
+      type: 'bénéfice' | 'perte';
+    };
   };
 }
 

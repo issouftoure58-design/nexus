@@ -9,6 +9,22 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { resolveTenantFromDomain, loadTenant } from '../core/TenantContext.js';
+// V2 - Multi-tenant messages
+import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+
+/**
+ * V2 - Génère le message d'accueil dynamique
+ */
+function getGreetingMessage(tenantId, salutation = 'Bonjour') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const assistant = info.assistant_name || 'Nexus';
+    const gerant = info.gerant || 'notre équipe';
+    return `${salutation} ! Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.\n`;
+  } catch (e) {
+    return `${salutation} ! Je suis Halimah, l'assistante de Fatou.\n`;
+  }
+}
 
 const router = express.Router();
 
@@ -165,7 +181,8 @@ router.post('/chat', async (req, res) => {
       const startsWithGreeting = /^(Bonjour|Bonsoir)/i.test(response.trim());
 
       if (!startsWithGreeting) {
-        response = `${salutation} ! Je suis Halimah, l'assistante de Fatou.\nComment puis-je vous aider ?\n\n${response}`;
+        const greeting = getGreetingMessage(req.tenantId || 'fatshairafro', salutation);
+        response = `${greeting}Comment puis-je vous aider ?\n\n${response}`;
       }
     }
 
@@ -212,7 +229,7 @@ router.post('/chat/stream', async (req, res) => {
     if (isFirstMessage) {
       const currentHour = new Date().getHours();
       const salutation = currentHour >= 18 ? 'Bonsoir' : 'Bonjour';
-      const greeting = `${salutation} ! Je suis Halimah, l'assistante de Fatou.\n`;
+      const greeting = getGreetingMessage(req.tenantId || 'fatshairafro', salutation);
       res.write(`data: ${JSON.stringify({ type: 'text', content: greeting })}\n\n`);
     }
 
