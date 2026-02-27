@@ -635,32 +635,43 @@ NODE_ENV=production
 
 | Feature | Statut | Notes |
 |---------|--------|-------|
-| Pipeline/Devis enrichis | En cours | Navigation + membre_id obligatoire |
-| Opportunites avec services | Planifie | Migration 027_opportunites_enrichies.sql |
-| **Generalisation multi-tenant** | **✅ COMPLETE** | Score: 5.1/10 → 9.0/10 |
+| UI Restaurant | ❌ A faire | Gestion tables, couverts |
+| UI Hotel | ❌ A faire | Gestion chambres, checkin/checkout |
+| Backend routes multi-business | ⚠️ Partiel | Hardcoding "salon" a remplacer |
+| Pipeline/Devis enrichis | En pause | Depend du type de business |
 
-### Plan en attente (voir `/Users/hobb/.claude/plans/temporal-enchanting-kazoo.md`)
+### Priorites
 
-1. Ajouter lien Devis dans Sidebar
-2. Membre_id obligatoire a l'acceptation devis
-3. Opportunite enrichie (services, calcul montants)
+1. **P0 - UI Restaurant**: Services.tsx (tables), Activites.tsx (reservations tables)
+2. **P0 - UI Hotel**: Services.tsx (chambres), Activites.tsx (sejours)
+3. **P1 - Backend**: Utiliser tenantBusinessService partout, supprimer hardcoding
+4. **P2 - Devis/Pipeline**: Adapter selon business type (pas pour resto/hotel)
 
 ---
 
 ## 12.1 SYSTEME MULTI-TENANT MULTI-BUSINESS (2026-02-27)
 
-### Score Global: 9.0/10 ✅ (ameliore depuis 5.1/10)
+### Score Global: 6.0/10 ⚠️ (Infrastructure OK, UI resto/hotel manquante)
 
-La generalisation multi-tenant est **COMPLETE**. Le systeme supporte desormais 4 types de business avec configuration dynamique.
+L'**infrastructure** est complete mais l'**implementation UI** n'existe que pour service_domicile et salon.
 
-### Types de Business Supportes
+### Etat par Type de Business
 
-| Type | Description | Features |
-|------|-------------|----------|
-| `service_domicile` | Services a domicile | travelFees, clientAddress |
-| `salon` | Etablissement fixe | multiStaff, pas de frais deplacement |
-| `restaurant` | Restauration | tableManagement, couverts |
-| `hotel` | Hotellerie | roomManagement, checkInOut, extras |
+| Type | Config Backend | ProfileContext | UI Pages | Score |
+|------|----------------|----------------|----------|-------|
+| `service_domicile` | ✅ | ✅ | ✅ | **100%** |
+| `salon` | ✅ | ✅ | ✅ | **100%** |
+| `restaurant` | ✅ | ✅ | ❌ | **40%** |
+| `hotel` | ✅ | ✅ | ❌ | **40%** |
+
+### Features par Type
+
+| Type | Description | Features Configurees | UI Implementee |
+|------|-------------|---------------------|----------------|
+| `service_domicile` | Services a domicile | travelFees, clientAddress | ✅ OUI |
+| `salon` | Etablissement fixe | multiStaff, stations | ✅ OUI |
+| `restaurant` | Restauration | tableManagement, covers | ❌ NON |
+| `hotel` | Hotellerie | roomInventory, checkinCheckout, extras | ❌ NON |
 
 ### Architecture Multi-Business
 
@@ -715,22 +726,68 @@ const { t, hasFeature, businessType, businessInfo } = useProfile();
 <PricingFields allowModeSwitch />
 ```
 
-### Ce qui Fonctionne ✅
+### Infrastructure Complete ✅
 
-| Composant | Status |
-|-----------|--------|
-| Config tenant (`fatshairafro.js`) | ✅ Bien structure |
-| Routage WhatsApp (`getTenantByWhatsAppNumber`) | ✅ Pas de fallback |
-| Routage Twilio (`getTenantByPhoneNumber`) | ✅ Fonctionne |
-| Tenant Shield (DB) | ✅ Isolation active |
-| **tenantBusinessService.js** | ✅ **NOUVEAU** Service central |
-| **businessTypes.js** | ✅ **NOUVEAU** 4 types de business |
-| **Templates tenant** | ✅ **NOUVEAU** 4 templates |
-| **Prompts dynamiques** | ✅ **NOUVEAU** systemPrompt.js |
-| **ProfileContext V2** | ✅ **NOUVEAU** Hooks multi-business |
-| **Composants forms** | ✅ **NOUVEAU** FeatureField, etc. |
+| Composant | Status | Notes |
+|-----------|--------|-------|
+| `config/businessTypes.js` | ✅ | 4 types configures |
+| `services/tenantBusinessService.js` | ✅ | Service central avec cache |
+| `contexts/ProfileContext.tsx` | ✅ | Hooks V2 complets |
+| `components/forms/FeatureField.tsx` | ✅ | Affichage conditionnel par feature |
+| `components/forms/BusinessTypeField.tsx` | ✅ | Affichage conditionnel par type |
+| `components/forms/DynamicLabel.tsx` | ✅ | Labels avec terminologie |
+| `components/forms/PricingFields.tsx` | ✅ | Modes fixed/hourly/daily/package |
 
-### Fichiers Corriges ✅
+### UI Pages - Etat Reel
+
+| Page | service_domicile | salon | restaurant | hotel |
+|------|------------------|-------|------------|-------|
+| Services.tsx | ✅ | ✅ | ❌ Pas de tables | ❌ Pas de chambres |
+| Activites.tsx | ✅ | ✅ | ❌ Pas de couverts | ❌ Pas de checkin |
+| Clients.tsx | ✅ | ✅ | ✅ | ✅ |
+| Devis.tsx | ✅ | ✅ | ❌ N/A | ❌ N/A |
+| Pipeline.tsx | ✅ | ✅ | ❌ N/A | ❌ N/A |
+
+### Ce qui Manque pour Restaurant ❌
+
+```
+Services.tsx:
+- Champ "capacite" (nombre places par table)
+- Champ "zone" (terrasse, interieur, etc.)
+- Pas de "duree" ni "prix" (une table n'a pas de prix)
+
+Activites.tsx:
+- Champ "nb_couverts" (nombre de personnes)
+- Selection de table (pas de membre)
+- Creneau horaire (pas d'affectation membre)
+```
+
+### Ce qui Manque pour Hotel ❌
+
+```
+Services.tsx:
+- Champ "etage"
+- Champ "capacite_max" (personnes)
+- Champ "equipements" (wifi, minibar, etc.)
+- "prix" = prix par NUIT (pas prix fixe)
+
+Activites.tsx:
+- Date range (arrivee - depart) au lieu de date unique
+- Heure checkin / checkout
+- Selection extras (petit-dejeuner, parking)
+- Pas d'affectation membre
+```
+
+### Backend - Hardcoding a Corriger ⚠️
+
+| Fichier | Probleme | Impact |
+|---------|----------|--------|
+| `adminReservations.js` | `lieu: 'salon'` hardcode | ❌ Tous types |
+| `adminServices.js` | Pas de validation par type | ❌ Resto/Hotel |
+| `adminPipeline.js` | `lieu: 'salon'` hardcode | ❌ Tous types |
+| `public.js` | `lieu_type: 'salon'` hardcode | ❌ Tous types |
+
+### Fichiers Backend Corriges ✅
 
 | Fichier | Probleme | Statut |
 |---------|----------|--------|
@@ -742,29 +799,59 @@ const { t, hasFeature, businessType, businessInfo } = useProfile();
 | `utils/whatsappTemplates.js` | URLs, signature | ✅ Corrige |
 | `routes/twilioWebhooks.js` | TODO tenant resolution | ✅ Corrige |
 
-### Generalisation Multi-Business ✅ IMPLEMENTE
+### Service Central tenantBusinessService.js ✅
 
-**Service Central: `tenantBusinessService.js`**
 ```javascript
-// Fonctions principales
-getBusinessInfo(tenantId)      // Infos completes du tenant (async)
-getBusinessInfoSync(tenantId)  // Version synchrone avec cache
-hasFeature(tenantId, feature)  // Verification feature flag
-getTerminology(tenantId)       // Terminologie dynamique
-getAIContext(tenantId)         // Contexte pour prompts IA
-}
+// Fonctions disponibles
+getBusinessInfo(tenantId)       // Infos completes du tenant (async)
+getBusinessInfoSync(tenantId)   // Version synchrone avec cache
+hasFeature(tenantId, feature)   // Verification feature flag
+getTerminology(tenantId, key)   // Terminologie dynamique
+getAllTerminology(tenantId)     // Tous les termes
+getBusinessRule(tenantId, rule) // Regles metier
+isFieldRequired(tenantId, f)    // Validation champ requis
+isFieldForbidden(tenantId, f)   // Validation champ interdit
+calculatePrice(tenantId, ...)   // Calcul prix adapte
+getAIContext(tenantId)          // Contexte pour prompts IA
 ```
 
-**Phase 3: Remplacer tous les imports SALON_INFO**
-- Chaque service utilise `getSalonInfo(tenantId)` au lieu de constantes
+### Terminologie par Type
 
-### Scores par Canal (apres correction)
+| Cle | service_domicile | salon | restaurant | hotel |
+|-----|------------------|-------|------------|-------|
+| reservation | RDV | RDV | Reservation | Reservation |
+| service | Prestation | Prestation | Table | Chambre |
+| client | Client | Client | Client | Hote |
+| employee | Intervenant | Coiffeur | Serveur | Receptionniste |
+| duration | Duree | Duree | Creneau | Sejour |
+| quantity | Quantite | Quantite | Couverts | Personnes |
 
-| Canal | Avant | Apres | Notes |
-|-------|-------|-------|-------|
-| Phone/Voice | 3.8/10 | 9.0/10 | ✅ getVoiceMessages(), voicePrompt dynamique |
-| WhatsApp | 5.2/10 | 9.0/10 | ✅ URLs/signatures via tenantBusinessService |
-| AI Agent Config | 6.2/10 | 9.0/10 | ✅ systemPrompt.js generateur dynamique |
+### Features par Type
+
+| Feature | service_domicile | salon | restaurant | hotel |
+|---------|------------------|-------|------------|-------|
+| travelFees | ✅ | ❌ | ❌ | ❌ |
+| clientAddress | ✅ | ❌ | ❌ | ❌ |
+| multiStaff | ❌ | ✅ | ✅ | ✅ |
+| tableManagement | ❌ | ❌ | ✅ | ❌ |
+| roomInventory | ❌ | ❌ | ❌ | ✅ |
+| checkinCheckout | ❌ | ❌ | ❌ | ✅ |
+| extras | ❌ | ❌ | ❌ | ✅ |
+| deposits | ✅ | ✅ | ❌ | ✅ |
+
+### Scores par Composant
+
+| Composant | Score | Notes |
+|-----------|-------|-------|
+| Backend Config | 10/10 | ✅ Complet |
+| tenantBusinessService | 10/10 | ✅ Complet |
+| ProfileContext | 10/10 | ✅ Complet |
+| Composants Forms | 10/10 | ✅ Complet |
+| UI service_domicile | 10/10 | ✅ Complet |
+| UI salon | 10/10 | ✅ Complet |
+| UI restaurant | 2/10 | ❌ A faire |
+| UI hotel | 2/10 | ❌ A faire |
+| Backend routes | 5/10 | ⚠️ Hardcoding |
 
 ---
 
