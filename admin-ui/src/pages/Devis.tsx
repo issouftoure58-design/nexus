@@ -540,7 +540,10 @@ interface DevisFormModalProps {
 
 function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalProps) {
   // Profile métier
-  const { profile, t, isPricingMode } = useProfile();
+  const { profile, t, isPricingMode, isBusinessType } = useProfile();
+
+  // Affectation membre uniquement pour salon/service_domicile (pas restaurant/hotel)
+  const showMemberAssignment = !isBusinessType('restaurant') && !isBusinessType('hotel');
 
   // Client state
   const [clientMode, setClientMode] = useState<'existant' | 'nouveau'>('existant');
@@ -1247,8 +1250,8 @@ function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalP
                       </button>
                     </div>
 
-                    {/* Affectations multiples (une par quantité) */}
-                    {(ligne.affectations || []).map((affectation, affIdx) => (
+                    {/* Affectations multiples (une par quantité) - uniquement salon/service_domicile */}
+                    {showMemberAssignment && (ligne.affectations || []).map((affectation, affIdx) => (
                       <div key={affIdx} className="pt-2 border-t border-gray-100 space-y-2">
                         {/* Label si plusieurs affectations */}
                         {ligne.quantite > 1 && (
@@ -1632,7 +1635,10 @@ interface AffectationExec {
 
 function ExecuteDevisModal({ devis, onClose, onExecute, isLoading }: ExecuteDevisModalProps) {
   // Profile pour adapter le texte
-  const { profile, t, isPricingMode } = useProfile();
+  const { profile, t, isPricingMode, isBusinessType } = useProfile();
+
+  // Affectation membre uniquement pour salon/service_domicile (pas restaurant/hotel)
+  const showMemberAssignment = !isBusinessType('restaurant') && !isBusinessType('hotel');
 
   // Pré-remplir avec les valeurs du devis si disponibles
   const devisData = devis as Devis & { date_prestation?: string; heure_prestation?: string };
@@ -1877,146 +1883,149 @@ function ExecuteDevisModal({ devis, onClose, onExecute, isLoading }: ExecuteDevi
           </div>
 
           {/* Affectation des services avec disponibilité intelligente */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-gray-700">Affectation des ressources</h3>
-              {dispoLoading && <span className="text-sm text-blue-600">Vérification des disponibilités...</span>}
-            </div>
-
-            {/* Message si pas de date (en mode horaire, pas besoin d'heure globale) */}
-            {!dateRdv || (!isPricingMode('hourly') && !heureRdv) ? (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  Sélectionnez une date pour voir le personnel disponible.
-                </p>
+          {/* Uniquement pour salon/service_domicile, pas pour restaurant/hotel */}
+          {showMemberAssignment && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-gray-700">Affectation des ressources</h3>
+                {dispoLoading && <span className="text-sm text-blue-600">Vérification des disponibilités...</span>}
               </div>
-            ) : (
-              <>
-                {/* Indicateur de disponibilité */}
-                {dateRdv && (isPricingMode('hourly') || heureRdv) && !dispoLoading && (
-                  <div className={`rounded-lg p-3 text-sm ${
-                    ressourcesDisponibles.length > 0
-                      ? 'bg-green-50 border border-green-200 text-green-800'
-                      : 'bg-red-50 border border-red-200 text-red-800'
-                  }`}>
-                    {ressourcesDisponibles.length > 0 ? (
-                      <span>✓ {ressourcesDisponibles.length} membre(s) disponible(s)</span>
-                    ) : (
-                      <span>✗ Aucun membre dans l'équipe</span>
-                    )}
-                  </div>
-                )}
 
-                {/* Services avec affectation */}
-                {services.map((service) => {
-                  const aff = affectations[service.id] || { membre_id: 0, heure_debut: heureRdv, heure_fin: '' };
-                  return (
-                    <div key={service.id} className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1">
-                          <p className="font-medium">{service.nom}</p>
-                          <p className="text-sm text-gray-500">
-                            Quantité: {service.quantite} | Durée prédéfinie: {service.duree_minutes} min
-                          </p>
-                        </div>
-                        <div className="w-56">
-                          <select
-                            value={aff.membre_id || ''}
-                            onChange={(e) => {
-                              const membreId = parseInt(e.target.value) || 0;
-                              setAffectations({
-                                ...affectations,
-                                [service.id]: { ...aff, membre_id: membreId }
-                              });
-                            }}
-                            onFocus={() => setServiceEnCours(service.service_id)}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                          >
-                            <option value="">-- Sélectionner --</option>
-                            {ressourcesDisponibles.length > 0 && (
-                              <optgroup label="✓ Disponibles">
-                                {ressourcesDisponibles.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.nom} {r.categorie ? `(${r.categorie})` : ''}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {ressourcesOccupees.length > 0 && (
-                              <optgroup label="✗ Occupées">
-                                {ressourcesOccupees.map((r) => (
-                                  <option key={r.id} value={r.id} disabled className="text-gray-400">
-                                    {r.nom} - {r.raison === 'occupee' ? 'Occupé(e)' : 'Indisponible'}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Horaires personnalisés (mode horaire) */}
-                      {isPricingMode('hourly') && aff.membre_id > 0 && (
-                        <div className="flex items-center gap-3 pl-4 border-l-2 border-purple-200">
-                          <Clock className="w-4 h-4 text-purple-500" />
-                          <span className="text-sm text-gray-600">Horaires:</span>
-                          <input
-                            type="time"
-                            value={aff.heure_debut || ''}
-                            onChange={(e) => setAffectations({
-                              ...affectations,
-                              [service.id]: { ...aff, heure_debut: e.target.value }
-                            })}
-                            className="px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-purple-500"
-                          />
-                          <span className="text-gray-400">→</span>
-                          <input
-                            type="time"
-                            value={aff.heure_fin || ''}
-                            onChange={(e) => setAffectations({
-                              ...affectations,
-                              [service.id]: { ...aff, heure_fin: e.target.value }
-                            })}
-                            className="px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-purple-500"
-                          />
-                          {aff.heure_debut && aff.heure_fin && (
-                            <span className="text-xs text-purple-600 font-medium">
-                              ({calculateHoursFromTimes(aff.heure_debut, aff.heure_fin)}h)
-                            </span>
-                          )}
-                        </div>
+              {/* Message si pas de date (en mode horaire, pas besoin d'heure globale) */}
+              {!dateRdv || (!isPricingMode('hourly') && !heureRdv) ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800">
+                    Sélectionnez une date pour voir le personnel disponible.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Indicateur de disponibilité */}
+                  {dateRdv && (isPricingMode('hourly') || heureRdv) && !dispoLoading && (
+                    <div className={`rounded-lg p-3 text-sm ${
+                      ressourcesDisponibles.length > 0
+                        ? 'bg-green-50 border border-green-200 text-green-800'
+                        : 'bg-red-50 border border-red-200 text-red-800'
+                    }`}>
+                      {ressourcesDisponibles.length > 0 ? (
+                        <span>✓ {ressourcesDisponibles.length} membre(s) disponible(s)</span>
+                      ) : (
+                        <span>✗ Aucun membre dans l'équipe</span>
                       )}
                     </div>
-                  );
-                })}
+                  )}
 
-                {/* Suggestions de prochaines disponibilités */}
-                {ressourcesDisponibles.length === 0 && prochainesDispos.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-blue-800 mb-2">📅 Prochaines disponibilités :</p>
-                    <div className="space-y-2">
-                      {prochainesDispos.map((dispo, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setDateRdv(dispo.date);
-                            setHeureRdv(dispo.heure_debut);
-                          }}
-                          className="w-full text-left px-3 py-2 bg-white rounded border border-blue-200 hover:bg-blue-100 text-sm"
-                        >
-                          <span className="font-medium">{dispo.ressource_nom}</span>
-                          <span className="text-gray-600 ml-2">
-                            {dispo.heure_debut} - {dispo.heure_fin}
-                          </span>
-                        </button>
-                      ))}
+                  {/* Services avec affectation */}
+                  {services.map((service) => {
+                    const aff = affectations[service.id] || { membre_id: 0, heure_debut: heureRdv, heure_fin: '' };
+                    return (
+                      <div key={service.id} className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <p className="font-medium">{service.nom}</p>
+                            <p className="text-sm text-gray-500">
+                              Quantité: {service.quantite} | Durée prédéfinie: {service.duree_minutes} min
+                            </p>
+                          </div>
+                          <div className="w-56">
+                            <select
+                              value={aff.membre_id || ''}
+                              onChange={(e) => {
+                                const membreId = parseInt(e.target.value) || 0;
+                                setAffectations({
+                                  ...affectations,
+                                  [service.id]: { ...aff, membre_id: membreId }
+                                });
+                              }}
+                              onFocus={() => setServiceEnCours(service.service_id)}
+                              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                            >
+                              <option value="">-- Sélectionner --</option>
+                              {ressourcesDisponibles.length > 0 && (
+                                <optgroup label="✓ Disponibles">
+                                  {ressourcesDisponibles.map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.nom} {r.categorie ? `(${r.categorie})` : ''}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {ressourcesOccupees.length > 0 && (
+                                <optgroup label="✗ Occupées">
+                                  {ressourcesOccupees.map((r) => (
+                                    <option key={r.id} value={r.id} disabled className="text-gray-400">
+                                      {r.nom} - {r.raison === 'occupee' ? 'Occupé(e)' : 'Indisponible'}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Horaires personnalisés (mode horaire) */}
+                        {isPricingMode('hourly') && aff.membre_id > 0 && (
+                          <div className="flex items-center gap-3 pl-4 border-l-2 border-purple-200">
+                            <Clock className="w-4 h-4 text-purple-500" />
+                            <span className="text-sm text-gray-600">Horaires:</span>
+                            <input
+                              type="time"
+                              value={aff.heure_debut || ''}
+                              onChange={(e) => setAffectations({
+                                ...affectations,
+                                [service.id]: { ...aff, heure_debut: e.target.value }
+                              })}
+                              className="px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-purple-500"
+                            />
+                            <span className="text-gray-400">→</span>
+                            <input
+                              type="time"
+                              value={aff.heure_fin || ''}
+                              onChange={(e) => setAffectations({
+                                ...affectations,
+                                [service.id]: { ...aff, heure_fin: e.target.value }
+                              })}
+                              className="px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-purple-500"
+                            />
+                            {aff.heure_debut && aff.heure_fin && (
+                              <span className="text-xs text-purple-600 font-medium">
+                                ({calculateHoursFromTimes(aff.heure_debut, aff.heure_fin)}h)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Suggestions de prochaines disponibilités */}
+                  {ressourcesDisponibles.length === 0 && prochainesDispos.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-blue-800 mb-2">📅 Prochaines disponibilités :</p>
+                      <div className="space-y-2">
+                        {prochainesDispos.map((dispo, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setDateRdv(dispo.date);
+                              setHeureRdv(dispo.heure_debut);
+                            }}
+                            className="w-full text-left px-3 py-2 bg-white rounded border border-blue-200 hover:bg-blue-100 text-sm"
+                          >
+                            <span className="font-medium">{dispo.ressource_nom}</span>
+                            <span className="text-gray-600 ml-2">
+                              {dispo.heure_debut} - {dispo.heure_fin}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Récapitulatif */}
           <div className="bg-blue-50 rounded-lg p-4 space-y-2">

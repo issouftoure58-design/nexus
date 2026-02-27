@@ -6,6 +6,7 @@ import { checkConflicts } from '../utils/conflictChecker.js';
 import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
+import { getDefaultLocation } from '../services/tenantBusinessService.js';
 
 const router = express.Router();
 
@@ -134,6 +135,9 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
+    // Default lieu basé sur le type de business
+    const defaultLieu = getDefaultLocation(tenantId);
+
     // Formater les réservations
     const formattedReservations = (reservations || []).map(r => {
       // Calculer la durée totale à partir des services
@@ -147,7 +151,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
         date_rdv: r.date,
         heure_rdv: r.heure,
         statut: r.statut,
-        lieu: r.lieu || 'salon',
+        lieu: r.lieu || defaultLieu,
         prix_total: r.prix_total ? r.prix_total / 100 : 0,
         frais_deplacement: r.frais_deplacement ? r.frais_deplacement / 100 : 0,
         notes: r.notes,
@@ -315,13 +319,16 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       ? lignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0)
       : reservation.duree_minutes || 60;
 
+    // Default lieu basé sur le type de business
+    const defaultLieu = getDefaultLocation(tenantId);
+
     // Formater la réponse
     const formattedReservation = {
       id: reservation.id,
       date_rdv: reservation.date,
       heure_rdv: reservation.heure,
       statut: reservation.statut,
-      lieu: reservation.lieu || 'salon',
+      lieu: reservation.lieu || defaultLieu,
       prix_total: reservation.prix_total ? reservation.prix_total / 100 : 0,
       frais_deplacement: reservation.frais_deplacement ? reservation.frais_deplacement / 100 : 0,
       notes: reservation.notes,
@@ -499,7 +506,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
       heure: heureEffective,
       client_nom: `${client.prenom || ''} ${client.nom || ''}`.trim() || 'Client',
       client_telephone: client.telephone || '',
-      lieu: lieu || 'salon',
+      lieu: lieu || getDefaultLocation(tenantId),
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
       statut: 'confirme'
@@ -1530,6 +1537,9 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
+    // Default lieu basé sur le type de business
+    const defaultLieu = getDefaultLocation(tenantId);
+
     // Générer le CSV
     const csvHeader = 'ID;Date;Heure;Client;Telephone;Service;Lieu;Statut;Prix Total (€);Frais Deplacement (€);Notes\n';
 
@@ -1540,7 +1550,7 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
       const fraisDepl = r.frais_deplacement ? (r.frais_deplacement / 100).toFixed(2) : '0.00';
       const notes = (r.notes || '').replace(/;/g, ',').replace(/\n/g, ' ');
 
-      return `${r.id};${r.date};${r.heure};${client};${telephone};${r.service};${r.lieu || 'salon'};${r.statut};${prixTotal};${fraisDepl};${notes}`;
+      return `${r.id};${r.date};${r.heure};${client};${telephone};${r.service};${r.lieu || defaultLieu};${r.statut};${prixTotal};${fraisDepl};${notes}`;
     }).join('\n');
 
     const csv = csvHeader + csvRows;

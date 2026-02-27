@@ -10,7 +10,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { resolveTenantFromDomain, loadTenant } from '../core/TenantContext.js';
 // V2 - Multi-tenant messages
-import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+import { getBusinessInfoSync, getDefaultLocation } from '../services/tenantBusinessService.js';
 
 /**
  * V2 - Génère le message d'accueil dynamique
@@ -361,7 +361,7 @@ router.post('/rendez-vous', async (req, res) => {
       service_name: serviceData.nom,
       date,
       heure,
-      lieu: lieu_type || 'salon',
+      lieu: lieu_type || getDefaultLocation(req.tenantId),
       adresse
     }, {
       channel: 'web',

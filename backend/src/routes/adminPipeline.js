@@ -6,6 +6,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { getDefaultLocation } from '../services/tenantBusinessService.js';
 
 const router = express.Router();
 
@@ -367,7 +368,7 @@ router.post('/', async (req, res) => {
         remise_motif: remiseMotif,
         date_debut,
         duree_totale_minutes: dureeTotale,
-        lieu: lieu || 'salon',
+        lieu: lieu || getDefaultLocation(tenantId),
         adresse_client: lieu === 'domicile' ? adresse_client : null,
         etape: etapeInitiale,
         probabilite,

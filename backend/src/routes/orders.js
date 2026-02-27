@@ -5,6 +5,8 @@ import { sendConfirmation } from '../services/notificationService.js';
 import { createReservationUnified } from '../core/unified/nexusCore.js';
 // 🔒 Config publique pour le checkout + règles métier
 import { SERVICE_OPTIONS, TRAVEL_FEES, BLOCKING_STATUTS, BUSINESS_HOURS } from '../config/businessRules.js';
+// 🔒 Business type pour default lieu
+import { getDefaultLocation } from '../services/tenantBusinessService.js';
 
 const router = express.Router();
 
@@ -554,7 +556,7 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
       client_nom: clientData.nom || 'Client Panier',
       client_telephone: clientData.telephone || '',
       client_email: clientData.email || null,
-      lieu: lieu === 'domicile' ? 'domicile' : 'salon',
+      lieu: lieu === 'domicile' ? 'domicile' : getDefaultLocation(tenantId),
       adresse: adresseClient || null,
       order_id: orderId,
       statut: statut,

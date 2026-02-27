@@ -5,7 +5,7 @@
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
 **Derniere mise a jour:** 2026-02-27
-**Version:** 2.0.0 (Multi-Business Types)
+**Version:** 2.1.0 (Multi-Business Types - UI + Backend)
 
 ---
 
@@ -635,25 +635,25 @@ NODE_ENV=production
 
 | Feature | Statut | Notes |
 |---------|--------|-------|
-| UI Restaurant | ❌ A faire | Gestion tables, couverts |
-| UI Hotel | ❌ A faire | Gestion chambres, checkin/checkout |
-| Backend routes multi-business | ⚠️ Partiel | Hardcoding "salon" a remplacer |
-| Pipeline/Devis enrichis | En pause | Depend du type de business |
+| UI Restaurant | ✅ Base faite | Services.tsx (tables), Activites.tsx (couverts) |
+| UI Hotel | ✅ Base faite | Services.tsx (chambres), Activites.tsx (sejours) |
+| Backend routes multi-business | ✅ Corrige | getDefaultLocation() utilise partout |
+| Devis/Pipeline conditionnels | ✅ Fait | Affectation membre cachee pour resto/hotel |
 
-### Priorites
+### Priorites restantes
 
-1. **P0 - UI Restaurant**: Services.tsx (tables), Activites.tsx (reservations tables)
-2. **P0 - UI Hotel**: Services.tsx (chambres), Activites.tsx (sejours)
-3. **P1 - Backend**: Utiliser tenantBusinessService partout, supprimer hardcoding
-4. **P2 - Devis/Pipeline**: Adapter selon business type (pas pour resto/hotel)
+1. **P1 - Tests E2E**: Valider restaurant et hotel en conditions reelles
+2. **P2 - UI Restaurant avancee**: Menu du jour, services midi/soir
+3. **P2 - UI Hotel avancee**: Calendrier chambres, tarifs saisonniers
+4. **P3 - Devis/Pipeline enrichis**: Multi-services pour salon/service_domicile
 
 ---
 
 ## 12.1 SYSTEME MULTI-TENANT MULTI-BUSINESS (2026-02-27)
 
-### Score Global: 6.0/10 ⚠️ (Infrastructure OK, UI resto/hotel manquante)
+### Score Global: 8.0/10 ✅ (Infrastructure + UI base pour tous types)
 
-L'**infrastructure** est complete mais l'**implementation UI** n'existe que pour service_domicile et salon.
+L'**infrastructure** est complete et l'**implementation UI** couvre maintenant les 4 types de business.
 
 ### Etat par Type de Business
 
@@ -661,17 +661,17 @@ L'**infrastructure** est complete mais l'**implementation UI** n'existe que pour
 |------|----------------|----------------|----------|-------|
 | `service_domicile` | ✅ | ✅ | ✅ | **100%** |
 | `salon` | ✅ | ✅ | ✅ | **100%** |
-| `restaurant` | ✅ | ✅ | ❌ | **40%** |
-| `hotel` | ✅ | ✅ | ❌ | **40%** |
+| `restaurant` | ✅ | ✅ | ✅ Base | **80%** |
+| `hotel` | ✅ | ✅ | ✅ Base | **80%** |
 
 ### Features par Type
 
 | Type | Description | Features Configurees | UI Implementee |
 |------|-------------|---------------------|----------------|
-| `service_domicile` | Services a domicile | travelFees, clientAddress | ✅ OUI |
-| `salon` | Etablissement fixe | multiStaff, stations | ✅ OUI |
-| `restaurant` | Restauration | tableManagement, covers | ❌ NON |
-| `hotel` | Hotellerie | roomInventory, checkinCheckout, extras | ❌ NON |
+| `service_domicile` | Services a domicile | travelFees, clientAddress | ✅ Complet |
+| `salon` | Etablissement fixe | multiStaff, stations | ✅ Complet |
+| `restaurant` | Restauration | tableManagement, covers | ✅ Base (tables, couverts) |
+| `hotel` | Hotellerie | roomInventory, checkinCheckout, extras | ✅ Base (chambres, sejours) |
 
 ### Architecture Multi-Business
 
@@ -742,50 +742,74 @@ const { t, hasFeature, businessType, businessInfo } = useProfile();
 
 | Page | service_domicile | salon | restaurant | hotel |
 |------|------------------|-------|------------|-------|
-| Services.tsx | ✅ | ✅ | ❌ Pas de tables | ❌ Pas de chambres |
-| Activites.tsx | ✅ | ✅ | ❌ Pas de couverts | ❌ Pas de checkin |
+| Services.tsx | ✅ | ✅ | ✅ Tables (capacite, zone) | ✅ Chambres (etage, prix/nuit) |
+| Activites.tsx | ✅ | ✅ | ✅ Couverts, table | ✅ Sejours, checkin/out |
 | Clients.tsx | ✅ | ✅ | ✅ | ✅ |
-| Devis.tsx | ✅ | ✅ | ❌ N/A | ❌ N/A |
-| Pipeline.tsx | ✅ | ✅ | ❌ N/A | ❌ N/A |
+| Devis.tsx | ✅ | ✅ | ✅ Sans affectation | ✅ Sans affectation |
+| Pipeline.tsx | ✅ | ✅ | ✅ | ✅ |
 
-### Ce qui Manque pour Restaurant ❌
-
-```
-Services.tsx:
-- Champ "capacite" (nombre places par table)
-- Champ "zone" (terrasse, interieur, etc.)
-- Pas de "duree" ni "prix" (une table n'a pas de prix)
-
-Activites.tsx:
-- Champ "nb_couverts" (nombre de personnes)
-- Selection de table (pas de membre)
-- Creneau horaire (pas d'affectation membre)
-```
-
-### Ce qui Manque pour Hotel ❌
+### Restaurant - Implementation UI ✅
 
 ```
-Services.tsx:
-- Champ "etage"
-- Champ "capacite_max" (personnes)
-- Champ "equipements" (wifi, minibar, etc.)
-- "prix" = prix par NUIT (pas prix fixe)
+Services.tsx (Tables):
+✅ Champ "capacite" (nombre places par table)
+✅ Champ "zone" (terrasse, interieur, prive, bar)
+✅ Icone UtensilsCrossed
+✅ Filtres par zone
 
-Activites.tsx:
-- Date range (arrivee - depart) au lieu de date unique
-- Heure checkin / checkout
-- Selection extras (petit-dejeuner, parking)
-- Pas d'affectation membre
+Activites.tsx (Reservations):
+✅ Selection de table (liste des tables actives)
+✅ Champ "nb_couverts" (nombre de personnes)
+✅ Interface dediee avec icone et couleur
 ```
 
-### Backend - Hardcoding a Corriger ⚠️
+### Hotel - Implementation UI ✅
 
-| Fichier | Probleme | Impact |
-|---------|----------|--------|
-| `adminReservations.js` | `lieu: 'salon'` hardcode | ❌ Tous types |
-| `adminServices.js` | Pas de validation par type | ❌ Resto/Hotel |
-| `adminPipeline.js` | `lieu: 'salon'` hardcode | ❌ Tous types |
-| `public.js` | `lieu_type: 'salon'` hardcode | ❌ Tous types |
+```
+Services.tsx (Chambres):
+✅ Champ "etage"
+✅ Champ "capacite" (personnes)
+✅ Champ "equipements" (wifi, minibar, etc.)
+✅ Prix par nuit
+✅ Icone Bed
+
+Activites.tsx (Sejours):
+✅ Date arrivee (date_rdv)
+✅ Date depart (date_checkout)
+✅ Heure checkin / checkout
+✅ Selection extras (petit-dejeuner, parking, etc.)
+✅ Selection chambre
+✅ Nombre de personnes
+```
+
+### Ameliorations Futures (P2)
+
+```
+Restaurant:
+- Menu du jour integre
+- Services midi/soir
+- Plan de salle visuel
+
+Hotel:
+- Calendrier de disponibilite des chambres
+- Tarifs saisonniers
+- Integration channel manager
+```
+
+### Backend - Hardcoding Corrige ✅
+
+| Fichier | Probleme | Correction |
+|---------|----------|------------|
+| `adminReservations.js` | `lieu: 'salon'` hardcode | ✅ `getDefaultLocation(tenantId)` |
+| `orders.js` | `lieu: 'salon'` hardcode | ✅ `getDefaultLocation(tenantId)` |
+| `adminPipeline.js` | `lieu: 'salon'` hardcode | ✅ `getDefaultLocation(tenantId)` |
+| `public.js` | `lieu_type: 'salon'` hardcode | ✅ `getDefaultLocation(tenantId)` |
+
+**Fonction getDefaultLocation() retourne:**
+- `service_domicile` → 'domicile'
+- `salon` → 'salon'
+- `restaurant` → 'restaurant'
+- `hotel` → 'hotel'
 
 ### Fichiers Backend Corriges ✅
 
@@ -844,20 +868,67 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 | Composant | Score | Notes |
 |-----------|-------|-------|
 | Backend Config | 10/10 | ✅ Complet |
-| tenantBusinessService | 10/10 | ✅ Complet |
+| tenantBusinessService | 10/10 | ✅ Complet + getDefaultLocation() |
 | ProfileContext | 10/10 | ✅ Complet |
 | Composants Forms | 10/10 | ✅ Complet |
 | UI service_domicile | 10/10 | ✅ Complet |
 | UI salon | 10/10 | ✅ Complet |
-| UI restaurant | 2/10 | ❌ A faire |
-| UI hotel | 2/10 | ❌ A faire |
-| Backend routes | 5/10 | ⚠️ Hardcoding |
+| UI restaurant | 8/10 | ✅ Base (tables, couverts, zones) |
+| UI hotel | 8/10 | ✅ Base (chambres, sejours, extras) |
+| Backend routes | 9/10 | ✅ Hardcoding corrige |
+| Devis conditionnels | 10/10 | ✅ Affectation membre cachee resto/hotel |
 
 ---
 
 ## 13. HISTORIQUE DES MODIFICATIONS
 
-### 2026-02-27
+### 2026-02-27 (Session 2)
+
+**🎉 UI RESTAURANT/HOTEL + BACKEND HARDCODING - Score: 6.0/10 → 8.0/10**
+
+**UI Services.tsx - Restaurant:**
+- Ajout champ "capacite" (places par table)
+- Ajout champ "zone" (terrasse, interieur, prive, bar)
+- Affichage conditionnel avec `isBusinessType('restaurant')`
+- Icone UtensilsCrossed
+
+**UI Services.tsx - Hotel:**
+- Ajout champ "etage"
+- Ajout champ "capacite" (personnes)
+- Ajout champ "equipements" (multiselect)
+- Prix par nuit avec label dynamique
+- Icone Bed
+
+**UI Activites.tsx - Restaurant:**
+- Selection de table (dropdown des tables actives)
+- Champ "nb_couverts" (nombre de personnes)
+- Section dediee avec fond ambre et icone
+
+**UI Activites.tsx - Hotel:**
+- Date arrivee / date depart (range)
+- Heures checkin / checkout
+- Selection chambre
+- Nombre de personnes
+- Selection extras (petit-dejeuner, parking, spa, etc.)
+- Section dediee avec fond violet et icone
+
+**Backend - Hardcoding 'salon' corrige:**
+
+| Fichier | Lignes | Correction |
+|---------|--------|------------|
+| `adminReservations.js` | 4 lignes | `getDefaultLocation(tenantId)` |
+| `orders.js` | 1 ligne | `getDefaultLocation(tenantId)` |
+| `public.js` | 1 ligne | `getDefaultLocation(tenantId)` |
+| `adminPipeline.js` | 1 ligne | `getDefaultLocation(tenantId)` |
+
+**Devis.tsx - Affectation membre conditionnelle:**
+- `DevisFormModal`: affectation cachee pour restaurant/hotel
+- `ExecuteDevisModal`: affectation ressources cachee pour restaurant/hotel
+- Logique: `showMemberAssignment = !isBusinessType('restaurant') && !isBusinessType('hotel')`
+
+---
+
+### 2026-02-27 (Session 1)
 
 **🎉 GENERALISATION MULTI-TENANT MULTI-BUSINESS - Score: 5.1/10 → 9.0/10**
 
