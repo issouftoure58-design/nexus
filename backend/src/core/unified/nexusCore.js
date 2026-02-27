@@ -65,7 +65,7 @@ import {
 // 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
 import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
 
-async function sendConfirmationSMS(phone, details) {
+async function sendConfirmationSMS(tenantId, phone, details) {
   if (process.env.MOCK_SMS === 'true' || (process.env.NODE_ENV !== 'production' && !process.env.TWILIO_ACCOUNT_SID)) {
     const { envoyerConfirmation } = await import('../../services/notificationService.mock.js');
     return envoyerConfirmation({
@@ -76,7 +76,7 @@ async function sendConfirmationSMS(phone, details) {
       prix_total: (details.prixTotal || 0) * 100,
     });
   }
-  return _realSendSMS(phone, details);
+  return _realSendSMS(tenantId, phone, details);
 }
 
 // 🔧 TOOLS REGISTRY - Source unique des outils
@@ -1305,7 +1305,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
           return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
         }).join(' et ');
 
-        await sendConfirmationSMS(data.client_telephone, {
+        await sendConfirmationSMS(data.tenant_id, data.client_telephone, {
           service: service.name,
           date: nbJours > 1 ? datesFormatees : data.date,
           heure: data.heure,
