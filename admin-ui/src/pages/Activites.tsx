@@ -170,7 +170,7 @@ export default function Activites() {
   const location = useLocation();
 
   // Profile métier (adaptatif selon le tenant)
-  const { profile, t, isPricingMode, isFieldVisible, hasFeature, businessType } = useProfile();
+  const { profile, t, isPricingMode, isFieldVisible, hasFeature, businessType, isBusinessType } = useProfile();
 
   // Déterminer l'onglet actif
   const currentTab = location.pathname.includes('/historique')
@@ -262,7 +262,17 @@ export default function Activites() {
     // Geste commercial
     remise_type: '', // 'pourcentage' | 'montant' | ''
     remise_valeur: 0,
-    remise_motif: ''
+    remise_motif: '',
+    // Restaurant specific
+    table_id: 0, // ID de la table sélectionnée
+    nb_couverts: 2, // Nombre de personnes
+    // Hotel specific
+    chambre_id: 0, // ID de la chambre
+    nb_personnes: 2, // Nombre de personnes
+    date_checkout: '', // Date de départ
+    heure_checkin: '14:00', // Heure d'arrivée par défaut
+    heure_checkout: '11:00', // Heure de départ par défaut
+    extras: [] as string[], // Petit-déjeuner, parking, etc.
   });
   const [newClientForm, setNewClientForm] = useState({
     prenom: '',
@@ -1216,7 +1226,17 @@ export default function Activites() {
       membre_id: 0,
       remise_type: '',
       remise_valeur: 0,
-      remise_motif: ''
+      remise_motif: '',
+      // Restaurant specific
+      table_id: 0,
+      nb_couverts: 2,
+      // Hotel specific
+      chambre_id: 0,
+      nb_personnes: 2,
+      date_checkout: '',
+      heure_checkin: '14:00',
+      heure_checkout: '11:00',
+      extras: [],
     });
     setServiceLignes([]);
     setMembreIds([]);
@@ -2295,7 +2315,202 @@ export default function Activites() {
                 </div>
               )}
 
-              {/* === MULTI-SERVICES === */}
+              {/* ═══════════════════════════════════════════════════════════════
+                  RESTAURANT: Sélection table + nombre de couverts
+              ═══════════════════════════════════════════════════════════════ */}
+              {isBusinessType('restaurant') && (
+                <div className="space-y-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-amber-600">🍽️</span>
+                    <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">Réservation de table</h3>
+                  </div>
+
+                  {/* Sélection de la table */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Table *
+                    </label>
+                    <select
+                      value={newRdvForm.table_id}
+                      onChange={(e) => setNewRdvForm({ ...newRdvForm, table_id: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value={0}>-- Sélectionner une table --</option>
+                      {services.filter(s => s.actif !== false).map((table) => (
+                        <option key={table.id} value={table.id}>
+                          {table.nom} ({(table as any).capacite || 4} places)
+                          {(table as any).zone && ` - ${(table as any).zone}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Nombre de couverts */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Nombre de couverts *
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={newRdvForm.nb_couverts}
+                      onChange={(e) => setNewRdvForm({ ...newRdvForm, nb_couverts: parseInt(e.target.value) || 1 })}
+                      placeholder="2"
+                    />
+                    {newRdvForm.table_id > 0 && services.find(s => s.id === newRdvForm.table_id) && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Capacité max: {(services.find(s => s.id === newRdvForm.table_id) as any)?.capacite || 4} personnes
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Créneau horaire */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Date *
+                      </label>
+                      <Input
+                        type="date"
+                        value={newRdvForm.date_rdv}
+                        onChange={(e) => handleDateHeureChange('date_rdv', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Heure *
+                      </label>
+                      <Input
+                        type="time"
+                        value={newRdvForm.heure_rdv}
+                        onChange={(e) => handleDateHeureChange('heure_rdv', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ═══════════════════════════════════════════════════════════════
+                  HOTEL: Sélection chambre + dates séjour + extras
+              ═══════════════════════════════════════════════════════════════ */}
+              {isBusinessType('hotel') && (
+                <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-blue-600">🏨</span>
+                    <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Réservation de séjour</h3>
+                  </div>
+
+                  {/* Sélection de la chambre */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Chambre *
+                    </label>
+                    <select
+                      value={newRdvForm.chambre_id}
+                      onChange={(e) => setNewRdvForm({ ...newRdvForm, chambre_id: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={0}>-- Sélectionner une chambre --</option>
+                      {services.filter(s => s.actif !== false).map((chambre) => (
+                        <option key={chambre.id} value={chambre.id}>
+                          {chambre.nom} ({(chambre as any).capacite_max || 2} pers.) - {(chambre.prix / 100).toFixed(0)}€/nuit
+                          {(chambre as any).vue && ` - Vue ${(chambre as any).vue}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Nombre de personnes */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Nombre de personnes *
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={newRdvForm.nb_personnes}
+                      onChange={(e) => setNewRdvForm({ ...newRdvForm, nb_personnes: parseInt(e.target.value) || 1 })}
+                      placeholder="2"
+                    />
+                  </div>
+
+                  {/* Dates de séjour */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Arrivée (check-in) *
+                      </label>
+                      <Input
+                        type="date"
+                        value={newRdvForm.date_rdv}
+                        onChange={(e) => handleDateHeureChange('date_rdv', e.target.value)}
+                      />
+                      <Input
+                        type="time"
+                        value={newRdvForm.heure_checkin}
+                        onChange={(e) => setNewRdvForm({ ...newRdvForm, heure_checkin: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Départ (check-out) *
+                      </label>
+                      <Input
+                        type="date"
+                        value={newRdvForm.date_checkout}
+                        onChange={(e) => setNewRdvForm({ ...newRdvForm, date_checkout: e.target.value })}
+                        min={newRdvForm.date_rdv}
+                      />
+                      <Input
+                        type="time"
+                        value={newRdvForm.heure_checkout}
+                        onChange={(e) => setNewRdvForm({ ...newRdvForm, heure_checkout: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  {newRdvForm.date_rdv && newRdvForm.date_checkout && (
+                    <p className="text-sm text-blue-600 font-medium">
+                      {calculateDays(newRdvForm.date_rdv, newRdvForm.date_checkout)} nuit(s)
+                      {newRdvForm.chambre_id > 0 && services.find(s => s.id === newRdvForm.chambre_id) && (
+                        <> - Total: {((services.find(s => s.id === newRdvForm.chambre_id)?.prix || 0) / 100 * calculateDays(newRdvForm.date_rdv, newRdvForm.date_checkout)).toFixed(0)}€</>
+                      )}
+                    </p>
+                  )}
+
+                  {/* Extras */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                      Extras
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Petit-déjeuner', 'Parking', 'Spa', 'Transfert aéroport'].map(extra => (
+                        <label key={extra} className="flex items-center gap-2 text-sm cursor-pointer p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={newRdvForm.extras.includes(extra)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewRdvForm({ ...newRdvForm, extras: [...newRdvForm.extras, extra] });
+                              } else {
+                                setNewRdvForm({ ...newRdvForm, extras: newRdvForm.extras.filter(ex => ex !== extra) });
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          {extra}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === MULTI-SERVICES === (Salon/Service domicile uniquement) */}
+              {(isBusinessType('salon') || isBusinessType('service_domicile')) && (
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
                   {t('service', true)} * <span className="text-gray-400 font-normal">(multi-sélection)</span>
@@ -2504,6 +2719,8 @@ export default function Activites() {
                   </p>
                 )}
               </div>
+              )}
+              {/* Fin section multi-services salon/service_domicile */}
 
               {/* === ADRESSE DE PRESTATION === */}
               <FeatureField feature="clientAddress">
