@@ -17,6 +17,7 @@
 import { Router } from 'express';
 import costMonitor from '../services/optimization/costMonitor.js';
 import cacheService from '../services/optimization/cacheService.js';
+import aiRouting from '../services/aiRoutingService.js';
 
 const router = Router();
 
@@ -302,6 +303,9 @@ router.get('/dashboard', (req, res) => {
       ? ((todayCosts.totalCost - yesterdayCosts.totalCost) / yesterdayCosts.totalCost * 100).toFixed(1)
       : 0;
 
+    // AI Routing stats
+    const aiRoutingStats = aiRouting.getStats();
+
     res.json({
       success: true,
       data: {
@@ -313,7 +317,10 @@ router.get('/dashboard', (req, res) => {
           monthPercent: budgetStatus.total.percent,
           projectedEndOfMonth: budgetStatus.total.projectedEndOfMonth,
           dailyTrend: parseFloat(dailyTrend),
-          alertsCount: alerts.length
+          alertsCount: alerts.length,
+          aiCacheHitRate: aiRoutingStats.cacheHitRate,
+          aiHaikuRate: aiRoutingStats.haikuRate,
+          aiSavings: aiRoutingStats.estimatedSavingsEUR
         },
         today: todayCosts,
         month: monthlyCosts,
@@ -321,6 +328,7 @@ router.get('/dashboard', (req, res) => {
         cache: cacheStats,
         session: sessionStats,
         alerts: alerts,
+        aiRouting: aiRoutingStats,
         pricing: costMonitor.PRICING
       }
     });
@@ -417,6 +425,123 @@ router.post('/match-static', (req, res) => {
     matched: !!match,
     data: match
   });
+});
+
+// === ROUTES AI ROUTING ===
+
+/**
+ * GET /api/optimization/ai-routing/stats
+ * Statistiques du routage IA intelligent
+ */
+router.get('/ai-routing/stats', (req, res) => {
+  try {
+    const stats = aiRouting.getStats();
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur ai-routing/stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/optimization/ai-routing/reset
+ * Reset les statistiques du routage IA
+ */
+router.post('/ai-routing/reset', (req, res) => {
+  try {
+    aiRouting.resetStats();
+    res.json({
+      success: true,
+      message: 'Statistiques AI routing reinitialisees'
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur ai-routing/reset:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/optimization/ai-routing/adjust
+ * Ajuste les seuils de routage
+ * Body: { adjustment: number } - positif = plus de Haiku, negatif = plus de Sonnet
+ */
+router.post('/ai-routing/adjust', (req, res) => {
+  try {
+    const { adjustment } = req.body;
+
+    if (adjustment === undefined || typeof adjustment !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: 'Parametre adjustment (number) requis'
+      });
+    }
+
+    if (adjustment < -3 || adjustment > 3) {
+      return res.status(400).json({
+        success: false,
+        error: 'Adjustment doit etre entre -3 et 3'
+      });
+    }
+
+    const result = aiRouting.adjustRouting(adjustment);
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur ai-routing/adjust:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/optimization/ai-routing/test
+ * Teste le routage pour un message donne (sans appeler l'API)
+ */
+router.post('/ai-routing/test', async (req, res) => {
+  try {
+    const { message, context = {} } = req.body;
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parametre message requis'
+      });
+    }
+
+    // Import dynamique du modelRouter pour test
+    const { default: modelRouter } = await import('../services/modelRouter.js');
+    const result = modelRouter.selectModel({ userMessage: message, context });
+
+    res.json({
+      success: true,
+      data: {
+        input: message,
+        selectedModel: result.model,
+        reason: result.reason,
+        complexity: result.complexity,
+        expectedCost: result.expectedCost
+      }
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur ai-routing/test:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 export default router;
