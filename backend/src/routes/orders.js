@@ -289,10 +289,10 @@ router.post('/', async (req, res) => {
     await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation, {}, tenantId);
     console.log(`[ORDERS] ✅ Réservations créées avec statut: ${statutReservation}`);
 
-    if (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) {
-      // Envoyer notifications pour paiement sur place ou PayPal déjà capturé
-      await sendOrderConfirmation(order, items, clientTelephone, clientEmail);
+    // 📱 Toujours envoyer SMS de confirmation (même en attente de paiement)
+    await sendOrderConfirmation(order, items, clientTelephone, clientEmail, tenantId);
 
+    if (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) {
       // Mettre à jour statut commande (🔒 TENANT ISOLATION)
       const updateData = {
         statut: 'confirme',
@@ -425,7 +425,7 @@ router.post('/:id/confirm-onsite', async (req, res) => {
       .eq('tenant_id', tenantId);
 
     // Envoyer notifications
-    await sendOrderConfirmation(order, order.order_items, order.client_telephone, order.client_email);
+    await sendOrderConfirmation(order, order.order_items, order.client_telephone, order.client_email, tenantId);
 
     res.json({
       success: true,
@@ -496,7 +496,7 @@ router.post('/:id/confirm-payment', async (req, res) => {
     }
 
     // Envoyer notifications
-    await sendOrderConfirmation(order, order.order_items, order.client_telephone, order.client_email);
+    await sendOrderConfirmation(order, order.order_items, order.client_telephone, order.client_email, tenantId);
 
     res.json({
       success: true,
@@ -585,7 +585,7 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
 }
 
 // ============= ENVOYER CONFIRMATION COMMANDE =============
-async function sendOrderConfirmation(order, items, telephone, email) {
+async function sendOrderConfirmation(order, items, telephone, email, tenantId = null) {
   try {
     // Formater la liste des services
     const servicesList = items.map(item => {
@@ -623,7 +623,7 @@ async function sendOrderConfirmation(order, items, telephone, email) {
       };
 
       const acompte = order.paiement_methode === 'sur_place' ? 0 : 10;
-      await sendConfirmation(rdvForNotification, acompte);
+      await sendConfirmation(rdvForNotification, acompte, tenantId || order.tenant_id);
     } catch (notifError) {
       console.error('[ORDERS] Erreur notification:', notifError);
     }
