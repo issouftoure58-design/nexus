@@ -217,6 +217,7 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   const results = {
     email: { success: false, error: 'Non envoyé' },
     whatsapp: { success: false, error: 'Non envoyé' },
+    sms: { success: false, error: 'Non envoyé' },
   };
 
   const t = resolveTenant(tenantId);
@@ -271,6 +272,50 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp rappel:', error.message);
       results.whatsapp = { success: false, error: error.message };
+    }
+  }
+
+  // 3. Envoyer SMS via Twilio
+  if (clientPhone && process.env.TWILIO_PHONE_NUMBER) {
+    try {
+      const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
+
+      const smsMessage = `${t.salonName}
+Rappel: RDV demain!
+
+${rdv.date} à ${rdv.heure}
+${rdv.service_nom}
+Reste à payer: ${reste}€
+
+${lieuText}
+
+À demain!
+${t.gerante} - ${t.telephone}`;
+
+      // Import dynamique Twilio
+      const twilio = (await import('twilio')).default;
+      const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+      // Formater le numéro
+      let formattedPhone = clientPhone.replace(/\s/g, '').replace(/\./g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+33' + formattedPhone.substring(1);
+      }
+      if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+33' + formattedPhone;
+      }
+
+      const smsResult = await twilioClient.messages.create({
+        body: smsMessage,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: formattedPhone
+      });
+
+      results.sms = { success: true, sid: smsResult.sid };
+      console.log(`[Notification] ✅ SMS rappel J-1 envoyé à ${formattedPhone} (SID: ${smsResult.sid})`);
+    } catch (error) {
+      console.error('[Notification] ❌ Erreur envoi SMS rappel:', error.message);
+      results.sms = { success: false, error: error.message };
     }
   }
 
