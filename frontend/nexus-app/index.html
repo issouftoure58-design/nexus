@@ -73,25 +73,45 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Unregister any existing service workers that may be blocking API calls -->
+    <!-- Force cache clear for old versions -->
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let registration of registrations) {
-            registration.unregister().then(function(success) {
-              if (success) console.log('Service worker unregistered');
+      (function() {
+        var APP_VERSION = '2026.02.27.1';
+        var STORED_VERSION = localStorage.getItem('fha_app_version');
+
+        // If version changed, clear everything and reload
+        if (STORED_VERSION && STORED_VERSION !== APP_VERSION) {
+          console.log('New version detected, clearing cache...');
+          localStorage.setItem('fha_app_version', APP_VERSION);
+
+          // Clear all caches
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              Promise.all(names.map(function(name) {
+                return caches.delete(name);
+              })).then(function() {
+                // Force hard reload after cache clear
+                window.location.reload(true);
+              });
             });
+          } else {
+            window.location.reload(true);
           }
-        });
-        // Also clear caches
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            for (let name of names) {
-              caches.delete(name);
+          return; // Stop execution
+        }
+
+        // Store current version
+        localStorage.setItem('fha_app_version', APP_VERSION);
+
+        // Unregister service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
             }
           });
         }
-      }
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
