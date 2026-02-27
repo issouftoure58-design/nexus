@@ -39,6 +39,10 @@ import Sentinel from './pages/Sentinel';
 import IAAdmin from './pages/IAAdmin';
 import IATelephone from './pages/IATelephone';
 import IAWhatsApp from './pages/IAWhatsApp';
+import Menu from './pages/Menu';
+import FloorPlan from './pages/FloorPlan';
+import RoomCalendar from './pages/RoomCalendar';
+import TarifsSaisonniers from './pages/TarifsSaisonniers';
 
 // Helper pour récupérer le token du tenant actuel
 function getCurrentToken(): string | null {
@@ -125,6 +129,10 @@ function App() {
             <Route path="/dashboard-old" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/clients" element={<ModuleRoute><Clients /></ModuleRoute>} />
             <Route path="/services" element={<ModuleRoute><Services /></ModuleRoute>} />
+            <Route path="/menu" element={<ModuleRoute module="reservations" moduleTitle="Menu" moduleDescription="Gestion des plats et menus du jour"><Menu /></ModuleRoute>} />
+            <Route path="/salle" element={<ModuleRoute module="reservations" moduleTitle="Plan de salle" moduleDescription="Vue des tables et réservations"><FloorPlan /></ModuleRoute>} />
+            <Route path="/chambres" element={<ModuleRoute module="reservations" moduleTitle="Calendrier Chambres" moduleDescription="Vue d'occupation des chambres"><RoomCalendar /></ModuleRoute>} />
+            <Route path="/tarifs" element={<ModuleRoute module="reservations" moduleTitle="Tarifs Saisonniers" moduleDescription="Gestion des tarifs selon les saisons"><TarifsSaisonniers /></ModuleRoute>} />
             <Route path="/parametres" element={<ModuleRoute><Parametres /></ModuleRoute>} />
             <Route path="/subscription" element={<ModuleRoute><Subscription /></ModuleRoute>} />
 

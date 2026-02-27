@@ -67,6 +67,8 @@ import adminAgentsRoutes from './routes/adminAgents.js';
 import adminStockRoutes from './routes/adminStock.js';
 import modulesRoutes from './routes/modules.js';
 import adminIARoutes from './routes/adminIA.js';
+import adminMenuRoutes from './routes/adminMenu.js';
+import adminHotelRoutes from './routes/adminHotel.js';
 import billingRoutes from './routes/billing.js';
 import stripeWebhookRoutes from './routes/stripeWebhook.js';
 import signupRoutes from './routes/signup.js';
@@ -323,6 +325,8 @@ app.use('/api/admin/stock', adminStockRoutes);
 
 // Routes Admin IA Config (Telephone & WhatsApp)
 app.use('/api/admin/ia', adminIARoutes);
+app.use('/api/admin/menu', adminMenuRoutes);
+app.use('/api/admin/hotel', adminHotelRoutes);
 
 // Routes Billing (Stripe subscriptions)
 app.use('/api/billing', billingRoutes);

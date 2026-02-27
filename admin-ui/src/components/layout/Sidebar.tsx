@@ -43,6 +43,9 @@ import {
   CalendarCheck,
   Bot,
   ClipboardList,
+  UtensilsCrossed,
+  Bed,
+  LayoutGrid,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -58,6 +61,7 @@ interface NavItem {
   requiredPlan?: PlanType;
   requiredModule?: string;  // Module requis pour afficher cet item
   alwaysShow?: boolean;     // Toujours afficher (dashboard, paramètres)
+  businessTypes?: string[]; // Types de business requis (ex: ['restaurant'])
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -75,6 +79,10 @@ const mainNav: NavItem[] = [
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
+  { icon: UtensilsCrossed, label: 'Menu', path: '/menu', requiredModule: 'reservations', businessTypes: ['restaurant'] },
+  { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', requiredModule: 'reservations', businessTypes: ['restaurant'] },
+  { icon: Bed, label: 'Chambres', path: '/chambres', requiredModule: 'reservations', businessTypes: ['hotel'] },
+  { icon: Banknote, label: 'Tarifs Saisons', path: '/tarifs', requiredModule: 'reservations', businessTypes: ['hotel'] },
 ];
 
 // IA & Automatisation
@@ -134,6 +142,13 @@ export function Sidebar({ onLogout }: SidebarProps) {
   const shouldShowItem = (item: NavItem): boolean => {
     // Items toujours visibles
     if (item.alwaysShow) return true;
+
+    // Si types de business requis, vérifier que le tenant correspond
+    if (item.businessTypes && item.businessTypes.length > 0) {
+      if (!businessType || !item.businessTypes.includes(businessType)) {
+        return false;
+      }
+    }
 
     // Si module requis, vérifier qu'il est actif
     if (item.requiredModule) {

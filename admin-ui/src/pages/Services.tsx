@@ -50,8 +50,10 @@ export default function Services() {
     // Restaurant specific
     capacity: 'all', // all, small (1-2), medium (3-4), large (5+)
     zone: 'all', // all, interieur, terrasse, prive
+    serviceDispo: 'all', // all, midi, soir, midi_soir
     // Hotel specific
     floor: 'all', // all, rdc, 1, 2, etc.
+    typeChambre: 'all', // all, simple, double, twin, suite, etc.
   });
 
   // Close suggestions when clicking outside
@@ -95,6 +97,34 @@ export default function Services() {
       if (filters.status === 'active' && !service.actif) return false;
       if (filters.status === 'inactive' && service.actif) return false;
 
+      // Restaurant: Zone filter
+      if (filters.zone !== 'all') {
+        const zone = (service as any).zone;
+        if (zone !== filters.zone) return false;
+      }
+
+      // Restaurant: Capacité filter
+      if (filters.capacity !== 'all') {
+        const cap = (service as any).capacite || (service as any).capacite_max || 2;
+        if (filters.capacity === 'small' && cap > 2) return false;
+        if (filters.capacity === 'medium' && (cap < 3 || cap > 4)) return false;
+        if (filters.capacity === 'large' && cap < 5) return false;
+      }
+
+      // Restaurant: Service dispo filter
+      if (filters.serviceDispo !== 'all') {
+        const dispo = (service as any).service_dispo || 'midi_soir';
+        if (filters.serviceDispo === 'midi' && dispo === 'soir') return false;
+        if (filters.serviceDispo === 'soir' && dispo === 'midi') return false;
+        if (filters.serviceDispo === 'midi_soir' && dispo !== 'midi_soir') return false;
+      }
+
+      // Hotel: Type chambre filter
+      if (filters.typeChambre !== 'all') {
+        const typeChambre = (service as any).type_chambre;
+        if (typeChambre !== filters.typeChambre) return false;
+      }
+
       return true;
     });
   }, [data?.services, searchInput, filters]);
@@ -111,12 +141,14 @@ export default function Services() {
       status: 'all',
       capacity: 'all',
       zone: 'all',
+      serviceDispo: 'all',
       floor: 'all',
+      typeChambre: 'all',
     });
     setSearchInput('');
   };
 
-  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || filters.capacity !== 'all' || filters.zone !== 'all' || filters.floor !== 'all' || searchInput;
+  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || filters.capacity !== 'all' || filters.zone !== 'all' || filters.serviceDispo !== 'all' || filters.floor !== 'all' || filters.typeChambre !== 'all' || searchInput;
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => servicesApi.delete(id),
@@ -227,7 +259,7 @@ export default function Services() {
               </>
             )}
 
-            {/* Restaurant: Capacité + Zone */}
+            {/* Restaurant: Capacité + Zone + Disponibilité */}
             {isBusinessType('restaurant') && (
               <>
                 {/* Capacity filter */}
@@ -253,12 +285,39 @@ export default function Services() {
                   <option value="terrasse">Terrasse</option>
                   <option value="prive">Privé</option>
                 </select>
+
+                {/* Service disponibilité filter */}
+                <select
+                  value={filters.serviceDispo}
+                  onChange={(e) => setFilters({ ...filters, serviceDispo: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous services</option>
+                  <option value="midi">Midi</option>
+                  <option value="soir">Soir</option>
+                  <option value="midi_soir">Midi & Soir</option>
+                </select>
               </>
             )}
 
-            {/* Hotel: Capacité + Étage + Prix */}
+            {/* Hotel: Type chambre + Capacité + Prix */}
             {isBusinessType('hotel') && (
               <>
+                {/* Type chambre filter */}
+                <select
+                  value={filters.typeChambre}
+                  onChange={(e) => setFilters({ ...filters, typeChambre: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous types</option>
+                  <option value="simple">Simple</option>
+                  <option value="double">Double</option>
+                  <option value="twin">Twin</option>
+                  <option value="suite">Suite</option>
+                  <option value="familiale">Familiale</option>
+                  <option value="deluxe">Deluxe</option>
+                </select>
+
                 {/* Capacity filter */}
                 <select
                   value={filters.capacity}
@@ -405,7 +464,7 @@ export default function Services() {
                       </>
                     )}
 
-                    {/* Restaurant: Capacité + Zone */}
+                    {/* Restaurant: Capacité + Zone + Disponibilité */}
                     {isBusinessType('restaurant') && (
                       <>
                         <div className="flex items-center gap-2 text-gray-600">
@@ -413,18 +472,34 @@ export default function Services() {
                           <span className="text-sm font-medium">{(service as any).capacite || 4} places</span>
                         </div>
                         {(service as any).zone && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Badge variant="outline" className="text-xs">
-                              {(service as any).zone}
-                            </Badge>
-                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {(service as any).zone}
+                          </Badge>
+                        )}
+                        {(service as any).service_dispo && (service as any).service_dispo !== 'midi_soir' && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                            {(service as any).service_dispo === 'midi' ? 'Midi' : 'Soir'}
+                          </Badge>
                         )}
                       </>
                     )}
 
-                    {/* Hotel: Capacité + Prix/nuit */}
+                    {/* Hotel: Type + Capacité + Prix/nuit */}
                     {isBusinessType('hotel') && (
                       <>
+                        {(service as any).type_chambre && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                            {(service as any).type_chambre === 'simple' ? 'Simple' :
+                             (service as any).type_chambre === 'double' ? 'Double' :
+                             (service as any).type_chambre === 'twin' ? 'Twin' :
+                             (service as any).type_chambre === 'triple' ? 'Triple' :
+                             (service as any).type_chambre === 'familiale' ? 'Familiale' :
+                             (service as any).type_chambre === 'suite' ? 'Suite' :
+                             (service as any).type_chambre === 'suite_junior' ? 'Suite Jr.' :
+                             (service as any).type_chambre === 'deluxe' ? 'Deluxe' :
+                             (service as any).type_chambre}
+                          </Badge>
+                        )}
                         <div className="flex items-center gap-2 text-gray-600">
                           <Users className="h-4 w-4 text-cyan-500" />
                           <span className="text-sm font-medium">{(service as any).capacite_max || 2} pers.</span>
@@ -553,11 +628,13 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     // Restaurant specific
     capacite: (service as any)?.capacite || 4,
     zone: (service as any)?.zone || 'interieur',
+    service_dispo: (service as any)?.service_dispo || 'midi_soir', // midi, soir, midi_soir
     // Hotel specific
     etage: (service as any)?.etage || 0,
     capacite_max: (service as any)?.capacite_max || 2,
     equipements: (service as any)?.equipements || [],
     vue: (service as any)?.vue || '',
+    type_chambre: (service as any)?.type_chambre || 'double', // simple, double, twin, suite, familiale
   });
   const [error, setError] = useState('');
 
@@ -604,22 +681,24 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       data.categorie = formData.categorie || undefined;
     }
 
-    // Restaurant: capacité + zone (pas de prix)
+    // Restaurant: capacité + zone + disponibilité (pas de prix)
     if (isBusinessType('restaurant')) {
       data.capacite = formData.capacite;
       data.zone = formData.zone;
+      data.service_dispo = formData.service_dispo;
       data.categorie = formData.categorie || undefined;
       // Tables n'ont pas de prix ni durée
       data.prix = 0;
       data.duree = 0;
     }
 
-    // Hotel: capacité + étage + prix/nuit + équipements
+    // Hotel: capacité + étage + prix/nuit + équipements + type chambre
     if (isBusinessType('hotel')) {
       data.capacite_max = formData.capacite_max;
       data.etage = formData.etage;
       data.equipements = formData.equipements;
       data.vue = formData.vue;
+      data.type_chambre = formData.type_chambre;
       data.prix = Math.round(formData.prix * 100); // Prix par nuit
       data.pricing_mode = 'daily';
       data.duree = 0; // Pas de durée fixe
@@ -803,6 +882,21 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                   </select>
                 </div>
 
+                {/* Disponibilité service */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilité</label>
+                  <select
+                    value={formData.service_dispo}
+                    onChange={(e) => setFormData(d => ({ ...d, service_dispo: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    <option value="midi_soir">Midi & Soir</option>
+                    <option value="midi">Midi uniquement</option>
+                    <option value="soir">Soir uniquement</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Services pendant lesquels cette table est disponible</p>
+                </div>
+
                 {/* Catégorie */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
@@ -904,13 +998,32 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                   </div>
                 </div>
 
-                {/* Catégorie */}
+                {/* Type de chambre */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type de chambre</label>
+                  <select
+                    value={formData.type_chambre}
+                    onChange={(e) => setFormData(d => ({ ...d, type_chambre: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    <option value="simple">Simple</option>
+                    <option value="double">Double</option>
+                    <option value="twin">Twin (2 lits)</option>
+                    <option value="triple">Triple</option>
+                    <option value="familiale">Familiale</option>
+                    <option value="suite">Suite</option>
+                    <option value="suite_junior">Suite Junior</option>
+                    <option value="deluxe">Deluxe</option>
+                  </select>
+                </div>
+
+                {/* Catégorie personnalisée */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie (optionnel)</label>
                   <Input
                     value={formData.categorie}
                     onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
-                    placeholder="Ex: Standard, Suite, Deluxe, etc."
+                    placeholder="Ex: Premium, Économique, etc."
                   />
                 </div>
               </>
