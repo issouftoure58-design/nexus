@@ -35,8 +35,19 @@ app.use(express.static(join(__dirname, 'dist'), {
   }
 }));
 
+// Force cache bust version - increment this to force all clients to reload
+const CACHE_BUST_VERSION = '20260227v2';
+
 // SPA fallback - serve index.html with NO CACHE for all routes
 app.get('*', (req, res) => {
+  // Force redirect to cache-busted URL if not already there
+  // This bypasses browser cache by changing the URL
+  if (!req.query._v || req.query._v !== CACHE_BUST_VERSION) {
+    const url = new URL(req.originalUrl, `http://${req.headers.host}`);
+    url.searchParams.set('_v', CACHE_BUST_VERSION);
+    return res.redirect(302, url.pathname + url.search);
+  }
+
   setNoCacheHeaders(res);
   res.sendFile(join(__dirname, 'dist', 'index.html'));
 });
