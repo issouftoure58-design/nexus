@@ -1,24 +1,16 @@
 services:
-  # Fat's Hair Afro - Site vitrine client (static)
-  - type: static_site
+  # Fat's Hair Afro - Site vitrine client (Node.js pour contrôle cache)
+  - type: web
     name: fatshairafro-web
+    runtime: node
     rootDir: frontend/nexus-app
     buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    startCommand: node server.js
     envVars:
       - key: VITE_API_URL
         value: https://nexus-backend-dev.onrender.com
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: no-cache, no-store, must-revalidate
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: NODE_ENV
+        value: production
 
   # Multi-tenant Admin UI (dashboard for all tenants)
   - type: web

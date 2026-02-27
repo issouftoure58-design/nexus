@@ -8,14 +8,40 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from dist
-app.use(express.static(join(__dirname, 'dist')));
+// Cache headers middleware
+const setNoCacheHeaders = (res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+};
 
-// SPA fallback - serve index.html for all routes
+const setImmutableCacheHeaders = (res) => {
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+};
+
+// Serve assets with long-term caching (they have hashes in filenames)
+app.use('/assets', express.static(join(__dirname, 'dist', 'assets'), {
+  setHeaders: setImmutableCacheHeaders
+}));
+
+// Serve other static files (images, etc.) with moderate caching
+app.use(express.static(join(__dirname, 'dist'), {
+  index: false, // Don't serve index.html from here
+  setHeaders: (res, path) => {
+    // Assets get immutable cache, others get short cache
+    if (path.includes('/assets/')) {
+      setImmutableCacheHeaders(res);
+    }
+  }
+}));
+
+// SPA fallback - serve index.html with NO CACHE for all routes
 app.get('*', (req, res) => {
+  setNoCacheHeaders(res);
   res.sendFile(join(__dirname, 'dist', 'index.html'));
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Fat's Hair Afro - Server running on port ${PORT}`);
+  console.log(`Cache policy: index.html=no-cache, assets=immutable`);
 });
