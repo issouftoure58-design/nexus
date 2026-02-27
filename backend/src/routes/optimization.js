@@ -18,6 +18,7 @@ import { Router } from 'express';
 import costMonitor from '../services/optimization/costMonitor.js';
 import cacheService from '../services/optimization/cacheService.js';
 import aiRouting from '../services/aiRoutingService.js';
+import notificationCascade from '../services/notificationCascadeService.js';
 
 const router = Router();
 
@@ -306,6 +307,9 @@ router.get('/dashboard', (req, res) => {
     // AI Routing stats
     const aiRoutingStats = aiRouting.getStats();
 
+    // Notification Cascade stats
+    const cascadeStats = notificationCascade.getStats();
+
     res.json({
       success: true,
       data: {
@@ -318,9 +322,13 @@ router.get('/dashboard', (req, res) => {
           projectedEndOfMonth: budgetStatus.total.projectedEndOfMonth,
           dailyTrend: parseFloat(dailyTrend),
           alertsCount: alerts.length,
+          // AI Routing
           aiCacheHitRate: aiRoutingStats.cacheHitRate,
           aiHaikuRate: aiRoutingStats.haikuRate,
-          aiSavings: aiRoutingStats.estimatedSavingsEUR
+          aiSavings: aiRoutingStats.estimatedSavingsEUR,
+          // Notification Cascade
+          cascadeEmailOnlyRate: cascadeStats.emailOnlyRate,
+          cascadeSavings: cascadeStats.totalSavingsEUR
         },
         today: todayCosts,
         month: monthlyCosts,
@@ -329,6 +337,7 @@ router.get('/dashboard', (req, res) => {
         session: sessionStats,
         alerts: alerts,
         aiRouting: aiRoutingStats,
+        cascade: cascadeStats,
         pricing: costMonitor.PRICING
       }
     });
@@ -537,6 +546,116 @@ router.post('/ai-routing/test', async (req, res) => {
     });
   } catch (error) {
     console.error('[OPTIMIZATION] Erreur ai-routing/test:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// === ROUTES NOTIFICATION CASCADE ===
+
+/**
+ * GET /api/optimization/cascade/stats
+ * Statistiques de la cascade de notifications
+ */
+router.get('/cascade/stats', (req, res) => {
+  try {
+    const stats = notificationCascade.getStats();
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur cascade/stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/optimization/cascade/reset
+ * Reset les statistiques de cascade
+ */
+router.post('/cascade/reset', (req, res) => {
+  try {
+    notificationCascade.resetStats();
+    res.json({
+      success: true,
+      message: 'Statistiques cascade reinitialisees'
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur cascade/reset:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/optimization/cascade/config
+ * Configuration de la cascade (delais, couts)
+ */
+router.get('/cascade/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      delays: notificationCascade.CASCADE_DELAYS,
+      costs: notificationCascade.COSTS,
+      priorities: Object.keys(notificationCascade.PRIORITY)
+    }
+  });
+});
+
+/**
+ * POST /api/optimization/cascade/test
+ * Teste l'envoi d'une notification cascade (dry-run)
+ */
+router.post('/cascade/test', async (req, res) => {
+  try {
+    const { recipient, content, priority = 'normal' } = req.body;
+
+    if (!recipient || !content) {
+      return res.status(400).json({
+        success: false,
+        error: 'recipient et content requis'
+      });
+    }
+
+    // Simulation sans envoi reel
+    const channelsToUse = [];
+    if (recipient.email) channelsToUse.push('email');
+
+    if (priority === 'urgent' || priority === 'high') {
+      if (recipient.phone) channelsToUse.push('whatsapp');
+    }
+    if (priority === 'urgent') {
+      if (recipient.phone) channelsToUse.push('sms');
+    }
+
+    const estimatedCost = channelsToUse.reduce((sum, ch) => {
+      return sum + (notificationCascade.COSTS[ch] || 0);
+    }, 0);
+
+    res.json({
+      success: true,
+      data: {
+        dryRun: true,
+        priority,
+        channelsToUse,
+        estimatedCost,
+        comparedToSmsOnly: {
+          smsCost: notificationCascade.COSTS.sms,
+          savings: notificationCascade.COSTS.sms - estimatedCost,
+          savingsPercent: ((notificationCascade.COSTS.sms - estimatedCost) / notificationCascade.COSTS.sms * 100).toFixed(1) + '%'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[OPTIMIZATION] Erreur cascade/test:', error);
     res.status(500).json({
       success: false,
       error: error.message
