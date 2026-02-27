@@ -7,6 +7,12 @@
 
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import {
+  sendInvoicePaidEmail,
+  sendPaymentFailedEmail,
+  sendSubscriptionCancelledEmail,
+  sendTrialAlert
+} from './tenantEmailService.js';
 
 // Configuration Stripe
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -631,6 +637,15 @@ async function handleSubscriptionDeleted(subscription) {
     })
     .eq('id', tenantId);
 
+  // Envoyer l'email de confirmation d'annulation
+  const endDate = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : new Date().toISOString();
+
+  sendSubscriptionCancelledEmail(tenantId, endDate).catch(err =>
+    console.error('[Stripe Webhook] Erreur email subscription cancelled:', err)
+  );
+
   console.log(`[Stripe Webhook] Subscription annulee pour ${tenantId}, modules desactives`);
 }
 
@@ -640,7 +655,7 @@ async function handleInvoicePaid(invoice) {
   // Trouver le tenant
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id')
+    .select('id, plan')
     .eq('stripe_customer_id', customerId)
     .single();
 
@@ -656,6 +671,14 @@ async function handleInvoicePaid(invoice) {
     created_at: new Date().toISOString()
   });
 
+  // Envoyer l'email de confirmation
+  sendInvoicePaidEmail(tenant.id, {
+    number: invoice.number || invoice.id,
+    amount: invoice.amount_paid,
+    planName: tenant.plan,
+    url: invoice.hosted_invoice_url
+  }).catch(err => console.error('[Stripe Webhook] Erreur email facture:', err));
+
   console.log(`[Stripe Webhook] Facture payee: ${invoice.id} - ${invoice.amount_paid/100}${invoice.currency.toUpperCase()}`);
 }
 
@@ -664,7 +687,7 @@ async function handleInvoicePaymentFailed(invoice) {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, email')
+    .select('id')
     .eq('stripe_customer_id', customerId)
     .single();
 
@@ -680,7 +703,13 @@ async function handleInvoicePaymentFailed(invoice) {
     created_at: new Date().toISOString()
   });
 
-  // TODO: Envoyer notification email
+  // Envoyer l'email d'alerte
+  sendPaymentFailedEmail(tenant.id, {
+    amount: invoice.amount_due,
+    nextRetryDate: invoice.next_payment_attempt
+      ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+      : null
+  }).catch(err => console.error('[Stripe Webhook] Erreur email payment failed:', err));
 
   console.log(`[Stripe Webhook] Paiement echoue pour ${tenant.id}: ${invoice.id}`);
 }
@@ -689,7 +718,10 @@ async function handleTrialWillEnd(subscription) {
   const tenantId = subscription.metadata?.tenant_id;
   if (!tenantId) return;
 
-  // TODO: Envoyer notification email "votre essai se termine dans 3 jours"
+  // Envoyer l'alerte J-3
+  sendTrialAlert(tenantId, 3).catch(err =>
+    console.error('[Stripe Webhook] Erreur email trial warning:', err)
+  );
 
   console.log(`[Stripe Webhook] Trial se termine pour ${tenantId}`);
 }

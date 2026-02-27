@@ -12,6 +12,7 @@ import { checkStockLevels } from './stockAlertes.js';
 import { jobIntelligenceMonitoring } from '../ai/intelligenceMonitor.js';
 import { jobSEOTracking } from './seoTracking.js';
 import { jobChurnPrevention } from '../ai/predictions.js';
+import { sendTrialAlert } from '../services/tenantEmailService.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -45,6 +46,7 @@ const JOBS_SCHEDULE = {
   intelligenceMonitoring: { interval: 60 }, // Toutes les heures (surveillance IA - Plan Business)
   seoTracking: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h (tracking SEO hebdo - Plan Business)
   churnPrevention: { hour: 8, minute: 0 }, // 08h00 (detection churn quotidien - Plan Business)
+  trialAlerts: { hour: 9, minute: 15 },    // 09h15 - Alertes expiration trial (J-7, J-3, J-1, J0)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -807,6 +809,125 @@ export async function sendDemandeAvisJ2() {
   }
 }
 
+/**
+ * Job: Envoyer les alertes d'expiration trial
+ * S'exécute tous les jours à 9h15
+ * Envoie des emails aux tenants dont le trial expire dans 7, 3, 1, ou 0 jours
+ */
+export async function sendTrialAlertsJob() {
+  const jobName = 'sendTrialAlerts';
+  console.log(`\n[Scheduler] ⏰ Début job: ${jobName} - ${new Date().toLocaleString('fr-FR')}`);
+
+  const db = getSupabase();
+  if (!db) {
+    console.log('[Scheduler] ⚠️ Supabase non configuré, skip trial alerts');
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Dates cibles pour les alertes
+    const targetDays = [7, 3, 1, 0]; // J-7, J-3, J-1, J0
+    const results = { sent: 0, errors: 0, details: [] };
+
+    for (const daysRemaining of targetDays) {
+      const targetDate = new Date(today);
+      targetDate.setDate(targetDate.getDate() + daysRemaining);
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+
+      // Trouver les tenants dont le trial expire à cette date
+      const { data: tenants, error } = await db
+        .from('tenants')
+        .select('id, name, essai_fin, statut')
+        .eq('statut', 'essai')
+        .gte('essai_fin', targetDateStr)
+        .lt('essai_fin', new Date(targetDate.getTime() + 86400000).toISOString().split('T')[0]);
+
+      if (error) {
+        console.error(`[Scheduler] Erreur query trial J-${daysRemaining}:`, error.message);
+        continue;
+      }
+
+      console.log(`[Scheduler] J-${daysRemaining}: ${tenants?.length || 0} tenant(s) à alerter`);
+
+      for (const tenant of (tenants || [])) {
+        try {
+          // Vérifier si alerte déjà envoyée aujourd'hui pour ce tenant
+          const alertKey = `trial_alert_${tenant.id}_${daysRemaining}_${today.toISOString().split('T')[0]}`;
+
+          // Envoyer l'alerte
+          const result = await sendTrialAlert(tenant.id, daysRemaining);
+
+          if (result.success) {
+            results.sent++;
+            results.details.push({
+              tenant_id: tenant.id,
+              tenant_name: tenant.name,
+              days_remaining: daysRemaining,
+              status: 'sent'
+            });
+            console.log(`[Scheduler] ✅ Alerte J-${daysRemaining} envoyée à ${tenant.name}`);
+          } else {
+            results.errors++;
+            results.details.push({
+              tenant_id: tenant.id,
+              tenant_name: tenant.name,
+              days_remaining: daysRemaining,
+              status: 'error',
+              error: result.error
+            });
+            console.error(`[Scheduler] ❌ Erreur alerte ${tenant.name}:`, result.error);
+          }
+        } catch (err) {
+          results.errors++;
+          console.error(`[Scheduler] ❌ Exception alerte ${tenant.name}:`, err.message);
+        }
+      }
+    }
+
+    // Traiter les tenants dont le trial a expiré (statut essai mais date passée)
+    const { data: expiredTenants } = await db
+      .from('tenants')
+      .select('id, name, essai_fin, statut')
+      .eq('statut', 'essai')
+      .lt('essai_fin', today.toISOString().split('T')[0]);
+
+    if (expiredTenants && expiredTenants.length > 0) {
+      console.log(`[Scheduler] ${expiredTenants.length} tenant(s) avec trial expiré`);
+
+      for (const tenant of expiredTenants) {
+        try {
+          // Mettre à jour le statut
+          await db
+            .from('tenants')
+            .update({ statut: 'expire', updated_at: new Date().toISOString() })
+            .eq('id', tenant.id);
+
+          // Envoyer l'email d'expiration
+          const result = await sendTrialAlert(tenant.id, 0);
+
+          if (result.success) {
+            results.sent++;
+            console.log(`[Scheduler] ✅ Email expiration envoyé à ${tenant.name}, statut mis à jour`);
+          }
+        } catch (err) {
+          results.errors++;
+          console.error(`[Scheduler] ❌ Erreur expiration ${tenant.name}:`, err.message);
+        }
+      }
+    }
+
+    console.log(`[Scheduler] ⏰ Fin job ${jobName}: ${results.sent} envoyés, ${results.errors} erreurs`);
+    return { success: true, ...results };
+
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 // ============= SCHEDULER =============
 
 /**
@@ -1051,6 +1172,16 @@ async function runScheduler() {
       console.error('[Scheduler] Erreur churn prevention:', err.message);
     }
   }
+
+  // Job: Trial Alerts (tous les jours à 9h15)
+  if (shouldRunJob('trialAlerts', JOBS_SCHEDULE.trialAlerts)) {
+    markJobExecuted('trialAlerts');
+    try {
+      await sendTrialAlertsJob();
+    } catch (err) {
+      console.error('[Scheduler] Erreur trial alerts:', err.message);
+    }
+  }
 }
 
 // ============= DÉMARRAGE =============
@@ -1077,6 +1208,7 @@ export function startScheduler() {
   console.log(`  ✅ Intelligence IA: toutes les ${JOBS_SCHEDULE.intelligenceMonitoring.interval} minutes (Plan Business)`);
   console.log(`  ✅ SEO Tracking: lundi ${JOBS_SCHEDULE.seoTracking.hour}h${String(JOBS_SCHEDULE.seoTracking.minute).padStart(2, '0')} (Plan Business)`);
   console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
+  console.log(`  ✅ Trial Alerts: tous les jours à ${JOBS_SCHEDULE.trialAlerts.hour}h${String(JOBS_SCHEDULE.trialAlerts.minute).padStart(2, '0')} (J-7, J-3, J-1, J0)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
@@ -1130,6 +1262,8 @@ export async function runJobManually(jobName) {
       return await jobSEOTracking();
     case 'churnPrevention':
       return await jobChurnPrevention();
+    case 'trialAlerts':
+      return await sendTrialAlertsJob();
     default:
       throw new Error(`Job inconnu: ${jobName}`);
   }
@@ -1154,6 +1288,7 @@ export default {
   sendRelancesFacturesJob,
   sendRelancesJ7J14J21Job,
   sendDemandeAvisJ2,
+  sendTrialAlertsJob,
   checkStockLevels,
   jobIntelligenceMonitoring,
   jobSEOTracking,

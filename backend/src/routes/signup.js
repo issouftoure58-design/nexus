@@ -12,6 +12,7 @@ import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
 import Stripe from 'stripe';
 import { BUSINESS_TEMPLATES } from '../data/businessTemplates.js';
+import { sendWelcomeEmail } from '../services/tenantEmailService.js';
 
 const router = express.Router();
 
@@ -586,6 +587,11 @@ router.post('/', async (req, res) => {
     // ═══════════════════════════════════════════════════
 
     console.log(`[SIGNUP] Nouveau tenant cree: ${tenant_id} (${company_name}) - Plan: ${plan_id}`);
+
+    // Envoyer l'email de bienvenue (async, ne bloque pas la réponse)
+    sendWelcomeEmail(tenant_id).catch(err => {
+      console.error('[SIGNUP] Erreur envoi email bienvenue:', err);
+    });
 
     res.json({
       success: true,
