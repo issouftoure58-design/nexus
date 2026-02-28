@@ -306,6 +306,79 @@ router.post('/portal', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// CHECKOUT SESSIONS
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/billing/checkout
+ * Cree une Checkout Session pour souscrire a un plan
+ * Body: { priceId: 'nexus_pro_monthly' | 'price_xxx', successUrl?, cancelUrl? }
+ */
+router.post('/checkout', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { priceId, successUrl, cancelUrl } = req.body;
+
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'priceId requis (ex: nexus_pro_monthly ou price_xxx)'
+      });
+    }
+
+    const result = await billingService.createCheckoutSession(
+      tenantId,
+      priceId,
+      successUrl,
+      cancelUrl
+    );
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('[Billing] Erreur POST checkout:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/billing/checkout/pack
+ * Cree une Checkout Session pour achat unique (pack SMS, credits, etc.)
+ * Body: { priceId: 'nexus_sms_500' | 'price_xxx', quantity?: 1, successUrl?, cancelUrl? }
+ */
+router.post('/checkout/pack', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { priceId, quantity, successUrl, cancelUrl } = req.body;
+
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'priceId requis (ex: nexus_sms_500)'
+      });
+    }
+
+    const result = await billingService.createOneTimeCheckout(
+      tenantId,
+      priceId,
+      quantity || 1,
+      successUrl,
+      cancelUrl
+    );
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('[Billing] Erreur POST checkout/pack:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // STATUS CHECK
 // ════════════════════════════════════════════════════════════════════
 

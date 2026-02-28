@@ -565,6 +565,130 @@ export async function createPortalSession(tenantId, returnUrl) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// CHECKOUT SESSIONS
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Cree une Checkout Session pour un nouveau tenant
+ * @param {string} tenantId - ID du tenant
+ * @param {string} priceId - ID du prix Stripe (ou product_code)
+ * @param {string} successUrl - URL de redirection apres succes
+ * @param {string} cancelUrl - URL de redirection si annulation
+ */
+export async function createCheckoutSession(tenantId, priceId, successUrl, cancelUrl) {
+  if (!stripe) throw new Error('Stripe not configured');
+
+  // Si c'est un product_code, recuperer le stripe_price_id
+  let finalPriceId = priceId;
+  if (!priceId.startsWith('price_')) {
+    const { data: product } = await supabase
+      .from('stripe_products')
+      .select('stripe_price_id')
+      .eq('product_code', priceId)
+      .single();
+
+    if (!product?.stripe_price_id) {
+      throw new Error(`Prix non trouve pour ${priceId}. Executez sync-stripe-products.mjs`);
+    }
+    finalPriceId = product.stripe_price_id;
+  }
+
+  // Recuperer ou creer le customer
+  const customer = await getOrCreateCustomer(tenantId);
+
+  // Recuperer les infos du tenant pour le trial
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('plan, trial_ends_at')
+    .eq('id', tenantId)
+    .single();
+
+  // Calculer si le tenant a droit a un trial
+  const hasActiveTrial = tenant?.trial_ends_at && new Date(tenant.trial_ends_at) > new Date();
+
+  const sessionParams = {
+    customer: customer.id,
+    payment_method_types: ['card'],
+    line_items: [{
+      price: finalPriceId,
+      quantity: 1
+    }],
+    mode: 'subscription',
+    success_url: successUrl || `${process.env.APP_URL}/admin?checkout=success`,
+    cancel_url: cancelUrl || `${process.env.APP_URL}/admin/subscription?checkout=cancelled`,
+    metadata: {
+      tenant_id: tenantId
+    },
+    subscription_data: {
+      metadata: {
+        tenant_id: tenantId
+      }
+    }
+  };
+
+  // Ajouter trial si applicable (14 jours par defaut)
+  if (!hasActiveTrial) {
+    sessionParams.subscription_data.trial_period_days = 14;
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
+
+  console.log(`[Stripe] Checkout session creee: ${session.id} pour tenant ${tenantId}`);
+
+  return {
+    session_id: session.id,
+    url: session.url
+  };
+}
+
+/**
+ * Cree une Checkout Session pour achat unique (pack SMS, credits, etc.)
+ */
+export async function createOneTimeCheckout(tenantId, priceId, quantity, successUrl, cancelUrl) {
+  if (!stripe) throw new Error('Stripe not configured');
+
+  // Si c'est un product_code, recuperer le stripe_price_id
+  let finalPriceId = priceId;
+  if (!priceId.startsWith('price_')) {
+    const { data: product } = await supabase
+      .from('stripe_products')
+      .select('stripe_price_id, metadata')
+      .eq('product_code', priceId)
+      .single();
+
+    if (!product?.stripe_price_id) {
+      throw new Error(`Prix non trouve pour ${priceId}`);
+    }
+    finalPriceId = product.stripe_price_id;
+  }
+
+  const customer = await getOrCreateCustomer(tenantId);
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customer.id,
+    payment_method_types: ['card'],
+    line_items: [{
+      price: finalPriceId,
+      quantity: quantity || 1
+    }],
+    mode: 'payment',
+    success_url: successUrl || `${process.env.APP_URL}/admin?purchase=success`,
+    cancel_url: cancelUrl || `${process.env.APP_URL}/admin/subscription?purchase=cancelled`,
+    metadata: {
+      tenant_id: tenantId,
+      product_code: priceId
+    }
+  });
+
+  console.log(`[Stripe] One-time checkout creee: ${session.id} pour tenant ${tenantId}`);
+
+  return {
+    session_id: session.id,
+    url: session.url
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════
 // WEBHOOKS
 // ════════════════════════════════════════════════════════════════════
 
@@ -741,5 +865,7 @@ export default {
   deletePaymentMethod,
   setDefaultPaymentMethod,
   createPortalSession,
+  createCheckoutSession,
+  createOneTimeCheckout,
   handleWebhookEvent
 };
