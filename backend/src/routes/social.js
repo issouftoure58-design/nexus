@@ -21,6 +21,7 @@ import OpenAI from 'openai';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
+import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
 
 const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -192,7 +193,7 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
 
     // Appel Claude API
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 1024,
       messages: [
         {
@@ -266,7 +267,7 @@ Réponds en JSON:
 }`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     });

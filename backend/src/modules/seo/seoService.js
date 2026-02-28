@@ -2,6 +2,7 @@
 import { supabase } from '../../config/supabase.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { getTenantConfig } from '../../config/tenants/index.js';
+import { MODEL_FAST } from '../../services/modelRouter.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -358,7 +359,7 @@ export async function getRecommendations(tenantId, auditId) {
 export async function generateMetaDescription(pageContent) {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -393,7 +394,7 @@ export async function generateMetaDescription(pageContent) {
 export async function generateTitle(pageContent, keyword) {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 100,
       messages: [{
         role: 'user',
@@ -432,7 +433,7 @@ export async function generateAltTexts(images) {
   try {
     const imageList = images.map((img, i) => `${i + 1}. ${img.src || img}${img.context ? ` (contexte: ${img.context})` : ''}`).join('\n');
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 500,
       messages: [{
         role: 'user',

@@ -6,6 +6,18 @@
  * Sonnet = RDV, commandes, support complexe
  */
 
+// Modèles Claude disponibles - Source unique de vérité
+export const MODELS = {
+  HAIKU: 'claude-3-haiku-20240307',
+  SONNET: 'claude-sonnet-4-20250514'
+};
+
+// Modèle par défaut pour les cas complexes
+export const MODEL_DEFAULT = MODELS.SONNET;
+
+// Modèle économique pour les tâches simples
+export const MODEL_FAST = MODELS.HAIKU;
+
 class ModelRouter {
   constructor() {
     this.stats = {
@@ -40,7 +52,7 @@ class ModelRouter {
     if (complexity.score < this.thresholds.simple) {
       this.stats.haiku++;
       return {
-        model: 'claude-3-haiku-20240307',
+        model: MODELS.HAIKU,
         reason: complexity.reasons.join(', '),
         expectedCost: 'low',
         complexity: complexity.score
@@ -49,7 +61,7 @@ class ModelRouter {
 
     this.stats.sonnet++;
     return {
-      model: 'claude-sonnet-4-20250514',
+      model: MODELS.SONNET,
       reason: complexity.reasons.length > 0 ? complexity.reasons.join(', ') : 'Complex query requires Sonnet',
       expectedCost: 'high',
       complexity: complexity.score

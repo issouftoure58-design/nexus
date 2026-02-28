@@ -5,6 +5,7 @@
 
 import { supabase } from '../config/supabase.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { MODEL_DEFAULT } from '../services/modelRouter.js';
 
 const anthropic = new Anthropic();
 
@@ -35,7 +36,7 @@ Reponds UNIQUEMENT avec un JSON valide, sans texte avant ou apres.
 Format: [{"action": "...", "description": "...", "priority": "high|medium|low", "impact": "..."}]`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 1024,
       messages: [{
         role: 'user',

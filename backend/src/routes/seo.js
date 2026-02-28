@@ -36,6 +36,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/checkPlan.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { MODEL_DEFAULT } from '../services/modelRouter.js';
 
 const router = express.Router();
 
@@ -109,7 +110,7 @@ Réponds UNIQUEMENT avec le contenu de l'article (pas de préambule, pas d'expli
     console.log(`[SEO] Génération article: "${sujet}"`);
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 4000,
       messages: [{
         role: 'user',
@@ -130,7 +131,7 @@ Mot-clé : ${mot_cle_principal}
 Réponds UNIQUEMENT avec la meta description (pas de préambule, pas de guillemets).`;
 
     const metaMessage = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 200,
       messages: [{
         role: 'user',

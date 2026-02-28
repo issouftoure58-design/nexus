@@ -5,6 +5,7 @@
 
 import { supabase } from '../../config/supabase.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { MODEL_FAST } from '../../services/modelRouter.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -265,7 +266,7 @@ ${recommendations.slice(0, 10).map(r => `- ${r.message}`).join('\n') || '- Aucun
 `;
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 1000,
       messages: [{
         role: 'user',

@@ -28,12 +28,22 @@ import { getVoicePrompt, getGreeting, getGoodbye } from '../prompts/voicePrompt.
 import { getDistanceFromSalon } from '../services/googleMapsService.js';
 // *** NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***
 import { SERVICES as BUSINESS_SERVICES, TRAVEL_FEES, BUSINESS_HOURS } from '../config/businessRules.js';
+// Import du router IA pour optimisation des couts
+import modelRouter from '../services/modelRouter.js';
+import { matchStaticResponse } from '../services/optimization/cacheService.js';
 
 // ============================================
 // CONFIGURATION
 // ============================================
 
 const anthropic = new Anthropic();
+
+// Modeles disponibles - Sonnet pour fiabilite avec outils
+const MODELS = {
+  HAIKU: 'claude-3-haiku-20240307',
+  SONNET: 'claude-sonnet-4-20250514'
+};
+const MODEL_DEFAULT = MODELS.SONNET;
 
 function getSupabase() {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -761,7 +771,7 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
   try {
     // Appel à Claude avec les outils
     let response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 1024,
       system: systemPrompt,
       tools: tools,
@@ -794,7 +804,7 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
 
       // Continuer la conversation
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_DEFAULT,
         max_tokens: 1024,
         system: systemPrompt,
         tools: tools,

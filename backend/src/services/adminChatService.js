@@ -15,6 +15,13 @@ import {
   scheduleTask,
   analyzePattern
 } from '../ai/adminProTools.js';
+// Import du router IA pour optimisation des couts
+import modelRouter from './modelRouter.js';
+import {
+  matchStaticResponse,
+  getCachedClaudeResponse,
+  cacheClaudeResponse
+} from './optimization/cacheService.js';
 
 // Client Anthropic (singleton)
 let anthropicClient = null;
@@ -31,10 +38,33 @@ function getAnthropicClient() {
   return anthropicClient;
 }
 
-// Modèle par défaut
-const MODEL = 'claude-sonnet-4-20250514';
+// Modeles disponibles
+const MODELS = {
+  HAIKU: 'claude-3-haiku-20240307',
+  SONNET: 'claude-sonnet-4-20250514'
+};
+const MODEL_DEFAULT = MODELS.SONNET;
 const MAX_TOKENS = 4096;
 const MAX_TOOL_ITERATIONS = 5; // Limite pour éviter les boucles infinies
+
+/**
+ * Selectionne le modele optimal selon la complexite
+ * Pour admin chat: toujours Sonnet si outils requis
+ */
+function selectModel(userMessage, hasTools = true) {
+  // Si outils disponibles, utiliser Sonnet pour fiabilite
+  if (hasTools) {
+    return MODELS.SONNET;
+  }
+
+  // Sinon, utiliser le router pour optimiser
+  const routing = modelRouter.selectModel({
+    userMessage,
+    context: { hasTools }
+  });
+
+  return routing.model;
+}
 
 // Flag pour éviter de recréer les tables à chaque appel
 let chatTablesInitialized = false;
@@ -776,7 +806,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
 
         try {
           const response = await client.messages.create({
-            model: MODEL,
+            model: MODEL_DEFAULT,
             max_tokens: 1000,
             messages: [{ role: 'user', content: prompt }]
           });
@@ -1208,7 +1238,7 @@ Réponds UNIQUEMENT en JSON valide :
 
         try {
           const response = await client.messages.create({
-            model: MODEL,
+            model: MODEL_DEFAULT,
             max_tokens: 800,
             messages: [{ role: 'user', content: prompt }]
           });
@@ -2166,7 +2196,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
 
       // Appel Claude (non-streaming pour la boucle d'outils)
       const response = await client.messages.create({
-        model: MODEL,
+        model: MODEL_DEFAULT,
         max_tokens: MAX_TOKENS,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,
@@ -2266,7 +2296,7 @@ export async function chat(tenantId, messages) {
       iterations++;
 
       const response = await client.messages.create({
-        model: MODEL,
+        model: MODEL_DEFAULT,
         max_tokens: MAX_TOKENS,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,

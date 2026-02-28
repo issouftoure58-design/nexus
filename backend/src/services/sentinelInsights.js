@@ -8,6 +8,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
+import { MODEL_DEFAULT } from './modelRouter.js';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -262,7 +263,7 @@ Format JSON strict (pas de texte avant ou apres) :
 
       // 4. Appeler Claude
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_DEFAULT,
         max_tokens: 3000,
         messages: [{ role: 'user', content: prompt }]
       });
@@ -360,7 +361,7 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
 }]`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }]
     });

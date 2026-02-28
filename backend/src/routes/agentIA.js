@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { authenticateAdmin } from './adminAuth.js';
+import { MODEL_DEFAULT } from '../services/modelRouter.js';
 // 🔧 TOOLS REGISTRY - Source unique des outils
 import { TOOLS_ADMIN } from '../tools/toolsRegistry.js';
 import {
@@ -693,7 +694,7 @@ router.post('/upload', authenticateAdmin, upload.single('file'), async (req, res
           const mediaType = file.mimetype;
 
           const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: MODEL_DEFAULT,
             max_tokens: 500,
             messages: [{
               role: 'user',
@@ -879,7 +880,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
     console.log('[DEBUG] Messages count:', messages.length);
 
     let response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 2048,
       system: fullSystemPrompt,
       messages: messages,
@@ -962,7 +963,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
       // Continuer la conversation avec Claude
       console.log('\n🤖 Appel Claude API pour suite...');
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_DEFAULT,
         max_tokens: 2048,
         system: fullSystemPrompt,
         messages: messages,

@@ -13,6 +13,7 @@ import bookingService from './bookingService.js';
 import nexusCore from '../core/unified/nexusCore.js';
 // 🔒 TENANT ISOLATION: Résolution du tenant depuis le numéro appelé
 import { getTenantByPhone } from '../config/tenants/index.js';
+import { MODEL_FAST } from './modelRouter.js';
 
 /**
  * 🔒 Résout le tenantId depuis le numéro de téléphone appelé
@@ -681,7 +682,7 @@ async function generateAIResponse(conv, msg) {
     if (conv.data.prenom) context += `\nPrénom: ${conv.data.prenom}`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: MODEL_FAST,
       max_tokens: 80,
       system: PERSONNALITE + context + '\n\nRÈGLE ABSOLUE: Tu VOUVOIES toujours le client.',
       messages: conv.history.slice(-6)

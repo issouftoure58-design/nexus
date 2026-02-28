@@ -5,6 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
+import { MODEL_DEFAULT } from '../services/modelRouter.js';
 
 const anthropic = new Anthropic();
 
@@ -62,7 +63,7 @@ Format de réponse (JSON UNIQUEMENT, sans texte avant ou après):
 Le contenu doit être en Markdown avec headers ## et ###.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -129,7 +130,7 @@ Format: JSON array UNIQUEMENT, sans texte avant ou après
 [{\"titre\": \"...\", \"mot_cle\": \"...\", \"angle\": \"...\", \"public\": \"...\"}]`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 2048,
       messages: [{
         role: 'user',
@@ -241,7 +242,7 @@ Retourne l'article amélioré au format JSON:
 }`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_DEFAULT,
       max_tokens: 4096,
       messages: [{
         role: 'user',

@@ -10,6 +10,7 @@
 
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import { MODEL_DEFAULT } from '../services/modelRouter.js';
 
 const router = express.Router();
 
@@ -244,7 +245,7 @@ router.post('/chat', async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
 
       const streamResponse = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_DEFAULT,
         max_tokens: 500,
         system: NEXUS_COMMERCIAL_PROMPT,
         messages: validMessages,
@@ -263,7 +264,7 @@ router.post('/chat', async (req, res) => {
     } else {
       // Non-streaming response
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_DEFAULT,
         max_tokens: 500,
         system: NEXUS_COMMERCIAL_PROMPT,
         messages: validMessages
