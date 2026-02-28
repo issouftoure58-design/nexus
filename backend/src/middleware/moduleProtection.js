@@ -10,9 +10,11 @@
 
 import { supabase } from '../config/supabase.js';
 
-// Cache des configs tenant (TTL: 5 minutes)
+// Cache des configs tenant (TTL: 30 secondes pour sécurité)
+// 🔒 SÉCURITÉ: TTL court pour éviter les fenêtres d'exploitation
+// après changement de plan
 const moduleCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 1000; // 30 secondes (était 5 minutes)
 
 /**
  * Mapping module ID → type de vérification
@@ -51,38 +53,85 @@ const MODULE_TYPES = {
 
 /**
  * Plan features mapping (pas de table plans, on utilise le plan_id directement)
+ *
+ * Grille tarifaire 2026:
+ * - STARTER (99€/mois): 1 user, 1000 clients, 200 SMS
+ * - PRO (249€/mois): 5 users, 5000 clients, 500 SMS, 60min voix IA
+ * - BUSINESS (499€/mois): 20 users, illimité, 2000 SMS, 300min voix IA
  */
 const PLAN_FEATURES = {
   starter: {
+    // Fonctionnalités de base
+    dashboard: true,
+    clients: true,
     reservations: true,
-    ecommerce: true,
+    facturation: true,
+    site_vitrine: true,
+    agent_ia_web: true,
+    documents: true,
     paiements: true,
+    ecommerce: true,
   },
   pro: {
+    // Tout Starter
+    dashboard: true,
+    clients: true,
     reservations: true,
-    ecommerce: true,
+    facturation: true,
+    site_vitrine: true,
+    agent_ia_web: true,
+    documents: true,
     paiements: true,
+    ecommerce: true,
+    // + Fonctionnalités Pro
+    whatsapp: true,
+    telephone: true,
     comptabilite: true,
     crm_avance: true,
+    marketing: true,
     marketing_automation: true,
+    pipeline: true,
     commercial: true,
+    stock: true,
     stock_inventaire: true,
+    analytics: true,
     analytics_avances: true,
-    rh_multiemployes: true,
+    devis: true,
   },
   business: {
+    // Tout Starter
+    dashboard: true,
+    clients: true,
     reservations: true,
-    ecommerce: true,
+    facturation: true,
+    site_vitrine: true,
+    agent_ia_web: true,
+    documents: true,
     paiements: true,
+    ecommerce: true,
+    // Tout Pro
+    whatsapp: true,
+    telephone: true,
     comptabilite: true,
     crm_avance: true,
+    marketing: true,
     marketing_automation: true,
+    pipeline: true,
     commercial: true,
+    stock: true,
     stock_inventaire: true,
+    analytics: true,
     analytics_avances: true,
+    devis: true,
+    // + Fonctionnalités Business exclusives
+    rh: true,
     rh_multiemployes: true,
+    seo: true,
     seo_visibilite: true,
+    api: true,
     api_integrations: true,
+    sentinel: true,
+    whitelabel: true,
     white_label: true,
   }
 };
@@ -308,4 +357,7 @@ export const ROUTE_MODULES = {
   '/api/admin/analytics': 'analytics_avances'
 };
 
-export default { requireModule, hasModule, getActiveModules, invalidateModuleCache, ROUTE_MODULES };
+// Export PLAN_FEATURES pour tests et vérification cohérence
+export { PLAN_FEATURES };
+
+export default { requireModule, hasModule, getActiveModules, invalidateModuleCache, ROUTE_MODULES, PLAN_FEATURES };

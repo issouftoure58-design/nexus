@@ -258,7 +258,8 @@ export async function checkTrialLimit(tenantId, resource, amount = 1) {
  */
 export function enforceTrialLimit(resource) {
   return async (req, res, next) => {
-    const tenantId = req.admin?.tenant_id || req.tenantId || req.headers['x-tenant-id'];
+    // 🔒 SÉCURITÉ: JAMAIS de fallback à header (spoofing)
+    const tenantId = req.admin?.tenant_id || req.tenantId;
 
     if (!tenantId) {
       return next(); // Pas de tenant, laisser passer

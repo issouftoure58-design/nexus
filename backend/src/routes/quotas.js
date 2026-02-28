@@ -19,9 +19,17 @@ const router = express.Router();
 
 /**
  * Middleware pour extraire le tenantId
+ * 🔒 SÉCURITÉ: JAMAIS de fallback à header non authentifié
  */
 const getTenantId = (req) => {
-  return req.tenantId || req.admin?.tenant_id || req.headers['x-tenant-id'];
+  // UNIQUEMENT depuis sources authentifiées
+  const tenantId = req.admin?.tenant_id || req.tenantId;
+
+  if (!tenantId) {
+    console.warn('[QUOTAS] ⚠️ Tentative accès sans tenant authentifié');
+  }
+
+  return tenantId;
 };
 
 /**

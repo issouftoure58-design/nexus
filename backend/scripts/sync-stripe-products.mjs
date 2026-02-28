@@ -69,13 +69,24 @@ async function syncProducts() {
           stripeProduct = await stripe.products.retrieve(product.stripe_product_id);
           console.log(`✓ ${product.product_code} - Produit existant: ${stripeProduct.id}`);
 
-          // Vérifier si le prix existe
+          // Vérifier si le prix existe ET si le montant est correct
           if (product.stripe_price_id) {
             try {
               stripePrice = await stripe.prices.retrieve(product.stripe_price_id);
-              console.log(`  ✓ Prix existant: ${stripePrice.id}`);
-              skipped++;
-              continue;
+
+              // Vérifier si le montant a changé
+              if (stripePrice.unit_amount === product.amount) {
+                console.log(`  ✓ Prix existant: ${stripePrice.id} (${product.amount / 100}€)`);
+                skipped++;
+                continue;
+              } else {
+                // Le montant a changé, créer un nouveau prix
+                console.log(`  ⚠️ Prix modifié: ${stripePrice.unit_amount / 100}€ → ${product.amount / 100}€`);
+                // Archiver l'ancien prix
+                await stripe.prices.update(stripePrice.id, { active: false });
+                console.log(`  🗄️ Ancien prix archivé: ${stripePrice.id}`);
+                stripePrice = null; // Force la création d'un nouveau prix
+              }
             } catch {
               // Prix n'existe plus, le recréer
               console.log(`  ⚠️ Prix invalide, recréation...`);

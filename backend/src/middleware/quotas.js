@@ -205,7 +205,7 @@ export async function getQuotaUsage(tenant_id) {
  */
 export async function requireClientsQuota(req, res, next) {
   try {
-    const tenant_id = req.tenant_id || req.tenantId || req.admin?.tenant_id || req.headers['x-tenant-id'];
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
     if (!tenant_id) {
       return res.status(401).json({ error: 'Tenant non identifié' });
     }
@@ -239,7 +239,7 @@ export async function requireClientsQuota(req, res, next) {
  */
 export async function requireStorageQuota(req, res, next) {
   try {
-    const tenant_id = req.tenant_id || req.tenantId || req.admin?.tenant_id || req.headers['x-tenant-id'];
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
     if (!tenant_id) {
       return res.status(401).json({ error: 'Tenant non identifié' });
     }
@@ -274,7 +274,7 @@ export async function requireStorageQuota(req, res, next) {
  */
 export async function requirePostsQuota(req, res, next) {
   try {
-    const tenant_id = req.tenant_id || req.tenantId || req.admin?.tenant_id || req.headers['x-tenant-id'];
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
     if (!tenant_id) {
       return res.status(401).json({ error: 'Tenant non identifié' });
     }
@@ -313,7 +313,7 @@ export async function requirePostsQuota(req, res, next) {
  */
 export async function requireImagesQuota(req, res, next) {
   try {
-    const tenant_id = req.tenant_id || req.tenantId || req.admin?.tenant_id || req.headers['x-tenant-id'];
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
     if (!tenant_id) {
       return res.status(401).json({ error: 'Tenant non identifié' });
     }

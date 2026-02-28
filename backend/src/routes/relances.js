@@ -34,7 +34,7 @@ function getSupabase() {
  */
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.admin?.tenant_id || req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const [factures, stats] = await Promise.all([
       getFacturesARelancer(tenantId),
       getStatsRelances(tenantId)
@@ -58,7 +58,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
  */
 router.get('/stats', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const stats = await getStatsRelances(tenantId);
 
     res.json({
@@ -82,7 +82,7 @@ router.get('/historique/:factureId', authenticateAdmin, async (req, res) => {
       return res.status(500).json({ success: false, error: 'Base de données non disponible' });
     }
 
-    const tenantId = req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const { factureId } = req.params;
 
     const { data, error } = await db
@@ -117,7 +117,7 @@ router.post('/:factureId/envoyer', authenticateAdmin, async (req, res) => {
       return res.status(500).json({ success: false, error: 'Base de données non disponible' });
     }
 
-    const tenantId = req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const { factureId } = req.params;
     const { niveau } = req.body;
 
@@ -175,7 +175,7 @@ router.post('/:factureId/envoyer', authenticateAdmin, async (req, res) => {
  */
 router.post('/traiter', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
 
     // Vérifier si l'utilisateur est super admin (peut traiter tous les tenants)
     const admin = req.admin;
@@ -213,7 +213,7 @@ router.patch('/:factureId/marquer-payee', authenticateAdmin, async (req, res) =>
       return res.status(500).json({ success: false, error: 'Base de données non disponible' });
     }
 
-    const tenantId = req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const { factureId } = req.params;
 
     const { error } = await db
@@ -245,7 +245,7 @@ router.patch('/:factureId/marquer-payee', authenticateAdmin, async (req, res) =>
  */
 router.post('/:factureId/contentieux', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.admin?.tenant_id || req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const { factureId } = req.params;
     const { service } = req.body; // 'interne' ou 'huissier'
 
@@ -272,7 +272,7 @@ router.post('/:factureId/contentieux', authenticateAdmin, async (req, res) => {
  */
 router.get('/settings', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.admin?.tenant_id || req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const settings = await getRelanceSettings(tenantId);
 
     res.json({
@@ -291,7 +291,7 @@ router.get('/settings', authenticateAdmin, async (req, res) => {
  */
 router.put('/settings', authenticateAdmin, async (req, res) => {
   try {
-    const tenantId = req.admin?.tenant_id || req.tenantId || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const tenantId = req.admin?.tenant_id || req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
     const { settings } = req.body;
 
     if (!settings) {

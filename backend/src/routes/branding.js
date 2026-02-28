@@ -436,10 +436,34 @@ router.delete('/domain', authenticateToken, async (req, res) => {
  */
 router.get('/theme.css', async (req, res) => {
   try {
-    const tenantId = req.query.tenant_id || req.headers['x-tenant-id'];
+    // 🔒 SÉCURITÉ: Récupérer tenant depuis domaine ou session UNIQUEMENT
+    // Ne JAMAIS accepter tenant_id depuis query params (spoofing)
+    const host = req.get('host') || '';
+    const origin = req.get('origin') || '';
+
+    // Mapping domaine -> tenant_id (même que reviews.js)
+    const domainToTenant = {
+      'fatshairafro.fr': 'fatshairafro',
+      'www.fatshairafro.fr': 'fatshairafro',
+      'nexus-backend-dev.onrender.com': 'fatshairafro',
+      'localhost': 'fatshairafro',
+    };
+
+    let tenantId = null;
+    for (const [domain, tenant] of Object.entries(domainToTenant)) {
+      if (origin.includes(domain) || host.includes(domain)) {
+        tenantId = tenant;
+        break;
+      }
+    }
+
+    // Fallback authentifié seulement
+    if (!tenantId && req.user?.tenant_id) {
+      tenantId = req.user.tenant_id;
+    }
 
     if (!tenantId) {
-      return res.status(400).send('/* tenant_id required */');
+      return res.status(400).send('/* tenant not resolved from domain */');
     }
 
     const { data: branding } = await supabase
@@ -520,14 +544,39 @@ router.get('/pages', authenticateToken, async (req, res) => {
 /**
  * GET /api/branding/pages/:slug
  * Detail d'une page
+ * 🔒 SÉCURITÉ: Résolution tenant depuis domaine ou session uniquement
  */
 router.get('/pages/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const tenantId = req.query.tenant_id || req.user?.tenant_id;
+
+    // 🔒 SÉCURITÉ: JAMAIS de fallback à query param (spoofing)
+    // Résoudre tenant depuis domaine ou session authentifiée
+    const host = req.get('host') || '';
+    const origin = req.get('origin') || '';
+
+    const domainToTenant = {
+      'fatshairafro.fr': 'fatshairafro',
+      'www.fatshairafro.fr': 'fatshairafro',
+      'nexus-backend-dev.onrender.com': 'fatshairafro',
+      'localhost': 'fatshairafro',
+    };
+
+    let tenantId = null;
+    for (const [domain, tenant] of Object.entries(domainToTenant)) {
+      if (origin.includes(domain) || host.includes(domain)) {
+        tenantId = tenant;
+        break;
+      }
+    }
+
+    // Fallback: utilisateur authentifié uniquement
+    if (!tenantId && req.user?.tenant_id) {
+      tenantId = req.user.tenant_id;
+    }
 
     if (!tenantId) {
-      return res.status(400).json({ success: false, error: 'tenant_id required' });
+      return res.status(400).json({ success: false, error: 'tenant not resolved from domain' });
     }
 
     const { data: page, error } = await supabase

@@ -957,7 +957,8 @@ router.get('/categories', (req, res) => {
  * Détail d'une catégorie avec historique des dépenses
  */
 router.get('/categories/:categorie', async (req, res) => {
-  const tenantId = req.tenantId;
+  // 🔒 SÉCURITÉ: Utiliser tenant depuis session authentifiée
+  const tenantId = req.admin?.tenant_id;
   const { categorie } = req.params;
 
   if (!tenantId) {

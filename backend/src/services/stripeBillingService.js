@@ -732,18 +732,127 @@ async function handleSubscriptionUpdate(subscription) {
     return;
   }
 
+  // Extraire le plan depuis les items de la subscription
+  const planId = extractPlanFromSubscription(subscription);
+  const modulesActifs = computeModulesFromPlan(planId);
+
+  const updateData = {
+    subscription_status: subscription.status,
+    subscription_cancel_at: subscription.cancel_at
+      ? new Date(subscription.cancel_at * 1000).toISOString()
+      : null,
+    updated_at: new Date().toISOString()
+  };
+
+  // Mettre a jour le plan seulement si la subscription est active
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    updateData.plan_id = planId;
+    updateData.plan = planId;
+    updateData.tier = planId;
+    updateData.modules_actifs = modulesActifs;
+    updateData.statut = subscription.status === 'trialing' ? 'essai' : 'actif';
+  }
+
   await supabase
     .from('tenants')
-    .update({
-      subscription_status: subscription.status,
-      subscription_cancel_at: subscription.cancel_at
-        ? new Date(subscription.cancel_at * 1000).toISOString()
-        : null,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', tenantId);
 
-  console.log(`[Stripe Webhook] Subscription ${subscription.id} mise a jour pour ${tenantId}: ${subscription.status}`);
+  console.log(`[Stripe Webhook] Subscription ${subscription.id} mise a jour pour ${tenantId}: status=${subscription.status}, plan=${planId}`);
+}
+
+/**
+ * Extrait le plan_id depuis les items de la subscription Stripe
+ */
+function extractPlanFromSubscription(subscription) {
+  const items = subscription.items?.data || [];
+
+  for (const item of items) {
+    const productCode = item.price?.metadata?.product_code || '';
+
+    // Detecter le plan principal depuis le product_code
+    if (productCode.includes('starter')) return 'starter';
+    if (productCode.includes('business')) return 'business';
+    if (productCode.includes('pro')) return 'pro';
+  }
+
+  // Fallback: verifier le nom du produit
+  for (const item of items) {
+    const productName = item.price?.product?.name?.toLowerCase() || '';
+    if (productName.includes('business')) return 'business';
+    if (productName.includes('pro')) return 'pro';
+    if (productName.includes('starter')) return 'starter';
+  }
+
+  return 'starter'; // Default
+}
+
+/**
+ * Calcule les modules actifs selon le plan
+ */
+function computeModulesFromPlan(planId) {
+  const PLAN_MODULES = {
+    starter: {
+      dashboard: true,
+      clients: true,
+      reservations: true,
+      facturation: true,
+      site_vitrine: true,
+      agent_ia_web: true,
+      documents: true,
+      paiements: true,
+      ecommerce: true
+    },
+    pro: {
+      dashboard: true,
+      clients: true,
+      reservations: true,
+      facturation: true,
+      site_vitrine: true,
+      agent_ia_web: true,
+      documents: true,
+      paiements: true,
+      ecommerce: true,
+      whatsapp: true,
+      telephone: true,
+      comptabilite: true,
+      crm_avance: true,
+      marketing: true,
+      pipeline: true,
+      commercial: true,
+      stock: true,
+      analytics: true,
+      devis: true
+    },
+    business: {
+      dashboard: true,
+      clients: true,
+      reservations: true,
+      facturation: true,
+      site_vitrine: true,
+      agent_ia_web: true,
+      documents: true,
+      paiements: true,
+      ecommerce: true,
+      whatsapp: true,
+      telephone: true,
+      comptabilite: true,
+      crm_avance: true,
+      marketing: true,
+      pipeline: true,
+      commercial: true,
+      stock: true,
+      analytics: true,
+      devis: true,
+      rh: true,
+      seo: true,
+      api: true,
+      sentinel: true,
+      whitelabel: true
+    }
+  };
+
+  return PLAN_MODULES[planId] || PLAN_MODULES.starter;
 }
 
 async function handleSubscriptionDeleted(subscription) {

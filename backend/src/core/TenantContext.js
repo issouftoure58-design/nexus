@@ -199,16 +199,17 @@ export async function loadTenant(tenantId) {
  * JAMAIS de fallback sur un tenant par défaut!
  */
 export async function resolveTenantFromRequest(req) {
-  // Essayer toutes les sources possibles
+  // 🔒 SÉCURITÉ: Prioriser sources AUTHENTIFIÉES
+  // 1. Sources authentifiées (JWT) - FIABLES
+  // 2. Sources résolues par middleware (domaine) - OK pour routes publiques
+  // ⚠️ NE JAMAIS utiliser header/query pour opérations sensibles
   const tenantId =
-    req.tenantId ||
-    req.user?.tenant_id ||
-    req.admin?.tenant_id ||
-    req.headers['x-tenant-id'] ||
-    req.query?.tenant_id;
+    req.admin?.tenant_id ||  // Admin authentifié (JWT)
+    req.user?.tenant_id ||   // User authentifié (JWT)
+    req.tenantId;            // Résolu par middleware domaine
 
   if (!tenantId) {
-    throw new Error('TENANT_ID_MISSING: No tenant_id found in request (checked: tenantId, user.tenant_id, admin.tenant_id, X-Tenant-ID header, query.tenant_id)');
+    throw new Error('TENANT_ID_MISSING: No tenant_id found in authenticated request');
   }
 
   return loadTenant(tenantId);

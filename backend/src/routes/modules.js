@@ -22,6 +22,76 @@ import provisioningService from '../services/twilioProvisioningService.js';
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════════════
+// CONTRÔLE D'ACCÈS PAR PLAN - SÉCURITÉ CRITIQUE
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Mapping module -> plans autorisés
+ * IMPORTANT: Synchronisé avec checkPlan.js et moduleProtection.js
+ *
+ * Grille tarifaire 2026:
+ * - Starter (99€/mois): Fonctionnalités de base
+ * - Pro (249€/mois): + WhatsApp, Téléphone, Marketing, Pipeline
+ * - Business (499€/mois): + RH, SEO, API, SENTINEL
+ */
+const MODULE_PLAN_ACCESS = {
+  // STARTER - Inclus dans tous les plans
+  'socle': ['starter', 'pro', 'business'],
+  'agent_ia_web': ['starter', 'pro', 'business'],
+  'ia_reservation': ['starter', 'pro', 'business'],
+  'site_vitrine': ['starter', 'pro', 'business'],
+  'facturation': ['starter', 'pro', 'business'],
+
+  // PRO - Nécessite plan Pro ou Business
+  'whatsapp': ['pro', 'business'],
+  'telephone': ['pro', 'business'],
+  'standard_ia': ['pro', 'business'],
+  'comptabilite': ['pro', 'business'],
+  'crm_avance': ['pro', 'business'],
+  'marketing': ['pro', 'business'],
+  'pipeline': ['pro', 'business'],
+  'stock': ['pro', 'business'],
+  'analytics': ['pro', 'business'],
+  'devis': ['pro', 'business'],
+
+  // BUSINESS - Exclusivement Business
+  'rh': ['business'],
+  'seo': ['business'],
+  'api': ['business'],
+  'sentinel': ['business'],
+  'whitelabel': ['business'],
+
+  // MODULES MÉTIER - Addon payant, tous plans
+  'restaurant': ['starter', 'pro', 'business'],
+  'hotel': ['starter', 'pro', 'business'],
+  'domicile': ['starter', 'pro', 'business'],
+};
+
+/**
+ * Vérifie si un plan peut accéder à un module
+ */
+function canPlanAccessModule(planId, moduleId) {
+  const allowedPlans = MODULE_PLAN_ACCESS[moduleId];
+  if (!allowedPlans) {
+    // Module non mappé = accessible à tous (backwards compatibility)
+    console.warn(`[MODULES] ⚠️ Module ${moduleId} non mappé dans MODULE_PLAN_ACCESS`);
+    return true;
+  }
+  return allowedPlans.includes(planId?.toLowerCase());
+}
+
+/**
+ * Retourne le plan minimum requis pour un module
+ */
+function getMinimumPlanForModule(moduleId) {
+  const allowedPlans = MODULE_PLAN_ACCESS[moduleId];
+  if (!allowedPlans) return 'starter';
+  if (allowedPlans.includes('starter')) return 'starter';
+  if (allowedPlans.includes('pro')) return 'pro';
+  return 'business';
+}
+
+// ════════════════════════════════════════════════════════════════════
 // MODULES DISPONIBLES (hardcodé en attendant migration DB)
 // ════════════════════════════════════════════════════════════════════
 
@@ -512,16 +582,36 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Récupérer tenant
+    // Récupérer tenant avec plan_id
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('modules_actifs')
+      .select('modules_actifs, plan_id, plan')
       .eq('id', tenantId)
       .single();
 
     if (tenantError) throw tenantError;
 
     const modulesActifs = tenant?.modules_actifs || { socle: true };
+    const tenantPlan = tenant?.plan_id || tenant?.plan || 'starter';
+
+    // ════════════════════════════════════════════════════════════════
+    // VÉRIFICATION PLAN - SÉCURITÉ CRITIQUE
+    // ════════════════════════════════════════════════════════════════
+    if (!canPlanAccessModule(tenantPlan, moduleId)) {
+      const requiredPlan = getMinimumPlanForModule(moduleId);
+      const planPrices = { starter: 99, pro: 249, business: 499 };
+
+      console.log(`[MODULES] ⛔ Accès refusé: ${moduleId} nécessite ${requiredPlan}, tenant a ${tenantPlan}`);
+
+      return res.status(403).json({
+        error: `Ce module nécessite le plan ${requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)}`,
+        code: 'PLAN_UPGRADE_REQUIRED',
+        current_plan: tenantPlan,
+        required_plan: requiredPlan,
+        upgrade_price: planPrices[requiredPlan],
+        upgrade_url: '/subscription'
+      });
+    }
 
     // Déjà actif ?
     if (modulesActifs[moduleId]) {
@@ -747,16 +837,17 @@ router.post('/bulk', authenticateAdmin, async (req, res) => {
 
     console.log(`[MODULES] Bulk update pour ${tenantId}:`, { activate, deactivate });
 
-    // Récupérer tenant
+    // Récupérer tenant avec plan_id
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('modules_actifs')
+      .select('modules_actifs, plan_id, plan')
       .eq('id', tenantId)
       .single();
 
     if (tenantError) throw tenantError;
 
     let modulesActifs = { ...tenant?.modules_actifs } || { socle: true };
+    const tenantPlan = tenant?.plan_id || tenant?.plan || 'starter';
 
     const errors = [];
     const activated = [];
@@ -767,6 +858,18 @@ router.post('/bulk', authenticateAdmin, async (req, res) => {
       const module = MODULES_DISPONIBLES.find(m => m.id === moduleId);
       if (!module) {
         errors.push({ moduleId, error: 'Module non trouvé' });
+        continue;
+      }
+
+      // VÉRIFICATION PLAN - SÉCURITÉ CRITIQUE
+      if (!canPlanAccessModule(tenantPlan, moduleId)) {
+        const requiredPlan = getMinimumPlanForModule(moduleId);
+        errors.push({
+          moduleId,
+          error: `Nécessite le plan ${requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)}`,
+          code: 'PLAN_UPGRADE_REQUIRED',
+          required_plan: requiredPlan
+        });
         continue;
       }
 
@@ -992,5 +1095,15 @@ router.post('/apply-template', authenticateAdmin, async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
+// ════════════════════════════════════════════════════════════════════
+// EXPORTS pour tests et autres modules
+// ════════════════════════════════════════════════════════════════════
+export {
+  MODULE_PLAN_ACCESS,
+  canPlanAccessModule,
+  getMinimumPlanForModule,
+  MODULES_DISPONIBLES
+};
 
 export default router;

@@ -36,13 +36,22 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
   let event;
 
   try {
+    // 🔒 SÉCURITÉ CRITIQUE: TOUJOURS vérifier la signature en production
+    if (process.env.NODE_ENV === 'production' && !endpointSecret) {
+      console.error('[Stripe Webhook] ❌ CRITIQUE: STRIPE_WEBHOOK_SECRET non configuré en production');
+      return res.status(500).send('Webhook secret not configured');
+    }
+
     if (endpointSecret) {
-      // Verification de signature en production
+      // Vérification de signature obligatoire
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } else {
-      // Mode dev sans verification
-      console.warn('[Stripe Webhook] ⚠️  STRIPE_WEBHOOK_SECRET non configure - mode dev');
+    } else if (process.env.NODE_ENV === 'development' && process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true') {
+      // Mode dev UNIQUEMENT avec flag explicite
+      console.warn('[Stripe Webhook] ⚠️ DEV MODE: Webhook non signé accepté');
       event = JSON.parse(req.body.toString());
+    } else {
+      console.error('[Stripe Webhook] ❌ Signature requise');
+      return res.status(400).send('Webhook signature required');
     }
   } catch (err) {
     console.error('[Stripe Webhook] Erreur signature:', err.message);

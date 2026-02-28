@@ -8,7 +8,7 @@
  * - Collapse/expand
  */
 
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTenant, PlanType } from '@/hooks/useTenant';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -46,6 +46,8 @@ import {
   UtensilsCrossed,
   Bed,
   LayoutGrid,
+  X,
+  Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -63,6 +65,48 @@ interface NavItem {
   alwaysShow?: boolean;     // Toujours afficher (dashboard, paramètres)
   businessTypes?: string[]; // Types de business requis (ex: ['restaurant'])
 }
+
+interface UpgradeModalData {
+  feature: string;
+  requiredPlan?: PlanType;
+  requiredModule?: string;
+}
+
+// Prix des plans pour le modal
+const PLAN_PRICES: Record<string, number> = {
+  starter: 99,
+  pro: 249,
+  business: 499,
+};
+
+const PLAN_NAMES: Record<string, string> = {
+  starter: 'Starter',
+  pro: 'Pro',
+  business: 'Business',
+};
+
+// Mapping modules vers plans requis
+const MODULE_TO_PLAN: Record<string, PlanType> = {
+  // Starter
+  'agent_ia_web': 'starter',
+  'reservations': 'starter',
+  // Pro
+  'whatsapp': 'pro',
+  'telephone': 'pro',
+  'standard_ia': 'pro',
+  'ia_reservation': 'pro',
+  'marketing': 'pro',
+  'comptabilite': 'pro',
+  'analytics': 'pro',
+  'ecommerce': 'pro',
+  // Business
+  'rh_avance': 'business',
+  'paie': 'business',
+  'seo': 'business',
+  'sentinel_pro': 'business',
+  'social_media': 'pro',
+  'assistant_ia': 'pro',
+};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MENU CONFIGURATION
@@ -131,52 +175,76 @@ interface SidebarProps {
 
 export function Sidebar({ onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [upgradeModal, setUpgradeModal] = useState<UpgradeModalData | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
   const { t, businessType, businessInfo } = useProfile();
 
   /**
    * Vérifie si l'item doit être affiché
-   * Mode dynamique: on affiche SEULEMENT les modules actifs
+   * NOUVEAU: On affiche TOUS les items, même non accessibles
+   * Filtrage uniquement par type de business
    */
   const shouldShowItem = (item: NavItem): boolean => {
-    // Items toujours visibles
-    if (item.alwaysShow) return true;
-
     // Si types de business requis, vérifier que le tenant correspond
     if (item.businessTypes && item.businessTypes.length > 0) {
       if (!businessType || !item.businessTypes.includes(businessType)) {
         return false;
       }
     }
-
-    // Si module requis, vérifier qu'il est actif
-    if (item.requiredModule) {
-      return hasModule(item.requiredModule);
-    }
-
-    // Si plan requis (fallback), vérifier le plan
-    if (item.requiredPlan) {
-      return hasPlan(item.requiredPlan);
-    }
-
     return true;
   };
 
   /**
    * Vérifie si l'item est verrouillé (visible mais pas accessible)
-   * Note: En mode dynamique, on cache les items au lieu de les verrouiller
+   * NOUVEAU: On vérifie si le tenant a accès au module/plan requis
    */
   const isItemLocked = (item: NavItem): boolean => {
-    return false; // Plus de verrouillage, on cache simplement
+    // Items toujours disponibles
+    if (item.alwaysShow) return false;
+
+    // Si module requis, vérifier qu'il est actif
+    if (item.requiredModule) {
+      return !hasModule(item.requiredModule);
+    }
+
+    // Si plan requis, vérifier le plan
+    if (item.requiredPlan) {
+      return !hasPlan(item.requiredPlan);
+    }
+
+    return false;
+  };
+
+  /**
+   * Détermine le plan requis pour un item verrouillé
+   */
+  const getRequiredPlanForItem = (item: NavItem): PlanType => {
+    if (item.requiredModule) {
+      return MODULE_TO_PLAN[item.requiredModule] || 'pro';
+    }
+    return item.requiredPlan || 'pro';
   };
 
   /**
    * Filtre les items visibles d'une section
-   * Mode dynamique: affiche seulement les modules actifs du tenant
+   * NOUVEAU: On affiche tous les items (filtrage business seulement)
    */
   const getVisibleItems = (items: NavItem[]): NavItem[] => {
     return items.filter(shouldShowItem);
+  };
+
+  /**
+   * Gère le clic sur un item verrouillé
+   */
+  const handleLockedItemClick = (item: NavItem) => {
+    const requiredPlan = getRequiredPlanForItem(item);
+    setUpgradeModal({
+      feature: item.label,
+      requiredPlan,
+      requiredModule: item.requiredModule,
+    });
   };
 
   const NavLink = ({ item }: { item: NavItem }) => {
@@ -185,23 +253,22 @@ export function Sidebar({ onLogout }: SidebarProps) {
     const locked = isItemLocked(item);
 
     if (locked) {
-      // Item verrouillé - afficher mais non cliquable
+      // Item verrouillé - cliquable mais ouvre le modal
       return (
-        <div
+        <button
+          onClick={() => handleLockedItemClick(item)}
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-not-allowed opacity-50',
+            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+            'hover:bg-white/10 text-white/50 hover:text-white/70',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? `${item.label} (Plan ${item.requiredPlan} requis)` : undefined}
+          title={collapsed ? `${item.label}` : undefined}
         >
-          <Icon className="h-5 w-5 flex-shrink-0 text-white/40" />
+          <Icon className="h-5 w-5 flex-shrink-0" />
           {!collapsed && (
-            <>
-              <span className="flex-1 truncate text-white/40">{item.label}</span>
-              <Lock className="h-4 w-4 text-yellow-500" />
-            </>
+            <span className="flex-1 truncate text-left">{item.label}</span>
           )}
-        </div>
+        </button>
       );
     }
 
@@ -373,6 +440,83 @@ export function Sidebar({ onLogout }: SidebarProps) {
           </button>
         )}
       </div>
+
+      {/* Modal Upgrade */}
+      {upgradeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full mx-4 overflow-hidden shadow-2xl">
+            {/* Header gradient */}
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-8 text-white relative">
+              <button
+                onClick={() => setUpgradeModal(null)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Zap className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Fonctionnalite Premium</h2>
+                  <p className="text-white/80 text-sm">{upgradeModal.feature}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-600 mb-6">
+                Cette fonctionnalite est disponible a partir du plan{' '}
+                <span className="font-semibold text-gray-900">
+                  {PLAN_NAMES[upgradeModal.requiredPlan || 'pro']}
+                </span>.
+              </p>
+
+              {/* Plan card */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-xl mb-6 border border-purple-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-gray-900">
+                    Plan {PLAN_NAMES[upgradeModal.requiredPlan || 'pro']}
+                  </span>
+                  <div className="flex items-baseline">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {PLAN_PRICES[upgradeModal.requiredPlan || 'pro']}
+                    </span>
+                    <span className="text-gray-500 ml-1">/mois</span>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">
+                  {upgradeModal.requiredPlan === 'business'
+                    ? '20 users, clients illimites, 300min voix IA'
+                    : upgradeModal.requiredPlan === 'pro'
+                    ? '5 users, 5000 clients, 60min voix IA'
+                    : '1 user, 1000 clients, 200 SMS'}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setUpgradeModal(null)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Plus tard
+                </button>
+                <button
+                  onClick={() => {
+                    setUpgradeModal(null);
+                    navigate('/subscription');
+                  }}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  Voir les plans
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

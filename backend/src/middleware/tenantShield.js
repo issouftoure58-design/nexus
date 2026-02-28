@@ -95,8 +95,9 @@ export function tenantShield(options = {}) {
       return next();
     }
 
-    // Vérifier la présence de tenant_id
-    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.query.tenant_id;
+    // 🔒 SÉCURITÉ: UNIQUEMENT depuis sources authentifiées
+    // JAMAIS de fallback à header ou query param (spoofing)
+    const tenantId = req.tenantId || req.admin?.tenant_id || req.user?.tenant_id;
 
     if (!tenantId) {
       if (logViolations) {

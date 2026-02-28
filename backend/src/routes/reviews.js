@@ -37,13 +37,14 @@ const resolveTenant = (req, res, next) => {
     }
   }
 
-  req.tenantId = tenantId || tenantHeader || req.query.tenant_id;
+  // 🔒 SÉCURITÉ: JAMAIS de fallback à query param (spoofing possible)
+  req.tenantId = tenantId || tenantHeader;
 
-  // 🔒 TENANT ISOLATION: Pas de fallback
+  // 🔒 TENANT ISOLATION: Pas de fallback non sécurisé
   if (!req.tenantId) {
     return res.status(400).json({
       error: 'tenant_required',
-      message: 'Tenant ID is required via domain, X-Tenant-ID header, or tenant_id query param'
+      message: 'Tenant ID is required via domain or X-Tenant-ID header'
     });
   }
   next();

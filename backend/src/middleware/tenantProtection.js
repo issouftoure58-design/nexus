@@ -1,10 +1,27 @@
 import { identifyTenant, getTenantConfig, isFrozen, hasFeature } from '../config/tenants/index.js';
 
 /**
+ * 🔒 SÉCURITÉ: Résout le tenantId de manière sécurisée
+ * Priorise les sources authentifiées (JWT) sur les sources non fiables (header/query)
+ */
+function getSecureTenantId(req) {
+  // Sources authentifiées (FIABLES)
+  if (req.admin?.tenant_id) return req.admin.tenant_id;
+  if (req.user?.tenant_id) return req.user.tenant_id;
+
+  // Source résolue par middleware domaine (OK pour routes publiques)
+  if (req.tenantId) return req.tenantId;
+
+  // Fallback: résolution publique (⚠️ NE PAS utiliser pour opérations sensibles)
+  return identifyTenant(req);
+}
+
+/**
  * Middleware : Identifier le tenant et attacher sa config à la requête.
+ * ⚠️ À utiliser sur routes PUBLIQUES uniquement
  */
 export function attachTenant(req, res, next) {
-  const tenantId = identifyTenant(req);
+  const tenantId = getSecureTenantId(req);
   const config = getTenantConfig(tenantId);
 
   req.tenantId = tenantId;
@@ -18,7 +35,7 @@ export function attachTenant(req, res, next) {
  */
 export function requireFeature(featureName) {
   return (req, res, next) => {
-    const tenantId = req.tenantId || identifyTenant(req);
+    const tenantId = getSecureTenantId(req);
 
     if (!hasFeature(tenantId, featureName)) {
       console.log(`[TENANT ${tenantId}] Feature '${featureName}' non activée`);
@@ -37,7 +54,7 @@ export function requireFeature(featureName) {
  * Middleware : Bloquer les modifications sur tenants frozen en production.
  */
 export function protectFrozen(req, res, next) {
-  const tenantId = req.tenantId || identifyTenant(req);
+  const tenantId = getSecureTenantId(req);
 
   if (isFrozen(tenantId)) {
     const isDev = process.env.NODE_ENV === 'development';
@@ -61,7 +78,7 @@ export function protectFrozen(req, res, next) {
  * Middleware : Logger les requêtes avec info tenant.
  */
 export function logTenant(req, res, next) {
-  const tenantId = req.tenantId || identifyTenant(req);
+  const tenantId = getSecureTenantId(req);
   const config = getTenantConfig(tenantId);
 
   req.tenantId = tenantId;

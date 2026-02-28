@@ -2,10 +2,15 @@
  * Routes Admin - Configuration IA (Telephone & WhatsApp)
  *
  * Permet aux tenants de configurer leurs agents IA vocaux et messaging.
+ *
+ * 🔒 SÉCURITÉ: Ces routes nécessitent:
+ * - Authentification admin
+ * - Plan Pro ou Business (telephone/whatsapp = modules Pro)
  */
 
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
 
@@ -14,6 +19,45 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+/**
+ * 🔒 Middleware: Vérifie que le tenant a le plan Pro ou Business
+ */
+const requireProPlan = async (req, res, next) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('plan_id, plan')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) throw error;
+
+    const plan = (tenant?.plan_id || tenant?.plan || 'starter').toLowerCase();
+
+    if (plan === 'starter') {
+      return res.status(403).json({
+        error: 'Plan insuffisant',
+        code: 'PLAN_UPGRADE_REQUIRED',
+        message: 'Les fonctionnalités IA vocale nécessitent le plan Pro ou Business',
+        current_plan: plan,
+        required_plan: 'pro',
+        upgrade_url: '/subscription'
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('[ADMIN IA] Erreur vérification plan:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
+
 // ============================================
 // TELEPHONE IA CONFIG
 // ============================================
@@ -21,10 +65,11 @@ const supabase = createClient(
 /**
  * GET /api/admin/ia/telephone/config
  * Recupere la configuration IA telephone du tenant
+ * 🔒 Requires: Pro/Business plan
  */
-router.get('/telephone/config', async (req, res) => {
+router.get('/telephone/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
 
     const { data, error } = await supabase
       .from('tenant_ia_config')
@@ -68,10 +113,11 @@ router.get('/telephone/config', async (req, res) => {
 /**
  * PUT /api/admin/ia/telephone/config
  * Sauvegarde la configuration IA telephone
+ * 🔒 Requires: Pro/Business plan
  */
-router.put('/telephone/config', async (req, res) => {
+router.put('/telephone/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
     const config = req.body;
 
     const { error } = await supabase
@@ -99,10 +145,11 @@ router.put('/telephone/config', async (req, res) => {
 /**
  * POST /api/admin/ia/telephone/test
  * Teste l'agent IA telephone avec un message
+ * 🔒 Requires: Pro/Business plan
  */
-router.post('/telephone/test', async (req, res) => {
+router.post('/telephone/test', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
     const { message } = req.body;
 
     // Importer processMessage pour tester
@@ -132,10 +179,11 @@ router.post('/telephone/test', async (req, res) => {
 /**
  * GET /api/admin/ia/whatsapp/config
  * Recupere la configuration IA WhatsApp du tenant
+ * 🔒 Requires: Pro/Business plan
  */
-router.get('/whatsapp/config', async (req, res) => {
+router.get('/whatsapp/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
 
     const { data, error } = await supabase
       .from('tenant_ia_config')
@@ -181,10 +229,11 @@ router.get('/whatsapp/config', async (req, res) => {
 /**
  * PUT /api/admin/ia/whatsapp/config
  * Sauvegarde la configuration IA WhatsApp
+ * 🔒 Requires: Pro/Business plan
  */
-router.put('/whatsapp/config', async (req, res) => {
+router.put('/whatsapp/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
     const config = req.body;
 
     const { error } = await supabase
@@ -212,10 +261,11 @@ router.put('/whatsapp/config', async (req, res) => {
 /**
  * POST /api/admin/ia/whatsapp/test
  * Teste l'agent IA WhatsApp avec un message
+ * 🔒 Requires: Pro/Business plan
  */
-router.post('/whatsapp/test', async (req, res) => {
+router.post('/whatsapp/test', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
-    const tenantId = req.tenantId;
+    const tenantId = req.admin.tenant_id;
     const { message } = req.body;
 
     const { processMessage } = await import('../core/unified/nexusCore.js');

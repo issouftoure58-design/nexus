@@ -301,28 +301,46 @@ export function checkUsageLimit(resource) {
 
 /**
  * Helper : quels plans incluent ce module
+ *
+ * Grille tarifaire 2026:
+ * - STARTER (99€): Fonctionnalités de base
+ * - PRO (249€): Fonctionnalités avancées + IA vocale
+ * - BUSINESS (499€): Tout inclus + fonctionnalités premium
  */
 function getRequiredPlans(moduleName) {
   const moduleToPlans = {
-    // Modules de base (tous plans)
+    // ════════════════════════════════════════════════════════════════
+    // STARTER - Fonctionnalités de base (99€/mois)
+    // ════════════════════════════════════════════════════════════════
     'dashboard': ['starter', 'pro', 'business'],
     'clients': ['starter', 'pro', 'business'],
+    'reservations': ['starter', 'pro', 'business'],
     'facturation': ['starter', 'pro', 'business'],
+    'site_vitrine': ['starter', 'pro', 'business'],
+    'agent_ia_web': ['starter', 'pro', 'business'],
     'documents': ['starter', 'pro', 'business'],
-    'reseaux_sociaux': ['starter', 'pro', 'business'],
 
-    // Modules avances (Pro et Business)
+    // ════════════════════════════════════════════════════════════════
+    // PRO - Fonctionnalités avancées (249€/mois)
+    // ════════════════════════════════════════════════════════════════
+    'whatsapp': ['pro', 'business'],
+    'telephone': ['pro', 'business'],
     'comptabilite': ['pro', 'business'],
     'crm_avance': ['pro', 'business'],
     'marketing': ['pro', 'business'],
+    'pipeline': ['pro', 'business'],
     'commercial': ['pro', 'business'],
     'stock': ['pro', 'business'],
     'analytics': ['pro', 'business'],
+    'devis': ['pro', 'business'],
 
-    // Modules premium (Business uniquement)
-    'seo': ['business'],
+    // ════════════════════════════════════════════════════════════════
+    // BUSINESS - Fonctionnalités premium (499€/mois)
+    // ════════════════════════════════════════════════════════════════
     'rh': ['business'],
+    'seo': ['business'],
     'api': ['business'],
+    'sentinel': ['business'],
     'whitelabel': ['business']
   };
 
