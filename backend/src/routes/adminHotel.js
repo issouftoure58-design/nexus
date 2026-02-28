@@ -38,8 +38,7 @@ async function requireHotel(req, res, next) {
   next();
 }
 
-// Appliquer les middlewares
-router.use(requireAdmin);
+// Appliquer le middleware hotel
 router.use(requireHotel);
 
 // ============================================================================
