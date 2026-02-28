@@ -5,9 +5,12 @@
 
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
+
+// Middleware auth admin pour toutes les routes
+router.use(authenticateAdmin);
 
 // ============================================================================
 // MIDDLEWARE - Vérifier que c'est un tenant hotel
