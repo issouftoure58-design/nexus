@@ -17,8 +17,9 @@
     "test:quotas": "node src/tests/quotas-pro.test.js",
     "test:tenant": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=tenant-isolation",
     "lint:tenant": "node scripts/tenant-shield-lint.js",
-    "shield": "npm run lint:tenant && npm run test:tenant",
-    "precommit": "npm run lint:tenant"
+    "lint:syntax": "node scripts/syntax-check.js",
+    "shield": "npm run lint:syntax && npm run lint:tenant && npm run test:tenant",
+    "precommit": "npm run lint:syntax && npm run lint:tenant"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
