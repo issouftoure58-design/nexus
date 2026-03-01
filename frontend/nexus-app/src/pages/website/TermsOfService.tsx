@@ -1,4 +1,4 @@
-import { WebsiteLayout } from "@/components/website/WebsiteLayout";
+import WebsiteLayout from "@/components/website/WebsiteLayout";
 import { Link } from "wouter";
 
 export default function TermsOfServicePage() {

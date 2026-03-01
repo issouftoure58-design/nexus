@@ -1,4 +1,4 @@
-import { WebsiteLayout } from "@/components/website/WebsiteLayout";
+import WebsiteLayout from "@/components/website/WebsiteLayout";
 import { Link } from "wouter";
 import {
   Bot, Calendar, Users, BarChart3, MessageCircle, Phone,
