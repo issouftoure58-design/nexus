@@ -5,7 +5,7 @@
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
 **Derniere mise a jour:** 2026-03-01
-**Version:** 3.1.0 (Production Readiness + Audit Global + Signup Fix + Tenant Security)
+**Version:** 3.2.0 (Production Readiness + Audit Global + Signup Fix + Tenant Security + Legal)
 
 ---
 
@@ -83,6 +83,47 @@
 | `nexus-test` | Nexus Test | service_domicile | Test |
 
 > **Note historique:** Fat's Hair-Afro est le PREMIER tenant. Les noms internes (halimahAI.js, halimahWorker.js) sont historiques - chaque tenant peut nommer son IA.
+
+### Informations Legales Editeur (Source: Guichet Unique - Document officiel)
+
+| Champ | Valeur |
+|-------|--------|
+| **Nom commercial** | Nexus.AI |
+| **Dirigeant** | Issouf Toure |
+| **Forme juridique** | Entrepreneur individuel (Micro-entreprise) |
+| **SIREN** | 947 570 362 |
+| **SIRET** | 947 570 362 00022 |
+| **Code APE** | 5829C — Edition de logiciels applicatifs |
+| **Adresse** | 8 rue des Monts Rouges, 95130 Franconville, France |
+| **Telephone** | +33 7 60 53 76 94 |
+| **Email** | issouftoure58@gmail.com |
+| **Regime fiscal** | Micro-BIC |
+| **TVA** | Franchise en base (art. 293 B CGI) — TVA non applicable |
+| **Versement microsocial** | Mensuel |
+| **Date debut activite** | 01/01/2026 |
+| **Date immatriculation RNE** | 20/02/2026 |
+| **Activite** | Edition et commercialisation de logiciels de gestion d'entreprise en mode SaaS |
+| **Mediateur** | CM2C — 14 rue Saint Jean, 75017 Paris — www.cm2c.net |
+| **Hebergeur** | Render Services, Inc. — 525 Brannan Street, Suite 300, San Francisco, CA 94107, USA |
+| **Base de donnees** | Supabase, Inc. — https://supabase.com |
+
+### Pages legales (vitrine)
+
+| Page | Route | Fichier |
+|------|-------|---------|
+| Mentions Legales | `/mentions-legales` | `nexus-vitrine/src/pages/MentionsLegales.tsx` |
+| CGV | `/cgv` | `nexus-vitrine/src/pages/CGV.tsx` |
+| Politique de Confidentialite | `/confidentialite` | `nexus-vitrine/src/pages/Confidentialite.tsx` |
+
+### Mentions legales sur les documents PDF
+
+Le `pdfService.js` genere automatiquement les mentions legales dans le footer de chaque document PDF :
+- **SIRET** : lu depuis `tenant.settings.siret`
+- **TVA** : si `tenant.settings.tax_status === 'franchise_base'` → "TVA non applicable, article 293 B du CGI"
+- **TVA intra** : si `tenant.settings.numero_tva` → affiche le numero TVA intracommunautaire
+- **Adresse** : lu depuis `tenant.adresse`
+
+> Pour configurer un tenant : mettre `siret`, `tax_status` (valeurs: `franchise_base`, `assujetti`) et optionnellement `numero_tva` dans le champ `settings` JSONB de la table `tenants`.
 
 ---
 
@@ -1556,6 +1597,38 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 ---
 
 ## 17. HISTORIQUE DES MODIFICATIONS
+
+### 2026-03-01 (Session 6) — Legal Compliance
+
+**Mise en conformite legale complete (Mentions, CGV, Confidentialite, Factures)**
+
+**Phase 1 — Pages legales vitrine (`nexus-vitrine`):**
+- Cree `MentionsLegales.tsx` — toutes infos officielles du Guichet Unique (SIREN, SIRET, APE, regime fiscal)
+- Cree `CGV.tsx` — 8 articles (Objet, Services, Tarifs 99/249/499, Essai 14j, Paiement Stripe, Responsabilite, Donnees, Litiges)
+- Cree `Confidentialite.tsx` — 10 sections RGPD (Responsable, Donnees, Finalites, Base legale, Conservation, Destinataires, Transferts hors UE, Cookies, Securite, Droits)
+- App.jsx: routing wouter + footer mis a jour (SIRET, copyright, liens legaux)
+
+**Phase 2 — Factures PDF (`pdfService.js`):**
+- `getTenantConfig()` etendu: fetche `adresse, telephone` en plus
+- Nouvelle fonction `buildLegalFooter()`: genere SIRET + TVA mention depuis `tenant.settings`
+- 6 generateurs PDF mis a jour (generateFacture, generateDevis, generateRapport, generateInvoicePDF, generateQuotePDF, generatePayslipPDF)
+- Config tenant: `settings.siret`, `settings.tax_status` (`franchise_base` | `assujetti`), `settings.numero_tva`
+
+**Phase 3 — NEXUS_KNOWLEDGE.md:**
+- Ajout section "Informations Legales Editeur" avec toutes les donnees officielles
+- Ajout section "Pages legales" avec routes et fichiers
+- Ajout section "Mentions legales sur les documents PDF"
+- Version 3.1.0 → 3.2.0
+
+**Fichiers crees (vitrine):**
+- `src/pages/MentionsLegales.tsx`
+- `src/pages/CGV.tsx`
+- `src/pages/Confidentialite.tsx`
+
+**Fichiers modifies (monorepo):**
+- `backend/src/services/pdfService.js` — legal footer sur tous les PDFs
+
+---
 
 ### 2026-03-01 (Session 5) — Production Readiness
 

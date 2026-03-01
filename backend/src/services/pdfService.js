@@ -23,7 +23,7 @@ async function getTenantConfig(tenantId) {
 
   const { data: tenant, error } = await supabase
     .from('tenants')
-    .select('id, name, slug, settings')
+    .select('id, name, slug, settings, adresse, telephone')
     .eq('id', tenantId)
     .single();
 
@@ -38,6 +38,35 @@ async function getTenantConfig(tenantId) {
   }
 
   return tenant;
+}
+
+/**
+ * Builds legal footer lines from tenant config (SIRET, TVA mention)
+ * @param {Object} tenant - Tenant config object
+ * @returns {string[]} Array of footer lines
+ */
+function buildLegalFooter(tenant) {
+  const lines = [];
+  const settings = tenant.settings || {};
+
+  // Business name + address
+  let businessLine = tenant.name || 'NEXUS';
+  if (tenant.adresse) businessLine += ` — ${tenant.adresse}`;
+  lines.push(businessLine);
+
+  // SIRET
+  if (settings.siret) {
+    lines.push(`SIRET : ${settings.siret}`);
+  }
+
+  // TVA mention
+  if (settings.tax_status === 'franchise_base') {
+    lines.push('TVA non applicable, article 293 B du Code general des impots');
+  } else if (settings.numero_tva) {
+    lines.push(`N° TVA intracommunautaire : ${settings.numero_tva}`);
+  }
+
+  return lines;
 }
 
 // ============================================
@@ -205,11 +234,12 @@ export async function generateFacture(tenantId, data) {
         doc.text(notes);
       }
 
-      // Footer
+      // Footer with legal mentions
       doc.moveDown(3);
       doc.fontSize(8).fillColor('#999');
-      doc.text(`${businessName} - Document genere automatiquement`, { align: 'center' });
-      doc.text(`Tenant: ${tenantId}`, { align: 'center' });
+      const footerLines = buildLegalFooter({ name: businessName, settings: tenantInfo?.settings || {}, adresse: tenantInfo?.adresse });
+      footerLines.forEach(line => doc.text(line, { align: 'center' }));
+      doc.text(`Document genere automatiquement`, { align: 'center' });
 
       doc.end();
 
@@ -335,10 +365,12 @@ export async function generateDevis(tenantId, data) {
       doc.fontSize(9).fillColor('#666');
       doc.text('Ce devis est valable ' + validite + ' a compter de sa date d\'emission.');
 
-      // Footer
+      // Footer with legal mentions
       doc.moveDown(2);
       doc.fontSize(8).fillColor('#999');
-      doc.text(`${businessName} - Document genere automatiquement`, { align: 'center' });
+      const footerLines = buildLegalFooter({ name: businessName, settings: tenantInfo?.settings || {}, adresse: tenantInfo?.adresse });
+      footerLines.forEach(line => doc.text(line, { align: 'center' }));
+      doc.text(`Document genere automatiquement`, { align: 'center' });
 
       doc.end();
 
@@ -422,11 +454,12 @@ export async function generateRapport(tenantId, data) {
         });
       }
 
-      // Footer
+      // Footer with legal mentions
       doc.moveDown(2);
       doc.fontSize(8).fillColor('#999');
+      const footerLines = buildLegalFooter({ name: businessName, settings: tenantInfo?.settings || {}, adresse: tenantInfo?.adresse });
+      footerLines.forEach(line => doc.text(line, { align: 'center' }));
       doc.text(`Genere le ${new Date().toLocaleDateString('fr-FR')} a ${new Date().toLocaleTimeString('fr-FR')}`, { align: 'center' });
-      doc.text(`Tenant: ${tenantId}`, { align: 'center' });
 
       doc.end();
 
@@ -602,10 +635,11 @@ export async function generateInvoicePDF(tenantId, factureId) {
           doc.text(facture.service_description);
         }
 
-        // Footer
+        // Footer with legal mentions
         doc.moveDown(4);
         doc.fontSize(8).fillColor('#999');
-        doc.text(`${tenant.name}`, { align: 'center' });
+        const footerLines = buildLegalFooter(tenant);
+        footerLines.forEach(line => doc.text(line, { align: 'center' }));
         doc.text(`Document genere le ${new Date().toLocaleDateString('fr-FR')} a ${new Date().toLocaleTimeString('fr-FR')}`, { align: 'center' });
 
         doc.end();
@@ -816,10 +850,11 @@ export async function generateQuotePDF(tenantId, devisId) {
         doc.moveDown(3);
         doc.text('Date: ________________    Signature: ________________');
 
-        // Footer
+        // Footer with legal mentions
         doc.moveDown(3);
         doc.fontSize(8).fillColor('#999');
-        doc.text(`${tenant.name}`, { align: 'center' });
+        const footerLines = buildLegalFooter(tenant);
+        footerLines.forEach(line => doc.text(line, { align: 'center' }));
         doc.text(`Document genere le ${new Date().toLocaleDateString('fr-FR')} a ${new Date().toLocaleTimeString('fr-FR')}`, { align: 'center' });
 
         doc.end();
@@ -1028,11 +1063,12 @@ export async function generatePayslipPDF(tenantId, ficheId) {
           doc.text(`Cout total employeur: ${formatMontantEuros((fiche.salaire_brut || 0) + (fiche.cotisations_patronales || fiche.charges_patronales || 0))}`);
         }
 
-        // Footer
+        // Footer with legal mentions
         doc.moveDown(3);
         doc.fontSize(8).fillColor('#999');
         doc.text('Ce document est un bulletin de paie. Conservez-le sans limitation de duree.', { align: 'center' });
-        doc.text(`${tenant.name}`, { align: 'center' });
+        const footerLines = buildLegalFooter(tenant);
+        footerLines.forEach(line => doc.text(line, { align: 'center' }));
         doc.text(`Document genere le ${new Date().toLocaleDateString('fr-FR')}`, { align: 'center' });
 
         doc.end();
@@ -1065,5 +1101,6 @@ export default {
   generatePayslipPDF,
 
   // Utility
-  getTenantConfig
+  getTenantConfig,
+  buildLegalFooter
 };
