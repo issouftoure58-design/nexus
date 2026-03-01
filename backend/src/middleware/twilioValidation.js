@@ -9,6 +9,7 @@ import twilio from 'twilio';
 import logger from '../config/logger.js';
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL;
 
 /**
  * Middleware pour valider les requêtes Twilio
@@ -40,9 +41,15 @@ export function validateTwilioSignature(req, res, next) {
   }
 
   // Construire l'URL complète
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.headers['host'];
-  const url = `${protocol}://${host}${req.originalUrl}`;
+  // Utiliser WEBHOOK_BASE_URL pour éviter les problèmes de reconstruction derrière un proxy (Render)
+  let url;
+  if (WEBHOOK_BASE_URL) {
+    url = `${WEBHOOK_BASE_URL}${req.originalUrl}`;
+  } else {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['host'];
+    url = `${protocol}://${host}${req.originalUrl}`;
+  }
 
   // Valider la signature
   const isValid = twilio.validateRequest(
@@ -80,9 +87,14 @@ export function validateTwilioSignatureLoose(req, res, next) {
 
   // En production avec token, valider
   if (TWILIO_AUTH_TOKEN && twilioSignature && process.env.NODE_ENV === 'production') {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['host'];
-    const url = `${protocol}://${host}${req.originalUrl}`;
+    let url;
+    if (WEBHOOK_BASE_URL) {
+      url = `${WEBHOOK_BASE_URL}${req.originalUrl}`;
+    } else {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['host'];
+      url = `${protocol}://${host}${req.originalUrl}`;
+    }
 
     const isValid = twilio.validateRequest(
       TWILIO_AUTH_TOKEN,
