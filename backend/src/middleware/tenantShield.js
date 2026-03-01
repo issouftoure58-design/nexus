@@ -167,6 +167,11 @@ export function tenantShield(options = {}) {
  */
 export function validateBodyTenant() {
   return (req, res, next) => {
+    // Ne pas modifier le body des webhooks externes (casse la validation de signature Twilio)
+    if (isSystemRoute(req.path) || isSystemRoute(`/api${req.path}`)) {
+      return next();
+    }
+
     if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
       // Si le body contient un tenant_id, il DOIT matcher req.tenantId
       if (req.body.tenant_id && req.body.tenant_id !== req.tenantId) {
