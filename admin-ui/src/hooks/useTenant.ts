@@ -104,17 +104,9 @@ function detectTenantSlug(): string {
         return payload.tenant_slug;
       }
 
-      // tenant_id dans token - mapper vers slug
+      // tenant_id dans token - utiliser directement comme slug
       if (payload.tenant_id) {
-        // Map connu des tenant_id → slug
-        const idToSlug: Record<string, string> = {
-          'fatshairafro': 'fatshairafro',
-          'nexus-test': 'nexus-test',
-          'decovent': 'decovent',
-        };
-
-        // Si tenant_id est un string (slug direct)
-        if (typeof payload.tenant_id === 'string' && idToSlug[payload.tenant_id]) {
+        if (typeof payload.tenant_id === 'string') {
           console.log('[useTenant] Detected from JWT tenant_id:', payload.tenant_id);
           return payload.tenant_id;
         }
@@ -173,15 +165,15 @@ function detectTenantSlug(): string {
     return savedTenant;
   }
 
-  // 5. Default pour dev local
+  // 5. Default pour dev local uniquement
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     console.log('[useTenant] Dev mode - using default tenant: nexus-test');
     return 'nexus-test';
   }
 
-  // 6. Fallback final
-  console.warn('[useTenant] Cannot detect tenant slug, using default');
-  return 'nexus-test';
+  // 6. Production: pas de fallback — tenant requis
+  console.error('[useTenant] ERREUR: Impossible de détecter le tenant en production');
+  return '';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
