@@ -48,8 +48,9 @@ logger.info(`WABA: ${TWILIO_WABA_BU_SID ? 'Configured' : 'Not configured (sandbo
  * @param {string} country - Code pays (FR, US, etc.)
  * @param {number} limit - Nombre de résultats
  * @param {string} type - Type de numéro (local, mobile, tollFree)
+ * @param {object} [searchOptions] - Options Twilio supplémentaires (contains, areaCode, etc.)
  */
-export async function searchAvailableNumbers(country = 'FR', limit = 5, type = 'local') {
+export async function searchAvailableNumbers(country = 'FR', limit = 5, type = 'local', searchOptions = {}) {
   try {
     // Pour la France, vérifier que le bundle ARCEP est configuré
     if (country === 'FR' && !TWILIO_FR_BUNDLE_SID) {
@@ -62,16 +63,21 @@ export async function searchAvailableNumbers(country = 'FR', limit = 5, type = '
     }
 
     let numbers;
+    const listParams = { limit, ...searchOptions };
 
-    // En France, on peut chercher des numéros mobiles (+33 6/7) ou fixes (+33 1-5, 9)
+    // En France: local (01-05, 09), mobile (06/07), tollFree (08)
     if (type === 'mobile') {
       numbers = await twilioClient.availablePhoneNumbers(country)
         .mobile
-        .list({ limit });
+        .list(listParams);
+    } else if (type === 'tollFree') {
+      numbers = await twilioClient.availablePhoneNumbers(country)
+        .tollFree
+        .list(listParams);
     } else {
       numbers = await twilioClient.availablePhoneNumbers(country)
         .local
-        .list({ limit });
+        .list(listParams);
     }
 
     return {
@@ -204,6 +210,9 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
  * Cherche le meilleur numéro disponible et l'achète
  *
  * Pour FR: Nécessite TWILIO_FR_BUNDLE_SID configuré (ARCEP)
+ *   Essaie plusieurs types en séquence car le bundle ARCEP peut être
+ *   spécifique à un type (national 09, local 01-05, mobile 06/07).
+ *   En cas de "regulation type mismatch", passe au type suivant.
  * Pour US: Pas de restriction
  */
 export async function autoProvisionNumber(tenantId, country = 'FR') {
@@ -211,11 +220,11 @@ export async function autoProvisionNumber(tenantId, country = 'FR') {
   let actualCountry = country;
 
   if (country === 'FR' && !TWILIO_FR_BUNDLE_SID) {
-    console.warn(`[PROVISIONING] ⚠️ Bundle ARCEP non configuré, fallback vers US`);
+    console.warn(`[PROVISIONING] Bundle ARCEP non configuré, fallback vers US`);
     actualCountry = 'US';
   }
 
-  console.log(`[PROVISIONING] Auto-provisioning pour ${tenantId} (${actualCountry})`);
+  logger.info(`Auto-provisioning pour ${tenantId} (${actualCountry})`, { service: 'provisioning', tenantId });
 
   // 1. Vérifier si le tenant a déjà un numéro
   const { data: tenant } = await supabase
@@ -225,7 +234,7 @@ export async function autoProvisionNumber(tenantId, country = 'FR') {
     .single();
 
   if (tenant?.phone_number) {
-    console.log(`[PROVISIONING] Tenant ${tenantId} a déjà un numéro: ${tenant.phone_number}`);
+    logger.info(`Tenant a déjà un numéro: ${tenant.phone_number}`, { service: 'provisioning', tenantId });
     return {
       success: true,
       phoneNumber: tenant.phone_number,
@@ -233,23 +242,59 @@ export async function autoProvisionNumber(tenantId, country = 'FR') {
     };
   }
 
-  // 2. Chercher un numéro disponible
-  const searchResult = await searchAvailableNumbers(actualCountry, 1);
+  // 2. Stratégie multi-type pour FR
+  // Le bundle ARCEP peut couvrir un type spécifique (national/local/mobile).
+  // On essaie chaque type en séquence, et si le bundle ne match pas on passe au suivant.
+  const typesToTry = actualCountry === 'FR'
+    ? [
+        // National (09xx) — type le plus courant pour les bundles ARCEP business
+        { type: 'local', label: 'national (09)', searchOptions: { contains: '+339' } },
+        // Local géographique (01-05)
+        { type: 'local', label: 'local', searchOptions: {} },
+        // Mobile (06/07) — souvent besoin d'un bundle mobile spécifique
+        { type: 'mobile', label: 'mobile', searchOptions: {} },
+      ]
+    : [{ type: 'local', label: 'local', searchOptions: {} }];
 
-  // Vérifier si erreur (ex: bundle non configuré)
-  if (searchResult.error) {
-    throw new Error(searchResult.message);
+  let lastError = null;
+
+  for (const { type, label, searchOptions } of typesToTry) {
+    logger.info(`Recherche numéro ${label} (${actualCountry})...`, { service: 'provisioning', tenantId });
+
+    const searchResult = await searchAvailableNumbers(actualCountry, 1, type, searchOptions);
+
+    // Skip si erreur de config ou pas de numéros
+    if (searchResult.error) {
+      logger.warn(`Recherche ${label} échouée: ${searchResult.message}`, { service: 'provisioning', tenantId });
+      continue;
+    }
+
+    if (!searchResult.numbers || searchResult.numbers.length === 0) {
+      logger.warn(`Aucun numéro ${label} disponible`, { service: 'provisioning', tenantId });
+      continue;
+    }
+
+    const selectedNumber = searchResult.numbers[0];
+    logger.info(`Tentative achat ${label}: ${selectedNumber.phoneNumber}`, { service: 'provisioning', tenantId });
+
+    try {
+      return await purchasePhoneNumber(tenantId, selectedNumber.phoneNumber, 'voice');
+    } catch (purchaseError) {
+      // Si le bundle ne match pas le type de numéro, essayer le type suivant
+      if (purchaseError.message?.includes('regulation type') || purchaseError.code === 21422) {
+        logger.warn(`Bundle mismatch pour ${label}, essai du type suivant...`, {
+          service: 'provisioning', tenantId, error: purchaseError.message,
+        });
+        lastError = purchaseError;
+        continue;
+      }
+      // Autre erreur → remonter immédiatement
+      throw purchaseError;
+    }
   }
 
-  if (!searchResult.numbers || searchResult.numbers.length === 0) {
-    throw new Error(`Aucun numéro disponible pour ${actualCountry}`);
-  }
-
-  // 3. Acheter le premier numéro disponible
-  const selectedNumber = searchResult.numbers[0];
-  console.log(`[PROVISIONING] Numéro sélectionné: ${selectedNumber.phoneNumber} (${selectedNumber.locality || selectedNumber.region})`);
-
-  return await purchasePhoneNumber(tenantId, selectedNumber.phoneNumber, 'voice');
+  // Tous les types ont échoué
+  throw lastError || new Error(`Aucun numéro disponible pour ${actualCountry} compatible avec le bundle ARCEP`);
 }
 
 /**
