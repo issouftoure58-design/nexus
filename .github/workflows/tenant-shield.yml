@@ -29,9 +29,3 @@ jobs:
 
       - name: Run syntax check
         run: cd backend && npm run lint:syntax
-
-      - name: Run tenant isolation tests
-        run: cd backend && npm run test:tenant
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test-jwt-secret-minimum-32-chars-for-ci

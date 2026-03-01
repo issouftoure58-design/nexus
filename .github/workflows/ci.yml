@@ -162,7 +162,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ matrix.path }}
-        run: npm ci --include=dev
+        run: npm install --include=dev
 
       - name: Build ${{ matrix.app }}
         working-directory: ${{ matrix.path }}
@@ -201,17 +201,26 @@ jobs:
       - name: Start backend and verify boot
         working-directory: backend
         run: |
-          timeout 15 node src/index.js &
+          node src/index.js &
           SERVER_PID=$!
-          sleep 8
-          if kill -0 $SERVER_PID 2>/dev/null; then
-            echo "Backend started successfully (PID $SERVER_PID)"
-            kill $SERVER_PID
-            exit 0
-          else
-            echo "Backend failed to start"
-            exit 1
-          fi
+          echo "Server PID: $SERVER_PID"
+          # Retry health check up to 10 times (1s interval)
+          for i in $(seq 1 10); do
+            sleep 2
+            if curl -sf http://localhost:5000/health > /dev/null 2>&1; then
+              echo "Backend health check passed on attempt $i"
+              kill $SERVER_PID 2>/dev/null || true
+              exit 0
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Backend process died during startup"
+              exit 1
+            fi
+            echo "Attempt $i: waiting for backend..."
+          done
+          echo "Backend did not respond to health check after 10 attempts"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
         env:
           SUPABASE_URL: https://placeholder.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
