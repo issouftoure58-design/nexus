@@ -60,13 +60,20 @@ export function validateTwilioSignature(req, res, next) {
   );
 
   if (!isValid) {
+    const debugInfo = {
+      computedUrl: url,
+      webhookBaseUrl: WEBHOOK_BASE_URL || 'NOT_SET',
+      originalUrl: req.originalUrl,
+      host: req.headers['host'],
+      proto: req.headers['x-forwarded-proto'],
+      bodyKeys: Object.keys(req.body || {}),
+      sigPresent: !!twilioSignature
+    };
     logger.error('Signature invalide', {
       tag: 'TWILIO SECURITY',
-      url,
-      signatureReceived: twilioSignature.substring(0, 20) + '...',
-      body: Object.keys(req.body || {})
+      ...debugInfo
     });
-    return res.status(403).send('Forbidden: Invalid signature');
+    return res.status(403).send(`Forbidden: Invalid signature | debug: ${JSON.stringify(debugInfo)}`);
   }
 
   logger.info('Signature validée', { tag: 'TWILIO SECURITY' });
