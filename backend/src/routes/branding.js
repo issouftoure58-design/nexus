@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import crypto from 'node:crypto';
 import dns from 'dns';
 import { promisify } from 'util';
 import { supabase } from '../config/supabase.js';

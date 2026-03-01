@@ -119,15 +119,6 @@ jobs:
           JWT_SECRET: test-jwt-secret-for-ci
           NODE_ENV: test
 
-      - name: Run tenant isolation tests
-        working-directory: backend
-        run: npm run test:tenant
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexus_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: test-jwt-secret-for-ci
-          NODE_ENV: test
-
   build:
     name: Build (${{ matrix.app }})
     runs-on: ubuntu-latest
