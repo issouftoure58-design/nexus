@@ -131,9 +131,15 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
       friendlyName: `NEXUS-${tenantId}`,
       voiceUrl: `${WEBHOOK_BASE_URL}/api/voice/incoming?tenant=${tenantId}`,
       voiceMethod: 'POST',
-      smsUrl: `${WEBHOOK_BASE_URL}/api/sms/incoming?tenant=${tenantId}`,
-      smsMethod: 'POST',
     };
+
+    // N'ajouter smsUrl que pour les numéros non voice-only (FR 09 = voice-only)
+    // Les numéros US et FR mobile supportent SMS
+    const isFR09 = phoneNumber.startsWith('+339');
+    if (!isFR09) {
+      purchaseOptions.smsUrl = `${WEBHOOK_BASE_URL}/api/sms/incoming?tenant=${tenantId}`;
+      purchaseOptions.smsMethod = 'POST';
+    }
 
     // Pour les numéros FR, ajouter le bundle et l'adresse ARCEP
     if (isFrenchNumber) {
@@ -346,10 +352,12 @@ export async function releasePhoneNumber(tenantId) {
 /**
  * Configure WhatsApp pour un tenant (via Twilio)
  *
- * Si TWILIO_WABA_BU_SID est configuré → numéro dédié (prod)
- *   - Réutilise le numéro voice existant OU en achète un nouveau
- *   - Enregistre le numéro dans le Messaging Service
- * Sinon → fallback sandbox (dev/backward compat)
+ * WhatsApp nécessite un numéro SMS-capable. Les numéros FR 09 (voice-only) ne marchent pas.
+ * Stratégie:
+ *   1. Réutiliser un numéro existant SMS-capable du tenant
+ *   2. Chercher un numéro FR SMS-capable (mobile 06/07 si bundle mobile dispo)
+ *   3. Fallback: acheter un US pour WhatsApp (SMS-capable, pas de bundle nécessaire)
+ *   4. Dernier recours: sandbox
  *
  * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @param {string} [phoneNumber] - Numéro spécifique à utiliser (optionnel)
@@ -377,30 +385,41 @@ export async function configureWhatsApp(tenantId, phoneNumber = null) {
     };
   }
 
-  // Mode dédié — trouver ou acheter un numéro
+  // Mode dédié — trouver ou acheter un numéro SMS-capable
   let numberToUse = phoneNumber;
   let phoneNumberSid = null;
 
   if (!numberToUse) {
-    // Chercher un numéro voice existant pour ce tenant (priorité voice/both, pas sandbox)
+    // 1. Chercher un numéro existant SMS-capable pour ce tenant
     const { data: existingPhones } = await supabase
       .from('tenant_phone_numbers')
       .select('phone_number, twilio_sid, type')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
-      .in('type', ['voice', 'both'])
-      .limit(1);
+      .in('type', ['voice', 'both', 'whatsapp'])
+      .limit(5);
 
-    const existingPhone = existingPhones?.[0];
+    // Vérifier les capabilities de chaque numéro existant via Twilio
+    for (const phone of (existingPhones || [])) {
+      if (phone.twilio_sid) {
+        try {
+          const twilioNum = await twilioClient.incomingPhoneNumbers(phone.twilio_sid).fetch();
+          if (twilioNum.capabilities?.sms) {
+            numberToUse = phone.phone_number;
+            phoneNumberSid = phone.twilio_sid;
+            logger.info(`Réutilisation numéro SMS-capable existant: ${numberToUse}`, { service: 'provisioning', tenantId });
+            break;
+          }
+        } catch (e) {
+          logger.warn(`Cannot check capabilities for ${phone.phone_number}`, { service: 'provisioning', error: e.message });
+        }
+      }
+    }
 
-    if (existingPhone?.phone_number) {
-      numberToUse = existingPhone.phone_number;
-      phoneNumberSid = existingPhone.twilio_sid;
-      logger.info(`Réutilisation numéro voice existant: ${numberToUse}`, { service: 'provisioning', tenantId });
-    } else {
-      // Acheter un nouveau numéro
-      logger.info('Aucun numéro existant, auto-provisioning...', { service: 'provisioning', tenantId });
-      const provisionResult = await autoProvisionNumber(tenantId, 'FR');
+    // 2. Acheter un numéro SMS-capable
+    if (!numberToUse) {
+      logger.info('Aucun numéro SMS-capable existant, recherche...', { service: 'provisioning', tenantId });
+      const provisionResult = await provisionSmsCapableNumber(tenantId);
       numberToUse = provisionResult.phoneNumber;
       phoneNumberSid = provisionResult.sid;
     }
@@ -428,6 +447,59 @@ export async function configureWhatsApp(tenantId, phoneNumber = null) {
     dedicated: true,
     phoneNumber: numberToUse,
   };
+}
+
+/**
+ * Provisionne un numéro SMS-capable pour WhatsApp.
+ * WhatsApp exige la capacité SMS — les numéros FR 09 (voice-only) ne fonctionnent pas.
+ *
+ * Stratégie:
+ *   1. FR mobile (06/07) — si bundle mobile disponible
+ *   2. FR local SMS-capable — si disponible
+ *   3. US local — pas de bundle requis, SMS garanti
+ *
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @returns {Promise<{phoneNumber: string, sid: string}>}
+ */
+async function provisionSmsCapableNumber(tenantId) {
+  // Stratégie 1: FR mobile (si bundle configuré)
+  if (TWILIO_FR_BUNDLE_SID) {
+    try {
+      const mobileFR = await searchAvailableNumbers('FR', 1, 'mobile', { smsEnabled: true });
+      if (mobileFR.numbers?.length > 0) {
+        logger.info(`FR mobile SMS-capable trouvé: ${mobileFR.numbers[0].phoneNumber}`, { service: 'provisioning', tenantId });
+        return await purchasePhoneNumber(tenantId, mobileFR.numbers[0].phoneNumber, 'whatsapp');
+      }
+    } catch (e) {
+      logger.warn(`FR mobile search failed: ${e.message}`, { service: 'provisioning', tenantId });
+    }
+
+    // Stratégie 2: FR local SMS-capable
+    try {
+      const localFR = await searchAvailableNumbers('FR', 5, 'local', { smsEnabled: true });
+      if (localFR.numbers?.length > 0) {
+        const smsCapable = localFR.numbers.find(n => n.capabilities?.sms);
+        if (smsCapable) {
+          logger.info(`FR local SMS-capable trouvé: ${smsCapable.phoneNumber}`, { service: 'provisioning', tenantId });
+          return await purchasePhoneNumber(tenantId, smsCapable.phoneNumber, 'whatsapp');
+        }
+      }
+    } catch (e) {
+      logger.warn(`FR local SMS search failed: ${e.message}`, { service: 'provisioning', tenantId });
+    }
+  }
+
+  // Stratégie 3: US local (SMS garanti, pas de bundle nécessaire)
+  logger.info('Pas de numéro FR SMS-capable, fallback US pour WhatsApp', { service: 'provisioning', tenantId });
+  const usNumbers = await searchAvailableNumbers('US', 1, 'local', { smsEnabled: true });
+
+  if (!usNumbers.numbers?.length) {
+    throw new Error('Aucun numéro SMS-capable disponible (FR ou US) pour WhatsApp');
+  }
+
+  const selectedUS = usNumbers.numbers[0];
+  logger.info(`US SMS-capable sélectionné pour WhatsApp: ${selectedUS.phoneNumber}`, { service: 'provisioning', tenantId });
+  return await purchasePhoneNumber(tenantId, selectedUS.phoneNumber, 'whatsapp');
 }
 
 /**
