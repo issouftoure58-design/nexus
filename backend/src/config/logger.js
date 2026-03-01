@@ -4,6 +4,10 @@
  */
 
 import winston from 'winston';
+import { mkdirSync } from 'fs';
+
+// Ensure logs directory exists (gitignored, missing on fresh deploys)
+mkdirSync('logs', { recursive: true });
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
