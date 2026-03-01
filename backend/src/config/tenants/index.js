@@ -55,7 +55,15 @@ export function getTenantConfig(tenantId) {
 
   // Cache path (normal after startup)
   if (isInitialized()) {
-    return getCachedConfig(tenantId) || getTemplate();
+    const cached = getCachedConfig(tenantId);
+    const staticFallback = staticTenants[tenantId];
+
+    if (cached && staticFallback) {
+      // Merge: static config provides defaults, DB cache overrides
+      return { ...staticFallback, ...cached };
+    }
+
+    return cached || staticFallback || getTemplate();
   }
 
   // Fallback: static files (during early boot)
