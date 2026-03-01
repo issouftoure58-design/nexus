@@ -5,6 +5,7 @@
 
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import logger from '../config/logger.js';
 import {
   createStripePaymentIntent,
   confirmStripePayment,
@@ -56,7 +57,7 @@ async function calculerMontantTotal(prixService, adresseClient) {
       // calculerFraisDepl retourne directement le montant en euros
       fraisDeplacement = calculerFraisDepl(distance.distance_km);
     } catch (error) {
-      console.error('[Payment] Erreur calcul frais déplacement:', error.message);
+      logger.error('Erreur calcul frais déplacement', { tag: 'Payment', error: error.message });
       // Continuer sans frais de déplacement en cas d'erreur
     }
   }

@@ -7,6 +7,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { generateFacture } from '../services/pdfService.js';
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -1070,12 +1071,13 @@ router.post('/sync-statuts', async (req, res) => {
 
 /**
  * GET /api/factures/:id/pdf
- * Génère et retourne le PDF d'une facture
+ * Génère et retourne le PDF d'une facture (téléchargement)
  */
 router.get('/:id/pdf', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
+    const { download } = req.query;
 
     // Récupérer la facture avec les détails
     const { data: facture, error } = await supabase
@@ -1092,11 +1094,46 @@ router.get('/:id/pdf', async (req, res) => {
     // Récupérer les infos du tenant pour l'en-tête
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('name, slug')
+      .select('name, slug, email, telephone, adresse, siret')
       .eq('id', tenantId)
       .single();
 
-    // Générer le HTML de la facture
+    // Si download=true, générer et envoyer le PDF
+    if (download === 'true') {
+      try {
+        const pdfResult = await generateFacture({
+          numero: facture.numero,
+          date: facture.date_facture,
+          client: {
+            nom: facture.client_nom || 'Client',
+            email: facture.client_email,
+            telephone: facture.client_telephone,
+            adresse: facture.client_adresse
+          },
+          services: facture.lignes || [{
+            nom: facture.description || 'Prestation',
+            prix: facture.montant_ttc / 100
+          }],
+          total: facture.montant_ttc / 100,
+          notes: facture.notes
+        });
+
+        if (pdfResult.success && pdfResult.path) {
+          // Lire le fichier PDF et l'envoyer
+          const fs = await import('fs');
+          const pdfBuffer = fs.readFileSync(pdfResult.path);
+
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="facture_${facture.numero}.pdf"`);
+          return res.send(pdfBuffer);
+        }
+      } catch (pdfError) {
+        console.error('[FACTURES] Erreur génération PDF:', pdfError);
+        // Fallback to HTML
+      }
+    }
+
+    // Générer le HTML de la facture (fallback ou prévisualisation)
     const html = generateFactureHTML(facture, tenant);
 
     // Retourner le HTML (le client peut l'imprimer ou le convertir en PDF)

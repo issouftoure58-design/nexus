@@ -9,6 +9,7 @@
 
 import express from 'express';
 import twilio from 'twilio';
+import logger from '../config/logger.js';
 import {
   getVoiceResponseNexus,
   cleanupConversation as cleanupVoiceService,
@@ -25,6 +26,7 @@ import {
 } from '../core/unified/nexusCore.js';
 import voiceService from '../services/voiceService.js';
 import { logCallStart, logCallEnd, logSMS, logSMSStatus } from '../modules/twilio/callLogService.js';
+import { saveVoiceRecording } from '../services/voiceRecordingService.js';
 import usageTracking from '../services/usageTrackingService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 // V2 - Multi-tenant dynamic messages
@@ -73,12 +75,12 @@ function getTenantByPhoneNumber(toNumber) {
   const { tenantId, config } = getTenantByPhone(toNumber);
 
   if (tenantId && config) {
-    console.log(`[ROUTING] Numéro ${toNumber} → Tenant: ${tenantId}`);
+    logger.info(`ROUTING Numéro ${toNumber} → Tenant: ${tenantId}`);
     return { tenantId, config };
   }
 
   // 🔒 TENANT ISOLATION: Pas de fallback - rejeter si numéro inconnu
-  console.error(`[ROUTING] ❌ TENANT_NOT_FOUND: No tenant configured for number ${toNumber}`);
+  logger.error(`ROUTING TENANT_NOT_FOUND: No tenant configured for number ${toNumber}`);
   return { tenantId: null, config: null, error: 'TENANT_NOT_FOUND' };
 }
 
@@ -107,23 +109,22 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
   const salonName = tenantConfig?.name || SALON_INFO.nom;
 
   console.log(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
-  console.log(`[TWILIO NEXUS] ║           HANDLE VOICE - DEBUG COMPLET                 ║`);
-  console.log(`[TWILIO NEXUS] ╚════════════════════════════════════════════════════════╝`);
-  console.log(`[TWILIO NEXUS] 📞 CallSid: ${callSid}`);
-  console.log(`[TWILIO NEXUS] 🔄 ConversationId: ${conversationId}`);
-  console.log(`[TWILIO NEXUS] 🎯 isFirst: ${isFirst}`);
-  console.log(`[TWILIO NEXUS] 💬 Message brut: "${message}"`);
-  console.log(`[TWILIO NEXUS] 📏 Message length: ${message?.length || 0}`);
-  console.log(`[TWILIO NEXUS] 🔑 ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? '✅ présente (' + process.env.ANTHROPIC_API_KEY.substring(0,10) + '...)' : '❌ MANQUANTE'}`);
-  console.log(`[TWILIO NEXUS] 🗄️ SUPABASE_URL: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
-  console.log(`[TWILIO NEXUS] ⏰ Timestamp: ${new Date().toISOString()}`);
+  logger.info(`TWILIO NEXUS HANDLE VOICE - DEBUG COMPLET`);
+  logger.info(`TWILIO NEXUS CallSid: ${callSid}`);
+  logger.info(`TWILIO NEXUS ConversationId: ${conversationId}`);
+  logger.info(`TWILIO NEXUS isFirst: ${isFirst}`);
+  logger.info(`TWILIO NEXUS Message brut: "${message}"`);
+  logger.info(`TWILIO NEXUS Message length: ${message?.length || 0}`);
+  logger.info(`TWILIO NEXUS ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'presente' : 'MANQUANTE'}`);
+  logger.info(`TWILIO NEXUS SUPABASE_URL: ${process.env.SUPABASE_URL ? 'OK' : 'MANQUANTE'}`);
+  logger.info(`TWILIO NEXUS Timestamp: ${new Date().toISOString()}`);
 
   // Récupérer le tenantId depuis la session
   // 🔒 TENANT ISOLATION: tenantId obligatoire
   const session = voiceSessions.get(callSid);
   const tenantId = session?.tenantId;
   if (!tenantId) {
-    console.error(`[TWILIO NEXUS] ❌ TENANT_ID_REQUIRED: No tenant in session for call ${callSid}`);
+    logger.error(`TWILIO NEXUS TENANT_ID_REQUIRED: No tenant in session for call ${callSid}`);
     return {
       success: false,
       response: "Désolé, une erreur technique est survenue. Veuillez rappeler.",
@@ -135,13 +136,13 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
     // Premier message = accueil
     if (isFirst) {
       // Message d'accueil via NEXUS CORE
-      console.log(`[VOICE] 🚀 Appel processMessage('bonjour', 'phone') pour tenant: ${tenantId}`);
+      logger.info(`VOICE Appel processMessage('bonjour', 'phone') pour tenant: ${tenantId}`);
       const result = await processMessage('bonjour', 'phone', {
         conversationId,
         phone: callSid,
         tenantId
       });
-      console.log(`[VOICE] ✅ Réponse reçue: success=${result.success}, durée=${result.duration}ms`);
+      logger.info(`VOICE Reponse recue: success=${result.success}, duree=${result.duration}ms`);
 
       return {
         response: result.response,
@@ -180,11 +181,10 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
     }
 
     // Message normal - traiter avec NEXUS CORE
-    console.log(`[VOICE] ═══════════════════════════════════════════════════`);
-    console.log(`[VOICE] 🚀 APPEL processMessage()`);
-    console.log(`[VOICE] → Tenant: ${tenantId}`);
-    console.log(`[VOICE] → Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
-    console.log(`[VOICE] → ConversationId: ${conversationId}`);
+    logger.info(`VOICE APPEL processMessage()`);
+    logger.info(`VOICE Tenant: ${tenantId}`);
+    logger.info(`VOICE Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
+    logger.info(`VOICE ConversationId: ${conversationId}`);
 
     const result = await processMessage(message, 'phone', {
       conversationId,
@@ -192,14 +192,12 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
       tenantId
     });
 
-    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
-    console.log(`[TWILIO NEXUS] ✅ RÉSULTAT processMessage()`);
-    console.log(`[TWILIO NEXUS] → success: ${result.success}`);
-    console.log(`[TWILIO NEXUS] → duration: ${result.duration}ms`);
-    console.log(`[TWILIO NEXUS] → error: ${result.error || 'aucune'}`);
-    console.log(`[TWILIO NEXUS] → response (100 premiers chars): "${result.response?.substring(0, 100) || 'VIDE'}"`);
-    console.log(`[TWILIO NEXUS] → response complète: "${result.response}"`);
-    console.log(`[TWILIO NEXUS] ═══════════════════════════════════════════════════`);
+    logger.info(`TWILIO NEXUS RESULTAT processMessage()`);
+    logger.info(`TWILIO NEXUS success: ${result.success}`);
+    logger.info(`TWILIO NEXUS duration: ${result.duration}ms`);
+    logger.info(`TWILIO NEXUS error: ${result.error || 'aucune'}`);
+    logger.info(`TWILIO NEXUS response (100 chars): "${result.response?.substring(0, 100) || 'VIDE'}"`);
+    logger.info(`TWILIO NEXUS response complete: "${result.response}"`);
 
     // Détecter si la réservation est confirmée (fin de conversation naturelle)
     const isBookingConfirmed = result.response.toLowerCase().includes('confirmé') &&
@@ -213,8 +211,8 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
 
   } catch (error) {
     console.error(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
-    console.error(`[TWILIO NEXUS] ║              ❌ ERREUR DANS handleVoice                 ║`);
-    console.error(`[TWILIO NEXUS] ╚════════════════════════════════════════════════════════╝`);
+    logger.error(`TWILIO NEXUS ERREUR DANS handleVoice`);
+    logger.error(`TWILIO NEXUS ${error.message}`);
     console.error('[TWILIO NEXUS] ❌ Type:', error.constructor?.name);
     console.error('[TWILIO NEXUS] ❌ Message:', error.message);
     console.error('[TWILIO NEXUS] ❌ CallSid:', callSid);
@@ -316,7 +314,7 @@ async function sayWithElevenLabs(parent, text) {
     const filename = `${hash}.mp3`;
     const publicUrl = `${BASE_URL}/api/voice/audio/${filename}`;
 
-    console.log(`[VOICE] ElevenLabs → ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
+    logger.info(`VOICE ElevenLabs ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
     parent.play(publicUrl);
   } catch (error) {
     console.error('[VOICE] ElevenLabs failed, fallback Polly:', error.message);
@@ -362,11 +360,11 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
   const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
 
   console.log(`[TWILIO VOICE] Appel reçu - Method: ${req.method} - From: ${From}`);
-  console.log(`[VOICE] === NOUVEL APPEL ===`);
-  console.log(`[VOICE] De: ${From} vers ${To}`);
-  console.log(`[VOICE] Tenant: ${tenantId} (${tenantConfig?.name || 'inconnu'})`);
-  console.log(`[VOICE] CallSid: ${CallSid}`);
-  if (CallerCity) console.log(`[VOICE] Localisation: ${CallerCity}, ${CallerCountry}`);
+  logger.info(`VOICE === NOUVEL APPEL ===`);
+  logger.info(`VOICE De: ${From} vers ${To}`);
+  logger.info(`VOICE Tenant: ${tenantId} (${tenantConfig?.name || 'inconnu'})`);
+  logger.info(`VOICE CallSid: ${CallSid}`);
+  if (CallerCity) logger.info(`VOICE Localisation: ${CallerCity}, ${CallerCountry}`);
 
   // 🔒 IMPORTANT: Nettoyer toute conversation précédente avec ce CallSid
   // pour éviter que des données d'appels précédents polluent le nouvel appel
@@ -450,7 +448,15 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
 
     // V2 - Récupérer le tenantId depuis la session
     const session = voiceSessions.get(CallSid);
-    const tenantId = session?.tenantId || 'fatshairafro';
+    const tenantId = session?.tenantId;
+    if (!tenantId) {
+      logger.error(`VOICE No tenantId in session for CallSid: ${CallSid}`);
+      const twimlErr = new VoiceResponse();
+      await sayWithElevenLabs(twimlErr, "Excusez-moi, une erreur technique s'est produite. Veuillez rappeler.");
+      twimlErr.hangup();
+      res.type('text/xml');
+      return res.send(twimlErr.toString());
+    }
     const messages = getVoiceMessages(tenantId);
 
     console.log(`[HALIMAH VOICE] Halimah répond: "${response}"`);
@@ -499,8 +505,8 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
   } catch (error) {
     console.error('[HALIMAH VOICE] Erreur conversation:', error);
     const session = voiceSessions.get(CallSid);
-    const tenantId = session?.tenantId || 'fatshairafro';
-    const info = getBusinessInfoSync(tenantId);
+    const tenantId = session?.tenantId;
+    const info = tenantId ? getBusinessInfoSync(tenantId) : {};
     await sayWithElevenLabs(twiml, `Excusez-moi, j'ai eu un petit souci. Pouvez-vous rappeler ou envoyer un SMS au ${info.telephone || '09 39 24 02 69'} ? Au revoir !`);
     // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
   }
@@ -530,9 +536,9 @@ router.post('/voice/status', validateTwilioSignatureLoose, async (req, res) => {
     try {
       const { tenantId } = getTenantByPhoneNumber(To);
       await usageTracking.trackPhoneCall(tenantId, parseInt(CallDuration), CallSid, 'inbound');
-      console.log(`[VOICE] ✅ Usage tracké: ${CallDuration}s pour ${tenantId}`);
+      logger.info(`VOICE Usage tracke: ${CallDuration}s pour ${tenantId}`);
     } catch (err) {
-      console.error(`[VOICE] Erreur tracking:`, err.message);
+      logger.error(`VOICE Erreur tracking: ${err.message}`);
     }
   }
 
@@ -555,7 +561,12 @@ router.post('/voice/transfer', validateTwilioSignature, async (req, res) => {
 
   // V2 - Récupérer le tenantId depuis la session
   const session = voiceSessions.get(CallSid);
-  const tenantId = session?.tenantId || 'fatshairafro';
+  const tenantId = session?.tenantId;
+  if (!tenantId) {
+    logger.error(`VOICE No tenantId in session for transfer CallSid: ${CallSid}`);
+    res.type('text/xml');
+    return res.send(new VoiceResponse().toString());
+  }
   const messages = getVoiceMessages(tenantId);
 
   console.log(`[HALIMAH VOICE] Transfert vers responsable pour ${CallSid} (tenant: ${tenantId})`);
@@ -581,7 +592,12 @@ router.post('/voice/transfer-status', validateTwilioSignature, async (req, res) 
 
   // V2 - Récupérer le tenantId depuis la session
   const session = voiceSessions.get(CallSid);
-  const tenantId = session?.tenantId || 'fatshairafro';
+  const tenantId = session?.tenantId;
+  if (!tenantId) {
+    logger.error(`VOICE No tenantId in session for transfer-status CallSid: ${CallSid}`);
+    res.type('text/xml');
+    return res.send(new VoiceResponse().toString());
+  }
   const messages = getVoiceMessages(tenantId);
 
   console.log(`[HALIMAH VOICE] Statut transfert: ${DialCallStatus} (tenant: ${tenantId})`);
@@ -615,7 +631,12 @@ router.post('/voice/transfer-result', validateTwilioSignature, async (req, res) 
 
   // V2 - Récupérer le tenantId depuis la session
   const session = voiceSessions.get(CallSid);
-  const tenantId = session?.tenantId || 'fatshairafro';
+  const tenantId = session?.tenantId;
+  if (!tenantId) {
+    logger.error(`VOICE No tenantId in session for transfer-result CallSid: ${CallSid}`);
+    res.type('text/xml');
+    return res.send(new VoiceResponse().toString());
+  }
   const messages = getVoiceMessages(tenantId);
 
   console.log(`[HALIMAH VOICE] === RÉSULTAT TRANSFERT ===`);
@@ -654,20 +675,35 @@ router.post('/voice/transfer-result', validateTwilioSignature, async (req, res) 
 
 // ⚠️ SECURED: Validates Twilio signature
 router.post('/voice/recording', validateTwilioSignature, async (req, res) => {
-  const { RecordingUrl, RecordingSid, From, CallSid } = req.body;
+  const { RecordingUrl, RecordingSid, From, CallSid, RecordingDuration } = req.body;
 
   // V2 - Récupérer le tenantId depuis la session
   const session = voiceSessions.get(CallSid);
-  const tenantId = session?.tenantId || 'fatshairafro';
+  const tenantId = session?.tenantId;
   const messages = getVoiceMessages(tenantId);
 
-  console.log(`[HALIMAH VOICE] === ENREGISTREMENT ===`);
-  console.log(`[HALIMAH VOICE] De: ${From}`);
-  console.log(`[HALIMAH VOICE] URL: ${RecordingUrl}`);
-  console.log(`[HALIMAH VOICE] RecordingSid: ${RecordingSid}`);
-  console.log(`[HALIMAH VOICE] Tenant: ${tenantId}`);
+  // 🔒 TENANT ISOLATION: Reject if no tenant
+  if (!tenantId) {
+    logger.error(`VOICE TENANT_REQUIRED: No tenant for recording ${RecordingSid}`);
+    return res.sendStatus(400);
+  }
 
-  // TODO: Sauvegarder l'enregistrement en base et notifier le responsable
+  logger.info(`VOICE Recording received: ${RecordingSid} for tenant ${tenantId}`);
+
+  // Save recording to database and storage
+  try {
+    await saveVoiceRecording(tenantId, {
+      RecordingUrl,
+      RecordingSid,
+      CallSid,
+      From,
+      Duration: RecordingDuration
+    });
+    logger.info(`VOICE Recording saved: ${RecordingSid}`);
+  } catch (err) {
+    logger.error(`VOICE Failed to save recording: ${err.message}`);
+    // Continue anyway - user should still hear confirmation
+  }
 
   const twiml = new VoiceResponse();
   await sayWithElevenLabs(twiml, messages.messageRecorded);

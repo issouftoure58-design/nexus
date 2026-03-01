@@ -5,16 +5,17 @@ import { supabase } from '../config/supabase.js';
 import { verifyLogin, changePassword } from '../sentinel/security/accountService.js';
 import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordPolicy.js';
 import { loginLimiter } from '../middleware/rateLimiter.js';
+import logger from '../config/logger.js';
 
 const router = express.Router();
 
 // 🔒 C2: JWT Secret - DOIT être défini dans .env (pas de fallback)
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('❌ ERREUR CRITIQUE: JWT_SECRET non défini dans .env');
+  logger.error('ERREUR CRITIQUE: JWT_SECRET non défini dans .env');
   // En dev, utiliser un secret temporaire mais loguer un warning
   if (process.env.NODE_ENV === 'development') {
-    console.warn('⚠️ Mode dev: utilisation d\'un secret temporaire (NE PAS UTILISER EN PROD)');
+    logger.warn('Mode dev: utilisation d\'un secret temporaire (NE PAS UTILISER EN PROD)');
   }
 }
 const EFFECTIVE_JWT_SECRET = JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'dev-only-secret-change-in-prod' : null);
@@ -71,7 +72,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     // 🔒 G4: Vérifier rate limit (in-memory, garde pour compatibilité)
     const rateCheck = checkRateLimit(clientIp);
     if (!rateCheck.allowed) {
-      console.warn(`[AUTH] ⚠️ Rate limit dépassé pour IP: ${clientIp}`);
+      logger.warn(`[AUTH] Rate limit dépassé pour IP: ${clientIp}`);
       return res.status(429).json({
         error: `Trop de tentatives. Réessayez dans ${rateCheck.remainingMin} minutes.`
       });
@@ -138,7 +139,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.json(response);
 
   } catch (error) {
-    console.error('[ADMIN AUTH] Erreur login:', error);
+    logger.error('[ADMIN AUTH] Erreur login:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -178,7 +179,7 @@ router.post('/change-password', authenticateAdmin, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[ADMIN AUTH] Erreur change-password:', error);
+    logger.error('[ADMIN AUTH] Erreur change-password:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -235,10 +236,10 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    console.log(`[AUTH] Compte débloqué: ${email}`);
+    logger.info(`[AUTH] Compte débloqué: ${email}`);
     res.json({ success: true, message: `Compte ${email} débloqué` });
   } catch (error) {
-    console.error('[ADMIN AUTH] Erreur unlock-account:', error);
+    logger.error('[ADMIN AUTH] Erreur unlock-account:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -311,7 +312,7 @@ router.post('/signup', async (req, res) => {
       .single();
 
     if (tenantError) {
-      console.error('[SIGNUP] Erreur création tenant:', tenantError);
+      logger.error('[SIGNUP] Erreur création tenant:', tenantError);
       throw new Error('Erreur lors de la création du compte');
     }
 
@@ -336,11 +337,11 @@ router.post('/signup', async (req, res) => {
     if (userError) {
       // Rollback: supprimer le tenant créé
       await supabase.from('tenants').delete().eq('id', tenant.id);
-      console.error('[SIGNUP] Erreur création admin:', userError);
+      logger.error('[SIGNUP] Erreur création admin:', userError);
       throw new Error('Erreur lors de la création du compte');
     }
 
-    console.log(`[SIGNUP] ✅ Nouveau compte créé: ${email} (tenant: ${finalSlug}, plan: ${plan})`);
+    logger.info(`[SIGNUP] Nouveau compte créé: ${email} (tenant: ${finalSlug}, plan: ${plan})`);
 
     res.status(201).json({
       success: true,
@@ -353,7 +354,7 @@ router.post('/signup', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[SIGNUP] Erreur:', error);
+    logger.error('[SIGNUP] Erreur:', error);
     res.status(500).json({ error: error.message || 'Erreur lors de la création du compte' });
   }
 });

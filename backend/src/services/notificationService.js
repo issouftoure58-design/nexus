@@ -7,6 +7,7 @@
 
 import { Resend } from 'resend';
 import { sendWhatsAppNotification } from './whatsappService.js';
+import logger from '../config/logger.js';
 import {
   confirmationReservation,
   rappelJ1,
@@ -45,9 +46,9 @@ const EMAIL_CONFIGURED = !!RESEND_API_KEY;
 let resend = null;
 if (EMAIL_CONFIGURED) {
   resend = new Resend(RESEND_API_KEY);
-  console.log('[NotificationService] ✅ Email configuré avec Resend');
+  logger.info('Email configuré avec Resend', { tag: 'NotificationService' });
 } else {
-  console.warn('[NotificationService] ⚠️ RESEND_API_KEY manquante - emails désactivés');
+  logger.warn('RESEND_API_KEY manquante - emails désactivés', { tag: 'NotificationService' });
 }
 
 // ============= FONCTION EMAIL AVEC RESEND =============

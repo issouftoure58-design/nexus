@@ -62,35 +62,42 @@ const AVAILABLE_MODULES = [
     id: 'agent_ia_web',
     name: 'Agent IA Web Chat',
     description: 'Assistant conversationnel sur votre site web',
-    price: 19,
+    price: 0, // Inclus dans tous les plans
     requiredPlan: 'starter',
   },
   {
     id: 'agent_ia_whatsapp',
     name: 'Agent IA WhatsApp',
     description: 'Réponses automatiques sur WhatsApp Business',
-    price: 49,
-    requiredPlan: 'starter',
+    price: 0, // Inclus à partir du plan Pro
+    requiredPlan: 'pro',
   },
   {
     id: 'agent_ia_telephone',
     name: 'Agent IA Téléphone',
     description: 'Standard téléphonique automatisé',
-    price: 79,
+    price: 0, // Inclus à partir du plan Pro
     requiredPlan: 'pro',
   },
   {
-    id: 'salon',
-    name: 'Module Salon/Beauté',
-    description: 'Gestion spécialisée pour salons de coiffure et beauté',
-    price: 49,
+    id: 'restaurant',
+    name: 'Module Restaurant Pro',
+    description: 'Gestion spécialisée pour restaurants et traiteurs',
+    price: 39, // nexus_module_restaurant (migration 041)
     requiredPlan: 'starter',
   },
   {
-    id: 'restaurant',
-    name: 'Module Restaurant',
-    description: 'Gestion spécialisée pour restaurants et traiteurs',
-    price: 49,
+    id: 'hotel',
+    name: 'Module Hôtel Pro',
+    description: 'Gestion spécialisée pour hôtels et hébergements',
+    price: 69, // nexus_module_hotel (migration 041)
+    requiredPlan: 'starter',
+  },
+  {
+    id: 'domicile',
+    name: 'Module Domicile Pro',
+    description: 'Gestion spécialisée pour services à domicile',
+    price: 29, // nexus_module_domicile (migration 041)
     requiredPlan: 'starter',
   },
 ];

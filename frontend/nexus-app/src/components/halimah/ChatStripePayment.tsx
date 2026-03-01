@@ -109,7 +109,7 @@ export default function ChatStripePayment() {
     if (!service) return;
 
     try {
-      const response = await apiFetch('/api/payment/order/create-intent', {
+      const response = await apiFetch('/api/public/payment/create-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

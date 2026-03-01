@@ -31,6 +31,7 @@ import { SERVICES as BUSINESS_SERVICES, TRAVEL_FEES, BUSINESS_HOURS } from '../c
 // Import du router IA pour optimisation des couts
 import modelRouter from '../services/modelRouter.js';
 import { matchStaticResponse } from '../services/optimization/cacheService.js';
+import logger from '../config/logger.js';
 
 // ============================================
 // CONFIGURATION
@@ -211,7 +212,7 @@ async function executeTool(toolName, toolInput, tenantId) {
   if (!tenantId) {
     throw new Error('TENANT_ID_REQUIRED: executeTool requires explicit tenantId');
   }
-  console.log(`[HALIMAH AI] Outil appelé: ${toolName}`, toolInput, `(tenant: ${tenantId})`);
+  logger.info(`[HALIMAH AI] Outil appelé: ${toolName}`, { toolInput, tenantId });
 
   switch (toolName) {
     case 'parse_date': {
@@ -489,7 +490,7 @@ async function executeTool(toolName, toolInput, tenantId) {
           message: `Frais de déplacement : ${frais}€ (${distanceKm} km, trajet ${distanceResult.duree_text})`
         };
       } catch (error) {
-        console.error('[HALIMAH AI] Erreur calcul distance:', error.message);
+        logger.error('[HALIMAH AI] Erreur calcul distance:', { error: error.message });
         // Fallback si Google Maps échoue - utilise BASE_FEE depuis NEXUS CORE
         return {
           success: true,
@@ -566,7 +567,7 @@ async function executeTool(toolName, toolInput, tenantId) {
           .single();
 
         if (clientError) {
-          console.error('[HALIMAH AI] Erreur création client:', clientError);
+          logger.error('[HALIMAH AI] Erreur création client:', { error: clientError });
           return { success: false, error: clientError.message };
         }
         clientId = newClient.id;
@@ -591,7 +592,7 @@ async function executeTool(toolName, toolInput, tenantId) {
       });
 
       if (error) {
-        console.error('[HALIMAH AI] Erreur création RDV:', error);
+        logger.error('[HALIMAH AI] Erreur création RDV:', { error });
         return { success: false, error: error.message };
       }
 
@@ -745,8 +746,8 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
   if (!tenantId) {
     throw new Error('TENANT_ID_REQUIRED: chat requires explicit tenantId');
   }
-  console.log(`[HALIMAH AI] Session: ${sessionId}, Canal: ${canal}, Tenant: ${tenantId}`);
-  console.log(`[HALIMAH AI] Message: ${userMessage}`);
+  logger.info(`[HALIMAH AI] Session: ${sessionId}, Canal: ${canal}, Tenant: ${tenantId}`);
+  logger.info(`[HALIMAH AI] Message: ${userMessage}`);
 
   // Récupérer ou créer l'historique
   if (!conversations.has(sessionId)) {
@@ -791,7 +792,7 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
       const toolResults = [];
       for (const toolUseBlock of toolUseBlocks) {
         const toolResult = await executeTool(toolUseBlock.name, toolUseBlock.input, tenantId);
-        console.log(`[HALIMAH AI] Résultat outil ${toolUseBlock.name}:`, toolResult);
+        logger.info(`[HALIMAH AI] Résultat outil ${toolUseBlock.name}:`, { toolResult });
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUseBlock.id,
@@ -824,7 +825,7 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
       messages.splice(0, messages.length - 20);
     }
 
-    console.log(`[HALIMAH AI] Réponse: ${assistantMessage.substring(0, 100)}...`);
+    logger.info(`[HALIMAH AI] Réponse: ${assistantMessage.substring(0, 100)}...`);
 
     return {
       success: true,
@@ -833,7 +834,7 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
     };
 
   } catch (error) {
-    console.error('[HALIMAH AI] Erreur:', error);
+    logger.error('[HALIMAH AI] Erreur:', { error });
     return {
       success: false,
       response: "Désolée, j'ai rencontré un problème technique. Pouvez-vous réessayer ?",

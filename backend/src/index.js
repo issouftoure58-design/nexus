@@ -10,12 +10,16 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import logger from './config/logger.js';
 
 // Import des middlewares sécurité
 import { apiLimiter, paymentLimiter } from './middleware/rateLimiter.js';
 
 // Import Sentry monitoring
 import { initSentry, sentryErrorHandler } from './config/sentry.js';
+
+// Import Swagger documentation
+import { setupSwagger } from './config/swagger.js';
 
 // Import des routes
 import paymentRoutes from './routes/payment.js';
@@ -79,6 +83,9 @@ import twilioWebhooksRoutes from './routes/twilioWebhooks.js';
 import voiceRoutes from './routes/voice.js';
 import agendaRoutes from './routes/agenda.js';
 import landingAgentRoutes from './routes/landingAgent.js';
+import rgpdRoutes from './routes/rgpd.js';
+import onboardingRoutes from './routes/onboarding.js';
+import publicPaymentRoutes from './routes/publicPayment.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -97,6 +104,9 @@ const app = express();
 
 // ============= SENTRY (avant tout middleware) =============
 initSentry(app);
+
+// ============= SWAGGER DOCUMENTATION =============
+setupSwagger(app);
 
 // ============= MIDDLEWARES =============
 
@@ -186,6 +196,10 @@ app.get('/health', (req, res) => {
 // ============= LANDING PAGE AGENT (Public, avant tenant resolution) =============
 // Agent commercial IA pour le site vitrine - pas besoin de tenant
 app.use('/api/landing', landingAgentRoutes);
+
+// ============= PUBLIC PAYMENT (Widget reservation, tenant via header) =============
+// Paiement public pour le widget de reservation client - gere sa propre resolution tenant
+app.use('/api/public/payment', publicPaymentRoutes);
 
 // 🔒 TENANT RESOLUTION: Appliqué globalement pour toutes les routes /api
 // Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine
@@ -322,6 +336,7 @@ app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
 app.use('/api/admin/parametres', adminParametresRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
 app.use('/api/admin/stock', adminStockRoutes);
+app.use('/api/admin/onboarding', onboardingRoutes);
 
 // Routes Admin IA Config (Telephone & WhatsApp)
 app.use('/api/admin/ia', adminIARoutes);
@@ -346,6 +361,9 @@ app.use('/api/signup', signupRoutes);
 // Routes Trial (gestion période d'essai)
 app.use('/api/trial', trialRoutes);
 
+// Routes RGPD (export/suppression données personnelles)
+app.use('/api/rgpd', rgpdRoutes);
+
 // Agenda - RDV business entrepreneur
 app.use('/api/agenda', agendaRoutes);
 
@@ -363,7 +381,7 @@ sentryErrorHandler(app);
 
 // Gestion des erreurs globale
 app.use((err, req, res, next) => {
-  console.error('[Error]', err);
+  logger.error('Unhandled error', { error: err.message, stack: err.stack });
   res.status(err.status || 500).json({
     success: false,
     error: err.message || 'Erreur serveur interne',
@@ -378,7 +396,7 @@ loadAllTenants()
   .then(() => {
     startPeriodicRefresh();
   })
-  .catch(err => console.error('[TenantCache] Erreur init:', err.message));
+  .catch(err => logger.error('TenantCache Erreur init', { error: err.message }));
 
 // ============= DÉMARRAGE SERVEUR =============
 

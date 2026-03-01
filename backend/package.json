@@ -20,12 +20,13 @@
     "lint:syntax": "node scripts/syntax-check.js",
     "stripe:sync": "node scripts/sync-stripe-products.mjs",
     "shield": "npm run lint:syntax && npm run lint:tenant && npm run test:tenant",
-    "precommit": "npm run lint:syntax && npm run lint:tenant"
+    "precommit": "npm run lint:syntax && npm run lint:tenant",
+    "healthcheck": "node scripts/healthcheck.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@googlemaps/google-maps-services-js": "^3.3.0",
-    "@sentry/node": "^7.0.0",
+    "@sentry/node": "^7.120.4",
     "@supabase/supabase-js": "^2.39.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
@@ -36,9 +37,9 @@
     "date-fns": "^3.0.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "express-rate-limit": "^7.1.0",
+    "express-rate-limit": "^7.5.1",
     "googleapis": "^130.0.0",
-    "helmet": "^7.1.0",
+    "helmet": "^7.2.0",
     "ioredis": "^5.3.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
@@ -49,13 +50,17 @@
     "replicate": "^0.25.0",
     "resend": "^3.0.0",
     "stripe": "^14.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "twilio": "^4.19.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "winston": "^3.19.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "husky": "^8.0.3",
     "jest": "^29.7.0",
     "supertest": "^6.3.4"

@@ -175,7 +175,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
         return saveAndRespond(conv, "Bien sûr ! C'est de la part de qui ?", false);
       }
       return {
-        response: getTransferMessage(conv.tenantId || 'fatshairafro', conv.data.prenom),
+        response: getTransferMessage(conv.tenantId, conv.data.prenom),
         shouldEndCall: false,
         shouldTransfer: true,
         clientName: conv.data.prenom
@@ -187,7 +187,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
       if (prenom) {
         conv.data.prenom = prenom;
         return {
-          response: getTransferMessage(conv.tenantId || 'fatshairafro', prenom),
+          response: getTransferMessage(conv.tenantId, prenom),
           shouldEndCall: false,
           shouldTransfer: true,
           clientName: prenom
@@ -206,7 +206,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
     if (conv.data.jour && conv.state === STATES.ATTENTE_JOUR) {
       if (conv.data.jour.toLowerCase() === 'dimanche') {
         conv.data.jour = null;
-        const info = getBusinessInfoSync(conv.tenantId || 'fatshairafro');
+        const info = getBusinessInfoSync(conv.tenantId);
         const sujet = info.gerant || 'Nous';
         return saveAndRespond(conv,
           `${sujet} ne travaille${sujet === 'Nous' ? 'ons' : ''} pas le dimanche. Quel autre jour vous conviendrait ?`,
@@ -389,7 +389,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
             conv.state = STATES.TERMINE;
 
             return response(
-              getConfirmationMessage(conv.tenantId || 'fatshairafro', conv.data.prenom),
+              getConfirmationMessage(conv.tenantId, conv.data.prenom),
               true
             );
           }
@@ -446,7 +446,7 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
       const heure = new Date().getHours();
       const salutation = heure >= 18 ? 'bonsoir' : 'bonjour';
       // TODO: Passer tenantId à cette fonction pour greeting dynamique
-      const tenantIdForGreeting = ctx?.data?.tenantId || 'fatshairafro';
+      const tenantIdForGreeting = ctx?.data?.tenantId || ctx?.tenantId;
       return {
         response: getGreeting(tenantIdForGreeting, salutation),
         shouldEndCall: false
@@ -465,7 +465,7 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
           shouldEndCall: false
         };
       }
-      const tenantIdCtx = ctx.data?.tenantId || 'fatshairafro';
+      const tenantIdCtx = ctx.data?.tenantId || ctx?.tenantId;
       return {
         response: getTransferMessage(tenantIdCtx, ctx.data.prenom),
         shouldEndCall: false,
@@ -481,7 +481,7 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
         ctx.data.prenom = prenom;
         ctx.wantsTransfer = false;
         nexusPhoneContexts.set(callSid, ctx);
-        const tenantIdCtx = ctx.data?.tenantId || 'fatshairafro';
+        const tenantIdCtx = ctx.data?.tenantId || ctx?.tenantId;
         return {
           response: getTransferMessage(tenantIdCtx, prenom),
           shouldEndCall: false,

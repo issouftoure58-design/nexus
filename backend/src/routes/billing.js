@@ -19,6 +19,7 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
+import logger from '../config/logger.js';
 import * as billingService from '../services/stripeBillingService.js';
 
 const router = express.Router();
@@ -44,7 +45,7 @@ router.get('/subscription', async (req, res) => {
       ...details
     });
   } catch (error) {
-    console.error('[Billing] Erreur GET subscription:', error);
+    logger.error('Billing Erreur GET subscription:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -93,7 +94,7 @@ router.post('/subscription', async (req, res) => {
       client_secret: subscription.latest_invoice?.payment_intent?.client_secret || null
     });
   } catch (error) {
-    console.error('[Billing] Erreur POST subscription:', error);
+    logger.error('Billing Erreur POST subscription:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -121,7 +122,7 @@ router.delete('/subscription', async (req, res) => {
       status: subscription.status
     });
   } catch (error) {
-    console.error('[Billing] Erreur DELETE subscription:', error);
+    logger.error('Billing Erreur DELETE subscription:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -141,7 +142,7 @@ router.post('/subscription/reactivate', async (req, res) => {
       status: subscription.status
     });
   } catch (error) {
-    console.error('[Billing] Erreur reactivate:', error);
+    logger.error('Billing Erreur reactivate:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -166,7 +167,7 @@ router.get('/invoices', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur GET invoices:', error);
+    logger.error('Billing Erreur GET invoices:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -193,7 +194,7 @@ router.get('/upcoming', async (req, res) => {
       ...invoice
     });
   } catch (error) {
-    console.error('[Billing] Erreur GET upcoming:', error);
+    logger.error('Billing Erreur GET upcoming:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -216,7 +217,7 @@ router.get('/payment-methods', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur GET payment-methods:', error);
+    logger.error('Billing Erreur GET payment-methods:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -235,7 +236,7 @@ router.post('/setup-intent', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur POST setup-intent:', error);
+    logger.error('Billing Erreur POST setup-intent:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -254,7 +255,7 @@ router.delete('/payment-methods/:id', async (req, res) => {
       message: 'Moyen de paiement supprime'
     });
   } catch (error) {
-    console.error('[Billing] Erreur DELETE payment-method:', error);
+    logger.error('Billing Erreur DELETE payment-method:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -275,7 +276,7 @@ router.post('/payment-methods/:id/default', async (req, res) => {
       message: 'Moyen de paiement defini par defaut'
     });
   } catch (error) {
-    console.error('[Billing] Erreur set default:', error);
+    logger.error('Billing Erreur set default:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -300,7 +301,7 @@ router.post('/portal', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur POST portal:', error);
+    logger.error('Billing Erreur POST portal:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -338,7 +339,7 @@ router.post('/checkout', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur POST checkout:', error);
+    logger.error('Billing Erreur POST checkout:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -373,7 +374,7 @@ router.post('/checkout/pack', async (req, res) => {
       ...result
     });
   } catch (error) {
-    console.error('[Billing] Erreur POST checkout/pack:', error);
+    logger.error('Billing Erreur POST checkout/pack:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -6,6 +6,7 @@
  */
 
 import twilio from 'twilio';
+import logger from '../config/logger.js';
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 
@@ -16,25 +17,25 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 export function validateTwilioSignature(req, res, next) {
   // En développement, permettre de désactiver la validation (uniquement si explicitement configuré)
   if (process.env.NODE_ENV === 'development' && process.env.SKIP_TWILIO_VALIDATION === 'true') {
-    console.warn('[TWILIO SECURITY] ⚠️ Validation désactivée en développement');
+    logger.warn('Validation désactivée en développement', { tag: 'TWILIO SECURITY' });
     return next();
   }
 
   // Vérifier que le token est configuré
   if (!TWILIO_AUTH_TOKEN) {
-    console.error('[TWILIO SECURITY] ❌ TWILIO_AUTH_TOKEN non configuré!');
+    logger.error('TWILIO_AUTH_TOKEN non configuré', { tag: 'TWILIO SECURITY' });
     // En production, rejeter. En dev, avertir et continuer
     if (process.env.NODE_ENV === 'production') {
       return res.status(500).send('Server configuration error');
     }
-    console.warn('[TWILIO SECURITY] ⚠️ Continuant sans validation (non-production)');
+    logger.warn('Continuant sans validation (non-production)', { tag: 'TWILIO SECURITY' });
     return next();
   }
 
   // Extraire la signature
   const twilioSignature = req.headers['x-twilio-signature'];
   if (!twilioSignature) {
-    console.error('[TWILIO SECURITY] ❌ X-Twilio-Signature manquante');
+    logger.error('X-Twilio-Signature manquante', { tag: 'TWILIO SECURITY' });
     return res.status(403).send('Forbidden: Missing signature');
   }
 
@@ -52,7 +53,8 @@ export function validateTwilioSignature(req, res, next) {
   );
 
   if (!isValid) {
-    console.error('[TWILIO SECURITY] ❌ Signature invalide!', {
+    logger.error('Signature invalide', {
+      tag: 'TWILIO SECURITY',
       url,
       signatureReceived: twilioSignature.substring(0, 20) + '...',
       body: Object.keys(req.body || {})
@@ -60,7 +62,7 @@ export function validateTwilioSignature(req, res, next) {
     return res.status(403).send('Forbidden: Invalid signature');
   }
 
-  console.log('[TWILIO SECURITY] ✅ Signature validée');
+  logger.info('Signature validée', { tag: 'TWILIO SECURITY' });
   next();
 }
 
@@ -72,7 +74,7 @@ export function validateTwilioSignatureLoose(req, res, next) {
   const twilioSignature = req.headers['x-twilio-signature'];
 
   if (!twilioSignature && process.env.NODE_ENV === 'production') {
-    console.warn('[TWILIO SECURITY] ⚠️ X-Twilio-Signature manquante sur status webhook');
+    logger.warn('X-Twilio-Signature manquante sur status webhook', { tag: 'TWILIO SECURITY' });
     // Pour les status, on log mais on continue (moins critique)
   }
 
@@ -90,7 +92,7 @@ export function validateTwilioSignatureLoose(req, res, next) {
     );
 
     if (!isValid) {
-      console.error('[TWILIO SECURITY] ❌ Signature invalide sur status webhook');
+      logger.error('Signature invalide sur status webhook', { tag: 'TWILIO SECURITY' });
       return res.status(403).send('Forbidden');
     }
   }

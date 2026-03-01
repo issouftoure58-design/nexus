@@ -10,7 +10,7 @@ interface TenantInfo {
   quota: { percentage: number; status: string };
 }
 
-const PLAN_PRICES: Record<string, number> = { starter: 99, pro: 199, business: 399 };
+const PLAN_PRICES: Record<string, number> = { starter: 99, pro: 249, business: 499 };
 const PLAN_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
   starter: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },
   pro: { bar: 'bg-blue-500', text: 'text-blue-400', bg: 'bg-blue-950/30 border-blue-800' },

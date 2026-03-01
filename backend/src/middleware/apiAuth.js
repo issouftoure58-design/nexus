@@ -6,6 +6,7 @@
 
 import bcrypt from 'bcryptjs';
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 // Prefixes valides pour les API keys
 const KEY_PREFIXES = {
@@ -133,7 +134,7 @@ async function logApiCall(logData) {
       error_message: logData.error
     });
   } catch (err) {
-    console.error('[API_LOG] Erreur logging:', err.message);
+    logger.error('Erreur logging', { tag: 'API_LOG', error: err.message });
   }
 }
 
@@ -279,7 +280,7 @@ export const authenticateApiKey = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('[API_AUTH] Erreur:', error);
+    logger.error('Erreur', { tag: 'API_AUTH', error: error.message });
     return res.status(500).json({
       error: 'internal_error',
       message: 'Authentication error'
@@ -338,9 +339,78 @@ export const blockInTestMode = (req, res, next) => {
   next();
 };
 
+/**
+ * Middleware pour verifier que le tenant a le plan Business
+ * L'API publique n'est disponible que pour les plans Business
+ */
+export const requireBusinessPlan = async (req, res, next) => {
+  try {
+    if (!req.tenantId) {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'Authentication required'
+      });
+    }
+
+    // Recuperer le plan du tenant
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('plan_id, statut')
+      .eq('id', req.tenantId)
+      .single();
+
+    if (error || !tenant) {
+      return res.status(404).json({
+        error: 'tenant_not_found',
+        message: 'Tenant not found'
+      });
+    }
+
+    // Verifier statut actif
+    if (tenant.statut !== 'actif' && tenant.statut !== 'essai' && tenant.statut !== 'trial') {
+      return res.status(403).json({
+        error: 'subscription_inactive',
+        message: 'Your subscription is not active'
+      });
+    }
+
+    // Recuperer info plan
+    const { data: plan } = await supabase
+      .from('plans')
+      .select('nom')
+      .eq('id', tenant.plan_id)
+      .single();
+
+    const planName = plan?.nom?.toLowerCase() || '';
+
+    // API seulement pour Business
+    if (planName !== 'business') {
+      return res.status(403).json({
+        error: 'plan_upgrade_required',
+        message: 'API access requires Business plan. Upgrade your plan to use the REST API.',
+        current_plan: planName,
+        required_plan: 'business',
+        upgrade_url: '/admin/billing/upgrade'
+      });
+    }
+
+    // Ajouter info plan au request
+    req.plan = planName;
+    next();
+
+  } catch (error) {
+    logger.error('Business plan check error', { tag: 'API_AUTH', error: error.message });
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Plan verification error'
+    });
+  }
+};
+
 export default {
   authenticateApiKey,
   requireScope,
+  requireBusinessPlan,
   blockInTestMode,
   generateApiKey,
   hashApiKey,

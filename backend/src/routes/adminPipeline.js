@@ -391,7 +391,8 @@ router.post('/', async (req, res) => {
     if (lignesServices.length > 0) {
       const lignesAvecOppId = lignesServices.map(l => ({
         ...l,
-        opportunite_id: opportunite.id
+        opportunite_id: opportunite.id,
+        tenant_id: tenantId
       }));
 
       const { error: lignesError } = await supabase

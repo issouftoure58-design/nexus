@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 /**
  * Middleware verifiant l'acces d'un tenant a un module
@@ -128,7 +129,7 @@ export function requireModule(moduleName) {
       next();
 
     } catch (err) {
-      console.error('[CHECK PLAN] Erreur:', err);
+      logger.error('Erreur', { tag: 'CHECK PLAN', error: err.message });
       return res.status(500).json({
         error: 'Erreur serveur',
         code: 'INTERNAL_ERROR'
@@ -293,7 +294,7 @@ export function checkUsageLimit(resource) {
       next();
 
     } catch (err) {
-      console.error('[CHECK USAGE] Erreur:', err);
+      logger.error('Erreur', { tag: 'CHECK USAGE', error: err.message });
       return res.status(500).json({ error: 'Erreur serveur' });
     }
   };
@@ -379,7 +380,7 @@ export function requireModuleMetier(moduleMetierName) {
       next();
 
     } catch (err) {
-      console.error('[CHECK MODULE METIER] Erreur:', err);
+      logger.error('Erreur', { tag: 'CHECK MODULE METIER', error: err.message });
       return res.status(500).json({ error: 'Erreur serveur' });
     }
   };
@@ -412,7 +413,7 @@ export async function getTenantPlanInfo(tenantId) {
       trialEndsAt: tenant.essai_fin
     };
   } catch (err) {
-    console.error('[GET PLAN INFO] Erreur:', err);
+    logger.error('Erreur', { tag: 'GET PLAN INFO', error: err.message });
     return null;
   }
 }

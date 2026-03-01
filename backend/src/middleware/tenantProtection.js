@@ -1,4 +1,5 @@
 import { identifyTenant, getTenantConfig, isFrozen, hasFeature } from '../config/tenants/index.js';
+import logger from '../config/logger.js';
 
 /**
  * 🔒 SÉCURITÉ: Résout le tenantId de manière sécurisée
@@ -38,7 +39,7 @@ export function requireFeature(featureName) {
     const tenantId = getSecureTenantId(req);
 
     if (!hasFeature(tenantId, featureName)) {
-      console.log(`[TENANT ${tenantId}] Feature '${featureName}' non activée`);
+      logger.info('Feature non activée', { tag: 'TENANT', tenantId, featureName });
       return res.status(403).json({
         success: false,
         error: `Feature '${featureName}' non disponible pour votre compte`,
@@ -60,7 +61,7 @@ export function protectFrozen(req, res, next) {
     const isDev = process.env.NODE_ENV === 'development';
 
     if (!isDev) {
-      console.warn(`[TENANT ${tenantId}] Tentative modification sur tenant FROZEN`);
+      logger.warn('Tentative modification sur tenant FROZEN', { tag: 'TENANT', tenantId });
       return res.status(403).json({
         success: false,
         error: 'Modifications directes interdites sur compte production',
@@ -68,7 +69,7 @@ export function protectFrozen(req, res, next) {
       });
     }
 
-    console.log(`[DEV MODE] Autorisation modification tenant frozen ${tenantId}`);
+    logger.info('Autorisation modification tenant frozen', { tag: 'DEV MODE', tenantId });
   }
 
   next();
@@ -84,7 +85,7 @@ export function logTenant(req, res, next) {
   req.tenantId = tenantId;
   req.tenantConfig = config;
 
-  console.log(`[TENANT ${tenantId}] ${config.name} - ${req.method} ${req.path}`);
+  logger.info('Request', { tag: 'TENANT', tenantId, name: config.name, method: req.method, path: req.path });
 
   next();
 }

@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Loader2, AlertCircle, Lock, Mail, User, Building, Phone, Check, ArrowLeft } from 'lucide-react';
 
 const PLANS = {
-  starter: { name: 'Starter', price: 199, features: ['1 assistant IA', 'CRM & Agenda', 'Support email'] },
-  pro: { name: 'Pro', price: 399, features: ['Tous les assistants IA', 'Marketing & Compta', 'Support prioritaire'] },
-  business: { name: 'Business', price: 799, features: ['Multi-sites', 'API & Webhooks', 'Account manager'] }
+  starter: { name: 'Starter', price: 99, features: ['1 assistant IA', 'CRM & Agenda', 'Support email'] },
+  pro: { name: 'Pro', price: 249, features: ['Tous les assistants IA', 'Marketing & Compta', 'Support prioritaire'] },
+  business: { name: 'Business', price: 499, features: ['Multi-sites', 'API & Webhooks', 'Account manager'] }
 };
 
 export default function Signup() {

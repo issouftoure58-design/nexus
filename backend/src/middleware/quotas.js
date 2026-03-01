@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 /**
  * Limites par plan tarifaire
@@ -45,7 +46,7 @@ export async function getTenantPlan(tenant_id) {
     .single();
 
   if (error) {
-    console.error('[QUOTAS] Erreur récupération plan:', error);
+    logger.error('Erreur récupération plan', { tag: 'QUOTAS', error: error.message });
     return 'starter'; // défaut si erreur
   }
 
@@ -68,7 +69,7 @@ export async function checkClientsQuota(tenant_id, plan) {
     .eq('tenant_id', tenant_id);
 
   if (error) {
-    console.error('[QUOTAS] Erreur comptage clients:', error);
+    logger.error('Erreur comptage clients', { tag: 'QUOTAS', error: error.message });
     return { ok: true, current: 0, limit, message: 'Erreur comptage' };
   }
 
@@ -100,7 +101,7 @@ export async function checkStorageQuota(tenant_id, plan, file_size = 0) {
     .eq('tenant_id', tenant_id);
 
   if (error) {
-    console.error('[QUOTAS] Erreur calcul stockage:', error);
+    logger.error('Erreur calcul stockage', { tag: 'QUOTAS', error: error.message });
     return { ok: true, current_gb: '0.00', limit_gb, message: 'Erreur calcul' };
   }
 
@@ -160,7 +161,7 @@ export async function checkSocialQuota(tenant_id, plan, type = 'post') {
   }
 
   if (error) {
-    console.error(`[QUOTAS] Erreur comptage ${type}:`, error);
+    logger.error('Erreur comptage', { tag: 'QUOTAS', type, error: error.message });
     return { ok: true, current: 0, limit, message: 'Erreur comptage' };
   }
 
@@ -229,7 +230,7 @@ export async function requireClientsQuota(req, res, next) {
     req.quota_clients = check;
     next();
   } catch (error) {
-    console.error('[QUOTAS] Erreur middleware clients:', error);
+    logger.error('Erreur middleware clients', { tag: 'QUOTAS', error: error.message });
     res.status(500).json({ error: 'Erreur vérification quota' });
   }
 }
@@ -264,7 +265,7 @@ export async function requireStorageQuota(req, res, next) {
     req.quota_storage = check;
     next();
   } catch (error) {
-    console.error('[QUOTAS] Erreur middleware storage:', error);
+    logger.error('Erreur middleware storage', { tag: 'QUOTAS', error: error.message });
     res.status(500).json({ error: 'Erreur vérification quota' });
   }
 }
@@ -303,7 +304,7 @@ export async function requirePostsQuota(req, res, next) {
     req.quota_posts = check;
     next();
   } catch (error) {
-    console.error('[QUOTAS] Erreur middleware posts:', error);
+    logger.error('Erreur middleware posts', { tag: 'QUOTAS', error: error.message });
     res.status(500).json({ error: 'Erreur vérification quota' });
   }
 }
@@ -342,7 +343,7 @@ export async function requireImagesQuota(req, res, next) {
     req.quota_images = check;
     next();
   } catch (error) {
-    console.error('[QUOTAS] Erreur middleware images:', error);
+    logger.error('Erreur middleware images', { tag: 'QUOTAS', error: error.message });
     res.status(500).json({ error: 'Erreur vérification quota' });
   }
 }

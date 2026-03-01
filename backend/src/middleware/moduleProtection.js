@@ -9,6 +9,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 // Cache des configs tenant (TTL: 30 secondes pour sécurité)
 // 🔒 SÉCURITÉ: TTL court pour éviter les fenêtres d'exploitation
@@ -160,7 +161,7 @@ async function getTenantConfig(tenantId) {
     .single();
 
   if (error || !tenant) {
-    console.error(`[MODULE] Erreur récupération tenant ${tenantId}:`, error?.message);
+    logger.error('Erreur récupération tenant', { tag: 'MODULE', tenantId, error: error?.message });
     return null;
   }
 
@@ -216,7 +217,7 @@ function checkModuleAccess(config, moduleId) {
 
     default:
       // Module inconnu, refuser par défaut
-      console.warn(`[MODULE] Type inconnu pour module: ${moduleId}`);
+      logger.warn('Type inconnu pour module', { tag: 'MODULE', moduleId });
       return false;
   }
 }
@@ -251,7 +252,7 @@ export function requireModule(moduleId) {
 
       // Vérifier si module/option actif
       if (!checkModuleAccess(config, moduleId)) {
-        console.log(`[MODULE] Accès refusé: tenant=${tenantId}, module=${moduleId}`);
+        logger.info('Accès refusé', { tag: 'MODULE', tenantId, moduleId });
         return res.status(403).json({
           error: `Module '${moduleId}' non activé pour ce compte`,
           code: 'MODULE_NOT_ACTIVATED',
@@ -263,7 +264,7 @@ export function requireModule(moduleId) {
       // Module actif, continuer
       next();
     } catch (err) {
-      console.error('[MODULE] Erreur middleware:', err);
+      logger.error('Erreur middleware', { tag: 'MODULE', error: err.message });
       return res.status(500).json({
         error: 'Erreur serveur',
         code: 'MIDDLEWARE_ERROR'

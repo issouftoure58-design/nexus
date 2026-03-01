@@ -26,6 +26,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import dateService from './dateService.js';
+import logger from '../config/logger.js';
 // *** IMPORT DEPUIS NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***
 import { TRAVEL_FEES, BUSINESS_HOURS } from '../config/businessRules.js';
 // 🔒 FONCTION UNIQUE DE CRÉATION RDV (import différé pour éviter cycle)
@@ -284,7 +285,7 @@ export function getSalonInfo(tenantId = 'fatshairafro') {
     };
   } catch (e) {
     // Fallback sur SALON_INFO hardcodé en cas d'erreur
-    console.warn(`[bookingService] getSalonInfo fallback for ${tenantId}:`, e.message);
+    logger.warn('getSalonInfo fallback', { tag: 'bookingService', tenantId, error: e.message });
     return SALON_INFO;
   }
 }
@@ -598,7 +599,7 @@ export async function calculateDistance(clientAddress) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
-    console.warn('[BOOKING] ⚠️ GOOGLE_MAPS_API_KEY manquante');
+    logger.warn('GOOGLE_MAPS_API_KEY manquante', { tag: 'BOOKING' });
     return {
       distance: null,
       distanceText: 'Non calculée',
@@ -632,7 +633,7 @@ export async function calculateDistance(clientAddress) {
     const element = data.rows[0]?.elements[0];
 
     if (!element || element.status !== 'OK') {
-      console.warn('[BOOKING] Adresse non trouvée:', clientAddress);
+      logger.warn('Adresse non trouvée', { tag: 'BOOKING', clientAddress });
       return { distance: null, error: 'Adresse non trouvée' };
     }
 
@@ -780,7 +781,7 @@ export function getServiceInfo(serviceName) {
     }
   }
 
-  console.warn('[BOOKING] Service non reconnu:', serviceName);
+  logger.warn('Service non reconnu', { tag: 'BOOKING', serviceName });
   return null;
 }
 
@@ -1177,7 +1178,7 @@ export async function checkAvailability(tenantId, dateRdv, heureRdv, dureeMinute
 
   const db = getSupabase();
   if (!db) {
-    console.warn('[BOOKING] Supabase non configuré');
+    logger.warn('Supabase non configuré', { tag: 'BOOKING' });
     return { available: true, conflits: [], message: 'Base de données non configurée' };
   }
 
@@ -1311,7 +1312,7 @@ export async function checkAvailabilityComplete(tenantId, dateRdv, heureRdv, dur
 
   const db = getSupabase();
   if (!db) {
-    console.warn('[BOOKING] Supabase non configuré');
+    logger.warn('Supabase non configuré', { tag: 'BOOKING' });
     return { available: true, conflits: [], message: 'Base de données non configurée' };
   }
 
@@ -1681,12 +1682,12 @@ export async function sendConfirmationSMS(tenantId, phoneNumber, bookingDetails)
   const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
   if (!accountSid || !authToken || !twilioPhone) {
-    console.warn('[BOOKING] ⚠️ Configuration Twilio manquante, SMS non envoyé');
+    logger.warn('Configuration Twilio manquante, SMS non envoyé', { tag: 'BOOKING' });
     return false;
   }
 
   if (!phoneNumber || phoneNumber.length < 10) {
-    console.warn('[BOOKING] ⚠️ Numéro invalide, SMS non envoyé');
+    logger.warn('Numéro invalide, SMS non envoyé', { tag: 'BOOKING' });
     return false;
   }
 
@@ -1742,7 +1743,7 @@ Fatou - 07 82 23 50 20`;
       });
       console.log('[BOOKING] ✅ SMS loggé pour tracking coûts');
     } catch (logErr) {
-      console.warn('[BOOKING] ⚠️ Erreur logging SMS:', logErr.message);
+      logger.warn('Erreur logging SMS', { tag: 'BOOKING', error: logErr.message });
     }
 
     return true;

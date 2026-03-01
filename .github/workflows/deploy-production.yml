@@ -1,0 +1,322 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: 'Type "deploy" to confirm production deployment'
+        required: true
+        type: string
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+
+jobs:
+  validate-deployment:
+    name: Validate Deployment Request
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.validate.outputs.approved }}
+    steps:
+      - name: Validate manual deployment confirmation
+        id: validate
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.confirm_deploy }}" != "deploy" ]]; then
+              echo "Manual deployment requires typing 'deploy' to confirm"
+              echo "approved=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+          echo "approved=true" >> $GITHUB_OUTPUT
+
+  wait-for-ci:
+    name: Wait for CI to Pass
+    runs-on: ubuntu-latest
+    needs: validate-deployment
+    if: needs.validate-deployment.outputs.approved == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for CI workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: 'CI Success'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
+          allowed-conclusions: success
+
+  create-release-tag:
+    name: Create Release Tag
+    runs-on: ubuntu-latest
+    needs: wait-for-ci
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d')-$(echo ${{ github.sha }} | cut -c1-7)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+
+      - name: Create Git tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -a "${{ steps.version.outputs.version }}" -m "Production release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+  deploy-backend-production:
+    name: Deploy Backend to Production
+    runs-on: ubuntu-latest
+    needs: [wait-for-ci, create-release-tag]
+    environment:
+      name: production
+      url: https://nexus-backend.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Backend Production)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_BACKEND_PROD_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+      - name: Wait for backend health
+        run: |
+          echo "Waiting for production backend to be healthy..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-backend.onrender.com/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS - waiting..."
+            sleep 10
+          done
+          echo "Backend health check failed after 30 attempts"
+          exit 1
+
+  deploy-admin-production:
+    name: Deploy Admin UI to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production]
+    environment:
+      name: production
+      url: https://nexus-admin.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Admin Production)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_ADMIN_PROD_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+  deploy-frontend-production:
+    name: Deploy Frontend to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production]
+    environment:
+      name: production
+      url: https://nexus-app.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Frontend Production)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_FRONTEND_PROD_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+  production-verification:
+    name: Production Verification
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production, deploy-admin-production, deploy-frontend-production]
+    steps:
+      - name: Verify all services are healthy
+        run: |
+          echo "Verifying production deployment..."
+
+          # Backend health
+          echo "Checking backend..."
+          BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-backend.onrender.com/health)
+          if [ "$BACKEND_STATUS" != "200" ]; then
+            echo "Backend health check failed: $BACKEND_STATUS"
+            exit 1
+          fi
+
+          # Admin UI
+          echo "Checking admin UI..."
+          ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-admin.onrender.com)
+          if [ "$ADMIN_STATUS" != "200" ]; then
+            echo "Admin UI check failed: $ADMIN_STATUS"
+            exit 1
+          fi
+
+          # Frontend
+          echo "Checking frontend..."
+          FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-app.onrender.com)
+          if [ "$FRONTEND_STATUS" != "200" ]; then
+            echo "Frontend check failed: $FRONTEND_STATUS"
+            exit 1
+          fi
+
+          echo "All production services verified successfully!"
+
+  notify-production-complete:
+    name: Notify Production Deploy Complete
+    runs-on: ubuntu-latest
+    needs: [production-verification, create-release-tag]
+    if: always()
+    steps:
+      - name: Determine deploy status
+        id: status
+        run: |
+          if [[ "${{ needs.production-verification.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=:rocket:" >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=:rotating_light:" >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "${{ steps.status.outputs.emoji }} Production deployment ${{ steps.status.outputs.status }}",
+              "attachments": [
+                {
+                  "color": "${{ steps.status.outputs.color }}",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.status.outputs.emoji }} *Production Deployment ${{ steps.status.outputs.status }}*\n\nVersion: `${{ needs.create-release-tag.outputs.version }}`\nCommit: `${{ github.sha }}`\nDeployed by: ${{ github.actor }}"
+                      }
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        {"type": "mrkdwn", "text": "*Backend:*\nhttps://nexus-backend.onrender.com"},
+                        {"type": "mrkdwn", "text": "*Admin:*\nhttps://nexus-admin.onrender.com"},
+                        {"type": "mrkdwn", "text": "*Frontend:*\nhttps://nexus-app.onrender.com"}
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {"type": "plain_text", "text": "View Release"},
+                          "url": "https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release-tag.outputs.version }}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }' \
+            $SLACK_WEBHOOK_URL
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [production-verification, create-release-tag]
+    if: needs.production-verification.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMITS=$(git log $LAST_TAG..HEAD --oneline --no-merges)
+          else
+            COMMITS=$(git log --oneline -20 --no-merges)
+          fi
+
+          # Write to file for multiline handling
+          echo "## Changes in this release" > release_notes.md
+          echo "" >> release_notes.md
+          echo "$COMMITS" | while read line; do
+            echo "- $line" >> release_notes.md
+          done
+          echo "" >> release_notes.md
+          echo "## Deployed Services" >> release_notes.md
+          echo "- Backend: https://nexus-backend.onrender.com" >> release_notes.md
+          echo "- Admin UI: https://nexus-admin.onrender.com" >> release_notes.md
+          echo "- Frontend: https://nexus-app.onrender.com" >> release_notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release-tag.outputs.version }}
+          name: Release ${{ needs.create-release-tag.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [production-verification, deploy-backend-production, deploy-admin-production, deploy-frontend-production]
+    if: failure()
+    steps:
+      - name: Alert about failed deployment
+        run: |
+          echo "::error::Production deployment failed! Manual intervention may be required."
+          echo "Please check the deployment logs and consider rolling back if necessary."
+          echo ""
+          echo "To rollback, you can use Render dashboard or deploy a previous commit."
+
+      - name: Send failure alert to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": ":rotating_light: ALERT: Production deployment FAILED!",
+              "attachments": [
+                {
+                  "color": "danger",
+                  "text": "Production deployment failed. Manual intervention may be required.\n\nCommit: `${{ github.sha }}`\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              ]
+            }' \
+            $SLACK_WEBHOOK_URL

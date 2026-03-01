@@ -11,6 +11,7 @@ import { supabase } from '../config/supabase.js';
 import { resolveTenantFromDomain, loadTenant } from '../core/TenantContext.js';
 // V2 - Multi-tenant messages
 import { getBusinessInfoSync, getDefaultLocation } from '../services/tenantBusinessService.js';
+import logger from '../config/logger.js';
 
 /**
  * V2 - Génère le message d'accueil dynamique
@@ -181,7 +182,7 @@ router.post('/chat', async (req, res) => {
       const startsWithGreeting = /^(Bonjour|Bonsoir)/i.test(response.trim());
 
       if (!startsWithGreeting) {
-        const greeting = getGreetingMessage(req.tenantId || 'fatshairafro', salutation);
+        const greeting = getGreetingMessage(req.tenantId, salutation);
         response = `${greeting}Comment puis-je vous aider ?\n\n${response}`;
       }
     }
@@ -229,7 +230,7 @@ router.post('/chat/stream', async (req, res) => {
     if (isFirstMessage) {
       const currentHour = new Date().getHours();
       const salutation = currentHour >= 18 ? 'Bonsoir' : 'Bonjour';
-      const greeting = getGreetingMessage(req.tenantId || 'fatshairafro', salutation);
+      const greeting = getGreetingMessage(req.tenantId, salutation);
       res.write(`data: ${JSON.stringify({ type: 'text', content: greeting })}\n\n`);
     }
 

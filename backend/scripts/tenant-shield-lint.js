@@ -47,8 +47,12 @@ const SYSTEM_TABLES = [
   'seo_positions',      // liées à seo_keywords par keyword_id
   'segment_clients',    // liées à segments par segment_id
   'opportunites_historique', // liées à opportunites par opportunite_id
+  'opportunite_lignes',     // liées à opportunites par opportunite_id
   'workflow_executions', // liées à workflows par workflow_id
   'ecritures_comptables', // liées à factures par facture_id
+  'business_profiles',  // profils métier partagés (salon, restaurant, etc.)
+  'ia_messages',        // liées à ia_conversations par conversation_id
+  'ia_intents',         // liées à ia_conversations par conversation_id
   'themes',             // templates système
   'social_templates',   // templates système
   'sentinel_alerts',    // system monitoring
@@ -183,8 +187,9 @@ function analyzeFile(filePath) {
       continue;
     }
 
-    // Chercher si .eq('tenant_id') existe dans les 500 caractères suivants
-    const nextChars = content.slice(position, position + 500);
+    // Chercher si .eq('tenant_id') existe dans les 2000 caractères suivants
+    // (2000 pour couvrir les select avec jointures multi-lignes)
+    const nextChars = content.slice(position, position + 2000);
 
     // Vérifier qu'il y a un .eq('tenant_id') avant le prochain ; ou await
     const operationMatch = nextChars.match(/\.(select|insert|update|delete|upsert)/);

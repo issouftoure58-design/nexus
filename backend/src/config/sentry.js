@@ -1,136 +1,76 @@
 /**
- * Configuration Sentry - Monitoring des erreurs production
- * Active uniquement si SENTRY_DSN est défini dans .env
+ * Sentry Error Monitoring Configuration
+ * Centralized error tracking for NEXUS
  */
 
 import * as Sentry from '@sentry/node';
+import logger from './logger.js';
 
 let sentryInitialized = false;
 
-/**
- * Initialise Sentry pour le monitoring des erreurs
- * @param {Express} app - Application Express
- */
 export function initSentry(app) {
   const dsn = process.env.SENTRY_DSN;
 
   if (!dsn) {
-    console.log('[SENTRY] ⏸️ Désactivé (SENTRY_DSN non défini)');
+    logger.warn('No SENTRY_DSN configured - error monitoring disabled', { tag: 'SENTRY' });
     return;
   }
 
-  try {
-    Sentry.init({
-      dsn,
-      environment: process.env.NODE_ENV || 'production',
-      release: process.env.npm_package_version || '1.0.0',
+  if (sentryInitialized) return;
+  sentryInitialized = true;
 
-      // Échantillonnage des traces (10%)
-      tracesSampleRate: 0.1,
-
-      // Intégrations
-      integrations: [
-        // HTTP tracing
-        Sentry.httpIntegration({ tracing: true }),
-        // Express tracing
-        Sentry.expressIntegration({ app }),
-      ],
-
-      // Filtrer les données sensibles
-      beforeSend(event, hint) {
-        // Supprimer les cookies
-        if (event.request) {
-          delete event.request.cookies;
-          // Supprimer les données sensibles du body
-          if (event.request.data) {
-            const sensitiveFields = ['password', 'token', 'authorization', 'api_key', 'secret'];
-            sensitiveFields.forEach(field => {
-              if (event.request.data[field]) {
-                event.request.data[field] = '[FILTERED]';
-              }
-            });
+  Sentry.init({
+    dsn,
+    environment: process.env.NODE_ENV || 'development',
+    release: process.env.npm_package_version || '1.0.0',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    beforeSend(event) {
+      if (event.request?.headers) {
+        delete event.request.headers.authorization;
+        delete event.request.headers.cookie;
+        delete event.request.headers['x-api-key'];
+      }
+      if (event.request?.data && typeof event.request.data === 'object') {
+        ['password', 'token', 'apiKey', 'secret', 'credit_card'].forEach(field => {
+          if (event.request.data[field]) {
+            event.request.data[field] = '[REDACTED]';
           }
-        }
-        return event;
-      },
+        });
+      }
+      return event;
+    },
+    ignoreErrors: [
+      'TENANT_REQUIRED',
+      'UNAUTHORIZED',
+      'Invalid API key',
+      'Rate limit exceeded'
+    ]
+  });
 
-      // Ignorer certaines erreurs
-      ignoreErrors: [
-        'ResizeObserver loop limit exceeded',
-        'Network request failed',
-        'Load failed',
-        /^ChunkLoadError/,
-      ],
-    });
-
-    // Ajouter les handlers Express
-    app.use(Sentry.Handlers.requestHandler());
-    app.use(Sentry.Handlers.tracingHandler());
-
-    sentryInitialized = true;
-    console.log('[SENTRY] ✅ Monitoring activé');
-
-  } catch (error) {
-    console.error('[SENTRY] ❌ Erreur initialisation:', error.message);
-  }
+  // Apply request handler middleware
+  app.use(Sentry.Handlers.requestHandler());
 }
 
-/**
- * Handler d'erreur Sentry (à ajouter APRÈS les routes)
- * @param {Express} app - Application Express
- */
 export function sentryErrorHandler(app) {
-  if (sentryInitialized) {
-    app.use(Sentry.Handlers.errorHandler({
-      shouldHandleError(error) {
-        // Capturer toutes les erreurs 4xx et 5xx
-        if (error.status >= 400) return true;
-        return true;
-      },
-    }));
-  }
+  if (!process.env.SENTRY_DSN) return;
+
+  app.use(Sentry.Handlers.errorHandler({
+    shouldHandleError(error) {
+      return !error.status || error.status >= 500;
+    }
+  }));
 }
 
-/**
- * Capture une erreur manuellement
- * @param {Error} error
- * @param {Object} context - Contexte additionnel
- */
-export function captureError(error, context = {}) {
-  if (sentryInitialized) {
-    Sentry.captureException(error, {
-      extra: context,
-    });
-  } else {
-    console.error('[ERROR]', error.message, context);
+export const captureException = (err) => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(err);
   }
-}
-
-/**
- * Capture un message
- * @param {string} message
- * @param {string} level - 'info', 'warning', 'error'
- */
-export function captureMessage(message, level = 'info') {
-  if (sentryInitialized) {
-    Sentry.captureMessage(message, level);
-  }
-}
-
-/**
- * Ajoute un breadcrumb (fil d'Ariane)
- * @param {Object} breadcrumb
- */
-export function addBreadcrumb(breadcrumb) {
-  if (sentryInitialized) {
-    Sentry.addBreadcrumb(breadcrumb);
-  }
-}
-
-export default {
-  initSentry,
-  sentryErrorHandler,
-  captureError,
-  captureMessage,
-  addBreadcrumb,
 };
+
+export const captureMessage = (msg, level = 'info') => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureMessage(msg, level);
+  }
+};
+
+export default { initSentry, sentryErrorHandler, captureException, captureMessage };

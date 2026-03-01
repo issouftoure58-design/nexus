@@ -13,6 +13,7 @@ import { jobIntelligenceMonitoring } from '../ai/intelligenceMonitor.js';
 import { jobSEOTracking } from './seoTracking.js';
 import { jobChurnPrevention } from '../ai/predictions.js';
 import { sendTrialAlert } from '../services/tenantEmailService.js';
+import { runTrialNurtureJob } from './trialNurtureJob.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -47,6 +48,7 @@ const JOBS_SCHEDULE = {
   seoTracking: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h (tracking SEO hebdo - Plan Business)
   churnPrevention: { hour: 8, minute: 0 }, // 08h00 (detection churn quotidien - Plan Business)
   trialAlerts: { hour: 9, minute: 15 },    // 09h15 - Alertes expiration trial (J-7, J-3, J-1, J0)
+  trialNurture: { hour: 10, minute: 30 },  // 10h30 - Emails nurturing trial (J3, J7, J10)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1182,6 +1184,16 @@ async function runScheduler() {
       console.error('[Scheduler] Erreur trial alerts:', err.message);
     }
   }
+
+  // Job: Trial Nurture (tous les jours à 10h30) - Emails J3, J7, J10
+  if (shouldRunJob('trialNurture', JOBS_SCHEDULE.trialNurture)) {
+    markJobExecuted('trialNurture');
+    try {
+      await runTrialNurtureJob();
+    } catch (err) {
+      console.error('[Scheduler] Erreur trial nurture:', err.message);
+    }
+  }
 }
 
 // ============= DÉMARRAGE =============
@@ -1209,6 +1221,7 @@ export function startScheduler() {
   console.log(`  ✅ SEO Tracking: lundi ${JOBS_SCHEDULE.seoTracking.hour}h${String(JOBS_SCHEDULE.seoTracking.minute).padStart(2, '0')} (Plan Business)`);
   console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
   console.log(`  ✅ Trial Alerts: tous les jours à ${JOBS_SCHEDULE.trialAlerts.hour}h${String(JOBS_SCHEDULE.trialAlerts.minute).padStart(2, '0')} (J-7, J-3, J-1, J0)`);
+  console.log(`  ✅ Trial Nurture: tous les jours à ${JOBS_SCHEDULE.trialNurture.hour}h${String(JOBS_SCHEDULE.trialNurture.minute).padStart(2, '0')} (J3, J7, J10)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
@@ -1264,6 +1277,8 @@ export async function runJobManually(jobName) {
       return await jobChurnPrevention();
     case 'trialAlerts':
       return await sendTrialAlertsJob();
+    case 'trialNurture':
+      return await runTrialNurtureJob();
     default:
       throw new Error(`Job inconnu: ${jobName}`);
   }
@@ -1289,6 +1304,7 @@ export default {
   sendRelancesJ7J14J21Job,
   sendDemandeAvisJ2,
   sendTrialAlertsJob,
+  runTrialNurtureJob,
   checkStockLevels,
   jobIntelligenceMonitoring,
   jobSEOTracking,

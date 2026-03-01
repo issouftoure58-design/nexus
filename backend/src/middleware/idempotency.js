@@ -5,6 +5,7 @@
 
 import { supabase } from '../config/supabase.js';
 import crypto from 'crypto';
+import logger from '../config/logger.js';
 
 /**
  * Génère une clé d'idempotence à partir du body de la requête
@@ -61,16 +62,16 @@ export async function idempotencyMiddleware(req, res, next) {
     if (fetchError) {
       // Si la table n'existe pas encore, continuer normalement
       if (fetchError.message?.includes('does not exist')) {
-        console.log('[IDEMPOTENCY] Table non disponible, skip');
+        logger.info('Table non disponible, skip', { tag: 'IDEMPOTENCY' });
         return next();
       }
-      console.error('[IDEMPOTENCY] Erreur fetch:', fetchError.message);
+      logger.error('Erreur fetch', { tag: 'IDEMPOTENCY', error: fetchError.message });
       return next();
     }
 
     // Si une réponse existe déjà, la renvoyer
     if (existing && existing.response_body) {
-      console.log(`[IDEMPOTENCY] Requête dupliquée bloquée: ${idempotencyKey.substring(0, 16)}...`);
+      logger.info('Requête dupliquée bloquée', { tag: 'IDEMPOTENCY', key: idempotencyKey.substring(0, 16) });
       return res
         .status(existing.response_status || 200)
         .json({
@@ -99,7 +100,7 @@ export async function idempotencyMiddleware(req, res, next) {
           onConflict: 'key,tenant_id'
         });
       } catch (saveError) {
-        console.error('[IDEMPOTENCY] Erreur save:', saveError.message);
+        logger.error('Erreur save', { tag: 'IDEMPOTENCY', error: saveError.message });
       }
 
       return originalJson(body);
@@ -110,7 +111,7 @@ export async function idempotencyMiddleware(req, res, next) {
     next();
 
   } catch (err) {
-    console.error('[IDEMPOTENCY] Erreur:', err.message);
+    logger.error('Erreur', { tag: 'IDEMPOTENCY', error: err.message });
     // En cas d'erreur, continuer normalement
     next();
   }
@@ -124,11 +125,11 @@ export async function cleanupExpiredKeys() {
     const { data, error } = await supabase.rpc('cleanup_expired_idempotency_keys');
     if (error) throw error;
     if (data > 0) {
-      console.log(`[IDEMPOTENCY] ${data} clés expirées supprimées`);
+      logger.info('Clés expirées supprimées', { tag: 'IDEMPOTENCY', count: data });
     }
     return data;
   } catch (err) {
-    console.error('[IDEMPOTENCY] Erreur cleanup:', err.message);
+    logger.error('Erreur cleanup', { tag: 'IDEMPOTENCY', error: err.message });
     return 0;
   }
 }

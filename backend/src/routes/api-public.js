@@ -8,6 +8,7 @@ import { supabase } from '../config/supabase.js';
 import {
   authenticateApiKey,
   requireScope,
+  requireBusinessPlan,
   generateApiKey,
   hashApiKey,
   API_SCOPES
@@ -17,17 +18,41 @@ import { requireClientsQuota } from '../middleware/quotas.js';
 const router = express.Router();
 
 // ============================================
-// MIDDLEWARE - Toutes les routes requierent auth API
+// MIDDLEWARE - Auth API + Business Plan requis
 // ============================================
 router.use(authenticateApiKey);
+router.use(requireBusinessPlan); // API seulement pour Business plan
 
 // ============================================
 // AUTHENTICATION
 // ============================================
 
 /**
- * POST /api/v1/auth/token
- * Echanger API key contre JWT temporaire (optionnel)
+ * @swagger
+ * /api/v1/auth/token:
+ *   post:
+ *     summary: Valider API key
+ *     description: Verifie l'API key et retourne les informations associees
+ *     tags: [API Public]
+ *     security:
+ *       - apiKey: []
+ *     responses:
+ *       200:
+ *         description: API key valide
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tenant_id: { type: string }
+ *                     key_name: { type: string }
+ *                     scopes: { type: array, items: { type: string } }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 router.post('/auth/token', async (req, res) => {
   try {
@@ -53,8 +78,54 @@ router.post('/auth/token', async (req, res) => {
 // ============================================
 
 /**
- * GET /api/v1/clients
- * Liste des clients avec pagination et filtres
+ * @swagger
+ * /api/v1/clients:
+ *   get:
+ *     summary: Liste des clients
+ *     description: Retourne la liste des clients avec pagination et filtres
+ *     tags: [API Public]
+ *     security:
+ *       - apiKey: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *         description: Numero de page
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20, maximum: 100 }
+ *         description: Nombre de resultats par page
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Recherche par nom, email ou telephone
+ *       - in: query
+ *         name: sort_by
+ *         schema: { type: string, default: created_at }
+ *       - in: query
+ *         name: sort_order
+ *         schema: { type: string, enum: [asc, desc], default: desc }
+ *     responses:
+ *       200:
+ *         description: Liste des clients
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data: { type: array, items: { $ref: '#/components/schemas/Client' } }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page: { type: integer }
+ *                     limit: { type: integer }
+ *                     total: { type: integer }
+ *                     total_pages: { type: integer }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  */
 router.get('/clients', requireScope('read:clients'), async (req, res) => {
   try {
@@ -826,6 +897,94 @@ router.get('/events', (req, res) => {
       'payment.succeeded': 'Triggered when a payment succeeds',
       'payment.failed': 'Triggered when a payment fails'
     }
+  });
+});
+
+// ============================================
+// API DOCUMENTATION
+// ============================================
+
+/**
+ * GET /api/v1
+ * Documentation de l'API
+ */
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    api: {
+      name: 'NEXUS REST API',
+      version: 'v1',
+      plan_required: 'business',
+      documentation: 'https://docs.nexus.ai/api'
+    },
+    endpoints: {
+      auth: {
+        'POST /auth/token': 'Validate API key and get token info'
+      },
+      clients: {
+        'GET /clients': 'List all clients (paginated)',
+        'GET /clients/:id': 'Get client details',
+        'POST /clients': 'Create a new client',
+        'PATCH /clients/:id': 'Update client',
+        'DELETE /clients/:id': 'Delete client'
+      },
+      reservations: {
+        'GET /reservations': 'List all reservations (paginated)',
+        'GET /reservations/:id': 'Get reservation details',
+        'POST /reservations': 'Create a new reservation',
+        'PATCH /reservations/:id': 'Update reservation',
+        'DELETE /reservations/:id': 'Cancel reservation'
+      },
+      services: {
+        'GET /services': 'List all active services'
+      },
+      webhooks: {
+        'GET /webhooks': 'List configured webhooks',
+        'POST /webhooks': 'Create a webhook',
+        'PATCH /webhooks/:id': 'Update webhook',
+        'DELETE /webhooks/:id': 'Delete webhook'
+      },
+      api_keys: {
+        'GET /api-keys': 'List API keys (admin scope)',
+        'POST /api-keys': 'Create new API key (admin scope)',
+        'DELETE /api-keys/:id': 'Revoke API key (admin scope)'
+      },
+      meta: {
+        'GET /scopes': 'List available scopes',
+        'GET /events': 'List webhook events'
+      }
+    },
+    rate_limits: {
+      default: '1000 requests/hour',
+      headers: {
+        'X-RateLimit-Limit': 'Total requests allowed',
+        'X-RateLimit-Remaining': 'Requests remaining',
+        'X-RateLimit-Reset': 'Unix timestamp when limit resets'
+      }
+    },
+    authentication: {
+      method: 'Bearer Token',
+      header: 'Authorization: Bearer nxk_prod_xxxxx...',
+      key_types: {
+        'nxk_prod_': 'Production key (full access)',
+        'nxk_test_': 'Test key (sandbox mode)',
+        'nxk_sand_': 'Sandbox key (limited features)'
+      }
+    }
+  });
+});
+
+/**
+ * GET /api/v1/health
+ * Health check de l'API
+ */
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    tenant: req.tenantId,
+    plan: req.plan
   });
 });
 

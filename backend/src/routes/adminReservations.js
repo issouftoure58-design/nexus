@@ -7,6 +7,7 @@ import { createFactureFromReservation, updateFactureStatutFromReservation, cance
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
+import logger from '../config/logger.js';
 
 const router = express.Router();
 

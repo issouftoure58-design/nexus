@@ -75,8 +75,9 @@ export default function Contact() {
 
             <div className="space-y-6 mb-8">
               {[
-                { icon: Mail, label: 'Email', value: 'contact@nexus-platform.fr', href: 'mailto:contact@nexus-platform.fr' },
-                { icon: MapPin, label: 'Localisation', value: 'Île-de-France, France', href: '' },
+                { icon: Mail, label: 'Email', value: 'contact@nexus.app', href: 'mailto:contact@nexus.app' },
+                { icon: Phone, label: 'Telephone', value: '+33 7 60 53 76 94', href: 'tel:+33760537694' },
+                { icon: MapPin, label: 'Localisation', value: '8 rue des Monts Rouges, 95130 Franconville', href: '' },
               ].map((c, i) => (
                 <div key={i} className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center flex-shrink-0">

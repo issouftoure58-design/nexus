@@ -6,6 +6,7 @@
  */
 
 import { isProduction, isTestTenant, canModifyTenant, isDevelopment } from '../utils/environment.js';
+import logger from '../config/logger.js';
 
 /**
  * Empêcher modifications tenant test en production
@@ -59,7 +60,7 @@ export function protectDestructiveActions(req, res, next) {
 export function devLogger(req, res, next) {
   if (!isProduction()) {
     const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-    console.log(`[${timestamp}] ${req.method} ${req.path}`);
+    logger.info('Request', { tag: 'DEV', method: req.method, path: req.path });
   }
   next();
 }

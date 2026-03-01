@@ -722,7 +722,7 @@ export default function Onboarding() {
                     <p className="text-white/80 text-sm mt-1">{planInfo.description}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-3xl font-bold">{preview?.estimatedMonthlyPrice || 49}€</span>
+                    <span className="text-3xl font-bold">{preview?.estimatedMonthlyPrice || 99}€</span>
                     <span className="text-white/70">/mois</span>
                   </div>
                 </div>

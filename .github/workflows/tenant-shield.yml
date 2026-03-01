@@ -1,26 +1,37 @@
-name: TENANT SHIELD                                                                                      
-                                                                                                           
-  on:                                                                                                      
-    push:                                                                                                  
-      branches: [main, develop]                                                                            
-      paths: ['backend/**']                                                                                
-    pull_request:                                                                                          
-      branches: [main, develop]                                                                            
-      paths: ['backend/**']                                                                                
-                                                                                                           
-  jobs:                                                                                                    
-    tenant-lint:                                                                                           
-      name: Tenant Isolation Lint                                                                          
-      runs-on: ubuntu-latest                                                                               
-      steps:                                                                                               
-        - uses: actions/checkout@v4                                                                        
-        - uses: actions/setup-node@v4                                                                      
-          with:                                                                                            
-            node-version: '20'                                                                             
-            cache: 'npm'                                                                                   
-            cache-dependency-path: backend/package-lock.json                                               
-        - run: cd backend && npm ci                                                                        
-        - run: cd backend && npm run lint:tenant                                                                         
-            cache-dependency-path: backend/package-lock.json                                               
-        - run: cd backend && npm ci                                                                        
-        - run: cd backend && npm run test:tenant || true
+name: Tenant Shield
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['backend/**']
+  pull_request:
+    branches: [main, develop]
+    paths: ['backend/**']
+
+jobs:
+  tenant-lint:
+    name: Tenant Isolation Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: cd backend && npm ci
+
+      - name: Run Tenant Shield lint
+        run: cd backend && npm run lint:tenant
+
+      - name: Run syntax check
+        run: cd backend && npm run lint:syntax
+
+      - name: Run tenant isolation tests
+        run: cd backend && npm run test:tenant
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-jwt-secret-minimum-32-chars-for-ci

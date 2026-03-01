@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 const navLinks = [
   { to: '/website', label: 'Accueil' },
+  { to: '/website/features', label: 'Fonctionnalites' },
   { to: '/website/pricing', label: 'Tarifs' },
   { to: '/website/contact', label: 'Contact' },
 ];
@@ -92,33 +93,34 @@ export default function WebsiteLayout({ children }: { children: React.ReactNode 
               <h3 className="font-semibold mb-4">Produit</h3>
               <ul className="space-y-2 text-gray-400">
                 <li><Link to="/website" className="hover:text-white">Accueil</Link></li>
+                <li><Link to="/website/features" className="hover:text-white">Fonctionnalites</Link></li>
                 <li><Link to="/website/pricing" className="hover:text-white">Tarifs</Link></li>
-                <li><Link to="/website/contact" className="hover:text-white">Démo</Link></li>
+                <li><Link to="/website/contact" className="hover:text-white">Demo</Link></li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-4">Légal</h3>
+              <h3 className="font-semibold mb-4">Legal</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><span className="text-gray-500">CGV</span></li>
-                <li><span className="text-gray-500">Confidentialité</span></li>
-                <li><span className="text-gray-500">Mentions légales</span></li>
+                <li><Link to="/website/terms" className="hover:text-white">Conditions Generales</Link></li>
+                <li><Link to="/website/privacy" className="hover:text-white">Confidentialite</Link></li>
               </ul>
-              <p className="text-xs text-gray-600 mt-2">Bientôt disponibles</p>
             </div>
 
             <div>
               <h3 className="font-semibold mb-4">Contact</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="mailto:contact@nexus-platform.fr" className="hover:text-white">contact@nexus-platform.fr</a></li>
-                <li>Île-de-France</li>
+                <li><a href="mailto:contact@nexus.app" className="hover:text-white">contact@nexus.app</a></li>
+                <li><a href="tel:+33760537694" className="hover:text-white">+33 7 60 53 76 94</a></li>
+                <li>Franconville, France</li>
                 <li><Link to="/website/contact" className="hover:text-white">Formulaire de contact</Link></li>
               </ul>
             </div>
           </div>
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-            © 2026 NEXUS. Tous droits réservés.
+            <p>© 2026 Nexus.AI - SIREN 947 570 362</p>
+            <p className="text-sm mt-2">8 rue des Monts Rouges, 95130 Franconville, France</p>
           </div>
         </div>
       </footer>

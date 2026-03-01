@@ -9,6 +9,7 @@
  */
 
 import { rawSupabase } from '../supabase.js';
+import logger from '../logger.js';
 
 // Static fallback imports
 import fatshairafroStatic from './fatshairafro.js';
@@ -87,10 +88,10 @@ export async function loadAllTenants() {
     // Charger les numéros de téléphone pour le routing multi-tenant
     await loadPhoneNumbers();
 
-    console.log(`[TenantCache] Loaded ${tenantMap.size} tenants from DB`);
+    logger.info('Loaded tenants from DB', { tag: 'TenantCache', count: tenantMap.size });
     return true;
   } catch (err) {
-    console.warn(`[TenantCache] DB load failed, using JS fallback:`, err.message);
+    logger.warn('DB load failed, using JS fallback', { tag: 'TenantCache', error: err.message });
     loadFromStaticFiles();
     return false;
   }
@@ -115,7 +116,7 @@ function loadFromStaticFiles() {
   initialized = true;
   loadedFromDb = false;
   lastRefresh = new Date();
-  console.log(`[TenantCache] Loaded ${tenantMap.size} tenants from static files (fallback)`);
+  logger.info('Loaded tenants from static files (fallback)', { tag: 'TenantCache', count: tenantMap.size });
 }
 
 /**
@@ -125,7 +126,7 @@ export function startPeriodicRefresh() {
   if (refreshTimer) return;
   refreshTimer = setInterval(() => {
     loadAllTenants().catch(err =>
-      console.error('[TenantCache] Periodic refresh failed:', err.message)
+      logger.error('Periodic refresh failed', { tag: 'TenantCache', error: err.message })
     );
   }, REFRESH_INTERVAL_MS);
   // Allow process to exit even if timer is running
@@ -159,7 +160,7 @@ async function loadPhoneNumbers() {
         newPhoneMap.set(row.phone_number, row.tenant_id);
       }
       phoneMap = newPhoneMap;
-      console.log(`[TenantCache] Loaded ${phoneMap.size} phone numbers for routing`);
+      logger.info('Loaded phone numbers for routing', { tag: 'TenantCache', count: phoneMap.size });
     }
 
     // Also load from tenants.phone_number column (fallback)
@@ -177,7 +178,7 @@ async function loadPhoneNumbers() {
       }
     }
   } catch (err) {
-    console.warn(`[TenantCache] Phone numbers load failed:`, err.message);
+    logger.warn('Phone numbers load failed', { tag: 'TenantCache', error: err.message });
   }
 }
 
@@ -219,12 +220,11 @@ export function findTenantByPhone(phoneNumber) {
   // Normaliser le numéro (enlever espaces, tirets, parenthèses - mais garder le +)
   const normalized = phoneNumber.replace(/[\s\-\(\)]/g, '');
 
-  console.log(`[TenantCache] findTenantByPhone: "${phoneNumber}" → normalized: "${normalized}"`);
-  console.log(`[TenantCache] phoneMap has ${phoneMap.size} entries`);
+  logger.info('findTenantByPhone', { tag: 'TenantCache', phoneNumber, normalized, mapSize: phoneMap.size });
 
   // Chercher exact match
   if (phoneMap.has(normalized)) {
-    console.log(`[TenantCache] ✅ Exact match found: ${phoneMap.get(normalized)}`);
+    logger.info('Exact match found', { tag: 'TenantCache', tenantId: phoneMap.get(normalized) });
     return phoneMap.get(normalized);
   }
 
@@ -234,16 +234,17 @@ export function findTenantByPhone(phoneNumber) {
     if (phoneNorm === normalized ||
         phoneNorm.endsWith(normalized.slice(-9)) ||
         normalized.endsWith(phoneNorm.slice(-9))) {
-      console.log(`[TenantCache] ✅ Variant match: "${phone}" → ${tenantId}`);
+      logger.info('Variant match', { tag: 'TenantCache', phone, tenantId });
       return tenantId;
     }
   }
 
   // Debug: afficher toutes les entrées du cache pour diagnostic
-  console.log(`[TenantCache] ❌ No match. phoneMap entries:`);
+  const entries = {};
   for (const [phone, tenantId] of phoneMap) {
-    console.log(`  - "${phone}" → ${tenantId}`);
+    entries[phone] = tenantId;
   }
+  logger.info('No match found', { tag: 'TenantCache', entries });
 
   return null;
 }

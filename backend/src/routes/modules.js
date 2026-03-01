@@ -91,6 +91,101 @@ function getMinimumPlanForModule(moduleId) {
   return 'business';
 }
 
+/**
+ * Crée une configuration IA par défaut pour un tenant
+ * Appelé automatiquement lors de l'activation d'un module IA
+ */
+async function createDefaultIAConfig(tenantId, channel) {
+  console.log(`[MODULES] 🤖 Création config IA ${channel} pour ${tenantId}`);
+
+  const defaultConfigs = {
+    telephone: {
+      greeting_message: "Bonjour ! Je suis l'assistante virtuelle. Comment puis-je vous aider ?",
+      voice_style: 'alloy', // OpenAI voice
+      tone: 'professionnel',
+      language: 'fr-FR',
+      transfer_phone: '',
+      max_duration_seconds: 300,
+      business_hours: {
+        enabled: false,
+        message_outside_hours: "Nous sommes actuellement fermés. Veuillez rappeler pendant nos heures d'ouverture."
+      },
+      personality: 'Assistante professionnelle et chaleureuse',
+      services_description: '',
+      booking_enabled: true,
+      active: true
+    },
+    whatsapp: {
+      greeting_message: "Bonjour ! 👋 Comment puis-je vous aider ?",
+      tone: 'professionnel',
+      language: 'fr-FR',
+      response_delay_ms: 1000,
+      business_hours: {
+        enabled: false,
+        message_outside_hours: "Nous vous répondrons dès notre réouverture."
+      },
+      personality: 'Assistante chaleureuse et efficace',
+      services_description: '',
+      booking_enabled: true,
+      send_images: true,
+      send_location: true,
+      quick_replies_enabled: true,
+      quick_replies: ['Prendre RDV', 'Nos services', 'Horaires', 'Contact'],
+      active: true
+    },
+    web: {
+      greeting_message: "Bonjour ! Je suis l'assistant virtuel. Comment puis-je vous aider ?",
+      tone: 'professionnel',
+      language: 'fr-FR',
+      personality: 'Assistant professionnel et amical',
+      services_description: '',
+      booking_enabled: true,
+      show_typing_indicator: true,
+      auto_open_delay_ms: 0, // 0 = ne pas ouvrir auto
+      position: 'bottom-right',
+      theme: 'light',
+      active: true
+    }
+  };
+
+  const config = defaultConfigs[channel];
+  if (!config) {
+    console.warn(`[MODULES] ⚠️ Pas de config par défaut pour canal ${channel}`);
+    return;
+  }
+
+  // Vérifier si config existe déjà
+  const { data: existing } = await supabase
+    .from('tenant_ia_config')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('channel', channel)
+    .single();
+
+  if (existing) {
+    console.log(`[MODULES] Config IA ${channel} existe déjà pour ${tenantId}`);
+    return;
+  }
+
+  // Créer la config
+  const { error } = await supabase
+    .from('tenant_ia_config')
+    .insert({
+      tenant_id: tenantId,
+      channel: channel,
+      config: config,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error(`[MODULES] Erreur création config IA:`, error.message);
+    throw error;
+  }
+
+  console.log(`[MODULES] ✅ Config IA ${channel} créée pour ${tenantId}`);
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MODULES DISPONIBLES (hardcodé en attendant migration DB)
 // ════════════════════════════════════════════════════════════════════
@@ -672,9 +767,30 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
         console.log(`[MODULES] 💬 Configuration WhatsApp pour ${tenantId}...`);
         provisioningResult = await provisioningService.configureWhatsApp(tenantId);
         console.log(`[MODULES] ✅ WhatsApp configuré`);
+
+        // Créer config IA WhatsApp par défaut
+        await createDefaultIAConfig(tenantId, 'whatsapp');
       } catch (provError) {
         console.error(`[MODULES] ⚠️ Erreur config WhatsApp:`, provError.message);
         provisioningResult = { error: provError.message };
+      }
+    }
+
+    // Créer config IA téléphone par défaut
+    if (moduleId === 'telephone' || moduleId === 'standard_ia') {
+      try {
+        await createDefaultIAConfig(tenantId, 'telephone');
+      } catch (e) {
+        console.error(`[MODULES] ⚠️ Erreur création config IA téléphone:`, e.message);
+      }
+    }
+
+    // Créer config IA web par défaut
+    if (moduleId === 'agent_ia_web') {
+      try {
+        await createDefaultIAConfig(tenantId, 'web');
+      } catch (e) {
+        console.error(`[MODULES] ⚠️ Erreur création config IA web:`, e.message);
       }
     }
 

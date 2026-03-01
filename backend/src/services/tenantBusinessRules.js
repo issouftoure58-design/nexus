@@ -10,6 +10,7 @@
 
 import { rawSupabase } from '../config/supabase.js';
 import { isFrozenTenant, getEffectiveConfig } from '../templates/templateLoader.js';
+import logger from '../config/logger.js';
 
 // Import frozen rules for backward compatibility
 import {
@@ -36,7 +37,7 @@ export async function getServicesForTenant(tenantId) {
 
   // Frozen tenant = use hardcoded rules
   if (isFrozenTenant(tenantId)) {
-    console.log(`[BUSINESS_RULES] Using frozen services for ${tenantId}`);
+    logger.info(`BUSINESS_RULES Using frozen services for ${tenantId}`);
     return Object.values(FROZEN_SERVICES).map(normalizeService);
   }
 
@@ -50,11 +51,11 @@ export async function getServicesForTenant(tenantId) {
       .order('category', { ascending: true });
 
     if (!error && services && services.length > 0) {
-      console.log(`[BUSINESS_RULES] Loaded ${services.length} services from DB for ${tenantId}`);
+      logger.info(`BUSINESS_RULES Loaded ${services.length} services from DB for ${tenantId}`);
       return services.map(normalizeServiceFromDb);
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading services from DB:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading services from DB: ${err.message}`);
   }
 
   // Fallback: try tenant config
@@ -64,14 +65,14 @@ export async function getServicesForTenant(tenantId) {
       const serviceArray = Array.isArray(config.services)
         ? config.services
         : Object.values(config.services);
-      console.log(`[BUSINESS_RULES] Using config services for ${tenantId}`);
+      logger.info(`BUSINESS_RULES Using config services for ${tenantId}`);
       return serviceArray.map(normalizeService);
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading services from config:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading services from config: ${err.message}`);
   }
 
-  console.log(`[BUSINESS_RULES] No services found for ${tenantId}`);
+  logger.info(`BUSINESS_RULES No services found for ${tenantId}`);
   return [];
 }
 
@@ -166,7 +167,7 @@ export async function getTravelFeesForTenant(tenantId) {
       return normalizeTravelFees(config.travelFees);
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading travel fees:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading travel fees: ${err.message}`);
   }
 
   return null;
@@ -243,7 +244,7 @@ export async function getBusinessHoursForTenant(tenantId) {
       return normalizeBusinessHours({ SCHEDULE: hours });
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading business_hours:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading business_hours: ${err.message}`);
   }
 
   // Fallback to config
@@ -253,7 +254,7 @@ export async function getBusinessHoursForTenant(tenantId) {
       return normalizeBusinessHours({ SCHEDULE: config.businessHours });
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading business hours from config:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading business hours from config: ${err.message}`);
   }
 
   // Default: all days open 9-18
@@ -318,7 +319,7 @@ export async function getBookingRulesForTenant(tenantId) {
       return normalizeBookingRules(config.bookingRules);
     }
   } catch (err) {
-    console.warn(`[BUSINESS_RULES] Error loading booking rules:`, err.message);
+    logger.warn(`BUSINESS_RULES Error loading booking rules: ${err.message}`);
   }
 
   // Default rules

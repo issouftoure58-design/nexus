@@ -4,6 +4,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import { requireClientsQuota } from '../middleware/quotas.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
+import logger from '../config/logger.js';
 
 const router = express.Router();
 

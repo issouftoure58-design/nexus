@@ -13,6 +13,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import logger from '../config/logger.js';
 
 // ============================================
 // CONFIGURATION
@@ -27,7 +28,7 @@ const CACHE_DIR = path.join(process.cwd(), 'data', 'voice-cache');
 // Créer le dossier cache s'il n'existe pas
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  console.log('[VOICE SERVICE] Dossier cache créé:', CACHE_DIR);
+  logger.info('Dossier cache créé', { tag: 'VOICE SERVICE', path: CACHE_DIR });
 }
 
 // Statistiques d'utilisation
@@ -43,7 +44,7 @@ let stats = {
 async function logElevenLabsUsage(tenantId, characters, voiceId, cached = false) {
   if (cached) return; // Ne pas logger les hits de cache (pas de coût)
   if (!tenantId) {
-    console.warn('[VOICE] ⚠️ tenant_id requis pour logging usage');
+    logger.warn('tenant_id requis pour logging usage', { tag: 'VOICE' });
     return;
   }
 
@@ -59,7 +60,7 @@ async function logElevenLabsUsage(tenantId, characters, voiceId, cached = false)
     });
     console.log(`[VOICE] ✅ Usage loggé: ${characters} caractères`);
   } catch (err) {
-    console.warn('[VOICE] ⚠️ Erreur logging usage:', err.message);
+    logger.warn('Erreur logging usage', { tag: 'VOICE', error: err.message });
   }
 }
 
@@ -662,7 +663,7 @@ async function textToSpeechSmart(text, options = {}) {
  */
 async function textToSpeechStream(text, options = {}) {
   if (!ELEVENLABS_API_KEY) {
-    console.warn('[VOICE] ElevenLabs API key non configurée');
+    logger.warn('ElevenLabs API key non configurée', { tag: 'VOICE' });
     return null;
   }
 

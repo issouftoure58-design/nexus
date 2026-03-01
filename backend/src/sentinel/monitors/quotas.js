@@ -9,27 +9,27 @@ export const PLANS = {
     price: 99, // EUR/mois
     limits: {
       users: 1,
-      smsPerMonth: 100,
+      smsPerMonth: 200,
       costPerMonth: 15, // Budget IA/SMS max
       apiCallsPerDay: 500,
     },
   },
   pro: {
     name: 'Pro',
-    price: 199,
+    price: 249,
     limits: {
-      users: 3,
-      smsPerMonth: 300,
+      users: 5,
+      smsPerMonth: 500,
       costPerMonth: 40,
       apiCallsPerDay: 2000,
     },
   },
   business: {
     name: 'Business',
-    price: 399,
+    price: 499,
     limits: {
-      users: -1, // illimité
-      smsPerMonth: 1000,
+      users: 20,
+      smsPerMonth: 2000,
       costPerMonth: 100,
       apiCallsPerDay: 10000,
     },

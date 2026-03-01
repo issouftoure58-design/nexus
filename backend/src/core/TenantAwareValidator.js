@@ -9,6 +9,7 @@
 
 import { loadTenant } from './TenantContext.js';
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 /**
  * Valide une réservation en utilisant les règles du tenant
@@ -123,7 +124,7 @@ export async function checkBookingConflicts(tenantId, date, heure, durationMinut
   const { data: existingBookings, error } = await query;
 
   if (error) {
-    console.error('[TenantAwareValidator] Erreur check conflits:', error);
+    logger.error('[TenantAwareValidator] Erreur check conflits:', { error });
     throw new Error(`Erreur vérification conflits: ${error.message}`);
   }
 

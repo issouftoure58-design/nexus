@@ -15,6 +15,8 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
+import logger from '../config/logger.js';
+
 /**
  * Routes système qui n'ont pas besoin de tenant_id
  * Ces routes gèrent la plateforme NEXUS, pas les données tenant
@@ -101,10 +103,13 @@ export function tenantShield(options = {}) {
 
     if (!tenantId) {
       if (logViolations) {
-        console.error(`[TENANT SHIELD] ❌ VIOLATION: Requête sans tenant_id`);
-        console.error(`[TENANT SHIELD]    Path: ${req.method} ${req.path}`);
-        console.error(`[TENANT SHIELD]    IP: ${req.ip}`);
-        console.error(`[TENANT SHIELD]    Headers: ${JSON.stringify(req.headers)}`);
+        logger.error('VIOLATION: Requête sans tenant_id', {
+          tag: 'TENANT SHIELD',
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          headers: req.headers
+        });
       }
 
       if (strict) {
@@ -132,10 +137,13 @@ export function tenantShield(options = {}) {
         );
 
         if (logViolations) {
-          console.error(`[TENANT SHIELD] 🚨 CROSS-TENANT ATTEMPT BLOCKED`);
-          console.error(`[TENANT SHIELD]    Current: ${tenantId}`);
-          console.error(`[TENANT SHIELD]    Attempted: ${checkId}`);
-          console.error(`[TENANT SHIELD]    Path: ${req.method} ${req.path}`);
+          logger.error('CROSS-TENANT ATTEMPT BLOCKED', {
+            tag: 'TENANT SHIELD',
+            currentTenant: tenantId,
+            attemptedTenant: checkId,
+            method: req.method,
+            path: req.path
+          });
         }
 
         throw error;
@@ -146,7 +154,7 @@ export function tenantShield(options = {}) {
 
     // Log de debug (désactivé en prod)
     if (process.env.NODE_ENV !== 'production' && process.env.TENANT_SHIELD_DEBUG) {
-      console.log(`[TENANT SHIELD] ✅ ${req.method} ${req.path} → tenant: ${tenantId}`);
+      logger.info('Request validated', { tag: 'TENANT SHIELD', method: req.method, path: req.path, tenantId });
     }
 
     next();
@@ -162,9 +170,11 @@ export function validateBodyTenant() {
     if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
       // Si le body contient un tenant_id, il DOIT matcher req.tenantId
       if (req.body.tenant_id && req.body.tenant_id !== req.tenantId) {
-        console.error(`[TENANT SHIELD] 🚨 BODY TENANT MISMATCH`);
-        console.error(`[TENANT SHIELD]    req.tenantId: ${req.tenantId}`);
-        console.error(`[TENANT SHIELD]    body.tenant_id: ${req.body.tenant_id}`);
+        logger.error('BODY TENANT MISMATCH', {
+          tag: 'TENANT SHIELD',
+          reqTenantId: req.tenantId,
+          bodyTenantId: req.body.tenant_id
+        });
 
         return res.status(403).json({
           success: false,

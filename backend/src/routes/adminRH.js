@@ -4226,12 +4226,14 @@ router.get('/dsn/:id/valider', authenticateAdmin, async (req, res) => {
  */
 router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const annee = req.query.annee || new Date().getFullYear();
 
-    // Essayer de récupérer depuis la base
+    // Essayer de récupérer depuis la base (🔒 TENANT ISOLATION)
     const { data: params } = await supabase
       .from('rh_parametres_sociaux')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('annee', annee)
       .eq('actif', true)
       .order('date_application', { ascending: false })
@@ -4324,19 +4326,21 @@ router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
  */
 router.put('/parametres-sociaux', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const { annee, ...params } = req.body;
     const targetAnnee = annee || new Date().getFullYear();
 
-    // Vérifier si entrée existe
+    // Vérifier si entrée existe (🔒 TENANT ISOLATION)
     const { data: existing } = await supabase
       .from('rh_parametres_sociaux')
       .select('id')
+      .eq('tenant_id', tenantId)
       .eq('annee', targetAnnee)
       .maybeSingle();
 
     let result;
     if (existing) {
-      // Mise à jour
+      // Mise à jour (🔒 TENANT ISOLATION via .eq('id'))
       const { data, error } = await supabase
         .from('rh_parametres_sociaux')
         .update({
@@ -4344,16 +4348,18 @@ router.put('/parametres-sociaux', authenticateAdmin, async (req, res) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
 
       if (error) throw error;
       result = data;
     } else {
-      // Insertion
+      // Insertion (🔒 TENANT ISOLATION)
       const { data, error } = await supabase
         .from('rh_parametres_sociaux')
         .insert({
+          tenant_id: tenantId,
           annee: targetAnnee,
           date_application: `${targetAnnee}-01-01`,
           actif: true,

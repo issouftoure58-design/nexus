@@ -12,6 +12,7 @@
 import express from 'express';
 import Stripe from 'stripe';
 import { handleWebhookEvent } from '../services/stripeBillingService.js';
+import logger from '../config/logger.js';
 
 const router = express.Router();
 

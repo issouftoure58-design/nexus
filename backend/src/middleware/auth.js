@@ -5,13 +5,13 @@
 
 import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 // ⚠️ SECURITY: JWT_SECRET MUST be set in environment - NO FALLBACK ALLOWED
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  console.error('❌ FATAL: JWT_SECRET environment variable is not set!');
-  console.error('   Set JWT_SECRET in your .env file with a secure random string (min 32 chars)');
+  logger.error('FATAL: JWT_SECRET environment variable is not set! Set JWT_SECRET in your .env file with a secure random string (min 32 chars)', { tag: 'AUTH' });
   process.exit(1);
 }
 
@@ -98,7 +98,7 @@ export const authenticateToken = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('[AUTH] Erreur:', error);
+    logger.error('Erreur', { tag: 'AUTH', error: error.message });
     return res.status(500).json({
       success: false,
       error: 'Erreur authentification',

@@ -53,6 +53,7 @@ const AdminClientAnalytics = lazy(() => import("@/pages/admin/ClientAnalytics"))
 const AdminWorkflows = lazy(() => import("@/pages/admin/Workflows"));
 const AdminCampagnes = lazy(() => import("@/pages/admin/Campagnes"));
 const AdminStock = lazy(() => import("@/pages/admin/Stock"));
+const AdminOnboarding = lazy(() => import("@/pages/admin/Onboarding"));
 
 // NEXUS Operator - Lazy loading
 const NexusLogin = lazy(() => import("@/pages/nexus/NexusLogin"));
@@ -73,6 +74,9 @@ const ClientResetPassword = lazy(() => import("@/pages/client/ResetPassword"));
 const WebsiteHome = lazy(() => import("@/pages/website/Home"));
 const WebsitePricing = lazy(() => import("@/pages/website/Pricing"));
 const WebsiteContact = lazy(() => import("@/pages/website/Contact"));
+const WebsiteTerms = lazy(() => import("@/pages/website/TermsOfService"));
+const WebsitePrivacy = lazy(() => import("@/pages/website/PrivacyPolicy"));
+const WebsiteFeatures = lazy(() => import("@/pages/website/Features"));
 const Signup = lazy(() => import("@/pages/Signup"));
 
 // LEGAL - Lazy loading
@@ -171,10 +175,22 @@ function Router() {
         <Route path="/website/contact">
           <WebsiteLayout><WebsiteContact /></WebsiteLayout>
         </Route>
+        <Route path="/website/terms">
+          <WebsiteTerms />
+        </Route>
+        <Route path="/website/privacy">
+          <WebsitePrivacy />
+        </Route>
+        <Route path="/website/features">
+          <WebsiteFeatures />
+        </Route>
         <Route path="/website/signup" component={Signup} />
 
         {/* ========== ADMIN TENANT DASHBOARD ========== */}
         <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin/onboarding">
+          <ProtectedRoute><AdminOnboarding /></ProtectedRoute>
+        </Route>
         <Route path="/admin/dashboard">
           <ProtectedRoute><AdminDashboard /></ProtectedRoute>
         </Route>

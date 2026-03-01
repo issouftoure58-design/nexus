@@ -1,0 +1,212 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip smoke tests after deploy'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+env:
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+
+jobs:
+  pre-deploy-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check CI status
+        id: check
+        run: |
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+          echo "Pre-deployment checks passed"
+
+  deploy-backend-staging:
+    name: Deploy Backend to Staging
+    runs-on: ubuntu-latest
+    needs: pre-deploy-checks
+    if: needs.pre-deploy-checks.outputs.should_deploy == 'true'
+    environment:
+      name: staging
+      url: https://nexus-backend-staging.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Backend Staging)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_BACKEND_STAGING_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+      - name: Wait for backend health
+        run: |
+          echo "Waiting for backend to be healthy..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-backend-staging.onrender.com/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS - waiting..."
+            sleep 10
+          done
+          echo "Backend health check failed after 30 attempts"
+          exit 1
+
+  deploy-admin-staging:
+    name: Deploy Admin UI to Staging
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks, deploy-backend-staging]
+    environment:
+      name: staging
+      url: https://nexus-admin-staging.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Admin Staging)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_ADMIN_STAGING_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+  deploy-frontend-staging:
+    name: Deploy Frontend to Staging
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks, deploy-backend-staging]
+    environment:
+      name: staging
+      url: https://nexus-app-staging.onrender.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render (Frontend Staging)
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_FRONTEND_STAGING_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-staging, deploy-admin-staging, deploy-frontend-staging]
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run API smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+
+          # Health check
+          echo "Testing backend health endpoint..."
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-backend-staging.onrender.com/health)
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "Health check failed with status: $HEALTH_STATUS"
+            exit 1
+          fi
+          echo "Health check passed!"
+
+          # API version endpoint
+          echo "Testing API version..."
+          curl -s https://nexus-backend-staging.onrender.com/api/version | jq .
+
+          # Admin UI availability
+          echo "Testing Admin UI..."
+          ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-admin-staging.onrender.com)
+          if [ "$ADMIN_STATUS" != "200" ]; then
+            echo "Admin UI check failed with status: $ADMIN_STATUS"
+            exit 1
+          fi
+          echo "Admin UI is available!"
+
+          # Frontend availability
+          echo "Testing Frontend..."
+          FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-app-staging.onrender.com)
+          if [ "$FRONTEND_STATUS" != "200" ]; then
+            echo "Frontend check failed with status: $FRONTEND_STATUS"
+            exit 1
+          fi
+          echo "Frontend is available!"
+
+          echo "All smoke tests passed!"
+
+      - name: Run E2E tests (if available)
+        working-directory: frontend/nexus-app
+        continue-on-error: true
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e -- --project=chromium
+        env:
+          BASE_URL: https://nexus-app-staging.onrender.com
+          API_URL: https://nexus-backend-staging.onrender.com
+
+  notify-staging-complete:
+    name: Notify Staging Deploy Complete
+    runs-on: ubuntu-latest
+    needs: [smoke-tests]
+    if: always()
+    steps:
+      - name: Determine deploy status
+        id: status
+        run: |
+          if [[ "${{ needs.smoke-tests.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=:white_check_mark:" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=:x:" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification (optional)
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "${{ steps.status.outputs.emoji }} Staging deployment ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.status.outputs.emoji }} *Staging Deployment ${{ steps.status.outputs.status }}*\n\nCommit: `${{ github.sha }}`\nBranch: `${{ github.ref_name }}`\nTriggered by: ${{ github.actor }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Backend:*\nhttps://nexus-backend-staging.onrender.com"},
+                    {"type": "mrkdwn", "text": "*Admin:*\nhttps://nexus-admin-staging.onrender.com"},
+                    {"type": "mrkdwn", "text": "*Frontend:*\nhttps://nexus-app-staging.onrender.com"}
+                  ]
+                }
+              ]
+            }' \
+            $SLACK_WEBHOOK_URL

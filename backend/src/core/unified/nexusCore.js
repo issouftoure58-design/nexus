@@ -19,6 +19,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import logger from '../../config/logger.js';
 
 // 🔒 IMPORT DE LA SOURCE UNIQUE DE VÉRITÉ
 import {
@@ -309,7 +310,7 @@ async function getTenantConfigById(tenantId) {
 
   const db = getSupabase();
   if (!db) {
-    console.warn('[NEXUS CORE] Supabase non disponible, utilisation fallback');
+    logger.warn('Supabase non disponible, utilisation fallback', { tag: 'NEXUS CORE' });
     return null;
   }
 
@@ -321,7 +322,7 @@ async function getTenantConfigById(tenantId) {
       .single();
 
     if (error || !tenant) {
-      console.warn(`[NEXUS CORE] Tenant non trouvé: ${tenantId}`);
+      logger.warn('Tenant non trouvé', { tag: 'NEXUS CORE', tenantId });
       return null;
     }
 
@@ -352,7 +353,7 @@ async function getTenantConfigById(tenantId) {
     setCache(cacheKey, config, 5 * 60 * 1000); // Cache 5 min
     return config;
   } catch (err) {
-    console.error(`[NEXUS CORE] Erreur chargement tenant ${tenantId}:`, err.message);
+    logger.error('Erreur chargement tenant', { tag: 'NEXUS CORE', tenantId, error: err.message });
     return null;
   }
 }
@@ -1146,7 +1147,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
             distanceKm = distanceResult.distance_km;
           }
         } catch (e) {
-          console.warn('[NEXUS CORE] Erreur calcul distance, utilisation forfait');
+          logger.warn('Erreur calcul distance, utilisation forfait', { tag: 'NEXUS CORE' });
         }
       }
 
@@ -1316,7 +1317,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         });
         console.log('[NEXUS CORE] ✅ SMS de confirmation envoyé');
       } catch (smsError) {
-        console.warn('[NEXUS CORE] ⚠️ Erreur envoi SMS:', smsError.message);
+        logger.warn('Erreur envoi SMS', { tag: 'NEXUS CORE', error: smsError.message });
         // Ne pas échouer la réservation pour un SMS
       }
     }
@@ -1510,7 +1511,7 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
         await sendCancellationSMS(clientPhone, clientNom, clientPrenom, rdv.service_nom, rdv.date, rdv.heure);
       }
     } catch (smsErr) {
-      console.warn('[NEXUS CORE] SMS annulation non envoyé:', smsErr.message);
+      logger.warn('SMS annulation non envoyé', { tag: 'NEXUS CORE', error: smsErr.message });
     }
 
     console.log(`[NEXUS CORE] ✅ RDV #${appointmentId} annulé`);
@@ -2190,7 +2191,7 @@ export async function processMessage(message, channel, context = {}) {
 
     console.log(`[NEXUS CORE] ✅ Réponse en ${duration}ms`);
     if (duration > 3000) {
-      console.warn(`[NEXUS CORE] ⚠️ Réponse lente (${duration}ms) sur ${channel}`);
+      logger.warn('Réponse lente', { tag: 'NEXUS CORE', duration, channel });
     }
 
     // 💰 OPTIMISATION 4: Mettre en cache si FAQ (pas de booking)

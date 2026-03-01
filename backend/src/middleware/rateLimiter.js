@@ -4,6 +4,7 @@
  */
 
 import rateLimit from 'express-rate-limit';
+import logger from '../config/logger.js';
 
 /**
  * Rate limiter pour les tentatives de connexion
@@ -26,7 +27,7 @@ export const loginLimiter = rateLimit({
     return `${ip}:${email}`;
   },
   handler: (req, res) => {
-    console.log(`[RATE LIMIT] Login bloqué: ${req.ip} - ${req.body?.email || 'unknown'}`);
+    logger.info('Login bloqué', { tag: 'RATE LIMIT', ip: req.ip, email: req.body?.email || 'unknown' });
     res.status(429).json({
       success: false,
       error: 'Trop de tentatives de connexion',
@@ -75,7 +76,7 @@ export const paymentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    console.log(`[RATE LIMIT] Payment bloqué: ${req.ip}`);
+    logger.info('Payment bloqué', { tag: 'RATE LIMIT', ip: req.ip });
     res.status(429).json({
       success: false,
       error: 'Trop de requêtes de paiement',

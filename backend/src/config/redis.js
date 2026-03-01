@@ -5,6 +5,7 @@
  */
 
 import { Redis } from 'ioredis';
+import logger from './logger.js';
 
 let redisConnection = null;
 let isRedisAvailable = false;
@@ -22,7 +23,7 @@ export async function initRedis() {
 
   // Si pas d'URL Redis configurée, skip silencieusement
   if (!process.env.REDIS_URL) {
-    console.log('[REDIS] ⚠️ REDIS_URL non configurée - Agent Autonome désactivé');
+    logger.info('REDIS_URL non configurée - Agent Autonome désactivé', { tag: 'REDIS' });
     return null;
   }
 
@@ -34,7 +35,7 @@ export async function initRedis() {
       lazyConnect: true,
       retryStrategy: (times) => {
         if (times > 2) {
-          console.log('[REDIS] ⚠️ Connexion échouée - Agent Autonome désactivé');
+          logger.info('Connexion échouée - Agent Autonome désactivé', { tag: 'REDIS' });
           return null; // Stop retrying
         }
         return Math.min(times * 200, 1000);
@@ -46,23 +47,23 @@ export async function initRedis() {
     await redisConnection.ping();
 
     isRedisAvailable = true;
-    console.log('[REDIS] ✅ Connecté');
+    logger.info('Connecté', { tag: 'REDIS' });
 
     // Event handlers
     redisConnection.on('ready', () => {
-      console.log('[REDIS] ✅ Prêt à recevoir des commandes');
+      logger.info('Prêt à recevoir des commandes', { tag: 'REDIS' });
     });
 
     redisConnection.on('error', (err) => {
       // Ne pas logger les erreurs de connexion si déjà marqué comme non disponible
       if (isRedisAvailable) {
-        console.error('[REDIS] ❌ Erreur:', err.message);
+        logger.error('Erreur', { tag: 'REDIS', error: err.message });
       }
     });
 
     redisConnection.on('close', () => {
       if (isRedisAvailable) {
-        console.log('[REDIS] ⚠️ Connexion fermée');
+        logger.info('Connexion fermée', { tag: 'REDIS' });
         isRedisAvailable = false;
       }
     });
@@ -70,8 +71,7 @@ export async function initRedis() {
     return redisConnection;
 
   } catch (error) {
-    console.log('[REDIS] ⚠️ Non disponible - Agent Autonome désactivé');
-    console.log('[REDIS] Le serveur fonctionne normalement sans Redis');
+    logger.info('Non disponible - Agent Autonome désactivé. Le serveur fonctionne normalement sans Redis', { tag: 'REDIS' });
     redisConnection = null;
     isRedisAvailable = false;
     return null;

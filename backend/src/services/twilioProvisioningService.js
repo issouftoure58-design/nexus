@@ -7,6 +7,7 @@
 
 import twilio from 'twilio';
 import { createClient } from '@supabase/supabase-js';
+import logger from '../config/logger.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -24,31 +25,68 @@ const twilioClient = twilio(
 // En prod: https://api.votre-domaine.com
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || 'http://localhost:5000';
 
-console.log(`[PROVISIONING] Webhook URL: ${WEBHOOK_BASE_URL}`);
+// Regulatory Bundle SID pour numéros FR (ARCEP compliance)
+// À créer sur: Twilio Console → Phone Numbers → Regulatory Compliance → Bundles
+const TWILIO_FR_BUNDLE_SID = process.env.TWILIO_FR_BUNDLE_SID || null;
+
+// Address SID pour numéros FR
+// À créer sur: Twilio Console → Phone Numbers → Addresses
+const TWILIO_FR_ADDRESS_SID = process.env.TWILIO_FR_ADDRESS_SID || null;
+
+logger.info(`Webhook URL: ${WEBHOOK_BASE_URL}`, { service: 'provisioning' });
+logger.info(`FR Bundle: ${TWILIO_FR_BUNDLE_SID ? 'Configured' : 'Not configured'}`, { service: 'provisioning' });
 
 /**
  * Recherche des numéros de téléphone disponibles
  * @param {string} country - Code pays (FR, US, etc.)
  * @param {number} limit - Nombre de résultats
+ * @param {string} type - Type de numéro (local, mobile, tollFree)
  */
-export async function searchAvailableNumbers(country = 'FR', limit = 5) {
+export async function searchAvailableNumbers(country = 'FR', limit = 5, type = 'local') {
   try {
-    const numbers = await twilioClient.availablePhoneNumbers(country)
-      .local
-      .list({ limit });
+    // Pour la France, vérifier que le bundle ARCEP est configuré
+    if (country === 'FR' && !TWILIO_FR_BUNDLE_SID) {
+      logger.warn('Bundle ARCEP not configured for FR numbers', { service: 'provisioning' });
+      return {
+        error: 'FR_BUNDLE_REQUIRED',
+        message: 'Les numéros français nécessitent un Regulatory Bundle ARCEP. Configurez TWILIO_FR_BUNDLE_SID.',
+        numbers: []
+      };
+    }
 
-    return numbers.map(n => ({
-      phoneNumber: n.phoneNumber,
-      locality: n.locality,
-      region: n.region,
-      capabilities: {
-        voice: n.capabilities.voice,
-        sms: n.capabilities.sms,
-        mms: n.capabilities.mms,
-      },
-    }));
+    let numbers;
+
+    // En France, on peut chercher des numéros mobiles (+33 6/7) ou fixes (+33 1-5, 9)
+    if (type === 'mobile') {
+      numbers = await twilioClient.availablePhoneNumbers(country)
+        .mobile
+        .list({ limit });
+    } else {
+      numbers = await twilioClient.availablePhoneNumbers(country)
+        .local
+        .list({ limit });
+    }
+
+    return {
+      country,
+      type,
+      bundleRequired: country === 'FR',
+      bundleConfigured: country === 'FR' ? !!TWILIO_FR_BUNDLE_SID : null,
+      numbers: numbers.map(n => ({
+        phoneNumber: n.phoneNumber,
+        friendlyName: n.friendlyName,
+        locality: n.locality,
+        region: n.region,
+        isoCountry: n.isoCountry,
+        capabilities: {
+          voice: n.capabilities.voice,
+          sms: n.capabilities.sms,
+          mms: n.capabilities.mms,
+        },
+      }))
+    };
   } catch (error) {
-    console.error('[PROVISIONING] Erreur recherche numéros:', error.message);
+    logger.error('Error searching phone numbers', { service: 'provisioning', error: error.message });
     throw error;
   }
 }
@@ -60,20 +98,43 @@ export async function searchAvailableNumbers(country = 'FR', limit = 5) {
  * @param {string} type - Type de service (voice, whatsapp, both)
  */
 export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice') {
-  console.log(`[PROVISIONING] Achat numéro ${phoneNumber} pour tenant ${tenantId}`);
+  logger.info(`Purchasing phone number ${phoneNumber} for tenant ${tenantId}`, { service: 'provisioning', tenantId, phoneNumber });
+
+  // Détecter si c'est un numéro français
+  const isFrenchNumber = phoneNumber.startsWith('+33');
+
+  // Pour les numéros FR, vérifier que le bundle ARCEP est configuré
+  if (isFrenchNumber && !TWILIO_FR_BUNDLE_SID) {
+    throw new Error(
+      'Les numéros français nécessitent un Regulatory Bundle ARCEP. ' +
+      'Configurez TWILIO_FR_BUNDLE_SID et TWILIO_FR_ADDRESS_SID dans votre .env'
+    );
+  }
 
   try {
-    // 1. Acheter le numéro via Twilio
-    const purchasedNumber = await twilioClient.incomingPhoneNumbers.create({
+    // 1. Préparer les options d'achat
+    const purchaseOptions = {
       phoneNumber: phoneNumber,
       friendlyName: `NEXUS-${tenantId}`,
       voiceUrl: `${WEBHOOK_BASE_URL}/api/voice/incoming?tenant=${tenantId}`,
       voiceMethod: 'POST',
       smsUrl: `${WEBHOOK_BASE_URL}/api/sms/incoming?tenant=${tenantId}`,
       smsMethod: 'POST',
-    });
+    };
 
-    console.log(`[PROVISIONING] ✅ Numéro acheté: ${purchasedNumber.sid}`);
+    // Pour les numéros FR, ajouter le bundle et l'adresse ARCEP
+    if (isFrenchNumber) {
+      purchaseOptions.bundleSid = TWILIO_FR_BUNDLE_SID;
+      if (TWILIO_FR_ADDRESS_SID) {
+        purchaseOptions.addressSid = TWILIO_FR_ADDRESS_SID;
+      }
+      logger.info(`FR number - ARCEP Bundle: ${TWILIO_FR_BUNDLE_SID}`, { service: 'provisioning', bundleSid: TWILIO_FR_BUNDLE_SID });
+    }
+
+    // 2. Acheter le numéro via Twilio
+    const purchasedNumber = await twilioClient.incomingPhoneNumbers.create(purchaseOptions);
+
+    logger.info(`Phone number purchased: ${purchasedNumber.sid}`, { service: 'provisioning', sid: purchasedNumber.sid });
 
     // 2. Enregistrer dans la base de données
     const { error: dbError } = await supabase
@@ -88,7 +149,7 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
       });
 
     if (dbError) {
-      console.error('[PROVISIONING] Erreur DB:', dbError);
+      logger.error('Database error while saving phone number', { service: 'provisioning', error: dbError });
       // Le numéro est acheté, on log l'erreur mais on continue
     }
 
@@ -124,12 +185,19 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
 /**
  * Provisionne automatiquement un numéro pour un tenant
  * Cherche le meilleur numéro disponible et l'achète
- * Note: FR nécessite une adresse vérifiée, US non
+ *
+ * Pour FR: Nécessite TWILIO_FR_BUNDLE_SID configuré (ARCEP)
+ * Pour US: Pas de restriction
  */
-export async function autoProvisionNumber(tenantId, country = 'US') {
-  // Force US pour éviter les problèmes d'adresse FR (ARCEP)
-  // TODO: Permettre FR quand l'adresse est configurée
-  const actualCountry = country === 'FR' ? 'US' : country;
+export async function autoProvisionNumber(tenantId, country = 'FR') {
+  // Pour FR, vérifier que le bundle ARCEP est configuré
+  let actualCountry = country;
+
+  if (country === 'FR' && !TWILIO_FR_BUNDLE_SID) {
+    console.warn(`[PROVISIONING] ⚠️ Bundle ARCEP non configuré, fallback vers US`);
+    actualCountry = 'US';
+  }
+
   console.log(`[PROVISIONING] Auto-provisioning pour ${tenantId} (${actualCountry})`);
 
   // 1. Vérifier si le tenant a déjà un numéro
@@ -149,14 +217,21 @@ export async function autoProvisionNumber(tenantId, country = 'US') {
   }
 
   // 2. Chercher un numéro disponible
-  const availableNumbers = await searchAvailableNumbers(actualCountry, 1);
+  const searchResult = await searchAvailableNumbers(actualCountry, 1);
 
-  if (availableNumbers.length === 0) {
-    throw new Error(`Aucun numéro disponible pour ${country}`);
+  // Vérifier si erreur (ex: bundle non configuré)
+  if (searchResult.error) {
+    throw new Error(searchResult.message);
+  }
+
+  if (!searchResult.numbers || searchResult.numbers.length === 0) {
+    throw new Error(`Aucun numéro disponible pour ${actualCountry}`);
   }
 
   // 3. Acheter le premier numéro disponible
-  const selectedNumber = availableNumbers[0];
+  const selectedNumber = searchResult.numbers[0];
+  console.log(`[PROVISIONING] Numéro sélectionné: ${selectedNumber.phoneNumber} (${selectedNumber.locality || selectedNumber.region})`);
+
   return await purchasePhoneNumber(tenantId, selectedNumber.phoneNumber, 'voice');
 }
 
@@ -374,6 +449,150 @@ export async function registerExistingNumber(tenantId, phoneNumber, type = 'what
   }
 }
 
+/**
+ * Vérifie le status de conformité ARCEP pour les numéros français
+ * Retourne les infos sur le bundle et l'adresse configurés
+ */
+export async function getARCEPComplianceStatus() {
+  const status = {
+    configured: false,
+    bundleSid: TWILIO_FR_BUNDLE_SID,
+    addressSid: TWILIO_FR_ADDRESS_SID,
+    bundle: null,
+    address: null,
+    canPurchaseFR: false,
+    requirements: []
+  };
+
+  if (!TWILIO_FR_BUNDLE_SID) {
+    status.requirements.push({
+      type: 'bundle',
+      message: 'Créer un Regulatory Bundle sur Twilio Console',
+      link: 'https://console.twilio.com/us1/develop/phone-numbers/regulatory-compliance/bundles'
+    });
+  }
+
+  if (!TWILIO_FR_ADDRESS_SID) {
+    status.requirements.push({
+      type: 'address',
+      message: 'Créer une adresse vérifiée sur Twilio Console',
+      link: 'https://console.twilio.com/us1/develop/phone-numbers/manage/addresses'
+    });
+  }
+
+  // Si bundle configuré, récupérer son statut
+  if (TWILIO_FR_BUNDLE_SID) {
+    try {
+      const bundle = await twilioClient.numbers.v2
+        .regulatoryCompliance
+        .bundles(TWILIO_FR_BUNDLE_SID)
+        .fetch();
+
+      status.bundle = {
+        sid: bundle.sid,
+        status: bundle.status, // draft, pending-review, in-review, twilio-rejected, twilio-approved
+        friendlyName: bundle.friendlyName,
+        regulationType: bundle.regulationType,
+        validUntil: bundle.validUntil,
+        dateCreated: bundle.dateCreated
+      };
+
+      // Le bundle doit être approuvé pour acheter des numéros
+      status.canPurchaseFR = bundle.status === 'twilio-approved';
+
+      if (bundle.status !== 'twilio-approved') {
+        status.requirements.push({
+          type: 'bundle_approval',
+          message: `Bundle en attente: ${bundle.status}. Statut requis: twilio-approved`,
+          currentStatus: bundle.status
+        });
+      }
+    } catch (error) {
+      console.error('[PROVISIONING] Erreur fetch bundle:', error.message);
+      status.requirements.push({
+        type: 'bundle_error',
+        message: `Erreur bundle: ${error.message}`
+      });
+    }
+  }
+
+  // Si adresse configurée, récupérer son statut
+  if (TWILIO_FR_ADDRESS_SID) {
+    try {
+      const address = await twilioClient.addresses(TWILIO_FR_ADDRESS_SID).fetch();
+
+      status.address = {
+        sid: address.sid,
+        friendlyName: address.friendlyName,
+        customerName: address.customerName,
+        street: address.street,
+        city: address.city,
+        postalCode: address.postalCode,
+        isoCountry: address.isoCountry,
+        validated: address.validated,
+        verified: address.verified
+      };
+    } catch (error) {
+      console.error('[PROVISIONING] Erreur fetch address:', error.message);
+    }
+  }
+
+  status.configured = status.canPurchaseFR;
+
+  return status;
+}
+
+/**
+ * Liste les Regulatory Bundles disponibles sur le compte Twilio
+ * Utile pour trouver le SID du bundle à configurer
+ */
+export async function listRegulatoryBundles() {
+  try {
+    const bundles = await twilioClient.numbers.v2
+      .regulatoryCompliance
+      .bundles
+      .list({ limit: 20 });
+
+    return bundles.map(b => ({
+      sid: b.sid,
+      friendlyName: b.friendlyName,
+      status: b.status,
+      regulationType: b.regulationType,
+      isoCountry: b.isoCountry,
+      dateCreated: b.dateCreated,
+      validUntil: b.validUntil
+    }));
+  } catch (error) {
+    console.error('[PROVISIONING] Erreur list bundles:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Liste les adresses disponibles sur le compte Twilio
+ * Utile pour trouver le SID de l'adresse à configurer
+ */
+export async function listAddresses() {
+  try {
+    const addresses = await twilioClient.addresses.list({ limit: 20 });
+
+    return addresses.map(a => ({
+      sid: a.sid,
+      friendlyName: a.friendlyName,
+      customerName: a.customerName,
+      street: a.street,
+      city: a.city,
+      postalCode: a.postalCode,
+      isoCountry: a.isoCountry,
+      validated: a.validated,
+      verified: a.verified
+    }));
+  } catch (error) {
+    console.error('[PROVISIONING] Erreur list addresses:', error.message);
+    throw error;
+  }
+}
+
 export default {
   searchAvailableNumbers,
   purchasePhoneNumber,
@@ -384,4 +603,7 @@ export default {
   listActiveNumbers,
   getTwilioBalance,
   registerExistingNumber,
+  getARCEPComplianceStatus,
+  listRegulatoryBundles,
+  listAddresses,
 };

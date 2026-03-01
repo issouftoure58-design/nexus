@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-02-27
-**Version:** 2.2.0 (Pricing Strategy + Email Notifications + Stripe Config)
+**Derniere mise a jour:** 2026-03-01
+**Version:** 3.0.0 (Stripe Integration + AI Routing + RGPD + Onboarding + Voice Recordings)
 
 ---
 
@@ -25,10 +25,11 @@
 12. [Securite](#12-securite)
 13. [Performance](#13-performance)
 14. [Deploiement](#14-deploiement)
-15. [Travaux en cours](#15-travaux-en-cours)
-16. [Historique des modifications](#16-historique-des-modifications)
-17. [Problemes connus](#17-problemes-connus)
-18. [Regles de developpement](#18-regles-de-developpement)
+15. [Nouvelles fonctionnalites (v3.0)](#15-nouvelles-fonctionnalites-v30)
+16. [Travaux en cours](#16-travaux-en-cours)
+17. [Historique des modifications](#17-historique-des-modifications)
+18. [Problemes connus](#18-problemes-connus)
+19. [Regles de developpement](#19-regles-de-developpement)
 
 ---
 
@@ -449,44 +450,46 @@ Couts: ~$30 par 1M caracteres
 
 ## 8. STRATEGIE TARIFAIRE
 
-**Statut:** Validee | **Date:** 2026-02-27
+**Statut:** Validee | **Date:** 2026-02-28 (mise a jour migration 041)
 
 ### 8.1 Plans Fixes Mensuels
 
-| Plan | Prix/mois | Cible | Marge |
-|------|-----------|-------|-------|
-| **Starter** | 49€ | Independants, TPE | ~77% |
-| **Pro** | 129€ | PME, equipes 2-10 | ~79% |
-| **Business** | 299€ | ETI, multi-sites | ~81% |
+| Plan | Prix/mois | Cible |
+|------|-----------|-------|
+| **Starter** | 99€ | Independants, TPE |
+| **Pro** | 249€ | PME, equipes 2-10 |
+| **Business** | 499€ | ETI, multi-sites |
 
 ### 8.2 Engagement Annuel (-20%)
 
 | Plan | Prix/mois | Prix/an |
 |------|-----------|---------|
-| Starter | 39€ | 468€ |
-| Pro | 103€ | 1 236€ |
-| Business | 239€ | 2 868€ |
+| Starter | ~79€ | 950€ |
+| Pro | ~199€ | 2 390€ |
+| Business | ~399€ | 4 790€ |
 
-### 8.3 Plan Starter (49€/mois)
+### 8.3 Plan Starter (99€/mois)
 
 **Cible:** Salon solo, petit restaurant, service a domicile debutant
 
 | Module | Inclus | Limites |
 |--------|--------|---------|
-| CRM | ✅ | 500 clients max |
+| CRM | ✅ | 1 000 clients max |
 | Reservations | ✅ | Illimite |
 | Agenda | ✅ | 1 utilisateur |
-| Facturation | ✅ | 50 factures/mois |
-| SMS | ✅ | 100 SMS/mois inclus |
+| Facturation | ✅ | Illimite |
+| SMS | ✅ | 200 SMS/mois inclus |
 | Email | ✅ | Illimite |
-| Marketing | ❌ | - |
-| IA Assistant | ✅ | 100 requetes/mois |
+| Site Vitrine | ✅ | - |
+| IA Assistant Web | ✅ | Inclus |
 | IA Voix | ❌ | - |
+| WhatsApp | ❌ | - |
+| Marketing | ❌ | - |
 | Rapports | ✅ | Basiques |
 | API | ❌ | - |
 | Support | Email 48h | - |
 
-### 8.4 Plan Pro (129€/mois)
+### 8.4 Plan Pro (249€/mois)
 
 **Cible:** Salon avec equipe, restaurant etabli, entreprise de services
 
@@ -498,29 +501,33 @@ Couts: ~$30 par 1M caracteres
 | Facturation | ✅ | Illimite |
 | SMS | ✅ | 500 SMS/mois inclus |
 | Email | ✅ | Illimite |
-| Marketing | ✅ | Pipeline + Campagnes |
-| IA Assistant | ✅ | 500 requetes/mois |
+| Site Vitrine | ✅ | - |
+| IA Assistant Web | ✅ | Inclus |
 | IA Voix | ✅ | 60 min/mois inclus |
-| Rapports | ✅ | Avances |
+| WhatsApp | ✅ | Inclus |
+| Telephone IA | ✅ | Inclus |
+| Comptabilite | ✅ | - |
+| CRM Avance | ✅ | Pipeline + Campagnes |
+| Marketing | ✅ | Pipeline + Campagnes |
+| Stock | ✅ | - |
+| Analytics | ✅ | Avances |
+| Devis | ✅ | - |
 | API | ✅ | 10 000 appels/mois |
 | Support | Chat 24h | - |
 
-### 8.5 Plan Business (299€/mois)
+### 8.5 Plan Business (499€/mois)
 
 **Cible:** Chaines, franchises, multi-sites
 
 | Module | Inclus | Limites |
 |--------|--------|---------|
-| CRM | ✅ | Illimite |
-| Reservations | ✅ | Illimite |
-| Agenda | ✅ | 20 utilisateurs |
-| Facturation | ✅ | Illimite |
+| Tout Pro | ✅ | Illimite |
+| Utilisateurs | ✅ | 20 utilisateurs |
 | SMS | ✅ | 2 000 SMS/mois inclus |
-| Email | ✅ | Illimite |
-| Marketing | ✅ | Full suite |
-| IA Assistant | ✅ | 2 000 requetes/mois |
 | IA Voix | ✅ | 300 min/mois inclus |
-| Rapports | ✅ | Business Intelligence |
+| RH | ✅ | Complet |
+| SEO | ✅ | Dashboard + Articles |
+| Sentinel | ✅ | Business Intelligence |
 | API | ✅ | Illimite |
 | Multi-sites | ✅ | Jusqu'a 10 sites |
 | Marque blanche | ✅ | Logo + couleurs |
@@ -531,32 +538,32 @@ Couts: ~$30 par 1M caracteres
 **Packs SMS:**
 | Pack | Prix | Prix/SMS |
 |------|------|----------|
-| 100 SMS | 8€ | 0.08€ |
-| 500 SMS | 35€ | 0.07€ |
-| 1 000 SMS | 60€ | 0.06€ |
-| 5 000 SMS | 250€ | 0.05€ |
+| 100 SMS | 15€ | 0.15€ |
+| 500 SMS | 65€ | 0.13€ |
+| 1 000 SMS | 110€ | 0.11€ |
+| 5 000 SMS | 450€ | 0.09€ |
 
 **Packs IA Voix:**
 | Pack | Prix | Prix/min |
 |------|------|----------|
-| 30 min | 6€ | 0.20€ |
-| 60 min | 10€ | 0.17€ |
-| 120 min | 18€ | 0.15€ |
-| 300 min | 39€ | 0.13€ |
+| 30 min | 15€ | 0.50€ |
+| 60 min | 25€ | 0.42€ |
+| 120 min | 45€ | 0.38€ |
+| 300 min | 99€ | 0.33€ |
 
 **Modules Specialises:**
 | Module | Prix/mois |
 |--------|-----------|
-| Restaurant Pro | +29€ |
-| Hotel Pro | +49€ |
-| Domicile Pro | +19€ |
+| Restaurant Pro | +39€ |
+| Hotel Pro | +69€ |
+| Domicile Pro | +29€ |
 
 **Utilisateurs Supplementaires:**
 | Plan | Inclus | Extra |
 |------|--------|-------|
-| Starter | 1 | +15€/user |
-| Pro | 5 | +12€/user |
-| Business | 20 | +10€/user |
+| Starter | 1 | +19€/user |
+| Pro | 5 | +15€/user |
+| Business | 20 | +12€/user |
 
 ### 8.7 Periode d'Essai
 
@@ -565,8 +572,18 @@ Couts: ~$30 par 1M caracteres
 | Duree | 14 jours |
 | Plan essai | Pro (complet) |
 | Carte bancaire | Non requise |
-| Alertes | J-7, J-3, J-1, J0 |
+| Alertes trial | J-7, J-3, J-1, J0 |
+| Nurturing | J+3, J+7, J+10 |
 | Apres expiration | Lecture seule 30j |
+
+### 8.8 Quotas par Plan (table plan_quotas)
+
+| Quota | Starter | Pro | Business |
+|-------|---------|-----|----------|
+| Utilisateurs | 1 | 5 | 20 |
+| Clients max | 1 000 | 5 000 | Illimite |
+| SMS/mois | 200 | 500 | 2 000 |
+| Voix IA/mois | 0 min | 60 min | 300 min |
 
 ### 8.8 Rate Limits
 
@@ -586,50 +603,52 @@ Violations:
 
 ## 9. CONFIGURATION STRIPE
 
-### 9.1 Produits a Creer
+### 9.1 Produits Stripe (migration 039 + 041)
+
+**Statut:** ✅ Implementes | **Source de verite:** migration 041_update_pricing.sql
 
 **Abonnements Mensuels:**
 ```
-nexus_starter_monthly    → 49€/mois   → EUR 4900
-nexus_pro_monthly        → 129€/mois  → EUR 12900
-nexus_business_monthly   → 299€/mois  → EUR 29900
+nexus_starter_monthly    → 99€/mois   → EUR 9900
+nexus_pro_monthly        → 249€/mois  → EUR 24900
+nexus_business_monthly   → 499€/mois  → EUR 49900
 ```
 
-**Abonnements Annuels:**
+**Abonnements Annuels (-20%):**
 ```
-nexus_starter_yearly     → 468€/an    → EUR 46800
-nexus_pro_yearly         → 1236€/an   → EUR 123600
-nexus_business_yearly    → 2868€/an   → EUR 286800
+nexus_starter_yearly     → 950€/an    → EUR 95000
+nexus_pro_yearly         → 2390€/an   → EUR 239000
+nexus_business_yearly    → 4790€/an   → EUR 479000
 ```
 
 **Modules Specialises (recurring):**
 ```
-nexus_module_restaurant  → 29€/mois   → EUR 2900
-nexus_module_hotel       → 49€/mois   → EUR 4900
-nexus_module_domicile    → 19€/mois   → EUR 1900
+nexus_module_restaurant  → 39€/mois   → EUR 3900
+nexus_module_hotel       → 69€/mois   → EUR 6900
+nexus_module_domicile    → 29€/mois   → EUR 2900
 ```
 
 **Packs SMS (one-time):**
 ```
-nexus_sms_100            → 8€         → EUR 800
-nexus_sms_500            → 35€        → EUR 3500
-nexus_sms_1000           → 60€        → EUR 6000
-nexus_sms_5000           → 250€       → EUR 25000
+nexus_sms_100            → 15€        → EUR 1500
+nexus_sms_500            → 65€        → EUR 6500
+nexus_sms_1000           → 110€       → EUR 11000
+nexus_sms_5000           → 450€       → EUR 45000
 ```
 
 **Packs IA Voix (one-time):**
 ```
-nexus_voice_30           → 6€         → EUR 600
-nexus_voice_60           → 10€        → EUR 1000
-nexus_voice_120          → 18€        → EUR 1800
-nexus_voice_300          → 39€        → EUR 3900
+nexus_voice_30           → 15€        → EUR 1500
+nexus_voice_60           → 25€        → EUR 2500
+nexus_voice_120          → 45€        → EUR 4500
+nexus_voice_300          → 99€        → EUR 9900
 ```
 
 **Utilisateurs Extras (metered):**
 ```
-nexus_user_starter       → 15€/user/mois
-nexus_user_pro           → 12€/user/mois
-nexus_user_business      → 10€/user/mois
+nexus_user_starter       → 19€/user/mois
+nexus_user_pro           → 15€/user/mois
+nexus_user_business      → 12€/user/mois
 ```
 
 ### 9.2 Table stripe_products
@@ -655,38 +674,29 @@ CREATE INDEX idx_stripe_products_code ON stripe_products(product_code);
 CREATE INDEX idx_stripe_products_type ON stripe_products(type);
 ```
 
-### 9.3 Migration Stripe Products
+### 9.3 Migrations Stripe Products
+
+**Migration 039:** Creation initiale de la table `stripe_products` + INSERT des produits
+**Migration 041:** Mise a jour des prix (49/129/299 → 99/249/499) + creation table `plan_quotas`
 
 ```sql
--- A executer apres creation des produits dans Stripe Dashboard
+-- Table plan_quotas (creee par migration 041)
+CREATE TABLE IF NOT EXISTS plan_quotas (
+  id SERIAL PRIMARY KEY,
+  plan_id VARCHAR(50) NOT NULL UNIQUE,
+  max_users INTEGER NOT NULL DEFAULT 1,
+  max_clients INTEGER NOT NULL DEFAULT 1000,
+  sms_monthly INTEGER NOT NULL DEFAULT 200,
+  voice_minutes_monthly INTEGER NOT NULL DEFAULT 0,
+  features JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 
-INSERT INTO stripe_products (product_code, name, type, billing_type, amount, interval) VALUES
--- Plans mensuels
-('nexus_starter_monthly', 'NEXUS Starter Mensuel', 'plan', 'recurring', 4900, 'month'),
-('nexus_pro_monthly', 'NEXUS Pro Mensuel', 'plan', 'recurring', 12900, 'month'),
-('nexus_business_monthly', 'NEXUS Business Mensuel', 'plan', 'recurring', 29900, 'month'),
-
--- Plans annuels
-('nexus_starter_yearly', 'NEXUS Starter Annuel', 'plan', 'recurring', 46800, 'year'),
-('nexus_pro_yearly', 'NEXUS Pro Annuel', 'plan', 'recurring', 123600, 'year'),
-('nexus_business_yearly', 'NEXUS Business Annuel', 'plan', 'recurring', 286800, 'year'),
-
--- Modules
-('nexus_module_restaurant', 'Module Restaurant Pro', 'module', 'recurring', 2900, 'month'),
-('nexus_module_hotel', 'Module Hotel Pro', 'module', 'recurring', 4900, 'month'),
-('nexus_module_domicile', 'Module Domicile Pro', 'module', 'recurring', 1900, 'month'),
-
--- Packs SMS
-('nexus_sms_100', 'Pack 100 SMS', 'pack', 'one_time', 800, NULL),
-('nexus_sms_500', 'Pack 500 SMS', 'pack', 'one_time', 3500, NULL),
-('nexus_sms_1000', 'Pack 1000 SMS', 'pack', 'one_time', 6000, NULL),
-('nexus_sms_5000', 'Pack 5000 SMS', 'pack', 'one_time', 25000, NULL),
-
--- Packs Voix
-('nexus_voice_30', 'Pack 30 min Voix IA', 'pack', 'one_time', 600, NULL),
-('nexus_voice_60', 'Pack 60 min Voix IA', 'pack', 'one_time', 1000, NULL),
-('nexus_voice_120', 'Pack 120 min Voix IA', 'pack', 'one_time', 1800, NULL),
-('nexus_voice_300', 'Pack 300 min Voix IA', 'pack', 'one_time', 3900, NULL);
+-- Features par plan (JSONB)
+-- starter: dashboard, clients, reservations, facturation, site_vitrine, agent_ia_web
+-- pro: tout starter + whatsapp, telephone, comptabilite, crm_avance, marketing, pipeline, stock, analytics, devis
+-- business: tout pro + rh, seo, api, sentinel, whitelabel
 ```
 
 ### 9.4 Webhooks Stripe
@@ -877,42 +887,42 @@ Priorite 3: SMS (0.04€/msg)
 
 ### 11.6 Couts Estimes par Plan
 
-**Starter 49€ (apres optimisations):**
+**Starter 99€ (apres optimisations):**
 ```
 Infrastructure: ~3€
-SMS cascade (100): ~2€ (vs 4€ direct)
-IA routing (100 req): ~0.10€ (vs 0.20€)
+SMS cascade (200): ~3€
+IA routing (inclus): ~0.15€
 Support: 2€
-Stripe (2.9%): 1.42€
+Stripe (2.9%): 2.87€
 ──────────────
-Total: ~8.50€
-Marge: 83%
+Total: ~11€
+Marge: ~89%
 ```
 
-**Pro 129€ (apres optimisations):**
+**Pro 249€ (apres optimisations):**
 ```
 Infrastructure: ~8€
-SMS cascade (500): ~5€ (vs 12€)
-IA routing (500 req): ~0.25€ (vs 0.50€)
+SMS cascade (500): ~5€
+IA routing (inclus): ~0.30€
 IA Voix (60 min): 6€
 Support: 4€
-Stripe (2.9%): 3.74€
+Stripe (2.9%): 7.22€
 ──────────────
-Total: ~27€
-Marge: 79%
+Total: ~31€
+Marge: ~88%
 ```
 
-**Business 299€ (apres optimisations):**
+**Business 499€ (apres optimisations):**
 ```
 Infrastructure: ~15€
-SMS cascade (2000): ~14€ (vs 36€)
-IA routing (2000 req): ~0.50€ (vs 1€)
+SMS cascade (2000): ~14€
+IA routing (inclus): ~0.60€
 IA Voix (300 min): 30€
 Support: 10€
-Stripe (2.9%): 8.67€
+Stripe (2.9%): 14.47€
 ──────────────
-Total: ~57€
-Marge: 81%
+Total: ~84€
+Marge: ~83%
 ```
 
 ---
@@ -966,7 +976,7 @@ npm run shield        # Health check complet
 
 ## 13. PERFORMANCE
 
-### Score actuel: 8.5/10 (ameliore le 2026-02-27)
+### Score actuel: 9.0/10 (ameliore le 2026-02-28)
 
 ### Forces
 
@@ -1062,136 +1072,176 @@ NODE_ENV=production
 
 ---
 
-## 15. TRAVAUX EN COURS
+## 15. NOUVELLES FONCTIONNALITES (v3.0)
 
-### 15.1 Etat Global
+### 15.1 Etat Global (mis a jour 2026-03-01)
 
 | Composant | Statut | Notes |
 |-----------|--------|-------|
-| Pricing Strategy | ✅ Valide | 3 plans: 49€/129€/299€ |
+| Pricing Strategy | ✅ Valide | 3 plans: 99€/249€/499€ (migration 041) |
 | Email Notifications | ✅ Fait | 7 templates, cron J-7/J-3/J-1/J0 |
-| UI Restaurant | ✅ Base | Tables, couverts, zones |
-| UI Hotel | ✅ Base | Chambres, sejours, extras |
-| Stripe Config | 🔶 A faire | Produits a creer dans Dashboard |
-| Cost Optimizations | 🔶 A faire | Routing IA, cascade notifs |
+| Trial Nurturing | ✅ Fait | Emails J+3, J+7, J+10 |
+| UI Restaurant | ✅ Base | Tables, couverts, zones, Menu, Plan de salle |
+| UI Hotel | ✅ Base | Chambres, sejours, extras, Calendrier, Tarifs saisonniers |
+| Stripe Integration | ✅ Fait | Checkout, webhooks, billing, portal |
+| AI Routing | ✅ Fait | aiRoutingService.js (Haiku/Sonnet) |
+| Cascade Notifications | ✅ Fait | notificationCascadeService.js + migration 040 |
+| RGPD | ✅ Fait | Export, suppression, anonymisation (migration 044) |
+| Onboarding | ✅ Fait | Wizard multi-etapes (migration 045) |
+| Voice Recordings | ✅ Fait | Stockage Twilio (migration 042) |
+| IA Conversations | ✅ Fait | Persistance historique (migration 043) |
+| Reservation Conflicts | ✅ Fait | Detection chevauchements |
+| Email Log | ✅ Fait | Anti-doublon quotidien (migration 046) |
+| Tenant IA Config | ✅ Fait | Config par canal (migration 042) |
+| Public Payment | ✅ Beta | Widget paiement sans auth |
+| CI/CD | ✅ Fait | 4 workflows GitHub Actions |
 
-### 15.2 ROADMAP STRIPE
+### 15.2 Stripe Integration — COMPLETE ✅
 
-**Phase 1: Preparation (prerequis)**
+**Backend:**
+- `stripeBillingService.js` (980 lignes) — Gestion complete abonnements
+- `billing.js` (398 lignes) — Routes API billing
+- `stripeWebhook.js` (72 lignes) — Handler webhooks
+- `payment.js` (1075 lignes) — Stripe + PayPal
+- `publicPayment.js` — Widget paiement public (sans auth admin)
+- Script `npm run stripe:sync` — Synchronisation produits
+
+**Frontend:**
+- `Subscription.tsx` — Page plans, upgrade/downgrade, portail Stripe
+- `Pricing.tsx` (nexus-app) — Page pricing publique
+
+**Migrations:**
+- `039_stripe_products.sql` — Table et produits
+- `041_update_pricing.sql` — Mise a jour prix + table plan_quotas
+
+### 15.3 AI Routing — COMPLETE ✅
+
+**Fichier:** `aiRoutingService.js` (465 lignes)
+
 ```
-□ Creer compte Stripe production
-□ Configurer webhooks endpoint
-□ Ajouter STRIPE_WEBHOOK_SECRET en prod
-```
-
-**Phase 2: Produits Stripe Dashboard**
-```
-□ Creer produit "NEXUS Starter"
-   └── Prix mensuel: 49€
-   └── Prix annuel: 468€
-
-□ Creer produit "NEXUS Pro"
-   └── Prix mensuel: 129€
-   └── Prix annuel: 1236€
-
-□ Creer produit "NEXUS Business"
-   └── Prix mensuel: 299€
-   └── Prix annuel: 2868€
-
-□ Creer produits modules
-   └── Restaurant Pro: 29€/mois
-   └── Hotel Pro: 49€/mois
-   └── Domicile Pro: 19€/mois
-
-□ Creer packs SMS (one-time)
-   └── 100 SMS: 8€
-   └── 500 SMS: 35€
-   └── 1000 SMS: 60€
-   └── 5000 SMS: 250€
-
-□ Creer packs Voix IA (one-time)
-   └── 30 min: 6€
-   └── 60 min: 10€
-   └── 120 min: 18€
-   └── 300 min: 39€
+Requete → Cache Redis? → HIT → Reponse (0€)
+                       → MISS → Haiku suffit? → OUI → Haiku (0.0003€)
+                                              → NON → Sonnet (0.002€)
 ```
 
-**Phase 3: Migration BDD**
-```
-□ Creer migration 039_stripe_products.sql
-□ Executer migration
-□ Remplir stripe_product_id et stripe_price_id
-```
+### 15.4 Cascade Notifications — COMPLETE ✅
 
-**Phase 4: Integration Backend**
-```
-□ Mettre a jour stripeBillingService.js
-□ Ajouter route /api/admin/subscription/plans
-□ Ajouter route /api/admin/subscription/addons
-□ Tester webhooks en sandbox
-```
+**Fichier:** `notificationCascadeService.js` (492 lignes)
+**Migration:** `040_notification_cascade.sql`
 
-**Phase 5: Integration Frontend**
-```
-□ Page de pricing publique
-□ Page upgrade/downgrade admin
-□ Gestion packs SMS/Voix
-```
+- Table `notification_deliveries` avec tracking statut
+- Vue `notification_cascade_stats` pour analytics
+- Fonction SQL `get_best_channel_for_client()` (historique 90j)
 
-### 15.3 ROADMAP OPTIMISATIONS COUTS
+### 15.5 RGPD — IMPLEMENTEE ✅
 
-**Phase 1: Routing IA Intelligent**
-```
-□ Creer aiRoutingService.js
-   └── detectQueryComplexity()
-   └── routeToHaiku() vs routeToSonnet()
-   └── cacheResponse()
+**Route:** `rgpd.js` — 4 endpoints derriere authenticateAdmin
 
-□ Integrer cache Redis
-   └── Cle: hash(prompt + tenantId)
-   └── TTL: 1 heure
-   └── Hit rate cible: 40%
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/rgpd/export` | Export donnees tenant (Article 20) |
+| `POST /api/rgpd/delete-request` | Demande suppression |
+| `GET /api/rgpd/delete-status` | Statut demande |
+| `POST /api/rgpd/anonymize-client` | Anonymiser un client |
 
-□ Mettre a jour adminChatService.js
-□ Mettre a jour halimahProService.js
-```
+**Migration:** `044_rgpd_requests.sql` — Table rgpd_requests + colonnes is_anonymized/anonymized_at sur clients
 
-**Phase 2: Cascade Notifications**
-```
-□ Creer notificationCascadeService.js
-   └── sendWithCascade(tenantId, clientId, message, priority)
-   └── Logique: Email → attendre 2h → WhatsApp → SMS
+### 15.6 Onboarding Wizard — IMPLEMENTE ✅
 
-□ Table notification_delivery_status
-   └── channel, sent_at, delivered_at, read_at
+**Route:** `onboarding.js` — 3 endpoints
 
-□ Integrer dans rappels RDV
-□ Integrer dans confirmations
-```
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/admin/onboarding/status` | Etat onboarding |
+| `POST /api/admin/onboarding/save` | Sauvegarder etape |
+| `POST /api/admin/onboarding/complete` | Finaliser |
 
-**Phase 3: Limites IA Voix**
-```
-□ Ajouter hard limit 5 min par appel
-□ Detection fin de conversation
-□ Metriques duree moyenne
-```
+**Migration:** `045_onboarding_fields.sql` — 9 colonnes ajoutees a tenants:
+`onboarding_completed`, `couleur_primaire`, `logo_url`, `description`, `adresse`, `site_web`, `instagram`, `facebook`
 
-### 15.4 PRIORITES RESTANTES
+**Frontend:** `Onboarding.tsx` (33KB)
 
-| Priorite | Tache | Impact |
-|----------|-------|--------|
-| **P0** | Config Stripe prod | Monetisation |
-| **P1** | Routing IA | -70% couts IA |
-| **P1** | Cascade notifications | -44% couts SMS |
-| **P2** | Tests E2E restaurant/hotel | Qualite |
-| **P2** | UI avancee resto/hotel | Features |
-| **P3** | Redis obligatoire prod | Performance |
+### 15.7 IA Conversations — IMPLEMENTEE ✅
+
+**Migration:** `043_ia_conversations.sql` — 3 tables:
+
+| Table | Description |
+|-------|-------------|
+| `ia_conversations` | Sessions (channel, status, phone, external_id) |
+| `ia_messages` | Messages (role, content_type, media_url, tokens, latency) |
+| `ia_intents` | Intentions detectees (confidence, entities, action) |
+
+**Vue:** `ia_conversation_stats` — Stats quotidiennes par tenant/canal
+
+### 15.8 Voice Recordings — IMPLEMENTEE ✅
+
+**Service:** `voiceRecordingService.js`
+**Migration:** `042_voice_recordings.sql`
+
+Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, transcription, storage_path
+
+### 15.9 Reservation Conflicts — IMPLEMENTE ✅
+
+**Service:** `reservationConflictService.js`
+**Fonction:** `checkAvailability({ tenantId, dateRdv, heureDebut, heureFin, membreId })`
+**Retour:** `{ available: boolean, conflicts: Array, message: string }`
+
+### 15.10 CI/CD Workflows — ACTIFS ✅
+
+| Workflow | Declencheur | Description |
+|----------|-------------|-------------|
+| `ci.yml` | push main/develop, PR | Lint tenant + syntax, tests (Node 18/20) |
+| `deploy-staging.yml` | push develop | Deploy staging |
+| `deploy-production.yml` | push main (gate) | Deploy prod avec confirmation |
+| `security.yml` | - | SAST, vulnerabilites, secrets |
+| `tenant-shield.yml` | - | Lint isolation multi-tenant |
+
+### 15.11 Migrations 040-046
+
+| Migration | Date | Description |
+|-----------|------|-------------|
+| `040_notification_cascade.sql` | 2026-02-27 | Table notification_deliveries + vue stats + fonction best_channel |
+| `041_update_pricing.sql` | 2026-02-28 | Mise a jour prix 99/249/499 + table plan_quotas |
+| `042_tenant_ia_config.sql` | 2026-02-28 | Config IA par tenant/canal (JSONB) |
+| `042_voice_recordings.sql` | 2026-02-28 | Stockage enregistrements vocaux Twilio |
+| `043_ia_conversations.sql` | 2026-02-28 | Conversations + messages + intents IA |
+| `044_rgpd_requests.sql` | 2026-02-28 | Demandes RGPD + anonymisation clients |
+| `045_onboarding_fields.sql` | 2026-02-28 | Colonnes onboarding sur tenants |
+| `046_tenant_email_log.sql` | 2026-02-28 | Log emails avec anti-doublon quotidien |
+
+## 16. TRAVAUX EN COURS
+
+### 16.1 PRIORITES RESTANTES
+
+| Priorite | Tache | Impact | Statut |
+|----------|-------|--------|--------|
+| **P0** | Commit 116 fichiers non sauves | Securite code | 🔴 URGENT |
+| **P0** | Push vers remote (1 commit ahead) | Securite code | 🔴 URGENT |
+| **P1** | Corriger pricing obsolete dans 8+ fichiers | Coherence | 🔶 A faire |
+| **P1** | Tester webhooks Stripe en staging | Monetisation | 🔶 A faire |
+| **P2** | Tests E2E restaurant/hotel | Qualite | 🔶 A faire |
+| **P2** | UI avancee resto (plan salle, menu) | Features | 🔶 En cours |
+| **P2** | UI avancee hotel (calendrier, tarifs) | Features | 🔶 En cours |
+| **P3** | Redis obligatoire prod | Performance | A faire |
+| **P3** | Load testing cascade notifications | Performance | A faire |
+
+### 16.2 Fichiers avec pricing obsolete (a corriger)
+
+| Fichier | Prix affiches | Correct |
+|---------|--------------|---------|
+| `admin-ui/src/pages/Signup.tsx` | 199/399/799 | 99/249/499 |
+| `admin-ui/src/components/ModuleGate/ModuleGate.tsx` | 199/399/799 | 99/249/499 |
+| `frontend/nexus-app/src/pages/nexus/NexusSettings.tsx` | 99/199/399 | 99/249/499 |
+| `frontend/nexus-app/src/pages/nexus/NexusBilling.tsx` | 99/199/399 | 99/249/499 |
+| `backend/src/sentinel/monitors/quotas.js` | 99/199/399 | 99/249/499 |
+| `backend/src/data/businessTemplates.js` | 49/99/199 | 99/249/499 |
+| `admin-ui/src/pages/Onboarding.tsx` | 49€ fallback | 99€ |
 
 ---
 
-## 15.5 SYSTEME MULTI-TENANT MULTI-BUSINESS (2026-02-27)
+## 15.12 SYSTEME MULTI-TENANT MULTI-BUSINESS (2026-02-27)
 
-### Score Global: 8.0/10 ✅ (Infrastructure + UI base pour tous types)
+### Score Global: 9.0/10 ✅ (Infrastructure + UI + RGPD + Onboarding)
 
 L'**infrastructure** est complete et l'**implementation UI** couvre maintenant les 4 types de business.
 
@@ -1420,17 +1470,64 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 
 ---
 
-## 16. HISTORIQUE DES MODIFICATIONS
+## 17. HISTORIQUE DES MODIFICATIONS
+
+### 2026-02-28 (Session 4) — v3.0.0
+
+**🎉 MASSIVE UPDATE — Stripe + AI Routing + RGPD + Onboarding + Voice + Conversations**
+
+**Stripe Integration Complete:**
+- `stripeBillingService.js` (980 lignes) — Checkout sessions, product sync, subscription lifecycle
+- `billing.js` (398 lignes) — Routes API completes
+- `stripeWebhook.js` — Handler webhooks
+- `publicPayment.js` — Widget paiement public sans auth
+- Script `npm run stripe:sync`
+
+**Pricing mis a jour (migration 041):**
+- Plans: 49/129/299 → **99/249/499**
+- Modules: Restaurant 39€, Hotel 69€, Domicile 29€
+- Packs SMS et Voix revalorisés
+- Table `plan_quotas` avec features JSONB par plan
+
+**AI Routing implemente:**
+- `aiRoutingService.js` (465 lignes) — Cache → Haiku → Sonnet
+
+**Cascade Notifications implemente:**
+- `notificationCascadeService.js` (492 lignes) — Email → WA → SMS
+- Migration 040 — Table notification_deliveries + vue stats
+
+**Nouvelles fonctionnalites:**
+| Feature | Fichiers | Migration |
+|---------|----------|-----------|
+| RGPD compliance | rgpd.js | 044 |
+| Onboarding wizard | onboarding.js + Onboarding.tsx | 045 |
+| Voice recordings | voiceRecordingService.js | 042 |
+| IA conversations | conversationPersistenceService.js | 043 |
+| Reservation conflicts | reservationConflictService.js | - |
+| Trial nurturing | trialNurtureJob.js (J3/J7/J10) | - |
+| Email log anti-doublon | - | 046 |
+| Tenant IA config | - | 042 |
+
+**CI/CD mis en place:**
+- 4 workflows GitHub Actions (ci, staging, production, security)
+- tenant-shield.yml pour lint isolation
+
+**Scheduler enrichi:** 13 jobs actifs (vs 8 avant)
+
+**Fichiers crees:** ~40 nouveaux fichiers
+**Fichiers modifies:** ~76 fichiers
+**Migrations:** 039 → 046 (8 nouvelles)
+
+---
 
 ### 2026-02-27 (Session 3)
 
 **🎉 PRICING + EMAIL NOTIFICATIONS + STRIPE CONFIG - Version 2.2.0**
 
-**Strategie Tarifaire Validee:**
-- Plans: Starter 49€, Pro 129€, Business 299€
+**Strategie Tarifaire Initiale (mise a jour en session 4 → 99/249/499):**
+- Plans initiaux: Starter 49€, Pro 129€, Business 299€
 - Engagement annuel: -20%
 - Add-ons: SMS, Voix IA, Modules specialises
-- Marges cibles: 77-81% apres optimisations
 
 **Email Notifications (tenantEmailService.js):**
 - 7 templates HTML (bienvenue, trial J-7/J-3/J-1/J0, facture, echec, annulation)
@@ -1595,7 +1692,7 @@ La plateforme supporte maintenant 4 types de business avec configuration dynamiq
 
 ---
 
-## 17. PROBLEMES CONNUS
+## 18. PROBLEMES CONNUS
 
 ### Performance (RESOLUS le 2026-02-27)
 
@@ -1606,15 +1703,28 @@ La plateforme supporte maintenant 4 types de business avec configuration dynamiq
 | ~~Pas de compression~~ | RESOLU | index.js | Middleware compression |
 | ~~Boucle sequentielle~~ | RESOLU | analyticsService.js | 1 requete groupee |
 
+### Pricing desynchronise (P1)
+
+| Fichier | Affiche | Correct |
+|---------|---------|---------|
+| `Signup.tsx` | 199/399/799 | 99/249/499 |
+| `ModuleGate.tsx` | 199/399/799 | 99/249/499 |
+| `NexusSettings.tsx` | 99/199/399 | 99/249/499 |
+| `NexusBilling.tsx` | 99/199/399 | 99/249/499 |
+| `quotas.js` | 99/199/399 | 99/249/499 |
+| `businessTemplates.js` | 49/99/199 | 99/249/499 |
+| `Onboarding.tsx` | 49€ fallback | 99€ |
+
 ### A surveiller
 
 - Redis optionnel en production (P3 - non bloquant)
 - Cache hit rate a mesurer
 - Memory usage Node.js
+- 116 fichiers non commites (risque perte)
 
 ---
 
-## 18. REGLES DE DEVELOPPEMENT
+## 19. REGLES DE DEVELOPPEMENT
 
 ### AVANT chaque modification
 

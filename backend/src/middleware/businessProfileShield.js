@@ -8,6 +8,7 @@
 
 import { loadProfile, validateProfileData } from '../profiles/index.js';
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 /**
  * Middleware principal - Charge et injecte le profil métier
@@ -18,7 +19,7 @@ export async function businessProfileShield(req, res, next) {
   const tenantId = req.admin?.tenant_id;
 
   if (!tenantId) {
-    console.error('[PROFILE SHIELD] ❌ Pas de tenant_id - tenantShield manquant?');
+    logger.error('Pas de tenant_id - tenantShield manquant?', { tag: 'PROFILE SHIELD' });
     return res.status(403).json({
       error: 'TENANT_REQUIRED',
       message: 'Authentification tenant requise avant le profile shield',
@@ -30,7 +31,7 @@ export async function businessProfileShield(req, res, next) {
     const profile = await loadProfile(tenantId);
 
     if (!profile) {
-      console.error(`[PROFILE SHIELD] ❌ Profil non trouvé pour ${tenantId}`);
+      logger.error('Profil non trouvé', { tag: 'PROFILE SHIELD', tenantId });
 
       // Log d'audit
       await logProfileAudit(tenantId, 'profile_load_failed', null, {
@@ -57,7 +58,7 @@ export async function businessProfileShield(req, res, next) {
 
     next();
   } catch (error) {
-    console.error('[PROFILE SHIELD] Erreur:', error);
+    logger.error('Erreur', { tag: 'PROFILE SHIELD', error: error.message });
     res.status(500).json({
       error: 'PROFILE_LOAD_ERROR',
       message: 'Erreur lors du chargement du profil métier',
@@ -82,7 +83,7 @@ export function validateProfileRequest(context) {
     const validation = validateProfileData(req.profile, req.body, context);
 
     if (!validation.valid) {
-      console.error(`[PROFILE SHIELD] ❌ Validation échouée pour ${req.admin.tenant_id}:`, validation.errors);
+      logger.error('Validation échouée', { tag: 'PROFILE SHIELD', tenantId: req.admin.tenant_id, errors: validation.errors });
 
       // Log d'audit
       await logProfileAudit(req.admin.tenant_id, 'validation_failed', req.profile.id, {
@@ -117,7 +118,7 @@ export function requireProfile(...allowedProfiles) {
     }
 
     if (!allowedProfiles.includes(req.profile.id)) {
-      console.warn(`[PROFILE SHIELD] ⚠️ Accès refusé: ${req.profile.id} non dans [${allowedProfiles.join(', ')}]`);
+      logger.warn('Accès refusé', { tag: 'PROFILE SHIELD', profileId: req.profile.id, allowedProfiles });
 
       return res.status(403).json({
         error: 'PROFILE_NOT_ALLOWED',
@@ -238,7 +239,7 @@ async function logProfileAudit(tenantId, action, profileId, details = {}) {
     });
   } catch (err) {
     // Ne pas bloquer si l'audit échoue
-    console.error('[PROFILE SHIELD] Erreur audit:', err.message);
+    logger.error('Erreur audit', { tag: 'PROFILE SHIELD', error: err.message });
   }
 }
 

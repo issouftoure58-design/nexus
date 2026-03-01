@@ -25,6 +25,7 @@ import {
   isInitialized,
   getTemplate,
 } from './tenantCache.js';
+import logger from '../logger.js';
 
 // Static fallback (used only during early boot before cache init)
 import fatshairafro from './fatshairafro.js';
@@ -161,7 +162,7 @@ export function hasFeature(tenantId, featureName) {
  */
 export function canModify(tenantId, reason = '') {
   if (isFrozen(tenantId)) {
-    console.warn(`[TENANT ${tenantId}] FROZEN - Modification refusée: ${reason}`);
+    logger.warn('FROZEN - Modification refusée', { tag: 'TENANT', tenantId, reason });
     return false;
   }
   return true;

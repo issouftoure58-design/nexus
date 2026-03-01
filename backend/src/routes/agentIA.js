@@ -1,5 +1,6 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import logger from '../config/logger.js';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -143,7 +144,7 @@ try {
   const templatesData = fs.readFileSync(templatesPath, 'utf-8');
   contentTemplates = JSON.parse(templatesData);
 } catch (error) {
-  console.warn('[HALIMAH PRO] Templates de contenu non chargés:', error.message);
+  logger.warn('HALIMAH PRO Templates de contenu non chargés:', error.message);
 }
 
 const router = express.Router();
@@ -175,7 +176,7 @@ const UPLOADS_DIR = path.join(process.cwd(), 'client/public/uploads/halimah-pro'
 // Créer le répertoire s'il n'existe pas
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  console.log('[HALIMAH PRO] 📁 Répertoire uploads créé:', UPLOADS_DIR);
+  logger.info('HALIMAH PRO 📁 Répertoire uploads créé:', UPLOADS_DIR);
 }
 
 const storage = multer.diskStorage({
@@ -718,7 +719,7 @@ router.post('/upload', authenticateAdmin, upload.single('file'), async (req, res
           analysis = response.content[0]?.text;
         }
       } catch (err) {
-        console.error('[HALIMAH PRO] Erreur analyse image:', err.message);
+        logger.error('HALIMAH PRO Erreur analyse image:', err.message);
       }
     }
 
@@ -728,7 +729,7 @@ router.post('/upload', authenticateAdmin, upload.single('file'), async (req, res
       try {
         textContent = fs.readFileSync(file.path, 'utf-8').substring(0, 5000); // Max 5000 chars
       } catch (err) {
-        console.error('[HALIMAH PRO] Erreur lecture fichier texte:', err.message);
+        logger.error('HALIMAH PRO Erreur lecture fichier texte:', err.message);
       }
     }
 
@@ -744,20 +745,20 @@ router.post('/upload', authenticateAdmin, upload.single('file'), async (req, res
     });
 
   } catch (error) {
-    console.error('[HALIMAH PRO] Erreur upload:', error);
+    logger.error('HALIMAH PRO Erreur upload:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // POST /api/admin/halimah-pro/chat
 router.post('/chat', authenticateAdmin, async (req, res) => {
-  console.log('[HALIMAH PRO] ==========================================');
-  console.log('[HALIMAH PRO] Nouvelle requete');
-  console.log('[HALIMAH PRO] Admin:', req.admin?.email);
+  logger.info('HALIMAH PRO ==========================================');
+  logger.info('HALIMAH PRO Nouvelle requete');
+  logger.info('HALIMAH PRO Admin:', req.admin?.email);
 
   // Vérification précoce de la clé API
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('[HALIMAH PRO] ❌ ANTHROPIC_API_KEY MANQUANTE !');
+    logger.error('HALIMAH PRO ❌ ANTHROPIC_API_KEY MANQUANTE !');
     return res.status(500).json({
       error: 'Configuration incomplète',
       response: 'Désolée Fatou, ma configuration n\'est pas complète. La clé API est manquante.'
@@ -766,10 +767,10 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
 
   try {
     const { message, conversationHistory = [], attachments = [], sessionId = 'default' } = req.body;
-    console.log('[HALIMAH PRO] Message:', message?.substring(0, 100));
-    console.log('[HALIMAH PRO] Historique:', conversationHistory.length, 'messages');
-    console.log('[HALIMAH PRO] Fichiers attachés:', attachments.length);
-    console.log('[HALIMAH PRO] Session:', sessionId);
+    logger.info('HALIMAH PRO Message:', message?.substring(0, 100));
+    logger.info('HALIMAH PRO Historique:', conversationHistory.length, 'messages');
+    logger.info('HALIMAH PRO Fichiers attachés:', attachments.length);
+    logger.info('HALIMAH PRO Session:', sessionId);
 
     if (!message && attachments.length === 0) {
       return res.status(400).json({ error: 'Message ou fichier requis' });
@@ -790,17 +791,17 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
       });
       memoryContext = formatMemoryContextForPrompt(memoryData);
       if (memoryContext && memoryContext.length > 50) {
-        console.log('[HALIMAH PRO] 🧠 Contexte mémoire évolutive chargé');
+        logger.info('HALIMAH PRO 🧠 Contexte mémoire évolutive chargé');
       }
     } catch (memErr) {
-      console.error('[HALIMAH PRO] Erreur chargement mémoire:', memErr.message);
+      logger.error('HALIMAH PRO Erreur chargement mémoire:', memErr.message);
     }
 
     // === MÉMOIRE: Sauvegarder le message utilisateur ===
     try {
       await saveMessage(sessionId, 'user', message || '[Fichier envoyé]', attachments.length > 0 ? attachments : null);
     } catch (saveErr) {
-      console.error('[HALIMAH PRO] Erreur sauvegarde message user:', saveErr.message);
+      logger.error('HALIMAH PRO Erreur sauvegarde message user:', saveErr.message);
     }
 
     // Construire le contenu du message utilisateur avec les fichiers
@@ -824,7 +825,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
             });
           }
         } catch (err) {
-          console.error('[HALIMAH PRO] Erreur lecture image:', err.message);
+          logger.error('HALIMAH PRO Erreur lecture image:', err.message);
         }
       } else if (att.type === 'document' && att.url) {
         // Pour les documents, on ajoute une mention dans le texte
@@ -843,7 +844,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
             });
           }
         } catch (err) {
-          console.error('[HALIMAH PRO] Erreur lecture document:', err.message);
+          logger.error('HALIMAH PRO Erreur lecture document:', err.message);
         }
       }
     }
@@ -912,7 +913,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
       adminId: req.admin?.id,
       adminEmail: req.admin?.email
     };
-    console.log('[HALIMAH PRO] 🔑 Tool context tenant_id:', toolContext.tenantId);
+    logger.info('HALIMAH PRO 🔑 Tool context tenant_id:', toolContext.tenantId);
 
     console.log('═══════════════════════════════════════════════════════════');
     console.log('🔄 DÉBUT BOUCLE OUTILS - stop_reason initial:', response.stop_reason);
@@ -1012,10 +1013,10 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
           console.log(`[HALIMAH PRO] 🧠 ${factsExtracted} fait(s) extrait(s) automatiquement`);
         }
       } catch (extractErr) {
-        console.error('[HALIMAH PRO] Erreur extraction faits:', extractErr.message);
+        logger.error('HALIMAH PRO Erreur extraction faits:', extractErr.message);
       }
     } catch (saveErr) {
-      console.error('[HALIMAH PRO] Erreur sauvegarde réponse assistant:', saveErr.message);
+      logger.error('HALIMAH PRO Erreur sauvegarde réponse assistant:', saveErr.message);
     }
 
     res.json({ response: finalResponse });
@@ -1033,7 +1034,7 @@ router.post('/chat', authenticateAdmin, async (req, res) => {
 
     // Verifier si c'est une erreur d'API Anthropic
     if (error?.status) {
-      console.error('[HALIMAH PRO] Status HTTP:', error.status);
+      logger.error('HALIMAH PRO Status HTTP:', error.status);
     }
 
     // Message d'erreur plus informatif pour Fatou

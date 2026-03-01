@@ -1,4 +1,39 @@
 services:
+  # NEXUS Backend API (multi-tenant)
+  - type: web
+    name: nexus-backend-dev
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      # Secrets - configured in Render Dashboard (sync: false)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
   # Fat's Hair Afro - Site vitrine client (Node.js pour contrôle cache)
   - type: web
     name: fatshairafro-web

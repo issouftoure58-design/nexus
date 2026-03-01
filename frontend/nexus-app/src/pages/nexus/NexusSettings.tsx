@@ -11,15 +11,15 @@ interface SystemStatus {
 const PLANS = [
   {
     name: 'Starter', price: 99, color: 'cyan',
-    features: ['Reservations multi-canal', 'IA telephone (Halimah)', 'Dashboard admin', 'Notifications SMS', 'Rappels J-1'],
+    features: ['Reservations multi-canal', 'IA assistant web', 'Dashboard admin', 'Notifications SMS', 'Rappels J-1'],
   },
   {
-    name: 'Pro', price: 199, color: 'blue', popular: true,
-    features: ['Tout Starter +', 'Comptabilite', 'Marketing SMS/Email', 'Medias IA', 'Reseaux sociaux'],
+    name: 'Pro', price: 249, color: 'blue', popular: true,
+    features: ['Tout Starter +', 'Comptabilite', 'Marketing SMS/Email', 'IA telephone & WhatsApp', 'Reseaux sociaux'],
   },
   {
-    name: 'Business', price: 399, color: 'purple',
-    features: ['Tout Pro +', 'SEO', 'Gestion RH', 'Sentinel client', 'Support prioritaire'],
+    name: 'Business', price: 499, color: 'purple',
+    features: ['Tout Pro +', 'SEO', 'Gestion RH', 'Sentinel', 'Support prioritaire'],
   },
 ];
 

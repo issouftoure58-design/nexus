@@ -11,7 +11,8 @@
     "db:push": "drizzle-kit push",
     "test": "node backend/src/tests/businessRules.test.js",
     "verify": "node scripts/verify-rules.js",
-    "create-tenant": "node --import tsx backend/src/cli/create-tenant.js"
+    "create-tenant": "node --import tsx backend/src/cli/create-tenant.js",
+    "prepare": "husky"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -72,6 +73,7 @@
     "@types/pdfkit": "^0.17.4",
     "@types/ws": "^8.5.13",
     "drizzle-kit": "^0.31.8",
+    "husky": "^9.1.7",
     "tsx": "^4.20.5",
     "typescript": "5.6.3"
   },

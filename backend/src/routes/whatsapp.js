@@ -15,6 +15,7 @@ import usageTracking from '../services/usageTrackingService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
 import { authenticateAdmin } from './adminAuth.js';
+import logger from '../config/logger.js';
 
 /**
  * Identifie le tenant par le numéro WhatsApp appelé

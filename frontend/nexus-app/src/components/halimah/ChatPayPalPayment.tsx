@@ -74,7 +74,7 @@ export default function ChatPayPalPayment() {
 
         createOrder: async () => {
           try {
-            const response = await fetch(apiUrl('/api/payment/order/create-paypal'), {
+            const response = await fetch(apiUrl('/api/public/payment/create-paypal'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ export default function ChatPayPalPayment() {
 
         onApprove: async (data: { orderID: string }) => {
           try {
-            const response = await fetch(apiUrl('/api/payment/order/capture-paypal'), {
+            const response = await fetch(apiUrl('/api/public/payment/capture-paypal'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

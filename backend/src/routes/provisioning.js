@@ -406,4 +406,131 @@ router.get('/debug/db-phones', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ============================================
+// ARCEP COMPLIANCE (Numéros français)
+// ============================================
+
+/**
+ * GET /api/provisioning/arcep/status
+ * Vérifie le statut de conformité ARCEP pour les numéros français
+ * ⚠️ SECURED: Requires superadmin authentication
+ */
+router.get('/arcep/status', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
+  try {
+    const status = await provisioningService.getARCEPComplianceStatus();
+
+    res.json({
+      success: true,
+      ...status,
+      help: {
+        bundleCreation: 'https://console.twilio.com/us1/develop/phone-numbers/regulatory-compliance/bundles',
+        addressCreation: 'https://console.twilio.com/us1/develop/phone-numbers/manage/addresses',
+        documentation: 'https://www.twilio.com/docs/phone-numbers/regulatory/france'
+      }
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] ARCEP status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/provisioning/arcep/bundles
+ * Liste les Regulatory Bundles disponibles
+ * ⚠️ SECURED: Requires superadmin authentication
+ */
+router.get('/arcep/bundles', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
+  try {
+    const bundles = await provisioningService.listRegulatoryBundles();
+
+    res.json({
+      success: true,
+      count: bundles.length,
+      bundles,
+      note: 'Copiez le SID du bundle approuvé dans TWILIO_FR_BUNDLE_SID'
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] List bundles error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/provisioning/arcep/addresses
+ * Liste les adresses disponibles sur Twilio
+ * ⚠️ SECURED: Requires superadmin authentication
+ */
+router.get('/arcep/addresses', authenticateAdmin, async (req, res) => {
+  if (req.admin?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'SUPERADMIN_REQUIRED' });
+  }
+  try {
+    const addresses = await provisioningService.listAddresses();
+
+    res.json({
+      success: true,
+      count: addresses.length,
+      addresses,
+      note: 'Copiez le SID de l\'adresse vérifiée dans TWILIO_FR_ADDRESS_SID'
+    });
+  } catch (error) {
+    console.error('[PROVISIONING] List addresses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/provisioning/phone/auto-fr
+ * Auto-provisionne un numéro français (nécessite ARCEP configuré)
+ * ⚠️ SECURED: Requires admin authentication
+ */
+router.post('/phone/auto-fr', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
+    // Vérifier d'abord la conformité ARCEP
+    const arcepStatus = await provisioningService.getARCEPComplianceStatus();
+
+    if (!arcepStatus.canPurchaseFR) {
+      return res.status(400).json({
+        success: false,
+        error: 'ARCEP_NOT_CONFIGURED',
+        message: 'La conformité ARCEP n\'est pas configurée. Les numéros français ne peuvent pas être achetés.',
+        requirements: arcepStatus.requirements,
+        help: {
+          bundleCreation: 'https://console.twilio.com/us1/develop/phone-numbers/regulatory-compliance/bundles',
+          addressCreation: 'https://console.twilio.com/us1/develop/phone-numbers/manage/addresses'
+        }
+      });
+    }
+
+    console.log(`[PROVISIONING API] Auto-provision FR pour ${tenantId}`);
+
+    const result = await provisioningService.autoProvisionNumber(tenantId, 'FR');
+
+    res.json({
+      success: true,
+      message: result.alreadyExists
+        ? 'Numéro français déjà attribué'
+        : 'Numéro français provisionné avec succès',
+      ...result,
+    });
+  } catch (error) {
+    console.error('[PROVISIONING API] Erreur auto-fr:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export default router;

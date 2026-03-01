@@ -586,10 +586,85 @@ export async function sendSubscriptionCancelledEmail(tenantId, endDate) {
   });
 }
 
+/**
+ * Envoie un email de nurturing pendant le trial (J3, J7, J10)
+ */
+export async function sendTrialNurtureEmail({ to, subject, content, tenantId, templateId }) {
+  if (!to) return { success: false, error: 'No recipient email' };
+
+  try {
+    // Generer le HTML selon le type de contenu
+    let html = '';
+
+    if (content.tips) {
+      // Template avec tips (J3, J7)
+      const tipsHtml = content.tips.map(tip => `
+        <div style="margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px;">
+          <h3 style="margin: 0 0 8px 0; color: ${BRAND_COLORS.dark}; font-size: 16px;">${tip.title}</h3>
+          <p style="margin: 0 0 12px 0; color: #64748b; font-size: 14px;">${tip.description}</p>
+          <a href="${APP_URL}${tip.link}" style="display: inline-block; padding: 8px 16px; background: ${BRAND_COLORS.primary}; color: white; text-decoration: none; border-radius: 6px; font-size: 14px;">${tip.cta}</a>
+        </div>
+      `).join('');
+
+      html = baseTemplate({
+        title: content.subject,
+        preheader: content.preheader,
+        content: `
+          <p style="color: ${BRAND_COLORS.dark}; font-size: 18px; margin-bottom: 8px;">${content.greeting}</p>
+          <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">${content.intro}</p>
+          ${tipsHtml}
+          ${content.stats ? `
+            <div style="margin-top: 24px; padding: 16px; background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.secondary}); border-radius: 8px; color: white;">
+              <p style="margin: 0 0 8px 0; font-weight: bold;">Votre activite en chiffres</p>
+              <p style="margin: 0; font-size: 14px;">${content.stats.clients} clients | ${content.stats.reservations} reservations | ${content.stats.services} services</p>
+            </div>
+          ` : ''}
+        `,
+        footer: content.footer
+      });
+    } else if (content.recap) {
+      // Template urgence (J10)
+      html = baseTemplate({
+        title: content.subject,
+        preheader: content.preheader,
+        content: `
+          <p style="color: ${BRAND_COLORS.dark}; font-size: 18px; margin-bottom: 8px;">${content.greeting}</p>
+          <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">${content.intro}</p>
+          <div style="margin-bottom: 24px; padding: 20px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px;">
+            <p style="margin: 0 0 12px 0; font-weight: bold; color: ${BRAND_COLORS.dark};">Recapitulatif de votre essai</p>
+            <ul style="margin: 0; padding-left: 20px; color: #64748b;">
+              <li>${content.recap.services} service(s) configure(s)</li>
+              <li>${content.recap.clients} client(s) ajoute(s)</li>
+              <li>${content.recap.reservations} reservation(s) creee(s)</li>
+            </ul>
+            <p style="margin: 12px 0 0 0; color: ${BRAND_COLORS.warning}; font-weight: bold;">${content.warning}</p>
+          </div>
+        `,
+        ctaText: content.cta.buttonText,
+        ctaUrl: `${APP_URL}${content.cta.link}`,
+        footer: content.alternative
+      });
+    }
+
+    const result = await sendEmail({
+      to,
+      subject,
+      html
+    });
+
+    return result;
+
+  } catch (error) {
+    console.error('[TenantEmail] Erreur nurture email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export default {
   sendWelcomeEmail,
   sendTrialAlert,
   sendInvoicePaidEmail,
   sendPaymentFailedEmail,
-  sendSubscriptionCancelledEmail
+  sendSubscriptionCancelledEmail,
+  sendTrialNurtureEmail
 };

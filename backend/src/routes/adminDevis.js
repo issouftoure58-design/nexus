@@ -158,11 +158,12 @@ router.get('/:id', async (req, res) => {
     console.log(`[DEVIS] Lignes trouvées: ${lignes?.length || 0}`);
     lignes?.forEach(l => console.log(`  - ${l.service_nom}: ${l.duree_minutes} min`));
 
-    // Récupérer l'historique
+    // Récupérer l'historique (🔒 TENANT ISOLATION)
     const { data: historique } = await supabase
       .from('devis_historique')
       .select('*')
       .eq('devis_id', id)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
     res.json({ devis, lignes: lignes || [], historique });

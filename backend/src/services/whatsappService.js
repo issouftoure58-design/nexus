@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getDistanceFromSalon } from './googleMapsService.js';
+import logger from '../config/logger.js';
 import { checkDisponibilite, getCreneauxDisponibles } from './dispoService.js';
 import { calculerFraisDepl, calculerBlocReservation } from '../utils/tarification.js';
 import bookingService from './bookingService.js';
@@ -38,7 +39,7 @@ function getSupabase() {
 async function getRdvExistantsByDate(date, tenantId) {
   // 🔒 TENANT SHIELD: Rejeter si pas de tenantId
   if (!tenantId) {
-    console.error('[WhatsApp] SECURITY: getRdvExistantsByDate called without tenantId!');
+    logger.error('SECURITY: getRdvExistantsByDate called without tenantId!', { tag: 'WhatsApp' });
     return [];
   }
 
@@ -54,7 +55,7 @@ async function getRdvExistantsByDate(date, tenantId) {
       .in('statut', BLOCKING_STATUTS);
 
     if (error) {
-      console.error('[WhatsApp] Erreur récupération RDV existants:', error);
+      logger.error('Erreur récupération RDV existants', { tag: 'WhatsApp', error: error.message });
       return [];
     }
 

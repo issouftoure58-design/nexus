@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import logger from '../config/logger.js';
 
 // Cache des domaines (evite requetes BDD repetees)
 const domainCache = new Map();
@@ -113,7 +114,7 @@ export const resolveTenantByDomain = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('[RESOLVE_TENANT] Error:', error);
+    logger.error('Error resolving tenant', { tag: 'RESOLVE_TENANT', error: error.message });
     req.tenantId = null;
     req.tenantSource = 'error';
     next();
