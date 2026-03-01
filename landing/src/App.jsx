@@ -1142,7 +1142,7 @@ const MESSAGES_CONFIG = {
     audio: "/audio/welcome.mp3"
   },
   prix: {
-    text: "Nous avons 3 plans : Starter a 199€/mois avec 1 assistant IA, CRM et agenda. Pro a 399€/mois avec tous les assistants IA, marketing et comptabilite. Business a 799€/mois pour les entreprises multi-sites avec API et account manager dedie. Essai gratuit de 14 jours !",
+    text: "Nous avons 3 plans : Starter a 99€/mois avec 1 assistant IA, CRM et agenda. Pro a 249€/mois avec tous les assistants IA, marketing et comptabilite. Business a 499€/mois pour les entreprises multi-sites avec API et account manager dedie. Essai gratuit de 14 jours !",
     audio: null // Pas d'audio pour ce nouveau texte
   },
   telephone: {
@@ -1162,7 +1162,7 @@ const MESSAGES_CONFIG = {
     audio: "/audio/faq-essai.mp3"
   },
   default: {
-    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Starter 199€, Pro 399€, Business 799€), les fonctionnalites, ou comment demarrer votre essai gratuit.",
+    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Starter 99€, Pro 249€, Business 499€), les fonctionnalites, ou comment demarrer votre essai gratuit.",
     audio: null
   }
 }
@@ -2052,7 +2052,7 @@ function App() {
                 <h3 className="text-xl font-bold mb-2">Starter</h3>
                 <p className="text-gray-400 text-sm mb-4">Pour demarrer avec l'IA</p>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold">199€</span>
+                  <span className="text-4xl font-bold">99€</span>
                   <span className="text-gray-500">/mois</span>
                 </div>
               </div>
@@ -2095,7 +2095,7 @@ function App() {
                 <h3 className="text-xl font-bold mb-2">Pro</h3>
                 <p className="text-gray-400 text-sm mb-4">Pour les professionnels</p>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold text-neon-cyan">399€</span>
+                  <span className="text-4xl font-bold text-neon-cyan">249€</span>
                   <span className="text-gray-500">/mois</span>
                 </div>
               </div>
@@ -2139,7 +2139,7 @@ function App() {
                 <h3 className="text-xl font-bold mb-2">Business</h3>
                 <p className="text-gray-400 text-sm mb-4">Pour les entreprises</p>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold text-purple-400">799€</span>
+                  <span className="text-4xl font-bold text-purple-400">499€</span>
                   <span className="text-gray-500">/mois</span>
                 </div>
               </div>
