@@ -911,6 +911,16 @@ router.post('/:moduleId/deactivate', authenticateAdmin, async (req, res) => {
 
     if (updateError) throw updateError;
 
+    // Libérer les ressources WhatsApp si désactivation du module whatsapp
+    if (moduleId === 'whatsapp') {
+      try {
+        await provisioningService.releaseWhatsAppSender(tenantId);
+        console.log(`[MODULES] WhatsApp sender libéré pour ${tenantId}`);
+      } catch (e) {
+        console.error(`[MODULES] Erreur libération WhatsApp sender (non-bloquant):`, e.message);
+      }
+    }
+
     // Invalider cache
     invalidateModuleCache(tenantId);
 

@@ -208,7 +208,7 @@ router.post('/segments/:key/campaign', authenticateAdmin, async (req, res) => {
             .replace('{{nom}}', client.client_nom || 'Client')
             .replace('{{ca}}', client.total_spent_euros || '0');
 
-          await sendWhatsAppNotification(client.client_telephone, personalizedMessage);
+          await sendWhatsAppNotification(client.client_telephone, personalizedMessage, req.admin.tenant_id);
           results.sent++;
         } else if (type === 'email' && client.client_email) {
           // TODO: Implémenter l'envoi email

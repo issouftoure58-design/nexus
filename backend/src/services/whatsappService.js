@@ -15,6 +15,7 @@ import bookingService from './bookingService.js';
 import { BLOCKING_STATUTS } from '../config/businessRules.js';
 // NEXUS CORE UNIFIÉ - Source unique de logique métier
 import nexusCore from '../core/unified/nexusCore.js';
+import { getCachedConfig } from '../config/tenants/tenantCache.js';
 
 // Client Supabase pour opérations DB WhatsApp
 let supabase = null;
@@ -151,6 +152,29 @@ const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://fatshairafro.fr';
 const PAYMENT_TIMEOUT_MINUTES = 30;
 const PAYMENT_REMINDER_MINUTES = 15;
+
+/**
+ * Retourne le numéro WhatsApp From pour un tenant donné.
+ * Utilise le cache tenant pour éviter une requête DB à chaque message.
+ * Fallback vers la variable d'environnement globale.
+ *
+ * @param {string|null} tenantId - ID du tenant (optionnel)
+ * @returns {string} Numéro au format 'whatsapp:+33...'
+ */
+function getWhatsAppFromNumber(tenantId = null) {
+  if (tenantId) {
+    try {
+      const config = getCachedConfig(tenantId);
+      if (config?.whatsapp_number) {
+        const num = config.whatsapp_number;
+        return num.startsWith('whatsapp:') ? num : `whatsapp:${num}`;
+      }
+    } catch {
+      // Cache pas encore initialisé — fallback
+    }
+  }
+  return TWILIO_WHATSAPP_NUMBER;
+}
 
 // Adresse de départ de Fatou
 const ADRESSE_DEPART = '8 rue des Monts Rouges, 95130 Franconville';
@@ -933,7 +957,7 @@ ${getSignature(tenantId)}`,
     }
 
     // Envoyer la réponse via WhatsApp
-    await sendWhatsAppMessage(clientPhone, result.response);
+    await sendWhatsAppMessage(clientPhone, result.response, tenantId);
 
     return {
       success: true,
@@ -948,7 +972,7 @@ ${getSignature(tenantId)}`,
     const errorResponse = `Oups, petit souci technique ! 😅
 Réessayez ou appelez le ${info.telephone || '07 82 23 50 20'}`;
 
-    await sendWhatsAppMessage(clientPhone, errorResponse);
+    await sendWhatsAppMessage(clientPhone, errorResponse, tenantId);
 
     return {
       success: false,
@@ -1837,13 +1861,14 @@ function formatDateFr(dateStr) {
 /**
  * Envoie un message WhatsApp via Twilio
  */
-async function sendWhatsAppMessage(to, message) {
+async function sendWhatsAppMessage(to, message, tenantId = null) {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
     console.log('[WhatsApp] Mode simulation - Message:', message);
     return { success: true, simulated: true };
   }
 
   try {
+    const fromNumber = getWhatsAppFromNumber(tenantId);
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       {
@@ -1853,7 +1878,7 @@ async function sendWhatsAppMessage(to, message) {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          From: TWILIO_WHATSAPP_NUMBER,
+          From: fromNumber,
           To: to.startsWith('whatsapp:') ? to : `whatsapp:${to}`,
           Body: message,
         }),
@@ -1983,7 +2008,7 @@ function classifyTwilioError(statusCode, errorData) {
  *   console.error('Erreur:', result.error);
  * }
  */
-export async function sendWhatsAppNotification(phoneNumber, message) {
+export async function sendWhatsAppNotification(phoneNumber, message, tenantId = null) {
   // 1. Vérifier la configuration Twilio
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
     logEvent('WARN', ERROR_TYPES.TWILIO_NOT_CONFIGURED, 'Twilio non configuré - mode simulation', {
@@ -2029,6 +2054,7 @@ export async function sendWhatsAppNotification(phoneNumber, message) {
 
   // 4. Envoyer via Twilio
   try {
+    const fromNumber = getWhatsAppFromNumber(tenantId);
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       {
@@ -2038,7 +2064,7 @@ export async function sendWhatsAppNotification(phoneNumber, message) {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          From: TWILIO_WHATSAPP_NUMBER,
+          From: fromNumber,
           To: phoneResult.formatted,
           Body: message.trim(),
         }),
@@ -2495,7 +2521,7 @@ export async function handlePaymentConfirmed(rdvId, tenantId = null) {
 📅 ${rdv?.date ? formatDate(rdv.date) : ''} ${rdv?.heure || ''}
 À bientôt ! 💖`;
 
-      await sendWhatsAppMessage(clientPhone, message);
+      await sendWhatsAppMessage(clientPhone, message, effectiveTenantId);
 
       // Réinitialiser le contexte de conversation
       resetConversationContext(clientPhone);

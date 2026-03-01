@@ -150,7 +150,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
   if (clientPhone) {
     try {
       const whatsappMessage = confirmationReservation(rdv, acompte);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp confirmation envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -267,7 +267,7 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   if (clientPhone) {
     try {
       const whatsappMessage = rappelJ1(rdv, acompte);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp rappel J-1 envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -383,7 +383,7 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
   if (clientPhone) {
     try {
       const whatsappMessage = annulation(rdv, montantRembourse);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp annulation envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -458,7 +458,7 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
   if (clientPhone) {
     try {
       const whatsappMessage = modificationRdv(ancienRdv, nouveauRdv);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp modification envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -521,7 +521,7 @@ export async function sendRemerciement(rdv, tenantId = null) {
   if (clientPhone) {
     try {
       const whatsappMessage = remerciement(rdv);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp remerciement envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -585,7 +585,7 @@ export async function sendDemandeAvis(rdv, lienAvis = null, tenantId = null) {
   if (clientPhone) {
     try {
       const whatsappMessage = demandeAvis(rdv, lienAvis);
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp demande avis envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
@@ -673,7 +673,7 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
   if (clientPhone) {
     try {
       const message = `Bonjour ${clientNom},\n\nVotre rendez-vous du ${rdv.date} à ${rdv.heure} a été ${statutLabel}.\n\nÀ bientôt !\n${t.gerante} - ${t.salonName}`;
-      results.whatsapp = await sendWhatsAppNotification(clientPhone, message);
+      results.whatsapp = await sendWhatsAppNotification(clientPhone, message, tenantId);
 
       console.log(`[Notification] WhatsApp changement statut (${action}) envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {

@@ -200,7 +200,7 @@ export async function sendWithCascade(tenantId, recipient, content, options = {}
         promises.push(sendEmail(email, subject, html, text));
       }
       if (phone && whatsappText) {
-        promises.push(sendWhatsAppNotification(phone, whatsappText));
+        promises.push(sendWhatsAppNotification(phone, whatsappText, tenantId));
       }
       if (phone && smsText) {
         promises.push(sendSMS(phone, smsText));
@@ -237,7 +237,7 @@ export async function sendWithCascade(tenantId, recipient, content, options = {}
         promises.push(sendEmail(email, subject, html, text));
       }
       if (phone && whatsappText) {
-        promises.push(sendWhatsAppNotification(phone, whatsappText).then(r => ({
+        promises.push(sendWhatsAppNotification(phone, whatsappText, tenantId).then(r => ({
           ...r,
           channel: 'whatsapp',
           cost: COSTS.whatsapp
@@ -285,7 +285,7 @@ export async function sendWithCascade(tenantId, recipient, content, options = {}
 
     // Etape 2: WhatsApp (si email echoue ou pas d'email)
     if (phone && whatsappText) {
-      const waResult = await sendWhatsAppNotification(phone, whatsappText);
+      const waResult = await sendWhatsAppNotification(phone, whatsappText, tenantId);
       const waResultEnriched = {
         ...waResult,
         channel: 'whatsapp',
@@ -353,7 +353,7 @@ function scheduleCascadeFallback(tenantId, notificationId, options) {
 
       // Envoyer WhatsApp
       if (phone && whatsappText) {
-        const waResult = await sendWhatsAppNotification(phone, whatsappText);
+        const waResult = await sendWhatsAppNotification(phone, whatsappText, tenantId);
         await recordDelivery(tenantId, notificationId, 'whatsapp', waResult.success ? 'sent' : 'failed');
 
         if (waResult.success) {

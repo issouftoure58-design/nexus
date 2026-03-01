@@ -157,11 +157,40 @@ router.post('/whatsapp', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
     }
 
-    const result = await provisioningService.configureWhatsApp(tenantId);
+    const { phoneNumber } = req.body || {};
+    const result = await provisioningService.configureWhatsApp(tenantId, phoneNumber || null);
 
     res.json({
       success: true,
       message: 'WhatsApp configuré',
+      ...result,
+    });
+  } catch (error) {
+    console.error('[PROVISIONING API] Erreur:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * DELETE /api/provisioning/whatsapp
+ * Libère le numéro WhatsApp dédié du tenant
+ * ⚠️ SECURED: Requires admin authentication
+ */
+router.delete('/whatsapp', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(403).json({ success: false, error: 'TENANT_REQUIRED' });
+    }
+
+    const result = await provisioningService.releaseWhatsAppSender(tenantId);
+
+    res.json({
+      success: true,
+      message: 'WhatsApp libéré',
       ...result,
     });
   } catch (error) {

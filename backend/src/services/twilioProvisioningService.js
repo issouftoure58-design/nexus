@@ -33,8 +33,15 @@ const TWILIO_FR_BUNDLE_SID = process.env.TWILIO_FR_BUNDLE_SID || null;
 // À créer sur: Twilio Console → Phone Numbers → Addresses
 const TWILIO_FR_ADDRESS_SID = process.env.TWILIO_FR_ADDRESS_SID || null;
 
+// WhatsApp Business Account (WABA) — Business Unit SID approuvé par Meta
+const TWILIO_WABA_BU_SID = process.env.TWILIO_WABA_BU_SID || null;
+
+// Messaging Service SID partagé (créé une fois, réutilisé pour tous les tenants)
+const TWILIO_MESSAGING_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID || null;
+
 logger.info(`Webhook URL: ${WEBHOOK_BASE_URL}`, { service: 'provisioning' });
 logger.info(`FR Bundle: ${TWILIO_FR_BUNDLE_SID ? 'Configured' : 'Not configured'}`, { service: 'provisioning' });
+logger.info(`WABA: ${TWILIO_WABA_BU_SID ? 'Configured' : 'Not configured (sandbox mode)'}`, { service: 'provisioning' });
 
 /**
  * Recherche des numéros de téléphone disponibles
@@ -283,29 +290,258 @@ export async function releasePhoneNumber(tenantId) {
 
 /**
  * Configure WhatsApp pour un tenant (via Twilio)
- * Note: WhatsApp Business API nécessite une approbation Meta
+ *
+ * Si TWILIO_WABA_BU_SID est configuré → numéro dédié (prod)
+ *   - Réutilise le numéro voice existant OU en achète un nouveau
+ *   - Enregistre le numéro dans le Messaging Service
+ * Sinon → fallback sandbox (dev/backward compat)
+ *
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {string} [phoneNumber] - Numéro spécifique à utiliser (optionnel)
  */
-export async function configureWhatsApp(tenantId, phoneNumber) {
-  console.log(`[PROVISIONING] Config WhatsApp pour ${tenantId}`);
+export async function configureWhatsApp(tenantId, phoneNumber = null) {
+  if (!tenantId) throw new Error('tenant_id requis pour configureWhatsApp');
 
-  // Pour WhatsApp, on utilise le numéro Twilio sandbox en dev
-  // En production, il faut un numéro WhatsApp Business approuvé
+  logger.info(`Config WhatsApp pour ${tenantId}`, { service: 'provisioning', tenantId });
 
-  const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
+  // Fallback sandbox si WABA non configuré
+  if (!TWILIO_WABA_BU_SID || !TWILIO_MESSAGING_SERVICE_SID) {
+    logger.warn('WABA/MessagingService non configuré, fallback sandbox', { service: 'provisioning' });
+    const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
 
-  // Mettre à jour le tenant
-  await supabase
-    .from('tenants')
-    .update({
-      whatsapp_number: whatsappNumber,
-    })
-    .eq('id', tenantId);
+    await supabase
+      .from('tenants')
+      .update({ whatsapp_number: whatsappNumber })
+      .eq('id', tenantId);
+
+    return {
+      success: true,
+      whatsappNumber,
+      dedicated: false,
+      note: 'Mode sandbox — configurez TWILIO_WABA_BU_SID et TWILIO_MESSAGING_SERVICE_SID pour les numéros dédiés.',
+    };
+  }
+
+  // Mode dédié — trouver ou acheter un numéro
+  let numberToUse = phoneNumber;
+  let phoneNumberSid = null;
+
+  if (!numberToUse) {
+    // Chercher un numéro voice existant pour ce tenant
+    const { data: existingPhone } = await supabase
+      .from('tenant_phone_numbers')
+      .select('phone_number, twilio_sid, type')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'active')
+      .single();
+
+    if (existingPhone?.phone_number) {
+      numberToUse = existingPhone.phone_number;
+      phoneNumberSid = existingPhone.twilio_sid;
+      logger.info(`Réutilisation numéro voice existant: ${numberToUse}`, { service: 'provisioning', tenantId });
+    } else {
+      // Acheter un nouveau numéro
+      logger.info('Aucun numéro existant, auto-provisioning...', { service: 'provisioning', tenantId });
+      const provisionResult = await autoProvisionNumber(tenantId, 'FR');
+      numberToUse = provisionResult.phoneNumber;
+      phoneNumberSid = provisionResult.sid;
+    }
+  }
+
+  // Récupérer le SID Twilio si pas encore connu
+  if (!phoneNumberSid) {
+    const { data: phoneRecord } = await supabase
+      .from('tenant_phone_numbers')
+      .select('twilio_sid')
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', numberToUse)
+      .eq('status', 'active')
+      .single();
+
+    phoneNumberSid = phoneRecord?.twilio_sid;
+  }
+
+  // Enregistrer dans le Messaging Service
+  await registerWhatsAppSender(tenantId, numberToUse, phoneNumberSid);
 
   return {
     success: true,
-    whatsappNumber: whatsappNumber,
-    note: 'En dev, utilise le sandbox Twilio. En prod, numéro dédié requis.',
+    whatsappNumber: `whatsapp:${numberToUse}`,
+    dedicated: true,
+    phoneNumber: numberToUse,
   };
+}
+
+/**
+ * Enregistre un numéro dans le Messaging Service Twilio pour WhatsApp
+ *
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @param {string} phoneNumber - Numéro E.164
+ * @param {string} [phoneNumberSid] - SID Twilio du numéro (optionnel, lookup si absent)
+ */
+export async function registerWhatsAppSender(tenantId, phoneNumber, phoneNumberSid = null) {
+  if (!tenantId) throw new Error('tenant_id requis pour registerWhatsAppSender');
+  if (!TWILIO_MESSAGING_SERVICE_SID) throw new Error('TWILIO_MESSAGING_SERVICE_SID non configuré');
+
+  logger.info(`Enregistrement WhatsApp sender: ${phoneNumber}`, { service: 'provisioning', tenantId });
+
+  try {
+    // Mettre à jour le statut en 'registering'
+    await supabase
+      .from('tenant_phone_numbers')
+      .update({ whatsapp_status: 'registering' })
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', phoneNumber);
+
+    // Ajouter le numéro au Messaging Service
+    if (phoneNumberSid) {
+      await twilioClient.messaging.v1
+        .services(TWILIO_MESSAGING_SERVICE_SID)
+        .phoneNumbers.create({ phoneNumberSid });
+    }
+
+    // Mettre à jour tenant_phone_numbers
+    await supabase
+      .from('tenant_phone_numbers')
+      .update({
+        whatsapp_status: 'registered',
+        messaging_service_sid: TWILIO_MESSAGING_SERVICE_SID,
+        type: 'both', // voice + whatsapp
+      })
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', phoneNumber);
+
+    // Mettre à jour tenants
+    const whatsappFormatted = `whatsapp:${phoneNumber}`;
+    await supabase
+      .from('tenants')
+      .update({
+        whatsapp_number: whatsappFormatted,
+        messaging_service_sid: TWILIO_MESSAGING_SERVICE_SID,
+      })
+      .eq('id', tenantId);
+
+    logger.info(`WhatsApp sender enregistré: ${phoneNumber}`, { service: 'provisioning', tenantId });
+  } catch (error) {
+    // Marquer l'échec
+    await supabase
+      .from('tenant_phone_numbers')
+      .update({ whatsapp_status: 'failed' })
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', phoneNumber);
+
+    logger.error('Erreur registerWhatsAppSender', { service: 'provisioning', tenantId, error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Retire un numéro WhatsApp dédié pour un tenant
+ * - Retire du Messaging Service
+ * - Si voice encore actif → garde le numéro, type = 'voice'
+ * - Sinon → libère complètement
+ *
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ */
+export async function releaseWhatsAppSender(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis pour releaseWhatsAppSender');
+
+  logger.info(`Libération WhatsApp sender pour ${tenantId}`, { service: 'provisioning', tenantId });
+
+  try {
+    // Récupérer le numéro WhatsApp du tenant
+    const { data: phoneRecord } = await supabase
+      .from('tenant_phone_numbers')
+      .select('phone_number, twilio_sid, type, messaging_service_sid')
+      .eq('tenant_id', tenantId)
+      .eq('whatsapp_status', 'registered')
+      .single();
+
+    if (!phoneRecord) {
+      logger.info('Pas de numéro WhatsApp à libérer', { service: 'provisioning', tenantId });
+      return { success: true, message: 'Pas de numéro WhatsApp actif' };
+    }
+
+    // Retirer du Messaging Service si possible
+    if (phoneRecord.messaging_service_sid && phoneRecord.twilio_sid) {
+      try {
+        await twilioClient.messaging.v1
+          .services(phoneRecord.messaging_service_sid)
+          .phoneNumbers(phoneRecord.twilio_sid)
+          .remove();
+      } catch (err) {
+        logger.warn('Erreur retrait du Messaging Service (non-bloquant)', {
+          service: 'provisioning', tenantId, error: err.message,
+        });
+      }
+    }
+
+    // Déterminer si on garde le numéro (voice actif ?)
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('modules_actifs')
+      .eq('id', tenantId)
+      .single();
+
+    const voiceActive = tenant?.modules_actifs?.telephone === true || tenant?.modules_actifs?.standard_ia === true;
+
+    if (voiceActive) {
+      // Garder le numéro pour voice uniquement
+      await supabase
+        .from('tenant_phone_numbers')
+        .update({
+          type: 'voice',
+          whatsapp_status: 'none',
+          messaging_service_sid: null,
+        })
+        .eq('tenant_id', tenantId)
+        .eq('phone_number', phoneRecord.phone_number);
+    } else {
+      // Libérer complètement le numéro
+      await releasePhoneNumber(tenantId);
+    }
+
+    // Nettoyer tenants
+    await supabase
+      .from('tenants')
+      .update({
+        whatsapp_number: null,
+        messaging_service_sid: null,
+      })
+      .eq('id', tenantId);
+
+    logger.info(`WhatsApp sender libéré: ${phoneRecord.phone_number}`, { service: 'provisioning', tenantId });
+    return { success: true, phoneNumber: phoneRecord.phone_number };
+  } catch (error) {
+    logger.error('Erreur releaseWhatsAppSender', { service: 'provisioning', tenantId, error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Retourne le numéro WhatsApp du tenant depuis la DB
+ * Fallback vers la variable d'environnement globale
+ *
+ * @param {string} tenantId - ID du tenant (optionnel pour backward compat)
+ * @returns {Promise<string>} Numéro WhatsApp au format 'whatsapp:+33...'
+ */
+export async function getWhatsAppNumber(tenantId) {
+  if (tenantId) {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('whatsapp_number')
+      .eq('id', tenantId)
+      .single();
+
+    if (tenant?.whatsapp_number) {
+      // S'assurer du format whatsapp:
+      const num = tenant.whatsapp_number;
+      return num.startsWith('whatsapp:') ? num : `whatsapp:${num}`;
+    }
+  }
+
+  // Fallback global
+  return process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
 }
 
 /**
@@ -599,6 +835,9 @@ export default {
   autoProvisionNumber,
   releasePhoneNumber,
   configureWhatsApp,
+  registerWhatsAppSender,
+  releaseWhatsAppSender,
+  getWhatsAppNumber,
   getProvisioningStatus,
   listActiveNumbers,
   getTwilioBalance,

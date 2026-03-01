@@ -98,7 +98,8 @@ async function sendWhatsApp(job) {
   }
 
   const tenantConfig = getTenantConfig(tenant_id);
-  const from = `whatsapp:${tenantConfig?.twilioWhatsApp || process.env.TWILIO_WHATSAPP_NUMBER}`;
+  const waNumber = tenantConfig?.whatsapp_number || process.env.TWILIO_WHATSAPP_NUMBER;
+  const from = waNumber.startsWith('whatsapp:') ? waNumber : `whatsapp:${waNumber}`;
   const to = telephone.startsWith('whatsapp:') ? telephone : `whatsapp:${telephone}`;
 
   const result = await client.messages.create({

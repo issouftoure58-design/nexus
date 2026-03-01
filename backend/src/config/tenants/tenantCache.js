@@ -66,6 +66,8 @@ export async function loadAllTenants() {
         branding: { ...(baseConfig.branding || {}), ...(row.branding || {}) },
         plan: row.tier || baseConfig.plan || 'starter',
         status: row.status,
+        phone_number: row.phone_number || baseConfig.phone_number || null,
+        whatsapp_number: row.whatsapp_number || baseConfig.whatsapp_number || null,
       };
 
       newTenantMap.set(tenantId, config);
