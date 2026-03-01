@@ -19,7 +19,7 @@ import logger from '../config/logger.js';
 function getGreetingMessage(tenantId, salutation = 'Bonjour') {
   try {
     const info = getBusinessInfoSync(tenantId);
-    const assistant = info.assistant_name || 'Nexus';
+    const assistant = info.assistant?.name || 'Nexus';
     const gerant = info.gerant || 'notre équipe';
     return `${salutation} ! Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.\n`;
   } catch (e) {
