@@ -7,7 +7,11 @@ import winston from 'winston';
 import { mkdirSync } from 'fs';
 
 // Ensure logs directory exists (gitignored, missing on fresh deploys)
-mkdirSync('logs', { recursive: true });
+try {
+  mkdirSync('logs', { recursive: true });
+} catch {
+  // Silently ignore — file transports will emit errors, console transport still works
+}
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 

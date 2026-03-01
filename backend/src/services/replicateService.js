@@ -4,9 +4,15 @@
 
 import Replicate from 'replicate';
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
+// Lazy-init: ne pas crash au chargement si REPLICATE_API_TOKEN absent
+let _replicate = null;
+function getReplicate() {
+  if (!_replicate) {
+    if (!process.env.REPLICATE_API_TOKEN) return null;
+    _replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+  }
+  return _replicate;
+}
 
 /**
  * Générer image avec Flux Schnell (rapide, gratuit)
@@ -15,7 +21,9 @@ export async function generateImage(prompt, options = {}) {
   try {
     console.log('[REPLICATE] Génération image:', prompt);
 
-    const output = await replicate.run(
+    const client = getReplicate();
+    if (!client) throw new Error('REPLICATE_API_TOKEN non configuré');
+    const output = await client.run(
       "black-forest-labs/flux-schnell",
       {
         input: {
@@ -52,7 +60,9 @@ export async function generateImageHD(prompt, options = {}) {
   try {
     console.log('[REPLICATE] Génération image HD:', prompt);
 
-    const output = await replicate.run(
+    const client = getReplicate();
+    if (!client) throw new Error('REPLICATE_API_TOKEN non configuré');
+    const output = await client.run(
       "stability-ai/sdxl",
       {
         input: {
@@ -92,7 +102,9 @@ export async function removeBackground(imageUrl) {
   try {
     console.log('[REPLICATE] Suppression background:', imageUrl);
 
-    const output = await replicate.run(
+    const client = getReplicate();
+    if (!client) throw new Error('REPLICATE_API_TOKEN non configuré');
+    const output = await client.run(
       "cjwbw/rembg",
       {
         input: {
@@ -122,7 +134,9 @@ export async function upscaleImage(imageUrl, scale = 2) {
   try {
     console.log('[REPLICATE] Upscale image:', imageUrl);
 
-    const output = await replicate.run(
+    const client = getReplicate();
+    if (!client) throw new Error('REPLICATE_API_TOKEN non configuré');
+    const output = await client.run(
       "nightmareai/real-esrgan",
       {
         input: {
@@ -154,7 +168,9 @@ export async function generateVideo(imageUrl, motion = 'medium') {
   try {
     console.log('[REPLICATE] Génération vidéo:', imageUrl);
 
-    const output = await replicate.run(
+    const client = getReplicate();
+    if (!client) throw new Error('REPLICATE_API_TOKEN non configuré');
+    const output = await client.run(
       "stability-ai/stable-video-diffusion",
       {
         input: {

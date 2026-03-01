@@ -28,9 +28,15 @@ import OpenAI from 'openai';
 // CONFIGURATION
 // ============================================
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Lazy-init: ne pas crash au chargement si OPENAI_API_KEY absent
+let _openai = null;
+function getOpenAI() {
+  if (!_openai) {
+    if (!process.env.OPENAI_API_KEY) return null;
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 // Dossier de cache audio (réutilise le même que ElevenLabs)
 const CACHE_DIR = path.join(process.cwd(), 'data', 'voice-cache');
@@ -188,7 +194,9 @@ async function callOpenAITTS(text, voice = DEFAULT_VOICE, model = DEFAULT_MODEL)
   console.log(`[OPENAI TTS] API Call: "${text.substring(0, 40)}..." (${text.length} chars, voice: ${voice})`);
 
   try {
-    const mp3Response = await openai.audio.speech.create({
+    const client = getOpenAI();
+    if (!client) throw new Error('OPENAI_API_KEY non configuré');
+    const mp3Response = await client.audio.speech.create({
       model: model,
       voice: voice,
       input: text,
@@ -327,7 +335,9 @@ async function textToSpeechStream(text, options = {}) {
   console.log(`[OPENAI TTS] Stream: "${processedText.substring(0, 50)}..."`);
 
   try {
-    const response = await openai.audio.speech.create({
+    const client = getOpenAI();
+    if (!client) throw new Error('OPENAI_API_KEY non configuré');
+    const response = await client.audio.speech.create({
       model: model,
       voice: voice,
       input: processedText,
