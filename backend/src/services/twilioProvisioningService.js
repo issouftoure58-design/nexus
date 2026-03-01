@@ -408,9 +408,18 @@ export async function registerWhatsAppSender(tenantId, phoneNumber, phoneNumberS
 
     // Ajouter le numéro au Messaging Service
     if (phoneNumberSid) {
-      await twilioClient.messaging.v1
-        .services(TWILIO_MESSAGING_SERVICE_SID)
-        .phoneNumbers.create({ phoneNumberSid });
+      try {
+        await twilioClient.messaging.v1
+          .services(TWILIO_MESSAGING_SERVICE_SID)
+          .phoneNumbers.create({ phoneNumberSid });
+      } catch (msError) {
+        // Ignorer si le numéro est déjà dans le Messaging Service
+        if (msError.code === 21710 || msError.message?.includes('already in the Messaging Service')) {
+          logger.info('Numéro déjà dans le Messaging Service, on continue', { service: 'provisioning', tenantId });
+        } else {
+          throw msError;
+        }
+      }
     }
 
     // Mettre à jour tenant_phone_numbers
