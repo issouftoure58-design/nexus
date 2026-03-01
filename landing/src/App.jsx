@@ -1850,11 +1850,11 @@ function App() {
             </div>
 
             <div className="flex items-center gap-4">
-              <a href="http://localhost:3001/login" className="text-gray-400 hover:text-white transition hidden sm:block">
+              <a href="https://nexus-admin-yedu.onrender.com/login" className="text-gray-400 hover:text-white transition hidden sm:block">
                 Connexion
               </a>
               <a
-                href="http://localhost:3001/signup"
+                href="https://nexus-admin-yedu.onrender.com/signup"
                 className="bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-semibold py-2 px-5 rounded-xl hover:opacity-90 transition-opacity"
               >
                 Essai gratuit
@@ -1876,7 +1876,7 @@ function App() {
               <a href="#gallery" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Galerie</a>
               <a href="#demo" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Demo</a>
               <a href="#pricing" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
-              <a href="http://localhost:3001/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
+              <a href="https://nexus-admin-yedu.onrender.com/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
             </div>
           </div>
         )}
@@ -2079,7 +2079,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3001/signup?plan=starter"
+                href="https://nexus-admin-yedu.onrender.com/signup?plan=starter"
                 className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-white/10 rounded-xl font-semibold transition-colors"
               >
                 Commencer l'essai
@@ -2126,7 +2126,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3001/signup?plan=pro"
+                href="https://nexus-admin-yedu.onrender.com/signup?plan=pro"
                 className="block w-full py-3 px-6 text-center bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl font-semibold hover:opacity-90 transition-opacity"
               >
                 Commencer l'essai
@@ -2170,7 +2170,7 @@ function App() {
                 </li>
               </ul>
               <a
-                href="http://localhost:3001/signup?plan=business"
+                href="https://nexus-admin-yedu.onrender.com/signup?plan=business"
                 className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
               >
                 Contacter les ventes
@@ -2210,7 +2210,7 @@ function App() {
               Rejoignez des centaines de professionnels qui gagnent du temps chaque jour grace a NEXUS.
             </p>
             <a
-              href="http://localhost:3001/signup"
+              href="https://nexus-admin-yedu.onrender.com/signup"
               className="inline-flex items-center gap-2 bg-white text-dark-900 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors"
             >
               Demarrer l'essai gratuit
