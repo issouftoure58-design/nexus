@@ -106,6 +106,7 @@
 | **Mediateur** | CM2C — 14 rue Saint Jean, 75017 Paris — www.cm2c.net |
 | **Hebergeur** | Render Services, Inc. — 525 Brannan Street, Suite 300, San Francisco, CA 94107, USA |
 | **Base de donnees** | Supabase, Inc. — https://supabase.com |
+| **WhatsApp Business** | WABA approuve — BU ID: `BU8ba014fffcd728c583a66eb0d64f75cd` (France Mobile Business) |
 
 ### Pages legales (vitrine)
 
@@ -448,13 +449,17 @@ Fichiers:
 - sentinelInsights.js
 ```
 
-### Twilio
+### Twilio / WhatsApp Business
 
 ```
 Usage: SMS, WhatsApp, Voice
 Numeros:
-- WhatsApp: +14155238886 (sandbox)
 - Voice FR: +33939240269
+
+WhatsApp Business API:
+- WABA approuve: NEXUS.AI (France Mobile - Business)
+- Business Unit ID: BU8ba014fffcd728c583a66eb0d64f75cd
+- Statut: Approved ✅
 
 Couts:
 - SMS outbound: $0.05
