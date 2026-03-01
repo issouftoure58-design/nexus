@@ -160,18 +160,28 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
       // Le numéro est acheté, on log l'erreur mais on continue
     }
 
-    // 3. Mettre à jour le tenant
+    // 3. Mettre à jour le tenant (phone + twilio_sid)
     await supabase
       .from('tenants')
       .update({
         phone_number: phoneNumber,
         phone_twilio_sid: purchasedNumber.sid,
-        modules_actifs: supabase.rpc('jsonb_set_key', {
-          target: 'modules_actifs',
-          key: 'telephone',
-          value: true,
-        }),
       })
+      .eq('id', tenantId);
+
+    // 4. Activer le module telephone dans modules_actifs (read-modify-write)
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('modules_actifs')
+      .eq('id', tenantId)
+      .single();
+
+    const modulesActifs = tenantData?.modules_actifs || {};
+    modulesActifs.telephone = true;
+
+    await supabase
+      .from('tenants')
+      .update({ modules_actifs: modulesActifs })
       .eq('id', tenantId);
 
     return {
@@ -327,13 +337,16 @@ export async function configureWhatsApp(tenantId, phoneNumber = null) {
   let phoneNumberSid = null;
 
   if (!numberToUse) {
-    // Chercher un numéro voice existant pour ce tenant
-    const { data: existingPhone } = await supabase
+    // Chercher un numéro voice existant pour ce tenant (priorité voice/both, pas sandbox)
+    const { data: existingPhones } = await supabase
       .from('tenant_phone_numbers')
       .select('phone_number, twilio_sid, type')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
-      .single();
+      .in('type', ['voice', 'both'])
+      .limit(1);
+
+    const existingPhone = existingPhones?.[0];
 
     if (existingPhone?.phone_number) {
       numberToUse = existingPhone.phone_number;
