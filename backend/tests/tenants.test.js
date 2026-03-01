@@ -109,9 +109,9 @@ describe('Identification Tenant', () => {
     expect(identifyTenant(req)).toBe('decoevent');
   });
 
-  test('Défaut = fatshairafro', () => {
+  test('Défaut = null (contexte NEXUS, pas de tenant)', () => {
     const req = { headers: { host: 'localhost:3000' } };
-    expect(identifyTenant(req)).toBe('fatshairafro');
+    expect(identifyTenant(req)).toBeNull();
   });
 
   test('listTenants contient les 2 tenants', () => {

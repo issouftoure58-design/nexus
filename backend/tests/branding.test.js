@@ -278,15 +278,18 @@ describe('Branding & White-Label', () => {
 
   describe('CSS Generation', () => {
     test('8. Should generate theme CSS', async () => {
+      // CSS endpoint resolves tenant from Host header (not query params)
+      // localhost maps to 'fatshairafro' in the domain mapping
       stores.branding.push({
-        tenant_id: TEST_TENANT_ID,
+        tenant_id: 'fatshairafro',
         primary_color: '#E91E63',
         secondary_color: '#9C27B0',
         font_family: 'Poppins'
       });
 
       const res = await request(app)
-        .get(`/api/branding/theme.css?tenant_id=${TEST_TENANT_ID}`)
+        .get('/api/branding/theme.css')
+        .set('Host', 'localhost')
         .expect(200);
 
       expect(res.headers['content-type']).toContain('text/css');

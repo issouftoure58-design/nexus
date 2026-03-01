@@ -90,7 +90,7 @@ describe('Services (serviceMapper)', () => {
 // Nécessitent SUPABASE_URL + API_BASE_URL
 // ════════════════════════════════════════════════
 const API_BASE = process.env.API_BASE_URL || 'https://fatshairafro.fr';
-const hasApi = !!(process.env.API_BASE_URL || process.env.SUPABASE_URL);
+const hasApi = !!process.env.API_BASE_URL; // Only run integration tests when explicit API URL is set
 
 // Generate unique phone suffix to avoid conflicts between test runs
 const rnd = () => String(Math.floor(Math.random() * 90000) + 10000);

@@ -140,23 +140,28 @@ export function getDateInfo(expression) {
       }
     }
 
-    // === DATE NUMÉRIQUE (le 15, le 30, 15 février, etc.) ===
+    // === DATE NUMÉRIQUE (le 15, le 30, 15 février, 9 février 2026, etc.) ===
     if (!targetDate) {
-      // Chercher un numéro de jour
-      const matchJourMois = expr.match(/(\d{1,2})\s*(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)?/);
+      // Chercher un numéro de jour + mois optionnel + année optionnelle
+      const matchJourMois = expr.match(/(\d{1,2})\s*(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)?\s*(\d{4})?/);
 
       if (matchJourMois) {
         const jourNum = parseInt(matchJourMois[1]);
         let moisNum = now.getMonth();
         let anneeNum = now.getFullYear();
 
+        // Année explicite dans l'expression (ex: "9 février 2026")
+        if (matchJourMois[3]) {
+          anneeNum = parseInt(matchJourMois[3]);
+        }
+
         if (matchJourMois[2]) {
           const moisNom = matchJourMois[2].replace('é', 'e').replace('û', 'u');
           const moisIndex = mois.findIndex(m => m.replace('é', 'e').replace('û', 'u') === moisNom);
           if (moisIndex >= 0) {
             moisNum = moisIndex;
-            // Si le mois est passé, c'est l'année prochaine
-            if (moisNum < now.getMonth() || (moisNum === now.getMonth() && jourNum < now.getDate())) {
+            // Si le mois est passé et pas d'année explicite, c'est l'année prochaine
+            if (!matchJourMois[3] && (moisNum < now.getMonth() || (moisNum === now.getMonth() && jourNum < now.getDate()))) {
               anneeNum++;
             }
           }

@@ -106,6 +106,66 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
   };
 });
 
+// Mock apiAuth middleware (api-public routes use authenticateApiKey, requireBusinessPlan, requireScope)
+jest.unstable_mockModule('../src/middleware/apiAuth.js', () => ({
+  authenticateApiKey: async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'unauthorized', message: 'API key required' });
+    }
+
+    const apiKey = authHeader.substring(7);
+
+    // Validate format
+    if (!apiKey.startsWith('nxk_prod_') && !apiKey.startsWith('nxk_test_') && !apiKey.startsWith('nxk_sand_')) {
+      return res.status(401).json({ error: 'invalid_key_format', message: 'Invalid API key format' });
+    }
+
+    const prefix = apiKey.substring(0, 13);
+    const { supabase } = await import('../src/config/supabase.js');
+    const { data: keys } = await supabase
+      .from('api_keys')
+      .select('*')
+      .eq('key_prefix', prefix)
+      .eq('is_active', true);
+
+    if (!keys || keys.length === 0) {
+      return res.status(401).json({ error: 'invalid_key', message: 'Invalid API key' });
+    }
+
+    const keyData = keys[0];
+    req.tenantId = keyData.tenant_id;
+    req.apiKey = keyData;
+    req.apiScopes = keyData.scopes || [];
+    next();
+  },
+  requireBusinessPlan: (req, res, next) => next(),
+  requireScope: (scope) => (req, res, next) => {
+    if (req.apiScopes?.includes('admin') || req.apiScopes?.includes(scope)) {
+      return next();
+    }
+    return res.status(403).json({ error: 'insufficient_permissions', message: `Scope ${scope} required` });
+  },
+  generateApiKey: jest.fn(() => 'nxk_prod_test123'),
+  hashApiKey: jest.fn(async () => 'hashed'),
+  API_SCOPES: {
+    'read:clients': 'Read clients',
+    'write:clients': 'Write clients',
+    'read:reservations': 'Read reservations',
+    'write:reservations': 'Write reservations',
+    'delete:reservations': 'Delete reservations',
+    'read:services': 'Read services',
+    'read:webhooks': 'Read webhooks',
+    'write:webhooks': 'Write webhooks',
+    'admin': 'Full access'
+  }
+}));
+
+// Mock quotas middleware
+jest.unstable_mockModule('../src/middleware/quotas.js', () => ({
+  requireClientsQuota: (req, res, next) => next()
+}));
+
 // Import after mocking
 const { supabase } = await import('../src/config/supabase.js');
 const { default: request } = await import('supertest');

@@ -9,8 +9,14 @@ export default {
 
   // Test file patterns
   testMatch: [
-    '**/tests/**/*.test.js',
+    '<rootDir>/tests/**/*.test.js',
     '**/__tests__/**/*.test.js'
+  ],
+
+  // Exclude integration tests that need a running server
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/tests/tenant-isolation.test.js'
   ],
 
   // Module paths

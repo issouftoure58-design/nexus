@@ -15,7 +15,8 @@ const stores = {
   sentinel_daily_snapshots: [],
   sentinel_daily_costs: [],
   sentinel_goals: [],
-  sentinel_insights: []
+  sentinel_insights: [],
+  tenants: []
 };
 
 const resetStores = () => {
@@ -102,29 +103,25 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
   };
 });
 
-// Mock auth middleware
-jest.unstable_mockModule('../src/middleware/auth.js', () => ({
-  authenticateToken: (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ success: false, error: 'Token manquant' });
-    }
-    req.user = {
-      id: 'user_test',
-      tenant_id: 'tenant_test_123',
-      plan: 'business'
-    };
-    next();
-  },
-  requirePlan: (plan) => (req, res, next) => {
-    const planHierarchy = { starter: 1, pro: 2, business: 3, enterprise: 4 };
-    if (planHierarchy[req.user.plan] >= planHierarchy[plan]) {
+// Mock adminAuth middleware (sentinel routes use authenticateAdmin, not authenticateToken)
+jest.unstable_mockModule('../src/routes/adminAuth.js', () => {
+  const router = { get: () => {}, post: () => {}, put: () => {}, patch: () => {}, delete: () => {}, use: () => {} };
+  return {
+    default: router,
+    authenticateAdmin: (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ success: false, error: 'Token manquant' });
+      }
+      req.admin = {
+        id: 'admin_test',
+        tenant_id: 'tenant_test_123',
+        plan: 'business'
+      };
       next();
-    } else {
-      res.status(403).json({ success: false, error: 'Plan insuffisant' });
     }
-  }
-}));
+  };
+});
 
 // Mock services
 jest.unstable_mockModule('../src/services/sentinelCollector.js', () => ({
@@ -226,6 +223,11 @@ describe('SENTINEL Analytics', () => {
 
   beforeEach(() => {
     resetStores();
+    // Seed tenant with business plan for requireAdminPlan middleware
+    stores.tenants.push({
+      id: TEST_TENANT_ID,
+      plan: 'business'
+    });
   });
 
   // ============================================
