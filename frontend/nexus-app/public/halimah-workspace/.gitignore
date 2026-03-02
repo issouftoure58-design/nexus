@@ -1,3 +1,0 @@
-# Ignorer les fichiers temporaires
-temp/*
-!temp/.gitkeep
