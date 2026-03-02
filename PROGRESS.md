@@ -40,7 +40,7 @@
 - [x] 2.4 Render deploy depuis main — configure (auto-deploy Render + deploy-production.yml)
       Note: deploy-production.yml echoue car secrets Render non configures dans GitHub
       Render auto-deploy fonctionne directement
-- [x] 2.5 Build des 3 frontends dans CI — deja dans ci.yml (admin-ui, nexus-app, landing)
+- [x] 2.5 Build des 2 frontends dans CI — admin-ui + landing (nexus-app supprimee)
 
 ---
 
@@ -54,8 +54,9 @@
 - [x] 3.5 bull supprime — notificationQueue.js migre vers BullMQ (pattern identique a taskQueue.js)
 - [x] 3.6 notificationService.mock.js deplace dans backend/tests/mocks/
 - [x] 3.7 Dossier shared/ supprime (non reference depuis backend)
-- [x] 3.8 DECISION: nexus-app gardee (66 pages, 168 composants) — admin-ui archivee dans _archive_admin-ui/
-      CI et security workflows mis a jour (admin-ui retire de la matrice build)
+- [x] 3.8 DECISION: admin-ui restauree comme UI admin officielle — nexus-app supprimee definitivement
+      nexus-app etait l'ancien UI tenant Fat's Hair (bugge), admin-ui est le dashboard admin dedie
+      Render nexus-admin: rootDir = admin-ui
 
 ---
 
@@ -64,10 +65,10 @@
 - [x] 4.1 17 erreurs TypeScript fixees: @types/node + 6 radix-ui packages + 3 type mismatches + tsconfig types
       `tsc --noEmit` passe avec 0 erreur
 - [x] 4.2 `tsc --noEmit` ajoute au build script de nexus-app (s'execute avant vite build)
-- [x] 4.3-4.5 God components N/A — etaient dans admin-ui (archivee)
-      Plus gros fichier nexus-app: Reservations.tsx (1510 lignes) — acceptable
+- [x] 4.3-4.5 God components N/A — geres lors du dev initial
+      Plus gros fichier admin-ui: Devis.tsx (2510 lignes) — a surveiller
 - [x] 4.6 Landing: garde en JSX (page marketing simple + Spline 3D, TS non justifie)
-- [x] 4.7 Build propre: nexus-app OK (22.87s), landing OK (22.16s)
+- [x] 4.7 Build propre: admin-ui OK, landing OK
       Landing: chunk warning Spline 3D (2MB) — normal pour lib 3D, pas un bug
 
 ---
@@ -193,20 +194,20 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
 
 Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
 
-### Phase 1 — SENTINEL Backend Activation
-- [ ] 1.1 Initialiser sentinel.init() au demarrage (index.js)
-- [ ] 1.2 Ajouter 3 jobs scheduler (snapshot quotidien, insights hebdo, health check 5min)
-- [ ] 1.3 Implementer email alerting (Resend dans alerter.js)
-- [ ] 1.4 Plan checks sur dismiss/implement insights
+### Phase 1 — SENTINEL Backend Activation [TERMINEE]
+- [x] 1.1 Initialiser sentinel.init() au demarrage (index.js)
+- [x] 1.2 Ajouter 3 jobs scheduler (snapshot quotidien, insights hebdo, health check 5min)
+- [x] 1.3 Implementer email alerting (Resend dans alerter.js)
+- [x] 1.4 Plan checks sur dismiss/implement insights
 
-### Phase 2 — API Super-Admin (NEXUS Operator)
-- [ ] 2.1 Creer nexusAdmin.js (6 endpoints /api/nexus/*)
-- [ ] 2.2 Proteger avec requireSuperAdmin middleware
-- [ ] 2.3 Enregistrer dans index.js
+### Phase 2 — API Super-Admin (NEXUS Operator) [TERMINEE]
+- [x] 2.1 Creer nexusAdmin.js (10+ endpoints /api/nexus/*)
+- [x] 2.2 Proteger avec requireSuperAdmin middleware
+- [x] 2.3 Enregistrer dans index.js
 
-### Phase 3 — Super-Admin UI Verification
-- [ ] 3.1-3.5 Verifier les 6 pages (Dashboard, Tenants, Sentinel 9 tabs, Billing, Settings)
-- [ ] 3.6 Nettoyer import SuperAdminRoute inutilise
+### Phase 3 — Super-Admin UI Verification [TERMINEE]
+- [x] 3.1-3.5 Verifier les 6 pages (Dashboard, Tenants, Sentinel 9 tabs, Billing, Settings)
+- [x] 3.6 Nettoyer import SuperAdminRoute inutilise
 
 ### Phase 4 — Checklist Pre-Launch
 - [ ] PITR Supabase
@@ -224,6 +225,15 @@ Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-03 — Session 6
+- admin-ui restauree comme UI admin officielle (etait archivee depuis Phase 3.8)
+- frontend/nexus-app supprimee definitivement (ancien UI tenant bugge de Fat's Hair)
+- Fix login Fatou: proxy /api double prefix, TenantContext subdomain detection
+- site_vitrine retire des offres (backend + admin-ui Subscription.tsx)
+- SENTINEL phases 1-3 completees (backend activation, API super-admin, UI verification)
+- PROGRESS.md mis a jour pour refleter les changements
+- Render nexus-admin: rootDir = admin-ui, deploy live
 
 ### 2026-03-02 — Session 5
 - WhatsApp dedie par tenant: plan COMPLETE (8/8 etapes)

@@ -67,7 +67,6 @@ const PLANS = [
       { text: 'Dashboard & CRM', icon: BarChart3 },
       { text: 'Réservations en ligne', icon: Clock },
       { text: 'Agent IA Web', icon: Globe },
-      { text: 'Site vitrine', icon: Globe },
       { text: 'Support email (48h)', icon: Clock },
     ],
   },
