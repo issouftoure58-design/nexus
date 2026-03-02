@@ -37,10 +37,11 @@ function detectTenant(): string | null {
     return CUSTOM_DOMAINS[host];
   }
 
-  // 3. Subdomain in production (fatshairafro.nexus.com → 'fatshairafro')
+  // 3. Domaines admin/systeme — pas de tenant, contexte NEXUS
+  const SYSTEM_SUBDOMAINS = ['nexus', 'www', 'nexus-admin-yedu', 'admin', 'app'];
   if (host !== 'localhost' && host !== '127.0.0.1') {
     const subdomain = host.split('.')[0];
-    if (subdomain && subdomain !== 'nexus' && subdomain !== 'www') {
+    if (subdomain && !SYSTEM_SUBDOMAINS.includes(subdomain)) {
       return subdomain;
     }
   }

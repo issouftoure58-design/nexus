@@ -106,11 +106,18 @@ function ScrollToTop() {
 function Router() {
   const { isNexusSite } = useTenant();
 
+  // Detecter si on est sur un domaine admin-only (pas de vitrine)
+  const isAdminDomain = typeof window !== 'undefined' &&
+    window.location.hostname.includes('nexus-admin');
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
+        {/* ========== DOMAINE ADMIN — Redirige vers login ========== */}
+        {isAdminDomain && <Route path="/"><Redirect to="/admin/login" /></Route>}
+
         {/* ========== NEXUS VITRINE — Quand pas de tenant (racine = site NEXUS) ========== */}
-        {isNexusSite && <Route path="/"><WebsiteLayout><WebsiteHome /></WebsiteLayout></Route>}
+        {isNexusSite && !isAdminDomain && <Route path="/"><WebsiteLayout><WebsiteHome /></WebsiteLayout></Route>}
         {isNexusSite && <Route path="/pricing"><WebsiteLayout><WebsitePricing /></WebsiteLayout></Route>}
         {isNexusSite && <Route path="/contact"><WebsiteLayout><WebsiteContact /></WebsiteLayout></Route>}
         {isNexusSite && <Route path="/signup"><Signup /></Route>}

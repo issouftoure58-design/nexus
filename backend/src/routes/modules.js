@@ -39,7 +39,6 @@ const MODULE_PLAN_ACCESS = {
   'socle': ['starter', 'pro', 'business'],
   'agent_ia_web': ['starter', 'pro', 'business'],
   'ia_reservation': ['starter', 'pro', 'business'],
-  'site_vitrine': ['starter', 'pro', 'business'],
   'facturation': ['starter', 'pro', 'business'],
 
   // PRO - Nécessite plan Pro ou Business
@@ -1083,12 +1082,12 @@ router.get('/recommendations', authenticateAdmin, async (req, res) => {
     const TEMPLATES = {
       restaurant: {
         nom: 'Restaurant / Café',
-        modules: ['socle', 'agent_ia_web', 'reservations', 'module_metier_resto', 'site_vitrine'],
+        modules: ['socle', 'agent_ia_web', 'reservations', 'module_metier_resto'],
         description: 'Réservations en ligne, menu digital, assistant IA pour les clients'
       },
       salon: {
         nom: 'Salon de coiffure / Beauté',
-        modules: ['socle', 'agent_ia_web', 'whatsapp', 'reservations', 'module_metier_salon', 'site_vitrine'],
+        modules: ['socle', 'agent_ia_web', 'whatsapp', 'reservations', 'module_metier_salon'],
         description: 'Prise de RDV, fiches clients, rappels automatiques'
       },
       medical: {
@@ -1108,8 +1107,8 @@ router.get('/recommendations', authenticateAdmin, async (req, res) => {
       },
       formation: {
         nom: 'Formation / Coaching',
-        modules: ['socle', 'agent_ia_web', 'reservations', 'paiements', 'site_vitrine'],
-        description: 'Inscription sessions, paiements, site pro'
+        modules: ['socle', 'agent_ia_web', 'reservations', 'paiements'],
+        description: 'Inscription sessions, paiements en ligne'
       }
     };
 
@@ -1167,12 +1166,12 @@ router.post('/apply-template', authenticateAdmin, async (req, res) => {
     const { metier } = req.body;
 
     const TEMPLATES = {
-      restaurant: ['socle', 'agent_ia_web', 'reservations', 'module_metier_resto', 'site_vitrine'],
-      salon: ['socle', 'agent_ia_web', 'whatsapp', 'reservations', 'module_metier_salon', 'site_vitrine'],
+      restaurant: ['socle', 'agent_ia_web', 'reservations', 'module_metier_resto'],
+      salon: ['socle', 'agent_ia_web', 'whatsapp', 'reservations', 'module_metier_salon'],
       medical: ['socle', 'agent_ia_web', 'telephone', 'reservations', 'module_metier_medical'],
       ecommerce: ['socle', 'agent_ia_web', 'whatsapp', 'ecommerce', 'paiements', 'marketing', 'seo'],
       service: ['socle', 'agent_ia_web', 'reservations', 'paiements', 'comptabilite'],
-      formation: ['socle', 'agent_ia_web', 'reservations', 'paiements', 'site_vitrine']
+      formation: ['socle', 'agent_ia_web', 'reservations', 'paiements']
     };
 
     if (!metier || !TEMPLATES[metier]) {

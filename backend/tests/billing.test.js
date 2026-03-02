@@ -65,7 +65,7 @@ describe('Voice Packs', () => {
 
 describe('Plan Features', () => {
   const PLAN_FEATURES = {
-    starter: ['dashboard', 'clients', 'reservations', 'facturation', 'site_vitrine', 'agent_ia_web'],
+    starter: ['dashboard', 'clients', 'reservations', 'facturation', 'agent_ia_web'],
     pro: ['whatsapp', 'telephone', 'comptabilite', 'crm_avance', 'marketing', 'pipeline', 'stock', 'analytics', 'devis'],
     business: ['rh', 'seo', 'api', 'sentinel', 'whitelabel']
   };

@@ -317,7 +317,6 @@ function getRequiredPlans(moduleName) {
     'clients': ['starter', 'pro', 'business'],
     'reservations': ['starter', 'pro', 'business'],
     'facturation': ['starter', 'pro', 'business'],
-    'site_vitrine': ['starter', 'pro', 'business'],
     'agent_ia_web': ['starter', 'pro', 'business'],
     'documents': ['starter', 'pro', 'business'],
 

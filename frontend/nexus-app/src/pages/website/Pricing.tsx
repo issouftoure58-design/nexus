@@ -36,7 +36,6 @@ const PLANS = [
       { text: 'CRM & Gestion clients', included: true },
       { text: 'Reservations en ligne', included: true },
       { text: 'Agent IA Web (chatbot)', included: true },
-      { text: 'Site vitrine', included: true },
       { text: 'Facturation', included: true },
       { text: 'Support email (48h)', included: true },
       { text: 'WhatsApp IA', included: false },

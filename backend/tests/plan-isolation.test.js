@@ -4,7 +4,7 @@
  * Tests UNITAIRES sans dépendance à la DB
  *
  * Grille tarifaire 2026:
- * - STARTER (99€): dashboard, clients, reservations, facturation, site_vitrine, agent_ia_web
+ * - STARTER (99€): dashboard, clients, reservations, facturation, agent_ia_web
  * - PRO (249€): + whatsapp, telephone, comptabilite, marketing, pipeline, stock, analytics
  * - BUSINESS (499€): + rh, seo, api, sentinel, whitelabel
  */
@@ -20,7 +20,6 @@ const MODULE_PLAN_ACCESS = {
   'socle': ['starter', 'pro', 'business'],
   'agent_ia_web': ['starter', 'pro', 'business'],
   'ia_reservation': ['starter', 'pro', 'business'],
-  'site_vitrine': ['starter', 'pro', 'business'],
   'facturation': ['starter', 'pro', 'business'],
 
   // PRO - Nécessite plan Pro ou Business
@@ -71,7 +70,6 @@ const PLAN_FEATURES = {
     clients: true,
     reservations: true,
     facturation: true,
-    site_vitrine: true,
     agent_ia_web: true,
     documents: true,
     paiements: true,
@@ -82,7 +80,6 @@ const PLAN_FEATURES = {
     clients: true,
     reservations: true,
     facturation: true,
-    site_vitrine: true,
     agent_ia_web: true,
     documents: true,
     paiements: true,
@@ -102,7 +99,6 @@ const PLAN_FEATURES = {
     clients: true,
     reservations: true,
     facturation: true,
-    site_vitrine: true,
     agent_ia_web: true,
     documents: true,
     paiements: true,
@@ -140,7 +136,7 @@ describe('Plan Isolation - Module Access Control', () => {
 
     it('should have correct plan hierarchy', () => {
       // STARTER modules should be accessible to all plans
-      const starterModules = ['socle', 'agent_ia_web', 'ia_reservation', 'site_vitrine', 'facturation'];
+      const starterModules = ['socle', 'agent_ia_web', 'ia_reservation', 'facturation'];
       starterModules.forEach(module => {
         expect(MODULE_PLAN_ACCESS[module]).toContain('starter');
         expect(MODULE_PLAN_ACCESS[module]).toContain('pro');
