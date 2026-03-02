@@ -169,8 +169,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Verifier la whitelist
     if (corsAllowedOrigins.includes(origin)) return callback(null, true);
-    // Bloque
-    callback(new Error('CORS: origin not allowed'));
+    // Bloque — callback(null, false) = pas de header CORS
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
