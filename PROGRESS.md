@@ -179,15 +179,22 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
 - [x] 8.8 GO LIVE
       Toutes les phases techniques terminees.
       Checklist pre-launch:
-      [ ] Activer PITR Supabase
-      [ ] Configurer CORS_ORIGIN en production sur Render
+      [ ] Activer PITR Supabase (Dashboard > Database > Backups)
+      [~] Configurer CORS_ORIGIN sur Render — CORS actuellement ouvert a tous, bug corrige dans render.yaml (CORS_ORIGINS→CORS_ORIGIN)
+          Valeur a configurer: https://fatshairafro-web.onrender.com,https://nexus-landing.onrender.com
       [ ] Valider CGV avec juriste
-      [ ] Inviter clients beta
+      [ ] Inviter clients beta via /api/signup
       [ ] Monitorer Sentry les 48 premieres heures
 
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-02 — Session 4
+- Documentation synchronisee (16 fichiers, 6 docs obsoletes marques SUPERSEDED)
+- Pricing aligne partout sur 99€/249€/499€ (migration 051 executee)
+- Bug CORS_ORIGINS→CORS_ORIGIN corrige dans render.yaml
+- Plan WhatsApp dedie par tenant (plan approuve, implementation en cours)
 
 ### 2026-03-01/02 — Session 1
 - Fix webhook Twilio 403 (validateBodyTenant corrompait le body)

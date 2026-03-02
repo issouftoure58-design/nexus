@@ -1,9 +1,11 @@
 /**
  * Worker de traitement des notifications
  * Consomme les jobs de la queue et envoie les notifications
+ * Utilise BullMQ Worker (pas Bull queue.process)
  */
 
-import { initNotificationQueue } from './notificationQueue.js';
+import { Worker } from 'bullmq';
+import { getRedis, isAvailable, initRedis } from '../config/redis.js';
 import { Resend } from 'resend';
 import twilio from 'twilio';
 import { getTenantConfig } from '../config/tenants/index.js';
@@ -11,6 +13,7 @@ import { getTenantConfig } from '../config/tenants/index.js';
 // Clients externes
 let resendClient = null;
 let twilioClient = null;
+let worker = null;
 
 function getResend() {
   if (!resendClient && process.env.RESEND_API_KEY) {
@@ -37,12 +40,8 @@ async function sendEmail(job) {
     throw new Error('Resend non configuré');
   }
 
-  const tenantConfig = getTenantConfig(tenant_id);
-  const fromEmail = tenantConfig?.email || process.env.RESEND_FROM_EMAIL || 'noreply@nexus.app';
-  const fromName = tenantConfig?.businessName || 'NEXUS';
-
   const result = await resend.emails.send({
-    from: `${fromName} <${fromEmail}>`,
+    from: 'NEXUS <notifications@nexus.ai>',
     to,
     subject,
     html
@@ -62,14 +61,8 @@ async function sendSMS(job) {
     throw new Error('Twilio non configuré');
   }
 
-  // Vérifier mode mock en dev
-  if (process.env.MOCK_SMS === 'true') {
-    console.log(`[WORKER] 📱 [MOCK] SMS à ${telephone}: ${message.substring(0, 50)}...`);
-    return { success: true, mock: true };
-  }
-
   const tenantConfig = getTenantConfig(tenant_id);
-  const from = tenantConfig?.twilioPhone || process.env.TWILIO_PHONE_NUMBER;
+  const from = tenantConfig?.phone_number || process.env.TWILIO_PHONE_NUMBER;
 
   const result = await client.messages.create({
     body: message,
@@ -81,7 +74,7 @@ async function sendSMS(job) {
 }
 
 /**
- * Envoie un WhatsApp via Twilio
+ * Envoie un message WhatsApp via Twilio
  */
 async function sendWhatsApp(job) {
   const { telephone, message, tenant_id } = job.data;
@@ -89,12 +82,6 @@ async function sendWhatsApp(job) {
 
   if (!client) {
     throw new Error('Twilio non configuré');
-  }
-
-  // Vérifier mode mock en dev
-  if (process.env.MOCK_SMS === 'true') {
-    console.log(`[WORKER] 💬 [MOCK] WhatsApp à ${telephone}: ${message.substring(0, 50)}...`);
-    return { success: true, mock: true };
   }
 
   const tenantConfig = getTenantConfig(tenant_id);
@@ -112,62 +99,61 @@ async function sendWhatsApp(job) {
 }
 
 /**
- * Démarre le worker
+ * Démarre le worker BullMQ
  */
-export function startNotificationWorker() {
-  const queue = initNotificationQueue();
+export async function startNotificationWorker() {
+  await initRedis();
 
-  if (!queue) {
-    console.log('[WORKER] ⚠️ Queue non disponible, worker non démarré');
+  if (!isAvailable()) {
+    console.log('[WORKER] ⚠️ Redis non disponible, worker non démarré');
     return;
   }
 
-  // Processor pour les emails
-  queue.process('email', 5, async (job) => {
-    console.log(`[WORKER] 📧 Traitement email job ${job.id}...`);
-    try {
-      const result = await sendEmail(job);
-      return result;
-    } catch (error) {
-      console.error(`[WORKER] ❌ Erreur email:`, error.message);
-      throw error; // Relancer pour retry
+  const redis = getRedis();
+  if (!redis) return;
+
+  worker = new Worker('notifications', async (job) => {
+    const { type } = job.data;
+
+    switch (type) {
+      case 'email':
+        console.log(`[WORKER] 📧 Traitement email job ${job.id}...`);
+        return await sendEmail(job);
+
+      case 'sms':
+        console.log(`[WORKER] 📱 Traitement SMS job ${job.id}...`);
+        return await sendSMS(job);
+
+      case 'whatsapp':
+        console.log(`[WORKER] 💬 Traitement WhatsApp job ${job.id}...`);
+        return await sendWhatsApp(job);
+
+      default:
+        console.warn(`[WORKER] ⚠️ Type inconnu: ${type}`);
+        throw new Error(`Type de notification inconnu: ${type}`);
     }
+  }, {
+    connection: redis,
+    concurrency: 5
   });
 
-  // Processor pour les SMS
-  queue.process('sms', 3, async (job) => {
-    console.log(`[WORKER] 📱 Traitement SMS job ${job.id}...`);
-    try {
-      const result = await sendSMS(job);
-      return result;
-    } catch (error) {
-      console.error(`[WORKER] ❌ Erreur SMS:`, error.message);
-      throw error;
-    }
+  worker.on('completed', (job) => {
+    console.log(`[WORKER] ✅ Job ${job.id} terminé`);
   });
 
-  // Processor pour WhatsApp
-  queue.process('whatsapp', 3, async (job) => {
-    console.log(`[WORKER] 💬 Traitement WhatsApp job ${job.id}...`);
-    try {
-      const result = await sendWhatsApp(job);
-      return result;
-    } catch (error) {
-      console.error(`[WORKER] ❌ Erreur WhatsApp:`, error.message);
-      throw error;
-    }
+  worker.on('failed', (job, err) => {
+    console.error(`[WORKER] ❌ Job ${job?.id} échoué:`, err.message);
   });
 
-  console.log('[WORKER] ✅ Notification worker démarré (email: 5 concurrents, sms/whatsapp: 3)');
+  console.log('[WORKER] ✅ Notification worker BullMQ démarré (concurrency: 5)');
 }
 
 /**
  * Arrête le worker proprement
  */
 export async function stopNotificationWorker() {
-  const queue = initNotificationQueue();
-  if (queue) {
-    await queue.close();
+  if (worker) {
+    await worker.close();
     console.log('[WORKER] ⏹️ Worker arrêté');
   }
 }
