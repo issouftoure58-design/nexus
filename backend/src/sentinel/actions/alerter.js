@@ -96,17 +96,44 @@ class Alerter {
   }
 
   async sendEmail(alert) {
-    // Email implementation via Resend
     try {
       const resendKey = process.env.RESEND_API_KEY;
       if (!resendKey) {
-        console.log('[SENTINEL] Email not configured');
+        console.log('[SENTINEL] Email not configured (RESEND_API_KEY missing)');
         return { sent: false, reason: 'not_configured' };
       }
 
-      // TODO: Implement Resend email
-      console.log('[SENTINEL] Email alert logged (Resend integration pending)');
-      return { sent: false, reason: 'not_implemented' };
+      const alertEmail = process.env.SENTINEL_ALERT_EMAIL || process.env.ADMIN_EMAIL;
+      if (!alertEmail) {
+        console.log('[SENTINEL] No alert email configured (SENTINEL_ALERT_EMAIL or ADMIN_EMAIL)');
+        return { sent: false, reason: 'no_recipient' };
+      }
+
+      const { Resend } = await import('resend');
+      const resend = new Resend(resendKey);
+
+      const levelEmoji = { CRITICAL: '🔴', URGENT: '🟠', WARNING: '🟡', INFO: '🔵' }[alert.level] || '⚪';
+      const subject = `${levelEmoji} [NEXUS SENTINEL] ${alert.level}: ${alert.title}`;
+
+      const body = [
+        `<h2>${levelEmoji} SENTINEL Alert — ${alert.level}</h2>`,
+        `<p><strong>${alert.title}</strong></p>`,
+        `<p>Date: ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}</p>`,
+        alert.data && Object.keys(alert.data).length > 0
+          ? `<pre>${JSON.stringify(alert.data, null, 2)}</pre>`
+          : '',
+        `<hr><p style="color:#888">NEXUS SENTINEL — Monitoring automatique</p>`
+      ].join('\n');
+
+      await resend.emails.send({
+        from: 'NEXUS Sentinel <sentinel@nexus-app.fr>',
+        to: alertEmail,
+        subject,
+        html: body
+      });
+
+      console.log(`[SENTINEL] Email sent to ${alertEmail}`);
+      return { sent: true };
     } catch (error) {
       console.error('[SENTINEL] Email failed:', error.message);
       return { sent: false, error: error.message };

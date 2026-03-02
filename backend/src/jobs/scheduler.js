@@ -14,6 +14,8 @@ import { jobSEOTracking } from './seoTracking.js';
 import { jobChurnPrevention } from '../ai/predictions.js';
 import { sendTrialAlert } from '../services/tenantEmailService.js';
 import { runTrialNurtureJob } from './trialNurtureJob.js';
+import { sentinelCollector } from '../services/sentinelCollector.js';
+import { sentinelInsights } from '../services/sentinelInsights.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -49,6 +51,8 @@ const JOBS_SCHEDULE = {
   churnPrevention: { hour: 8, minute: 0 }, // 08h00 (detection churn quotidien - Plan Business)
   trialAlerts: { hour: 9, minute: 15 },    // 09h15 - Alertes expiration trial (J-7, J-3, J-1, J0)
   trialNurture: { hour: 10, minute: 30 },  // 10h30 - Emails nurturing trial (J3, J7, J10)
+  sentinelSnapshot: { hour: 0, minute: 30 },  // 00h30 - SENTINEL snapshot quotidien (Business)
+  sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -930,6 +934,120 @@ export async function sendTrialAlertsJob() {
   }
 }
 
+// ============= SENTINEL JOBS =============
+
+/**
+ * Job: SENTINEL snapshot quotidien pour tous les tenants Business
+ * S'exécute tous les jours à 00h30
+ */
+export async function sentinelSnapshotJob() {
+  const jobName = 'sentinelSnapshot';
+  console.log(`\n[Scheduler] 📊 Début job: ${jobName}`);
+
+  try {
+    const db = getSupabase();
+    if (!db) {
+      console.log('[Scheduler] ⚠️ Supabase non configuré, skip SENTINEL snapshot');
+      return { success: false, reason: 'no_db' };
+    }
+
+    // Récupérer tous les tenants Business actifs
+    const { data: tenants, error } = await db
+      .from('tenants')
+      .select('id, name, plan')
+      .eq('plan', 'business')
+      .in('statut', ['actif', 'essai']);
+
+    if (error) {
+      console.error('[Scheduler] Erreur query tenants Business:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    if (!tenants || tenants.length === 0) {
+      console.log('[Scheduler] Aucun tenant Business actif');
+      return { success: true, processed: 0 };
+    }
+
+    console.log(`[Scheduler] ${tenants.length} tenant(s) Business à traiter`);
+
+    let processed = 0;
+    let errors = 0;
+
+    for (const tenant of tenants) {
+      try {
+        await sentinelCollector.runDailyCollection(tenant.id);
+        processed++;
+        console.log(`[Scheduler] ✅ SENTINEL snapshot ${tenant.name} (${tenant.id})`);
+      } catch (err) {
+        errors++;
+        console.error(`[Scheduler] ❌ SENTINEL snapshot ${tenant.name}:`, err.message);
+      }
+    }
+
+    console.log(`[Scheduler] 📊 Fin ${jobName}: ${processed} traités, ${errors} erreurs`);
+    return { success: true, processed, errors };
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Job: SENTINEL insights hebdomadaires pour tous les tenants Business
+ * S'exécute le lundi à 09h00
+ */
+export async function sentinelInsightsJob() {
+  const jobName = 'sentinelInsights';
+  console.log(`\n[Scheduler] 🧠 Début job: ${jobName}`);
+
+  try {
+    const db = getSupabase();
+    if (!db) {
+      console.log('[Scheduler] ⚠️ Supabase non configuré, skip SENTINEL insights');
+      return { success: false, reason: 'no_db' };
+    }
+
+    // Récupérer tous les tenants Business actifs
+    const { data: tenants, error } = await db
+      .from('tenants')
+      .select('id, name, plan')
+      .eq('plan', 'business')
+      .in('statut', ['actif', 'essai']);
+
+    if (error) {
+      console.error('[Scheduler] Erreur query tenants Business:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    if (!tenants || tenants.length === 0) {
+      console.log('[Scheduler] Aucun tenant Business actif');
+      return { success: true, processed: 0 };
+    }
+
+    console.log(`[Scheduler] ${tenants.length} tenant(s) Business pour insights`);
+
+    let processed = 0;
+    let errors = 0;
+
+    for (const tenant of tenants) {
+      try {
+        const insights = await sentinelInsights.generateInsights(tenant.id);
+        processed++;
+        console.log(`[Scheduler] ✅ SENTINEL insights ${tenant.name}: ${insights?.length || 0} générés`);
+      } catch (err) {
+        errors++;
+        console.error(`[Scheduler] ❌ SENTINEL insights ${tenant.name}:`, err.message);
+      }
+    }
+
+    console.log(`[Scheduler] 🧠 Fin ${jobName}: ${processed} traités, ${errors} erreurs`);
+    return { success: true, processed, errors };
+  } catch (error) {
+    console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 // ============= SCHEDULER =============
 
 /**
@@ -1194,6 +1312,26 @@ async function runScheduler() {
       console.error('[Scheduler] Erreur trial nurture:', err.message);
     }
   }
+
+  // Job: SENTINEL snapshot quotidien à 00h30 (Business)
+  if (shouldRunJob('sentinelSnapshot', JOBS_SCHEDULE.sentinelSnapshot)) {
+    markJobExecuted('sentinelSnapshot');
+    try {
+      await sentinelSnapshotJob();
+    } catch (err) {
+      console.error('[Scheduler] Erreur SENTINEL snapshot:', err.message);
+    }
+  }
+
+  // Job: SENTINEL insights hebdo lundi 09h00 (Business)
+  if (shouldRunWeeklyJob('sentinelInsights', JOBS_SCHEDULE.sentinelInsights)) {
+    markJobExecuted('sentinelInsights');
+    try {
+      await sentinelInsightsJob();
+    } catch (err) {
+      console.error('[Scheduler] Erreur SENTINEL insights:', err.message);
+    }
+  }
 }
 
 // ============= DÉMARRAGE =============
@@ -1222,6 +1360,9 @@ export function startScheduler() {
   console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
   console.log(`  ✅ Trial Alerts: tous les jours à ${JOBS_SCHEDULE.trialAlerts.hour}h${String(JOBS_SCHEDULE.trialAlerts.minute).padStart(2, '0')} (J-7, J-3, J-1, J0)`);
   console.log(`  ✅ Trial Nurture: tous les jours à ${JOBS_SCHEDULE.trialNurture.hour}h${String(JOBS_SCHEDULE.trialNurture.minute).padStart(2, '0')} (J3, J7, J10)`);
+  console.log(`  ✅ SENTINEL Snapshot: tous les jours à ${JOBS_SCHEDULE.sentinelSnapshot.hour}h${String(JOBS_SCHEDULE.sentinelSnapshot.minute).padStart(2, '0')} (Business)`);
+  console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
+  console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis

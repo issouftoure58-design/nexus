@@ -87,7 +87,6 @@ const ConfidentialitePage = lazy(() => import("@/pages/legal/Confidentialite"));
 // Protected routes (gardes en import statique car utilises partout)
 import WebsiteLayout from "@/components/website/WebsiteLayout";
 import ProtectedRoute from "@/components/admin/ProtectedRoute";
-import SuperAdminRoute from "@/components/admin/SuperAdminRoute";
 import NexusProtectedRoute from "@/components/nexus/NexusProtectedRoute";
 import ClientProtectedRoute from "@/components/client/ClientProtectedRoute";
 import NotFound from "@/pages/not-found";

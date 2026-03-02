@@ -1,4 +1,5 @@
 import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -7,6 +8,7 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_BACKEND = process.env.VITE_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
 
 // Cache headers middleware
 const setNoCacheHeaders = (res) => {
@@ -18,6 +20,19 @@ const setNoCacheHeaders = (res) => {
 const setImmutableCacheHeaders = (res) => {
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 };
+
+// Proxy /api/* requests to the backend (same behavior as Vite dev proxy)
+app.use('/api', createProxyMiddleware({
+  target: API_BACKEND,
+  changeOrigin: true,
+  logLevel: 'warn',
+}));
+
+// Proxy /health to backend
+app.use('/health', createProxyMiddleware({
+  target: API_BACKEND,
+  changeOrigin: true,
+}));
 
 // Serve assets with long-term caching (they have hashes in filenames)
 app.use('/assets', express.static(join(__dirname, 'dist', 'assets'), {

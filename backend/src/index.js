@@ -86,6 +86,12 @@ import landingAgentRoutes from './routes/landingAgent.js';
 import rgpdRoutes from './routes/rgpd.js';
 import onboardingRoutes from './routes/onboarding.js';
 import publicPaymentRoutes from './routes/publicPayment.js';
+import nexusAdminRoutes, {
+  sentinelIntelligenceRouter,
+  sentinelAutopilotRouter,
+  sentinelLiveRouter,
+  optimizationRouter
+} from './routes/nexusAdmin.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -96,8 +102,11 @@ import { tenantShield, validateBodyTenant } from './middleware/tenantShield.js';
 // Import du scheduler
 import { startScheduler } from './jobs/scheduler.js';
 
-// Import du worker de notifications (Bull queue)
+// Import du worker de notifications (BullMQ)
 import { startNotificationWorker } from './queues/notificationWorker.js';
+
+// Import SENTINEL guardian system
+import { sentinel } from './sentinel/index.js';
 
 // Création de l'application Express
 const app = express();
@@ -226,6 +235,7 @@ app.get('/health', async (req, res) => {
   checks.stripe = !!process.env.STRIPE_SECRET_KEY;
   checks.twilio = !!process.env.TWILIO_ACCOUNT_SID;
   checks.sentry = !!process.env.SENTRY_DSN;
+  checks.sentinel = sentinel.getStatus().status;
 
   const status = healthy ? 'ok' : 'degraded';
   res.status(healthy ? 200 : 503).json({
@@ -244,6 +254,14 @@ app.use('/api/landing', landingAgentRoutes);
 // ============= PUBLIC PAYMENT (Widget reservation, tenant via header) =============
 // Paiement public pour le widget de reservation client - gere sa propre resolution tenant
 app.use('/api/public/payment', publicPaymentRoutes);
+
+// ============= NEXUS SUPER-ADMIN (cross-tenant, avant tenant shield) =============
+// Panel opérateur NEXUS — auth via JWT super_admin, pas besoin de tenant resolution
+app.use('/api/nexus', nexusAdminRoutes);
+app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
+app.use('/api/sentinel/autopilot', sentinelAutopilotRouter);
+app.use('/api/sentinel/live', sentinelLiveRouter);
+app.use('/api/optimization', optimizationRouter);
 
 // 🔒 TENANT RESOLUTION: Appliqué globalement pour toutes les routes /api
 // Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine
@@ -638,8 +656,17 @@ app.listen(PORT, '0.0.0.0', () => {
   // Démarrer le scheduler de jobs
   startScheduler();
 
-  // Démarrer le worker de notifications (Bull queue)
+  // Démarrer le worker de notifications (BullMQ)
   startNotificationWorker();
+
+  // Initialiser SENTINEL guardian system
+  sentinel.init().then(result => {
+    if (result.success) {
+      console.log('[SENTINEL] Guardian system initialized successfully');
+    } else {
+      console.error('[SENTINEL] Initialization failed:', result.error);
+    }
+  }).catch(err => console.error('[SENTINEL] Init error:', err.message));
 });
 
 export default app;

@@ -398,7 +398,7 @@ router.post('/insights/ask', authenticateAdmin, requireAdminPlan('business'), as
  * PATCH /api/sentinel/insights/:id/dismiss
  * Ignorer un insight
  */
-router.patch('/insights/:id/dismiss', authenticateAdmin, async (req, res) => {
+router.patch('/insights/:id/dismiss', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -423,7 +423,7 @@ router.patch('/insights/:id/dismiss', authenticateAdmin, async (req, res) => {
  * PATCH /api/sentinel/insights/:id/implement
  * Marquer un insight comme implemente
  */
-router.patch('/insights/:id/implement', authenticateAdmin, async (req, res) => {
+router.patch('/insights/:id/implement', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
