@@ -156,9 +156,22 @@ app.use(compression({
 }));
 
 // CORS — whitelist stricte en production
-const corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : '*');
+const corsAllowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+const corsIsOpen = !process.env.CORS_ORIGIN && process.env.NODE_ENV !== 'production';
+
 app.use(cors({
-  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()).filter(Boolean),
+  origin: function(origin, callback) {
+    // En dev sans CORS_ORIGIN: tout autoriser
+    if (corsIsOpen) return callback(null, true);
+    // Pas d'origin (curl, server-to-server): autoriser
+    if (!origin) return callback(null, true);
+    // Verifier la whitelist
+    if (corsAllowedOrigins.includes(origin)) return callback(null, true);
+    // Bloque
+    callback(new Error('CORS: origin not allowed'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key', 'X-Tenant-ID', 'X-Tenant-Slug'],

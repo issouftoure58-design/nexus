@@ -31,7 +31,7 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
-      - key: CORS_ORIGINS
+      - key: CORS_ORIGIN
         sync: false
 
   # Fat's Hair Afro - Site vitrine client (Node.js pour contrôle cache)
