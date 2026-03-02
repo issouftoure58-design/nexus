@@ -61,15 +61,25 @@ export function sentryErrorHandler(app) {
   }));
 }
 
-export const captureException = (err) => {
+export const captureException = (err, context = {}) => {
   if (process.env.SENTRY_DSN) {
-    Sentry.captureException(err);
+    Sentry.withScope(scope => {
+      if (context.tags) Object.entries(context.tags).forEach(([k, v]) => scope.setTag(k, v));
+      if (context.extra) Object.entries(context.extra).forEach(([k, v]) => scope.setExtra(k, v));
+      if (context.user) scope.setUser(context.user);
+      if (context.level) scope.setLevel(context.level);
+      Sentry.captureException(err);
+    });
   }
 };
 
-export const captureMessage = (msg, level = 'info') => {
+export const captureMessage = (msg, level = 'info', context = {}) => {
   if (process.env.SENTRY_DSN) {
-    Sentry.captureMessage(msg, level);
+    Sentry.withScope(scope => {
+      if (context.tags) Object.entries(context.tags).forEach(([k, v]) => scope.setTag(k, v));
+      if (context.extra) Object.entries(context.extra).forEach(([k, v]) => scope.setExtra(k, v));
+      Sentry.captureMessage(msg, level);
+    });
   }
 };
 

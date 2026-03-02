@@ -1,56 +1,44 @@
 /**
  * Queue de notifications avec retry automatique
- * Utilise Bull + Redis pour la gestion des jobs
+ * Utilise BullMQ + Redis pour la gestion des jobs
  */
 
-import Bull from 'bull';
-import { getRedis } from '../config/redis.js';
-
-// Configuration Redis depuis l'environnement
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+import { Queue } from 'bullmq';
+import { getRedis, isAvailable, initRedis } from '../config/redis.js';
 
 // Création de la queue
 let notificationQueue = null;
+let queueInitialized = false;
 
 /**
  * Initialise la queue de notifications
  */
-export function initNotificationQueue() {
-  if (notificationQueue) return notificationQueue;
+export async function initNotificationQueue() {
+  if (queueInitialized) return notificationQueue;
+  queueInitialized = true;
 
-  if (!process.env.REDIS_URL) {
-    console.log('[QUEUE] ⚠️ Redis non configuré - Queue désactivée');
+  await initRedis();
+
+  if (!isAvailable()) {
+    console.log('[QUEUE] ⚠️ Redis non disponible - Queue désactivée');
     return null;
   }
 
+  const redis = getRedis();
+  if (!redis) return null;
+
   try {
-    notificationQueue = new Bull('notifications', redisUrl, {
+    notificationQueue = new Queue('notifications', {
+      connection: redis,
       defaultJobOptions: {
         attempts: 3,
         backoff: {
           type: 'exponential',
           delay: 2000 // 2s, 4s, 8s
         },
-        removeOnComplete: 100, // Garder les 100 derniers jobs complétés
-        removeOnFail: 50 // Garder les 50 derniers échecs
-      },
-      settings: {
-        stalledInterval: 30000, // 30s
-        maxStalledCount: 2
+        removeOnComplete: 100,
+        removeOnFail: 50
       }
-    });
-
-    // Handlers d'événements
-    notificationQueue.on('completed', (job, result) => {
-      console.log(`[QUEUE] ✅ Job ${job.id} (${job.name}) complété:`, result?.success ? 'OK' : 'Partial');
-    });
-
-    notificationQueue.on('failed', (job, err) => {
-      console.error(`[QUEUE] ❌ Job ${job.id} (${job.name}) échoué après ${job.attemptsMade} tentatives:`, err.message);
-    });
-
-    notificationQueue.on('stalled', (job) => {
-      console.warn(`[QUEUE] ⚠️ Job ${job.id} bloqué, relance...`);
     });
 
     console.log('[QUEUE] ✅ Notification queue initialisée');
@@ -63,10 +51,20 @@ export function initNotificationQueue() {
 }
 
 /**
+ * Récupère la queue (peut être null si Redis non disponible)
+ */
+async function getQueue() {
+  if (!queueInitialized) {
+    await initNotificationQueue();
+  }
+  return notificationQueue;
+}
+
+/**
  * Ajoute un SMS à la queue
  */
 export async function queueSMS(telephone, message, tenantId, options = {}) {
-  const queue = initNotificationQueue();
+  const queue = await getQueue();
   if (!queue) {
     console.log('[QUEUE] Queue non disponible, envoi direct requis');
     return null;
@@ -92,7 +90,7 @@ export async function queueSMS(telephone, message, tenantId, options = {}) {
  * Ajoute un email à la queue
  */
 export async function queueEmail(to, subject, html, tenantId, options = {}) {
-  const queue = initNotificationQueue();
+  const queue = await getQueue();
   if (!queue) {
     console.log('[QUEUE] Queue non disponible, envoi direct requis');
     return null;
@@ -119,7 +117,7 @@ export async function queueEmail(to, subject, html, tenantId, options = {}) {
  * Ajoute un WhatsApp à la queue
  */
 export async function queueWhatsApp(telephone, message, tenantId, options = {}) {
-  const queue = initNotificationQueue();
+  const queue = await getQueue();
   if (!queue) {
     console.log('[QUEUE] Queue non disponible, envoi direct requis');
     return null;
@@ -145,7 +143,7 @@ export async function queueWhatsApp(telephone, message, tenantId, options = {}) 
  * Récupère les statistiques de la queue
  */
 export async function getQueueStats() {
-  const queue = initNotificationQueue();
+  const queue = await getQueue();
   if (!queue) return null;
 
   const [waiting, active, completed, failed, delayed] = await Promise.all([
@@ -163,11 +161,11 @@ export async function getQueueStats() {
  * Nettoie les anciens jobs
  */
 export async function cleanQueue(olderThan = 24 * 60 * 60 * 1000) {
-  const queue = initNotificationQueue();
+  const queue = await getQueue();
   if (!queue) return;
 
-  await queue.clean(olderThan, 'completed');
-  await queue.clean(olderThan * 7, 'failed'); // Garder les échecs 7 jours
+  await queue.clean(olderThan, 0, 'completed');
+  await queue.clean(olderThan * 7, 0, 'failed'); // Garder les échecs 7 jours
 
   console.log('[QUEUE] 🧹 Nettoyage effectué');
 }

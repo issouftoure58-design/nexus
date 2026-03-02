@@ -55,12 +55,12 @@ Toutes les requetes necessitent un tenant_id. Le tenant est resolu via:
     },
     servers: [
       {
-        url: 'http://localhost:5000',
-        description: 'Development'
+        url: 'https://nexus-backend-dev.onrender.com',
+        description: 'Production'
       },
       {
-        url: 'https://api.nexus.ai',
-        description: 'Production'
+        url: 'http://localhost:5000',
+        description: 'Development'
       }
     ],
     tags: [

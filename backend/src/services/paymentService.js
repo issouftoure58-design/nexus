@@ -4,6 +4,7 @@
  */
 
 import Stripe from 'stripe';
+import { captureException, captureMessage } from '../config/sentry.js';
 
 // ============= CONFIGURATION STRIPE =============
 
@@ -110,6 +111,7 @@ export async function createStripePaymentIntent(tenantId, amount, metadata = {})
     };
   } catch (error) {
     console.error('[Stripe] Erreur création PaymentIntent:', error);
+    captureException(error, { tags: { service: 'stripe', operation: 'create_payment_intent' } });
     throw new Error(`Stripe payment creation failed: ${error.message}`);
   }
 }
@@ -140,6 +142,7 @@ export async function confirmStripePayment(tenantId, paymentIntentId) {
     // 🔒 TENANT SHIELD: Vérifier que le paiement appartient au tenant
     if (paymentIntent.metadata?.tenant_id && paymentIntent.metadata.tenant_id !== tenantId) {
       console.error(`[Stripe] 🚨 CROSS-TENANT ACCESS BLOCKED: ${tenantId} tried to access payment of ${paymentIntent.metadata.tenant_id}`);
+      captureMessage('CROSS-TENANT ACCESS BLOCKED', 'fatal', { tags: { service: 'stripe', type: 'cross_tenant' }, extra: { tenantId, targetTenant: paymentIntent.metadata.tenant_id, paymentIntentId } });
       throw new Error('Accès non autorisé à ce paiement');
     }
 
@@ -156,6 +159,7 @@ export async function confirmStripePayment(tenantId, paymentIntentId) {
     };
   } catch (error) {
     console.error('[Stripe] Erreur vérification paiement:', error);
+    captureException(error, { tags: { service: 'stripe', operation: 'verify_payment' }, extra: { tenantId, paymentIntentId } });
     throw new Error(`Stripe payment verification failed: ${error.message}`);
   }
 }
@@ -186,6 +190,7 @@ export async function refundStripePayment(tenantId, paymentIntentId, amount = nu
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (paymentIntent.metadata?.tenant_id && paymentIntent.metadata.tenant_id !== tenantId) {
       console.error(`[Stripe] 🚨 CROSS-TENANT REFUND BLOCKED: ${tenantId} tried to refund payment of ${paymentIntent.metadata.tenant_id}`);
+      captureMessage('CROSS-TENANT REFUND BLOCKED', 'fatal', { tags: { service: 'stripe', type: 'cross_tenant' }, extra: { tenantId, targetTenant: paymentIntent.metadata.tenant_id, paymentIntentId } });
       throw new Error('Accès non autorisé - remboursement bloqué');
     }
 
@@ -211,6 +216,7 @@ export async function refundStripePayment(tenantId, paymentIntentId, amount = nu
     };
   } catch (error) {
     console.error('[Stripe] Erreur remboursement:', error);
+    captureException(error, { tags: { service: 'stripe', operation: 'refund' }, extra: { tenantId, paymentIntentId, amount } });
     throw new Error(`Stripe refund failed: ${error.message}`);
   }
 }
@@ -336,6 +342,7 @@ export async function capturePayPalOrder(tenantId, orderId) {
       const orderTenantId = order.purchase_units?.[0]?.reference_id;
       if (orderTenantId && orderTenantId !== tenantId) {
         console.error(`[PayPal] 🚨 CROSS-TENANT CAPTURE BLOCKED: ${tenantId} tried to capture order of ${orderTenantId}`);
+        captureMessage('CROSS-TENANT PAYPAL CAPTURE BLOCKED', 'fatal', { tags: { service: 'paypal', type: 'cross_tenant' }, extra: { tenantId, targetTenant: orderTenantId, orderId } });
         throw new Error('Accès non autorisé - capture bloquée');
       }
     }

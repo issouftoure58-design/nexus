@@ -32,8 +32,6 @@ jobs:
             path: .
           - name: backend
             path: backend
-          - name: admin-ui
-            path: admin-ui
           - name: frontend
             path: frontend/nexus-app
           - name: landing

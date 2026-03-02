@@ -27,12 +27,22 @@ export default {
 
   // Coverage settings
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/index.js',
-    '!src/config/**'
+    'src/services/**/*.js',
+    'src/utils/**/*.js',
+    'src/middleware/**/*.js',
+    'src/queues/**/*.js',
+    '!src/**/index.js'
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: ['text-summary', 'lcov', 'html'],
+  coverageThresholds: {
+    global: {
+      statements: 5,
+      branches: 3,
+      functions: 5,
+      lines: 5
+    }
+  },
 
   // Timeouts
   testTimeout: 30000,

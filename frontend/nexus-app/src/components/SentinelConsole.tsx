@@ -401,7 +401,7 @@ export default function SentinelConsole() {
   // Determine overall health from insights
   const insights = metrics?.insights || [];
   const worstSeverity = insights.reduce((worst, i) => {
-    const order = { critical: 3, warn: 2, info: 1, ok: 0 };
+    const order: Record<string, number> = { critical: 3, warn: 2, info: 1, ok: 0 };
     return (order[i.severity] || 0) > (order[worst] || 0) ? i.severity : worst;
   }, "ok" as string);
 

@@ -10,6 +10,7 @@
 import express from 'express';
 import twilio from 'twilio';
 import logger from '../config/logger.js';
+import { captureException } from '../config/sentry.js';
 import {
   getVoiceResponseNexus,
   cleanupConversation as cleanupVoiceService,
@@ -219,6 +220,7 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
     console.error('[TWILIO NEXUS] ❌ Message reçu:', message);
     console.error('[TWILIO NEXUS] ❌ Stack complète:', error.stack);
     console.error('[TWILIO NEXUS] ════════════════════════════════════════════════════════\n');
+    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { callSid, message } });
     return {
       response: "Excusez-moi, j'ai un petit problème. Pouvez-vous répéter ?",
       shouldEndCall: false,
@@ -401,6 +403,7 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
 
   } catch (error) {
     console.error('[HALIMAH VOICE] Erreur accueil:', error);
+    captureException(error, { tags: { service: 'twilio', type: 'voice_greeting' } });
     twiml.say(VOICE_CONFIG, "Excusez-moi, j'ai un petit problème technique. Veuillez rappeler dans quelques instants. Au revoir !");
   }
 
@@ -504,6 +507,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
 
   } catch (error) {
     console.error('[HALIMAH VOICE] Erreur conversation:', error);
+    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { CallSid } });
     const session = voiceSessions.get(CallSid);
     const tenantId = session?.tenantId;
     const info = tenantId ? getBusinessInfoSync(tenantId) : {};

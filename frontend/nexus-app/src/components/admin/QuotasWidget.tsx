@@ -231,7 +231,7 @@ export default function QuotasWidget() {
             <AlertDescription className="text-purple-800">
               <span className="font-semibold">Besoin de plus ?</span> Passez au plan Business pour des quotas illimites + SEO + RH + API.
               <Button
-                variant="link"
+                variant="ghost"
                 className="text-purple-700 underline p-0 h-auto ml-1"
                 onClick={() => window.location.href = '/admin/billing/upgrade'}
               >
@@ -248,7 +248,7 @@ export default function QuotasWidget() {
             <AlertDescription className="text-blue-800">
               <span className="font-semibold">Passez au plan Pro !</span> 3x plus de clients, 5x plus de stockage, 5x plus de posts IA.
               <Button
-                variant="link"
+                variant="ghost"
                 className="text-blue-700 underline p-0 h-auto ml-1"
                 onClick={() => window.location.href = '/admin/billing/upgrade'}
               >

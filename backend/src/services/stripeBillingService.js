@@ -13,6 +13,7 @@ import {
   sendSubscriptionCancelledEmail,
   sendTrialAlert
 } from './tenantEmailService.js';
+import { captureException, captureMessage } from '../config/sentry.js';
 
 // Configuration Stripe
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -352,6 +353,7 @@ export async function getSubscriptionDetails(tenantId) {
     };
   } catch (e) {
     console.error('[Stripe] Erreur recuperation subscription:', e.message);
+    captureException(e, { tags: { service: 'stripe', operation: 'get_subscription' } });
     return {
       has_subscription: false,
       error: e.message
@@ -944,6 +946,7 @@ async function handleInvoicePaymentFailed(invoice) {
       : null
   }).catch(err => console.error('[Stripe Webhook] Erreur email payment failed:', err));
 
+  captureMessage(`Payment failed for tenant ${tenant.id}`, 'warning', { tags: { service: 'stripe', type: 'payment_failed' }, extra: { tenantId: tenant.id, invoiceId: invoice.id, amount: invoice.amount_due } });
   console.log(`[Stripe Webhook] Paiement echoue pour ${tenant.id}: ${invoice.id}`);
 }
 

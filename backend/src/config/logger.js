@@ -147,4 +147,20 @@ logger.twilio = (action, tenantId, meta = {}) => {
   });
 };
 
+// Production: redirect console.* to Winston (captures all 173+ files)
+if (process.env.NODE_ENV === 'production') {
+  const originalConsole = {
+    log: console.log.bind(console),
+    error: console.error.bind(console),
+    warn: console.warn.bind(console)
+  };
+
+  console.log = (...args) => logger.info(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+  console.error = (...args) => logger.error(args.map(a => typeof a === 'object' ? (a?.stack || JSON.stringify(a)) : a).join(' '));
+  console.warn = (...args) => logger.warn(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+
+  // Keep originals accessible if needed
+  console._original = originalConsole;
+}
+
 export default logger;

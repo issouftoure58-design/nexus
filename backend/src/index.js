@@ -118,7 +118,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://api.stripe.com", "wss:", "https:"],
       frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
     },
@@ -155,10 +155,10 @@ app.use(compression({
   }
 }));
 
-// CORS
-const corsOrigin = process.env.CORS_ORIGIN || '*';
+// CORS — whitelist stricte en production
+const corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : '*');
 app.use(cors({
-  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()),
+  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()).filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key', 'X-Tenant-ID', 'X-Tenant-Slug'],
@@ -188,9 +188,40 @@ app.use((req, res, next) => {
 
 // ============= ROUTES =============
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check enrichi (DB, Redis, services externes)
+app.get('/health', async (req, res) => {
+  const checks = { db: 'unknown', redis: 'unknown' };
+  let healthy = true;
+
+  // Database
+  try {
+    const start = Date.now();
+    const { supabase } = await import('./config/supabase.js');
+    const { error } = await supabase.from('tenants').select('id').limit(1);
+    checks.db = error ? 'error' : 'ok';
+    checks.db_latency = Date.now() - start;
+    if (error) healthy = false;
+  } catch { checks.db = 'error'; healthy = false; }
+
+  // Redis
+  try {
+    const { isAvailable } = await import('./config/redis.js');
+    checks.redis = isAvailable() ? 'ok' : 'not_configured';
+  } catch { checks.redis = 'not_configured'; }
+
+  // Services externes (config check, pas d'appel)
+  checks.stripe = !!process.env.STRIPE_SECRET_KEY;
+  checks.twilio = !!process.env.TWILIO_ACCOUNT_SID;
+  checks.sentry = !!process.env.SENTRY_DSN;
+
+  const status = healthy ? 'ok' : 'degraded';
+  res.status(healthy ? 200 : 503).json({
+    status,
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    checks
+  });
 });
 
 // ============= LANDING PAGE AGENT (Public, avant tenant resolution) =============

@@ -29,7 +29,6 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-            admin-ui/package-lock.json
             frontend/nexus-app/package-lock.json
 
       - name: Install root dependencies
@@ -110,9 +109,9 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         working-directory: backend
-        run: npm test
+        run: npm run test:coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexus_test
           REDIS_URL: redis://localhost:6379
@@ -130,9 +129,6 @@ jobs:
           - app: backend
             path: backend
             build-cmd: 'echo "Backend uses runtime build"'
-          - app: admin-ui
-            path: admin-ui
-            build-cmd: npm run build
           - app: frontend
             path: frontend/nexus-app
             build-cmd: npm run build

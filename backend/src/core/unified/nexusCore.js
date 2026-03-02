@@ -68,7 +68,7 @@ import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingServi
 
 async function sendConfirmationSMS(tenantId, phone, details) {
   if (process.env.MOCK_SMS === 'true' || (process.env.NODE_ENV !== 'production' && !process.env.TWILIO_ACCOUNT_SID)) {
-    const { envoyerConfirmation } = await import('../../services/notificationService.mock.js');
+    const { envoyerConfirmation } = await import('../../../../tests/mocks/notificationService.mock.js');
     return envoyerConfirmation({
       client_telephone: phone,
       service_nom: details.service,

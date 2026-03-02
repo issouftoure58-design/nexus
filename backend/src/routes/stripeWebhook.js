@@ -13,6 +13,7 @@ import express from 'express';
 import Stripe from 'stripe';
 import { handleWebhookEvent } from '../services/stripeBillingService.js';
 import logger from '../config/logger.js';
+import { captureException } from '../config/sentry.js';
 
 const router = express.Router();
 
@@ -55,7 +56,8 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
       return res.status(400).send('Webhook signature required');
     }
   } catch (err) {
-    console.error('[Stripe Webhook] Erreur signature:', err.message);
+    logger.error('[Stripe Webhook] Erreur signature', { error: err.message });
+    captureException(err, { tags: { service: 'stripe', type: 'webhook_signature' } });
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -64,7 +66,8 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
     await handleWebhookEvent(event);
     res.json({ received: true });
   } catch (error) {
-    console.error('[Stripe Webhook] Erreur traitement:', error);
+    logger.error('[Stripe Webhook] Erreur traitement', { error: error.message, eventType: event?.type });
+    captureException(error, { tags: { service: 'stripe', type: 'webhook_processing' }, extra: { eventType: event?.type } });
     res.status(500).json({ error: error.message });
   }
 });

@@ -515,7 +515,7 @@ export default function SocialMedia() {
                 />
                 <button
                   onClick={generateImage}
-                  disabled={generatingImage || (quotas && quotas.images.restant <= 0)}
+                  disabled={generatingImage || !!(quotas && quotas.images.restant <= 0)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 text-white font-medium rounded-xl shadow-lg shadow-pink-500/20 hover:shadow-pink-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generatingImage ? (

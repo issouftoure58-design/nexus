@@ -7,6 +7,7 @@
 
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
+import { captureMessage } from '../config/sentry.js';
 
 /**
  * Limites par plan tarifaire
@@ -215,6 +216,7 @@ export async function requireClientsQuota(req, res, next) {
     const check = await checkClientsQuota(tenant_id, plan);
 
     if (!check.ok) {
+      captureMessage(`Quota clients exceeded: ${tenant_id}`, 'warning', { tags: { type: 'quota_exceeded', quota: 'clients' }, extra: { tenant_id, plan, current: check.current, limit: check.limit } });
       return res.status(403).json({
         error: check.message,
         code: 'QUOTA_EXCEEDED',
@@ -250,6 +252,7 @@ export async function requireStorageQuota(req, res, next) {
     const check = await checkStorageQuota(tenant_id, plan, file_size);
 
     if (!check.ok) {
+      captureMessage(`Quota stockage exceeded: ${tenant_id}`, 'warning', { tags: { type: 'quota_exceeded', quota: 'stockage' }, extra: { tenant_id, plan } });
       return res.status(403).json({
         error: check.message,
         code: 'QUOTA_EXCEEDED',
