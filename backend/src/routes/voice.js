@@ -13,11 +13,12 @@ import path from 'path';
 import fs from 'fs';
 import ttsService from '../services/ttsService.js';
 import voiceService from '../services/voiceService.js'; // Pour CACHE_DIR et compatibilité
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
 
 // ============================================
-// AUDIO SERVING (pour Twilio <Play>)
+// AUDIO SERVING (pour Twilio <Play>) — PUBLIC
 // ============================================
 
 /**
@@ -45,6 +46,10 @@ router.get('/audio/:filename', (req, res) => {
   });
   res.sendFile(filePath);
 });
+
+// 🔒 Toutes les routes suivantes nécessitent auth admin
+// (les endpoints TTS coûtent de l'argent — OpenAI/ElevenLabs)
+router.use(authenticateAdmin);
 
 // ============================================
 // ROUTES PRINCIPALES

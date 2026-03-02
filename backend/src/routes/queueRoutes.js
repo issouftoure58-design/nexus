@@ -1,15 +1,21 @@
 /**
  * Routes pour les statistiques de la queue de notifications
+ * ⚠️ SECURED: Toutes les routes nécessitent authenticateAdmin
  */
 
 import express from 'express';
 import { getQueueStats, cleanQueue } from '../queues/notificationQueue.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
+
+// 🔒 Toutes les routes queue nécessitent une auth admin
+router.use(authenticateAdmin);
 
 /**
  * GET /api/queue/stats
  * Récupère les statistiques de la queue de notifications
+ * ⚠️ SECURED: Requires admin authentication
  */
 router.get('/stats', async (req, res) => {
   try {
@@ -47,19 +53,10 @@ router.get('/stats', async (req, res) => {
 /**
  * POST /api/queue/clean
  * Nettoie les anciens jobs de la queue
- * Protégé - nécessite autorisation admin
+ * ⚠️ SECURED: Requires admin authentication (via router.use)
  */
 router.post('/clean', async (req, res) => {
   try {
-    // Vérifier autorisation (à implémenter selon votre système d'auth)
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: 'Autorisation requise'
-      });
-    }
-
     const { olderThan = 24 * 60 * 60 * 1000 } = req.body; // 24h par défaut
     await cleanQueue(olderThan);
 

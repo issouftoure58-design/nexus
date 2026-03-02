@@ -14,22 +14,19 @@
 
 import express from 'express';
 import { quotaManager, MODULE_QUOTAS } from '../services/quotaManager.js';
+import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
 
+// 🔒 Toutes les routes quotas nécessitent une auth admin
+// (sauf /pricing et /modules qui sont informationnels)
+router.use(authenticateAdmin);
+
 /**
- * Middleware pour extraire le tenantId
- * 🔒 SÉCURITÉ: JAMAIS de fallback à header non authentifié
+ * Middleware pour extraire le tenantId depuis l'admin authentifié
  */
 const getTenantId = (req) => {
-  // UNIQUEMENT depuis sources authentifiées
-  const tenantId = req.admin?.tenant_id || req.tenantId;
-
-  if (!tenantId) {
-    console.warn('[QUOTAS] ⚠️ Tentative accès sans tenant authentifié');
-  }
-
-  return tenantId;
+  return req.admin?.tenant_id;
 };
 
 /**
