@@ -21,17 +21,13 @@ const setImmutableCacheHeaders = (res) => {
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 };
 
-// Proxy /api/* requests to the backend (same behavior as Vite dev proxy)
-app.use('/api', createProxyMiddleware({
+// Proxy /api/* and /health to the backend (same behavior as Vite dev proxy)
+// Using pathFilter instead of Express mount to preserve the full path
+app.use(createProxyMiddleware({
   target: API_BACKEND,
   changeOrigin: true,
+  pathFilter: ['/api', '/health'],
   logLevel: 'warn',
-}));
-
-// Proxy /health to backend
-app.use('/health', createProxyMiddleware({
-  target: API_BACKEND,
-  changeOrigin: true,
 }));
 
 // Serve assets with long-term caching (they have hashes in filenames)
