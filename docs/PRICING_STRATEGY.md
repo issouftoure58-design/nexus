@@ -1,7 +1,10 @@
 # NEXUS - Stratégie Pricing Complète
 
 > Document de référence pour le pricing, les coûts et les optimisations NEXUS
-> Dernière mise à jour: Février 2026
+> Dernière mise à jour: Mars 2026
+>
+> **IMPORTANT:** Les prix definitifs sont Starter 99€, Pro 249€, Business 499€ (migration 041).
+> Les calculs de marges et options modulaires ci-dessous sont a recalculer sur cette base.
 
 ---
 
@@ -34,9 +37,9 @@ NEXUS propose une solution **tout-en-un** pour les professionnels (salons, resta
 
 | Segment | Plan | Prix | Cible |
 |---------|------|------|-------|
-| Entry | Starter | 199€/mois | Petits établissements, solo |
-| Growth | Pro | 399€/mois | Établissements en croissance |
-| Enterprise | Business | 799€/mois | Multi-établissements, franchises |
+| Entry | Starter | 99€/mois | Petits établissements, solo |
+| Growth | Pro | 249€/mois | Établissements en croissance |
+| Enterprise | Business | 499€/mois | Multi-établissements, franchises |
 
 ### Principe de modularité
 
@@ -54,7 +57,7 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 │                              NEXUS PRICING                                  │
 ├───────────────────┬───────────────────┬───────────────────┬─────────────────┤
 │                   │      STARTER      │        PRO        │    BUSINESS     │
-│                   │     199€/mois     │     399€/mois     │    799€/mois    │
+│                   │      99€/mois     │     249€/mois     │    499€/mois    │
 ├───────────────────┼───────────────────┼───────────────────┼─────────────────┤
 │ CANAUX IA         │                   │                   │                 │
 ├───────────────────┼───────────────────┼───────────────────┼─────────────────┤
@@ -78,7 +81,7 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 
 ## Composition détaillée par plan
 
-### STARTER - 199€/mois
+### STARTER - 99€/mois
 
 **Cible:** Petits salons, indépendants, démarrage d'activité
 
@@ -126,7 +129,7 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 
 ---
 
-### PRO - 399€/mois
+### PRO - 249€/mois
 
 **Cible:** Salons en croissance, équipes de 2-5 personnes
 
@@ -191,7 +194,7 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 
 ---
 
-### BUSINESS - 799€/mois
+### BUSINESS - 499€/mois
 
 **Cible:** Multi-établissements, franchises, entreprises structurées
 
@@ -265,15 +268,17 @@ Les réductions sont **proportionnelles aux coûts réels** de chaque canal.
 
 | Plan | Full | Sans Tel | Sans WA | Web Only |
 |------|------|----------|---------|----------|
-| **Starter** | 199€ | 109€ | 169€ | 89€ |
-| **Pro** | 399€ | 219€ | 319€ | 159€ |
-| **Business** | 799€ | 449€ | 649€ | 349€ |
+| **Starter** | 99€ | A recalculer | A recalculer | A recalculer |
+| **Pro** | 249€ | A recalculer | A recalculer | A recalculer |
+| **Business** | 499€ | A recalculer | A recalculer | A recalculer |
+
+> Les reductions par canal sont a recalculer sur la base des nouveaux prix.
 
 ### Cas d'usage
 
-- **Salon qui n'utilise que le Web**: Starter Web Only à 89€
-- **Restaurant sans WhatsApp**: Pro Sans WA à 319€
-- **Multi-sites sans téléphone IA**: Business Sans Tel à 449€
+- **Salon qui n'utilise que le Web**: Starter Web Only (a recalculer)
+- **Restaurant sans WhatsApp**: Pro Sans WA (a recalculer)
+- **Multi-sites sans téléphone IA**: Business Sans Tel (a recalculer)
 
 ---
 
@@ -491,9 +496,9 @@ const results = await anthropic.batches.results(batchRequest.id);
 
 | Plan | Prix | Coût | Marge brute | % |
 |------|------|------|-------------|---|
-| Starter | 199€ | 55€ | 144€ | **72%** |
-| Pro | 399€ | 120€ | 279€ | **70%** |
-| Business | 799€ | 240€ | 559€ | **70%** |
+| Starter | 99€ | 55€ | 44€ | **44%** |
+| Pro | 249€ | 120€ | 129€ | **52%** |
+| Business | 499€ | 240€ | 259€ | **52%** |
 
 ### Marges sur options modulaires
 
@@ -529,11 +534,10 @@ const results = await anthropic.batches.results(batchRequest.id);
 
 | Promo | Starter | Pro | Business | Marge min |
 |-------|---------|-----|----------|-----------|
-| Normal | 199€ | 399€ | 799€ | 70% |
-| **-10%** | 179€ | 359€ | 719€ | **67%** |
-| **-20%** | 159€ | 319€ | 639€ | **63%** |
-| **-30%** | 139€ | 279€ | 559€ | **57%** |
-| **-50%** (max) | 99€ | 199€ | 399€ | **44%** |
+| Normal | 99€ | 249€ | 499€ | 50% |
+| **-10%** | 89€ | 224€ | 449€ | **45%** |
+| **-20%** | 79€ | 199€ | 399€ | **38%** |
+| **-30%** (max) | 69€ | 174€ | 349€ | **30%** |
 
 ### Recommandations promos
 
@@ -627,10 +631,10 @@ FACTURE NEXUS - Mars 2026
 Client: Salon Élégance
 Plan: Pro
 
-Abonnement Pro                           399.00€
-  - 600 min téléphone inclus
-  - 2500 msg WhatsApp inclus
-  - 10000 msg Web inclus
+Abonnement Pro                           249.00€
+  - 5 utilisateurs inclus
+  - 5000 clients max
+  - 500 SMS/mois
 
 Dépassements:
   - Téléphone: 45 min × 0.50€              22.50€
@@ -639,9 +643,9 @@ Dépassements:
 Utilisateurs supplémentaires:
   - 2 users × 20€                          40.00€
 
-TOTAL HT                                  461.50€
-TVA 20%                                    92.30€
-TOTAL TTC                                 553.80€
+TOTAL HT                                  311.50€
+TVA 20%                                    62.30€
+TOTAL TTC                                 373.80€
 ```
 
 ---

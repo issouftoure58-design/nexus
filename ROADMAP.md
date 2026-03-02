@@ -1,5 +1,9 @@
 # NEXUS Platform - Roadmap Commercialisation v3.0
 
+> **Note (2 mars 2026):** La roadmap technique (ROADMAP_100.md) est terminee a 100/100.
+> Ce document reste la reference pour la roadmap **commercialisation** (domaine, legal, marketing, beta).
+> Les phases techniques sont couvertes par PROGRESS.md et SYSTEM.md.
+
 > **Dernière mise à jour :** 15 février 2026
 > **Objectif :** Lancement commercial SaaS en France
 > **Structure juridique :** Micro-entreprise (SIRET en cours de validation)
@@ -258,9 +262,9 @@ nexus-saas.fr/
 │   │   └── Dashboard & Analytics
 │   │
 │   ├── Section Pricing
-│   │   ├── Plan Starter (199€)
-│   │   ├── Plan Pro (399€)
-│   │   └── Plan Business (799€)
+│   │   ├── Plan Starter (99€)
+│   │   ├── Plan Pro (249€)
+│   │   └── Plan Business (499€)
 │   │
 │   ├── Section Témoignages
 │   │   └── (À ajouter après beta)
@@ -534,9 +538,9 @@ const TRIAL_CONFIG = {
 
 | Plan | Prix | Inclus |
 |------|------|--------|
-| **Starter** | 199€/mois | 300 min tel, 1000 msg WA, 1000 clients, CRM basique |
-| **Pro** | 399€/mois | 600 min tel, 2500 msg WA, 3000 clients, CRM avancé, Marketing auto |
-| **Business** | 799€/mois | 1200 min tel, 5000 msg WA, illimité, SEO, RH, API, SENTINEL |
+| **Starter** | 99€/mois | 1 utilisateur, 1000 clients, 200 SMS/mois, CRM basique |
+| **Pro** | 249€/mois | 5 utilisateurs, 5000 clients, 500 SMS/mois, 60min voix IA, CRM avancé |
+| **Business** | 499€/mois | 20 utilisateurs, illimité, 2000 SMS/mois, 300min voix IA, SEO, RH, API |
 
 ### 8.3 Onboarding Guidé
 

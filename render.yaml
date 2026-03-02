@@ -47,15 +47,13 @@ services:
       - key: NODE_ENV
         value: production
 
-  # Multi-tenant Admin UI (dashboard for all tenants)
+  # Landing page (site vitrine marketing)
   - type: web
-    name: nexus-admin
+    name: nexus-landing
     runtime: node
-    rootDir: admin-ui
-    buildCommand: npm install --include=dev && npm run build
-    startCommand: node server.js
+    rootDir: landing
+    buildCommand: npm install && npm run build
+    startCommand: npx serve dist -s -l 3000
     envVars:
-      - key: VITE_API_URL
-        value: https://nexus-backend-dev.onrender.com/api
       - key: NODE_ENV
         value: production

@@ -1,344 +1,204 @@
-# 🏗️ NEXUS - SYSTÈME COMPLET
+# NEXUS - SYSTEME COMPLET
 
-> **Dernière mise à jour:** 2026-02-21
-> **Version:** 1.0.0
-> **Status:** Production
-
----
-
-## 📋 VUE D'ENSEMBLE RAPIDE
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        NEXUS PLATFORM                           │
-├─────────────────────────────────────────────────────────────────┤
-│  Type: SaaS Multi-Tenant                                        │
-│  Stack: Node.js + Express + Supabase + React                   │
-│  Deploy: Render.com                                             │
-│  AI: Claude (Anthropic) + ElevenLabs (TTS)                     │
-│  Téléphonie: Twilio (WhatsApp + Voice + SMS)                   │
-│  Paiements: Stripe                                              │
-└─────────────────────────────────────────────────────────────────┘
-```
+> **Derniere mise a jour:** 2026-03-02
+> **Version:** 3.3.0
+> **Status:** Production Ready (Score 100/100)
+> **Source de verite avancement:** PROGRESS.md
 
 ---
 
-## 🏛️ ARCHITECTURE
+## VUE D'ENSEMBLE
 
-### Structure des dossiers
+```
+Type: SaaS Multi-Tenant
+Stack: Node.js + Express + Supabase + React/Vite/TypeScript
+Deploy: Render.com
+AI: Claude (Anthropic) + OpenAI TTS
+Telephonie: Twilio (WhatsApp + Voice + SMS)
+Paiements: Stripe (mode live)
+Monitoring: Sentry + Winston + SENTINEL
+CI/CD: GitHub Actions (5 workflows)
+```
+
+---
+
+## ARCHITECTURE
 
 ```
 nexus/
 ├── backend/                    # API Node.js/Express
 │   ├── src/
 │   │   ├── ai/                # Intelligence artificielle
-│   │   ├── automation/        # Workflows automatisés
-│   │   ├── config/            # Configuration (supabase, env)
-│   │   ├── core/              # Logique métier centrale (Halimah)
-│   │   ├── jobs/              # Tâches planifiées (cron)
-│   │   ├── middleware/        # Auth, tenant, rate limit
-│   │   ├── modules/           # Modules métier (commerce, crm, hr...)
-│   │   ├── routes/            # Endpoints API
-│   │   ├── sentinel/          # Monitoring & sécurité
-│   │   ├── services/          # Services partagés
+│   │   ├── automation/        # Workflows automatises
+│   │   ├── config/            # Configuration (supabase, redis, sentry, logger)
+│   │   ├── core/              # Logique metier centrale (NexusCore unifie)
+│   │   ├── jobs/              # Taches planifiees (cron)
+│   │   ├── middleware/        # Auth, tenant, rate limit, quotas
+│   │   ├── modules/           # Modules metier (commerce, crm, hr, seo, social, sentinel)
+│   │   ├── routes/            # 53 fichiers routes API
+│   │   ├── sentinel/          # Monitoring & securite
+│   │   ├── services/          # 68 services metier
 │   │   ├── utils/             # Utilitaires
-│   │   └── workers/           # Background workers
+│   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
-│   ├── migrations/            # Migrations DB
-│   └── tests/                 # Tests
+│   ├── migrations/            # 49 migrations SQL (+ archive/)
+│   └── tests/                 # 19 suites, 310 tests
 │
 ├── frontend/
-│   └── nexus-app/             # React + Vite + Tailwind
-│       ├── src/
-│       │   ├── components/    # Composants UI
-│       │   ├── hooks/         # Hooks React
-│       │   ├── lib/           # Utilitaires
-│       │   └── pages/         # Pages
+│   └── nexus-app/             # App admin + public (66 pages, 168 composants)
+│                              # React + Vite + TypeScript + Tailwind + shadcn/ui
 │
-├── CLAUDE.md                  # Directives développeur (MOI)
-├── SYSTEM.md                  # Ce fichier
-└── TENANT_SHIELD.md           # Documentation sécurité tenant
+├── landing/                   # Page vitrine marketing (JSX + Spline 3D)
+│
+├── _archive_admin-ui/         # Ancien dashboard (archive, ne plus utiliser)
+│
+├── .github/workflows/         # CI/CD (ci.yml, tenant-shield.yml, security.yml, deploy-*)
+├── CLAUDE.md                  # Directives developpeur
+├── PROGRESS.md                # Suivi avancement (source de verite)
+├── NEXUS_KNOWLEDGE.md         # Base de connaissance persistante
+└── TENANT_SHIELD.md           # Documentation securite tenant
 ```
 
 ---
 
-## 🎯 TENANTS ACTIFS
+## TENANTS
 
-| Tenant ID | Nom | Secteur | Plan | Status |
-|-----------|-----|---------|------|--------|
-| `fatshairafro` | Fat's Hair-Afro | Salon coiffure | Pro | ✅ Production |
-| `decoevent` | DecoEvent | Événementiel | Starter | ✅ Production |
-| `nexus-test` | Nexus Test | Test | Test | 🧪 Test |
+| Tenant ID | Nom | Type | Plan | Status |
+|-----------|-----|------|------|--------|
+| `fatshairafro` | Fat's Hair-Afro | service_domicile | Pro | Production |
+| `decoevent` | DecoEvent | service_domicile | Starter | Production |
+| `nexus-test` | Nexus Test | service_domicile | Business (test) | Test |
+
+> **REGLE:** Ne JAMAIS tester sur fatshairafro. Utiliser nexus-test.
 
 ---
 
-## 🔐 SÉCURITÉ - TENANT SHIELD
-
-### Couches de protection
+## SECURITE - TENANT SHIELD
 
 | Couche | Fichier | Status |
 |--------|---------|--------|
-| Pre-commit Hook | `.husky/pre-commit` | ✅ Actif |
-| Linter statique | `scripts/tenant-shield-lint.js` | ✅ Actif |
-| CI/CD GitHub | `.github/workflows/tenant-shield.yml` | ✅ Actif |
-| Middleware runtime | `middleware/tenantShield.js` | ✅ Actif |
-| RLS Supabase | 33 policies sur 30 tables | ✅ Actif |
-
-### Commandes
+| Pre-commit Hook | `.husky/pre-commit` | Actif |
+| Linter statique | `scripts/tenant-shield-lint.js` | Actif |
+| CI/CD GitHub | `.github/workflows/tenant-shield.yml` | Actif |
+| Middleware runtime | `middleware/tenantShield.js` | Actif |
+| Sentry monitoring | 12 points critiques (Stripe, Twilio, quotas) | Actif |
+| Rate limiting | 4 limiteurs (api, login, payment, notification) | Actif |
+| CSP/Helmet | Headers securite stricts | Actif |
 
 ```bash
-npm run lint:tenant    # Vérifier violations
+npm run lint:tenant    # Verifier violations
 npm run test:tenant    # Tests isolation
 npm run shield         # Les deux
 ```
 
 ---
 
-## 📡 API ENDPOINTS
+## API ENDPOINTS
 
-### Public (avec X-Tenant-ID)
+### Public (avec X-Tenant-ID ou ?tenant_id=)
 
-| Endpoint | Méthode | Description |
+| Endpoint | Methode | Description |
 |----------|---------|-------------|
 | `/api/services` | GET | Liste services tenant |
-| `/api/reviews` | GET | Avis clients |
-| `/api/disponibilites` | GET | Créneaux disponibles |
+| `/api/disponibilites` | GET | Creneaux disponibles |
 | `/api/chat` | POST | Chat Halimah |
 | `/api/chat/stream` | POST | Chat streaming SSE |
+| `/api/rendez-vous` | POST | Creer reservation |
 
-### Système (sans tenant)
+### Systeme (sans tenant)
 
-| Endpoint | Méthode | Description |
+| Endpoint | Methode | Description |
 |----------|---------|-------------|
-| `/health` | GET | Health check |
-| `/api/whatsapp/webhook` | POST | Webhook Twilio WhatsApp |
-| `/api/twilio/voice` | POST | Webhook Twilio Voice |
+| `/health` | GET | Health check enrichi (DB, Redis, services) |
 | `/api/signup/plans` | GET | Plans disponibles |
-| `/api/signup` | POST | Créer nouveau tenant |
+| `/api/signup` | POST | Creer nouveau tenant |
+| `/api/whatsapp/webhook` | POST | Webhook Twilio WhatsApp |
+| `/api/twilio/voice/*` | POST | Webhooks Twilio Voice |
+| `/api/docs` | GET | Documentation Swagger UI |
+| `/api/docs.json` | GET | OpenAPI 3.0 JSON |
 
-### Admin (avec JWT)
+### Admin (avec JWT Bearer token)
 
-| Préfixe | Description |
+| Prefixe | Description |
 |---------|-------------|
 | `/api/admin/auth/*` | Authentification admin |
 | `/api/admin/clients/*` | Gestion clients |
 | `/api/admin/reservations/*` | Gestion RDV |
 | `/api/admin/services/*` | Gestion services |
-| `/api/admin/stats/*` | Statistiques |
-| `/api/sentinel/*` | Monitoring |
+| `/api/admin/stats/*` | Statistiques dashboard |
+| `/api/admin/quotas` | Quotas et limites |
+| `/api/modules/*` | Modules disponibles/actifs |
+| `/api/billing/*` | Abonnements et paiements Stripe |
+| `/api/provisioning/*` | Numeros Twilio |
 
 ---
 
-## 🗄️ BASE DE DONNÉES
-
-### Tables principales
-
-| Table | Description | RLS |
-|-------|-------------|-----|
-| `tenants` | Configuration tenants | ❌ Système |
-| `services` | Services/prestations | ✅ |
-| `clients` | Clients | ✅ |
-| `reservations` | Rendez-vous | ✅ |
-| `admin_users` | Utilisateurs admin | ✅ |
-| `conversations` | Historique chat | ✅ |
-| `halimah_memory` | Mémoire IA | ✅ |
-| `factures` | Factures | ✅ |
-| `plans` | Plans tarifaires | ❌ Système |
-
-### Connexion
-
-```
-URL: https://mmivralzwcmriciprfbc.supabase.co
-Database: PostgreSQL 15
-```
-
----
-
-## 🚀 DÉPLOIEMENT
+## DEPLOIEMENT
 
 ### Services Render
 
 | Service | Type | URL |
 |---------|------|-----|
-| `nexus-api` | Web Service | nexus-backend-dev.onrender.com |
-| `fatshairafro-web` | Static Site | fatshairafro-web.onrender.com |
-| `nexus-admin` | Static Site | nexus-admin.onrender.com |
+| `nexus-backend-dev` | Web Service | nexus-backend-dev.onrender.com |
+| `fatshairafro-web` | Web Service | fatshairafro-web.onrender.com |
 
-### Variables d'environnement clés
+### CI/CD Pipeline
 
 ```
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-ANTHROPIC_API_KEY
-TWILIO_ACCOUNT_SID
-TWILIO_AUTH_TOKEN
-STRIPE_SECRET_KEY
-ELEVENLABS_API_KEY
+Push main → GitHub Actions CI:
+  1. lint:tenant + lint:syntax + healthcheck
+  2. Tests (Node 18 + 20) avec coverage
+  3. Build frontend (nexus-app + landing)
+  4. Boot test (syntax check)
+  5. Shield verification
+  → CI Success required pour merge
+  → Render auto-deploy depuis main
 ```
 
-### Déployer
+### Branches
 
-```bash
-# Via API Render
-curl -X POST https://api.render.com/v1/services/{SERVICE_ID}/deploys \
-  -H "Authorization: Bearer {RENDER_API_KEY}"
-```
-
----
-
-## 🤖 INTELLIGENCE ARTIFICIELLE
-
-### Halimah (Assistant principal)
-
-- **Modèle:** Claude (Anthropic)
-- **Fichier:** `src/core/halimahAI.js`
-- **Capacités:**
-  - Réservation RDV
-  - Réponse questions
-  - Mémoire contextuelle
-  - Streaming SSE
-
-### Voix (TTS)
-
-- **Provider:** ElevenLabs
-- **Fichier:** `src/services/voiceService.js`
-- **Usage:** Réponses téléphoniques
-
----
-
-## 📞 TÉLÉPHONIE (Twilio)
-
-### Numéros
-
-| Numéro | Type | Tenant |
-|--------|------|--------|
-| +14155238886 | WhatsApp Sandbox | fatshairafro |
-| +33939240269 | Voice FR | fatshairafro |
-
-### Fichiers clés
-
-| Fichier | Rôle |
+| Branche | Role |
 |---------|------|
-| `routes/whatsapp.js` | Webhook WhatsApp |
-| `routes/twilioWebhooks.js` | Webhooks généraux |
-| `services/whatsappService.js` | Logique WhatsApp |
-| `services/voiceService.js` | Logique Voice |
+| `main` | Production (protegee: PR + CI Success requis) |
+| `develop` | Staging (deploy-staging.yml auto) |
 
 ---
 
-## 💳 PAIEMENTS (Stripe)
+## MONITORING
 
-### Fichiers
-
-| Fichier | Rôle |
-|---------|------|
-| `routes/billing.js` | API facturation |
-| `routes/payment.js` | Webhooks Stripe |
-| `services/stripeBillingService.js` | Logique Stripe |
-
-### Plans
-
-| Plan | Prix/mois | Stripe Price ID |
-|------|-----------|-----------------|
-| Starter | 199€ | price_xxx |
-| Pro | 399€ | price_xxx |
-| Business | 799€ | price_xxx |
+| Composant | Outil | Status |
+|-----------|-------|--------|
+| Errors | Sentry (12 points critiques) | Actif |
+| Logs | Winston (fichiers + console JSON en prod) | Actif |
+| Health | `/health` enrichi (DB, Redis, Stripe, Twilio, memory) | Actif |
+| Uptime | SENTINEL (6 services, checks toutes les 5 min) | Actif |
+| Couts | SENTINEL cost tracker (multi-tenant) | Actif |
+| Quotas | Middleware quotas + alertes Sentry | Actif |
 
 ---
 
-## 📊 MODULES MÉTIER
-
-| Module | Dossier | Status |
-|--------|---------|--------|
-| Commerce | `modules/commerce/` | ✅ Actif |
-| CRM | `modules/crm/` | ✅ Actif |
-| Comptabilité | `modules/accounting/` | ✅ Actif |
-| RH | `modules/hr/` | ✅ Actif |
-| Marketing | `modules/marketing/` | ✅ Actif |
-| SEO | `modules/seo/` | ✅ Actif |
-| Social Media | `modules/social/` | ✅ Actif |
-| Sentinel | `modules/sentinel-intelligence/` | ✅ Actif |
-
----
-
-## 🔄 JOBS PLANIFIÉS
-
-| Job | Fichier | Schedule |
-|-----|---------|----------|
-| Publish posts | `jobs/publishScheduledPosts.js` | Every 5 min |
-| Relances factures | `jobs/relancesFacturesJob.js` | Daily |
-| SEO tracking | `jobs/seoTracking.js` | Daily |
-| Stock alertes | `jobs/stockAlertes.js` | Daily |
-
----
-
-## ✅ CHECKLIST AVANT DÉPLOIEMENT
-
-```
-□ npm run lint:tenant (0 violations)
-□ npm run test:tenant (tous les tests passent)
-□ git status (pas de fichiers oubliés)
-□ Variables d'environnement vérifiées
-□ Pas de secrets en dur
-□ Pas de console.log de debug
-```
-
----
-
-## 🐛 PROBLÈMES CONNUS
-
-| Problème | Status | Solution |
-|----------|--------|----------|
-| - | - | - |
-
-*(Aucun problème connu actuellement)*
-
----
-
-## 📈 MÉTRIQUES
-
-### Performance
+## PERFORMANCE
 
 | Endpoint | Temps moyen |
 |----------|-------------|
-| `/api/services` | < 100ms |
-| `/api/chat` | < 2s |
-| `/api/chat/stream` | < 500ms (TTFB) |
-
-### Uptime
-
-- Backend: 99.9%
-- Frontend: 99.9%
+| `/health` | 98ms |
+| `/api/services` | 129ms |
+| `/api/chat` | 228ms |
+| `/api/admin/clients` | 272ms |
+| `/api/admin/stats/dashboard` | 638ms |
 
 ---
 
-## 📝 CHANGELOG RÉCENT
+## LIENS UTILES
 
-| Date | Changement |
-|------|------------|
-| 2026-02-21 | TENANT SHIELD v1.0 déployé |
-| 2026-02-21 | RLS activé (33 policies) |
-| 2026-02-21 | Fix signup route |
-| 2026-02-21 | Fix chat widget X-Tenant-ID |
-
----
-
-## 🔗 LIENS UTILES
-
-- **Supabase Dashboard:** https://supabase.com/dashboard/project/mmivralzwcmriciprfbc
-- **Render Dashboard:** https://dashboard.render.com
-- **GitHub Repo:** https://github.com/issouftoure58-design/nexus
-- **Twilio Console:** https://console.twilio.com
-- **Stripe Dashboard:** https://dashboard.stripe.com
+- **GitHub:** https://github.com/issouftoure58-design/nexus
+- **Supabase:** https://supabase.com/dashboard/project/mmivralzwcmriciprfbc
+- **Render:** https://dashboard.render.com
+- **Stripe:** https://dashboard.stripe.com
+- **Twilio:** https://console.twilio.com
+- **Sentry:** https://sentry.io
 
 ---
 
-## 📞 CONTACTS
-
-- **Projet:** NEXUS SaaS Platform
-- **Owner:** issouftoure58-design
-
----
-
-*Ce fichier est la source de vérité pour comprendre le système NEXUS.*
-*À lire en premier à chaque nouvelle session.*
+*Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
+*Derniere synchronisation: 2026-03-02*

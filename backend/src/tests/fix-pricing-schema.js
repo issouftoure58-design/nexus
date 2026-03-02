@@ -117,7 +117,7 @@ async function fixPricing() {
       );
     `);
 
-    // PRO - 199€/mois
+    // PRO - 249€/mois
     await client.query(`
       INSERT INTO plans (
         id, nom, description, prix_mensuel, clients_max, stockage_mb,
@@ -126,7 +126,7 @@ async function fixPricing() {
         comptabilite, crm_avance, marketing_automation, commercial, stock_inventaire, analytics_avances,
         sentinel_niveau, support_email_heures, support_chat, assistant_mode, ordre
       ) VALUES (
-        'pro', 'Pro', 'Le plus populaire', 19900, 2000, 5120,
+        'pro', 'Pro', 'Le plus populaire', 24900, 2000, 5120,
         500, 500, 5, 2000,
         500, 500, 50, 500,
         true, true, true, true, true, true,
@@ -134,7 +134,7 @@ async function fixPricing() {
       );
     `);
 
-    // BUSINESS - 399€/mois
+    // BUSINESS - 499€/mois
     await client.query(`
       INSERT INTO plans (
         id, nom, description, prix_mensuel, clients_max, stockage_mb,
@@ -145,7 +145,7 @@ async function fixPricing() {
         sentinel_niveau, support_email_heures, support_chat, support_telephone, account_manager,
         assistant_mode, ordre
       ) VALUES (
-        'business', 'Business', 'Pour les entreprises', 39900, NULL, 51200,
+        'business', 'Business', 'Pour les entreprises', 49900, NULL, 51200,
         1000, 1000, 10, 1500,
         NULL, NULL, NULL, NULL,
         true, true, true, true, true, true,
@@ -298,7 +298,7 @@ async function fixPricing() {
     }
 
     // Vérification attendue
-    const attendu = 19900 + 1900 + 4900 + 7900 + 2900; // Pro + Web + WhatsApp + Tel + Site
+    const attendu = 24900 + 1900 + 4900 + 7900 + 2900; // Pro + Web + WhatsApp + Tel + Site
     console.log(`\n  Attendu: ${(attendu / 100).toFixed(0)}€/mois`);
 
     if (totalMensuel === attendu) {

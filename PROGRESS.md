@@ -116,7 +116,7 @@ Verification API sur nexus-backend-dev.onrender.com (tenant: nexus-test)
 - [x] 6.7 Flow Provisioning
       GET /api/provisioning/status → 200 (phone: +15674061874, whatsapp: configured)
 
-Note: Prix API (Starter 199€, Pro 399€, Business 799€) different de migration 041 (99€, 249€, 499€) — sync a faire
+Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 499€) — migration 051 creee
 
 ---
 

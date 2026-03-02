@@ -130,7 +130,7 @@ async function testModulesAPI() {
     }
 
     const total = planPrix + optionsPrix;
-    const expected = 37500; // 375EUR = 199 + 19 + 49 + 79 + 29
+    const expected = 42500; // 425EUR = 249 + 19 + 49 + 79 + 29
 
     info(`  Plan: ${(planPrix / 100).toFixed(0)}EUR`);
     info(`  Options: ${(optionsPrix / 100).toFixed(0)}EUR`);

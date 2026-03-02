@@ -2,7 +2,7 @@
 
 ## Resume
 
-Implementation des dernieres fonctionnalites du Plan Business (399EUR/mois):
+Implementation des dernieres fonctionnalites du Plan Business (499EUR/mois):
 - Prevention Churn avancee
 - Module RH basique
 - Job automatise churn

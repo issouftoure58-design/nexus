@@ -36,8 +36,8 @@ interface QuotasResponse {
 
 const PLAN_PRICES: Record<string, string> = {
   starter: '99',
-  pro: '199',
-  business: '399'
+  pro: '249',
+  business: '499'
 };
 
 export default function QuotasWidget() {

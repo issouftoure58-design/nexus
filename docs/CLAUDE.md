@@ -1,5 +1,9 @@
 # CLAUDE.md - Documentation du projet NEXUS
 
+> **SUPERSEDED** — Ce fichier est une ancienne version (ere "halimah-project") et n'est plus a jour.
+> La documentation active est dans le CLAUDE.md a la racine du projet (`/CLAUDE.md`).
+> Ce fichier est conserve comme archive historique.
+
 ---
 
 ## ⚠️ REGLE FONDAMENTALE N°1 — LIRE EN PREMIER ⚠️

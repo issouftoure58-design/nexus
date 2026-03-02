@@ -192,5 +192,6 @@ Le système vérifie automatiquement :
 
 ---
 
-*Dernière mise à jour: 2026-02-21*
+*Dernière mise à jour: 2026-03-02*
 *Mainteneur: NEXUS Team*
+*Version: 3.3.0*

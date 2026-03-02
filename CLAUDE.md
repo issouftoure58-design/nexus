@@ -150,8 +150,8 @@ router.get('/clients', async (req, res) => {
 ---
 
 **Date de création:** 2026-02-21
-**Dernière mise à jour:** 2026-02-21
+**Dernière mise à jour:** 2026-03-02
 **Auteur:** Claude (Meilleur Dev Mode)
-**Version:** 1.0.0
+**Version:** 3.3.0
 
 > "Le code médiocre est une dette. Le code excellent est un investissement."

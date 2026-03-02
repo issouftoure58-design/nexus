@@ -1,13 +1,22 @@
 # NEXUS - SOURCE DE VÉRITÉ ABSOLUE
 
+> **SUPERSEDED** — Ce document date du 12 fevrier 2026 et n'est plus maintenu.
+> Les sources de verite actuelles sont:
+> - **SYSTEM.md** — Vue d'ensemble technique (architecture, API, deploiement)
+> - **PROGRESS.md** — Suivi d'avancement (score 100/100)
+> - **NEXUS_KNOWLEDGE.md** — Base de connaissance persistante
+> - **ROADMAP_100.md** — Roadmap technique (8 phases terminees)
+>
+> Ce fichier est conserve comme archive historique.
+
 **Document de référence unique et complet**
 **Dernière mise à jour : 12 février 2026 - 10h00**
 **Par : Issouf Toure + Claude Code**
 
-⚠️ CE DOCUMENT EST LA SEULE SOURCE DE VÉRITÉ
-⚠️ CLAUDE CODE DOIT LE LIRE AU DÉBUT DE CHAQUE SESSION
-⚠️ CLAUDE CODE DOIT LE METTRE À JOUR EN FIN DE SESSION
-⚠️ TOUT CE QUI N'EST PAS ICI N'EXISTE PAS OU EST OBSOLÈTE
+~~⚠️ CE DOCUMENT EST LA SEULE SOURCE DE VÉRITÉ~~
+~~⚠️ CLAUDE CODE DOIT LE LIRE AU DÉBUT DE CHAQUE SESSION~~
+~~⚠️ CLAUDE CODE DOIT LE METTRE À JOUR EN FIN DE SESSION~~
+~~⚠️ TOUT CE QUI N'EST PAS ICI N'EXISTE PAS OU EST OBSOLÈTE~~
 
 ═══════════════════════════════════════════════════════════
 ## SECTION 1 : INFORMATIONS PROJET

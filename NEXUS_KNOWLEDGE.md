@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-01
-**Version:** 3.2.0 (Production Readiness + Audit Global + Signup Fix + Tenant Security + Legal)
+**Derniere mise a jour:** 2026-03-02
+**Version:** 3.3.0 (Roadmap 100/100 — Production Ready)
 
 ---
 
@@ -57,12 +57,14 @@
 
 | Metrique | Valeur |
 |----------|--------|
-| Routes API | 70+ |
-| Services metier | 63 |
-| Modules optionnels | 11 |
+| Routes API | 53 (10 orphelines supprimees) |
+| Services metier | 68 |
+| Modules disponibles | 21 |
 | Plans tarifaires | 3 (Starter/Pro/Business) |
 | Tenants actifs | 3 |
-| Migrations SQL | 49 |
+| Migrations SQL | 49 (+ archive) |
+| Tests | 19 suites, 310 tests |
+| Score qualite | 100/100 |
 | **Types de business** | **4** |
 
 ### Types de Business Supportes
@@ -184,17 +186,11 @@ nexus/
 │       ├── sql/           # Migrations et schemas
 │       └── migrations/    # SQL migrations
 ├── frontend/
-│   └── nexus-app/         # Site public client
-├── admin-ui/              # Dashboard admin
-│   └── src/
-│       ├── contexts/ProfileContext.tsx  # ✨ Context multi-business V2
-│       └── components/forms/            # ✨ Composants adaptatifs
-│           ├── FeatureField.tsx
-│           ├── BusinessTypeField.tsx
-│           ├── DynamicLabel.tsx
-│           └── PricingFields.tsx
-├── sentinel/              # Monitoring standalone
+│   └── nexus-app/         # App admin + public (66 pages, 168 composants)
+├── landing/               # Page vitrine marketing (JSX + Spline 3D)
+├── _archive_admin-ui/     # Ancien dashboard (archive, ne plus utiliser)
 ├── CLAUDE.md              # Regles de dev (LIRE EN PREMIER)
+├── PROGRESS.md            # Suivi avancement (source de verite)
 └── NEXUS_KNOWLEDGE.md     # CE FICHIER
 ```
 
@@ -496,7 +492,7 @@ Couts: ~$30 par 1M caracteres
 
 ## 8. STRATEGIE TARIFAIRE
 
-**Statut:** Validee | **Date:** 2026-02-28 (mise a jour migration 041)
+**Statut:** Validee | **Date:** 2026-03-02 (migration 041 + 051)
 
 ### 8.1 Plans Fixes Mensuels
 
@@ -513,6 +509,8 @@ Couts: ~$30 par 1M caracteres
 | Starter | ~79€ | 950€ |
 | Pro | ~199€ | 2 390€ |
 | Business | ~399€ | 4 790€ |
+
+> Note: prix annuels = prix mensuel x 10 mois (2 mois offerts, -17%)
 
 ### 8.3 Plan Starter (99€/mois)
 
@@ -1124,7 +1122,7 @@ NODE_ENV=production
 
 | Composant | Statut | Notes |
 |-----------|--------|-------|
-| Pricing Strategy | ✅ Valide | 3 plans: 99€/249€/499€ (migration 041) |
+| Pricing Strategy | ✅ Valide | 3 plans: 99€/249€/499€ (migrations 041 + 051) |
 | Email Notifications | ✅ Fait | 7 templates, cron J-7/J-3/J-1/J0 |
 | Trial Nurturing | ✅ Fait | Emails J+3, J+7, J+10 |
 | UI Restaurant | ✅ Base | Tables, couverts, zones, Menu, Plan de salle |
