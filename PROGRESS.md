@@ -1,7 +1,7 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-02 12:45 UTC
+> Derniere mise a jour: 2026-03-02 17:00 UTC
 
 **Score actuel: 100/100**
 **Phase en cours: TERMINE — Pret pour lancement**
@@ -24,7 +24,7 @@
 - TWILIO_FR_ADDRESS_SID: AD7a569968903fa0bd3f5e80ab140787ed
 - TWILIO_MESSAGING_SERVICE_SID: MG9900ef43c53af37368ff17cb8ac1ab07
 - TWILIO_WABA_BU_SID: BU8ba014fffcd728c583a66eb0d64f75cd
-- Bundle FR Mobile: EN COURS D'APPROBATION (cree sur compte fatshairafro)
+- TWILIO_FR_MOBILE_BUNDLE_SID: BUcf845ba9e91257dda88a4d493ea91966 (mobile 06/07) — APPROUVE
 
 ---
 
@@ -180,8 +180,8 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
       Toutes les phases techniques terminees.
       Checklist pre-launch:
       [ ] Activer PITR Supabase (Dashboard > Database > Backups)
-      [~] Configurer CORS_ORIGIN sur Render — CORS actuellement ouvert a tous, bug corrige dans render.yaml (CORS_ORIGINS→CORS_ORIGIN)
-          Valeur a configurer: https://fatshairafro-web.onrender.com,https://nexus-landing.onrender.com
+      [x] Configurer CORS_ORIGIN sur Render — FAIT, verifie: evil-site.com bloque, fatshairafro-web autorise
+      [ ] Activer PITR Supabase (Dashboard > Database > Backups)
       [ ] Valider CGV avec juriste
       [ ] Inviter clients beta via /api/signup
       [ ] Monitorer Sentry les 48 premieres heures
@@ -190,11 +190,22 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
 
 ## HISTORIQUE DES SESSIONS
 
+### 2026-03-02 — Session 5
+- WhatsApp dedie par tenant: plan COMPLETE (8/8 etapes)
+  - tenantId propage a tous les sendWhatsAppMessage (5 appels corriges)
+  - Bundle mobile FR approuve (BUcf845...) + support dual-bundle dans provisioning
+  - 4 env vars Twilio ajoutees sur Render via API
+- CORS verifie: callback(null, false) bloque correctement les origines non autorisees
+- Redis eviction policy: allkeys-lru → noeviction (via API Render)
+- Migration 052: colonnes relance_24h_envoyee + relance_24h_date sur reservations
+- notificationWorker.js: migre de Bull vers BullMQ Worker (fix crash queue.process)
+- Health check enrichi: DB ok, Redis ok, Stripe/Twilio/Sentry true
+
 ### 2026-03-02 — Session 4
 - Documentation synchronisee (16 fichiers, 6 docs obsoletes marques SUPERSEDED)
 - Pricing aligne partout sur 99€/249€/499€ (migration 051 executee)
 - Bug CORS_ORIGINS→CORS_ORIGIN corrige dans render.yaml
-- Plan WhatsApp dedie par tenant (plan approuve, implementation en cours)
+- Plan WhatsApp dedie par tenant (plan approuve, code deja en place)
 
 ### 2026-03-01/02 — Session 1
 - Fix webhook Twilio 403 (validateBodyTenant corrompait le body)

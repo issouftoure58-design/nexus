@@ -5,7 +5,7 @@
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
 **Derniere mise a jour:** 2026-03-02
-**Version:** 3.3.0 (Roadmap 100/100 — Production Ready)
+**Version:** 3.4.0 (WhatsApp dedie par tenant + Stabilisation prod)
 
 ---
 
@@ -62,7 +62,7 @@
 | Modules disponibles | 21 |
 | Plans tarifaires | 3 (Starter/Pro/Business) |
 | Tenants actifs | 3 |
-| Migrations SQL | 49 (+ archive) |
+| Migrations SQL | 52 (+ archive) |
 | Tests | 19 suites, 310 tests |
 | Score qualite | 100/100 |
 | **Types de business** | **4** |
@@ -109,6 +109,8 @@
 | **Hebergeur** | Render Services, Inc. — 525 Brannan Street, Suite 300, San Francisco, CA 94107, USA |
 | **Base de donnees** | Supabase, Inc. — https://supabase.com |
 | **WhatsApp Business** | WABA approuve — BU ID: `BU8ba014fffcd728c583a66eb0d64f75cd` (France Mobile Business) |
+| **Bundle FR National** | `BUfa2683ddd0dd5e4717f43601862148c1` — APPROUVE (numeros 09) |
+| **Bundle FR Mobile** | `BUcf845ba9e91257dda88a4d493ea91966` — APPROUVE (numeros 06/07) |
 
 ### Pages legales (vitrine)
 
@@ -1265,13 +1267,16 @@ Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, trans
 | ~~**P0**~~ | ~~useTenant.ts fallback nexus-test en prod~~ | Securite tenant | ✅ FAIT (2026-03-01) |
 | ~~**P1**~~ | ~~Corriger pricing obsolete~~ | Coherence | ✅ FAIT (2026-03-01) |
 | ~~**P1**~~ | ~~APP_URL + FRONTEND_URL manquants Render~~ | Stripe/emails casses | ✅ FAIT (2026-03-01) |
-| ~~**P1**~~ | ~~CORS mal configure (admin URL incorrecte)~~ | Auth cross-origin | ✅ FAIT (2026-03-01) |
+| ~~**P1**~~ | ~~CORS mal configure (admin URL incorrecte)~~ | Auth cross-origin | ✅ FAIT (2026-03-02) — callback(null,false) |
+| ~~**P1**~~ | ~~WhatsApp dedie par tenant~~ | Multi-tenant | ✅ FAIT (2026-03-02) — plan 8/8 etapes |
+| ~~**P1**~~ | ~~notificationWorker Bull→BullMQ~~ | Crash backend | ✅ FAIT (2026-03-02) |
+| ~~**P1**~~ | ~~Redis eviction policy~~ | BullMQ jobs | ✅ FAIT (2026-03-02) — noeviction |
 | **P1** | Configurer STRIPE_WEBHOOK_SECRET sur Render | Monetisation | 🔶 A faire (manuel) |
 | **P1** | Tester webhooks Stripe en staging | Monetisation | 🔶 A faire |
 | **P2** | Tests E2E restaurant/hotel | Qualite | 🔶 A faire |
 | **P2** | UI avancee resto (plan salle, menu) | Features | 🔶 En cours |
 | **P2** | UI avancee hotel (calendrier, tarifs) | Features | 🔶 En cours |
-| ~~**P3**~~ | ~~Redis en prod~~ | Performance | ✅ FAIT (nexus-redis free) |
+| ~~**P3**~~ | ~~Redis en prod~~ | Performance | ✅ FAIT (nexus-redis free, noeviction) |
 | **P3** | Load testing cascade notifications | Performance | A faire |
 
 ### 16.2 Pricing - CORRIGE ✅ (2026-03-01)
@@ -1302,19 +1307,19 @@ landing (App.jsx monorepo).
 | fatshairafro-web | web_service | https://fatshairafro-web.onrender.com |
 | nexus-redis | redis | redis://red-d6i3mjc50q8c73au4g10:6379 |
 
-**Env vars Render backend (15):**
-NODE_ENV, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET,
-ANTHROPIC_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY,
-STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, CORS_ORIGINS, SENTRY_DSN, REDIS_URL,
-APP_URL (https://nexus-admin-yedu.onrender.com),
-FRONTEND_URL (https://fatshairafro-web.onrender.com)
+**Env vars Render backend (24):**
+NODE_ENV, PORT, DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,
+JWT_SECRET, ADMIN_PASSWORD, ANTHROPIC_API_KEY, OPENAI_API_KEY,
+TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WABA_BU_SID, TWILIO_MESSAGING_SERVICE_SID,
+TWILIO_FR_BUNDLE_SID, TWILIO_FR_MOBILE_BUNDLE_SID, TWILIO_FR_ADDRESS_SID,
+RESEND_API_KEY, STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY,
+CORS_ORIGIN, SENTRY_DSN, REDIS_URL, WEBHOOK_BASE_URL
 
-**CORS_ORIGINS configuree pour:**
-https://fatshairafro.fr, https://www.fatshairafro.fr, https://nexus-admin-yedu.onrender.com,
-https://nexus-vitrine.onrender.com, https://fatshairafro-web.onrender.com, http://localhost:5173
+**CORS_ORIGIN** (singulier, callback-based):
+`https://fatshairafro-web.onrender.com,https://nexus-landing.onrender.com`
+Verifie: origines non autorisees bloquees (pas de header Access-Control-Allow-Origin)
 
-**Env var manquante (action manuelle requise):**
-- STRIPE_WEBHOOK_SECRET → Creer webhook dans Stripe Dashboard → copier signing secret
+**Redis:** nexus-redis (Frankfurt, free) — eviction policy: `noeviction` (requis par BullMQ)
 
 ### 16.4 Audit Global Production - CORRIGE ✅ (2026-03-01)
 
@@ -1600,6 +1605,32 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 ---
 
 ## 17. HISTORIQUE DES MODIFICATIONS
+
+### 2026-03-02 (Session 9) — WhatsApp Dedie + Stabilisation Prod
+
+**WhatsApp dedie par tenant (plan complete 8/8 etapes):**
+- tenantId propage a tous les appels sendWhatsAppMessage (whatsappService.js)
+- Bundle mobile FR approuve (BUcf845ba9e91257dda88a4d493ea91966)
+- Dual-bundle dans twilioProvisioningService.js (national vs mobile auto-select)
+- 4 env vars Twilio ajoutees sur Render via API
+- Migration 050 (whatsapp_dedicated) deja en DB
+
+**Stabilisation production:**
+- notificationWorker.js: migre Bull → BullMQ Worker (fix crash `queue.process is not a function`)
+- CORS: `callback(null, false)` au lieu de `callback(new Error(...))` — header correctement omis
+- Redis: eviction policy `allkeys-lru` → `noeviction` via API Render
+- Migration 052: colonnes `relance_24h_envoyee` + `relance_24h_date` sur reservations
+- PostgREST schema cache reloaded (`NOTIFY pgrst`)
+- Health check enrichi: DB ok (150ms), Redis ok, Stripe/Twilio/Sentry true
+
+**Fichiers modifies:**
+- `backend/src/queues/notificationWorker.js` — rewrite complet Bull → BullMQ
+- `backend/src/services/twilioProvisioningService.js` — dual-bundle + mobile support
+- `backend/src/services/whatsappService.js` — tenantId sur tous les sendWhatsAppMessage
+- `backend/src/index.js` — CORS callback(null, false)
+- `backend/migrations/052_reservations_relance_24h.sql` — NOUVEAU
+
+---
 
 ### 2026-03-01 (Session 6) — Legal Compliance
 
