@@ -25,12 +25,12 @@ const twilioClient = twilio(
 // En prod: https://api.votre-domaine.com
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || 'http://localhost:5000';
 
-// Regulatory Bundle SID pour numéros FR (ARCEP compliance)
-// À créer sur: Twilio Console → Phone Numbers → Regulatory Compliance → Bundles
-const TWILIO_FR_BUNDLE_SID = process.env.TWILIO_FR_BUNDLE_SID || null;
+// Regulatory Bundle SIDs pour numéros FR (ARCEP compliance)
+// National (09) et Mobile (06/07) nécessitent des bundles séparés
+const TWILIO_FR_BUNDLE_SID = process.env.TWILIO_FR_BUNDLE_SID || null;           // National/Local
+const TWILIO_FR_MOBILE_BUNDLE_SID = process.env.TWILIO_FR_MOBILE_BUNDLE_SID || null; // Mobile (06/07)
 
 // Address SID pour numéros FR
-// À créer sur: Twilio Console → Phone Numbers → Addresses
 const TWILIO_FR_ADDRESS_SID = process.env.TWILIO_FR_ADDRESS_SID || null;
 
 // WhatsApp Business Account (WABA) — Business Unit SID approuvé par Meta
@@ -40,7 +40,8 @@ const TWILIO_WABA_BU_SID = process.env.TWILIO_WABA_BU_SID || null;
 const TWILIO_MESSAGING_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID || null;
 
 logger.info(`Webhook URL: ${WEBHOOK_BASE_URL}`, { service: 'provisioning' });
-logger.info(`FR Bundle: ${TWILIO_FR_BUNDLE_SID ? 'Configured' : 'Not configured'}`, { service: 'provisioning' });
+logger.info(`FR Bundle National: ${TWILIO_FR_BUNDLE_SID ? 'Configured' : 'Not configured'}`, { service: 'provisioning' });
+logger.info(`FR Bundle Mobile: ${TWILIO_FR_MOBILE_BUNDLE_SID ? 'Configured' : 'Not configured'}`, { service: 'provisioning' });
 logger.info(`WABA: ${TWILIO_WABA_BU_SID ? 'Configured' : 'Not configured (sandbox mode)'}`, { service: 'provisioning' });
 
 /**
@@ -143,11 +144,16 @@ export async function purchasePhoneNumber(tenantId, phoneNumber, type = 'voice')
 
     // Pour les numéros FR, ajouter le bundle et l'adresse ARCEP
     if (isFrenchNumber) {
-      purchaseOptions.bundleSid = TWILIO_FR_BUNDLE_SID;
+      // Mobile (06/07) utilise le bundle mobile, sinon le bundle national/local
+      const isMobile = phoneNumber.startsWith('+336') || phoneNumber.startsWith('+337');
+      const bundleSid = isMobile && TWILIO_FR_MOBILE_BUNDLE_SID
+        ? TWILIO_FR_MOBILE_BUNDLE_SID
+        : TWILIO_FR_BUNDLE_SID;
+      purchaseOptions.bundleSid = bundleSid;
       if (TWILIO_FR_ADDRESS_SID) {
         purchaseOptions.addressSid = TWILIO_FR_ADDRESS_SID;
       }
-      logger.info(`FR number - ARCEP Bundle: ${TWILIO_FR_BUNDLE_SID}`, { service: 'provisioning', bundleSid: TWILIO_FR_BUNDLE_SID });
+      logger.info(`FR number - ARCEP Bundle: ${bundleSid} (${isMobile ? 'mobile' : 'national'})`, { service: 'provisioning', bundleSid });
     }
 
     // 2. Acheter le numéro via Twilio
@@ -462,8 +468,8 @@ export async function configureWhatsApp(tenantId, phoneNumber = null) {
  * @returns {Promise<{phoneNumber: string, sid: string}>}
  */
 async function provisionSmsCapableNumber(tenantId) {
-  // Stratégie 1: FR mobile (si bundle configuré)
-  if (TWILIO_FR_BUNDLE_SID) {
+  // Stratégie 1: FR mobile (si bundle mobile configuré)
+  if (TWILIO_FR_MOBILE_BUNDLE_SID || TWILIO_FR_BUNDLE_SID) {
     try {
       const mobileFR = await searchAvailableNumbers('FR', 1, 'mobile', { smsEnabled: true });
       if (mobileFR.numbers?.length > 0) {
