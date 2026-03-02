@@ -3,8 +3,9 @@
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
 > Derniere mise a jour: 2026-03-02 17:00 UTC
 
-**Score actuel: 100/100**
-**Phase en cours: TERMINE — Pret pour lancement**
+**Score technique: 100/100**
+**Phase en cours: SENTINEL + Super-Admin UI → 100% fonctionnel**
+**Roadmap detaillee: ROADMAP_SENTINEL.md**
 
 ---
 
@@ -185,6 +186,40 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
       [ ] Valider CGV avec juriste
       [ ] Inviter clients beta via /api/signup
       [ ] Monitorer Sentry les 48 premieres heures
+
+---
+
+## NOUVELLE ROADMAP — SENTINEL + SUPER-ADMIN
+
+Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
+
+### Phase 1 — SENTINEL Backend Activation
+- [ ] 1.1 Initialiser sentinel.init() au demarrage (index.js)
+- [ ] 1.2 Ajouter 3 jobs scheduler (snapshot quotidien, insights hebdo, health check 5min)
+- [ ] 1.3 Implementer email alerting (Resend dans alerter.js)
+- [ ] 1.4 Plan checks sur dismiss/implement insights
+
+### Phase 2 — API Super-Admin (NEXUS Operator)
+- [ ] 2.1 Creer nexusAdmin.js (6 endpoints /api/nexus/*)
+- [ ] 2.2 Proteger avec requireSuperAdmin middleware
+- [ ] 2.3 Enregistrer dans index.js
+
+### Phase 3 — Super-Admin UI Verification
+- [ ] 3.1-3.5 Verifier les 6 pages (Dashboard, Tenants, Sentinel 9 tabs, Billing, Settings)
+- [ ] 3.6 Nettoyer import SuperAdminRoute inutilise
+
+### Phase 4 — Checklist Pre-Launch
+- [ ] PITR Supabase
+- [ ] CGV juriste
+- [ ] Beta clients
+- [ ] Sentry 48h
+- [ ] STRIPE_WEBHOOK_SECRET
+
+### Phase 5 — Verification Manuelle Parcours
+- [ ] 5.1 Onboarding x4 types business
+- [ ] 5.2 Modules: activation/desactivation/dependances
+- [ ] 5.3 Reservation x4 types business
+- [ ] 5.4 Admin dashboard complet
 
 ---
 
