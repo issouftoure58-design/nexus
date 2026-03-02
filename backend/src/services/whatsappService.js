@@ -612,6 +612,7 @@ export async function executeHalimahTool(toolName, toolInput, tenantId = null) {
           prixService: toolInput.prix_service,
           adresseClient: toolInput.adresse_client,
           fraisDeplacement: toolInput.frais_deplacement,
+          tenantId,
         });
 
         return {
@@ -865,7 +866,7 @@ ${getSignature(tenantIdForReset)}`,
 
     // Envoyer la réponse via WhatsApp
     if (response.response) {
-      await sendWhatsAppMessage(clientPhone, response.response);
+      await sendWhatsAppMessage(clientPhone, response.response, context.tenantId);
     }
 
     return response;
@@ -876,7 +877,7 @@ ${getSignature(tenantIdForReset)}`,
     const errorResponse = `Oups, petit souci technique ! 😅
 Réessayez ou appelez le 09 39 24 02 69`;
 
-    await sendWhatsAppMessage(clientPhone, errorResponse);
+    await sendWhatsAppMessage(clientPhone, errorResponse, context.tenantId);
 
     return {
       success: false,
@@ -1579,6 +1580,7 @@ service / adresse / date / heure / annuler`,
     paymentTimeouts.set(rdv.id, {
       timeoutId,
       clientPhone,
+      tenantId: context.tenantId || null,
       createdAt: new Date(),
     });
 
@@ -2382,7 +2384,7 @@ async function cancelRdvForTimeout(rdvId, clientPhone) {
     const message = `⏰ Lien expiré
 "Bonjour" pour recommencer`;
 
-    await sendWhatsAppMessage(clientPhone, message);
+    await sendWhatsAppMessage(clientPhone, message, timeoutInfo?.tenantId);
     paymentTimeouts.delete(rdvId);
 
     // Réinitialiser le contexte pour permettre une nouvelle réservation
@@ -2421,6 +2423,7 @@ export async function handleCreneauConfirmation({
   prixService,
   adresseClient,
   fraisDeplacement,
+  tenantId = null,
 }) {
   try {
     console.log('[WhatsApp] Confirmation créneau reçue:', {
@@ -2459,7 +2462,7 @@ export async function handleCreneauConfirmation({
 ⏰ 30 min pour payer`;
 
     // 4. Envoyer le message
-    await sendWhatsAppMessage(clientPhone, message);
+    await sendWhatsAppMessage(clientPhone, message, tenantId);
 
     // 5. Programmer le timeout
     const timeoutId = setTimeout(() => {
@@ -2469,6 +2472,7 @@ export async function handleCreneauConfirmation({
     paymentTimeouts.set(rdv.id, {
       timeoutId,
       clientPhone,
+      tenantId,
       createdAt: new Date(),
     });
 
@@ -2558,7 +2562,7 @@ export async function sendPaymentReminder(rdvId) {
 
     const message = `⏰ Plus que ${remainingMinutes} min pour payer !`;
 
-    await sendWhatsAppMessage(timeoutInfo.clientPhone, message);
+    await sendWhatsAppMessage(timeoutInfo.clientPhone, message, timeoutInfo.tenantId);
 
   } catch (error) {
     logEvent('ERROR', ERROR_TYPES.TWILIO_SEND_ERROR, 'Erreur envoi rappel paiement', {
