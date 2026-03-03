@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react';
+import { api } from '../lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -217,6 +218,7 @@ export default function RH() {
   const [membres, setMembres] = useState<Membre[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editMembre, setEditMembre] = useState<Membre | null>(null);
   const [formData, setFormData] = useState({
@@ -317,24 +319,23 @@ export default function RH() {
 
   const fetchAll = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` };
-
-      const [dashRes, membresRes, absencesRes, recrutementsRes, candidaturesRes] = await Promise.all([
-        fetch('/api/admin/rh/dashboard', { headers }),
-        fetch('/api/admin/rh/membres', { headers }),
-        fetch('/api/admin/rh/absences', { headers }),
-        fetch('/api/admin/rh/recrutements', { headers }),
-        fetch('/api/admin/rh/candidatures', { headers })
+      const [dashData, membresData, absencesData, recrutementsData, candidaturesData] = await Promise.all([
+        api.get<DashboardRH>('/admin/rh/dashboard').catch(() => null),
+        api.get<Membre[]>('/admin/rh/membres').catch(() => null),
+        api.get<Absence[]>('/admin/rh/absences').catch(() => null),
+        api.get<Recrutement[]>('/admin/rh/recrutements').catch(() => null),
+        api.get<Candidature[]>('/admin/rh/candidatures').catch(() => null),
       ]);
 
-      if (dashRes.ok) setDashboard(await dashRes.json());
-      if (membresRes.ok) setMembres(await membresRes.json());
-      if (absencesRes.ok) setAbsences(await absencesRes.json());
-      if (recrutementsRes.ok) setRecrutements(await recrutementsRes.json());
-      if (candidaturesRes.ok) setCandidatures(await candidaturesRes.json());
+      if (dashData) setDashboard(dashData);
+      if (membresData) setMembres(membresData);
+      if (absencesData) setAbsences(absencesData);
+      if (recrutementsData) setRecrutements(recrutementsData);
+      if (candidaturesData) setCandidatures(candidaturesData);
     } catch (err) {
-      console.error('Erreur fetch RH:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des donnees RH');
     } finally {
       setLoading(false);
     }
@@ -342,46 +343,29 @@ export default function RH() {
 
   const handleSubmitMembre = async (data: any) => {
     try {
-      const headers = {
-        'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-        'Content-Type': 'application/json'
-      };
+      const endpoint = editMembre
+        ? `/admin/rh/membres/${editMembre.id}`
+        : '/admin/rh/membres';
 
-      const url = editMembre
-        ? `/api/admin/rh/membres/${editMembre.id}`
-        : '/api/admin/rh/membres';
+      const membre = editMembre
+        ? await api.put<Membre>(endpoint, data)
+        : await api.post<Membre>(endpoint, data);
 
-      const method = editMembre ? 'PUT' : 'POST';
-
-      // Data is already formatted from FormulaireEmploye
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: JSON.stringify(data)
-      });
-
-      if (response.ok) {
-        const membre = await response.json();
-
-        // If diplomas provided, save them
-        if (data.diplomes && data.diplomes.length > 0) {
-          for (const diplome of data.diplomes) {
-            if (diplome.intitule) {
-              await fetch(`/api/admin/rh/membres/${editMembre?.id || membre.id}/diplomes`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(diplome)
-              });
-            }
+      // If diplomas provided, save them
+      if (data.diplomes && data.diplomes.length > 0) {
+        for (const diplome of data.diplomes) {
+          if (diplome.intitule) {
+            await api.post(`/admin/rh/membres/${editMembre?.id || membre.id}/diplomes`, diplome);
           }
         }
-
-        setShowForm(false);
-        setEditMembre(null);
-        fetchAll();
       }
+
+      setShowForm(false);
+      setEditMembre(null);
+      setError(null);
+      fetchAll();
     } catch (err) {
-      console.error('Erreur save membre:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde du membre');
     }
   };
 
@@ -399,25 +383,21 @@ export default function RH() {
   const handleDeleteMembre = async (id: number) => {
     if (!confirm('Desactiver ce membre ?')) return;
     try {
-      await fetch(`/api/admin/rh/membres/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
+      await api.delete(`/admin/rh/membres/${id}`);
+      setError(null);
       fetchAll();
     } catch (err) {
-      console.error('Erreur delete membre:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la desactivation du membre');
     }
   };
 
   const handleAbsenceAction = async (id: number, action: 'approve' | 'refuse') => {
     try {
-      await fetch(`/api/admin/rh/absences/${id}/${action}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
+      await api.put(`/admin/rh/absences/${id}/${action}`);
+      setError(null);
       fetchAll();
     } catch (err) {
-      console.error('Erreur action absence:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors du traitement de l\'absence');
     }
   };
 
@@ -554,9 +534,9 @@ export default function RH() {
       URL.revokeObjectURL(url);
 
       alert(`DSN générée pour ${membresActifs.length} salarié(s)\nPériode: ${month}/${year}\nMasse salariale: ${(totalBrut / 100).toLocaleString('fr-FR')} €`);
-    } catch (error) {
-      console.error('Erreur génération DSN:', error);
-      alert('Erreur lors de la génération de la DSN');
+    } catch (_err) {
+      setError('Erreur lors de la generation de la DSN');
+      alert('Erreur lors de la generation de la DSN');
     } finally {
       setGeneratingDsn(false);
     }
@@ -595,11 +575,6 @@ export default function RH() {
   const handleSubmitRecrutement = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const headers = {
-        'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-        'Content-Type': 'application/json'
-      };
-
       const dataToSend = {
         ...recrutementForm,
         salaire_min: recrutementForm.salaire_min ? Math.round(parseFloat(recrutementForm.salaire_min) * 100) : null,
@@ -607,72 +582,50 @@ export default function RH() {
         competences: recrutementForm.competences.split(',').map(c => c.trim()).filter(c => c)
       };
 
-      const url = selectedRecrutement
-        ? `/api/admin/rh/recrutements/${selectedRecrutement.id}`
-        : '/api/admin/rh/recrutements';
-
-      const response = await fetch(url, {
-        method: selectedRecrutement ? 'PUT' : 'POST',
-        headers,
-        body: JSON.stringify(dataToSend)
-      });
-
-      if (response.ok) {
-        setShowRecrutementForm(false);
-        setSelectedRecrutement(null);
-        setRecrutementForm({ titre: '', description: '', type_contrat: 'cdi', salaire_min: '', salaire_max: '', lieu: '', competences: '', date_limite: '' });
-        fetchAll();
+      if (selectedRecrutement) {
+        await api.put(`/admin/rh/recrutements/${selectedRecrutement.id}`, dataToSend);
+      } else {
+        await api.post('/admin/rh/recrutements', dataToSend);
       }
+
+      setShowRecrutementForm(false);
+      setSelectedRecrutement(null);
+      setRecrutementForm({ titre: '', description: '', type_contrat: 'cdi', salaire_min: '', salaire_max: '', lieu: '', competences: '', date_limite: '' });
+      setError(null);
+      fetchAll();
     } catch (err) {
-      console.error('Erreur save recrutement:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde du recrutement');
     }
   };
 
   const handleCandidatureStatus = async (id: number, statut: string) => {
     try {
-      await fetch(`/api/admin/rh/candidatures/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ statut })
-      });
+      await api.put(`/admin/rh/candidatures/${id}`, { statut });
+      setError(null);
       fetchAll();
     } catch (err) {
-      console.error('Erreur update candidature:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la mise a jour de la candidature');
     }
   };
 
-  // Génération paie vers compta
+  // Generation paie vers compta
   const genererPaie = async () => {
-    if (!confirm('Générer les écritures comptables de paie pour ce mois ?')) return;
+    if (!confirm('Generer les ecritures comptables de paie pour ce mois ?')) return;
 
     setGeneratingPaie(true);
     try {
       const now = new Date();
       const periode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-      const response = await fetch('/api/admin/rh/paie/generer', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ periode, heures_supp: heuresSupp })
-      });
+      const result = await api.post<{ totaux: { net: number; cotisations_patronales: number; cotisations_salariales: number } }>('/admin/rh/paie/generer', { periode, heures_supp: heuresSupp });
 
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Paie générée avec succès !\n\nSalaires nets: ${result.totaux.net.toLocaleString('fr-FR')} €\nCotisations: ${(result.totaux.cotisations_patronales + result.totaux.cotisations_salariales).toLocaleString('fr-FR')} €\n\nLes écritures ont été ajoutées en comptabilité.`);
-        fetchAll();
-      } else {
-        const err = await response.json();
-        alert(`Erreur: ${err.error}`);
-      }
+      alert(`Paie generee avec succes !\n\nSalaires nets: ${result.totaux.net.toLocaleString('fr-FR')} \u20ac\nCotisations: ${(result.totaux.cotisations_patronales + result.totaux.cotisations_salariales).toLocaleString('fr-FR')} \u20ac\n\nLes ecritures ont ete ajoutees en comptabilite.`);
+      setError(null);
+      fetchAll();
     } catch (err) {
-      console.error('Erreur génération paie:', err);
-      alert('Erreur lors de la génération de la paie');
+      const message = err instanceof Error ? err.message : 'Erreur lors de la generation de la paie';
+      setError(message);
+      alert(message);
     } finally {
       setGeneratingPaie(false);
     }
@@ -681,12 +634,14 @@ export default function RH() {
   // Documents RH - Registre unique du personnel (PDF conforme Code du travail)
   const downloadRegistrePersonnel = async () => {
     try {
+      // Telechargement blob (PDF) - le wrapper api ne supporte pas les reponses non-JSON
+      const token = localStorage.getItem('nexus_admin_token');
       const response = await fetch('/api/admin/rh/documents/registre-personnel?format=pdf', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (!response.ok) {
-        throw new Error('Erreur téléchargement');
+        throw new Error('Erreur telechargement');
       }
 
       const blob = await response.blob();
@@ -699,8 +654,8 @@ export default function RH() {
       URL.revokeObjectURL(url);
       a.remove();
     } catch (err) {
-      console.error('Erreur téléchargement registre:', err);
-      alert('Erreur lors du téléchargement du registre');
+      setError(err instanceof Error ? err.message : 'Erreur lors du telechargement du registre');
+      alert('Erreur lors du telechargement du registre');
     }
   };
 
@@ -709,36 +664,29 @@ export default function RH() {
     const periode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     try {
-      const response = await fetch(`/api/admin/rh/documents/etat-cotisations?periode=${periode}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!response.ok) {
-        alert('Aucune paie générée pour ce mois');
-        return;
-      }
-      const data = await response.json();
+      const data = await api.get<any>(`/admin/rh/documents/etat-cotisations?periode=${periode}`);
 
-      // Créer texte
-      let content = `ÉTAT DES COTISATIONS SOCIALES\n`;
-      content += `Période: ${data.periode}\n`;
+      // Creer texte
+      let content = `ETAT DES COTISATIONS SOCIALES\n`;
+      content += `Periode: ${data.periode}\n`;
       content += `Date: ${data.date_generation}\n`;
-      content += `Nb salariés: ${data.nb_salaries}\n\n`;
-      content += `Masse salariale brute: ${data.masse_salariale_brute.toFixed(2)} €\n\n`;
+      content += `Nb salaries: ${data.nb_salaries}\n\n`;
+      content += `Masse salariale brute: ${data.masse_salariale_brute.toFixed(2)} \u20ac\n\n`;
       content += `URSSAF:\n`;
-      content += `  Maladie: ${data.cotisations.urssaf.maladie.toFixed(2)} €\n`;
-      content += `  Vieillesse: ${data.cotisations.urssaf.vieillesse.toFixed(2)} €\n`;
-      content += `  Alloc. familiales: ${data.cotisations.urssaf.allocations_familiales.toFixed(2)} €\n`;
-      content += `  AT: ${data.cotisations.urssaf.accidents_travail.toFixed(2)} €\n`;
-      content += `  CSG/CRDS: ${data.cotisations.urssaf.csg_crds.toFixed(2)} €\n\n`;
-      content += `Pôle Emploi:\n`;
-      content += `  Chômage: ${data.cotisations.pole_emploi.chomage.toFixed(2)} €\n`;
-      content += `  AGS: ${data.cotisations.pole_emploi.ags.toFixed(2)} €\n\n`;
+      content += `  Maladie: ${data.cotisations.urssaf.maladie.toFixed(2)} \u20ac\n`;
+      content += `  Vieillesse: ${data.cotisations.urssaf.vieillesse.toFixed(2)} \u20ac\n`;
+      content += `  Alloc. familiales: ${data.cotisations.urssaf.allocations_familiales.toFixed(2)} \u20ac\n`;
+      content += `  AT: ${data.cotisations.urssaf.accidents_travail.toFixed(2)} \u20ac\n`;
+      content += `  CSG/CRDS: ${data.cotisations.urssaf.csg_crds.toFixed(2)} \u20ac\n\n`;
+      content += `Pole Emploi:\n`;
+      content += `  Chomage: ${data.cotisations.pole_emploi.chomage.toFixed(2)} \u20ac\n`;
+      content += `  AGS: ${data.cotisations.pole_emploi.ags.toFixed(2)} \u20ac\n\n`;
       content += `Retraite:\n`;
-      content += `  AGIRC-ARRCO: ${data.cotisations.retraite.agirc_arrco_t1.toFixed(2)} €\n`;
-      content += `  CEG: ${data.cotisations.retraite.ceg.toFixed(2)} €\n\n`;
-      content += `TOTAL Patronal: ${data.total_patronal.toFixed(2)} €\n`;
-      content += `TOTAL Salarial: ${data.total_salarial.toFixed(2)} €\n`;
-      content += `TOTAL COTISATIONS: ${data.total_cotisations.toFixed(2)} €\n`;
+      content += `  AGIRC-ARRCO: ${data.cotisations.retraite.agirc_arrco_t1.toFixed(2)} \u20ac\n`;
+      content += `  CEG: ${data.cotisations.retraite.ceg.toFixed(2)} \u20ac\n\n`;
+      content += `TOTAL Patronal: ${data.total_patronal.toFixed(2)} \u20ac\n`;
+      content += `TOTAL Salarial: ${data.total_salarial.toFixed(2)} \u20ac\n`;
+      content += `TOTAL COTISATIONS: ${data.total_cotisations.toFixed(2)} \u20ac\n`;
 
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -748,7 +696,9 @@ export default function RH() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Erreur téléchargement état cotisations:', err);
+      const message = err instanceof Error ? err.message : 'Aucune paie generee pour ce mois';
+      setError(message);
+      alert(message);
     }
   };
 
@@ -775,6 +725,16 @@ export default function RH() {
           Actualiser
         </Button>
       </div>
+
+      {/* Erreur */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex justify-between items-center">
+          <span className="text-red-700">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold ml-4">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

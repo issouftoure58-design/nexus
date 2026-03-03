@@ -9,6 +9,7 @@ import {
   Plus, Play, Pause, Trash2, Settings,
   Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle, X
 } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface Workflow {
   id: number;
@@ -79,109 +80,83 @@ export default function WorkflowsPage() {
   const queryClient = useQueryClient();
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // Fetch workflows
   const { data: workflows, isLoading, error } = useQuery<Workflow[]>({
     queryKey: ['workflows'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/workflows', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) {
-        if (res.status === 403) throw new Error('Plan Pro requis');
-        throw new Error('Erreur chargement');
-      }
-      return res.json();
-    },
+    queryFn: () => api.get('/admin/workflows'),
   });
 
   // Fetch templates
-  const { data: templatesData } = useQuery({
+  const { data: templatesData } = useQuery<{ templates: Template[] }>({
     queryKey: ['workflow-templates'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/workflows/templates', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) return { templates: [] };
-      return res.json();
+      try {
+        return await api.get<{ templates: Template[] }>('/admin/workflows/templates');
+      } catch {
+        return { templates: [] };
+      }
     },
     enabled: showTemplates,
   });
 
   // Fetch stats
-  const { data: stats } = useQuery<WorkflowStats>({
+  const { data: stats } = useQuery<WorkflowStats | null>({
     queryKey: ['workflow-stats'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/workflows/stats/summary', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) return null;
-      return res.json();
+      try {
+        return await api.get<WorkflowStats>('/admin/workflows/stats/summary');
+      } catch {
+        return null;
+      }
     },
   });
 
   // Fetch workflow detail
   const { data: workflowDetail } = useQuery<WorkflowDetail>({
     queryKey: ['workflow-detail', selectedWorkflowId],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/workflows/${selectedWorkflowId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) throw new Error('Erreur chargement detail');
-      return res.json();
-    },
+    queryFn: () => api.get(`/admin/workflows/${selectedWorkflowId}`),
     enabled: !!selectedWorkflowId,
   });
 
   // Toggle workflow mutation
   const toggleMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/workflows/${id}/toggle`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) throw new Error('Erreur toggle');
-      return res.json();
+      return api.patch(`/admin/workflows/${id}/toggle`, {});
     },
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       queryClient.invalidateQueries({ queryKey: ['workflow-stats'] });
     },
+    onError: (err: Error) => setMutationError(err.message),
   });
 
   // Create from template mutation
   const createFromTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      const res = await fetch('/api/admin/workflows', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ template_id: templateId }),
-      });
-      if (!res.ok) throw new Error('Erreur creation');
-      return res.json();
+      return api.post('/admin/workflows', { template_id: templateId });
     },
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       setShowTemplates(false);
     },
+    onError: (err: Error) => setMutationError(err.message),
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/workflows/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` },
-      });
-      if (!res.ok) throw new Error('Erreur suppression');
+      return api.delete(`/admin/workflows/${id}`);
     },
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       queryClient.invalidateQueries({ queryKey: ['workflow-stats'] });
     },
+    onError: (err: Error) => setMutationError(err.message),
   });
 
   if (isLoading) {
@@ -226,6 +201,19 @@ export default function WorkflowsPage() {
           </Button>
         </div>
       </div>
+
+        {/* Mutation Error */}
+        {mutationError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              {mutationError}
+            </div>
+            <button onClick={() => setMutationError(null)} className="text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         {stats && (

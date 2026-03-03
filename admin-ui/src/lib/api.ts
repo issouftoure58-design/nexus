@@ -208,6 +208,48 @@ class ApiClient {
   delete<T>(endpoint: string, options?: ApiOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
+
+  // Upload FormData (file upload) - ne set pas Content-Type pour laisser le browser gérer le boundary
+  async upload<T>(endpoint: string, formData: FormData, options: ApiOptions = {}): Promise<T> {
+    const { skipAuth, skipTenant, ...fetchOptions } = options;
+
+    const headers: Record<string, string> = {};
+
+    if (!skipAuth && this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+
+      if (!skipTenant) {
+        const { tenant_id, tenant_slug } = extractTenantFromJWT(this.token);
+        if (tenant_id) headers['X-Tenant-ID'] = tenant_id;
+        if (tenant_slug) headers['X-Tenant-Slug'] = tenant_slug;
+      }
+    }
+
+    if (!skipTenant && !headers['X-Tenant-Slug']) {
+      const savedSlug = localStorage.getItem('nexus_tenant_slug');
+      if (savedSlug) headers['X-Tenant-Slug'] = savedSlug;
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...fetchOptions,
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      this.clearToken();
+      window.location.href = '/login';
+      throw new Error('Session expirée');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
+      throw new Error(error.error || error.message || 'Erreur serveur');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiClient();

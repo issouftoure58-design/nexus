@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { api } from '../lib/api';
 import {
   MapPin, Users, Sun, Moon, RefreshCw, Eye, EyeOff,
   Maximize2, Grid3X3, List, Clock, CheckCircle, XCircle,
@@ -57,27 +58,19 @@ export default function FloorPlanPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
   // Récupérer les tables (services de type restaurant)
-  const { data: tablesData, isLoading: loadingTables, refetch } = useQuery<{ services: Table[] }>({
+  const { data: tablesData, isLoading: loadingTables, refetch, error: tablesError } = useQuery<{ services: Table[] }>({
     queryKey: ['services'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/services', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.get('/admin/services');
     }
   });
 
   // Récupérer les réservations du jour
   const today = new Date().toISOString().split('T')[0];
-  const { data: reservationsData, isLoading: loadingReservations } = useQuery<{ reservations: Reservation[] }>({
+  const { data: reservationsData, isLoading: loadingReservations, error: reservationsError } = useQuery<{ reservations: Reservation[] }>({
     queryKey: ['reservations-today', today],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/reservations?date=${today}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.get(`/admin/reservations?date=${today}`);
     }
   });
 
@@ -189,9 +182,25 @@ export default function FloorPlanPage() {
   }, [tablesData?.services]);
 
   const isLoading = loadingTables || loadingReservations;
+  const fetchError = tablesError || reservationsError;
 
   return (
     <div className="p-6">
+      {/* Error banner */}
+      {fetchError && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <span className="text-red-700 text-sm">
+              Impossible de charger les données du plan de salle. Veuillez réessayer.
+            </span>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-auto text-xs">
+              Réessayer
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">

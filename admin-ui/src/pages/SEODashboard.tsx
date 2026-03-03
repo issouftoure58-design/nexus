@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { api } from '../lib/api';
 import {
   Search,
   TrendingUp,
@@ -55,6 +56,7 @@ export default function SEODashboard() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters for keywords
   const [keywordFilters, setKeywordFilters] = useState({
@@ -76,26 +78,21 @@ export default function SEODashboard() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` };
-
       // Fetch all data in parallel
-      const [statsRes, keywordsRes, recoRes] = await Promise.all([
-        fetch('/api/admin/seo/stats', { headers }),
-        fetch('/api/admin/seo/keywords', { headers }),
-        fetch('/api/admin/seo/recommendations', { headers })
+      const [statsData, keywordsData, recoData] = await Promise.all([
+        api.get<SEOStats>('/admin/seo/stats'),
+        api.get<Keyword[]>('/admin/seo/keywords'),
+        api.get<Recommendation[]>('/admin/seo/recommendations')
       ]);
-
-      const statsData = await statsRes.json();
-      const keywordsData = await keywordsRes.json();
-      const recoData = await recoRes.json();
 
       if (statsData) setStats(statsData);
       if (Array.isArray(keywordsData)) setKeywords(keywordsData);
       if (Array.isArray(recoData)) setRecommendations(recoData);
 
-    } catch (error) {
-      console.error('Erreur fetch dashboard:', error);
+    } catch (err) {
+      setError('Impossible de charger les données SEO. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -103,33 +100,19 @@ export default function SEODashboard() {
 
   const handleApplyRecommendation = async (recoId: number) => {
     try {
-      await fetch(`/api/admin/seo/recommendations/${recoId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ statut: 'appliquee' })
-      });
+      await api.patch(`/admin/seo/recommendations/${recoId}`, { statut: 'appliquee' });
       fetchDashboardData();
-    } catch (error) {
-      console.error('Erreur application recommandation:', error);
+    } catch (err) {
+      setError('Impossible d\'appliquer la recommandation. Veuillez réessayer.');
     }
   };
 
   const handleDismissRecommendation = async (recoId: number) => {
     try {
-      await fetch(`/api/admin/seo/recommendations/${recoId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ statut: 'ignoree' })
-      });
+      await api.patch(`/admin/seo/recommendations/${recoId}`, { statut: 'ignoree' });
       fetchDashboardData();
-    } catch (error) {
-      console.error('Erreur dismiss recommandation:', error);
+    } catch (err) {
+      setError('Impossible d\'ignorer la recommandation. Veuillez réessayer.');
     }
   };
 
@@ -249,6 +232,16 @@ export default function SEODashboard() {
           Actualiser
         </Button>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-red-700 text-sm">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2 font-bold">
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

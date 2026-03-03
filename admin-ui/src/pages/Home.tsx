@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Send, Bot, User, Loader2, Sparkles, Shield, TrendingUp,
   AlertCircle, CheckCircle, Zap, RefreshCw, ChevronDown,
@@ -12,6 +14,7 @@ import {
   Plus, Trash2, Clock, ChevronLeft, Menu, X, Phone, PiggyBank,
   Activity, Target, TrendingDown, Cpu, Rocket, FileText, Mail
 } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface Message {
   id: string;
@@ -130,6 +133,14 @@ export function Home() {
     heures_economisees: 0
   });
 
+  // Error toast
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+
+  const showError = useCallback((msg: string) => {
+    setErrorToast(msg);
+    setTimeout(() => setErrorToast(null), 4000);
+  }, []);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -138,8 +149,10 @@ export function Home() {
     loadConversations();
     fetchSentinelActivity();
 
-    // Auto-refresh Sentinel every 60 seconds
-    const interval = setInterval(fetchSentinelActivity, 60000);
+    // Auto-refresh Sentinel every 2 min, only when tab is visible
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchSentinelActivity();
+    }, 120000);
     return () => clearInterval(interval);
   }, []);
 
@@ -148,62 +161,45 @@ export function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load all conversations (but don't open any - show welcome screen)
   const loadConversations = async () => {
     try {
-      const token = localStorage.getItem('nexus_admin_token');
-      const res = await fetch('/api/admin/chat/conversations', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const data = await api.get<{ conversations: any[] }>('/admin/chat/conversations');
+      const convs = (data.conversations || []).map((c: any) => ({
+        id: c.id,
+        title: c.title || 'Nouvelle conversation',
+        createdAt: new Date(c.createdAt),
+        updatedAt: new Date(c.updatedAt || c.createdAt),
+        messageCount: c.messageCount || 0
+      }));
 
-      if (res.ok) {
-        const data = await res.json();
-        const convs = (data.conversations || []).map((c: any) => ({
-          id: c.id,
-          title: c.title || 'Nouvelle conversation',
-          createdAt: new Date(c.createdAt),
-          updatedAt: new Date(c.updatedAt || c.createdAt),
-          messageCount: c.messageCount || 0
-        }));
-
-        setConversations(convs);
-        // Don't load any conversation - show welcome screen instead
-        setMessages([]);
-        setCurrentConversationId(null);
-      }
+      setConversations(convs);
+      setMessages([]);
+      setCurrentConversationId(null);
     } catch (err) {
-      console.error('Error loading conversations:', err);
+      showError('Impossible de charger les conversations');
       setMessages([]);
     }
   };
 
-  // Load a specific conversation
   const loadConversation = async (convId: string) => {
     try {
-      const token = localStorage.getItem('nexus_admin_token');
-      const res = await fetch(`/api/admin/chat/conversations/${convId}/messages`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const data = await api.get<{ messages: any[] }>(`/admin/chat/conversations/${convId}/messages`);
+      const msgs = (data.messages || []).map((m: any) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.createdAt)
+      }));
 
-      if (res.ok) {
-        const data = await res.json();
-        const msgs = (data.messages || []).map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: new Date(m.createdAt)
-        }));
-
-        setCurrentConversationId(convId);
-        setMessages(msgs.length > 0 ? msgs : [{
-          id: 'welcome',
-          role: 'assistant',
-          content: 'Bonjour ! Comment puis-je vous aider ?',
-          timestamp: new Date()
-        }]);
-      }
+      setCurrentConversationId(convId);
+      setMessages(msgs.length > 0 ? msgs : [{
+        id: 'welcome',
+        role: 'assistant',
+        content: 'Bonjour ! Comment puis-je vous aider ?',
+        timestamp: new Date()
+      }]);
     } catch (err) {
-      console.error('Error loading conversation:', err);
+      showError('Impossible de charger la conversation');
     }
   };
 
@@ -214,47 +210,39 @@ export function Home() {
     setSidebarOpen(false);
   };
 
-  // Delete conversation
   const deleteConversation = async (convId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
     if (!confirm('Supprimer cette conversation ?')) return;
 
     try {
-      const token = localStorage.getItem('nexus_admin_token');
-      await fetch(`/api/admin/chat/conversations/${convId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
+      await api.delete(`/admin/chat/conversations/${convId}`);
       setConversations(prev => prev.filter(c => c.id !== convId));
 
       if (currentConversationId === convId) {
         createNewConversation();
       }
     } catch (err) {
-      console.error('Error deleting conversation:', err);
+      showError('Impossible de supprimer la conversation');
     }
   };
 
-  // Fetch Sentinel activity - Mode GUERRE entrepreneur
+  // Fetch Sentinel activity
   const fetchSentinelActivity = useCallback(async () => {
     setSentinelLoading(true);
     try {
-      const token = localStorage.getItem('nexus_admin_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
       const allEvents: SentinelEvent[] = [];
 
-      const [activityRes, overviewRes, pnlRes, automationRes, seoRes, churnRes] = await Promise.all([
-        fetch('/api/admin/stats/activity', { headers }),
-        fetch('/api/admin/analytics/overview', { headers }),
-        fetch('/api/admin/compta/pnl', { headers }).catch(() => null),
-        fetch('/api/admin/stats/automation', { headers }).catch(() => null),
-        fetch('/api/admin/seo/recommendations', { headers }).catch(() => null),
-        fetch('/api/admin/analytics/churn', { headers }).catch(() => null)
+      // Appels paralleles via api wrapper (catch individuel pour tolerance aux erreurs)
+      const [activityData, overviewData, pnlData, automationData, seoData, churnData] = await Promise.all([
+        api.get<any>('/admin/stats/activity').catch(() => null),
+        api.get<any>('/admin/analytics/overview').catch(() => null),
+        api.get<any>('/admin/compta/pnl').catch(() => null),
+        api.get<any>('/admin/stats/automation').catch(() => null),
+        api.get<any>('/admin/seo/recommendations').catch(() => null),
+        api.get<any>('/admin/analytics/churn').catch(() => null)
       ]);
 
-      // Variables pour calculs
       let caTotal = 0;
       let resultatReel = 0;
       let depensesTotal = 0;
@@ -262,9 +250,8 @@ export function Home() {
       let appelsTraites = 0;
 
       // Process activity events
-      if (activityRes.ok) {
-        const data = await activityRes.json();
-        const activities = data.activities || [];
+      if (activityData) {
+        const activities = activityData.activities || [];
         tachesAuto = activities.length;
 
         activities.slice(0, 5).forEach((a: any, i: number) => {
@@ -279,40 +266,36 @@ export function Home() {
       }
 
       // Process financial stats
-      if (overviewRes.ok) {
-        const stats = await overviewRes.json();
-        caTotal = stats.ca_total || 0;
-        appelsTraites = stats.appels_traites || stats.nb_rdv || 0;
+      if (overviewData) {
+        caTotal = overviewData.ca_total || 0;
+        appelsTraites = overviewData.appels_traites || overviewData.nb_rdv || 0;
 
-        // Alerte anomalie si CA en baisse forte
-        if (stats.ca_variation < -15) {
+        if (overviewData.ca_variation < -15) {
           allEvents.unshift({
             id: 'anomaly-ca',
             category: 'anomaly',
             type: 'anomaly',
-            message: `🚨 ALERTE: CA en baisse de ${Math.abs(stats.ca_variation)}%`,
+            message: `🚨 ALERTE: CA en baisse de ${Math.abs(overviewData.ca_variation)}%`,
             detail: 'Action corrective recommandée',
-            value: stats.ca_variation,
+            value: overviewData.ca_variation,
             timestamp: new Date()
           });
         }
       }
 
       // Get real P&L data
-      if (pnlRes?.ok) {
-        const pnl = await pnlRes.json();
-        resultatReel = parseFloat(pnl.resultat?.net) || 0;
-        depensesTotal = parseFloat(pnl.depenses?.total) || 0;
-        caTotal = parseFloat(pnl.revenus?.total) || caTotal;
+      if (pnlData) {
+        resultatReel = parseFloat(pnlData.resultat?.net) || 0;
+        depensesTotal = parseFloat(pnlData.depenses?.total) || 0;
+        caTotal = parseFloat(pnlData.revenus?.total) || caTotal;
 
-        // Event ROI si bénéfice
         if (resultatReel > 0) {
           allEvents.push({
             id: 'roi-positive',
             category: 'finance',
             type: 'roi',
             message: `💰 ROI positif: +${resultatReel.toFixed(0)}€`,
-            detail: `Marge: ${pnl.resultat?.margeNette || 0}%`,
+            detail: `Marge: ${pnlData.resultat?.margeNette || 0}%`,
             value: resultatReel,
             timestamp: new Date()
           });
@@ -329,21 +312,20 @@ export function Home() {
         }
       }
 
-      // Process automation stats (ou calcul estimé)
+      // Process automation stats
       let scoreAuto = 0;
       let gainVsHumain = 0;
       let heuresEco = 0;
       let scoreDetail = { emails_auto: 0, appels_auto: 0, rdv_auto: 0, relances_auto: 0 };
       let gains = { rdv_crees: 0, relances_recuperees: 0, upsell_detectes: 0 };
 
-      if (automationRes?.ok) {
-        const autoData = await automationRes.json();
-        scoreAuto = autoData.score || 0;
-        gainVsHumain = autoData.gain_mensuel || 0;
-        heuresEco = autoData.heures_economisees || 0;
-        tachesAuto = autoData.taches_auto || tachesAuto;
-        scoreDetail = autoData.score_detail || scoreDetail;
-        gains = autoData.gains || gains;
+      if (automationData) {
+        scoreAuto = automationData.score || 0;
+        gainVsHumain = automationData.gain_mensuel || 0;
+        heuresEco = automationData.heures_economisees || 0;
+        tachesAuto = automationData.taches_auto || tachesAuto;
+        scoreDetail = automationData.score_detail || scoreDetail;
+        gains = automationData.gains || gains;
       } else {
         // Pas de données d'automatisation - calcul basé sur données réelles disponibles
         // Hypothèse: chaque tâche auto = 15min d'un humain à 25€/h
@@ -452,8 +434,7 @@ export function Home() {
       });
 
       // Process SEO recommendations
-      if (seoRes?.ok) {
-        const seoData = await seoRes.json();
+      if (seoData) {
         const recommendations = seoData.recommendations || seoData || [];
         if (Array.isArray(recommendations)) {
           recommendations.slice(0, 2).forEach((rec: any, i: number) => {
@@ -469,20 +450,17 @@ export function Home() {
         }
       }
 
-      // Process churn alerts - ANOMALIE
-      if (churnRes?.ok) {
-        const churnData = await churnRes.json();
-        if (churnData.high_risk > 0) {
-          allEvents.unshift({
-            id: 'churn-alert',
-            category: 'anomaly',
-            type: 'warning',
-            message: `🚨 ${churnData.high_risk} clients à risque de départ`,
-            detail: 'Relance automatique recommandée',
-            value: churnData.high_risk,
-            timestamp: new Date()
-          });
-        }
+      // Process churn alerts
+      if (churnData && churnData.high_risk > 0) {
+        allEvents.unshift({
+          id: 'churn-alert',
+          category: 'anomaly',
+          type: 'warning',
+          message: `🚨 ${churnData.high_risk} clients à risque de départ`,
+          detail: 'Relance automatique recommandée',
+          value: churnData.high_risk,
+          timestamp: new Date()
+        });
       }
 
       // Event coût temps réel
@@ -499,33 +477,23 @@ export function Home() {
       }
 
       setSentinelEvents(allEvents);
-    } catch (err) {
-      console.error('Sentinel fetch error:', err);
+    } catch {
+      // Sentinel errors are non-critical, fail silently
     } finally {
       setSentinelLoading(false);
     }
   }, []);
 
-  // Ensure conversation exists
-  const ensureConversation = async (): Promise<string> => {
+  const ensureConversation = useCallback(async (): Promise<string> => {
     if (currentConversationId) return currentConversationId;
 
-    const token = localStorage.getItem('nexus_admin_token');
-    const res = await fetch('/api/admin/chat/conversations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ title: 'Conversation du ' + new Date().toLocaleDateString('fr-FR') })
+    const data = await api.post<{ conversation: any }>('/admin/chat/conversations', {
+      title: 'Conversation du ' + new Date().toLocaleDateString('fr-FR')
     });
-
-    if (!res.ok) throw new Error('Failed to create conversation');
-    const data = await res.json();
-    const convId = data.conversation?.id || data.id;
+    const convId = data.conversation?.id;
+    if (!convId) throw new Error('Failed to create conversation');
     setCurrentConversationId(convId);
 
-    // Add to conversations list
     setConversations(prev => [{
       id: convId,
       title: data.conversation?.title || 'Nouvelle conversation',
@@ -535,7 +503,7 @@ export function Home() {
     }, ...prev]);
 
     return convId;
-  };
+  }, [currentConversationId]);
 
   // Send message with streaming
   const sendMessage = useCallback(async (content: string) => {
@@ -563,8 +531,8 @@ export function Home() {
 
     try {
       const convId = await ensureConversation();
+      // SSE streaming necessite raw fetch pour ReadableStream
       const token = localStorage.getItem('nexus_admin_token');
-
       const response = await fetch(`/api/admin/chat/conversations/${convId}/messages/stream`, {
         method: 'POST',
         headers: {
@@ -574,6 +542,10 @@ export function Home() {
         body: JSON.stringify({ content: content.trim() })
       });
 
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
       if (!response.ok) throw new Error('Stream failed');
 
       const reader = response.body?.getReader();
@@ -601,51 +573,46 @@ export function Home() {
                   setMessages(prev => prev.map(m =>
                     m.id === assistantId ? { ...m, isStreaming: false } : m
                   ));
+                } else if (data.type === 'error') {
+                  throw new Error(data.message || 'Erreur streaming');
                 }
-              } catch (e) {}
+              } catch (parseErr) {
+                if (parseErr instanceof SyntaxError) continue; // Ignore SSE parse errors
+                throw parseErr;
+              }
             }
           }
         }
       }
 
-      // Update conversation in list
       setConversations(prev => prev.map(c =>
         c.id === convId ? { ...c, updatedAt: new Date(), messageCount: c.messageCount + 2 } : c
       ));
 
     } catch (err) {
-      console.error('Chat error:', err);
-      // Fallback to non-streaming
+      // Fallback non-streaming via api wrapper
       try {
         const convId = currentConversationId || await ensureConversation();
-        const token = localStorage.getItem('nexus_admin_token');
-        const fallbackRes = await fetch(`/api/admin/chat/conversations/${convId}/messages`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: content.trim() })
+        const data = await api.post<{ response?: string }>(`/admin/chat/conversations/${convId}/messages`, {
+          content: content.trim()
         });
-
-        if (fallbackRes.ok) {
-          const data = await fallbackRes.json();
-          setMessages(prev => prev.map(m =>
-            m.id === assistantId
-              ? { ...m, content: data.message?.content || data.content || 'Réponse reçue', isStreaming: false }
-              : m
-          ));
-        } else {
-          throw new Error('Fallback failed');
-        }
-      } catch (fallbackErr) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: 'Désolé, une erreur est survenue. Veuillez réessayer.', isStreaming: false }
+            ? { ...m, content: data.response || 'Reponse recue', isStreaming: false }
+            : m
+        ));
+      } catch {
+        showError('Erreur de communication avec l\'IA');
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: 'Desole, une erreur est survenue. Veuillez reessayer.', isStreaming: false }
             : m
         ));
       }
     } finally {
       setIsLoading(false);
     }
-  }, [currentConversationId, isLoading]);
+  }, [currentConversationId, isLoading, ensureConversation, showError]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -698,6 +665,13 @@ export function Home() {
 
   return (
     <div className="flex h-[calc(100vh-56px)] bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Error toast */}
+      {errorToast && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm rounded-lg shadow-lg animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {errorToast}
+        </div>
+      )}
       {/* Sidebar - Conversations */}
       <div className={`
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -1213,7 +1187,13 @@ export function Home() {
                           ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/20'
                           : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-gray-200/50 dark:shadow-black/20'
                       }`}>
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        {message.role === 'user' ? (
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        ) : (
+                          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-table:text-xs prose-th:px-2 prose-td:px-2">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                          </div>
+                        )}
                         {message.isStreaming && <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse ml-1 rounded-sm" />}
                       </div>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">

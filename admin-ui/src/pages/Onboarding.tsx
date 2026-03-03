@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { api } from '../lib/api';
 import {
   Scissors,
   UtensilsCrossed,
@@ -123,20 +124,13 @@ const PLAN_INFO: Record<string, { name: string; description: string; color: stri
 // API
 // ══════════════════════════════════════════════════════════════════════════════
 
-// API_URL: utilise le proxy Vite (/api) ou l'URL complète en prod
-const API_URL = import.meta.env.VITE_API_URL || '/api';
-
 async function fetchBusinessTemplates(): Promise<BusinessTemplate[]> {
-  const res = await fetch(`${API_URL}/tenants/business-templates`);
-  if (!res.ok) throw new Error('Erreur chargement templates');
-  const data = await res.json();
+  const data = await api.get<{ templates: BusinessTemplate[] }>('/tenants/business-templates');
   return data.templates;
 }
 
 async function fetchTemplatePreview(type: string): Promise<TemplatePreview> {
-  const res = await fetch(`${API_URL}/tenants/template-preview/${type}`);
-  if (!res.ok) throw new Error('Erreur chargement preview');
-  const data = await res.json();
+  const data = await api.get<{ template: TemplatePreview }>(`/tenants/template-preview/${type}`);
   return data.template;
 }
 
@@ -149,31 +143,11 @@ async function setupFromTemplate(payload: {
   selectedServices?: Service[];
   customHours?: Record<string, any>;
 }): Promise<any> {
-  const token = localStorage.getItem('nexus_admin_token');
-  const res = await fetch(`${API_URL}/tenants/setup-from-template`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Erreur configuration');
-  }
-  return res.json();
+  return api.post('/tenants/setup-from-template', payload);
 }
 
 async function completeOnboarding(): Promise<void> {
-  const token = localStorage.getItem('nexus_admin_token');
-  const res = await fetch(`${API_URL}/tenants/me/complete-onboarding`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) throw new Error('Erreur finalisation');
+  await api.patch('/tenants/me/complete-onboarding');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -303,8 +277,7 @@ export default function Onboarding() {
   // Mutation pour sauvegarder
   const setupMutation = useMutation({
     mutationFn: setupFromTemplate,
-    onSuccess: async (data) => {
-      console.log('Setup réussi:', data);
+    onSuccess: async () => {
       // Marquer onboarding comme terminé
       await completeOnboarding();
       localStorage.setItem('nexus_onboarding_done', 'true');
@@ -398,7 +371,7 @@ export default function Onboarding() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 relative">
       {/* Bouton retour */}
       <a
-        href="https://nexus-vitrine.onrender.com"
+        href={import.meta.env.VITE_LANDING_URL || '/'}
         className="absolute top-6 left-6 z-20 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="h-5 w-5" />

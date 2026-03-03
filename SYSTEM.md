@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-02
-> **Version:** 3.3.0
+> **Derniere mise a jour:** 2026-03-03
+> **Version:** 3.7.0
 > **Status:** Production Ready (Score 100/100)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -45,12 +45,12 @@ nexus/
 │   └── tests/                 # 19 suites, 310 tests
 │
 ├── frontend/
-│   └── nexus-app/             # App admin + public (66 pages, 168 composants)
+│   └── nexus-app/             # App publique (reservations, chat)
 │                              # React + Vite + TypeScript + Tailwind + shadcn/ui
 │
 ├── landing/                   # Page vitrine marketing (JSX + Spline 3D)
 │
-├── _archive_admin-ui/         # Ancien dashboard (archive, ne plus utiliser)
+├── admin-ui/                  # Dashboard admin officiel (React/Vite/TS)
 │
 ├── .github/workflows/         # CI/CD (ci.yml, tenant-shield.yml, security.yml, deploy-*)
 ├── CLAUDE.md                  # Directives developpeur
@@ -127,6 +127,9 @@ npm run shield         # Les deux
 | `/api/admin/services/*` | Gestion services |
 | `/api/admin/stats/*` | Statistiques dashboard |
 | `/api/admin/quotas` | Quotas et limites |
+| `/api/admin/ia/*` | Config IA par canal (telephone, whatsapp) |
+| `/api/admin/agents/*` | Gestion agents IA (ai_agents) |
+| `/api/admin/chat/*` | Chat IA admin (conversations, messages, streaming SSE) |
 | `/api/modules/*` | Modules disponibles/actifs |
 | `/api/billing/*` | Abonnements et paiements Stripe |
 | `/api/provisioning/*` | Numeros Twilio |
@@ -148,7 +151,7 @@ npm run shield         # Les deux
 Push main → GitHub Actions CI:
   1. lint:tenant + lint:syntax + healthcheck
   2. Tests (Node 18 + 20) avec coverage
-  3. Build frontend (nexus-app + landing)
+  3. Build frontend (admin-ui + landing)
   4. Boot test (syntax check)
   5. Shield verification
   → CI Success required pour merge
@@ -201,4 +204,4 @@ Push main → GitHub Actions CI:
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-02*
+*Derniere synchronisation: 2026-03-03*

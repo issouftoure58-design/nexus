@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,14 +85,7 @@ function ProfileSubSection() {
 
   const { data: parametresData, isLoading } = useQuery({
     queryKey: ['parametres'],
-    queryFn: async () => {
-      const token = localStorage.getItem('nexus_admin_token');
-      const res = await fetch('/api/admin/parametres', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Erreur chargement parametres');
-      return res.json();
-    }
+    queryFn: () => api.get<{ parametres: { salon: { cle: string; valeur: string }[] } }>('/admin/parametres'),
   });
 
   useEffect(() => {
@@ -108,23 +102,15 @@ function ProfileSubSection() {
   }, [parametresData]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const token = localStorage.getItem('nexus_admin_token');
-      const res = await fetch('/api/admin/parametres', {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parametres: [
-            { cle: 'nom_salon', valeur: data.businessName },
-            { cle: 'email_salon', valeur: data.email },
-            { cle: 'telephone_salon', valeur: data.phone },
-            { cle: 'adresse_salon', valeur: data.address }
-          ]
-        })
-      });
-      if (!res.ok) throw new Error('Erreur sauvegarde');
-      return res.json();
-    },
+    mutationFn: (data: typeof formData) =>
+      api.put('/admin/parametres', {
+        parametres: [
+          { cle: 'nom_salon', valeur: data.businessName },
+          { cle: 'email_salon', valeur: data.email },
+          { cle: 'telephone_salon', valeur: data.phone },
+          { cle: 'adresse_salon', valeur: data.address }
+        ]
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parametres'] });
       setHasChanges(false);
@@ -171,6 +157,7 @@ function ProfileSubSection() {
 }
 
 // Notifications Sub-Section
+// TODO: Backend not implemented - toggles are local-only, no API persistence
 function NotificationsSubSection() {
   const [settings, setSettings] = useState({
     emailNewBooking: true,
@@ -187,6 +174,10 @@ function NotificationsSubSection() {
         <CardDescription>Choisissez comment vous souhaitez être notifié</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-2">
+          <AlertCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+          <p className="text-sm text-yellow-700">Configuration des notifications bientot disponible.</p>
+        </div>
         {[
           { key: 'emailNewBooking', label: 'Email - Nouvelle réservation', desc: 'Recevoir un email à chaque nouvelle réservation' },
           { key: 'emailCancellation', label: 'Email - Annulation', desc: 'Recevoir un email en cas d\'annulation' },
@@ -194,13 +185,13 @@ function NotificationsSubSection() {
           { key: 'smsReminder', label: 'SMS - Rappels clients', desc: 'Envoyer des SMS de rappel aux clients' },
           { key: 'pushNotifications', label: 'Notifications push', desc: 'Recevoir des notifications push' },
         ].map((item) => (
-          <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0">
+          <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0 opacity-50 pointer-events-none">
             <div>
               <p className="font-medium">{item.label}</p>
               <p className="text-sm text-gray-500">{item.desc}</p>
             </div>
             <button
-              onClick={() => setSettings(s => ({ ...s, [item.key]: !s[item.key as keyof typeof settings] }))}
+              disabled
               className={cn('w-12 h-6 rounded-full relative', settings[item.key as keyof typeof settings] ? 'bg-green-500' : 'bg-gray-300')}
             >
               <div className={cn('w-5 h-5 bg-white rounded-full absolute top-0.5 shadow', settings[item.key as keyof typeof settings] ? 'translate-x-6' : 'translate-x-0.5')} />
@@ -213,6 +204,7 @@ function NotificationsSubSection() {
 }
 
 // Security Sub-Section
+// TODO: Backend not implemented - password change and 2FA not connected to any API
 function SecuritySubSection() {
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -223,7 +215,11 @@ function SecuritySubSection() {
           <CardTitle>Sécurité du compte</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-2">
+            <AlertCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+            <p className="text-sm text-yellow-700">Gestion de la securite bientot disponible.</p>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg opacity-50">
             <div className="flex items-center gap-3">
               <Key className="h-5 w-5 text-gray-400" />
               <div>
@@ -231,19 +227,19 @@ function SecuritySubSection() {
                 <p className="text-sm text-gray-500">Dernière modification il y a 30 jours</p>
               </div>
             </div>
-            <Button variant="outline" onClick={() => setShowChangePassword(!showChangePassword)}>Modifier</Button>
+            <Button variant="outline" disabled onClick={() => setShowChangePassword(!showChangePassword)}>Modifier</Button>
           </div>
 
           {showChangePassword && (
             <div className="p-4 border rounded-lg space-y-4">
-              <div><label className="block text-sm font-medium mb-1">Mot de passe actuel</label><Input type="password" /></div>
-              <div><label className="block text-sm font-medium mb-1">Nouveau mot de passe</label><Input type="password" /></div>
-              <div><label className="block text-sm font-medium mb-1">Confirmer</label><Input type="password" /></div>
-              <Button className="bg-gradient-to-r from-gray-700 to-gray-800">Mettre à jour</Button>
+              <div><label className="block text-sm font-medium mb-1">Mot de passe actuel</label><Input type="password" disabled /></div>
+              <div><label className="block text-sm font-medium mb-1">Nouveau mot de passe</label><Input type="password" disabled /></div>
+              <div><label className="block text-sm font-medium mb-1">Confirmer</label><Input type="password" disabled /></div>
+              <Button disabled className="bg-gradient-to-r from-gray-700 to-gray-800">Mettre à jour</Button>
             </div>
           )}
 
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg opacity-50">
             <div className="flex items-center gap-3">
               <Shield className="h-5 w-5 text-gray-400" />
               <div>
@@ -260,6 +256,7 @@ function SecuritySubSection() {
 }
 
 // Branding Sub-Section
+// TODO: Backend not implemented - logo upload and color selection not connected to any API
 function BrandingSubSection() {
   return (
     <Card>
@@ -268,22 +265,28 @@ function BrandingSubSection() {
         <CardDescription>Personnalisez l'apparence de votre espace</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium mb-2">Logo de l'entreprise</label>
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-2xl font-bold">N</div>
-            <Button variant="outline">Changer le logo</Button>
-          </div>
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-2">
+          <AlertCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+          <p className="text-sm text-yellow-700">Personnalisation bientot disponible.</p>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">Couleur principale</label>
-          <div className="flex gap-3">
-            {['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'].map((color) => (
-              <button key={color} className={cn('w-10 h-10 rounded-full border-2', color === '#06b6d4' ? 'border-gray-900 scale-110' : 'border-transparent')} style={{ backgroundColor: color }} />
-            ))}
+        <div className="opacity-50 pointer-events-none">
+          <div>
+            <label className="block text-sm font-medium mb-2">Logo de l'entreprise</label>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-2xl font-bold">N</div>
+              <Button variant="outline" disabled>Changer le logo</Button>
+            </div>
           </div>
+          <div className="mt-6">
+            <label className="block text-sm font-medium mb-2">Couleur principale</label>
+            <div className="flex gap-3">
+              {['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'].map((color) => (
+                <button key={color} disabled className={cn('w-10 h-10 rounded-full border-2', color === '#06b6d4' ? 'border-gray-900 scale-110' : 'border-transparent')} style={{ backgroundColor: color }} />
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end mt-6"><Button disabled className="bg-gradient-to-r from-gray-700 to-gray-800">Enregistrer</Button></div>
         </div>
-        <div className="flex justify-end"><Button className="bg-gradient-to-r from-gray-700 to-gray-800">Enregistrer</Button></div>
       </CardContent>
     </Card>
   );

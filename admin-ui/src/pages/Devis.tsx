@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { comptaApi, Devis, DevisStats, DevisCreateData } from '../lib/api';
+import { api, comptaApi, Devis, DevisStats, DevisCreateData } from '../lib/api';
 import { X, Printer, Download, Send, Edit2, Check, XCircle, Play, Clock, User, MapPin, Phone, Mail, Calendar, FileText, Users } from 'lucide-react';
 import { useProfile } from '../contexts/ProfileContext';
 import { FeatureField, PricingFields } from '../components/forms';
@@ -39,6 +39,26 @@ const STATUT_LABELS: Record<StatutDevis, { label: string; color: string; bg: str
   annule: { label: 'Annulé', color: 'text-gray-500', bg: 'bg-gray-200' },
 };
 
+// Helper functions partagées entre composants
+const formatMontant = (centimes: number) => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(centimes / 100);
+};
+
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString('fr-FR');
+};
+
+const formatDateLong = (date: string) => {
+  return new Date(date).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
 export default function DevisPage() {
   const queryClient = useQueryClient();
   const [filtreStatut, setFiltreStatut] = useState<string>('');
@@ -48,6 +68,7 @@ export default function DevisPage() {
   const [showRejectModal, setShowRejectModal] = useState<Devis | null>(null);
   const [showExecuteModal, setShowExecuteModal] = useState<Devis | null>(null);
   const [showDetailModal, setShowDetailModal] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // Récupérer les devis
   const { data, isLoading, error } = useQuery({
@@ -65,6 +86,10 @@ export default function DevisPage() {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
       setShowForm(false);
       setEditingDevis(null);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de la creation du devis');
     },
   });
 
@@ -74,37 +99,44 @@ export default function DevisPage() {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
       setShowForm(false);
       setEditingDevis(null);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de la modification du devis');
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => comptaApi.deleteDevis(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devis'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devis'] });
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de la suppression du devis');
+    },
   });
 
   const envoyerMutation = useMutation({
     mutationFn: (id: string) => comptaApi.envoyerDevis(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devis'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devis'] });
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de l\'envoi du devis');
+    },
   });
 
   const accepterMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/devis/${id}/accepter`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`
-        }
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur acceptation');
-      }
-      return res.json();
-    },
+    mutationFn: (id: string) => api.post(`/admin/devis/${id}/accepter`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
       setShowAcceptModal(null);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de l\'acceptation du devis');
     },
   });
 
@@ -114,64 +146,39 @@ export default function DevisPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
       setShowRejectModal(null);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors du rejet du devis');
     },
   });
 
   // Change status mutation
   const changeStatutMutation = useMutation({
-    mutationFn: async ({ id, statut }: { id: string; statut: StatutDevis }) => {
-      const res = await fetch(`/api/admin/devis/${id}/statut`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`
-        },
-        body: JSON.stringify({ statut })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur changement statut');
-      }
-      return res.json();
-    },
+    mutationFn: ({ id, statut }: { id: string; statut: StatutDevis }) =>
+      api.patch(`/admin/devis/${id}/statut`, { statut }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors du changement de statut');
     },
   });
 
-  // Execute mutation - crée une prestation
+  // Execute mutation - cree une prestation
   const executerMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { date_rdv: string; heure_rdv: string; affectations?: Array<{ ressource_id: number; ligne_id?: number }> } }) => {
-      const res = await fetch(`/api/admin/devis/${id}/executer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur exécution');
-      }
-      return res.json();
-    },
+    mutationFn: ({ id, data }: { id: string; data: { date_rdv: string; heure_rdv: string; affectations?: Array<{ ressource_id: number; ligne_id?: number }> } }) =>
+      api.post(`/admin/devis/${id}/executer`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devis'] });
       setShowExecuteModal(null);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de l\'execution du devis');
     },
   });
-
-  const formatMontant = (centimes: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(centimes / 100);
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('fr-FR');
-  };
 
   if (isLoading) {
     return (
@@ -191,6 +198,14 @@ export default function DevisPage() {
 
   return (
     <div className="space-y-6">
+      {/* Erreur mutation */}
+      {mutationError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex justify-between items-center">
+          <span className="text-red-700">{mutationError}</span>
+          <button onClick={() => setMutationError(null)} className="text-red-500 hover:text-red-700 font-bold">X</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -584,14 +599,11 @@ function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalP
   const [memeAdresse, setMemeAdresse] = useState(true);
 
   // Fetch clients
-  const { data: clientsData } = useQuery({
+  const { data: clientsData } = useQuery<{ clients: Client[] }>({
     queryKey: ['clients-search', clientSearch],
     queryFn: async () => {
       if (!clientSearch || clientSearch.length < 2) return { clients: [] };
-      const res = await fetch(`/api/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
+      return api.get<{ clients: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
     },
     enabled: clientSearch.length >= 2 && clientMode === 'existant'
   });
@@ -599,23 +611,13 @@ function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalP
   // Fetch services
   const { data: servicesData } = useQuery<{ services: Service[] }>({
     queryKey: ['services'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/services', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
-    }
+    queryFn: () => api.get<{ services: Service[] }>('/admin/services'),
   });
 
-  // Fetch membres équipe pour assignation
+  // Fetch membres equipe pour assignation
   const { data: membresData } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({
     queryKey: ['membres-equipe'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/rh/membres', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
-    }
+    queryFn: () => api.get<Array<{ id: number; nom: string; prenom: string; role: string }>>('/admin/rh/membres'),
   });
 
   // Add service
@@ -957,9 +959,9 @@ function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalP
                   placeholder="Rechercher un client..."
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
-                {showClientDropdown && clientsData?.clients?.length > 0 && (
+                {showClientDropdown && (clientsData?.clients?.length ?? 0) > 0 && (
                   <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {clientsData.clients.map((client: Client) => {
+                    {clientsData!.clients.map((client: Client) => {
                       const isPro = client.type_client === 'professionnel' || !!client.raison_sociale;
                       const displayName = isPro && client.raison_sociale
                         ? client.raison_sociale
@@ -1649,23 +1651,10 @@ function ExecuteDevisModal({ devis, onClose, onExecute, isLoading }: ExecuteDevi
   const [affectations, setAffectations] = useState<Record<number, AffectationExec>>({});
   const [serviceEnCours, setServiceEnCours] = useState<number | null>(null);
 
-  // Fetch lignes du devis (avec vraies durées)
+  // Fetch lignes du devis (avec vraies durees)
   const { data: devisDetailData, error: devisDetailError } = useQuery<{ devis: Devis & { date_prestation?: string; heure_prestation?: string }; lignes: DevisLigne[] }>({
     queryKey: ['devis-detail-exec', devis.id],
-    queryFn: async () => {
-      console.log('[ExecuteModal] Fetching devis detail:', devis.id);
-      const res = await fetch(`/api/admin/devis/${devis.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      console.log('[ExecuteModal] Response status:', res.status);
-      if (!res.ok) {
-        console.error('[ExecuteModal] Error response:', res.status, res.statusText);
-        throw new Error(`Erreur ${res.status}`);
-      }
-      const data = await res.json();
-      console.log('[ExecuteModal] Lignes reçues:', data.lignes?.length, data.lignes?.map((l: DevisLigne) => `${l.service_nom}: ${l.duree_minutes}min`));
-      return data;
-    },
+    queryFn: () => api.get<{ devis: Devis & { date_prestation?: string; heure_prestation?: string }; lignes: DevisLigne[] }>(`/admin/devis/${devis.id}`),
     retry: 1
   });
 
@@ -1720,12 +1709,7 @@ function ExecuteDevisModal({ devis, onClose, onExecute, isLoading }: ExecuteDevi
   // Fetch membres RH pour affectation
   const { data: membresData, isLoading: dispoLoading } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({
     queryKey: ['membres-equipe-execute'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/rh/membres', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
-    }
+    queryFn: () => api.get<Array<{ id: number; nom: string; prenom: string; role: string }>>('/admin/rh/membres'),
   });
 
   // Convertir les membres en format ressource pour compatibilité avec l'UI existante
@@ -2151,13 +2135,7 @@ function DevisDetailModal({ devisId, onClose, onEdit, onSend, onAccept, onReject
   // Fetch devis details
   const { data, isLoading, error } = useQuery({
     queryKey: ['devis-detail', devisId],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/devis/${devisId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur chargement devis');
-      return res.json();
-    }
+    queryFn: () => api.get<{ devis: Devis; historique: Array<{ id: number; action: string; notes: string; created_at: string; changed_by: string }> }>(`/admin/devis/${devisId}`),
   });
 
   const devis: Devis | null = data?.devis || null;
@@ -2212,21 +2190,6 @@ function DevisDetailModal({ devisId, onClose, onEdit, onSend, onAccept, onReject
   const handleExportPDF = async () => {
     // Ouvrir l'aperçu HTML du devis dans un nouvel onglet
     window.open(`/api/admin/devis/${devisId}/pdf`, '_blank');
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
-  };
-
-  const formatMontant = (centimes: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(centimes / 100);
   };
 
   if (isLoading) {
@@ -2360,9 +2323,9 @@ function DevisDetailModal({ devisId, onClose, onEdit, onSend, onAccept, onReject
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-500">Date d'émission</div>
-                <div className="font-medium">{formatDate(devis.date_devis)}</div>
+                <div className="font-medium">{formatDateLong(devis.date_devis)}</div>
                 <div className="text-sm text-gray-500 mt-2">Valide jusqu'au</div>
-                <div className="font-medium">{devis.date_expiration ? formatDate(devis.date_expiration) : '-'}</div>
+                <div className="font-medium">{devis.date_expiration ? formatDateLong(devis.date_expiration) : '-'}</div>
               </div>
             </div>
 

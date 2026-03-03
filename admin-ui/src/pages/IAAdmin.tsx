@@ -3,10 +3,11 @@
  * Gestion des assistants vocaux et chatbots
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { api } from '@/lib/api';
 import {
   Bot,
   Phone,
@@ -67,35 +68,39 @@ export default function IAAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [playingVoice, setPlayingVoice] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Agent>>({});
+  const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchAgents();
+  }, []);
+
+  // Cleanup blob URL on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+    };
   }, []);
 
   const fetchAgents = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/admin/agents', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-
-      if (response.status === 403) {
-        setError('Cette fonctionnalite necessite le module Agent IA');
-        return;
-      }
-
-      if (!response.ok) throw new Error('Erreur lors du chargement');
-
-      const result = await response.json();
+      const result = await api.get<{ agents: Agent[] }>('/admin/agents');
       setAgents(result.agents || []);
       if (result.agents?.length > 0 && !selectedAgent) {
         selectAgent(result.agents[0]);
       }
     } catch (err: any) {
-      setError(err.message);
+      if (err.message?.includes('403') || err.message?.includes('Plan')) {
+        setError('Cette fonctionnalite necessite le module Agent IA');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -103,6 +108,7 @@ export default function IAAdmin() {
 
   const selectAgent = (agent: Agent) => {
     setSelectedAgent(agent);
+    setSaveStatus('idle');
     setEditForm({
       custom_name: agent.custom_name,
       voice_style: agent.voice_style,
@@ -118,23 +124,16 @@ export default function IAAdmin() {
   const handleSave = async () => {
     if (!selectedAgent) return;
     setSaving(true);
+    setSaveStatus('idle');
     try {
-      const response = await fetch(`/api/admin/agents/${selectedAgent.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(editForm)
-      });
-
-      if (!response.ok) throw new Error('Erreur lors de la sauvegarde');
-
-      const result = await response.json();
+      const result = await api.patch<{ agent: Agent }>(`/admin/agents/${selectedAgent.id}`, editForm);
       setAgents(agents.map(a => a.id === selectedAgent.id ? result.agent : a));
       setSelectedAgent(result.agent);
-    } catch (err: any) {
-      console.error('Save error:', err);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     } finally {
       setSaving(false);
     }
@@ -144,26 +143,38 @@ export default function IAAdmin() {
     if (!selectedAgent?.voice_id) return;
     setPlayingVoice(true);
     try {
+      // Blob response requires raw fetch - api wrapper auto-parses JSON
+      const token = localStorage.getItem(`nexus_admin_token_${localStorage.getItem('nexus_current_tenant')}`) || localStorage.getItem('nexus_admin_token');
       const response = await fetch(`/api/admin/agents/${selectedAgent.id}/test-voice`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ text: editForm.greeting_message || 'Bonjour, comment puis-je vous aider?' })
       });
 
       if (response.ok) {
+        // Revoke previous blob URL to prevent memory leak
+        if (audioUrlRef.current) {
+          URL.revokeObjectURL(audioUrlRef.current);
+        }
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
+        audioUrlRef.current = audioUrl;
         const audio = new Audio(audioUrl);
-        audio.onended = () => setPlayingVoice(false);
+        audio.onended = () => {
+          setPlayingVoice(false);
+          if (audioUrlRef.current) {
+            URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = null;
+          }
+        };
         audio.play();
       } else {
         setPlayingVoice(false);
       }
-    } catch (err) {
-      console.error('Voice test error:', err);
+    } catch {
       setPlayingVoice(false);
     }
   };
@@ -274,14 +285,22 @@ export default function IAAdmin() {
                   <Settings className="w-5 h-5 text-cyan-500" />
                   Configuration
                 </h2>
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
+                <div className="flex items-center gap-2">
+                  {saveStatus === 'success' && (
+                    <Badge className="bg-green-500">Sauvegarde</Badge>
                   )}
-                  Sauvegarder
-                </Button>
+                  {saveStatus === 'error' && (
+                    <Badge variant="destructive">Erreur de sauvegarde</Badge>
+                  )}
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    Sauvegarder
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

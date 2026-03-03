@@ -22,6 +22,7 @@ import {
   getCachedClaudeResponse,
   cacheClaudeResponse
 } from './optimization/cacheService.js';
+import logger from '../config/logger.js';
 
 // Client Anthropic (singleton)
 let anthropicClient = null;
@@ -40,31 +41,12 @@ function getAnthropicClient() {
 
 // Modeles disponibles
 const MODELS = {
-  HAIKU: 'claude-3-haiku-20240307',
+  HAIKU: 'claude-haiku-4-5-20251001',
   SONNET: 'claude-sonnet-4-20250514'
 };
 const MODEL_DEFAULT = MODELS.SONNET;
 const MAX_TOKENS = 4096;
 const MAX_TOOL_ITERATIONS = 5; // Limite pour éviter les boucles infinies
-
-/**
- * Selectionne le modele optimal selon la complexite
- * Pour admin chat: toujours Sonnet si outils requis
- */
-function selectModel(userMessage, hasTools = true) {
-  // Si outils disponibles, utiliser Sonnet pour fiabilite
-  if (hasTools) {
-    return MODELS.SONNET;
-  }
-
-  // Sinon, utiliser le router pour optimiser
-  const routing = modelRouter.selectModel({
-    userMessage,
-    context: { hasTools }
-  });
-
-  return routing.model;
-}
 
 // Flag pour éviter de recréer les tables à chaque appel
 let chatTablesInitialized = false;
@@ -76,7 +58,6 @@ async function ensureChatTables() {
   if (chatTablesInitialized) return true;
 
   try {
-    // Test si la table existe
     const { error: testError } = await supabase
       .from('admin_conversations')
       .select('id')
@@ -87,43 +68,10 @@ async function ensureChatTables() {
       return true;
     }
 
-    console.log('[ADMIN CHAT] Tables non trouvées, création en cours...');
-
-    // Créer les tables via SQL brut (service role bypass RLS)
-    const { error: createError } = await supabase.rpc('exec_sql', {
-      sql_query: `
-        CREATE TABLE IF NOT EXISTS admin_conversations (
-          id SERIAL PRIMARY KEY,
-          tenant_id INTEGER NOT NULL,
-          admin_id INTEGER NOT NULL,
-          title VARCHAR(255) DEFAULT 'Nouvelle conversation',
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        CREATE TABLE IF NOT EXISTS admin_messages (
-          id SERIAL PRIMARY KEY,
-          conversation_id INTEGER NOT NULL REFERENCES admin_conversations(id) ON DELETE CASCADE,
-          role VARCHAR(20) NOT NULL,
-          content TEXT NOT NULL,
-          tool_use JSONB,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_admin_conversations_tenant ON admin_conversations(tenant_id);
-        CREATE INDEX IF NOT EXISTS idx_admin_messages_conversation ON admin_messages(conversation_id);
-      `
-    });
-
-    if (createError) {
-      console.warn('[ADMIN CHAT] RPC exec_sql non disponible, tables doivent être créées manuellement');
-      console.warn('[ADMIN CHAT] Exécutez: src/migrations/014_admin_chat.sql dans Supabase');
-      return false;
-    }
-
-    chatTablesInitialized = true;
-    console.log('[ADMIN CHAT] ✅ Tables créées avec succès');
-    return true;
+    logger.warn('Tables admin_conversations/admin_messages non trouvees. Executez la migration 014_admin_chat.sql dans Supabase.', { tag: 'ADMIN CHAT' });
+    return false;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur initialisation tables:', error.message);
+    logger.error('Erreur verification tables chat', { tag: 'ADMIN CHAT', error: error.message });
     return false;
   }
 }
@@ -142,7 +90,7 @@ export async function getTenant(tenantId) {
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur getTenant:', error);
+    logger.error('Erreur getTenant', { tag: 'ADMIN CHAT', error: error.message });
     return null;
   }
 }
@@ -229,7 +177,7 @@ function getPrixReservation(r) {
  * Exécute un outil et retourne le résultat
  */
 async function executeTool(toolName, toolInput, tenantId, adminId = null) {
-  console.log(`[ADMIN CHAT] Exécution outil: ${toolName}`, { toolInput, tenantId });
+  logger.info(`Execution outil: ${toolName}`, { tag: 'ADMIN CHAT', tenantId });
 
   try {
     switch (toolName) {
@@ -241,7 +189,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
         const monthStart = today.substring(0, 7) + '-01';
         const periode = toolInput.periode || 'mois';
 
-        console.log(`[ADMIN CHAT] get_stats - tenant: ${tenantId}, month: ${monthStart}`);
+        logger.debug(`get_stats - tenant: ${tenantId}, month: ${monthStart}`, { tag: 'ADMIN CHAT' });
 
         // RDV aujourd'hui
         const { data: rdvToday, error: errToday } = await supabase
@@ -250,7 +198,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
           .eq('tenant_id', tenantId)
           .eq('date', today);
 
-        if (errToday) console.error('[ADMIN CHAT] Erreur rdvToday:', errToday);
+        if (errToday) logger.error('Erreur rdvToday', { tag: 'ADMIN CHAT', error: errToday.message });
 
         // RDV ce mois
         const { data: rdvMonth, error: errMonth } = await supabase
@@ -259,8 +207,8 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
           .eq('tenant_id', tenantId)
           .gte('date', monthStart);
 
-        if (errMonth) console.error('[ADMIN CHAT] Erreur rdvMonth:', errMonth);
-        console.log(`[ADMIN CHAT] RDV mois trouvés: ${rdvMonth?.length || 0}`, rdvMonth?.slice(0, 3));
+        if (errMonth) logger.error('[ADMIN CHAT] Erreur rdvMonth:', errMonth);
+        logger.debug(`[ADMIN CHAT] RDV mois trouvés: ${rdvMonth?.length || 0}`, rdvMonth?.slice(0, 3));
 
         // Clients total
         const { count: clientsCount, error: errClients } = await supabase
@@ -268,12 +216,12 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
           .select('id', { count: 'exact' })
           .eq('tenant_id', tenantId);
 
-        if (errClients) console.error('[ADMIN CHAT] Erreur clients:', errClients);
+        if (errClients) logger.error('[ADMIN CHAT] Erreur clients:', errClients);
 
         // Compter confirme ET termine pour les revenus
         const rdvFacturables = rdvMonth?.filter(r => r.statut === 'confirme' || r.statut === 'termine') || [];
         const revenusMois = rdvFacturables.reduce((sum, r) => sum + getPrixReservation(r), 0);
-        console.log(`[ADMIN CHAT] RDV facturables: ${rdvFacturables.length}, Revenus: ${revenusMois}`);
+        logger.debug(`[ADMIN CHAT] RDV facturables: ${rdvFacturables.length}, Revenus: ${revenusMois}`);
 
         // Top services
         const serviceCount = {};
@@ -302,7 +250,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
 
       case 'get_top_clients':
       case 'get_best_clients': {
-        console.log(`[ADMIN CHAT] get_top_clients - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] get_top_clients - tenant: ${tenantId}`);
 
         const { data: clients, error } = await supabase
           .from('clients')
@@ -313,8 +261,8 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
           .eq('tenant_id', tenantId)
           .limit(100);
 
-        if (error) console.error('[ADMIN CHAT] Erreur get_top_clients:', error);
-        console.log(`[ADMIN CHAT] Clients trouvés: ${clients?.length || 0}`);
+        if (error) logger.error('[ADMIN CHAT] Erreur get_top_clients:', error);
+        logger.debug(`[ADMIN CHAT] Clients trouvés: ${clients?.length || 0}`);
 
         if (!clients || clients.length === 0) {
           return { success: true, message: "Aucun client trouvé", clients: [] };
@@ -476,7 +424,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
         const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-        console.log(`[ADMIN CHAT] get_revenus_mois - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] get_revenus_mois - tenant: ${tenantId}`);
 
         const { data: rdvs, error } = await supabase
           .from('reservations')
@@ -485,8 +433,8 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
           .gte('date', monthStart.toISOString().split('T')[0])
           .lte('date', monthEnd.toISOString().split('T')[0]);
 
-        if (error) console.error('[ADMIN CHAT] Erreur get_revenus_mois:', error);
-        console.log(`[ADMIN CHAT] RDV du mois: ${rdvs?.length || 0}`, rdvs?.slice(0, 3));
+        if (error) logger.error('[ADMIN CHAT] Erreur get_revenus_mois:', error);
+        logger.debug(`[ADMIN CHAT] RDV du mois: ${rdvs?.length || 0}`, rdvs?.slice(0, 3));
 
         // Confirme + termine = facturables
         const facturables = rdvs?.filter(r => r.statut === 'confirme' || r.statut === 'termine') || [];
@@ -495,7 +443,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
         const revenusFacturables = facturables.reduce((sum, r) => sum + getPrixReservation(r), 0);
         const revenusEnAttente = enAttente.reduce((sum, r) => sum + getPrixReservation(r), 0);
 
-        console.log(`[ADMIN CHAT] Facturables: ${facturables.length}, Revenus: ${revenusFacturables}`);
+        logger.debug(`[ADMIN CHAT] Facturables: ${facturables.length}, Revenus: ${revenusFacturables}`);
 
         // Top services
         const serviceRevenue = {};
@@ -511,7 +459,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
 
         return {
           success: true,
-          mois: monthStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+          mois: new Date(monthStart).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
           revenus_confirmes: `${(revenusFacturables / 100).toFixed(2)}€`,
           revenus_en_attente: `${(revenusEnAttente / 100).toFixed(2)}€`,
           nb_rdv_confirmes: facturables.length,
@@ -524,17 +472,29 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
       // OUTILS CLIENTS
       // ═══════════════════════════════════════════════════════════════
       case 'search_clients': {
-        const query = toolInput.query || toolInput.search || '';
+        const rawQuery = (toolInput.query || toolInput.search || '').toString().trim();
+        // Echapper les caracteres speciaux PostgREST pour eviter l'injection
+        const safeQuery = rawQuery.replace(/[%_\\(),."']/g, '');
+        if (!safeQuery) {
+          // Sans terme de recherche, retourner les derniers clients
+          const { data: clients } = await supabase
+            .from('clients')
+            .select('id, prenom, nom, telephone, email')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          return { success: true, query: rawQuery, results: clients || [] };
+        }
         const { data: clients } = await supabase
           .from('clients')
           .select('id, prenom, nom, telephone, email')
           .eq('tenant_id', tenantId)
-          .or(`prenom.ilike.%${query}%,nom.ilike.%${query}%,telephone.ilike.%${query}%`)
+          .or(`prenom.ilike.%${safeQuery}%,nom.ilike.%${safeQuery}%,telephone.ilike.%${safeQuery}%`)
           .limit(10);
 
         return {
           success: true,
-          query,
+          query: rawQuery,
           results: clients || []
         };
       }
@@ -753,7 +713,7 @@ async function executeTool(toolName, toolInput, tenantId, adminId = null) {
       case 'generer_post_marketing': {
         const { plateforme, occasion, tone, details } = toolInput;
 
-        console.log(`[ADMIN CHAT] Génération post marketing - plateforme: ${plateforme}, occasion: ${occasion}`);
+        logger.debug(`[ADMIN CHAT] Génération post marketing - plateforme: ${plateforme}, occasion: ${occasion}`);
 
         // Récupérer infos tenant pour personnaliser
         const { data: tenant } = await supabase
@@ -856,7 +816,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
             }
           };
         } catch (parseError) {
-          console.error('[ADMIN CHAT] Erreur parsing JSON post:', parseError);
+          logger.error('[ADMIN CHAT] Erreur parsing JSON post:', parseError);
           return {
             success: false,
             error: 'Erreur lors de la génération du post. Réessayez.'
@@ -937,10 +897,10 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
         const dateDebut = debut || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const dateFin = fin || now.toISOString().split('T')[0];
 
-        console.log(`[ADMIN CHAT] Analytics KPI - ${dateDebut} à ${dateFin} - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] Analytics KPI - ${dateDebut} à ${dateFin} - tenant: ${tenantId}`);
 
         const kpi = await analyticsService.getKPI(tenantId, dateDebut, dateFin);
-        console.log(`[ADMIN CHAT] KPI Result: CA=${kpi.caTotal}, RDV=${kpi.rdvTotal}, Confirmes=${kpi.rdvConfirmes}`);
+        logger.debug(`[ADMIN CHAT] KPI Result: CA=${kpi.caTotal}, RDV=${kpi.rdvTotal}, Confirmes=${kpi.rdvConfirmes}`);
 
         return {
           success: true,
@@ -951,7 +911,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
       case 'analytics_predictions': {
         const { analyticsService } = await import('./analyticsService.js');
 
-        console.log(`[ADMIN CHAT] Analytics Prédictions`);
+        logger.debug(`[ADMIN CHAT] Analytics Prédictions`);
 
         const predictions = await analyticsService.getPredictions(tenantId);
 
@@ -964,7 +924,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
       case 'analytics_anomalies': {
         const { analyticsService } = await import('./analyticsService.js');
 
-        console.log(`[ADMIN CHAT] Analytics Anomalies`);
+        logger.debug(`[ADMIN CHAT] Analytics Anomalies`);
 
         const anomalies = await analyticsService.getAnomalies(tenantId);
 
@@ -982,7 +942,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
         const dateDebut = debut || new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0];
         const dateFin = fin || new Date().toISOString().split('T')[0];
 
-        console.log(`[ADMIN CHAT] Analytics Évolution - ${dateDebut} à ${dateFin}, ${granularite || 'jour'}`);
+        logger.debug(`[ADMIN CHAT] Analytics Évolution - ${dateDebut} à ${dateFin}, ${granularite || 'jour'}`);
 
         const result = await analyticsService.getEvolution(tenantId, dateDebut, dateFin, granularite || 'jour');
 
@@ -1001,7 +961,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
         const dateDebut = debut || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const dateFin = fin || now.toISOString().split('T')[0];
 
-        console.log(`[ADMIN CHAT] Analytics Rapport complet - ${dateDebut} à ${dateFin}`);
+        logger.debug(`[ADMIN CHAT] Analytics Rapport complet - ${dateDebut} à ${dateFin}`);
 
         const rapport = await analyticsService.getRapportComplet(tenantId, dateDebut, dateFin);
 
@@ -1022,7 +982,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
           };
         }
 
-        console.log(`[ADMIN CHAT] Analytics Comparaison - ${debut1}/${fin1} vs ${debut2}/${fin2}`);
+        logger.debug(`[ADMIN CHAT] Analytics Comparaison - ${debut1}/${fin1} vs ${debut2}/${fin2}`);
 
         const [kpi1, kpi2] = await Promise.all([
           analyticsService.getKPI(tenantId, debut1, fin1),
@@ -1052,7 +1012,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
       case 'commercial_detecter_inactifs': {
         const periode = toolInput.periode || 3; // mois par défaut
 
-        console.log(`[ADMIN CHAT] Détection clients inactifs - période: ${periode} mois`);
+        logger.debug(`[ADMIN CHAT] Détection clients inactifs - période: ${periode} mois`);
 
         // Récupérer tous les clients avec leurs réservations
         const { data: clients, error } = await supabase
@@ -1159,7 +1119,7 @@ Réponds UNIQUEMENT en JSON valide (pas de markdown) :
       case 'commercial_generer_relance': {
         const { client_id, segment, offre, canal, details } = toolInput;
 
-        console.log(`[ADMIN CHAT] Génération relance - client: ${client_id}, segment: ${segment}`);
+        logger.debug(`[ADMIN CHAT] Génération relance - client: ${client_id}, segment: ${segment}`);
 
         // Récupérer infos client
         let clientInfo = toolInput.client;
@@ -1284,7 +1244,7 @@ Réponds UNIQUEMENT en JSON valide :
             }
           };
         } catch (parseError) {
-          console.error('[ADMIN CHAT] Erreur génération relance:', parseError);
+          logger.error('[ADMIN CHAT] Erreur génération relance:', parseError);
           return { success: false, error: 'Erreur lors de la génération. Réessayez.' };
         }
       }
@@ -1663,7 +1623,7 @@ Réponds UNIQUEMENT en JSON valide :
         let { titre, date, heure, heure_fin, type, lieu, description, participants } = toolInput;
 
         // Log complet pour debug
-        console.log(`[ADMIN CHAT] agenda_creer_evenement - Paramètres reçus:`, JSON.stringify(toolInput, null, 2));
+        logger.debug(`[ADMIN CHAT] agenda_creer_evenement - Paramètres reçus:`, JSON.stringify(toolInput, null, 2));
 
         if (!titre || !heure) {
           return { success: false, error: 'Titre et heure sont requis' };
@@ -1674,7 +1634,7 @@ Réponds UNIQUEMENT en JSON valide :
           const jour = parseInt(date) || new Date().getDate();
           const now = new Date();
           date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(jour).padStart(2, '0')}`;
-          console.log(`[ADMIN CHAT] Date convertie depuis jour: ${toolInput.date} -> ${date}`);
+          logger.debug(`[ADMIN CHAT] Date convertie depuis jour: ${toolInput.date} -> ${date}`);
         }
 
         // Validation du format de date
@@ -1696,7 +1656,7 @@ Réponds UNIQUEMENT en JSON valide :
           if (jourMentionne >= 1 && jourMentionne <= 31 && jourMentionne !== jourDatePasse) {
             const [annee, mois] = date.split('-');
             const dateCorrigee = `${annee}-${mois}-${String(jourMentionne).padStart(2, '0')}`;
-            console.log(`[ADMIN CHAT] ⚠️ AUTO-CORRECTION: ${date} -> ${dateCorrigee} (jour ${jourMentionne} détecté dans "${jourMentionneMatch[0]}")`);
+            logger.debug(`[ADMIN CHAT] ⚠️ AUTO-CORRECTION: ${date} -> ${dateCorrigee} (jour ${jourMentionne} détecté dans "${jourMentionneMatch[0]}")`);
             date = dateCorrigee;
           }
         }
@@ -1709,10 +1669,10 @@ Réponds UNIQUEMENT en JSON valide :
 
         // Utiliser l'admin_id passé en paramètre (de la session)
         if (!adminId) {
-          console.error('[ADMIN CHAT] agenda_creer_evenement: adminId non fourni!');
+          logger.error('[ADMIN CHAT] agenda_creer_evenement: adminId non fourni!');
           return { success: false, error: 'Session admin non valide' };
         }
-        console.log(`[ADMIN CHAT] Création événement avec adminId: ${adminId}`);
+        logger.debug(`[ADMIN CHAT] Création événement avec adminId: ${adminId}`);
 
         // Vérifier les chevauchements
         const startTime = heure;
@@ -1796,11 +1756,11 @@ Réponds UNIQUEMENT en JSON valide :
       case 'agenda_lister_evenements': {
         const { date: dateSpecifique, debut, fin, type } = toolInput;
 
-        console.log(`[ADMIN CHAT] Liste événements agenda`);
+        logger.debug(`[ADMIN CHAT] Liste événements agenda`);
 
         // Utiliser l'admin_id passé en paramètre
         if (!adminId) {
-          console.error('[ADMIN CHAT] Outil agenda: adminId non fourni!');
+          logger.error('[ADMIN CHAT] Outil agenda: adminId non fourni!');
           return { success: false, error: 'Session admin non valide' };
         }
 
@@ -1845,18 +1805,11 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       case 'agenda_aujourdhui': {
-        console.log(`[ADMIN CHAT] Événements agenda aujourd'hui`);
+        if (!adminId) {
+          return { success: false, error: 'Session admin non valide' };
+        }
 
         const today = new Date().toISOString().split('T')[0];
-
-        const { data: admin } = await supabase
-          .from('admin_users')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .limit(1)
-          .single();
-
-        const adminId = admin?.id || 1;
 
         const { data: events, error } = await supabase
           .from('agenda_events')
@@ -1887,18 +1840,11 @@ Réponds UNIQUEMENT en JSON valide :
       case 'agenda_prochains': {
         const limit = toolInput.limit || 10;
 
-        console.log(`[ADMIN CHAT] Prochains événements agenda (limit: ${limit})`);
+        if (!adminId) {
+          return { success: false, error: 'Session admin non valide' };
+        }
 
         const today = new Date().toISOString().split('T')[0];
-
-        const { data: admin } = await supabase
-          .from('admin_users')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .limit(1)
-          .single();
-
-        const adminId = admin?.id || 1;
 
         const { data: events, error } = await supabase
           .from('agenda_events')
@@ -1932,20 +1878,12 @@ Réponds UNIQUEMENT en JSON valide :
       case 'agenda_modifier_evenement': {
         const { event_id, titre, date, heure, heure_fin, type, lieu, description, participants, completed } = toolInput;
 
-        console.log(`[ADMIN CHAT] Modification événement ${event_id}`);
-
         if (!event_id) {
           return { success: false, error: 'event_id est requis' };
         }
-
-        const { data: admin } = await supabase
-          .from('admin_users')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .limit(1)
-          .single();
-
-        const adminId = admin?.id || 1;
+        if (!adminId) {
+          return { success: false, error: 'Session admin non valide' };
+        }
 
         const updateData = { updated_at: new Date().toISOString() };
         if (titre !== undefined) updateData.title = titre;
@@ -1985,20 +1923,12 @@ Réponds UNIQUEMENT en JSON valide :
       case 'agenda_supprimer_evenement': {
         const { event_id } = toolInput;
 
-        console.log(`[ADMIN CHAT] Suppression événement ${event_id}`);
-
         if (!event_id) {
           return { success: false, error: 'event_id est requis' };
         }
-
-        const { data: admin } = await supabase
-          .from('admin_users')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .limit(1)
-          .single();
-
-        const adminId = admin?.id || 1;
+        if (!adminId) {
+          return { success: false, error: 'Session admin non valide' };
+        }
 
         const { error } = await supabase
           .from('agenda_events')
@@ -2018,20 +1948,12 @@ Réponds UNIQUEMENT en JSON valide :
       case 'agenda_marquer_termine': {
         const { event_id, termine } = toolInput;
 
-        console.log(`[ADMIN CHAT] Marquer événement ${event_id} comme ${termine !== false ? 'terminé' : 'non terminé'}`);
-
         if (!event_id) {
           return { success: false, error: 'event_id est requis' };
         }
-
-        const { data: admin } = await supabase
-          .from('admin_users')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .limit(1)
-          .single();
-
-        const adminId = admin?.id || 1;
+        if (!adminId) {
+          return { success: false, error: 'Session admin non valide' };
+        }
 
         const { data, error } = await supabase
           .from('agenda_events')
@@ -2062,7 +1984,7 @@ Réponds UNIQUEMENT en JSON valide :
       // OUTILS PRO - Capabilities avancées (Pro/Business uniquement)
       // ═══════════════════════════════════════════════════════════════
       case 'executeAdvancedQuery': {
-        console.log(`[ADMIN CHAT] executeAdvancedQuery - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] executeAdvancedQuery - tenant: ${tenantId}`);
         const result = await executeAdvancedQuery({
           query_description: toolInput.query_description,
           tenant_id: tenantId
@@ -2071,7 +1993,7 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       case 'createAutomation': {
-        console.log(`[ADMIN CHAT] createAutomation - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] createAutomation - tenant: ${tenantId}`);
         const result = await createAutomation({
           automation_description: toolInput.automation_description,
           tenant_id: tenantId
@@ -2080,7 +2002,7 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       case 'scheduleTask': {
-        console.log(`[ADMIN CHAT] scheduleTask - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] scheduleTask - tenant: ${tenantId}`);
         const result = await scheduleTask({
           task_description: toolInput.task_description,
           tenant_id: tenantId
@@ -2089,7 +2011,7 @@ Réponds UNIQUEMENT en JSON valide :
       }
 
       case 'analyzePattern': {
-        console.log(`[ADMIN CHAT] analyzePattern - tenant: ${tenantId}`);
+        logger.debug(`[ADMIN CHAT] analyzePattern - tenant: ${tenantId}`);
         const result = await analyzePattern({
           question: toolInput.question,
           tenant_id: tenantId
@@ -2101,7 +2023,7 @@ Réponds UNIQUEMENT en JSON valide :
       // OUTILS NON IMPLÉMENTÉS - Retourner message informatif
       // ═══════════════════════════════════════════════════════════════
       default:
-        console.log(`[ADMIN CHAT] Outil non implémenté: ${toolName}`, toolInput);
+        logger.debug(`[ADMIN CHAT] Outil non implémenté: ${toolName}`, toolInput);
 
         // Pour les outils courants non implémentés, retourner un message utile
         if (toolName.includes('client') || toolName.includes('top') || toolName.includes('best')) {
@@ -2141,7 +2063,7 @@ Réponds UNIQUEMENT en JSON valide :
         };
     }
   } catch (error) {
-    console.error(`[ADMIN CHAT] Erreur outil ${toolName}:`, error);
+    logger.error(`[ADMIN CHAT] Erreur outil ${toolName}:`, error);
     return {
       success: false,
       error: `Erreur lors de l'exécution de ${toolName}: ${error.message}`
@@ -2158,18 +2080,11 @@ Réponds UNIQUEMENT en JSON valide :
  * @param {string} adminId - ID de l'admin connecté (pour les outils agenda, etc.)
  */
 export async function chatStream(tenantId, messages, res, conversationId, adminId = null) {
-  console.log(`[ADMIN CHAT] ========== DEBUT CHAT STREAM ==========`);
-  console.log(`[ADMIN CHAT] TenantId reçu: "${tenantId}" (type: ${typeof tenantId})`);
-  console.log(`[ADMIN CHAT] AdminId reçu: "${adminId}"`);
-
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
-  console.log(`[ADMIN CHAT] Tenant récupéré:`, tenant?.business_name || 'NON TROUVÉ');
 
-  // Récupérer les outils disponibles selon le plan du tenant
   const tenantPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
   const availableTools = getToolsForPlan(tenantPlan);
-  console.log(`[ADMIN CHAT] Plan: ${tenantPlan}, Outils disponibles: ${availableTools.length}`);
 
   // Headers SSE
   res.setHeader('Content-Type', 'text/event-stream');
@@ -2177,7 +2092,6 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  // Formater les messages pour Anthropic
   let conversationMessages = messages.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',
     content: m.content,
@@ -2187,15 +2101,12 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
   let iterations = 0;
 
   try {
-    console.log(`[ADMIN CHAT] Stream démarré - Tenant: ${tenantId}, Conv: ${conversationId}`);
-
-    // Boucle pour gérer les outils
+    // Boucle streaming avec gestion des outils
     while (iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
-      console.log(`[ADMIN CHAT] Itération ${iterations}`);
 
-      // Appel Claude (non-streaming pour la boucle d'outils)
-      const response = await client.messages.create({
+      // Vrai streaming via SDK Anthropic
+      const stream = client.messages.stream({
         model: MODEL_DEFAULT,
         max_tokens: MAX_TOKENS,
         system: buildSystemPrompt(tenant),
@@ -2203,43 +2114,36 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
         tools: availableTools,
       });
 
-      console.log(`[ADMIN CHAT] Stop reason: ${response.stop_reason}`);
+      // Forwarding temps reel du texte vers le client SSE
+      stream.on('text', (text) => {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
+      });
 
-      // Extraire le texte de la réponse
-      const textBlocks = response.content.filter(b => b.type === 'text');
-      const toolBlocks = response.content.filter(b => b.type === 'tool_use');
+      // Attendre la fin du stream pour recuperer le message complet (inclut tool_use)
+      const finalMessage = await stream.finalMessage();
 
-      // Envoyer le texte au client
-      for (const block of textBlocks) {
-        fullResponse += block.text;
-        res.write(`data: ${JSON.stringify({ type: 'text', content: block.text })}\n\n`);
-      }
+      const toolBlocks = finalMessage.content.filter(b => b.type === 'tool_use');
 
-      // Si pas d'outils, on a terminé
-      if (response.stop_reason !== 'tool_use' || toolBlocks.length === 0) {
-        console.log(`[ADMIN CHAT] Terminé (pas d'outils)`);
+      if (finalMessage.stop_reason !== 'tool_use' || toolBlocks.length === 0) {
         break;
       }
 
-      // Exécuter les outils
-      console.log(`[ADMIN CHAT] ${toolBlocks.length} outil(s) à exécuter`);
-
-      // Informer le client
+      // Informer le client des outils en cours
       for (const tool of toolBlocks) {
         res.write(`data: ${JSON.stringify({ type: 'tool_start', tool: tool.name })}\n\n`);
       }
 
-      // Ajouter la réponse de l'assistant aux messages
+      // Ajouter la reponse assistant (texte + tool_use) aux messages
       conversationMessages.push({
         role: 'assistant',
-        content: response.content
+        content: finalMessage.content
       });
 
-      // Exécuter chaque outil et collecter les résultats
+      // Executer les outils
       const toolResults = [];
       for (const tool of toolBlocks) {
         const result = await executeTool(tool.name, tool.input, tenantId, adminId);
-        console.log(`[ADMIN CHAT] Résultat ${tool.name}:`, result.success);
 
         toolResults.push({
           type: 'tool_result',
@@ -2250,14 +2154,13 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
         res.write(`data: ${JSON.stringify({ type: 'tool_complete', tool: tool.name, success: result.success })}\n\n`);
       }
 
-      // Ajouter les résultats des outils aux messages
       conversationMessages.push({
         role: 'user',
         content: toolResults
       });
     }
 
-    // Sauvegarder la réponse en BDD
+    // Sauvegarder la reponse en BDD
     if (conversationId && fullResponse) {
       await saveMessage(conversationId, 'assistant', fullResponse);
     }
@@ -2266,7 +2169,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
     res.end();
 
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur chatStream:', error);
+    logger.error('Erreur chatStream', { tag: 'ADMIN CHAT', tenantId, error: error.message });
     res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
     res.end();
   }
@@ -2275,7 +2178,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
 /**
  * Chat sans streaming (fallback)
  */
-export async function chat(tenantId, messages) {
+export async function chat(tenantId, messages, adminId = null) {
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
@@ -2343,7 +2246,7 @@ export async function chat(tenantId, messages) {
       response: fullResponse,
     };
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur chat:', error);
+    logger.error('Erreur chat', { tag: 'ADMIN CHAT', tenantId, error: error.message });
     return {
       success: false,
       error: error.message,
@@ -2353,9 +2256,24 @@ export async function chat(tenantId, messages) {
 
 /**
  * Sauvegarder un message en BDD
+ * Verifie l'ownership de la conversation via tenant_id avant insertion
  */
-export async function saveMessage(conversationId, role, content, toolUse = null) {
+export async function saveMessage(conversationId, role, content, toolUse = null, tenantId = null) {
   try {
+    // Si tenantId fourni, verifier que la conversation appartient au tenant
+    if (tenantId) {
+      const { data: conv } = await supabase
+        .from('admin_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('tenant_id', tenantId)
+        .single();
+      if (!conv) {
+        logger.warn('saveMessage: conversation non trouvee pour ce tenant', { tag: 'ADMIN CHAT', conversationId, tenantId });
+        return null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('admin_messages')
       .insert({
@@ -2370,16 +2288,28 @@ export async function saveMessage(conversationId, role, content, toolUse = null)
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur saveMessage:', error);
+    logger.error('Erreur saveMessage', { tag: 'ADMIN CHAT', error: error.message });
     return null;
   }
 }
 
 /**
- * Récupérer les messages d'une conversation
+ * Recuperer les messages d'une conversation
+ * Filtre via jointure sur admin_conversations.tenant_id
  */
-export async function getMessages(conversationId) {
+export async function getMessages(conversationId, tenantId = null) {
   try {
+    // Si tenantId fourni, verifier ownership d'abord
+    if (tenantId) {
+      const { data: conv } = await supabase
+        .from('admin_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('tenant_id', tenantId)
+        .single();
+      if (!conv) return [];
+    }
+
     const { data, error } = await supabase
       .from('admin_messages')
       .select('*')
@@ -2389,17 +2319,17 @@ export async function getMessages(conversationId) {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur getMessages:', error);
+    logger.error('Erreur getMessages', { tag: 'ADMIN CHAT', error: error.message });
     return [];
   }
 }
 
 /**
- * Créer une nouvelle conversation
+ * Creer une nouvelle conversation
  */
 export async function createConversation(tenantId, adminId, title = 'Nouvelle conversation') {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: createConversation');
   try {
-    // S'assurer que les tables existent
     await ensureChatTables();
 
     const { data, error } = await supabase
@@ -2412,21 +2342,19 @@ export async function createConversation(tenantId, adminId, title = 'Nouvelle co
       .select()
       .single();
 
-    if (error) {
-      console.error('[ADMIN CHAT] Erreur insert conversation:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur createConversation:', error);
+    logger.error('Erreur createConversation', { tag: 'ADMIN CHAT', tenantId, error: error.message });
     return null;
   }
 }
 
 /**
- * Récupérer les conversations d'un tenant/admin
+ * Recuperer les conversations d'un tenant/admin
  */
 export async function getConversations(tenantId, adminId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: getConversations');
   try {
     const { data, error } = await supabase
       .from('admin_conversations')
@@ -2438,51 +2366,57 @@ export async function getConversations(tenantId, adminId) {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur getConversations:', error);
+    logger.error('Erreur getConversations', { tag: 'ADMIN CHAT', tenantId, error: error.message });
     return [];
   }
 }
 
 /**
- * Mettre à jour le titre d'une conversation
+ * Mettre a jour le titre d'une conversation (avec filtre tenant_id)
  */
-export async function updateConversation(conversationId, updates) {
+export async function updateConversation(conversationId, updates, tenantId = null) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('admin_conversations')
       .update(updates)
-      .eq('id', conversationId)
-      .select()
-      .single();
+      .eq('id', conversationId);
+
+    if (tenantId) query = query.eq('tenant_id', tenantId);
+
+    const { data, error } = await query.select().single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur updateConversation:', error);
+    logger.error('Erreur updateConversation', { tag: 'ADMIN CHAT', error: error.message });
     return null;
   }
 }
 
 /**
- * Supprimer une conversation
+ * Supprimer une conversation (avec filtre tenant_id obligatoire)
  */
-export async function deleteConversation(conversationId) {
+export async function deleteConversation(conversationId, tenantId = null) {
   try {
-    const { error } = await supabase
+    let query = supabase
       .from('admin_conversations')
       .delete()
       .eq('id', conversationId);
 
+    if (tenantId) query = query.eq('tenant_id', tenantId);
+
+    const { error } = await query;
+
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('[ADMIN CHAT] Erreur deleteConversation:', error);
+    logger.error('Erreur deleteConversation', { tag: 'ADMIN CHAT', error: error.message });
     return false;
   }
 }
 
 /**
- * Vérifier ownership d'une conversation
+ * Verifier ownership d'une conversation
  */
 export async function verifyConversationOwnership(conversationId, tenantId, adminId) {
   try {

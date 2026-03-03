@@ -10,6 +10,7 @@ import {
   ChefHat, Leaf, Fish, Wheat, Euro
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { api } from '../lib/api';
 
 // Types
 interface Categorie {
@@ -83,37 +84,19 @@ export default function MenuPage() {
   // Fetch catégories
   const { data: categoriesData } = useQuery<{ categories: Categorie[] }>({
     queryKey: ['menu-categories'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/menu/categories', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur chargement');
-      return res.json();
-    }
+    queryFn: () => api.get('/admin/menu/categories')
   });
 
   // Fetch plats
   const { data: platsData, isLoading } = useQuery<{ plats: Plat[] }>({
     queryKey: ['menu-plats'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/menu/plats', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur chargement');
-      return res.json();
-    }
+    queryFn: () => api.get('/admin/menu/plats')
   });
 
   // Fetch stats
   const { data: statsData } = useQuery<{ total_plats: number; total_categories: number; plats_du_jour: number }>({
     queryKey: ['menu-stats'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/menu/stats', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
-    }
+    queryFn: () => api.get('/admin/menu/stats')
   });
 
   // Filtered plats
@@ -153,37 +136,25 @@ export default function MenuPage() {
   // Toggle plat du jour
   const togglePlatDuJourMutation = useMutation({
     mutationFn: async ({ id, value }: { id: number; value: boolean }) => {
-      const res = await fetch(`/api/admin/menu/plats/${id}/plat-du-jour`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ plat_du_jour: value })
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.patch(`/admin/menu/plats/${id}/plat-du-jour`, { plat_du_jour: value });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-plats'] });
       queryClient.invalidateQueries({ queryKey: ['menu-stats'] });
-    }
+    },
+    onError: () => {}
   });
 
   // Delete plat
   const deletePlatMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/menu/plats/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.delete(`/admin/menu/plats/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-plats'] });
       queryClient.invalidateQueries({ queryKey: ['menu-stats'] });
-    }
+    },
+    onError: () => {}
   });
 
   const formatCurrency = (cents: number) => {
@@ -514,17 +485,13 @@ function CategoriesTab({ categories, onEdit, onAdd }: {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/menu/categories/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.delete(`/admin/menu/categories/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-categories'] });
       queryClient.invalidateQueries({ queryKey: ['menu-stats'] });
-    }
+    },
+    onError: () => {}
   });
 
   return (
@@ -679,24 +646,15 @@ function PlatModal({ plat, categories, onClose }: {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const url = isEditing ? `/api/admin/menu/plats/${plat.id}` : '/api/admin/menu/plats';
-      const res = await fetch(url, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          prix: Math.round(formData.prix * 100),
-          categorie_id: formData.categorie_id ? parseInt(formData.categorie_id as string) : null
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur');
+      const payload = {
+        ...formData,
+        prix: Math.round(formData.prix * 100),
+        categorie_id: formData.categorie_id ? parseInt(formData.categorie_id as string) : null
+      };
+      if (isEditing) {
+        return api.put(`/admin/menu/plats/${plat.id}`, payload);
       }
-      return res.json();
+      return api.post('/admin/menu/plats', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-plats'] });
@@ -914,20 +872,10 @@ function CategorieModal({ categorie, onClose }: {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const url = isEditing ? `/api/admin/menu/categories/${categorie.id}` : '/api/admin/menu/categories';
-      const res = await fetch(url, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur');
+      if (isEditing) {
+        return api.put(`/admin/menu/categories/${categorie.id}`, formData);
       }
-      return res.json();
+      return api.post('/admin/menu/categories', formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-categories'] });

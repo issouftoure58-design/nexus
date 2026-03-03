@@ -1,7 +1,7 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-02 17:00 UTC
+> Derniere mise a jour: 2026-03-03 09:00 UTC
 
 **Score technique: 100/100**
 **Phase en cours: SENTINEL + Super-Admin UI → 100% fonctionnel**
@@ -225,6 +225,92 @@ Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-03 — Session 9 : Audit & fix complet des 19 pages admin-ui
+
+**Audit complet de 31 pages (~29 232 lignes), 19 pages corrigees :**
+
+**Migration raw fetch → api wrapper (~97 appels) :**
+- Comptabilite.tsx (2 fetch + XSS `document.write` → DOMParser sanitise)
+- Activites.tsx (14 fetch + 11 console + 9 silent catches + useEffect deps)
+- Devis.tsx (9 fetch + onError sur 8 mutations + fonctions dupliquees extraites)
+- RH.tsx (13 fetch + 8 console + 6 silent catches + error banner)
+- Pipeline.tsx (10 fetch + onError sur 7 mutations)
+- Sentinel.tsx (8 fetch + 6 console + 5 `any` → types propres + useCallback deps)
+- Menu.tsx (8 fetch + onError sur 3 mutations)
+- Workflows.tsx (7 fetch + error feedback + onError)
+- SEOArticles.tsx (5 fetch + 5 console + alert() → state feedback)
+- Agenda.tsx (4 fetch + JWT decode duplique supprime + alert() → state)
+- Onboarding.tsx (4 fetch + URL hardcodee → env var)
+- Prestations.tsx (3 fetch + 5 console + getToken() duplique supprime)
+- SEODashboard.tsx (3 fetch + 3 console + 3 silent catches)
+- FloorPlan.tsx (2 fetch + error banner)
+- ChurnPrevention.tsx (2 fetch + 2 console + error feedback)
+- Parametres.tsx (2 fetch + 3 sections non-fonctionnelles desactivees)
+- Analytics.tsx (1 fetch + 1 console)
+- IAAdmin.tsx (URL.createObjectURL leak fixe + 2 console)
+- api.ts : methode `upload()` ajoutee pour FormData (Comptabilite upload)
+
+**Corrections transversales :**
+- ~55 console.log/error/warn supprimes
+- ~30 silent catches → error feedback utilisateur (banners/toasts)
+- ~20 mutations sans onError → onError ajoute
+- 4 pages : alert() → state-based feedback
+- 2 pages : URL.createObjectURL leak corrige (Comptabilite, IAAdmin)
+- 2 pages : fonctions dupliquees nettoyees (getToken, formatMontant)
+- 1 page : XSS critique corrige (Comptabilite document.write)
+- 1 page : URL hardcodee → import.meta.env (Onboarding)
+- 1 page : 3 sections non-fonctionnelles marquees disabled (Parametres)
+- 1 page : 2 fake features desactivees (Comptabilite invite expert/access link)
+
+**Pages propres (12/31, inchangees) :**
+Home, Clients, Stock, Services, Dashboard, Subscription, RoomCalendar, IAWhatsApp, IATelephone, Login, Segments, TarifsSaisonniers
+
+- Verifications : lint:tenant OK, 310 tests OK, tsc 0 erreur, build OK
+
+### 2026-03-03 — Session 7
+- Config IA admin connectee au moteur IA (tenant_ia_config → nexusCore.js)
+  - `loadIAConfig()` : lecture DB avec cache 2min par tenant/channel
+  - `applyIAConfig()` : injection tone, personality, greeting, booking, services_description
+  - `enrichTenantWithAgent()` : enrichi avec greeting_message + tone depuis ai_agents
+  - Prompt frozen (fatshairafro) : bloc conditionnel style/greeting/services/booking
+  - Prompt dynamique (promptEngine.js) : memes overrides injectes
+  - processMessage + processMessageStreaming : config IA chargee pour chaque message
+- adminIA.js : import rawSupabase (remplace createClient local) + validation input sanitizeConfig()
+- IAAdmin.tsx : migration fetch() → api.get/patch wrapper
+- IAWhatsApp.tsx : fix onKeyPress → onKeyDown
+- Verifications : lint:tenant OK, 310 tests OK, 0 nouvelle erreur TS
+
+### 2026-03-03 — Session 8 : Audit & fix chat IA admin (Home.tsx + adminChatService.js)
+
+**Audit complet (20 issues identifiees) + corrections :**
+
+**Securite (6 fixes):**
+- SQL injection `search_clients` corrigee (echappement caracteres PostgREST)
+- `exec_sql` RPC dangereuse supprimee de `ensureChatTables()`
+- Tenant isolation renforcee : `saveMessage`, `getMessages`, `deleteConversation`, `updateConversation` filtrent par tenant_id
+- Controller passe maintenant tenantId a toutes les fonctions service
+
+**Architecture (4 fixes):**
+- Vrai streaming SSE : `client.messages.create()` → `client.messages.stream()` avec `stream.on('text')` temps reel
+- `chat()` fallback : ajout parametre `adminId` manquant
+- 5 outils agenda : suppression requetes `admin_users` inutiles + fallback `|| 1` dangereux → utilise `adminId` passe en parametre
+- 56 `console.log` → `logger` Winston (import `config/logger.js`)
+
+**Frontend Home.tsx (5 fixes):**
+- 12 raw `fetch()` migres vers `api.get/post/delete` wrapper (sauf SSE streaming)
+- Rendu markdown : `react-markdown` + `remark-gfm` installe, assistant messages en prose
+- Sentinel : interval 60s → 120s + `document.hidden` check (pas de fetch en arriere-plan)
+- Toast d'erreur : feedback utilisateur sur tous les echecs (conversations, chat, delete)
+- `useCallback` deps fixes : `ensureConversation` wrappee, `sendMessage` deps completes
+
+**Code quality (5 fixes):**
+- Modele Haiku obsolete → `claude-haiku-4-5-20251001`
+- `selectModel()` non utilisee supprimee
+- `monthStart.toLocaleDateString` crash corrige (string → Date)
+- `tenant_id INTEGER` dans CREATE TABLE supprime (ensureChatTables ne cree plus les tables)
+
+- Verifications : lint:tenant OK, 310 tests OK, tsc OK, build OK
 
 ### 2026-03-03 — Session 6
 - admin-ui restauree comme UI admin officielle (etait archivee depuis Phase 3.8)

@@ -313,6 +313,17 @@ ${rulesSection}`;
     prompt += `\n\n=== CONTEXTE SPÉCIFIQUE ===\n${tc.promptOverrides.customContext}`;
   }
 
+  // IA Config admin overrides
+  if (tc.greetingMessage) {
+    prompt += `\n\nMessage d'accueil personnalisé : "${tc.greetingMessage}"`;
+  }
+  if (tc.servicesDescription) {
+    prompt += `\n\n=== DESCRIPTION SUPPLÉMENTAIRE DES SERVICES ===\n${tc.servicesDescription}`;
+  }
+  if (tc.bookingEnabled === false) {
+    prompt += `\n\n⚠️ La prise de RDV est DÉSACTIVÉE. Oriente les clients vers le téléphone.`;
+  }
+
   // Voice-specific additions
   if (isVoice) {
     prompt += `\n\n=== MODE VOCAL ===

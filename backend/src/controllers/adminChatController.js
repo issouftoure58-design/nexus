@@ -16,8 +16,9 @@ import {
   chat,
   verifyConversationOwnership,
 } from '../services/adminChatService.js';
+import logger from '../config/logger.js';
 
-// Validation des entrées
+// Validation des entrees
 const MAX_CONTENT_LENGTH = 4000;
 
 function validateContent(content) {
@@ -36,7 +37,6 @@ function validateContent(content) {
 
 /**
  * GET /conversations
- * Liste les conversations de l'admin
  */
 export async function listConversations(req, res) {
   try {
@@ -60,14 +60,13 @@ export async function listConversations(req, res) {
       })),
     });
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] listConversations error:', error);
+    logger.error('listConversations error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }
 
 /**
  * POST /conversations
- * Créer une nouvelle conversation
  */
 export async function newConversation(req, res) {
   try {
@@ -94,14 +93,13 @@ export async function newConversation(req, res) {
       },
     });
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] newConversation error:', error);
+    logger.error('newConversation error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }
 
 /**
  * PATCH /conversations/:id
- * Modifier le titre d'une conversation
  */
 export async function editConversation(req, res) {
   try {
@@ -110,7 +108,6 @@ export async function editConversation(req, res) {
     const adminId = req.admin.id;
     const { title } = req.body;
 
-    // Vérifier ownership
     const isOwner = await verifyConversationOwnership(id, tenantId, adminId);
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
@@ -120,7 +117,7 @@ export async function editConversation(req, res) {
       return res.status(400).json({ success: false, error: 'Le titre est requis' });
     }
 
-    const updated = await updateConversation(id, { title: title.trim() });
+    const updated = await updateConversation(id, { title: title.trim() }, tenantId);
 
     if (!updated) {
       return res.status(500).json({ success: false, error: 'Impossible de modifier la conversation' });
@@ -135,14 +132,13 @@ export async function editConversation(req, res) {
       },
     });
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] editConversation error:', error);
+    logger.error('editConversation error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }
 
 /**
  * DELETE /conversations/:id
- * Supprimer une conversation
  */
 export async function removeConversation(req, res) {
   try {
@@ -150,13 +146,12 @@ export async function removeConversation(req, res) {
     const tenantId = req.admin.tenant_id;
     const adminId = req.admin.id;
 
-    // Vérifier ownership
     const isOwner = await verifyConversationOwnership(id, tenantId, adminId);
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
     }
 
-    const deleted = await deleteConversation(id);
+    const deleted = await deleteConversation(id, tenantId);
 
     if (!deleted) {
       return res.status(500).json({ success: false, error: 'Impossible de supprimer la conversation' });
@@ -164,14 +159,13 @@ export async function removeConversation(req, res) {
 
     res.json({ success: true, message: 'Conversation supprimée' });
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] removeConversation error:', error);
+    logger.error('removeConversation error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }
 
 /**
  * GET /conversations/:id/messages
- * Récupérer les messages d'une conversation
  */
 export async function listMessages(req, res) {
   try {
@@ -179,13 +173,12 @@ export async function listMessages(req, res) {
     const tenantId = req.admin.tenant_id;
     const adminId = req.admin.id;
 
-    // Vérifier ownership
     const isOwner = await verifyConversationOwnership(id, tenantId, adminId);
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
     }
 
-    const messages = await getMessages(id);
+    const messages = await getMessages(id, tenantId);
 
     res.json({
       success: true,
@@ -198,14 +191,13 @@ export async function listMessages(req, res) {
       })),
     });
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] listMessages error:', error);
+    logger.error('listMessages error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }
 
 /**
  * POST /conversations/:id/messages/stream
- * Envoyer un message et streamer la réponse
  */
 export async function sendMessageStream(req, res) {
   try {
@@ -214,36 +206,28 @@ export async function sendMessageStream(req, res) {
     const adminId = req.admin.id;
     const { content } = req.body;
 
-    // Vérifier ownership
     const isOwner = await verifyConversationOwnership(id, tenantId, adminId);
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
     }
 
-    // Valider le contenu
     const validation = validateContent(content);
     if (!validation.valid) {
       return res.status(400).json({ success: false, error: validation.error });
     }
 
-    // Sauvegarder le message user
-    await saveMessage(id, 'user', validation.content);
+    await saveMessage(id, 'user', validation.content, null, tenantId);
 
-    // Récupérer l'historique des messages
-    const history = await getMessages(id);
-
-    // Formater pour Claude
+    const history = await getMessages(id, tenantId);
     const messages = history.map(m => ({
       role: m.role,
       content: m.content,
     }));
 
-    // Streamer la réponse (passer adminId pour les outils)
     await chatStream(tenantId, messages, res, id, adminId);
 
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] sendMessageStream error:', error);
-    // Si headers pas encore envoyés
+    logger.error('sendMessageStream error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: 'Erreur serveur' });
     } else {
@@ -254,8 +238,7 @@ export async function sendMessageStream(req, res) {
 }
 
 /**
- * POST /conversations/:id/messages
- * Envoyer un message sans streaming (fallback)
+ * POST /conversations/:id/messages (fallback sans streaming)
  */
 export async function sendMessage(req, res) {
   try {
@@ -264,37 +247,31 @@ export async function sendMessage(req, res) {
     const adminId = req.admin.id;
     const { content } = req.body;
 
-    // Vérifier ownership
     const isOwner = await verifyConversationOwnership(id, tenantId, adminId);
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
     }
 
-    // Valider le contenu
     const validation = validateContent(content);
     if (!validation.valid) {
       return res.status(400).json({ success: false, error: validation.error });
     }
 
-    // Sauvegarder le message user
-    await saveMessage(id, 'user', validation.content);
+    await saveMessage(id, 'user', validation.content, null, tenantId);
 
-    // Récupérer l'historique
-    const history = await getMessages(id);
+    const history = await getMessages(id, tenantId);
     const messages = history.map(m => ({
       role: m.role,
       content: m.content,
     }));
 
-    // Appeler Claude sans streaming
-    const result = await chat(tenantId, messages);
+    const result = await chat(tenantId, messages, adminId);
 
     if (!result.success) {
       return res.status(500).json({ success: false, error: result.error });
     }
 
-    // Sauvegarder la réponse
-    await saveMessage(id, 'assistant', result.response);
+    await saveMessage(id, 'assistant', result.response, null, tenantId);
 
     res.json({
       success: true,
@@ -303,7 +280,7 @@ export async function sendMessage(req, res) {
     });
 
   } catch (error) {
-    console.error('[ADMIN CHAT CTRL] sendMessage error:', error);
+    logger.error('sendMessage error', { tag: 'ADMIN CHAT CTRL', error: error.message });
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 }

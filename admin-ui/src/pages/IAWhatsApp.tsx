@@ -457,7 +457,7 @@ export default function IAWhatsApp() {
                     type="text"
                     value={newQuickReply}
                     onChange={(e) => setNewQuickReply(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addQuickReply()}
+                    onKeyDown={(e) => e.key === 'Enter' && addQuickReply()}
                     className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md
                              bg-white dark:bg-gray-800 text-gray-900 dark:text-white
                              focus:ring-2 focus:ring-green-500"

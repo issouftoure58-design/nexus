@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { FeatureField, ServiceLabel, ClientLabel } from '@/components/forms';
+import { api } from '../lib/api';
 
 interface Client {
   id: number;
@@ -114,14 +115,11 @@ export default function PipelinePage() {
   });
 
   // Fetch clients for search
-  const { data: clientsData } = useQuery({
+  const { data: clientsData } = useQuery<{ clients: Client[] }>({
     queryKey: ['clients-search', clientSearch],
     queryFn: async () => {
       if (!clientSearch || clientSearch.length < 2) return { clients: [] };
-      const res = await fetch(`/api/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
+      return api.get<{ clients: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
     },
     enabled: clientSearch.length >= 2
   });
@@ -129,12 +127,7 @@ export default function PipelinePage() {
   // Fetch services
   const { data: servicesData } = useQuery<{ services: Service[] }>({
     queryKey: ['services'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/services', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      return res.json();
-    }
+    queryFn: () => api.get('/admin/services')
   });
 
   // Calcul des montants
@@ -204,33 +197,18 @@ export default function PipelinePage() {
   // Fetch pipeline data
   const { data, isLoading, error } = useQuery<PipelineData>({
     queryKey: ['pipeline'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/pipeline', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) {
-        if (res.status === 403) throw new Error('Plan Pro requis');
-        throw new Error('Erreur chargement');
-      }
-      return res.json();
-    }
+    queryFn: () => api.get('/admin/pipeline')
   });
 
   // Move opportunity mutation
   const moveMutation = useMutation({
     mutationFn: async ({ id, etape }: { id: number; etape: string }) => {
-      const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ etape })
-      });
-      if (!res.ok) throw new Error('Erreur deplacement');
-      return res.json();
+      return api.patch(`/admin/pipeline/${id}/etape`, { etape });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+    },
+    onError: (err: Error) => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
     }
   });
@@ -279,119 +257,69 @@ export default function PipelinePage() {
         };
       }
 
-      const res = await fetch('/api/admin/pipeline', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur creation');
-      }
-      return res.json();
+      return api.post('/admin/pipeline', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
       setShowCreateForm(false);
       resetForm();
+    },
+    onError: () => {
+      // Error handled by api wrapper (401 auto-logout)
     }
   });
 
   // Win/Lose mutations
   const winMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ etape: 'gagne' })
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.patch(`/admin/pipeline/${id}/etape`, { etape: 'gagne' });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
+    onError: () => {}
   });
 
   const loseMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/pipeline/${id}/etape`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ etape: 'perdu' })
-      });
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      return api.patch(`/admin/pipeline/${id}/etape`, { etape: 'perdu' });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
+    onError: () => {}
   });
 
   // Create devis from opportunity
   const createDevisMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/pipeline/${id}/devis`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur creation devis');
-      }
-      return res.json();
+      return api.post(`/admin/pipeline/${id}/devis`, {});
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
-      // Rediriger vers la page des devis
       navigate('/devis');
-    }
+    },
+    onError: () => {}
   });
 
   // Delete opportunity mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/pipeline/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`
-        }
-      });
-      if (!res.ok) throw new Error('Erreur suppression');
-      return res.json();
+      return api.delete(`/admin/pipeline/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
       setDeleteConfirm(null);
-    }
+    },
+    onError: () => {}
   });
 
   // Edit opportunity mutation
   const editMutation = useMutation({
     mutationFn: async (data: { id: number; updates: Partial<Opportunite> }) => {
-      const res = await fetch(`/api/admin/pipeline/${data.id}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data.updates)
-      });
-      if (!res.ok) throw new Error('Erreur modification');
-      return res.json();
+      return api.put(`/admin/pipeline/${data.id}`, data.updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
       setEditingOpp(null);
-    }
+    },
+    onError: () => {}
   });
 
   const handleDragStart = (opp: Opportunite) => {
@@ -514,9 +442,9 @@ export default function PipelinePage() {
                           </Button>
                         </div>
                       )}
-                      {!selectedClient && clientsData?.clients?.length > 0 && (
+                      {!selectedClient && (clientsData?.clients?.length ?? 0) > 0 && (
                         <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                          {clientsData.clients.map((c: Client) => (
+                          {clientsData!.clients.map((c: Client) => (
                             <button
                               key={c.id}
                               className="w-full text-left px-4 py-2 hover:bg-gray-100"

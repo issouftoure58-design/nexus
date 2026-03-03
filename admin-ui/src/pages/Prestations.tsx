@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Clock, User, MapPin, Phone, Mail, Euro, CheckCircle, XCircle, Play, FileText, Users } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface Prestation {
   id: string;
@@ -62,15 +63,6 @@ const STATUT_LABELS: Record<StatutPrestation, { label: string; color: string; bg
   facturee: { label: 'Facturée', color: 'text-purple-600', bg: 'bg-purple-100', icon: <FileText className="w-4 h-4" /> },
 };
 
-// Helper pour récupérer le token (multi-tenant compatible)
-function getToken(): string | null {
-  const currentTenant = localStorage.getItem('nexus_current_tenant');
-  if (currentTenant) {
-    return localStorage.getItem(`nexus_admin_token_${currentTenant}`);
-  }
-  return localStorage.getItem('nexus_admin_token');
-}
-
 export default function PrestationsPage() {
   const queryClient = useQueryClient();
   const [filtreStatut, setFiltreStatut] = useState<string>('');
@@ -78,29 +70,14 @@ export default function PrestationsPage() {
   const [showDetailModal, setShowDetailModal] = useState<Prestation | null>(null);
 
   // Récupérer les prestations
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<{ prestations: Prestation[]; stats: { total: number; planifiee: number; en_cours: number; terminee: number; montant_total: number } }>({
     queryKey: ['prestations', filtreStatut, filtreDate],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filtreStatut) params.append('statut', filtreStatut);
       if (filtreDate) params.append('date', filtreDate);
 
-      console.log('[Prestations] Fetching...');
-      const token = getToken();
-      console.log('[Prestations] Token exists:', !!token);
-
-      const res = await fetch(`/api/admin/prestations?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      console.log('[Prestations] Response status:', res.status);
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error('[Prestations] Error:', errText);
-        throw new Error('Erreur chargement');
-      }
-      const data = await res.json();
-      console.log('[Prestations] Data:', data);
-      return data;
+      return api.get<{ prestations: Prestation[]; stats: { total: number; planifiee: number; en_cours: number; terminee: number; montant_total: number } }>(`/admin/prestations?${params}`);
     }
   });
 
@@ -110,16 +87,7 @@ export default function PrestationsPage() {
   // Mutation pour changer le statut
   const changeStatutMutation = useMutation({
     mutationFn: async ({ id, statut }: { id: string; statut: StatutPrestation }) => {
-      const res = await fetch(`/api/admin/prestations/${id}/statut`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`
-        },
-        body: JSON.stringify({ statut })
-      });
-      if (!res.ok) throw new Error('Erreur changement statut');
-      return res.json();
+      return api.patch(`/admin/prestations/${id}/statut`, { statut });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prestations'] });
@@ -379,13 +347,10 @@ export default function PrestationsPage() {
 // Modal de détail
 function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation; onClose: () => void }) {
   // Fetch détails complets
-  const { data: detailData } = useQuery({
+  const { data: detailData } = useQuery<{ lignes: PrestationLigne[]; ressources: PrestationRessource[] }>({
     queryKey: ['prestation-detail', prestation.id],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/prestations/${prestation.id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      return res.json();
+      return api.get<{ lignes: PrestationLigne[]; ressources: PrestationRessource[] }>(`/admin/prestations/${prestation.id}`);
     }
   });
 

@@ -1590,6 +1590,82 @@ async function getBusinessHoursUnified(jour = null, tenantId) {
 }
 
 // ============================================
+// IA CONFIG - Charger la config admin IA par channel
+// ============================================
+
+const IA_CONFIG_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+async function loadIAConfig(tenantId, channel) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: loadIAConfig requires explicit tenantId');
+  }
+
+  const channelMap = { phone: 'telephone', whatsapp: 'whatsapp', web: 'web', sms: 'sms' };
+  const dbChannel = channelMap[channel] || channel;
+
+  const cacheKey = `ia_config_${tenantId}_${dbChannel}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  const db = getSupabase();
+  if (!db) return null;
+
+  try {
+    const { data, error } = await db
+      .from('tenant_ia_config')
+      .select('config')
+      .eq('tenant_id', tenantId)
+      .eq('channel', dbChannel)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.warn('Erreur chargement IA config', { tag: 'NEXUS CORE', tenantId, channel: dbChannel, error: error.message });
+    }
+
+    const config = data?.config || null;
+    if (config) {
+      setCache(cacheKey, config, IA_CONFIG_CACHE_TTL);
+    }
+    return config;
+  } catch (err) {
+    logger.error('Erreur loadIAConfig', { tag: 'NEXUS CORE', tenantId, channel: dbChannel, error: err.message });
+    return null;
+  }
+}
+
+/**
+ * Applique les overrides de la config IA admin sur le tenantConfig
+ * Alimente aussi personality.ton pour le prompt dynamique (promptEngine.js)
+ */
+function applyIAConfig(tenantConfig, iaConfig) {
+  if (!iaConfig) return;
+
+  tenantConfig.iaConfig = iaConfig;
+
+  if (iaConfig.personality) {
+    if (typeof tenantConfig.personality === 'object') {
+      tenantConfig.personality = { ...tenantConfig.personality, description: iaConfig.personality };
+    } else {
+      tenantConfig.personality = { description: iaConfig.personality };
+    }
+  }
+
+  if (iaConfig.tone) {
+    tenantConfig.agentTone = iaConfig.tone;
+    // Alimenter personality.ton pour promptEngine.js → buildPersonalityText()
+    if (typeof tenantConfig.personality === 'object') {
+      tenantConfig.personality.ton = iaConfig.tone;
+    } else {
+      tenantConfig.personality = { ton: iaConfig.tone };
+    }
+  }
+
+  if (iaConfig.greeting_message) tenantConfig.greetingMessage = iaConfig.greeting_message;
+  if (iaConfig.booking_enabled !== undefined) tenantConfig.bookingEnabled = iaConfig.booking_enabled;
+  if (iaConfig.services_description) tenantConfig.servicesDescription = iaConfig.services_description;
+}
+
+// ============================================
 // AI AGENTS - Enrichir tenant config avec ai_agents
 // ============================================
 async function enrichTenantWithAgent(tenantId, tenantConfig) {
@@ -1603,6 +1679,8 @@ async function enrichTenantWithAgent(tenantId, tenantConfig) {
       .eq('active', true)
       .single();
     if (agent?.custom_name) tenantConfig.assistantName = agent.custom_name;
+    if (agent?.greeting_message) tenantConfig.greetingMessage = agent.greeting_message;
+    if (agent?.tone) tenantConfig.agentTone = agent.tone;
   } catch (_) { /* fallback to static config */ }
   return tenantConfig;
 }
@@ -1841,7 +1919,16 @@ RÈGLES :
 === IMPORTANT ===
 - GARDE LE CONTEXTE : Si le client a dit "locks", ne propose pas "tresses"
 - RESPECTE L'HEURE DEMANDÉE : Si le client dit "10h", vérifie 10h
-- Réponses courtes et claires${isVoice ? ', phrases de 1-2 secondes maximum' : ''}`;
+- Réponses courtes et claires${isVoice ? ', phrases de 1-2 secondes maximum' : ''}${tc.agentTone ? `
+
+=== STYLE CONFIGURÉ ===
+Ton : ${tc.agentTone}` : ''}${tc.greetingMessage ? `
+Message d'accueil personnalisé : "${tc.greetingMessage}"` : ''}${tc.servicesDescription ? `
+
+=== DESCRIPTION SUPPLÉMENTAIRE DES SERVICES ===
+${tc.servicesDescription}` : ''}${tc.bookingEnabled === false ? `
+
+⚠️ La prise de RDV est DÉSACTIVÉE. Oriente les clients vers le téléphone.` : ''}`;
 }
 
 /**
@@ -1944,6 +2031,10 @@ export async function processMessage(message, channel, context = {}) {
     };
   }
   const tenantConfig = await enrichTenantWithAgent(tenantId, { ...getTenantConfig(tenantId) });
+
+  // Charger config IA admin pour ce channel
+  applyIAConfig(tenantConfig, await loadIAConfig(tenantId, channel));
+
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 
   console.log(`\n[NEXUS CORE] ══════════════════════════════════════`);
@@ -2461,6 +2552,10 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     return;
   }
   const tenantConfig = await enrichTenantWithAgent(tenantId, { ...getTenantConfig(tenantId) });
+
+  // Charger config IA admin pour ce channel
+  applyIAConfig(tenantConfig, await loadIAConfig(tenantId, channel));
+
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 
   console.log(`\n[NEXUS CORE] ══════════════════════════════════════`);

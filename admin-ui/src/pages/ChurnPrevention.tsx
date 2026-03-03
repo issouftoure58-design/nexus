@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 import {
   AlertTriangle,
   Mail,
@@ -53,6 +54,7 @@ export default function ChurnPrevention() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'high' | 'medium'>('all');
 
   useEffect(() => {
@@ -61,15 +63,12 @@ export default function ChurnPrevention() {
 
   const fetchChurnAnalysis = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
-      const response = await fetch('/api/admin/analytics/churn', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!response.ok) throw new Error('Erreur fetch');
-      const data = await response.json();
+      const data = await api.get<ChurnAnalysis>('/admin/analytics/churn');
       setAnalysis(data);
-    } catch (err) {
-      console.error('Erreur analyse churn:', err);
+    } catch {
+      setErrorMessage('Erreur lors du chargement de l\'analyse churn');
     } finally {
       setLoading(false);
     }
@@ -77,21 +76,14 @@ export default function ChurnPrevention() {
 
   const handlePreventAction = async (clientId: number, actionType: ActionType) => {
     setActionLoading(clientId);
+    setErrorMessage(null);
     try {
-      const response = await fetch(`/api/admin/analytics/churn/${clientId}/prevent`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action_type: actionType })
-      });
-      if (!response.ok) throw new Error('Erreur action');
-      const result = await response.json();
+      const result = await api.post<{ task?: { client_name?: string } }>(`/admin/analytics/churn/${clientId}/prevent`, { action_type: actionType });
       setSuccessMessage(`Action "${actionType}" programmee pour ${result.task?.client_name || 'client'}`);
       setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      console.error('Erreur action anti-churn:', err);
+    } catch {
+      setErrorMessage(`Erreur lors de l'action anti-churn "${actionType}"`);
+      setTimeout(() => setErrorMessage(null), 4000);
     } finally {
       setActionLoading(null);
     }
@@ -148,6 +140,13 @@ export default function ChurnPrevention() {
         <div className="mb-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-2">
           <CheckCircle className="w-5 h-5" />
           {successMessage}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5" />
+          {errorMessage}
         </div>
       )}
 

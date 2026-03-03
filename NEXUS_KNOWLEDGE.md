@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-02
-**Version:** 3.4.0 (WhatsApp dedie par tenant + Stabilisation prod)
+**Derniere mise a jour:** 2026-03-03
+**Version:** 3.7.0 (Audit & fix complet 19 pages admin-ui)
 
 ---
 
@@ -190,7 +190,7 @@ nexus/
 ├── frontend/
 │   └── nexus-app/         # App admin + public (66 pages, 168 composants)
 ├── landing/               # Page vitrine marketing (JSX + Spline 3D)
-├── _archive_admin-ui/     # Ancien dashboard (archive, ne plus utiliser)
+├── admin-ui/              # Dashboard admin officiel (React/Vite/TS)
 ├── CLAUDE.md              # Regles de dev (LIRE EN PREMIER)
 ├── PROGRESS.md            # Suivi avancement (source de verite)
 └── NEXUS_KNOWLEDGE.md     # CE FICHIER
@@ -261,7 +261,7 @@ MODULES AVANCES
 - `prompts/systemPrompt.js` - Generateur prompts IA dynamiques
 
 **IA et Automation:**
-- `adminChatService.js` - Chat admin avec Claude
+- `adminChatService.js` - Chat admin avec Claude (vrai streaming SSE, 25+ outils, tenant isolation)
 - `halimahProService.js` - Service IA Halimah (18 fonctions)
 - `voiceAIService.js` - IA vocale (messages dynamiques via tenantBusinessService)
 - `halimahMemory.js` - Memoire persistante IA
@@ -436,12 +436,13 @@ idx_segments_tenant (tenant_id)
 ### Anthropic Claude
 
 ```
-Usage: IA conversationnelle (Halimah)
-Modele: claude-sonnet-4-20250514
-Couts: Input $3/1M, Output $15/1M tokens
+Usage: IA conversationnelle (Halimah) + Chat admin
+Modeles: claude-sonnet-4-20250514 (defaut), claude-haiku-4-5-20251001 (light)
+Couts: Sonnet Input $3/1M, Output $15/1M tokens
+Streaming: Vrai SSE via client.messages.stream() (admin chat)
 
 Fichiers:
-- adminChatService.js
+- adminChatService.js (chat admin, 25+ outils, streaming SSE)
 - voiceAIService.js
 - halimahProService.js
 - sentinelInsights.js
@@ -1138,7 +1139,7 @@ NODE_ENV=production
 | IA Conversations | ✅ Fait | Persistance historique (migration 043) |
 | Reservation Conflicts | ✅ Fait | Detection chevauchements |
 | Email Log | ✅ Fait | Anti-doublon quotidien (migration 046) |
-| Tenant IA Config | ✅ Fait | Config par canal (migration 042) |
+| Tenant IA Config | ✅ Fait | Config par canal (migration 042) — connectee au moteur IA |
 | Public Payment | ✅ Beta | Widget paiement sans auth |
 | CI/CD | ✅ Fait | 4 workflows GitHub Actions |
 
@@ -1605,6 +1606,104 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 ---
 
 ## 17. HISTORIQUE DES MODIFICATIONS
+
+### 2026-03-03 (Session 12) — Audit & Fix Complet 19 Pages Admin-UI
+
+**Audit complet des 31 pages admin-ui (~29 232 lignes). 19 pages corrigees, 12 deja propres.**
+
+**Probleme principal:** 18/31 pages utilisaient `fetch()` brut au lieu du wrapper `api` (`admin-ui/src/lib/api.ts`), contournant l'injection auto JWT, les headers tenant (X-Tenant-ID/X-Tenant-Slug), et le logout auto sur 401.
+
+**Corrections appliquees :**
+- ~97 raw `fetch()` → `api.get/post/put/patch/delete()` (19 pages)
+- ~55 `console.log/error/warn` supprimes (production)
+- ~30 silent catches → error feedback utilisateur (banners rouges dismissable)
+- ~20 mutations `useMutation` sans `onError` → `onError` ajoute
+- XSS `document.write(response.html)` → sanitisation DOMParser (Comptabilite.tsx)
+- 2 `URL.createObjectURL` memory leaks corriges (Comptabilite, IAAdmin)
+- 4 pages : `alert()` → state-based feedback (Agenda, SEOArticles, Sentinel, Onboarding)
+- 2 fonctions `getToken()`/`getAuthHeaders()` dupliquees supprimees (Prestations, Agenda)
+- 1 URL hardcodee → `import.meta.env.VITE_LANDING_URL` (Onboarding)
+- 5 `any` → types propres (Sentinel)
+- `useEffect`/`useCallback` deps fixes (Activites, Sentinel)
+- Fonctions dupliquees extraites (Devis: `formatMontant`, `formatDate`)
+- 3 sections non-fonctionnelles marquees disabled avec banniere (Parametres)
+- 2 fake features (invite expert, access link) desactivees (Comptabilite)
+- Methode `upload()` ajoutee a `ApiClient` pour FormData (api.ts)
+
+**Pages corrigees (19):** Comptabilite, Activites, Devis, RH, Pipeline, Sentinel, Menu, Workflows, SEOArticles, Agenda, Onboarding, Prestations, SEODashboard, FloorPlan, ChurnPrevention, Parametres, Analytics, IAAdmin, api.ts
+
+**Pages propres (12):** Home, Clients, Stock, Services, Dashboard, Subscription, RoomCalendar, IAWhatsApp, IATelephone, Login, Segments, TarifsSaisonniers
+
+**Verifications:** `tsc --noEmit` 0 erreurs, `npm run build` OK, `lint:tenant` 0 violations, `npm test` 310 passes
+
+---
+
+### 2026-03-03 (Session 11) — Audit & Fix Chat IA Admin
+
+**Audit complet de Home.tsx + adminChatService.js (20 issues identifiees, 20 corrigees).**
+
+**Securite (6 fixes):**
+- Injection PostgREST dans `search_clients` — echappement `[%_\\(),."']` avant `.or()`
+- `exec_sql` RPC supprimee de `ensureChatTables()` — plus de creation de tables via SQL brut
+- `saveMessage()`, `getMessages()` — ajout parametre `tenantId`, verification ownership conversation
+- `deleteConversation()`, `updateConversation()` — ajout filtre `.eq('tenant_id', tenantId)`
+- Controller passe `tenantId` a toutes les fonctions service
+
+**Architecture (4 fixes):**
+- Vrai streaming SSE : `client.messages.create()` → `client.messages.stream()` + `stream.on('text')` pour forwarding temps reel
+- `chat()` fallback : ajout `adminId` (etait `undefined`, outils agenda echouaient)
+- 5 outils agenda (`agenda_aujourdhui`, `agenda_prochains`, `agenda_modifier`, `agenda_supprimer`, `agenda_marquer_termine`) — requetes `admin_users` supprimees, fallback `|| 1` supprime, utilise `adminId` passe en parametre
+- 56 `console.log/error/warn` → `logger` Winston
+
+**Frontend Home.tsx (5 fixes):**
+- 12 raw `fetch()` → `api.get()`/`api.post()`/`api.delete()` (sauf SSE streaming qui necessite ReadableStream)
+- `react-markdown` + `remark-gfm` installe : messages assistant rendus en markdown (tableaux, gras, listes)
+- Sentinel interval 60s → 120s + `document.hidden` check
+- Toast d'erreur rouge avec `showError()` sur tous les catch
+- `useCallback` deps fixes : `ensureConversation` wrappee, `sendMessage` deps completes
+
+**Code quality (5 fixes):**
+- Modele Haiku `claude-3-haiku-20240307` → `claude-haiku-4-5-20251001`
+- `selectModel()` non utilisee supprimee
+- `monthStart.toLocaleDateString` crash (string au lieu de Date)
+- `tenant_id INTEGER` dans CREATE TABLE supprime (plus de creation auto des tables)
+
+**Fichiers modifies:**
+- `backend/src/services/adminChatService.js` — Securite, streaming, logger, cleanup (~200 lignes en moins)
+- `backend/src/controllers/adminChatController.js` — Tenant isolation, logger, adminId passe a chat()
+- `admin-ui/src/pages/Home.tsx` — api wrapper, markdown, toast, Sentinel, useCallback
+- `admin-ui/package.json` — +react-markdown, +remark-gfm
+
+---
+
+### 2026-03-03 (Session 10) — Config IA Admin → Moteur IA
+
+**Probleme:** Les pages admin (IAAdmin, IATelephone, IAWhatsApp) sauvegardaient la config en DB (`tenant_ia_config` + `ai_agents`) mais le moteur IA (`nexusCore.js`) ne les lisait jamais.
+
+**Solution — Pipeline complet config admin → prompt IA:**
+- `loadIAConfig(tenantId, channel)` — Lit `tenant_ia_config` avec cache 2min
+- `applyIAConfig(tenantConfig, iaConfig)` — Injecte tone, personality, greeting, booking, services_description
+- `enrichTenantWithAgent()` — Enrichi avec `greeting_message` + `tone` depuis `ai_agents`
+- Prompt frozen (fatshairafro) — Bloc conditionnel a la fin du prompt
+- Prompt dynamique (`promptEngine.js`) — Overrides greetingMessage, servicesDescription, bookingEnabled + personality.ton
+- `processMessage()` + `processMessageStreaming()` — Config IA chargee automatiquement a chaque message
+
+**Securite backend (adminIA.js):**
+- Import `rawSupabase` depuis `config/supabase.js` (remplace `createClient` local non centralise)
+- `sanitizeConfig(config, channel)` — Whitelist de champs autorises par canal, max 500 chars strings, max 10 quick_replies
+
+**Frontend admin-ui:**
+- `IAAdmin.tsx` — Migration `fetch()` → `api.get()`/`api.patch()` wrapper + feedback save (Badge success/error)
+- `IAWhatsApp.tsx` — Fix `onKeyPress` → `onKeyDown` (deprecation)
+
+**Fichiers modifies:**
+- `backend/src/core/unified/nexusCore.js` — loadIAConfig, applyIAConfig, enrichTenantWithAgent, processMessage x2, getSystemPrompt
+- `backend/src/templates/promptEngine.js` — Overrides IA config dans prompt dynamique
+- `backend/src/routes/adminIA.js` — Validation + import supabase centralise
+- `admin-ui/src/pages/IAAdmin.tsx` — Migration api wrapper
+- `admin-ui/src/pages/IAWhatsApp.tsx` — Fix onKeyDown
+
+---
 
 ### 2026-03-02 (Session 9) — WhatsApp Dedie + Stabilisation Prod
 

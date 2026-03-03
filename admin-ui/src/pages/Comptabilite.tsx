@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
+import { api, comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
 import {
   Euro,
   TrendingUp,
@@ -520,9 +520,11 @@ export default function Comptabilite() {
 
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
     link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(objectUrl);
   };
 
   const exportFacturesToExcel = () => {
@@ -865,10 +867,7 @@ export default function Comptabilite() {
   // Export Journal de Paie
   const exportJournalPaie = async () => {
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` };
-      const res = await fetch(`/api/admin/rh/paie/journal?annee=${statsYear}`, { headers });
-      if (!res.ok) throw new Error('Erreur récupération journal');
-      const journaux = await res.json();
+      const journaux = await api.get<any[]>(`/admin/rh/paie/journal?annee=${statsYear}`);
 
       if (!journaux || journaux.length === 0) {
         setNotification({ type: 'error', message: 'Aucun journal de paie pour cette année' });
@@ -927,20 +926,15 @@ export default function Comptabilite() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Invite expert-comptable by email
+  // TODO: Backend not implemented - Invite expert-comptable by email
   const handleInviteExpert = () => {
-    const email = prompt('Email de l\'expert-comptable:');
-    if (email) {
-      setNotification({ type: 'success', message: `Invitation envoyée à ${email}` });
-      setTimeout(() => setNotification(null), 3000);
-    }
+    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
+    setTimeout(() => setNotification(null), 3000);
   };
 
-  // Generate access link for expert-comptable
+  // TODO: Backend not implemented - Generate access link for expert-comptable
   const handleGenerateAccessLink = () => {
-    const link = `${window.location.origin}/expert-access/${crypto.randomUUID()}`;
-    navigator.clipboard.writeText(link);
-    setNotification({ type: 'success', message: 'Lien copié dans le presse-papiers' });
+    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
     setTimeout(() => setNotification(null), 3000);
   };
 
@@ -954,16 +948,7 @@ export default function Comptabilite() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = localStorage.getItem('admin_token');
-      const response = await fetch('/api/depenses/upload-facture', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      const result = await response.json();
+      const result = await api.upload<any>('/depenses/upload-facture', formData);
 
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -978,7 +963,6 @@ export default function Comptabilite() {
         });
       }
     } catch (error) {
-      console.error('Upload error:', error);
       setNotification({
         type: 'error',
         message: error instanceof Error ? error.message : 'Erreur lors de l\'upload'
@@ -1363,21 +1347,29 @@ export default function Comptabilite() {
     return stats;
   }, [filteredRelances]);
 
-  // Fonction pour imprimer une facture
+  // Fonction pour imprimer une facture (safe: utilise DOMParser + srcdoc au lieu de document.write)
   const handlePrintInvoice = async (invoiceId: number) => {
     try {
       const response = await comptaApi.getFacturePDF(invoiceId);
       if (response.success && response.html) {
+        // Sanitize: parse le HTML pour éliminer les scripts injectés
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(response.html, 'text/html');
+        doc.querySelectorAll('script').forEach(s => s.remove());
+        const sanitizedHtml = doc.documentElement.outerHTML;
+
         const printWindow = window.open('', '_blank');
         if (printWindow) {
-          printWindow.document.write(response.html);
+          printWindow.document.open();
+          printWindow.document.write(sanitizedHtml);
           printWindow.document.close();
           printWindow.focus();
           setTimeout(() => printWindow.print(), 250);
         }
       }
-    } catch (error) {
-      console.error('Erreur impression:', error);
+    } catch {
+      setNotification({ type: 'error', message: 'Erreur lors de l\'impression' });
+      setTimeout(() => setNotification(null), 3000);
     }
   };
 
@@ -4700,8 +4692,7 @@ export default function Comptabilite() {
                         const result = await comptaApi.genererToutesEcritures();
                         setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
                         setTimeout(() => window.location.reload(), 1500);
-                      } catch (err) {
-                        console.error('[COMPTA] Erreur régénération:', err);
+                      } catch {
                         setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
                         setIsRegenerating(false);
                         setTimeout(() => setNotification(null), 3000);
@@ -4762,11 +4753,11 @@ export default function Comptabilite() {
                       Invitez votre expert-comptable à accéder à vos données comptables en lecture seule, ou envoyez-lui des exports périodiques.
                     </p>
                     <div className="flex gap-3 justify-center">
-                      <Button className="gap-2" onClick={handleInviteExpert}>
+                      <Button className="gap-2" onClick={handleInviteExpert} disabled title="Fonctionnalité en cours de développement">
                         <Mail className="h-4 w-4" />
                         Inviter par email
                       </Button>
-                      <Button variant="outline" className="gap-2" onClick={handleGenerateAccessLink}>
+                      <Button variant="outline" className="gap-2" onClick={handleGenerateAccessLink} disabled title="Fonctionnalité en cours de développement">
                         <Link2 className="h-4 w-4" />
                         Générer un lien d'accès
                       </Button>

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import {
   TrendingUp,
@@ -95,14 +96,9 @@ export default function Analytics() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/admin/analytics/dashboard', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!response.ok) throw new Error('Erreur chargement analytics');
-      const result = await response.json();
+      const result = await api.get<AnalyticsData>('/admin/analytics/dashboard');
       setData(result);
-    } catch (err) {
-      console.error('Erreur analytics:', err);
+    } catch {
       setError('Erreur lors du chargement des analytics');
     } finally {
       setLoading(false);

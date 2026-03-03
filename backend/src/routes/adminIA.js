@@ -9,15 +9,54 @@
  */
 
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { rawSupabase as supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 
 const router = express.Router();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// ============================================
+// VALIDATION - Champs autorisés par channel
+// ============================================
+
+const ALLOWED_FIELDS = {
+  telephone: ['greeting_message', 'voice_style', 'tone', 'language', 'transfer_phone',
+              'max_duration_seconds', 'business_hours', 'personality', 'services_description',
+              'booking_enabled', 'active'],
+  whatsapp: ['greeting_message', 'tone', 'language', 'response_delay_ms', 'business_hours',
+             'personality', 'services_description', 'booking_enabled', 'send_images',
+             'send_location', 'quick_replies_enabled', 'quick_replies', 'active']
+};
+
+const MAX_STRING_LENGTH = 500;
+
+/**
+ * Filtre et valide les champs de config IA
+ */
+function sanitizeConfig(config, channel) {
+  const allowed = ALLOWED_FIELDS[channel];
+  if (!allowed) return {};
+
+  const sanitized = {};
+  for (const key of allowed) {
+    if (config[key] === undefined) continue;
+
+    const value = config[key];
+
+    // Limiter la longueur des strings
+    if (typeof value === 'string') {
+      sanitized[key] = value.slice(0, MAX_STRING_LENGTH);
+    } else if (Array.isArray(value)) {
+      // quick_replies : max 10 items, chaque item max 50 chars
+      sanitized[key] = value.slice(0, 10).map(item =>
+        typeof item === 'string' ? item.slice(0, 50) : String(item).slice(0, 50)
+      );
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
 
 /**
  * 🔒 Middleware: Vérifie que le tenant a le plan Pro ou Business
@@ -118,7 +157,7 @@ router.get('/telephone/config', authenticateAdmin, requireProPlan, async (req, r
 router.put('/telephone/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const config = req.body;
+    const config = sanitizeConfig(req.body, 'telephone');
 
     const { error } = await supabase
       .from('tenant_ia_config')
@@ -152,11 +191,10 @@ router.post('/telephone/test', authenticateAdmin, requireProPlan, async (req, re
     const tenantId = req.admin.tenant_id;
     const { message } = req.body;
 
-    // Importer processMessage pour tester
     const { processMessage } = await import('../core/unified/nexusCore.js');
 
     const result = await processMessage(message || 'Bonjour', 'phone', {
-      conversationId: `test_${Date.now()}`,
+      conversationId: `test_phone_${Date.now()}`,
       tenantId,
       isTest: true
     });
@@ -234,7 +272,7 @@ router.get('/whatsapp/config', authenticateAdmin, requireProPlan, async (req, re
 router.put('/whatsapp/config', authenticateAdmin, requireProPlan, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const config = req.body;
+    const config = sanitizeConfig(req.body, 'whatsapp');
 
     const { error } = await supabase
       .from('tenant_ia_config')

@@ -3,19 +3,20 @@
  * CRUD complet avec filtres, modals, export CSV
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
-  Calendar, Plus, ChevronLeft, ChevronRight, Clock, User, Phone,
-  Filter, MoreHorizontal, RefreshCw, X, Eye, Edit, Trash2,
-  Download, RotateCcw, Mail, MapPin, Building, Home, PlusCircle, MinusCircle
+  Calendar, Plus, ChevronLeft, ChevronRight, Clock, User,
+  Filter, RefreshCw, X, Edit, Trash2,
+  Download, RotateCcw, PlusCircle, MinusCircle
 } from 'lucide-react';
+import { api } from '../lib/api';
 import { ServiceLayout } from '../components/layout/ServiceLayout';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { EntityLink } from '../components/EntityLink';
 import { useProfile } from '../contexts/ProfileContext';
-import { FeatureField, BusinessTypeField, PricingFields } from '../components/forms';
+import { FeatureField } from '../components/forms';
 
 // Tabs de navigation
 const tabs = [
@@ -166,7 +167,6 @@ const MODES_PAIEMENT = [
 ];
 
 export default function Activites() {
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Profile métier (adaptatif selon le tenant)
@@ -283,18 +283,10 @@ export default function Activites() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  // Erreur globale affichée en haut de page
+  const [error, setError] = useState('');
+
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Token helper
-  const getToken = () => localStorage.getItem('nexus_admin_token');
-
-  // Charger les données
-  useEffect(() => {
-    fetchReservations();
-    fetchStats();
-    fetchServices();
-    fetchMembres();
-  }, [filters, page, currentTab]);
 
   // Fermer dropdown quand on clique ailleurs
   useEffect(() => {
@@ -307,10 +299,10 @@ export default function Activites() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const token = getToken();
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20',
@@ -359,13 +351,7 @@ export default function Activites() {
         }
       }
 
-      const response = await fetch(`/api/admin/reservations?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) throw new Error('Erreur chargement');
-
-      const data = await response.json();
+      const data = await api.get<any>(`/admin/reservations?${params}`);
 
       // Normaliser les données
       const normalized = (data.reservations || data || []).map((r: any) => {
@@ -394,22 +380,18 @@ export default function Activites() {
       setReservations(normalized);
       setTotalPages(data.pagination?.pages || 1);
     } catch (error) {
-      console.error('Erreur fetch reservations:', error);
+      setError('Impossible de charger les prestations');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, page, currentTab]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      const token = getToken();
       const today = new Date().toISOString().split('T')[0];
 
       // RDV aujourd'hui
-      const todayRes = await fetch(`/api/admin/reservations?date_debut=${today}&date_fin=${today}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const todayData = await todayRes.json();
+      const todayData = await api.get<any>(`/admin/reservations?date_debut=${today}&date_fin=${today}`);
 
       // RDV cette semaine
       const startOfWeek = new Date();
@@ -417,52 +399,46 @@ export default function Activites() {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const weekRes = await fetch(`/api/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const weekData = await weekRes.json();
+      const weekData = await api.get<any>(`/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`);
 
       // RDV en attente
-      const waitingRes = await fetch(`/api/admin/reservations?statut=en_attente`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const waitingData = await waitingRes.json();
+      const waitingData = await api.get<any>(`/admin/reservations?statut=en_attente`);
 
       setStats({
         aujourd_hui: todayData.pagination?.total || (todayData.reservations || []).length || 0,
         semaine: weekData.pagination?.total || (weekData.reservations || []).length || 0,
         en_attente: waitingData.pagination?.total || (waitingData.reservations || []).length || 0
       });
-    } catch (error) {
-      console.error('Erreur stats:', error);
+    } catch {
+      setError('Impossible de charger les statistiques');
     }
-  };
+  }, []);
 
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     try {
-      const token = getToken();
-      const response = await fetch('/api/admin/services', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await api.get<any>('/admin/services');
       setServices(data.services || data || []);
-    } catch (error) {
-      console.error('Erreur services:', error);
+    } catch {
+      setError('Impossible de charger les services');
     }
-  };
+  }, []);
 
-  const fetchMembres = async () => {
+  const fetchMembres = useCallback(async () => {
     try {
-      const token = getToken();
-      const response = await fetch('/api/admin/rh/membres', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await api.get<any>('/admin/rh/membres');
       setMembres((data || []).filter((m: any) => m.statut === 'actif'));
-    } catch (error) {
-      console.error('Erreur membres:', error);
+    } catch {
+      setError('Impossible de charger les membres');
     }
-  };
+  }, []);
+
+  // Charger les données
+  useEffect(() => {
+    fetchReservations();
+    fetchStats();
+    fetchServices();
+    fetchMembres();
+  }, [fetchReservations, fetchStats, fetchServices, fetchMembres]);
 
   const searchClients = async (query: string) => {
     if (!query || query.length < 2) {
@@ -471,14 +447,10 @@ export default function Activites() {
     }
 
     try {
-      const token = getToken();
-      const response = await fetch(`/api/admin/clients?search=${encodeURIComponent(query)}&limit=10`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await api.get<any>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
       setClients(data.clients || data || []);
-    } catch (error) {
-      console.error('Erreur recherche clients:', error);
+    } catch {
+      setError('Impossible de rechercher les clients');
     }
   };
 
@@ -498,23 +470,13 @@ export default function Activites() {
 
     setLoadingDisponibilites(true);
     try {
-      const token = getToken();
-      const response = await fetch(
-        `/api/admin/rh/membres/disponibles?date=${date}&heure=${heure}&duree=${duree}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const data = await api.get<any>(
+        `/admin/rh/membres/disponibles?date=${date}&heure=${heure}&duree=${duree}`
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setMembresDisponibles(data.disponibles || []);
-        setMembresOccupes([...(data.occupes || []), ...(data.non_travail || [])]);
-      } else {
-        // Fallback: tous les membres
-        setMembresDisponibles(membres);
-        setMembresOccupes([]);
-      }
-    } catch (error) {
-      console.error('Erreur fetch disponibilités:', error);
+      setMembresDisponibles(data.disponibles || []);
+      setMembresOccupes([...(data.occupes || []), ...(data.non_travail || [])]);
+    } catch {
+      // Fallback: tous les membres
       setMembresDisponibles(membres);
       setMembresOccupes([]);
     } finally {
@@ -870,15 +832,11 @@ export default function Activites() {
 
   const handleOpenDetail = async (rdv: Reservation) => {
     try {
-      const token = getToken();
-      const response = await fetch(`/api/admin/reservations/${rdv.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await api.get<any>(`/admin/reservations/${rdv.id}`);
       setSelectedRdv(data.reservation || data);
       setShowDetailModal(true);
-    } catch (error) {
-      console.error('Erreur:', error);
+    } catch {
+      setError('Impossible de charger les détails de la prestation');
     }
   };
 
@@ -887,7 +845,6 @@ export default function Activites() {
     // Le paiement sera enregistré séparément via la facture (Comptabilité > Relances)
 
     try {
-      const token = getToken();
       const body: { statut: string; membre_id?: number } = { statut: newStatut };
 
       // Ajouter membre_id si fourni
@@ -895,36 +852,23 @@ export default function Activites() {
         body.membre_id = membreId;
       }
 
-      const response = await fetch(`/api/admin/reservations/${rdvId}/statut`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        // Gérer le cas où le membre est requis
-        if (data.code === 'MEMBRE_REQUIS') {
-          // Trouver la réservation dans la liste
-          const rdv = reservations.find(r => r.id === rdvId);
-          if (rdv) {
-            setPendingTermineRdv(rdv);
-            setSelectedMembreId(0);
-            setShowMembreModal(true);
-          }
-          return; // Ne pas lancer d'erreur
-        }
-        throw new Error(data.error || 'Erreur changement statut');
-      }
+      await api.patch(`/admin/reservations/${rdvId}/statut`, body);
 
       fetchReservations();
       fetchStats();
     } catch (error: any) {
-      console.error('Erreur:', error);
-      alert(error.message || 'Erreur lors du changement de statut');
+      const msg = error.message || '';
+      // Gérer le cas où le membre est requis (backend renvoie code MEMBRE_REQUIS)
+      if (msg.toLowerCase().includes('membre') && newStatut === 'termine') {
+        const rdv = reservations.find(r => r.id === rdvId);
+        if (rdv) {
+          setPendingTermineRdv(rdv);
+          setSelectedMembreId(0);
+          setShowMembreModal(true);
+        }
+        return;
+      }
+      setError(msg || 'Erreur lors du changement de statut');
     }
   };
 
@@ -938,8 +882,8 @@ export default function Activites() {
       setShowMembreModal(false);
       setPendingTermineRdv(null);
       setSelectedMembreId(0);
-    } catch (error) {
-      console.error('Erreur:', error);
+    } catch {
+      setError('Impossible de terminer la prestation avec ce membre');
     } finally {
       setMembreLoading(false);
     }
@@ -953,8 +897,8 @@ export default function Activites() {
       await handleChangeStatut(pendingTermineRdvId, 'termine', selectedModePaiement);
       setShowPaymentModal(false);
       setPendingTermineRdvId(null);
-    } catch (error) {
-      console.error('Erreur:', error);
+    } catch {
+      setError('Impossible de valider le paiement');
     } finally {
       setPaymentLoading(false);
     }
@@ -993,39 +937,27 @@ export default function Activites() {
     setEditLoading(true);
     setEditError('');
     try {
-      const token = getToken();
-      const response = await fetch(`/api/admin/reservations/${editingRdv.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          service: editForm.service_nom,
-          date_rdv: editForm.date,
-          heure_rdv: editForm.heure,
-          statut: editForm.statut,
-          notes: editForm.notes,
-          membre_id: editForm.membre_id || null,
-          // Lignes avec heures effectives par salarié
-          lignes: editLignes.length > 0 ? editLignes.map(l => ({
-            id: l.id,
-            heure_debut: l.heure_debut,
-            heure_fin: l.heure_fin,
-          })) : undefined,
-        }),
+      await api.put(`/admin/reservations/${editingRdv.id}`, {
+        service: editForm.service_nom,
+        date_rdv: editForm.date,
+        heure_rdv: editForm.heure,
+        statut: editForm.statut,
+        notes: editForm.notes,
+        membre_id: editForm.membre_id || null,
+        // Lignes avec heures effectives par salarié
+        lignes: editLignes.length > 0 ? editLignes.map(l => ({
+          id: l.id,
+          heure_debut: l.heure_debut,
+          heure_fin: l.heure_fin,
+        })) : undefined,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Erreur modification');
-      }
       setShowEditModal(false);
       setEditingRdv(null);
       setEditLignes([]);
       fetchReservations();
       fetchStats();
     } catch (error: any) {
-      setEditError(error.message || 'Erreur');
+      setEditError(error.message || 'Erreur lors de la modification');
     } finally {
       setEditLoading(false);
     }
@@ -1035,22 +967,11 @@ export default function Activites() {
     if (!confirm(`Supprimer définitivement la prestation #${rdvId} ?`)) return;
 
     try {
-      const token = getToken();
-      const response = await fetch(`/api/admin/reservations/${rdvId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erreur suppression');
-      }
-
+      await api.delete(`/admin/reservations/${rdvId}`);
       fetchReservations();
       fetchStats();
     } catch (error: any) {
-      console.error('Erreur:', error);
-      alert(error.message || 'Impossible de supprimer');
+      setError(error.message || 'Impossible de supprimer la prestation');
     }
   };
 
@@ -1093,26 +1014,11 @@ export default function Activites() {
     setCreateError('');
 
     try {
-      const token = getToken();
       let clientId = newRdvForm.client_id;
 
       // Si nouveau client, le créer d'abord
       if (createNewClient) {
-        const clientResponse = await fetch('/api/admin/clients', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(newClientForm)
-        });
-
-        if (!clientResponse.ok) {
-          const data = await clientResponse.json();
-          throw new Error(data.error || 'Erreur création client');
-        }
-
-        const clientData = await clientResponse.json();
+        const clientData = await api.post<any>('/admin/clients', newClientForm);
         clientId = clientData.client?.id || clientData.id;
       }
 
@@ -1136,73 +1042,61 @@ export default function Activites() {
       const uniqueMembreIds = [...new Set(membreIdsFromServices)];
 
       // Créer la réservation avec multi-services et membres assignés par service
-      const response = await fetch('/api/admin/reservations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          client_id: clientId,
-          // Premier service comme service principal (pour rétro-compatibilité)
-          service: serviceLignes[0]?.service_nom || '',
-          date_rdv: newRdvForm.date_rdv,
-          heure_rdv: newRdvForm.heure_rdv,
-          // Champs pour mode horaire/journalier
-          heure_fin: newRdvForm.heure_fin || null,
-          date_fin: newRdvForm.date_fin || null,
-          nb_agents: newRdvForm.nb_agents || 1,
-          pricing_mode: profile?.pricing?.mode || 'fixed',
-          lieu: newRdvForm.adresse_prestation ? 'custom' : 'salon',
-          adresse_client: newRdvForm.adresse_prestation,
-          adresse_facturation: newRdvForm.adresse_facturation_identique
-            ? newRdvForm.adresse_prestation
-            : newRdvForm.adresse_facturation,
-          notes: newRdvForm.notes,
-          // Services avec membre assigné à chaque service
-          services: serviceLignes.map(sl => ({
-            service_id: sl.service_id,
-            service_nom: sl.service_nom,
-            quantite: sl.quantite,
-            prix_unitaire: sl.prix_unitaire,
-            duree_minutes: sl.duree_minutes,
-            membre_id: sl.membre_id || null,
-            taux_horaire: sl.taux_horaire || null,
-            // Affectations avec heures (pour mode horaire)
-            affectations: sl.affectations.map(aff => ({
-              membre_id: aff.membre_id,
-              heure_debut: aff.heure_debut,
-              heure_fin: aff.heure_fin
-            }))
-          })),
-          // Liste des membres uniques (pour reservation_membres)
-          membre_ids: uniqueMembreIds,
-          // Premier membre comme membre principal (rétro-compatibilité)
-          membre_id: serviceLignes[0]?.membre_id || uniqueMembreIds[0] || null,
-          // Geste commercial
-          remise_type: newRdvForm.remise_type || null,
-          remise_valeur: newRdvForm.remise_valeur || 0,
-          remise_motif: newRdvForm.remise_motif || null,
-          // Totaux calculés
-          montant_ht: totals.montantHT,
-          montant_tva: totals.tva,
-          prix_total: totals.totalTTC,
-          duree_totale_minutes: totals.dureeTotale,
-          frais_deplacement: totals.fraisDeplacement
-        })
+      await api.post('/admin/reservations', {
+        client_id: clientId,
+        // Premier service comme service principal (pour rétro-compatibilité)
+        service: serviceLignes[0]?.service_nom || '',
+        date_rdv: newRdvForm.date_rdv,
+        heure_rdv: newRdvForm.heure_rdv,
+        // Champs pour mode horaire/journalier
+        heure_fin: newRdvForm.heure_fin || null,
+        date_fin: newRdvForm.date_fin || null,
+        nb_agents: newRdvForm.nb_agents || 1,
+        pricing_mode: profile?.pricing?.mode || 'fixed',
+        lieu: newRdvForm.adresse_prestation ? 'custom' : 'salon',
+        adresse_client: newRdvForm.adresse_prestation,
+        adresse_facturation: newRdvForm.adresse_facturation_identique
+          ? newRdvForm.adresse_prestation
+          : newRdvForm.adresse_facturation,
+        notes: newRdvForm.notes,
+        // Services avec membre assigné à chaque service
+        services: serviceLignes.map(sl => ({
+          service_id: sl.service_id,
+          service_nom: sl.service_nom,
+          quantite: sl.quantite,
+          prix_unitaire: sl.prix_unitaire,
+          duree_minutes: sl.duree_minutes,
+          membre_id: sl.membre_id || null,
+          taux_horaire: sl.taux_horaire || null,
+          // Affectations avec heures (pour mode horaire)
+          affectations: sl.affectations.map(aff => ({
+            membre_id: aff.membre_id,
+            heure_debut: aff.heure_debut,
+            heure_fin: aff.heure_fin
+          }))
+        })),
+        // Liste des membres uniques (pour reservation_membres)
+        membre_ids: uniqueMembreIds,
+        // Premier membre comme membre principal (rétro-compatibilité)
+        membre_id: serviceLignes[0]?.membre_id || uniqueMembreIds[0] || null,
+        // Geste commercial
+        remise_type: newRdvForm.remise_type || null,
+        remise_valeur: newRdvForm.remise_valeur || 0,
+        remise_motif: newRdvForm.remise_motif || null,
+        // Totaux calculés
+        montant_ht: totals.montantHT,
+        montant_tva: totals.tva,
+        prix_total: totals.totalTTC,
+        duree_totale_minutes: totals.dureeTotale,
+        frais_deplacement: totals.fraisDeplacement
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erreur création');
-      }
 
       setShowNewModal(false);
       resetNewRdvForm();
       fetchReservations();
       fetchStats();
     } catch (error: any) {
-      setCreateError(error.message || 'Erreur création');
+      setCreateError(error.message || 'Erreur lors de la création');
     } finally {
       setCreateLoading(false);
     }
@@ -1320,6 +1214,16 @@ export default function Activites() {
         </div>
       }
     >
+      {/* Erreur globale */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between">
+          <span className="text-red-600 dark:text-red-400 text-sm">{error}</span>
+          <button onClick={() => setError('')} className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded">
+            <X className="w-4 h-4 text-red-500" />
+          </button>
+        </div>
+      )}
+
       {/* Contenu conditionnel selon l'onglet */}
       {currentTab === 'parametres' ? (
         <div className="space-y-6">

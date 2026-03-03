@@ -8,7 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, FileText, Eye, Trash2, Send } from 'lucide-react';
+import { Sparkles, FileText, Eye, Trash2, Send, AlertCircle, X } from 'lucide-react';
+import { api } from '../lib/api';
 
 /**
  * 🔒 SECURITY: Sanitize HTML to prevent XSS attacks
@@ -68,6 +69,7 @@ export default function SEOArticles() {
 
   const [generating, setGenerating] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchArticles();
@@ -75,30 +77,24 @@ export default function SEOArticles() {
 
   const fetchArticles = async () => {
     try {
-      const response = await fetch('/api/admin/seo/articles', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      const data = await response.json();
+      const data = await api.get('/admin/seo/articles');
       if (Array.isArray(data)) {
         setArticles(data);
       }
-    } catch (error) {
-      console.error('Erreur fetch articles:', error);
+    } catch {
+      setFeedbackMessage({ type: 'error', text: 'Erreur lors du chargement des articles' });
     }
   };
 
   const fetchIdeas = async () => {
     setLoadingIdeas(true);
     try {
-      const response = await fetch('/api/admin/seo/articles/ideas', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      const result = await response.json();
+      const result = await api.get<{ ideas?: ArticleIdea[] }>('/admin/seo/articles/ideas');
       if (result.ideas) {
         setIdeas(result.ideas);
       }
-    } catch (error) {
-      console.error('Erreur fetch ideas:', error);
+    } catch {
+      setFeedbackMessage({ type: 'error', text: 'Erreur lors du chargement des idees' });
     } finally {
       setLoadingIdeas(false);
     }
@@ -106,42 +102,33 @@ export default function SEOArticles() {
 
   const handleGenerate = async () => {
     if (!formData.mot_cle_principal) {
-      alert('Veuillez entrer un mot-cle principal');
+      setFeedbackMessage({ type: 'error', text: 'Veuillez entrer un mot-cle principal' });
       return;
     }
 
     setGenerating(true);
+    setFeedbackMessage(null);
     try {
-      const response = await fetch('/api/admin/seo/articles/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          mot_cle_principal: formData.mot_cle_principal,
-          mots_cles_secondaires: formData.mots_cles_secondaires
-            .split(',')
-            .map(k => k.trim())
-            .filter(Boolean),
-          longueur: formData.longueur
-        })
+      const result = await api.post<{ success?: boolean; error?: string }>('/admin/seo/articles/generate', {
+        mot_cle_principal: formData.mot_cle_principal,
+        mots_cles_secondaires: formData.mots_cles_secondaires
+          .split(',')
+          .map(k => k.trim())
+          .filter(Boolean),
+        longueur: formData.longueur
       });
 
-      const result = await response.json();
-
       if (result.success) {
-        alert('Article genere avec succes !');
+        setFeedbackMessage({ type: 'success', text: 'Article genere avec succes !' });
         setShowGenerator(false);
         setFormData({ mot_cle_principal: '', mots_cles_secondaires: '', longueur: 'moyen' });
         setIdeas([]);
         fetchArticles();
       } else {
-        alert(result.error || 'Erreur generation article');
+        setFeedbackMessage({ type: 'error', text: result.error || 'Erreur generation article' });
       }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur generation article');
+    } catch {
+      setFeedbackMessage({ type: 'error', text: 'Erreur generation article' });
     } finally {
       setGenerating(false);
     }
@@ -149,13 +136,11 @@ export default function SEOArticles() {
 
   const handlePublish = async (articleId: number) => {
     try {
-      await fetch(`/api/admin/seo/articles/${articleId}/publier`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
+      await api.post(`/admin/seo/articles/${articleId}/publier`, {});
+      setFeedbackMessage({ type: 'success', text: 'Article publie avec succes' });
       fetchArticles();
-    } catch (error) {
-      console.error('Erreur publication:', error);
+    } catch {
+      setFeedbackMessage({ type: 'error', text: 'Erreur lors de la publication' });
     }
   };
 
@@ -163,13 +148,11 @@ export default function SEOArticles() {
     if (!confirm('Supprimer cet article ?')) return;
 
     try {
-      await fetch(`/api/admin/seo/articles/${articleId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
+      await api.delete(`/admin/seo/articles/${articleId}`);
+      setFeedbackMessage({ type: 'success', text: 'Article supprime' });
       fetchArticles();
-    } catch (error) {
-      console.error('Erreur suppression:', error);
+    } catch {
+      setFeedbackMessage({ type: 'error', text: 'Erreur lors de la suppression' });
     }
   };
 
@@ -197,6 +180,23 @@ export default function SEOArticles() {
           Generer avec IA
         </Button>
       </div>
+
+      {/* Feedback Message */}
+      {feedbackMessage && (
+        <div className={`p-3 rounded-lg flex items-center justify-between ${
+          feedbackMessage.type === 'error'
+            ? 'bg-red-50 border border-red-200 text-red-700'
+            : 'bg-green-50 border border-green-200 text-green-700'
+        }`}>
+          <div className="flex items-center gap-2 text-sm">
+            <AlertCircle className="h-4 w-4" />
+            {feedbackMessage.text}
+          </div>
+          <button onClick={() => setFeedbackMessage(null)}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Stats rapides */}
       <div className="grid grid-cols-3 gap-4">

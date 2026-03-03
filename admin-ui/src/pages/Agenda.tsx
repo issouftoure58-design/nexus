@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { api } from '../lib/api';
 
 // Types
 interface Event {
@@ -38,23 +39,6 @@ const EVENT_TYPES = {
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8); // 8h à 19h
 
-// Helper pour obtenir les headers avec tenant_id
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  let tenantId = '';
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      tenantId = payload.tenant_id?.toString() || '';
-    } catch (e) { /* ignore */ }
-  }
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'X-Tenant-ID': tenantId
-  };
-};
-
 export default function Agenda() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
@@ -63,6 +47,7 @@ export default function Agenda() {
   const [showModal, setShowModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Helper pour obtenir la date locale au format YYYY-MM-DD (évite le bug timezone UTC)
   const formatLocalDate = (date: Date) => {
@@ -78,22 +63,18 @@ export default function Agenda() {
 
   const fetchEvents = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const startOfWeek = getStartOfWeek(currentDate);
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-      const response = await fetch(
-        `/api/agenda/events?start=${formatLocalDate(startOfWeek)}&end=${formatLocalDate(endOfWeek)}`,
-        { headers: getAuthHeaders() }
+      const data = await api.get<{ data: Event[] }>(
+        `/agenda/events?start=${formatLocalDate(startOfWeek)}&end=${formatLocalDate(endOfWeek)}`
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setEvents(data.data || []);
-      }
+      setEvents(data.data || []);
     } catch (err) {
-      console.error('Fetch events error:', err);
+      setErrorMessage('Impossible de charger les événements');
     } finally {
       setLoading(false);
     }
@@ -158,43 +139,30 @@ export default function Agenda() {
   };
 
   const handleSaveEvent = async (eventData: Partial<Event>) => {
+    setErrorMessage(null);
     try {
-      const method = selectedEvent ? 'PUT' : 'POST';
-      const url = selectedEvent
-        ? `/api/agenda/events/${selectedEvent.id}`
-        : '/api/agenda/events';
-
-      const response = await fetch(url, {
-        method,
-        headers: getAuthHeaders(),
-        body: JSON.stringify(eventData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setShowModal(false);
-        fetchEvents();
+      if (selectedEvent) {
+        await api.put(`/agenda/events/${selectedEvent.id}`, eventData);
       } else {
-        alert(`Erreur: ${data.error || 'Impossible de créer l\'événement'}`);
+        await api.post('/agenda/events', eventData);
       }
+      setShowModal(false);
+      fetchEvents();
     } catch (err) {
-      console.error('Save event error:', err);
-      alert('Erreur de connexion au serveur');
+      const message = err instanceof Error ? err.message : 'Impossible de sauvegarder l\'événement';
+      setErrorMessage(message);
     }
   };
 
   const handleDeleteEvent = async (id: string) => {
     if (!confirm('Supprimer cet événement ?')) return;
 
+    setErrorMessage(null);
     try {
-      await fetch(`/api/agenda/events/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      await api.delete(`/agenda/events/${id}`);
       fetchEvents();
     } catch (err) {
-      console.error('Delete event error:', err);
+      setErrorMessage('Impossible de supprimer l\'événement');
     }
   };
 
@@ -245,6 +213,16 @@ export default function Agenda() {
           </div>
         </div>
       </Card>
+
+      {/* Error banner */}
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-red-700 text-sm">{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Calendar Grid - Week View */}
       {view === 'week' && (

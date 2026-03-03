@@ -3,11 +3,12 @@
  * Monitoring, prédictions et segmentation pour Business Plan
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { api } from '../lib/api';
 import {
   TrendingUp,
   TrendingDown,
@@ -159,75 +160,55 @@ export default function Sentinel() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d');
-  const [activityData, setActivityData] = useState<any>(null);
+  const [activityData, setActivityData] = useState<{ snapshots?: Array<{ date: string; revenue_paid: number; total_reservations: number; new_clients: number }> } | null>(null);
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  useEffect(() => {
-    fetchActivity();
-  }, [period]);
-
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [dashboardRes, analyticsRes] = await Promise.all([
-        fetch('/api/sentinel/dashboard', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-        }),
-        fetch('/api/admin/analytics/dashboard', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-        }).catch(() => null)
+      const [dashboardData, analytics] = await Promise.all([
+        api.get<{ data: DashboardData }>('/sentinel/dashboard'),
+        api.get<AnalyticsData>('/admin/analytics/dashboard').catch(() => null)
       ]);
 
-      if (dashboardRes.status === 403) {
-        setError('Cette fonctionnalité nécessite le plan Business');
-        return;
-      }
-
-      if (!dashboardRes.ok) throw new Error('Erreur lors du chargement');
-
-      const dashboardData = await dashboardRes.json();
       setData(dashboardData.data);
 
-      if (analyticsRes?.ok) {
-        const analytics = await analyticsRes.json();
+      if (analytics) {
         setAnalyticsData(analytics);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     try {
-      const response = await fetch(`/api/sentinel/activity/${period}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setActivityData(result.data);
-      }
-    } catch (err) {
-      console.error('Activity fetch error:', err);
+      const result = await api.get<{ data: typeof activityData }>(`/sentinel/activity/${period}`);
+      setActivityData(result.data);
+    } catch {
+      setError('Erreur lors du chargement des donnees d\'activite');
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
+  useEffect(() => {
+    fetchActivity();
+  }, [fetchActivity]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetch('/api/sentinel/refresh', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
+      await api.post('/sentinel/refresh', {});
       await fetchAllData();
       await fetchActivity();
-    } catch (err) {
-      console.error('Refresh error:', err);
+    } catch {
+      setError('Erreur lors de l\'actualisation des donnees');
     } finally {
       setRefreshing(false);
     }
@@ -235,33 +216,19 @@ export default function Sentinel() {
 
   const handleDismissInsight = async (id: string) => {
     try {
-      await fetch(`/api/sentinel/insights/${id}/dismiss`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason: 'dismissed_by_user' })
-      });
+      await api.patch(`/sentinel/insights/${id}/dismiss`, { reason: 'dismissed_by_user' });
       await fetchAllData();
-    } catch (err) {
-      console.error('Dismiss error:', err);
+    } catch {
+      setError('Erreur lors de la suppression de l\'insight');
     }
   };
 
   const handleImplementInsight = async (id: string) => {
     try {
-      await fetch(`/api/sentinel/insights/${id}/implement`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ notes: 'Implemented via dashboard' })
-      });
+      await api.patch(`/sentinel/insights/${id}/implement`, { notes: 'Implemented via dashboard' });
       await fetchAllData();
-    } catch (err) {
-      console.error('Implement error:', err);
+    } catch {
+      setError('Erreur lors de l\'implementation de l\'insight');
     }
   };
 
@@ -293,7 +260,7 @@ export default function Sentinel() {
 
   if (!data) return null;
 
-  const chartData = activityData?.snapshots?.map((s: any) => ({
+  const chartData = activityData?.snapshots?.map((s: { date: string; revenue_paid: number; total_reservations: number; new_clients: number }) => ({
     date: new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
     revenue: s.revenue_paid / 100,
     reservations: s.total_reservations,
@@ -375,7 +342,7 @@ function OverviewTab({
   onGoalsUpdated
 }: {
   data: DashboardData;
-  chartData: any[];
+  chartData: Array<{ date: string; revenue: number; reservations: number; clients: number }>;
   period: '7d' | '30d' | '90d';
   setPeriod: (p: '7d' | '30d' | '90d') => void;
   onImplementInsight: (id: string) => void;
@@ -506,10 +473,10 @@ function OverviewTab({
                   borderRadius: '8px',
                   color: '#fff'
                 }}
-                formatter={(value: any, name?: string) => {
+                formatter={((value: number, name: string) => {
                   if (name === 'CA (€)') return [`${value}€`, name];
                   return [value, name || ''];
-                }}
+                }) as never}
               />
               <Legend />
               <Line yAxisId="left" type="monotone" dataKey="revenue" name="CA (€)" stroke="#06B6D4" strokeWidth={2} dot={false} />
@@ -1021,27 +988,17 @@ function InsightsCard({
 }) {
   const [generating, setGenerating] = useState(false);
 
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
   const handleGenerateInsights = async () => {
     setGenerating(true);
+    setGenerateError(null);
     try {
-      const response = await fetch('/api/sentinel/insights/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erreur lors de la génération');
-      }
-
-      // Rafraîchir les données
+      await api.post('/sentinel/insights/generate', {});
       onInsightsGenerated();
-    } catch (err: any) {
-      console.error('Generate insights error:', err);
-      alert(err.message || 'Erreur lors de la génération des insights');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur lors de la generation des insights';
+      setGenerateError(message);
     } finally {
       setGenerating(false);
     }
@@ -1074,6 +1031,12 @@ function InsightsCard({
           )}
         </Button>
       </div>
+
+      {generateError && (
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {generateError}
+        </div>
+      )}
 
       {insights && insights.length > 0 ? (
         <div className="space-y-3 max-h-72 overflow-y-auto">
@@ -1193,10 +1156,13 @@ function GoalsEditModal({
     }))
   );
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
-      let body: any = { goal_type: goalType };
+      const body: Record<string, unknown> = { goal_type: goalType };
 
       if (goalType === 'annual') {
         body.goal_revenue_annual = annualGoals.revenue * 100;
@@ -1213,7 +1179,6 @@ function GoalsEditModal({
           clients: g.clients,
           reservations: g.reservations
         }));
-        // Utiliser le mois courant comme référence
         const currentMonth = new Date().getMonth();
         const currentMonthGoal = customGoals[currentMonth];
         body.goal_revenue_monthly = currentMonthGoal.revenue * 100;
@@ -1221,21 +1186,10 @@ function GoalsEditModal({
         body.goal_reservations_monthly = currentMonthGoal.reservations;
       }
 
-      const response = await fetch('/api/sentinel/goals', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!response.ok) throw new Error('Erreur lors de la sauvegarde');
-
+      await api.put('/sentinel/goals', body);
       onSave();
-    } catch (err) {
-      console.error('Save goals error:', err);
-      alert('Erreur lors de la sauvegarde des objectifs');
+    } catch {
+      setSaveError('Erreur lors de la sauvegarde des objectifs');
     } finally {
       setSaving(false);
     }
@@ -1295,6 +1249,14 @@ function GoalsEditModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
+          {saveError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-red-700">{saveError}</span>
+              <button onClick={() => setSaveError(null)} className="text-red-500 hover:text-red-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {goalType === 'annual' && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500">
