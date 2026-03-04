@@ -31,11 +31,12 @@ router.get('/horaires', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     // Formater pour inclure le nom du jour
+    // Note: open_time/close_time sont en format TIME (HH:MM:SS), on tronque les secondes
     const horairesMapped = (horaires || []).map(h => ({
       jour: h.day_of_week,
       nom: JOURS_SEMAINE[h.day_of_week],
-      heure_debut: h.open_time,
-      heure_fin: h.close_time,
+      heure_debut: h.open_time ? h.open_time.slice(0, 5) : null,
+      heure_fin: h.close_time ? h.close_time.slice(0, 5) : null,
       is_active: !h.is_closed,
       id: h.id
     }));
