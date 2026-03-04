@@ -21,11 +21,18 @@ app.use('/api', createProxyMiddleware({
   pathRewrite: (path) => `/api${path}`, // Préserver le prefix /api
 }));
 
-// Serve static files from dist
-app.use(express.static(join(__dirname, 'dist')));
+// Serve static files from dist (hashed assets are cached, index.html is not)
+app.use(express.static(join(__dirname, 'dist'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
+}));
 
-// SPA fallback - serve index.html for all routes
+// SPA fallback - serve index.html for all routes (no cache)
 app.get('/{*path}', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(join(__dirname, 'dist', 'index.html'));
 });
 
