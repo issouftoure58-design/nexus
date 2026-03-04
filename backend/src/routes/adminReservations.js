@@ -924,8 +924,25 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       details: { updates }
     });
 
-    // 📄 Synchronisation facture si changement de statut
+    // 📄 Synchronisation facture
     let facture = null;
+
+    // Si des champs affectant la facture ont changé (service, prix, date, frais), synchroniser
+    const prixChanged = updates.service_nom || updates.prix_total !== undefined || updates.frais_deplacement !== undefined || updates.date;
+    if (prixChanged && !updates.statut) {
+      try {
+        const syncResult = await createFactureFromReservation(req.params.id, tenantId, {
+          updateIfExists: true
+        });
+        if (syncResult.success && syncResult.message === 'Facture mise à jour') {
+          facture = syncResult.facture;
+          console.log(`[ADMIN EDIT] Facture synchronisée après modification prestation`);
+        }
+      } catch (factureErr) {
+        console.error('[ADMIN EDIT] Erreur sync facture (non bloquant):', factureErr.message);
+      }
+    }
+
     if (updates.statut && updates.statut !== currentRdv.statut) {
       // Terminé → Confirmé : remettre la facture en "générée"
       if (updates.statut === 'confirme' && currentRdv.statut === 'termine') {

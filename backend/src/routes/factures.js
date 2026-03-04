@@ -212,24 +212,87 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
   const { statut = 'generee', updateIfExists = false } = options;
 
   try {
-    // Vérifier si une facture existe déjà
+    // Vérifier si une facture existe déjà (🔒 TENANT ISOLATION)
     const { data: existing } = await supabase
       .from('factures')
-      .select('id, statut')
+      .select('id, statut, montant_ttc')
       .eq('reservation_id', reservationId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (existing) {
-      if (updateIfExists && statut !== existing.statut) {
-        // Mettre à jour le statut si demandé
+      if (updateIfExists) {
+        // Re-lire la réservation pour synchroniser TOUS les champs (pas juste le statut)
+        const { data: reservation, error: resError } = await supabase
+          .from('reservations')
+          .select(`
+            *,
+            clients(id, nom, prenom, email, telephone, type_client, raison_sociale)
+          `)
+          .eq('id', reservationId)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (resError || !reservation) {
+          throw new Error(`Réservation non trouvée: ${resError?.message || 'data is null'}`);
+        }
+
+        // Recalculer les montants depuis la réservation
+        let prixTTC = reservation.prix_total || reservation.prix_service || 0;
+        let fraisDeplacement = reservation.frais_deplacement || 0;
+
+        if (prixTTC > 0 && prixTTC < 1000) {
+          prixTTC = prixTTC * 100;
+        }
+        if (fraisDeplacement > 0 && fraisDeplacement < 1000) {
+          fraisDeplacement = fraisDeplacement * 100;
+        }
+
+        const tauxTVA = reservation.taux_tva || 20;
+        const totalTTC = prixTTC + fraisDeplacement;
+        const totalHT = Math.round(totalTTC / (1 + tauxTVA / 100));
+        const totalTVA = totalTTC - totalHT;
+
+        const updateFields = {
+          updated_at: new Date().toISOString(),
+          service_nom: reservation.service_nom || 'Prestation',
+          service_description: reservation.notes || null,
+          date_prestation: reservation.date,
+          montant_ht: totalHT,
+          taux_tva: tauxTVA,
+          montant_tva: totalTVA,
+          montant_ttc: totalTTC,
+          frais_deplacement: fraisDeplacement,
+          client_nom: reservation.clients
+            ? (reservation.clients.type_client === 'professionnel' && reservation.clients.raison_sociale
+                ? reservation.clients.raison_sociale
+                : `${reservation.clients.prenom} ${reservation.clients.nom}`)
+            : reservation.client_nom || 'Client',
+          client_email: reservation.clients?.email || reservation.client_email,
+          client_telephone: reservation.clients?.telephone || reservation.client_telephone,
+        };
+
+        // Mettre à jour le statut seulement si différent
+        if (statut !== existing.statut) {
+          updateFields.statut = statut;
+        }
+
         const { data: updated, error: updateError } = await supabase
           .from('factures')
-          .update({ statut, updated_at: new Date().toISOString() })
+          .update(updateFields)
           .eq('id', existing.id)
           .select()
           .single();
 
         if (updateError) throw updateError;
+
+        // Régénérer les écritures comptables si montants changés
+        if (existing.montant_ttc !== totalTTC) {
+          await genererEcrituresFacture(tenantId, existing.id);
+          console.log(`[FACTURES] Écritures comptables régénérées pour facture ${existing.id}`);
+        }
+
+        console.log(`[FACTURES] Facture ${existing.id} synchronisée (TTC: ${totalTTC/100}€, statut: ${updated.statut})`);
         return { success: true, facture: updated, message: 'Facture mise à jour' };
       }
       return { success: true, facture: existing, message: 'Facture déjà existante' };
