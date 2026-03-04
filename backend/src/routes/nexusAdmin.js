@@ -494,6 +494,32 @@ router.get('/billing', async (req, res) => {
     const totalCost = (costs || []).reduce((s, c) => s + (c.total_cost_eur || 0), 0);
     const margin = mrr > 0 ? Math.round(((mrr - totalCost) / mrr) * 100) : 0;
 
+    // Churn Rate: tenants annulés ce mois / tenants actifs début de mois
+    const { count: churned } = await supabase
+      .from('tenants')
+      .select('id', { count: 'exact', head: true })
+      .eq('statut', 'annule')
+      .gte('updated_at', firstOfMonth.toISOString());
+
+    const totalActive = (tenants || []).length;
+    const churnRate = totalActive > 0
+      ? Math.round(((churned || 0) / (totalActive + (churned || 0))) * 10000) / 100
+      : 0;
+
+    // LTV = ARPU / Churn Rate mensuel (ou estimation si churn=0)
+    const arpu = totalActive > 0 ? mrr / totalActive : 0;
+    const monthlyChurn = churnRate / 100;
+    const ltv = monthlyChurn > 0 ? Math.round(arpu / monthlyChurn) : Math.round(arpu * 24); // Estimation 24 mois si pas de churn
+
+    // Revenue par billing_events ce mois
+    const { data: paidEvents } = await supabase
+      .from('billing_events')
+      .select('amount')
+      .eq('event_type', 'invoice_paid')
+      .gte('created_at', firstOfMonth.toISOString());
+
+    const actualRevenue = (paidEvents || []).reduce((s, e) => s + (e.amount || 0), 0) / 100;
+
     res.json({
       success: true,
       data: {
@@ -502,7 +528,12 @@ router.get('/billing', async (req, res) => {
         totalCost: Math.round(totalCost * 100) / 100,
         margin,
         planDistribution,
-        totalTenants: (tenants || []).length
+        totalTenants: totalActive,
+        churnRate,
+        ltv,
+        arpu: Math.round(arpu),
+        actualRevenueThisMonth: Math.round(actualRevenue * 100) / 100,
+        churnedThisMonth: churned || 0,
       }
     });
   } catch (error) {

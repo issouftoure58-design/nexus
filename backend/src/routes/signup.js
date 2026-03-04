@@ -13,6 +13,7 @@ import bcrypt from 'bcryptjs';
 import Stripe from 'stripe';
 import { BUSINESS_TEMPLATES } from '../data/businessTemplates.js';
 import { sendWelcomeEmail } from '../services/tenantEmailService.js';
+import { applyReferralCode } from '../services/referralService.js';
 
 const router = express.Router();
 
@@ -153,7 +154,10 @@ router.post('/', async (req, res) => {
 
     // Plan
     plan_id,
-    periode // 'monthly' ou 'yearly'
+    periode, // 'monthly' ou 'yearly'
+
+    // Parrainage (optionnel)
+    referral_code
   } = req.body;
 
   try {
@@ -288,6 +292,15 @@ router.post('/', async (req, res) => {
       .single();
 
     if (tenantError) throw tenantError;
+
+    // Appliquer code parrainage si fourni (non bloquant)
+    if (referral_code) {
+      try {
+        await applyReferralCode(tenant_id, referral_code);
+      } catch (e) {
+        // Non bloquant — le signup continue meme si le code est invalide
+      }
+    }
 
     // ═══════════════════════════════════════════════════
     // 4. CREER ADMIN USER

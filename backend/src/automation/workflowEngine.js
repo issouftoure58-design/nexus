@@ -31,7 +31,7 @@ try {
 
 try {
   const whatsappService = await import('../services/whatsappService.js');
-  sendWhatsApp = whatsappService.sendWhatsApp;
+  sendWhatsApp = whatsappService.sendWhatsAppNotification;
 } catch (e) {
   sendWhatsApp = async (to, message) => {
     console.log('[WORKFLOW] WhatsApp simulé:', { to, message });
@@ -314,6 +314,9 @@ async function executeAction(action, entity, tenant_id) {
     case 'webhook':
       return await executeWebhook(action, entity, tenant_id);
 
+    case 'send_to_segment':
+      return await executeSendToSegment(action, entity, tenant_id);
+
     default:
       throw new Error(`Action type inconnu: ${type}`);
   }
@@ -395,7 +398,7 @@ async function executeSendSMS(action, entity, tenant_id) {
   }
 
   const finalMessage = replaceVariables(message, entity);
-  const result = await sendSMS(toPhone, finalMessage);
+  const result = await sendSMS(toPhone, finalMessage, tenant_id);
 
   return { action: 'send_sms', to: toPhone, success: true, ...result };
 }
@@ -412,7 +415,7 @@ async function executeSendWhatsApp(action, entity, tenant_id) {
   }
 
   const finalMessage = replaceVariables(message, entity);
-  const result = await sendWhatsApp(toPhone, finalMessage);
+  const result = await sendWhatsApp(toPhone, finalMessage, tenant_id);
 
   return { action: 'send_whatsapp', to: toPhone, success: true, ...result };
 }
@@ -621,11 +624,128 @@ async function scheduleDelayedAction(workflow, action, entity, delayMinutes) {
         statut: 'scheduled',
         resultat: {
           action,
+          entity: { id: entity.id, type: entity.type, prenom: entity.prenom, nom: entity.nom, telephone: entity.telephone, email: entity.email },
           scheduled_for: new Date(Date.now() + delayMinutes * 60 * 1000).toISOString()
         }
       });
   } catch (e) {
     console.error('[WORKFLOWS] Erreur scheduling:', e);
+  }
+}
+
+/**
+ * Action: Envoyer un message à tous les clients d'un segment
+ */
+async function executeSendToSegment(action, entity, tenant_id) {
+  const { segment_id, channel, message, template, custom_subject, custom_body, to_field } = action;
+
+  if (!segment_id) {
+    throw new Error('segment_id requis pour send_to_segment');
+  }
+  if (!tenant_id) {
+    throw new Error('tenant_id requis pour send_to_segment');
+  }
+
+  // Récupérer les clients du segment
+  const { data: segmentClients, error } = await supabase
+    .from('segment_clients')
+    .select('client_id, clients(id, prenom, nom, telephone, email)')
+    .eq('segment_id', segment_id)
+    .eq('tenant_id', tenant_id);
+
+  if (error) {
+    throw new Error(`Erreur récupération segment: ${error.message}`);
+  }
+
+  const clients = (segmentClients || [])
+    .map(sc => sc.clients)
+    .filter(Boolean);
+
+  let sentCount = 0;
+  const sendChannel = channel || 'sms';
+
+  for (const client of clients) {
+    try {
+      const clientEntity = { ...client, type: 'client' };
+      const clientAction = { ...action, to_field: to_field || (sendChannel === 'email' ? 'email' : 'telephone') };
+
+      if (sendChannel === 'email') {
+        await executeSendEmail(clientAction, clientEntity, tenant_id);
+      } else if (sendChannel === 'sms') {
+        await executeSendSMS(clientAction, clientEntity, tenant_id);
+      } else if (sendChannel === 'whatsapp') {
+        await executeSendWhatsApp(clientAction, clientEntity, tenant_id);
+      }
+      sentCount++;
+    } catch (e) {
+      console.error(`[WORKFLOWS] Erreur send_to_segment pour client ${client.id}:`, e.message);
+    }
+  }
+
+  console.log(`[WORKFLOWS] send_to_segment: ${sentCount}/${clients.length} envoyés (segment: ${segment_id})`);
+  return { action: 'send_to_segment', segment_id, sent_count: sentCount, total: clients.length, success: true };
+}
+
+/**
+ * Traite les actions workflow programmées (delayed)
+ * Appelé par le scheduler toutes les minutes
+ */
+export async function processScheduledActions() {
+  try {
+    const now = new Date().toISOString();
+
+    // Récupérer les exécutions programmées dont l'heure est arrivée
+    const { data: scheduled, error } = await supabase
+      .from('workflow_executions')
+      .select('*')
+      .eq('statut', 'scheduled')
+      .limit(50);
+
+    if (error) {
+      console.error('[WORKFLOWS] Erreur récupération actions programmées:', error);
+      return;
+    }
+
+    // Filtrer celles dont scheduled_for <= now
+    const due = (scheduled || []).filter(exec => {
+      const scheduledFor = exec.resultat?.scheduled_for;
+      return scheduledFor && scheduledFor <= now;
+    });
+
+    if (due.length === 0) return;
+
+    console.log(`[WORKFLOWS] ${due.length} action(s) programmée(s) à exécuter`);
+
+    for (const exec of due) {
+      const { action, entity } = exec.resultat || {};
+      if (!action || !entity || !exec.tenant_id) {
+        await supabase
+          .from('workflow_executions')
+          .update({ statut: 'failed', error_message: 'Données action/entity manquantes', completed_at: new Date().toISOString() })
+          .eq('id', exec.id)
+          .eq('tenant_id', exec.tenant_id);
+        continue;
+      }
+
+      try {
+        const result = await executeAction(action, entity, exec.tenant_id);
+        await supabase
+          .from('workflow_executions')
+          .update({ statut: 'success', resultat: { ...exec.resultat, execution_result: result }, completed_at: new Date().toISOString() })
+          .eq('id', exec.id)
+          .eq('tenant_id', exec.tenant_id);
+        console.log(`[WORKFLOWS] Action programmée ${exec.id} exécutée avec succès`);
+      } catch (e) {
+        console.error(`[WORKFLOWS] Erreur action programmée ${exec.id}:`, e.message);
+        await supabase
+          .from('workflow_executions')
+          .update({ statut: 'failed', error_message: e.message, completed_at: new Date().toISOString() })
+          .eq('id', exec.id)
+          .eq('tenant_id', exec.tenant_id);
+      }
+    }
+  } catch (error) {
+    console.error('[WORKFLOWS] Erreur processScheduledActions:', error);
   }
 }
 
@@ -652,5 +772,6 @@ function delay(ms) {
 
 export default {
   triggerWorkflows,
-  executeWorkflow
+  executeWorkflow,
+  processScheduledActions
 };

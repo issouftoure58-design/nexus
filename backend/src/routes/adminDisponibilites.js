@@ -16,29 +16,45 @@ const JOURS_SEMAINE = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendr
 // ════════════════════════════════════════════════════════════════════
 
 // GET /api/admin/disponibilites/horaires
-// Retourne les horaires hebdomadaires (7 jours)
+// Retourne les horaires hebdomadaires (7 jours) depuis business_hours
 router.get('/horaires', authenticateAdmin, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
     const { data: horaires, error } = await supabase
-      .from('horaires_hebdo')
+      .from('business_hours')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('jour_semaine', { ascending: true });
+      .order('day_of_week', { ascending: true });
 
     if (error) throw error;
 
     // Formater pour inclure le nom du jour
-    const horairesMapped = horaires.map(h => ({
-      jour: h.jour_semaine,
-      nom: JOURS_SEMAINE[h.jour_semaine],
-      heure_debut: h.heure_debut,
-      heure_fin: h.heure_fin,
-      is_active: h.is_active,
+    const horairesMapped = (horaires || []).map(h => ({
+      jour: h.day_of_week,
+      nom: JOURS_SEMAINE[h.day_of_week],
+      heure_debut: h.open_time,
+      heure_fin: h.close_time,
+      is_active: !h.is_closed,
       id: h.id
     }));
+
+    // Si pas de données en DB, retourner les 7 jours vides (dimanche fermé, reste 9-18)
+    if (horairesMapped.length === 0) {
+      const defaults = [];
+      for (let i = 0; i < 7; i++) {
+        defaults.push({
+          jour: i,
+          nom: JOURS_SEMAINE[i],
+          heure_debut: i === 0 ? null : '09:00',
+          heure_fin: i === 0 ? null : '18:00',
+          is_active: i !== 0,
+          id: null
+        });
+      }
+      return res.json({ horaires: defaults });
+    }
 
     res.json({ horaires: horairesMapped });
   } catch (error) {
@@ -48,7 +64,7 @@ router.get('/horaires', authenticateAdmin, async (req, res) => {
 });
 
 // PUT /api/admin/disponibilites/horaires
-// Met à jour tous les horaires hebdomadaires
+// Met à jour tous les horaires hebdomadaires via UPSERT dans business_hours
 router.put('/horaires', authenticateAdmin, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
@@ -60,28 +76,28 @@ router.put('/horaires', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Format horaires invalide' });
     }
 
-    // Mettre à jour chaque jour (🔒 TENANT ISOLATION)
-    const updates = horaires.map(async (h) => {
+    // UPSERT chaque jour dans business_hours (🔒 TENANT ISOLATION)
+    const upserts = horaires.map(async (h) => {
       return supabase
-        .from('horaires_hebdo')
-        .update({
-          heure_debut: h.is_active ? h.heure_debut : null,
-          heure_fin: h.is_active ? h.heure_fin : null,
-          is_active: h.is_active,
+        .from('business_hours')
+        .upsert({
+          tenant_id: tenantId,
+          day_of_week: h.jour,
+          open_time: h.is_active ? h.heure_debut : null,
+          close_time: h.is_active ? h.heure_fin : null,
+          is_closed: !h.is_active,
           updated_at: new Date().toISOString()
-        })
-        .eq('tenant_id', tenantId)
-        .eq('jour_semaine', h.jour);
+        }, { onConflict: 'tenant_id,day_of_week' });
     });
 
-    await Promise.all(updates);
+    await Promise.all(upserts);
 
     // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
       tenant_id: tenantId,
       admin_id: req.admin.id,
       action: 'update_horaires',
-      entite: 'horaires_hebdo',
+      entite: 'business_hours',
       details: { horaires }
     });
 
@@ -342,15 +358,19 @@ router.get('/calendrier', authenticateAdmin, async (req, res) => {
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
 
-    // Récupérer horaires hebdomadaires (🔒 TENANT ISOLATION)
+    // Récupérer horaires hebdomadaires depuis business_hours (🔒 TENANT ISOLATION)
     const { data: horaires } = await supabase
-      .from('horaires_hebdo')
+      .from('business_hours')
       .select('*')
       .eq('tenant_id', tenantId);
 
     const horairesMap = {};
     horaires?.forEach(h => {
-      horairesMap[h.jour_semaine] = h;
+      horairesMap[h.day_of_week] = {
+        heure_debut: h.open_time,
+        heure_fin: h.close_time,
+        is_active: !h.is_closed
+      };
     });
 
     // Récupérer congés du mois (🔒 TENANT ISOLATION)

@@ -135,6 +135,19 @@ const PLAN_FEATURES = {
 };
 
 /**
+ * Extrait les clés canal depuis PLAN_FEATURES pour un plan donné
+ * Fallback quand options_canaux_actifs n'est pas encore écrit en DB
+ */
+function extractCanauxFromPlan(planId) {
+  const features = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
+  const canaux = {};
+  for (const [key, type] of Object.entries(MODULE_TYPES)) {
+    if (type === 'canal' && features[key]) canaux[key] = true;
+  }
+  return canaux;
+}
+
+/**
  * Récupère la config complète d'un tenant (avec cache)
  */
 async function getTenantConfig(tenantId) {
@@ -169,7 +182,7 @@ async function getTenantConfig(tenantId) {
   const config = {
     plan_id: planId,
     plan: planFeatures,
-    options_canaux: tenant.options_canaux_actifs || tenant.modules_actifs || {},
+    options_canaux: tenant.options_canaux_actifs || extractCanauxFromPlan(planId),
     module_metier_id: tenant.module_metier_id,
     module_metier_paye: tenant.module_metier_paye
   };

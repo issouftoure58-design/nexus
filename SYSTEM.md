@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-03
-> **Version:** 3.7.0
+> **Derniere mise a jour:** 2026-03-04
+> **Version:** 3.10.0
 > **Status:** Production Ready (Score 100/100)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -35,13 +35,13 @@ nexus/
 │   │   ├── jobs/              # Taches planifiees (cron)
 │   │   ├── middleware/        # Auth, tenant, rate limit, quotas
 │   │   ├── modules/           # Modules metier (commerce, crm, hr, seo, social, sentinel)
-│   │   ├── routes/            # 53 fichiers routes API
+│   │   ├── routes/            # 54 fichiers routes API
 │   │   ├── sentinel/          # Monitoring & securite
-│   │   ├── services/          # 68 services metier
+│   │   ├── services/          # 69 services metier
 │   │   ├── utils/             # Utilitaires
 │   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
-│   ├── migrations/            # 49 migrations SQL (+ archive/)
+│   ├── migrations/            # 64 migrations SQL (+ archive/)
 │   └── tests/                 # 19 suites, 310 tests
 │
 ├── frontend/
@@ -129,10 +129,26 @@ npm run shield         # Les deux
 | `/api/admin/quotas` | Quotas et limites |
 | `/api/admin/ia/*` | Config IA par canal (telephone, whatsapp) |
 | `/api/admin/agents/*` | Gestion agents IA (ai_agents) |
-| `/api/admin/chat/*` | Chat IA admin (conversations, messages, streaming SSE) |
+| `/api/admin/chat/*` | Chat IA admin (105 outils, streaming SSE, differencie par plan) |
+| `/api/admin/api-keys/*` | CRUD cles API (Business only) |
+| `/api/admin/webhooks/*` | CRUD webhooks (Business only) |
+| `/api/admin/parametres` | Parametres tenant (profil, notifications, etc.) |
 | `/api/modules/*` | Modules disponibles/actifs |
 | `/api/billing/*` | Abonnements et paiements Stripe |
 | `/api/provisioning/*` | Numeros Twilio |
+
+---
+
+## CHAT ADMIN IA — OUTILS PAR PLAN
+
+| Plan | Outils | Categories |
+|------|--------|------------|
+| **Starter** (99€) | 64 | Client, Gestion, Marketing, Commercial, Compta, Contenu, Memoire, Planification, Agenda |
+| **Pro** (249€) | 76 | Tout Starter + SEO (3), Social (4), RH base (4), Analytics KPI (1) |
+| **Business** (499€) | 105 | Tout Pro + Strategie (4), Analytics avance (5), RH complet (+6), Agent IA (6), Recherche web (4), Pro Tools (4) |
+
+Architecture: `src/tools/handlers/` (20 handlers + dispatcher O(1) dans index.js)
+Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 non implemente)
 
 ---
 
@@ -203,5 +219,22 @@ Push main → GitHub Actions CI:
 
 ---
 
+---
+
+## ROADMAP COMMERCIALISATION
+
+Audit SaaS B2B (2026-03-03) — 4 sprints identifies. Voir PROGRESS.md pour le detail.
+
+| Sprint | Focus | Items | Effort estime |
+|--------|-------|-------|---------------|
+| **1** | Securite & Equipe | 2FA, audit log, invitations, RBAC, dunning, sessions | ~8j |
+| **2** | Communication & Ops | Status page, i18n, notifications in-app, email auth | ~6j |
+| **3** | Data & Developer XP | Import CSV, webhook retry, rate limit headers, proration, upload, revenue analytics | ~10j |
+| **4** | Croissance | SSO, API versioning, parrainage, usage billing | post-launch |
+
+Migration DB 055 requise : `audit_logs`, `user_sessions`, `invitations`, `notifications_inbox`, `totp_secrets`
+
+---
+
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-03*
+*Derniere synchronisation: 2026-03-03 (v3.9.0 — audit SaaS B2B)*

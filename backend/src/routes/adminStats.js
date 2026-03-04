@@ -272,44 +272,91 @@ router.get('/automation', authenticateAdmin, async (req, res) => {
       .eq('tenant_id', tenantId)
       .gte('created_at', startOfMonth.toISOString());
 
-    // Stats emails/SMS (si table existe)
+    // Stats notifications (notification_deliveries ou notifications_log)
     let emailsSent = 0;
     let smsSent = 0;
+    let whatsappSent = 0;
 
     try {
-      const { count: emails } = await supabase
-        .from('notifications_log')
-        .select('*', { count: 'exact', head: true })
+      const { data: deliveries } = await supabase
+        .from('notification_deliveries')
+        .select('channel')
         .eq('tenant_id', tenantId)
-        .eq('type', 'email')
+        .in('status', ['sent', 'delivered', 'read'])
         .gte('created_at', startOfMonth.toISOString());
-      emailsSent = emails || 0;
 
-      const { count: sms } = await supabase
-        .from('notifications_log')
+      if (deliveries) {
+        emailsSent = deliveries.filter(d => d.channel === 'email').length;
+        smsSent = deliveries.filter(d => d.channel === 'sms').length;
+        whatsappSent = deliveries.filter(d => d.channel === 'whatsapp').length;
+      }
+    } catch {
+      // Fallback: try notifications_log
+      try {
+        const { count: emails } = await supabase
+          .from('notifications_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('type', 'email')
+          .gte('created_at', startOfMonth.toISOString());
+        emailsSent = emails || 0;
+
+        const { count: sms } = await supabase
+          .from('notifications_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('type', 'sms')
+          .gte('created_at', startOfMonth.toISOString());
+        smsSent = sms || 0;
+      } catch {
+        // Neither table exists
+      }
+    }
+
+    // Vrais workflows avec executions reelles
+    const { data: activeWorkflows } = await supabase
+      .from('workflows')
+      .select('id, nom, trigger_type, executions_count')
+      .eq('tenant_id', tenantId)
+      .eq('actif', true)
+      .order('executions_count', { ascending: false })
+      .limit(10);
+
+    // Taches completees ce mois
+    let tasksCompleted = 0;
+    try {
+      const { count } = await supabase
+        .from('admin_tasks')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
-        .eq('type', 'sms')
-        .gte('created_at', startOfMonth.toISOString());
-      smsSent = sms || 0;
-    } catch (e) {
-      // Tables might not exist, ignore
+        .eq('statut', 'completed')
+        .gte('completed_at', startOfMonth.toISOString());
+      tasksCompleted = count || 0;
+    } catch {
+      // Table might not exist
     }
+
+    const totalNotifications = emailsSent + smsSent + whatsappSent;
 
     res.json({
       workflows: {
         actifs: workflowsActifs || 0,
-        executions_mois: executionsMois || 0
+        executions_mois: executionsMois || 0,
+        liste: (activeWorkflows || []).map(w => ({
+          nom: w.nom,
+          trigger: w.trigger_type,
+          executions: w.executions_count || 0
+        }))
       },
       notifications: {
         emails_mois: emailsSent,
-        sms_mois: smsSent
+        sms_mois: smsSent,
+        whatsapp_mois: whatsappSent,
+        total_mois: totalNotifications
       },
-      automations: [
-        { name: 'Rappels RDV', status: 'active', executions: Math.floor(Math.random() * 50) },
-        { name: 'Emails anniversaire', status: 'active', executions: Math.floor(Math.random() * 20) },
-        { name: 'Relances factures', status: 'active', executions: Math.floor(Math.random() * 10) }
-      ]
+      taches: {
+        completees_mois: tasksCompleted
+      }
     });
 
   } catch (error) {

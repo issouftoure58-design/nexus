@@ -846,12 +846,15 @@ async function checkAvailabilityUnified(date, heure, serviceName, tenantId) {
     existingBookings = data || [];
   }
 
-  // Utiliser le validateur centralisé
+  // Charger les horaires dynamiques du tenant
+  const businessHours = await getBusinessHoursForTenant(tenantId);
+
+  // Utiliser le validateur centralisé avec horaires dynamiques
   const result = await validateBeforeCreate({
     serviceName,
     date,
     heure
-  }, existingBookings);
+  }, existingBookings, null, businessHours);
 
   const response = {
     success: true,
@@ -904,7 +907,10 @@ async function getAvailableSlotsUnified(date, serviceName, tenantId) {
     existingBookings = data || [];
   }
 
-  const result = getAvailableSlots(date, service, existingBookings);
+  // Charger les horaires dynamiques du tenant
+  const businessHours = await getBusinessHoursForTenant(tenantId);
+
+  const result = getAvailableSlots(date, service, existingBookings, businessHours);
 
   const response = {
     success: true,

@@ -43,6 +43,9 @@ import Menu from './pages/Menu';
 import FloorPlan from './pages/FloorPlan';
 import RoomCalendar from './pages/RoomCalendar';
 import TarifsSaisonniers from './pages/TarifsSaisonniers';
+import AuditLog from './pages/AuditLog';
+import AcceptInvite from './pages/AcceptInvite';
+import Disponibilites from './pages/Disponibilites';
 
 // Helper pour récupérer le token du tenant actuel
 function getCurrentToken(): string | null {
@@ -122,6 +125,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<PrivateRoute><Onboarding /></PrivateRoute>} />
 
             {/* Routes de base - toujours accessibles */}
@@ -129,11 +133,13 @@ function App() {
             <Route path="/dashboard-old" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/clients" element={<ModuleRoute><Clients /></ModuleRoute>} />
             <Route path="/services" element={<ModuleRoute><Services /></ModuleRoute>} />
+            <Route path="/disponibilites" element={<ModuleRoute module="reservations" moduleTitle="Disponibilites" moduleDescription="Horaires d'ouverture et periodes de fermeture"><Disponibilites /></ModuleRoute>} />
             <Route path="/menu" element={<ModuleRoute module="reservations" moduleTitle="Menu" moduleDescription="Gestion des plats et menus du jour"><Menu /></ModuleRoute>} />
             <Route path="/salle" element={<ModuleRoute module="reservations" moduleTitle="Plan de salle" moduleDescription="Vue des tables et réservations"><FloorPlan /></ModuleRoute>} />
             <Route path="/chambres" element={<ModuleRoute module="reservations" moduleTitle="Calendrier Chambres" moduleDescription="Vue d'occupation des chambres"><RoomCalendar /></ModuleRoute>} />
             <Route path="/tarifs" element={<ModuleRoute module="reservations" moduleTitle="Tarifs Saisonniers" moduleDescription="Gestion des tarifs selon les saisons"><TarifsSaisonniers /></ModuleRoute>} />
             <Route path="/parametres" element={<ModuleRoute><Parametres /></ModuleRoute>} />
+            <Route path="/audit-log" element={<ModuleRoute><AuditLog /></ModuleRoute>} />
             <Route path="/subscription" element={<ModuleRoute><Subscription /></ModuleRoute>} />
 
             {/* Agenda - RDV business de l'entrepreneur */}

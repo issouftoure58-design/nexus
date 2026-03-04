@@ -73,6 +73,8 @@ const SYSTEM_TABLES = [
   'compteurs_conges',   // liées à employes
   'payments',           // liées à reservations
   'depenses',           // comptabilité, la query par ID est OK
+  'admin_sessions',     // validées par token_hash unique (SHA-256)
+  'referrals',          // cross-tenant par design (parrainage: referrer_tenant_id ≠ referred_tenant_id)
 ];
 
 // Fichiers à ignorer
@@ -95,6 +97,7 @@ const IGNORE_FILES = [
   'whatsappService.js',
   // Routes spéciales
   'adminAuth.js',       // auth avant tenant connu
+  'adminInvitations.js', // accept/verify publics (token unique, pas de tenant context)
   'signup.js',          // création de tenant
   'provisioning.js',    // provisioning système
   'nexusAdmin.js',      // super-admin cross-tenant (requireSuperAdmin)

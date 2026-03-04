@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-03
-**Version:** 3.7.0 (Audit & fix complet 19 pages admin-ui)
+**Derniere mise a jour:** 2026-03-04
+**Version:** 3.10.0 (Horaires dynamiques par tenant — business_hours)
 
 ---
 
@@ -280,6 +280,7 @@ MODULES AVANCES
 **Notifications:**
 - `notificationService.js`
 - `emailService.js`
+- `smsService.js` (wrapper Twilio SMS, formatage +33, Messaging Service)
 - `whatsappService.js` (URLs dynamiques via tenantBusinessService)
 - `voiceService.js` (phrases TTS multi-tenant)
 
@@ -536,6 +537,8 @@ Couts: ~$30 par 1M caracteres
 | API | ❌ | - |
 | Support | Email 48h | - |
 
+**Chat Admin IA — 64 outils:** Client, Gestion, Marketing, Commercial, Compta, Contenu, Memoire, Planification, Agenda
+
 ### 8.4 Plan Pro (249€/mois)
 
 **Cible:** Salon avec equipe, restaurant etabli, entreprise de services
@@ -557,10 +560,12 @@ Couts: ~$30 par 1M caracteres
 | CRM Avance | ✅ | Pipeline + Campagnes |
 | Marketing | ✅ | Pipeline + Campagnes |
 | Stock | ✅ | - |
-| Analytics | ✅ | Avances |
+| Analytics | ✅ | KPI de base |
 | Devis | ✅ | - |
 | API | ✅ | 10 000 appels/mois |
 | Support | Chat 24h | - |
+
+**Chat Admin IA — 76 outils:** Tout Starter + SEO (3), Social (4), RH base (4: equipe, heures, absences, stats), Analytics KPI (1)
 
 ### 8.5 Plan Business (499€/mois)
 
@@ -579,6 +584,8 @@ Couts: ~$30 par 1M caracteres
 | Multi-sites | ✅ | Jusqu'a 10 sites |
 | Marque blanche | ✅ | Logo + couleurs |
 | Support | Prioritaire 4h, tel | - |
+
+**Chat Admin IA — 105 outils:** Tout Pro + Strategie (4), Analytics avance (5), RH complet (6 de plus: planning, temps_travail, conges, objectifs, formation, bien_etre), Agent IA (6), Recherche web (4), Pro Tools (4)
 
 ### 8.6 Add-ons
 
@@ -1274,6 +1281,20 @@ Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, trans
 | ~~**P1**~~ | ~~Redis eviction policy~~ | BullMQ jobs | ✅ FAIT (2026-03-02) — noeviction |
 | **P1** | Configurer STRIPE_WEBHOOK_SECRET sur Render | Monetisation | 🔶 A faire (manuel) |
 | **P1** | Tester webhooks Stripe en staging | Monetisation | 🔶 A faire |
+| **P0** | 2FA/MFA TOTP pour admins | Securite critique | 🔶 Sprint 1 |
+| **P0** | Audit log generique (qui fait quoi) | Tracabilite/SOC2 | 🔶 Sprint 1 |
+| **P0** | Invitation equipe par email | Multi-user tenant | 🔶 Sprint 1 |
+| **P0** | RBAC granulaire (permissions par module) | Securite equipe | 🔶 Sprint 1 |
+| **P0** | Dunning Stripe (retry paiement echoue) | Revenue | 🔶 Sprint 1 |
+| **P0** | Session management | Securite | 🔶 Sprint 1 |
+| **P1** | Status page publique | Confiance client | 🔶 Sprint 2 |
+| **P1** | i18n FR + EN | International | 🔶 Sprint 2 |
+| **P1** | Notifications in-app | UX | 🔶 Sprint 2 |
+| **P1** | Email auth DKIM/SPF/DMARC | Deliverabilite | 🔶 Sprint 2 |
+| **P2** | Import CSV clients/RDV | Onboarding client | 🔶 Sprint 3 |
+| **P2** | Webhook retry + dead letter queue | Fiabilite API | 🔶 Sprint 3 |
+| **P2** | Rate limiting transparent (headers) | Developer XP | 🔶 Sprint 3 |
+| **P2** | Revenue analytics operateur (MRR/LTV) | Pilotage SaaS | 🔶 Sprint 3 |
 | **P2** | Tests E2E restaurant/hotel | Qualite | 🔶 A faire |
 | **P2** | UI avancee resto (plan salle, menu) | Features | 🔶 En cours |
 | **P2** | UI avancee hotel (calendrier, tarifs) | Features | 🔶 En cours |
@@ -1607,6 +1628,47 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 
 ## 17. HISTORIQUE DES MODIFICATIONS
 
+### 2026-03-03 (Session 14) — Fix 5 problemes communication inter-modules
+
+**Probleme:** Audit inter-modules a revele 5 bugs : (1) SMS/WhatsApp workflow engine simules, (2) aucune notification a la creation de RDV, (3) segments CRM deconnectes des workflows, (4) mapping champs Stripe fragile (`whatsapp` vs `agent_ia_whatsapp`), (5) actions differees jamais executees.
+
+**Corrections:**
+1. **Nouveau `smsService.js`** : wrapper Twilio SMS reel. Fix import WhatsApp (`sendWhatsAppNotification`). Passage `tenant_id` a `sendSMS/sendWhatsApp`.
+2. **`adminReservations.js`** : appel `triggerWorkflows('rdv_created')` non bloquant. Trigger + template `confirmation_sms` dans `adminWorkflows.js`.
+3. **`workflowEngine.js`** : action `send_to_segment` (query `segment_clients` + envoi par canal). Ajout dans ACTION_TYPES.
+4. **`stripeBillingService.js`** : cles `agent_ia_whatsapp`/`agent_ia_telephone` dans PLAN_MODULES pro/business + ecriture `options_canaux_actifs`. **`moduleProtection.js`** : `extractCanauxFromPlan()` remplace fallback `modules_actifs`.
+5. **`workflowEngine.js`** : `scheduleDelayedAction` stocke `entity`. Nouvelle `processScheduledActions()`. **`scheduler.js`** : appel chaque minute.
+
+**Fichiers:** 1 nouveau, 6 modifies (~195 lignes)
+**Verifications:** syntax OK, lint:tenant 0 violation, 310 tests OK
+
+---
+
+### 2026-03-03 (Session 13) — Audit Sentinel Home — Suppression KPIs fabriques
+
+**Probleme:** Home.tsx (Sentinel) affichait des donnees entierement inventees cote client + backend `/admin/stats/automation` utilisait `Math.random()`.
+
+**KPIs supprimes (tous fabriques):**
+- `score_automatisation` (pourcentage invente), `gain_vs_humain` (ratio invente)
+- `taches_auto_jour` (compteur invente), `gains.rdv_crees/relances_recuperees/upsell_detectes` (montants inventes)
+- `cout_activite`, `marge_generee` (calcules a partir de rien)
+- `roi_auto`, `roi_mois_precedent`, `roi_secteur`, `roi_projection_fin_mois` (tous inventes)
+- `optimisations.augmenter_prix/supprimer_canal` (suggestions sur donnees fictives)
+
+**Backend fix (`adminStats.js`):**
+- Supprime `Math.random()` automations → vraies requetes `workflows`, `notification_deliveries`, `admin_tasks`
+
+**Frontend fix (`Home.tsx`):**
+- Interface `BusinessKPIs` supprimee, `SentinelStats` simplifiee (10 champs reels)
+- `fetchSentinelActivity()` optimise: 4 appels legers/refresh, 2 appels IA au 1er chargement
+- Barre KPI, panel Sentinel, welcome screen, `getDynamicWelcome()` — tout base sur donnees reelles
+- 5 imports inutiles supprimes
+
+**Fichiers modifies:** `backend/src/routes/adminStats.js`, `admin-ui/src/pages/Home.tsx`
+**Verifications:** tsc 0 erreur, build OK, 310 tests OK
+
+---
+
 ### 2026-03-03 (Session 12) — Audit & Fix Complet 19 Pages Admin-UI
 
 **Audit complet des 31 pages admin-ui (~29 232 lignes). 19 pages corrigees, 12 deja propres.**
@@ -1632,7 +1694,7 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 
 **Pages corrigees (19):** Comptabilite, Activites, Devis, RH, Pipeline, Sentinel, Menu, Workflows, SEOArticles, Agenda, Onboarding, Prestations, SEODashboard, FloorPlan, ChurnPrevention, Parametres, Analytics, IAAdmin, api.ts
 
-**Pages propres (12):** Home, Clients, Stock, Services, Dashboard, Subscription, RoomCalendar, IAWhatsApp, IATelephone, Login, Segments, TarifsSaisonniers
+**Pages propres (12):** Home (corrigee Session 13: KPIs fabriques supprimes), Clients, Stock, Services, Dashboard, Subscription, RoomCalendar, IAWhatsApp, IATelephone, Login, Segments, TarifsSaisonniers
 
 **Verifications:** `tsc --noEmit` 0 erreurs, `npm run build` OK, `lint:tenant` 0 violations, `npm test` 310 passes
 
@@ -2057,6 +2119,20 @@ Voir section 16.4 pour details.
 - Memory usage Node.js
 - ~~116 fichiers non commites (risque perte)~~ RESOLU — tout est commit et push
 - STRIPE_WEBHOOK_SECRET non configure sur Render (action manuelle requise)
+
+### Audit SaaS B2B (2026-03-03) — Lacunes identifiees
+
+Croisement NEXUS vs Stripe/Shopify/HubSpot/Fresha/Gusto. NEXUS excelle en IA/modules/monitoring.
+Lacunes concentrees sur les fondamentaux B2B :
+
+**Tables DB manquantes (migration 055) :**
+- `audit_logs` (tenant_id, user_id, action, entity_type, entity_id, changes JSONB, ip, created_at)
+- `user_sessions` (user_id, tenant_id, token_hash, ip, user_agent, last_active, expires_at, revoked)
+- `invitations` (tenant_id, email, role, invited_by, token, status, expires_at)
+- `notifications_inbox` (tenant_id, user_id, type, title, body, read, entity_type, entity_id, created_at)
+- `totp_secrets` (user_id, secret_encrypted, enabled, backup_codes, verified_at)
+
+**Roadmap detaillee :** voir PROGRESS.md section "ROADMAP COMMERCIALISATION"
 
 ---
 

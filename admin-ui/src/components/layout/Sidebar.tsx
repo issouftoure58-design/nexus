@@ -41,6 +41,7 @@ import {
   Phone,
   Headphones,
   CalendarCheck,
+  Clock,
   Bot,
   ClipboardList,
   UtensilsCrossed,
@@ -123,6 +124,7 @@ const mainNav: NavItem[] = [
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
+  { icon: Clock, label: 'Disponibilites', path: '/disponibilites', requiredModule: 'reservations' },
   { icon: UtensilsCrossed, label: 'Menu', path: '/menu', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: Bed, label: 'Chambres', path: '/chambres', requiredModule: 'reservations', businessTypes: ['hotel'] },
@@ -162,6 +164,7 @@ const marketingNav: NavItem[] = [
 // Système
 const systemNav: NavItem[] = [
   { icon: Shield, label: 'Sentinel', path: '/sentinel', requiredModule: 'sentinel_pro' },
+  { icon: FileText, label: 'Journal d\'audit', path: '/audit-log', alwaysShow: true },
   { icon: Settings, label: 'Paramètres', path: '/parametres', alwaysShow: true },
 ];
 

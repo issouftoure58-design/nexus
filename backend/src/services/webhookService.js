@@ -32,6 +32,9 @@ const RETRY_DELAYS = [
   600000    // 10 minutes
 ];
 
+// Auto-desactivation apres N echecs consecutifs
+const MAX_CONSECUTIVE_FAILURES = 10;
+
 /**
  * Signe un payload avec HMAC-SHA256
  * @param {object} payload
@@ -186,13 +189,30 @@ export async function triggerWebhook(tenantId, eventType, data) {
         responded_at: result.responded_at
       });
 
-      // Mettre a jour le webhook
+      // Mettre a jour le webhook + tracking failures consecutives
+      const updateData = {
+        last_triggered_at: new Date().toISOString(),
+        last_status: result.success ? 'success' : 'failed',
+      };
+
+      if (result.success) {
+        // Reset compteur echecs sur succes
+        updateData.consecutive_failures = 0;
+      } else {
+        // Incrementer compteur echecs
+        const currentFailures = webhook.consecutive_failures || 0;
+        updateData.consecutive_failures = currentFailures + 1;
+
+        // Auto-desactiver apres trop d'echecs consecutifs
+        if (updateData.consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
+          updateData.is_active = false;
+          console.log(`[WEBHOOK] Auto-desactive ${webhook.name} apres ${MAX_CONSECUTIVE_FAILURES} echecs consecutifs`);
+        }
+      }
+
       await supabase
         .from('webhooks')
-        .update({
-          last_triggered_at: new Date().toISOString(),
-          last_status: result.success ? 'success' : 'failed'
-        })
+        .update(updateData)
         .eq('id', webhook.id);
 
       return { webhook: webhook.name, ...result };

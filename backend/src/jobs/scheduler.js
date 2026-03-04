@@ -1332,6 +1332,14 @@ async function runScheduler() {
       console.error('[Scheduler] Erreur SENTINEL insights:', err.message);
     }
   }
+
+  // Job: Traiter actions workflow programmées (chaque minute)
+  try {
+    const { processScheduledActions } = await import('../automation/workflowEngine.js');
+    await processScheduledActions();
+  } catch (err) {
+    console.error('[Scheduler] Erreur actions programmées:', err.message);
+  }
 }
 
 // ============= DÉMARRAGE =============

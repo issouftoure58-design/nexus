@@ -27,7 +27,9 @@ import {
   Users,
   BarChart3,
   Shield,
-  Star
+  Star,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +52,26 @@ interface Invoice {
   pdf_url: string;
   hosted_url: string;
 }
+
+interface SubscriptionData {
+  has_subscription: boolean;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
+  items: unknown[];
+}
+
+type BillingCycle = 'monthly' | 'yearly';
+
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  active: { label: 'Actif', color: 'bg-green-100 text-green-700' },
+  trialing: { label: 'Essai', color: 'bg-blue-100 text-blue-700' },
+  past_due: { label: 'En retard', color: 'bg-red-100 text-red-700' },
+  canceled: { label: 'Annulé', color: 'bg-gray-100 text-gray-500' },
+  incomplete: { label: 'Incomplet', color: 'bg-yellow-100 text-yellow-700' },
+  unpaid: { label: 'Impayé', color: 'bg-red-100 text-red-700' },
+};
 
 // Plans NEXUS officiels - Grille tarifaire 2026
 const PLANS = [
@@ -118,15 +140,23 @@ const PLANS = [
 export default function Subscription() {
   const queryClient = useQueryClient();
   const { plan: currentPlan, tenant, isLoading: loadingTenant } = useTenant();
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
+  const [error, setError] = useState<string | null>(null);
+
+  // Charger le statut d'abonnement
+  const { data: subscriptionData, isError: isSubError } = useQuery<SubscriptionData>({
+    queryKey: ['subscription'],
+    queryFn: () => api.get<SubscriptionData>('/billing/subscription'),
+  });
 
   // Charger les moyens de paiement
-  const { data: paymentMethodsData } = useQuery({
+  const { data: paymentMethodsData, isError: isPmError } = useQuery({
     queryKey: ['payment-methods'],
     queryFn: () => api.get<{ payment_methods: PaymentMethod[] }>('/billing/payment-methods'),
   });
 
   // Charger les factures
-  const { data: invoicesData } = useQuery({
+  const { data: invoicesData, isError: isInvError } = useQuery({
     queryKey: ['invoices'],
     queryFn: () => api.get<{ invoices: Invoice[] }>('/billing/invoices'),
   });
@@ -141,6 +171,9 @@ export default function Subscription() {
         window.location.href = data.url;
       }
     },
+    onError: (err: Error) => {
+      setError(err.message || 'Impossible d\'ouvrir le portail Stripe');
+    },
   });
 
   // Mutation pour supprimer une carte
@@ -148,6 +181,9 @@ export default function Subscription() {
     mutationFn: (id: string) => api.delete(`/billing/payment-methods/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+    },
+    onError: (err: Error) => {
+      setError(err.message || 'Impossible de supprimer la carte');
     },
   });
 
@@ -168,6 +204,10 @@ export default function Subscription() {
 
   const currentPlanData = PLANS.find(p => p.id === currentPlan) || PLANS[0];
 
+  // Statut dynamique
+  const subStatus = subscriptionData?.status || 'active';
+  const statusInfo = STATUS_MAP[subStatus] || STATUS_MAP.active;
+
   if (loadingTenant) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -176,8 +216,29 @@ export default function Subscription() {
     );
   }
 
+  const hasQueryError = isSubError || isPmError || isInvError;
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {/* Error banner */}
+      {(error || hasQueryError) && (
+        <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm flex-1">{error || 'Erreur lors du chargement des données de facturation.'}</p>
+          <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Cancellation warning */}
+      {subscriptionData?.cancel_at_period_end && subscriptionData.current_period_end && (
+        <div className="mb-6 flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm">Annulation prévue le <strong>{formatDate(subscriptionData.current_period_end)}</strong>. Votre abonnement reste actif jusque-là.</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Mon Abonnement</h1>
@@ -217,15 +278,41 @@ export default function Subscription() {
         <div className="lg:col-span-2 space-y-6">
           {/* Comparaison des plans */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-900">Changer de plan</h2>
-              <p className="text-sm text-gray-500">Comparez les fonctionnalités de chaque plan</p>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900">Changer de plan</h2>
+                <p className="text-sm text-gray-500">Comparez les fonctionnalités de chaque plan</p>
+              </div>
+              {/* Toggle mensuel/annuel */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setBillingCycle('monthly')}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                    billingCycle === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  )}
+                >
+                  Mensuel
+                </button>
+                <button
+                  onClick={() => setBillingCycle('yearly')}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1',
+                    billingCycle === 'yearly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  )}
+                >
+                  Annuel
+                  <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+                </button>
+              </div>
             </div>
 
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               {PLANS.map((plan) => {
                 const isCurrentPlan = plan.id === currentPlan;
                 const Icon = plan.id === 'business' ? Crown : plan.id === 'pro' ? Star : Zap;
+                const displayPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
+                const priceSuffix = billingCycle === 'yearly' ? '/an' : '/mois';
 
                 return (
                   <div
@@ -263,8 +350,8 @@ export default function Subscription() {
 
                     <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                     <div className="flex items-baseline gap-1 mb-4">
-                      <span className="text-3xl font-bold text-gray-900">{plan.price}€</span>
-                      <span className="text-gray-500">/mois</span>
+                      <span className="text-3xl font-bold text-gray-900">{displayPrice}€</span>
+                      <span className="text-gray-500">{priceSuffix}</span>
                     </div>
 
                     <ul className="space-y-2 mb-6">
@@ -383,15 +470,21 @@ export default function Subscription() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Statut</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                <span className={cn('inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full', statusInfo.color)}>
                   <CheckCircle className="w-3 h-3" />
-                  Actif
+                  {statusInfo.label}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Facturation</span>
                 <span className="font-semibold text-gray-900">{currentPlanData.price}€/mois</span>
               </div>
+              {subscriptionData?.current_period_end && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Prochain paiement</span>
+                  <span className="text-sm font-medium text-gray-900">{formatDate(subscriptionData.current_period_end)}</span>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-4 border-t border-gray-200">
@@ -467,7 +560,7 @@ export default function Subscription() {
               Notre équipe est là pour vous aider avec votre abonnement.
             </p>
             <a
-              href="mailto:support@nexus.app"
+              href="mailto:support@nexus-saas.com"
               className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
             >
               Contacter le support

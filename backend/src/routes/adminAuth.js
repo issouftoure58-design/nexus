@@ -6,6 +6,8 @@ import { verifyLogin, changePassword } from '../sentinel/security/accountService
 import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordPolicy.js';
 import { loginLimiter } from '../middleware/rateLimiter.js';
 import logger from '../config/logger.js';
+import { totpService } from '../services/totpService.js';
+import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
 
 const router = express.Router();
 
@@ -90,6 +92,25 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(status).json({ error: loginResult.error });
     }
 
+    // 🔒 2FA: Vérifier si TOTP activé avant de délivrer le JWT
+    const { data: adminUser2fa } = await supabase
+      .from('admin_users')
+      .select('totp_enabled')
+      .eq('id', loginResult.user.id)
+      .eq('tenant_id', loginResult.user.tenant_id)
+      .single();
+
+    if (adminUser2fa?.totp_enabled) {
+      // Générer un token temporaire (5 min, non utilisable comme auth)
+      const tempToken = jwt.sign(
+        { id: loginResult.user.id, tenant_id: loginResult.user.tenant_id, pending_2fa: true },
+        EFFECTIVE_JWT_SECRET,
+        { expiresIn: '5m' }
+      );
+      resetRateLimit(clientIp);
+      return res.json({ requires_2fa: true, temp_token: tempToken });
+    }
+
     // Générer JWT (🔒 M4: durée réduite à 24h pour admin)
     const token = jwt.sign(
       {
@@ -105,6 +126,17 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     // 🔒 G4: Reset rate limit après login réussi
     resetRateLimit(clientIp);
+
+    // Créer la session en DB
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    createSession({
+      adminId: loginResult.user.id,
+      tenantId: loginResult.user.tenant_id,
+      token,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      expiresAt,
+    }).catch(err => logger.error('[Session] Erreur création:', { error: err.message }));
 
     // Logger l'action
     try {
@@ -168,7 +200,7 @@ router.post('/change-password', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
     }
 
-    const result = await changePassword(req.admin.id, currentPassword, newPassword);
+    const result = await changePassword(req.admin.id, currentPassword, newPassword, req.admin.tenant_id);
 
     if (!result.success) {
       return res.status(400).json({
@@ -359,6 +391,266 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2FA TOTP ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/admin/auth/2fa/setup — Générer secret TOTP + backup codes
+router.post('/2fa/setup', authenticateAdmin, async (req, res) => {
+  try {
+    const secret = totpService.generateSecret();
+    const backupCodes = totpService.generateBackupCodes();
+    const otpAuthUrl = totpService.generateOtpAuthUrl(req.admin.email, secret);
+
+    // Chiffrer et stocker (sans activer)
+    const { error } = await supabase
+      .from('admin_users')
+      .update({
+        totp_secret: totpService.encryptSecret(secret),
+        totp_backup_codes: totpService.encryptSecret(JSON.stringify(backupCodes)),
+        totp_enabled: false,
+      })
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+
+    logger.info(`[2FA] Setup initié pour admin ${req.admin.id}`);
+    res.json({ secret, otpAuthUrl, backupCodes });
+  } catch (error) {
+    logger.error('[2FA] Erreur setup:', error);
+    res.status(500).json({ error: 'Erreur lors de la configuration 2FA' });
+  }
+});
+
+// POST /api/admin/auth/2fa/verify — Vérifier code TOTP et activer 2FA
+router.post('/2fa/verify', authenticateAdmin, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: 'Code à 6 chiffres requis' });
+    }
+
+    // Lire le secret chiffré
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('totp_secret')
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id)
+      .single();
+
+    if (!adminUser?.totp_secret) {
+      return res.status(400).json({ error: 'Aucun setup 2FA en cours. Appelez /2fa/setup d\'abord.' });
+    }
+
+    const secret = totpService.decryptSecret(adminUser.totp_secret);
+    if (!totpService.verifyTOTP(secret, code)) {
+      return res.status(400).json({ error: 'Code invalide' });
+    }
+
+    // Activer 2FA
+    const { error } = await supabase
+      .from('admin_users')
+      .update({
+        totp_enabled: true,
+        totp_verified_at: new Date().toISOString(),
+      })
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+
+    logger.info(`[2FA] Activé pour admin ${req.admin.id}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[2FA] Erreur verify:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification 2FA' });
+  }
+});
+
+// POST /api/admin/auth/2fa/validate — Valider code TOTP au login (utilise temp_token)
+router.post('/2fa/validate', async (req, res) => {
+  try {
+    const { temp_token, code } = req.body;
+    if (!temp_token || !code) {
+      return res.status(400).json({ error: 'Token temporaire et code requis' });
+    }
+
+    // Décoder le temp_token
+    let decoded;
+    try {
+      decoded = jwt.verify(temp_token, EFFECTIVE_JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: 'Token temporaire expiré ou invalide' });
+    }
+
+    if (!decoded.pending_2fa) {
+      return res.status(401).json({ error: 'Token invalide' });
+    }
+
+    // Lire l'admin
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('id, email, nom, role, tenant_id, totp_secret, totp_backup_codes, totp_enabled')
+      .eq('id', decoded.id)
+      .eq('tenant_id', decoded.tenant_id)
+      .single();
+
+    if (!adminUser || !adminUser.totp_enabled) {
+      return res.status(401).json({ error: '2FA non activé' });
+    }
+
+    const secret = totpService.decryptSecret(adminUser.totp_secret);
+    let backupCodeUsed = false;
+
+    // Vérifier code TOTP
+    if (!totpService.verifyTOTP(secret, code)) {
+      // Vérifier si c'est un backup code
+      const backupCodes = JSON.parse(totpService.decryptSecret(adminUser.totp_backup_codes));
+      const backupIndex = backupCodes.indexOf(code.toUpperCase());
+
+      if (backupIndex === -1) {
+        return res.status(401).json({ error: 'Code invalide' });
+      }
+
+      // Consommer le backup code
+      backupCodes.splice(backupIndex, 1);
+      await supabase
+        .from('admin_users')
+        .update({ totp_backup_codes: totpService.encryptSecret(JSON.stringify(backupCodes)) })
+        .eq('id', adminUser.id)
+        .eq('tenant_id', adminUser.tenant_id);
+
+      backupCodeUsed = true;
+      logger.info(`[2FA] Backup code utilisé par admin ${adminUser.id} (${backupCodes.length} restants)`);
+    }
+
+    // Générer le vrai JWT 24h
+    const token = jwt.sign(
+      {
+        id: adminUser.id,
+        email: adminUser.email,
+        role: adminUser.role,
+        tenant_id: adminUser.tenant_id,
+        tenant_slug: adminUser.tenant_id,
+      },
+      EFFECTIVE_JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Créer la session en DB
+    const expiresAt2FA = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    createSession({
+      adminId: adminUser.id,
+      tenantId: adminUser.tenant_id,
+      token,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      expiresAt: expiresAt2FA,
+    }).catch(err => logger.error('[Session] Erreur création 2FA:', { error: err.message }));
+
+    // Logger
+    try {
+      await supabase.from('historique_admin').insert({
+        admin_id: adminUser.id,
+        action: 'login_2fa',
+        entite: 'admin',
+        details: { ip: req.ip, backup_code_used: backupCodeUsed },
+      });
+    } catch (_) { /* non-blocking */ }
+
+    logger.info(`[2FA] Login 2FA réussi pour admin ${adminUser.id}`);
+    res.json({
+      token,
+      admin: {
+        id: adminUser.id,
+        email: adminUser.email,
+        nom: adminUser.nom,
+        role: adminUser.role,
+      },
+    });
+  } catch (error) {
+    logger.error('[2FA] Erreur validate:', error);
+    res.status(500).json({ error: 'Erreur lors de la validation 2FA' });
+  }
+});
+
+// POST /api/admin/auth/2fa/disable — Désactiver 2FA (requiert mot de passe)
+router.post('/2fa/disable', authenticateAdmin, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Mot de passe requis' });
+    }
+
+    // Vérifier le mot de passe
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('password')
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id)
+      .single();
+
+    if (!adminUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const passwordValid = await bcrypt.compare(password, adminUser.password);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Mot de passe incorrect' });
+    }
+
+    // Désactiver 2FA
+    const { error } = await supabase
+      .from('admin_users')
+      .update({
+        totp_enabled: false,
+        totp_secret: null,
+        totp_backup_codes: null,
+        totp_verified_at: null,
+      })
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+
+    logger.info(`[2FA] Désactivé pour admin ${req.admin.id}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[2FA] Erreur disable:', error);
+    res.status(500).json({ error: 'Erreur lors de la désactivation 2FA' });
+  }
+});
+
+// GET /api/admin/auth/2fa/status — Statut 2FA
+router.get('/2fa/status', authenticateAdmin, async (req, res) => {
+  try {
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('totp_enabled, totp_verified_at, totp_backup_codes')
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id)
+      .single();
+
+    let backupCodesRemaining = 0;
+    if (adminUser?.totp_backup_codes) {
+      try {
+        const codes = JSON.parse(totpService.decryptSecret(adminUser.totp_backup_codes));
+        backupCodesRemaining = codes.length;
+      } catch (_) { /* si déchiffrement échoue, 0 */ }
+    }
+
+    res.json({
+      enabled: adminUser?.totp_enabled || false,
+      verified_at: adminUser?.totp_verified_at || null,
+      backup_codes_remaining: backupCodesRemaining,
+    });
+  } catch (error) {
+    logger.error('[2FA] Erreur status:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du statut 2FA' });
+  }
+});
+
 // GET /api/admin/auth/me (vérifier token)
 router.get('/me', authenticateAdmin, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)
@@ -369,7 +661,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
   try {
     const { data: admin } = await supabase
       .from('admin_users')
-      .select('id, email, nom, role')
+      .select('id, email, nom, role, totp_enabled')
       .eq('id', req.admin.id)
       .single();
 
@@ -391,6 +683,12 @@ export async function authenticateAdmin(req, res, next) {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
 
+    // Vérifier que la session est active (non révoquée)
+    const sessionValid = await validateSession(token);
+    if (!sessionValid) {
+      return res.status(401).json({ error: 'Session expirée ou révoquée' });
+    }
+
     // Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
     const { data: adminData, error } = await supabase
       .from('admin_users')
@@ -407,6 +705,7 @@ export async function authenticateAdmin(req, res, next) {
       tenant_id: adminData.tenant_id,
       nom: adminData.nom,
     };
+    req.token = token;
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token invalide' });
@@ -423,5 +722,99 @@ export function requireSuperAdmin(req, res, next) {
   }
   next();
 }
+
+// ─── GET /permissions — Matrice de permissions du user connecté ──────────────
+import { getPermissionsForRole } from '../middleware/rbac.js';
+
+router.get('/permissions', authenticateAdmin, (req, res) => {
+  const permissions = getPermissionsForRole(req.admin.role);
+  res.json({ role: req.admin.role, permissions });
+});
+
+// ─── SESSION MANAGEMENT ─────────────────────────────────────────────────────
+
+// GET /sessions — Liste les sessions actives
+router.get('/sessions', authenticateAdmin, async (req, res) => {
+  try {
+    const sessions = await listSessions(req.admin.id, req.admin.tenant_id);
+
+    // Marquer la session courante
+    const currentHash = hashToken(req.token);
+    const sessionsWithCurrent = sessions.map(s => ({
+      ...s,
+      is_current: false, // On ne peut pas comparer directement ici
+    }));
+
+    // Pour identifier la session courante, on cherche par token hash
+    const { data: currentSession } = await supabase
+      .from('admin_sessions')
+      .select('id')
+      .eq('token_hash', currentHash)
+      .single();
+
+    for (const s of sessionsWithCurrent) {
+      if (currentSession && s.id === currentSession.id) {
+        s.is_current = true;
+      }
+    }
+
+    res.json({ sessions: sessionsWithCurrent });
+  } catch (error) {
+    logger.error('[Session] Erreur listing:', { error: error.message });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// DELETE /sessions/:id — Révoquer une session
+router.delete('/sessions/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+
+    // Empêcher de révoquer sa propre session
+    const currentHash = hashToken(req.token);
+    const { data: targetSession } = await supabase
+      .from('admin_sessions')
+      .select('token_hash')
+      .eq('id', sessionId)
+      .eq('admin_id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id)
+      .single();
+
+    if (!targetSession) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    if (targetSession.token_hash === currentHash) {
+      return res.status(400).json({ error: 'Impossible de révoquer la session courante' });
+    }
+
+    const success = await revokeSession(sessionId, req.admin.id, req.admin.tenant_id);
+    if (!success) {
+      return res.status(404).json({ error: 'Session non trouvée' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[Session] Erreur révocation:', { error: error.message });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /sessions/revoke-all — Révoquer toutes les sessions sauf la courante
+router.post('/sessions/revoke-all', authenticateAdmin, async (req, res) => {
+  try {
+    const currentHash = hashToken(req.token);
+    const success = await revokeAllSessions(req.admin.id, req.admin.tenant_id, currentHash);
+
+    if (!success) {
+      return res.status(500).json({ error: 'Erreur lors de la révocation' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[Session] Erreur révocation all:', { error: error.message });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 export default router;

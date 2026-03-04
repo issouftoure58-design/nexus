@@ -5,8 +5,10 @@ import { requireClientsQuota } from '../middleware/quotas.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import logger from '../config/logger.js';
+import multer from 'multer';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
 
 // ════════════════════════════════════════════════════════════════════
 // CLIENTS - LISTE ET CRUD
@@ -586,6 +588,137 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('[ADMIN CLIENTS] Erreur stats:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// IMPORT CSV
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/admin/clients/import
+ * Import clients depuis un fichier CSV
+ * Colonnes attendues : nom, prenom, email, telephone, adresse, notes
+ */
+router.post('/import', authenticateAdmin, upload.single('file'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Fichier CSV requis' });
+    }
+
+    const content = req.file.buffer.toString('utf-8');
+    const lines = content.split(/\r?\n/).filter(l => l.trim());
+
+    if (lines.length < 2) {
+      return res.status(400).json({ error: 'Le fichier doit contenir au moins un en-tête et une ligne de données' });
+    }
+
+    // Parser l'en-tête
+    const separator = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(separator).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+
+    // Mapping colonnes flexibles
+    const colMap = {
+      nom: headers.findIndex(h => ['nom', 'name', 'last_name', 'lastname', 'nom_famille'].includes(h)),
+      prenom: headers.findIndex(h => ['prenom', 'prénom', 'first_name', 'firstname'].includes(h)),
+      email: headers.findIndex(h => ['email', 'e-mail', 'mail', 'courriel'].includes(h)),
+      telephone: headers.findIndex(h => ['telephone', 'téléphone', 'tel', 'phone', 'mobile'].includes(h)),
+      adresse: headers.findIndex(h => ['adresse', 'address', 'ville', 'city'].includes(h)),
+      notes: headers.findIndex(h => ['notes', 'note', 'commentaire', 'comment'].includes(h)),
+    };
+
+    // Vérifier qu'au moins nom ou email est présent
+    if (colMap.nom === -1 && colMap.email === -1) {
+      return res.status(400).json({
+        error: 'Colonnes requises manquantes',
+        message: 'Le fichier doit contenir au moins une colonne "nom" ou "email"',
+        detected_columns: headers,
+      });
+    }
+
+    const imported = [];
+    const errors = [];
+    const skipped = [];
+
+    // Parser chaque ligne
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(separator).map(v => v.trim().replace(/^['"]|['"]$/g, ''));
+
+      const nom = colMap.nom >= 0 ? values[colMap.nom] : '';
+      const prenom = colMap.prenom >= 0 ? values[colMap.prenom] : '';
+      const email = colMap.email >= 0 ? values[colMap.email] : '';
+      const telephone = colMap.telephone >= 0 ? values[colMap.telephone] : '';
+      const adresse = colMap.adresse >= 0 ? values[colMap.adresse] : '';
+      const notes = colMap.notes >= 0 ? values[colMap.notes] : '';
+
+      // Validation
+      if (!nom && !email) {
+        errors.push({ line: i + 1, reason: 'Ni nom ni email fourni' });
+        continue;
+      }
+
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push({ line: i + 1, reason: `Email invalide: ${email}` });
+        continue;
+      }
+
+      // Vérifier doublon par email
+      if (email) {
+        const { data: existing } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('email', email)
+          .limit(1);
+
+        if (existing?.length > 0) {
+          skipped.push({ line: i + 1, email, reason: 'Email déjà existant' });
+          continue;
+        }
+      }
+
+      // Insérer
+      const { error: insertErr } = await supabase
+        .from('clients')
+        .insert({
+          tenant_id: tenantId,
+          nom: nom || prenom || email.split('@')[0],
+          prenom: prenom || '',
+          email: email || null,
+          telephone: telephone || null,
+          adresse: adresse || null,
+          notes: notes || null,
+          source: 'import_csv',
+        });
+
+      if (insertErr) {
+        errors.push({ line: i + 1, reason: insertErr.message });
+      } else {
+        imported.push({ line: i + 1, nom: nom || prenom, email });
+      }
+    }
+
+    res.json({
+      success: true,
+      summary: {
+        total_lines: lines.length - 1,
+        imported: imported.length,
+        skipped: skipped.length,
+        errors: errors.length,
+      },
+      imported,
+      skipped,
+      errors,
+      columns_detected: headers,
+      columns_mapped: Object.fromEntries(
+        Object.entries(colMap).filter(([, v]) => v >= 0).map(([k, v]) => [k, headers[v]])
+      ),
+    });
+  } catch (error) {
+    console.error('[ADMIN CLIENTS] Erreur import CSV:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

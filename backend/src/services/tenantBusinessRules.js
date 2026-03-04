@@ -223,12 +223,7 @@ export async function getBusinessHoursForTenant(tenantId) {
     throw new Error('TENANT_ID_REQUIRED');
   }
 
-  // Frozen tenant
-  if (isFrozenTenant(tenantId)) {
-    return normalizeBusinessHours(FROZEN_HOURS);
-  }
-
-  // Try business_hours table first
+  // Try business_hours table first (even for frozen tenants — allows dynamic updates)
   try {
     const { data: businessHours, error } = await rawSupabase
       .from('business_hours')
@@ -245,6 +240,11 @@ export async function getBusinessHoursForTenant(tenantId) {
     }
   } catch (err) {
     logger.warn(`BUSINESS_RULES Error loading business_hours: ${err.message}`);
+  }
+
+  // Frozen tenant fallback: use hardcoded rules if no DB data
+  if (isFrozenTenant(tenantId)) {
+    return normalizeBusinessHours(FROZEN_HOURS);
   }
 
   // Fallback to config

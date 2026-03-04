@@ -206,6 +206,7 @@ router.put('/', authenticateAdmin, async (req, res) => {
         continue;
       }
 
+      // Try update first
       const { data, error } = await supabase
         .from('parametres')
         .update({
@@ -217,19 +218,40 @@ router.put('/', authenticateAdmin, async (req, res) => {
         .select()
         .single();
 
-      if (!error && data) {
-        updates.push(data);
+      let saved = data;
+
+      // If update returned nothing (row doesn't exist), insert
+      if (!data && (!error || error.code === 'PGRST116')) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('parametres')
+          .insert({
+            tenant_id: tenantId,
+            cle: param.cle,
+            valeur: param.valeur,
+            categorie: param.categorie || 'autres',
+            description: param.description || ''
+          })
+          .select()
+          .single();
+
+        if (!insertError && inserted) {
+          saved = inserted;
+        }
+      }
+
+      if (saved) {
+        updates.push(saved);
 
         // Logger l'action (🔒 TENANT ISOLATION)
         await supabase.from('historique_admin').insert({
           tenant_id: tenantId,
           admin_id: req.admin.id,
-          action: 'update',
+          action: data ? 'update' : 'create',
           entite: 'parametre',
-          entite_id: data.id,
+          entite_id: saved.id,
           details: {
             cle: param.cle,
-            ancienne_valeur: data.valeur,
+            ancienne_valeur: data?.valeur || null,
             nouvelle_valeur: param.valeur
           }
         });

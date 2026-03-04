@@ -1,7 +1,7 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-03 09:00 UTC
+> Derniere mise a jour: 2026-03-04 12:00 UTC
 
 **Score technique: 100/100**
 **Phase en cours: SENTINEL + Super-Admin UI → 100% fonctionnel**
@@ -224,7 +224,355 @@ Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
 
 ---
 
+## ROADMAP COMMERCIALISATION — Fondamentaux SaaS B2B
+
+Audit complet (2026-03-03) : croisement inventaire NEXUS vs standards Stripe/Shopify/HubSpot/Fresha/Gusto.
+NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur les **fondamentaux SaaS B2B**.
+
+### Sprint 1 — Securite & Equipe [TERMINE]
+- [x] 1.1 2FA/MFA TOTP pour admins (crypto natif + QR code + backup codes) — migration 055, totpService.js, 6 endpoints, Login.tsx + Parametres.tsx
+- [x] 1.2 Audit log generique — middleware auditLog.js (auto-log POST/PUT/PATCH/DELETE), route GET /admin/audit-logs, page AuditLog.tsx
+- [x] 1.3 Invitation equipe par email — migration 056, adminInvitations.js (5 endpoints), AcceptInvite.tsx, section Equipe dans Parametres.tsx
+- [x] 1.4 RBAC granulaire — middleware rbac.js (18 modules × 3 roles × 3 permissions), rbacMiddleware() auto-deduit module depuis URL, GET /admin/auth/permissions
+- [x] 1.5 Dunning Stripe — migration 057 (billing_events + payment_failures_count), escalade emails (1er/2e/3e echec), suspension auto apres 3 echecs, reactivation auto sur paiement reussi
+- [x] 1.6 Session management — migration 058 (admin_sessions), creation session au login, validation dans authenticateAdmin, GET/DELETE /admin/auth/sessions, revokeAll, section Sessions dans Parametres.tsx
+
+### Sprint 2 — Communication & Operations [TERMINE]
+- [x] 2.1 Status page — endpoint GET /api/status (services: DB, API, Auth, Stripe, Twilio, Email)
+- [ ] 2.2 i18n FR + EN (react-i18next — DIFFERE, gros chantier non-critique)
+- [x] 2.3 Notifications in-app — migration 059 (notifications_inbox), inboxService.js, adminNotifications.js (3 endpoints), dropdown live dans AppLayout avec badge non-lu
+- [x] 2.4 Email deliverability — headers List-Unsubscribe/List-Unsubscribe-Post, tags Resend, X-Mailer
+
+### Sprint 3 — Data & Developer Experience [TERMINE]
+- [x] 3.1 Import CSV clients — POST /admin/clients/import (multer 5MB, auto-detect separateur, mapping FR/EN, dedup email, rapport detaille), clientsApi.importCSV
+- [x] 3.2 Webhook retry + dead letter — migration 060, consecutive_failures tracking, auto-desactivation apres 10 echecs, backoff exponentiel existant (5 paliers)
+- [x] 3.3 Rate limiting transparent — deja active (express-rate-limit v7.5 + standardHeaders:true → RateLimit-* headers)
+- [x] 3.4 Proration upgrade/downgrade — deja actif (proration_behavior: 'create_prorations' dans stripeBillingService.js)
+- [x] 3.5 Upload fichiers generique — migration 061 (documents table), adminDocuments.js (upload/list/get/delete/quota), Supabase Storage bucket 'documents', quota check via requireStorageQuota, documentsApi frontend
+- [x] 3.6 Revenue analytics operateur — GET /api/nexus/billing enrichi (MRR, ARR, Churn Rate, LTV, ARPU, actual revenue, churned count)
+
+### Sprint 4 — Croissance [TERMINE]
+- [x] 4.1 SSO (SAML/OIDC) — migration 063 (sso_providers), ssoService.js (OIDC auth code flow, auto-provisioning, domain restriction), adminSSO.js (5 endpoints), ssoApi frontend
+- [x] 4.2 API versioning — middleware versioning sur /api/v1 (X-API-Version header, date-based versions), api-public.js deja sous /api/v1
+- [x] 4.3 Programme parrainage — migration 062 (referrals + referral_code sur tenants), referralService.js (code generation, apply, reward, stats), adminReferrals.js (4 endpoints), integration signup.js, referralsApi frontend
+- [x] 4.4 Usage-based billing — deja implemente (usageTrackingService.js complet: track SMS/WhatsApp/email/IA/telephone, calculateOverageCost, quotaManager sync, usage.js route 4 endpoints)
+
+### Sprint 5 — Horaires dynamiques [TERMINE]
+- [x] 5.1 Migration 064_business_hours.sql — table business_hours (tenant_id, day_of_week, open_time, close_time, is_closed) + seed fatshairafro
+- [x] 5.2 tenantBusinessRules.js — DB first meme pour frozen tenants, fallback hardcode si pas de data
+- [x] 5.3 bookingValidator.js — parametre businessHours optionnel sur validateBeforeCreate() et getAvailableSlots()
+- [x] 5.4 nexusCore.js — checkAvailabilityUnified() et getAvailableSlotsUnified() chargent horaires dynamiques
+- [x] 5.5 adminDisponibilites.js — GET/PUT /horaires utilise business_hours au lieu de horaires_hebdo
+- [x] 5.6 Page admin Disponibilites — horaires hebdomadaires (toggle/heures) + conges (CRUD)
+- [x] 5.7 Sidebar + App.tsx — menu item + route /disponibilites
+
+### Migration DB requise
+- [x] 055_2fa_totp.sql — executee (4 colonnes admin_users : totp_secret, totp_enabled, totp_backup_codes, totp_verified_at)
+- [x] 056_invitations.sql — executee (table invitations)
+- [x] 057_billing_events_dunning.sql — executee (table billing_events + payment_failures_count sur tenants)
+- [x] 058_admin_sessions.sql — executee (table admin_sessions)
+- [x] 059_notifications_inbox.sql — executee (table notifications_inbox)
+- [x] 060_webhook_dead_letter.sql — en attente (depend de migration 054 webhooks, table pas encore creee en DB)
+- [x] 061_documents.sql — executee (table documents pour upload generique)
+- [x] 062_referrals.sql — executee (table referrals + colonnes sur tenants)
+- [x] 063_sso_providers.sql — executee (table sso_providers SAML/OIDC)
+- [x] 064_business_hours.sql — executee (table business_hours + seed fatshairafro)
+
+---
+
+## TESTS MANUELS (a executer une fois tous les sprints boucles)
+
+### Sprint 1.1 — 2FA/MFA TOTP
+- [ ] Parametres > Securite > Configurer 2FA → QR code affiche
+- [ ] Scanner avec Google Authenticator → entrer code → "Active"
+- [ ] Se deconnecter → Login → mot de passe OK → ecran code 2FA → entrer code → dashboard
+- [ ] Parametres > Desactiver 2FA → saisir mot de passe → desactive
+- [ ] Login sans 2FA → direct au dashboard (pas de step 2FA)
+- [ ] Test backup code : utiliser un backup code au lieu du code TOTP → connexion OK + code consomme
+
+### Sprint 1.2 — Audit Log
+- [ ] Creer/modifier/supprimer un client → verifier entree dans audit_logs
+- [ ] Page admin audit log → filtrage par action/entite/date
+
+### Sprint 1.3 — Invitation Equipe
+- [ ] Envoyer une invitation → email recu avec lien
+- [ ] Cliquer le lien → formulaire creation compte → acces admin
+- [ ] Lien expire apres 72h → message erreur
+
+### Sprint 1.4 — RBAC
+- [ ] Creer user avec role "viewer" → ne peut pas modifier (POST renvoie 403)
+- [ ] Role "manager" → peut modifier clients mais pas supprimer equipe
+- [ ] Role "admin" → acces complet a tous les modules
+- [ ] GET /admin/auth/permissions → matrice correcte pour chaque role
+
+### Sprint 1.5 — Dunning Stripe
+- [ ] Simuler webhook invoice.payment_failed → email 1er echec envoye
+- [ ] 2e echec → email escalade envoye, subscription_status = past_due
+- [ ] 3e echec → email suspension, statut = suspendu, acces bloque (checkPlan)
+- [ ] Paiement reussi apres echecs → payment_failures_count reset, statut reactif
+
+### Sprint 1.6 — Session Management
+- [ ] Login → session creee en DB (admin_sessions)
+- [ ] GET /admin/auth/sessions → liste sessions avec session courante marquee
+- [ ] Revoquer une session → deconnexion forcee (401 sur prochaine requete)
+- [ ] "Tout deconnecter" → toutes les sessions sauf courante revoquees
+- [ ] Parametres > Securite → section sessions visible avec UI
+
+### Sprint 2.1 — Status page
+- [ ] GET /api/status → JSON avec status services (DB, API, Stripe, Twilio, Email)
+- [ ] Configurer Better Stack ou UptimeRobot pour monitorer /api/status
+
+### Sprint 2.3 — Notifications in-app
+- [ ] Dropdown notifications dans header → affiche les notifications reelles
+- [ ] Badge non-lu avec compteur
+- [ ] "Tout marquer lu" fonctionne
+- [ ] Cliquer sur notification avec lien → navigation
+
+### Sprint 3.6 — Revenue Analytics
+- [ ] GET /api/nexus/billing → MRR, ARR, churn rate, LTV, ARPU corrects
+
+### Sprint 3.1 — Import CSV
+- [ ] POST /admin/clients/import avec fichier CSV → rapport import (imported/skipped/errors)
+- [ ] Deduplication par email fonctionne
+- [ ] Mapping colonnes FR/EN (nom/name, email, telephone/phone)
+
+### Sprint 3.5 — Upload fichiers
+- [ ] POST /admin/documents/upload avec fichier → 201 + metadata
+- [ ] GET /admin/documents → liste paginee
+- [ ] GET /admin/documents/:id → URL signee Supabase Storage
+- [ ] DELETE /admin/documents/:id → supprime fichier + DB
+- [ ] GET /admin/documents/quota → quota stockage correct par plan
+- [ ] Upload fichier > 10MB → erreur 400
+- [ ] Upload type non supporte → erreur 400
+
+### Sprint 4.1 — SSO
+- [ ] POST /admin/sso/providers → configure provider OIDC
+- [ ] GET /admin/sso/providers → liste providers
+- [ ] POST /admin/sso/oidc/initiate → retourne authorization_url
+- [ ] Flow OIDC complet avec un IdP reel (Google Workspace, Azure AD, ou Okta)
+- [ ] Auto-provisioning: nouveau user SSO → compte admin cree automatiquement
+- [ ] Domain restriction: email hors domaine → rejet
+
+### Sprint 4.3 — Parrainage
+- [ ] POST /admin/referrals → genere code NXS-XXXXXXXX
+- [ ] GET /admin/referrals/code → retourne le code du tenant
+- [ ] Signup avec referral_code → referral marque completed
+- [ ] GET /admin/referrals/stats → statistiques correctes
+
+---
+
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-04 — Session 15 : Sprint 3-4 completion (8 items)
+
+**Sprint 3.1 — Import CSV :**
+- Backend POST /admin/clients/import valide (multer 5MB, mapping FR/EN, dedup email)
+- clientsApi.importCSV dans api.ts
+
+**Sprint 3.4 — Proration Stripe :**
+- Deja actif (proration_behavior: 'create_prorations' dans stripeBillingService.js)
+
+**Sprint 3.5 — Upload fichiers generique :**
+- Migration 061 (documents table avec metadata, categories, entity linking)
+- adminDocuments.js : 5 endpoints (upload, list, get URL signee, delete, quota)
+- Supabase Storage bucket 'documents' + quota check via requireStorageQuota
+- documentsApi dans api.ts + ApiClient.getToken() ajoute
+
+**Sprint 4.1 — SSO (SAML/OIDC) :**
+- Migration 063 (sso_providers table SAML + OIDC)
+- ssoService.js : config CRUD, OIDC authorization code flow, auto-provisioning, domain restriction
+- adminSSO.js : 5 endpoints (providers CRUD + OIDC initiate/callback)
+- ssoApi dans api.ts
+
+**Sprint 4.2 — API versioning :**
+- Middleware inline sur /api/v1 : X-API-Version header, date-based versioning (2026-03-03)
+
+**Sprint 4.3 — Programme parrainage :**
+- Migration 062 (referrals table + referral_code/referred_by sur tenants)
+- referralService.js : code generation, apply, reward, stats, list
+- adminReferrals.js : 4 endpoints (list, create, stats, code)
+- Integration signup.js : applyReferralCode apres creation tenant
+- referralsApi dans api.ts
+
+**Sprint 4.4 — Usage-based billing :**
+- Deja implemente (usageTrackingService.js complet + usage.js route)
+
+- Verifications : node --check OK, tsc OK, lint:tenant 0 violation, 310 tests OK
+- Migrations 061-063 executees sur DB
+- Sprint 3 et 4 TERMINES
+
+### 2026-03-03 — Session 14 : Sprint 1-3 implementation (14 items)
+
+**Sprint 1.4 — RBAC granulaire :**
+- `middleware/rbac.js` : matrice permissions 18 modules × 3 roles (admin/manager/viewer) × 3 permissions (read/write/delete)
+- `rbacMiddleware()` : auto-deduit module depuis URL path, monte dans index.js apres auditLogMiddleware
+- `GET /admin/auth/permissions` : endpoint pour frontend
+- super_admin et owner : acces total
+
+**Sprint 1.5 — Dunning Stripe :**
+- Migration 057 : `billing_events` table + `payment_failures_count`/`last_payment_failed_at` sur tenants
+- `handleInvoicePaymentFailed()` : compteur echecs, escalade emails (1er: standard, 2e: warning, 3e: suspension)
+- `handleInvoicePaid()` : reset compteur, reactivation si suspendu
+- 3 templates email : `templatePaymentFailedEscalation`, `templateAccountSuspended`, `sendDunningEmail`
+- `checkPlan.js` existant bloque deja `statut='suspendu'` → integration complete
+
+**Sprint 1.6 — Session management :**
+- Migration 058 : `admin_sessions` table (token_hash, ip, user_agent, device_info, expires_at, revoked_at)
+- `sessionService.js` : createSession, validateSession, listSessions, revokeSession, revokeAllSessions
+- `authenticateAdmin` : verifie session active (non revoquee, non expiree)
+- 3 endpoints : GET /sessions, DELETE /sessions/:id, POST /sessions/revoke-all
+- `SessionsSection` dans Parametres.tsx : liste sessions, badge "Session actuelle", revocation individuelle/globale
+
+**Sprint 2.1 — Status page :**
+- Endpoint GET /api/status (DB, API, Auth, Stripe, Twilio, Email) avec latence DB
+
+**Sprint 2.3 — Notifications in-app :**
+- Migration 059 : `notifications_inbox` table
+- `inboxService.js` : createNotification, notifyAllAdmins
+- `adminNotifications.js` : GET / (list paginé), PATCH /:id/read, PATCH /read-all
+- AppLayout.tsx : dropdown notifications live (useQuery 30s), badge non-lu avec compteur, mark read/all
+
+**Sprint 2.4 — Email deliverability :**
+- emailService.js : headers List-Unsubscribe, List-Unsubscribe-Post, tags Resend
+
+**Sprint 3.2 — Webhook retry :**
+- Migration 060 : consecutive_failures sur webhooks
+- webhookService.js : tracking echecs consecutifs, auto-desactivation apres 10 echecs
+
+**Sprint 3.3 — Rate limiting :**
+- Deja actif (express-rate-limit v7.5 + standardHeaders:true)
+
+**Sprint 3.6 — Revenue analytics :**
+- GET /api/nexus/billing enrichi : MRR, ARR, Churn Rate, LTV, ARPU, actual revenue, churned count
+
+- Verifications : node --check OK, tsc OK, lint:tenant 0 violation, 310 tests OK
+- Migrations 055-060 (057-059 executees sur DB, 060 en attente de 054)
+
+---
+
+### 2026-03-03 — Session 13 : Fix 5 problemes communication inter-modules
+
+**Probleme:** Audit inter-modules a revele 5 bugs critiques : messaging workflow simule, pas de notification creation RDV, segments CRM orphelins, mapping champs Stripe fragile, actions differees jamais executees.
+
+**1. Workflow Engine — messaging reel :**
+- **Nouveau** `smsService.js` : wrapper Twilio SMS (formatage +33, Messaging Service, fallback simule si non configure)
+- `workflowEngine.js` : fix import WhatsApp (`sendWhatsApp` → `sendWhatsAppNotification`), `tenant_id` passe a `sendSMS()` et `sendWhatsApp()`
+
+**2. Notification creation RDV :**
+- `adminReservations.js` : ajout `triggerWorkflows('rdv_created')` non bloquant apres creation reussie
+- `adminWorkflows.js` : ajout trigger `rdv_created` + template `confirmation_sms`
+
+**3. Segments CRM → Workflows :**
+- `workflowEngine.js` : nouvelle action `send_to_segment` (query `segment_clients` + envoi par canal)
+- `adminWorkflows.js` : ajout `send_to_segment` dans ACTION_TYPES
+
+**4. Stripe → Modules mapping :**
+- `stripeBillingService.js` : ajout cles `agent_ia_whatsapp` + `agent_ia_telephone` dans pro/business, ecriture `options_canaux_actifs` dans `handleSubscriptionUpdate()`
+- `moduleProtection.js` : fallback `extractCanauxFromPlan()` remplace `tenant.modules_actifs` (qui avait `whatsapp` au lieu de `agent_ia_whatsapp`)
+
+**5. Actions differees :**
+- `workflowEngine.js` : `scheduleDelayedAction()` stocke maintenant `entity` dans `resultat`, nouvelle fonction `processScheduledActions()` exportee
+- `scheduler.js` : import dynamique + appel `processScheduledActions()` chaque minute
+
+**Fichiers:** 1 nouveau (`smsService.js`), 6 modifies
+**Verifications:** `node --check` 7/7 OK, `lint:tenant` 0 violation, `npm test` 310 passes
+
+---
+
+### 2026-03-03 — Session 12 : Fix Subscription + Parametres (pages admin-ui)
+
+**Probleme:** Subscription.tsx ~85% fonctionnel (statut hardcode, pas d'error handling, pas de date prochain paiement, toggle annuel absent). Parametres.tsx 1/5 sections fonctionnelles (Profil), 4 sections desactivees "bientot disponible" alors que les backends existaient.
+
+**PARTIE 1 — Subscription.tsx :**
+- Query `GET /billing/subscription` avec interface `SubscriptionData`
+- Error handling: `useState<string|null>` + `onError` sur portalMutation/deleteCardMutation + banniere rouge dismissable
+- Statut dynamique: STATUS_MAP (active→Actif/vert, trialing→Essai/bleu, past_due→En retard/rouge, canceled→Annule/gris)
+- Date prochain paiement: `current_period_end` dans sidebar + banniere jaune si `cancel_at_period_end`
+- Toggle mensuel/annuel dans header "Changer de plan" avec badge "-20%"
+- Email support: `support@nexus.app` → `support@nexus-saas.com`
+
+**PARTIE 2 — Parametres.tsx (5 sections) :**
+- ProfileSubSection: ajout `onSuccess`/`onError` avec FeedbackBanner vert/rouge
+- NotificationsSubSection: connecte au backend `GET/PUT /admin/parametres` (cles `notif_*`, categorie `notifications`), toggles fonctionnels, supprime "bientot disponible" + `opacity-50`
+- SecuritySubSection: formulaire mot de passe connecte a `POST /admin/auth/change-password` + validation client via `GET /admin/auth/password-policy` — 2FA reste desactive (backend non implemente)
+- BrandingSubSection: color picker connecte a `PATCH /api/tenants/me/branding`, gate Business plan (banniere + disabled si pas Business) — logo upload reste desactive (pas d'infra upload)
+- ApiSubSection: CRUD complet API keys + webhooks, gate Business plan (`if (!isBusiness)`)
+
+**PARTIE 3 — Backend :**
+- `adminAuth.js:171` : ajout 4e param `req.admin.tenant_id` a `changePassword()` (bug fix)
+- `adminParametres.js` : ajout insert fallback si update retourne 0 rows (upsert pour nouvelles cles notif)
+- **Nouveau** `adminApiKeys.js` (~200 lignes) : CRUD API keys + webhooks avec `authenticateAdmin` + tenant isolation
+  - `GET/POST/DELETE /api/admin/api-keys`
+  - `GET/POST/DELETE /api/admin/webhooks`
+- **Nouveau** `054_api_keys_webhooks.sql` : tables api_keys, api_logs, webhooks, webhook_logs + RLS + index
+- `index.js` : monte `adminApiKeysRoutes` sur `/api/admin`
+
+**Gates plan respectes :**
+- API & Webhooks: Business only (frontend + backend)
+- Branding: Business only (frontend gate + backend `requirePlan('business')`)
+- Notifications: tous plans (preferences email)
+- Securite: tous plans (fondamental)
+
+**Ce qui reste desactive :**
+- 2FA (backend non implemente)
+- Logo upload (pas d'infra S3/storage)
+
+- Verifications: tsc 0 erreur, vite build OK, lint:tenant 0 violation
+
+---
+
+### 2026-03-03 — Session 11 : Audit Sentinel Home — Suppression KPIs fabriques
+
+**Probleme:** La page Home (Sentinel) affichait des KPIs entierement inventes cote client (score_automatisation, ROI, marge_generee, gains) et le backend `/admin/stats/automation` utilisait `Math.random()` pour generer des fausses automations.
+
+**Backend — adminStats.js (`/admin/stats/automation`):**
+- Supprime tableau `automations` avec `Math.random()` (faux noms, faux temps, faux resultats)
+- Remplace par vraies requetes: `workflows` (actifs + executions_count), `notification_deliveries` (emails/sms/whatsapp), `admin_tasks` (completees)
+- Nouveau format reponse: `{ workflows: {actifs, executions_mois, liste}, notifications: {emails_mois, sms_mois, whatsapp_mois, total_mois}, taches: {completees_mois} }`
+
+**Frontend — Home.tsx:**
+- Interface `SentinelStats` simplifiee: supprime `cout_activite`, `marge_generee`, `roi_auto`, `roi_mois_precedent`, `roi_secteur`, `roi_projection_fin_mois`, `optimisations`
+- Interface `BusinessKPIs` supprimee entierement (score_automatisation, gains, taches_auto_jour — tout invente)
+- `fetchSentinelActivity()` reecrit: 4 appels legers par refresh + 2 appels IA (SEO/churn) seulement au premier chargement
+- Barre KPI: "Automatisation %" → CA mois, "Gains generes" → Resultat net, "vs Employe" → Workflows, "Taches" → Notifs
+- Panel Sentinel expande: "Cout activite" → Depenses, "Marge generee" → Marge nette %, "ROI Auto" (+ tooltip comparaisons fictives) → Executions workflows, Anomalies inchange
+- Supprime bloc "Conseils amelioration" avec `optimisations.augmenter_prix`/`supprimer_canal`
+- Welcome screen: SVG circulaire `score_automatisation` → icone Bot, cartes gains fictives → CA mois + Workflows + Clients a risque (reels)
+- `getDynamicWelcome()` reecrit: utilise `sentinelStats.workflows_actifs` au lieu de `businessKPIs`
+- Imports nettoyes: supprime Phone, PiggyBank, TrendingDown, Rocket, Mail
+
+- Verifications: tsc 0 erreur, vite build OK, 310 tests OK
+
+---
+
+### 2026-03-03 — Session 10 : Refactoring complet Chat Admin (105 outils, 0 crash)
+
+**Probleme:** 156 outils declares, 47 implementes, 109 crashent, 15 ont des noms de tables errones.
+
+**Phase 0 — Refactoring architecture:**
+- `adminChatService.js` executeTool (1900 lignes switch) → 20 handlers modulaires + dispatcher O(1)
+- Nouveau dossier `src/tools/handlers/` (22 fichiers)
+- `adminChatService.js` passe de 2424 → 539 lignes
+
+**Phase 1 — Nettoyage 51 outils irrealistes:**
+- 5 categories supprimees de toolsRegistry.js: Computer Use, Sandbox, Environnements, Fichiers, GDrive
+- 156 → 105 outils declares
+
+**Phase 2-3 — Fix tables + Migration 053:**
+- RH: equipe→rh_membres, pointages→rh_pointage, absences→rh_absences
+- Marketing: posts_marketing→social_posts (colonnes platform/content/status)
+- Migration 053: tables campagnes_relance + depenses, colonnes rh_absences + rh_membres
+
+**Phase 4 — 58 outils implementes:**
+- 20 handlers: stats, date, rdv, client, service, compta, marketing, commercial, rh, analytics, agenda, memoire, planification, seo, strategie, social, agent, recherche, contenu, pro
+- Claude Haiku pour generation contenu (88% moins cher que Sonnet)
+
+**Phase 5 — Differenciation plans:**
+- Starter (99€): 64 outils — Client, Gestion, Marketing, Commercial, Compta, Contenu, Memoire, Planification, Agenda
+- Pro (249€): 76 outils — +SEO, Social, RH base (4), Analytics KPI
+- Business (499€): 105 outils — +Strategie, Analytics avance, RH complet, Agent IA, Recherche web, Pro Tools
+
+- Verifications: lint:tenant OK, 310 tests OK, syntax OK
 
 ### 2026-03-03 — Session 9 : Audit & fix complet des 19 pages admin-ui
 

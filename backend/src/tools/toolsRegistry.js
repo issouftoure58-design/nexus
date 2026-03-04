@@ -886,611 +886,29 @@ const TOOLS_ADMIN_PLANIFICATION = [
 ];
 
 // ============================================
-// OUTILS ADMIN - Computer Use (Navigateur)
+// CATÉGORIE SUPPRIMÉE: COMPUTER_USE (10 outils)
+// Raison: Pas de browser server-side
 // ============================================
 
-const TOOLS_ADMIN_COMPUTER_USE = [
-  {
-    name: "ouvrir_navigateur",
-    description: "Lance le navigateur contrôlé.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "fermer_navigateur",
-    description: "Ferme le navigateur.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "ouvrir_page",
-    description: "Ouvre une URL et prend un screenshot.",
-    input_schema: {
-      type: "object",
-      properties: {
-        url: { type: "string" }
-      },
-      required: ["url"]
-    }
-  },
-  {
-    name: "prendre_screenshot",
-    description: "Capture l'écran actuel.",
-    input_schema: {
-      type: "object",
-      properties: {
-        name: { type: "string" }
-      },
-      required: []
-    }
-  },
-  {
-    name: "connecter_instagram",
-    description: "Se connecte à Instagram.",
-    input_schema: {
-      type: "object",
-      properties: {
-        username: { type: "string" },
-        password: { type: "string" }
-      },
-      required: ["username", "password"]
-    }
-  },
-  {
-    name: "publier_instagram_direct",
-    description: "Publie directement sur Instagram.",
-    input_schema: {
-      type: "object",
-      properties: {
-        imagePath: { type: "string" },
-        caption: { type: "string" },
-        hashtags: { type: "array", items: { type: "string" } }
-      },
-      required: ["imagePath", "caption"]
-    }
-  },
-  {
-    name: "connecter_facebook",
-    description: "Se connecte à Facebook.",
-    input_schema: {
-      type: "object",
-      properties: {
-        email: { type: "string" },
-        password: { type: "string" }
-      },
-      required: ["email", "password"]
-    }
-  },
-  {
-    name: "publier_facebook_direct",
-    description: "Publie directement sur Facebook.",
-    input_schema: {
-      type: "object",
-      properties: {
-        pageUrl: { type: "string" },
-        content: { type: "string" },
-        imagePath: { type: "string" }
-      },
-      required: ["content"]
-    }
-  },
-  {
-    name: "connecter_tiktok",
-    description: "Se connecte à TikTok.",
-    input_schema: {
-      type: "object",
-      properties: {
-        username: { type: "string" },
-        password: { type: "string" }
-      },
-      required: ["username", "password"]
-    }
-  },
-  {
-    name: "publier_tiktok_direct",
-    description: "Publie directement sur TikTok.",
-    input_schema: {
-      type: "object",
-      properties: {
-        videoPath: { type: "string" },
-        caption: { type: "string" },
-        hashtags: { type: "array", items: { type: "string" } }
-      },
-      required: ["videoPath", "caption"]
-    }
-  }
-];
-
 // ============================================
-// OUTILS ADMIN - Sandbox (Test)
+// CATÉGORIE SUPPRIMÉE: SANDBOX (12 outils)
+// Raison: Système de simulation non construit
 // ============================================
 
-const TOOLS_ADMIN_SANDBOX = [
-  {
-    name: "definir_mode_sandbox",
-    description: "Change le mode sandbox (simulation, validation, production).",
-    input_schema: {
-      type: "object",
-      properties: {
-        mode: { type: "string", enum: ["simulation", "validation", "production"] }
-      },
-      required: ["mode"]
-    }
-  },
-  {
-    name: "voir_mode_sandbox",
-    description: "Affiche le mode sandbox actuel.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "simuler_post",
-    description: "Simule un post sans le publier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        platform: { type: "string", enum: ["instagram", "facebook", "tiktok"] },
-        caption: { type: "string" },
-        hashtags: { type: "array", items: { type: "string" } },
-        imagePath: { type: "string" },
-        videoPath: { type: "string" }
-      },
-      required: ["platform", "caption"]
-    }
-  },
-  {
-    name: "analyser_contenu",
-    description: "Analyse la qualité d'un contenu avec score.",
-    input_schema: {
-      type: "object",
-      properties: {
-        content: { type: "string" },
-        hashtags: { type: "array", items: { type: "string" } },
-        hasMedia: { type: "boolean" },
-        platform: { type: "string" }
-      },
-      required: ["content", "platform"]
-    }
-  },
-  {
-    name: "valider_post",
-    description: "Approuve ou rejette un post en attente.",
-    input_schema: {
-      type: "object",
-      properties: {
-        postId: { type: "string" },
-        approved: { type: "boolean" },
-        feedback: { type: "string" }
-      },
-      required: ["postId", "approved"]
-    }
-  },
-  {
-    name: "voir_posts_en_attente",
-    description: "Liste les posts en attente de validation.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "voir_posts_simules",
-    description: "Liste tous les posts simulés.",
-    input_schema: {
-      type: "object",
-      properties: {
-        platform: { type: "string" },
-        status: { type: "string" },
-        limit: { type: "integer" }
-      },
-      required: []
-    }
-  },
-  {
-    name: "voir_post_simule",
-    description: "Affiche les détails d'un post simulé.",
-    input_schema: {
-      type: "object",
-      properties: {
-        postId: { type: "string" }
-      },
-      required: ["postId"]
-    }
-  },
-  {
-    name: "supprimer_post_simule",
-    description: "Supprime un post simulé.",
-    input_schema: {
-      type: "object",
-      properties: {
-        postId: { type: "string" }
-      },
-      required: ["postId"]
-    }
-  },
-  {
-    name: "executer_post_approuve",
-    description: "Publie un post qui a été approuvé.",
-    input_schema: {
-      type: "object",
-      properties: {
-        postId: { type: "string" }
-      },
-      required: ["postId"]
-    }
-  },
-  {
-    name: "stats_sandbox",
-    description: "Statistiques du sandbox.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "nettoyer_sandbox",
-    description: "Supprime les anciens fichiers du sandbox.",
-    input_schema: {
-      type: "object",
-      properties: {
-        olderThanDays: { type: "integer" }
-      },
-      required: []
-    }
-  }
-];
-
 // ============================================
-// OUTILS ADMIN - Environnements
+// CATÉGORIE SUPPRIMÉE: ENVIRONNEMENTS (10 outils)
+// Raison: Concept non applicable aux tenants SaaS
 // ============================================
 
-const TOOLS_ADMIN_ENVIRONNEMENTS = [
-  {
-    name: "voir_environnement",
-    description: "Affiche l'environnement actuel et sa configuration.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "lister_environnements",
-    description: "Liste tous les environnements disponibles.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "changer_environnement",
-    description: "Change d'environnement.",
-    input_schema: {
-      type: "object",
-      properties: {
-        environnement: { type: "string", enum: ["development", "staging", "production"] }
-      },
-      required: ["environnement"]
-    }
-  },
-  {
-    name: "verifier_action",
-    description: "Vérifie si une action est autorisée dans l'environnement actuel.",
-    input_schema: {
-      type: "object",
-      properties: {
-        action: { type: "string" }
-      },
-      required: ["action"]
-    }
-  },
-  {
-    name: "verifier_feature",
-    description: "Vérifie si une feature est activée.",
-    input_schema: {
-      type: "object",
-      properties: {
-        feature: { type: "string" }
-      },
-      required: ["feature"]
-    }
-  },
-  {
-    name: "obtenir_donnees_env",
-    description: "Récupère des données selon l'environnement.",
-    input_schema: {
-      type: "object",
-      properties: {
-        type: { type: "string", enum: ["stats", "clients", "rdv"] }
-      },
-      required: ["type"]
-    }
-  },
-  {
-    name: "comparer_environnements",
-    description: "Compare deux environnements.",
-    input_schema: {
-      type: "object",
-      properties: {
-        env1: { type: "string" },
-        env2: { type: "string" }
-      },
-      required: ["env1", "env2"]
-    }
-  },
-  {
-    name: "passer_en_dev",
-    description: "Passe en mode développement.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "passer_en_staging",
-    description: "Passe en mode staging.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "passer_en_production",
-    description: "Passe en mode production (confirmation requise).",
-    input_schema: {
-      type: "object",
-      properties: {
-        confirmation: { type: "string", description: "Doit être 'JE CONFIRME'" }
-      },
-      required: ["confirmation"]
-    }
-  }
-];
-
 // ============================================
-// OUTILS ADMIN - Fichiers & Google Drive
+// CATÉGORIE SUPPRIMÉE: FICHIERS (9 outils)
+// Raison: Dangereux en multi-tenant
 // ============================================
 
-const TOOLS_ADMIN_FICHIERS = [
-  {
-    name: "file_list",
-    description: "Liste les fichiers dans un répertoire du workspace.",
-    input_schema: {
-      type: "object",
-      properties: {
-        directory: { type: "string", description: "Sous-dossier (documents, images, exports, imports, temp)" }
-      },
-      required: []
-    }
-  },
-  {
-    name: "file_read",
-    description: "Lit le contenu d'un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string", description: "Chemin relatif du fichier" }
-      },
-      required: ["filepath"]
-    }
-  },
-  {
-    name: "file_write",
-    description: "Écrit ou crée un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string" },
-        content: { type: "string" }
-      },
-      required: ["filepath", "content"]
-    }
-  },
-  {
-    name: "file_append",
-    description: "Ajoute du contenu à la fin d'un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string" },
-        content: { type: "string" }
-      },
-      required: ["filepath", "content"]
-    }
-  },
-  {
-    name: "file_delete",
-    description: "Supprime un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filepath: { type: "string" }
-      },
-      required: ["filepath"]
-    }
-  },
-  {
-    name: "file_search",
-    description: "Recherche dans les fichiers.",
-    input_schema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Terme à rechercher" },
-        directory: { type: "string" }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "file_copy",
-    description: "Copie un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        source: { type: "string" },
-        destination: { type: "string" }
-      },
-      required: ["source", "destination"]
-    }
-  },
-  {
-    name: "file_move",
-    description: "Déplace ou renomme un fichier.",
-    input_schema: {
-      type: "object",
-      properties: {
-        source: { type: "string" },
-        destination: { type: "string" }
-      },
-      required: ["source", "destination"]
-    }
-  },
-  {
-    name: "workspace_stats",
-    description: "Affiche les statistiques du workspace.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  }
-];
-
 // ============================================
-// OUTILS ADMIN - Google Drive
+// CATÉGORIE SUPPRIMÉE: GDRIVE (10 outils)
+// Raison: OAuth Google non implémenté
 // ============================================
-
-const TOOLS_ADMIN_GDRIVE = [
-  {
-    name: "gdrive_status",
-    description: "Vérifie si Google Drive est connecté.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: "gdrive_list",
-    description: "Liste les fichiers Google Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        folder_id: { type: "string" },
-        query: { type: "string" }
-      },
-      required: []
-    }
-  },
-  {
-    name: "gdrive_search",
-    description: "Recherche dans Google Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        query: { type: "string" }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "gdrive_read",
-    description: "Lit le contenu d'un fichier Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        file_id: { type: "string" }
-      },
-      required: ["file_id"]
-    }
-  },
-  {
-    name: "gdrive_create",
-    description: "Crée un fichier sur Google Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        content: { type: "string" },
-        folder_id: { type: "string" }
-      },
-      required: ["name", "content"]
-    }
-  },
-  {
-    name: "gdrive_update",
-    description: "Met à jour un fichier Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        file_id: { type: "string" },
-        content: { type: "string" }
-      },
-      required: ["file_id", "content"]
-    }
-  },
-  {
-    name: "gdrive_delete",
-    description: "Supprime un fichier Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        file_id: { type: "string" }
-      },
-      required: ["file_id"]
-    }
-  },
-  {
-    name: "gdrive_create_folder",
-    description: "Crée un dossier sur Google Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        parent_id: { type: "string" }
-      },
-      required: ["name"]
-    }
-  },
-  {
-    name: "gdrive_download",
-    description: "Télécharge un fichier Drive vers le serveur.",
-    input_schema: {
-      type: "object",
-      properties: {
-        file_id: { type: "string" },
-        local_dir: { type: "string" }
-      },
-      required: ["file_id"]
-    }
-  },
-  {
-    name: "gdrive_upload",
-    description: "Upload un fichier local vers Google Drive.",
-    input_schema: {
-      type: "object",
-      properties: {
-        local_path: { type: "string" },
-        folder_id: { type: "string" }
-      },
-      required: ["local_path"]
-    }
-  }
-];
 
 // ============================================
 // OUTILS ADMIN - Agent Autonome
@@ -2307,24 +1725,15 @@ export const TOOLS_ADMIN = [
   ...TOOLS_ADMIN_MEMOIRE,
   // Planification
   ...TOOLS_ADMIN_PLANIFICATION,
-  // Fichiers
-  ...TOOLS_ADMIN_FICHIERS,
-  // Google Drive
-  ...TOOLS_ADMIN_GDRIVE,
   // Agent autonome
   ...TOOLS_ADMIN_AGENT,
   // Recherche web
   ...TOOLS_ADMIN_RECHERCHE,
-  // Computer Use
-  ...TOOLS_ADMIN_COMPUTER_USE,
-  // Sandbox
-  ...TOOLS_ADMIN_SANDBOX,
-  // Environnements
-  ...TOOLS_ADMIN_ENVIRONNEMENTS,
   // PRO/BUSINESS - Capabilities avancées
   ...TOOLS_ADMIN_PRO,
   // Agenda personnel entrepreneur
   ...TOOLS_ADMIN_AGENDA
+  // SUPPRIMÉS: FICHIERS (9), GDRIVE (10), COMPUTER_USE (10), SANDBOX (12), ENVIRONNEMENTS (10)
 ];
 
 // ============================================
@@ -2337,10 +1746,14 @@ export const TOOLS_ADMIN = [
  * - Pro: TOUS les outils (accès complet)
  * - Business: TOUS les outils (accès complet)
  */
+// Sous-ensembles RH et Analytics pour le plan Pro
+const RH_BASE_TOOLS = ['rh_liste_equipe', 'rh_heures_mois', 'rh_absences', 'rh_stats'];
+const ANALYTICS_BASE_TOOLS = ['analytics_kpi'];
+
 export function getToolsForPlan(plan) {
   const basePlan = plan?.toLowerCase() || 'starter';
 
-  // Outils de base (Starter uniquement)
+  // Outils de base (Starter) — 64 outils
   const baseTools = [
     ...TOOLS_CLIENT,
     ...TOOLS_ADMIN_GESTION,
@@ -2350,18 +1763,29 @@ export function getToolsForPlan(plan) {
     ...TOOLS_ADMIN_CONTENU,
     ...TOOLS_ADMIN_MEMOIRE,
     ...TOOLS_ADMIN_PLANIFICATION,
-    ...TOOLS_ADMIN_FICHIERS,
     ...TOOLS_ADMIN_AGENDA
   ];
 
-  // Plan Starter: outils de base uniquement
+  // Plan Starter (99€): outils de base uniquement
   if (basePlan === 'starter') {
     return baseTools;
   }
 
-  // Plan Pro et Business: TOUS les outils (accès complet à l'assistant Pro)
-  // Inclut: SEO, Social, RH, GDrive, Agent, Recherche, Computer Use, Sandbox, Environnements
-  if (basePlan === 'pro' || basePlan === 'business' || basePlan === 'enterprise') {
+  // Plan Pro (249€): Starter + SEO, Social, RH base, Analytics KPI — 76 outils
+  if (basePlan === 'pro') {
+    return [
+      ...baseTools,
+      ...TOOLS_ADMIN_SEO,
+      ...TOOLS_ADMIN_SOCIAL,
+      ...TOOLS_ADMIN_RH.filter(t => RH_BASE_TOOLS.includes(t.name)),
+      ...TOOLS_ADMIN_ANALYTICS.filter(t => ANALYTICS_BASE_TOOLS.includes(t.name))
+    ];
+  }
+
+  // Plan Business/Enterprise (499€): TOUS les outils — 105 outils
+  // Inclut en plus du Pro: Stratégie, Analytics avancé, RH complet,
+  // Agent IA, Recherche web, Pro Tools
+  if (basePlan === 'business' || basePlan === 'enterprise') {
     return TOOLS_ADMIN;
   }
 
@@ -2402,13 +1826,8 @@ export function getToolsByCategory(category) {
     contenu: TOOLS_ADMIN_CONTENU,
     memoire: TOOLS_ADMIN_MEMOIRE,
     planification: TOOLS_ADMIN_PLANIFICATION,
-    fichiers: TOOLS_ADMIN_FICHIERS,
-    gdrive: TOOLS_ADMIN_GDRIVE,
     agent: TOOLS_ADMIN_AGENT,
     recherche: TOOLS_ADMIN_RECHERCHE,
-    computer_use: TOOLS_ADMIN_COMPUTER_USE,
-    sandbox: TOOLS_ADMIN_SANDBOX,
-    environnements: TOOLS_ADMIN_ENVIRONNEMENTS,
     agenda: TOOLS_ADMIN_AGENDA,
     admin: TOOLS_ADMIN
   };
@@ -2448,13 +1867,8 @@ export const TOOLS_STATS = {
   contenu: TOOLS_ADMIN_CONTENU.length,
   memoire: TOOLS_ADMIN_MEMOIRE.length,
   planification: TOOLS_ADMIN_PLANIFICATION.length,
-  fichiers: TOOLS_ADMIN_FICHIERS.length,
-  gdrive: TOOLS_ADMIN_GDRIVE.length,
   agent: TOOLS_ADMIN_AGENT.length,
   recherche: TOOLS_ADMIN_RECHERCHE.length,
-  computer_use: TOOLS_ADMIN_COMPUTER_USE.length,
-  sandbox: TOOLS_ADMIN_SANDBOX.length,
-  environnements: TOOLS_ADMIN_ENVIRONNEMENTS.length,
   agenda: TOOLS_ADMIN_AGENDA.length,
   admin_total: TOOLS_ADMIN.length
 };

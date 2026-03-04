@@ -119,7 +119,7 @@ function checkConsecutiveBusinessDaysAvailable(startDate, daysNeeded, existingBo
  * @param {Array} existingBookings - Reservations existantes pour conflit
  * @returns {{ valid: boolean, errors: string[], warnings: string[], service: Object }}
  */
-export async function validateBeforeCreate(bookingData, existingBookings = [], resolvedService = null) {
+export async function validateBeforeCreate(bookingData, existingBookings = [], resolvedService = null, businessHours = null) {
   const errors = [];
   const warnings = [];
 
@@ -147,8 +147,49 @@ export async function validateBeforeCreate(bookingData, existingBookings = [], r
   }
 
   // 3. Validation de base (horaires, jour)
-  const baseValidation = validateBooking(bookingData, service);
-  errors.push(...baseValidation.errors);
+  if (businessHours) {
+    // Dynamic validation using tenant-specific business hours
+    const bookingDate = new Date(bookingData.date + 'T12:00:00');
+    const dayOfWeek = bookingDate.getDay();
+
+    if (!businessHours.isOpen(dayOfWeek)) {
+      errors.push('Ferme ce jour-la');
+    } else if (bookingData.heure) {
+      const hours = businessHours.getHours(dayOfWeek);
+      const [openH, openM] = hours.open.split(':').map(Number);
+      const [closeH, closeM] = hours.close.split(':').map(Number);
+      const openMinutes = openH * 60 + (openM || 0);
+      const closeMinutes = closeH * 60 + (closeM || 0);
+
+      let startHour = 0, startMin = 0;
+      const heureStr = String(bookingData.heure);
+      if (heureStr.includes(':')) {
+        [startHour, startMin] = heureStr.split(':').map(Number);
+      } else if (heureStr.includes('h')) {
+        const parts = heureStr.split('h');
+        startHour = parseInt(parts[0]) || 0;
+        startMin = parseInt(parts[1]) || 0;
+      } else {
+        startHour = parseInt(heureStr) || 0;
+      }
+      const startMinutes = startHour * 60 + (startMin || 0);
+      const endMinutes = startMinutes + service.durationMinutes;
+
+      if (startMinutes < openMinutes) {
+        errors.push(`Ouverture a ${hours.open} ce jour-la`);
+      }
+      if (endMinutes > closeMinutes) {
+        errors.push(`Ce service de ${service.durationMinutes / 60}h ne peut pas finir apres ${hours.close}`);
+      }
+      if (service.blocksFullDay && startHour !== BOOKING_RULES.FULL_DAY_START_HOUR) {
+        errors.push(`Les ${service.name} necessitent de commencer a ${BOOKING_RULES.FULL_DAY_START_TIME}`);
+      }
+    }
+  } else {
+    // Fallback: hardcoded validation
+    const baseValidation = validateBooking(bookingData, service);
+    errors.push(...baseValidation.errors);
+  }
 
   // 4. Verifier si le service bloque la journee entiere
   if (service.blocksFullDay) {
@@ -258,19 +299,20 @@ export function calculateTotalPrice(service, distanceKm = 0) {
  * @param {Array} existingBookings - Reservations existantes
  * @returns {{ available: boolean, slots: string[], message: string }}
  */
-export function getAvailableSlots(date, service, existingBookings = []) {
+export function getAvailableSlots(date, service, existingBookings = [], businessHours = null) {
   const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+  const hoursSource = businessHours || BUSINESS_HOURS;
 
   // Verifier si ouvert
-  if (!BUSINESS_HOURS.isOpen(dayOfWeek)) {
+  if (!hoursSource.isOpen(dayOfWeek)) {
     return {
       available: false,
       slots: [],
-      message: 'Fermé ce jour-là (dimanche)'
+      message: 'Ferme ce jour-la'
     };
   }
 
-  const hours = BUSINESS_HOURS.getHours(dayOfWeek);
+  const hours = hoursSource.getHours(dayOfWeek);
   const [openH] = hours.open.split(':').map(Number);
   const [closeH] = hours.close.split(':').map(Number);
 

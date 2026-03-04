@@ -101,8 +101,9 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 ✅ Documents & Fichiers (2 GB)
 ✅ CRM de base
    → Historique clients, Notes, Tags
-✅ Assistant Admin IA basique
-   → Consultation + Exécution simple
+✅ Assistant Admin IA (64 outils)
+   → Client, Gestion, Marketing, Commercial, Compta
+   → Contenu, Mémoire, Planification, Agenda
    → "Crée une facture pour client X" ✅
    → "Relance les impayés" ✅
 ✅ Réseaux Sociaux
@@ -121,8 +122,13 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 ❌ Comptabilité complète
 ❌ Stock & Inventaire
 ❌ Multi-utilisateurs
-❌ SEO & Visibilité
-❌ RH & Planning équipe
+❌ SEO & Visibilité IA (Pro+)
+❌ Social Media Management (Pro+)
+❌ RH & Planning équipe (Pro: base, Business: complet)
+❌ Analytics avancé (Pro: KPI, Business: complet)
+❌ Stratégie IA (Business)
+❌ Agent IA autonome (Business)
+❌ Recherche web (Business)
 ❌ API & Intégrations
 ❌ SENTINEL Intelligence
 ```
@@ -150,11 +156,11 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
    → Segmentation clients
    → Campagnes ciblées
    → Prédictions comportementales
-✅ Assistant Admin IA PRO
-   → Exécution avancée
-   → Automatisations complexes
+✅ Assistant Admin IA PRO (76 outils)
+   → Tout Starter + SEO, Social, RH base, Analytics KPI
    → "Analyse mes ventes du mois" ✅
    → "Crée une campagne pour clients inactifs" ✅
+   → "Publie sur Instagram" ✅
 ✅ Réseaux Sociaux
    → 500 posts IA/mois
    → 500 images IA/mois
@@ -184,9 +190,12 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 #### Ce qui n'est PAS inclus
 ```
 ❌ Clients illimités
-❌ SEO & Visibilité IA
-❌ RH & Multi-employés complet
-❌ API & Intégrations
+❌ Stratégie IA (SWOT, pricing, objectifs, rapport)
+❌ Analytics avancé (predictions, anomalies, evolution, comparaison)
+❌ RH complet (planning, temps travail, congés, objectifs, formation, bien-être)
+❌ Agent IA autonome (planification + exécution automatique)
+❌ Recherche web IA (concurrents, tendances, actualités)
+❌ Pro Tools (requêtes avancées, automations, patterns)
 ❌ White-label
 ❌ SENTINEL Intelligence
 ❌ Account Manager dédié
@@ -211,11 +220,12 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 
 ✅ Clients illimités
 ✅ Documents illimités
-✅ Assistant Admin IA Intelligence
-   → Mode proactif
-   → Prédictions automatiques
-   → Suggestions business
+✅ Assistant Admin IA Intelligence (105 outils)
+   → Tout Pro + Stratégie, Analytics avancé, RH complet
+   → Agent IA autonome, Recherche web, Pro Tools
    → "Voici 3 opportunités détectées cette semaine" ✅
+   → "Analyse SWOT de mon business" ✅
+   → "Recherche mes concurrents" ✅
 ✅ Réseaux Sociaux
    → 1000 posts IA/mois
    → 1000 images IA/mois

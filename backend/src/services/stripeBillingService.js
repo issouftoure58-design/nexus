@@ -11,7 +11,9 @@ import {
   sendInvoicePaidEmail,
   sendPaymentFailedEmail,
   sendSubscriptionCancelledEmail,
-  sendTrialAlert
+  sendTrialAlert,
+  sendDunningEmail,
+  sendAccountSuspendedEmail
 } from './tenantEmailService.js';
 import { captureException, captureMessage } from '../config/sentry.js';
 
@@ -753,6 +755,14 @@ async function handleSubscriptionUpdate(subscription) {
     updateData.tier = planId;
     updateData.modules_actifs = modulesActifs;
     updateData.statut = subscription.status === 'trialing' ? 'essai' : 'actif';
+
+    // Extraire canaux depuis modules pour options_canaux_actifs
+    const canauxActifs = {};
+    if (modulesActifs.agent_ia_web) canauxActifs.agent_ia_web = true;
+    if (modulesActifs.agent_ia_whatsapp) canauxActifs.agent_ia_whatsapp = true;
+    if (modulesActifs.agent_ia_telephone) canauxActifs.agent_ia_telephone = true;
+    if (modulesActifs.site_web) canauxActifs.site_web = true;
+    updateData.options_canaux_actifs = canauxActifs;
   }
 
   await supabase
@@ -815,6 +825,8 @@ function computeModulesFromPlan(planId) {
       ecommerce: true,
       whatsapp: true,
       telephone: true,
+      agent_ia_whatsapp: true,
+      agent_ia_telephone: true,
       comptabilite: true,
       crm_avance: true,
       marketing: true,
@@ -835,6 +847,8 @@ function computeModulesFromPlan(planId) {
       ecommerce: true,
       whatsapp: true,
       telephone: true,
+      agent_ia_whatsapp: true,
+      agent_ia_telephone: true,
       comptabilite: true,
       crm_avance: true,
       marketing: true,
@@ -887,7 +901,7 @@ async function handleInvoicePaid(invoice) {
   // Trouver le tenant
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, plan')
+    .select('id, plan, payment_failures_count, statut')
     .eq('stripe_customer_id', customerId)
     .single();
 
@@ -903,6 +917,21 @@ async function handleInvoicePaid(invoice) {
     created_at: new Date().toISOString()
   });
 
+  // Reset compteur d'échecs et réactiver si suspendu
+  if (tenant.payment_failures_count > 0 || tenant.statut === 'suspendu') {
+    await supabase
+      .from('tenants')
+      .update({
+        payment_failures_count: 0,
+        last_payment_failed_at: null,
+        subscription_status: 'active',
+        ...(tenant.statut === 'suspendu' ? { statut: 'actif' } : {})
+      })
+      .eq('id', tenant.id);
+
+    console.log(`[Stripe Webhook] Dunning reset: ${tenant.id} réactivé après paiement réussi`);
+  }
+
   // Envoyer l'email de confirmation
   sendInvoicePaidEmail(tenant.id, {
     number: invoice.number || invoice.id,
@@ -916,35 +945,76 @@ async function handleInvoicePaid(invoice) {
 
 async function handleInvoicePaymentFailed(invoice) {
   const customerId = invoice.customer;
+  const MAX_FAILURES = 3; // Suspendre après 3 échecs
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id')
+    .select('id, payment_failures_count')
     .eq('stripe_customer_id', customerId)
     .single();
 
   if (!tenant) return;
 
-  // Logger l'echec
+  const failureCount = (tenant.payment_failures_count || 0) + 1;
+  const nextRetryDate = invoice.next_payment_attempt
+    ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+    : null;
+
+  // Logger l'échec
   await supabase.from('billing_events').insert({
     tenant_id: tenant.id,
     event_type: 'payment_failed',
     amount: invoice.amount_due,
     currency: invoice.currency,
     invoice_id: invoice.id,
+    metadata: { failure_number: failureCount },
     created_at: new Date().toISOString()
   });
 
-  // Envoyer l'email d'alerte
-  sendPaymentFailedEmail(tenant.id, {
-    amount: invoice.amount_due,
-    nextRetryDate: invoice.next_payment_attempt
-      ? new Date(invoice.next_payment_attempt * 1000).toISOString()
-      : null
-  }).catch(err => console.error('[Stripe Webhook] Erreur email payment failed:', err));
+  // Incrémenter compteur + marquer past_due
+  const updateData = {
+    payment_failures_count: failureCount,
+    last_payment_failed_at: new Date().toISOString(),
+    subscription_status: 'past_due'
+  };
 
-  captureMessage(`Payment failed for tenant ${tenant.id}`, 'warning', { tags: { service: 'stripe', type: 'payment_failed' }, extra: { tenantId: tenant.id, invoiceId: invoice.id, amount: invoice.amount_due } });
-  console.log(`[Stripe Webhook] Paiement echoue pour ${tenant.id}: ${invoice.id}`);
+  // Suspendre après MAX_FAILURES échecs consécutifs
+  if (failureCount >= MAX_FAILURES) {
+    updateData.statut = 'suspendu';
+    console.log(`[Stripe Webhook] SUSPENSION: tenant ${tenant.id} suspendu après ${failureCount} échecs`);
+  }
+
+  await supabase
+    .from('tenants')
+    .update(updateData)
+    .eq('id', tenant.id);
+
+  // Envoyer l'email approprié selon le nombre d'échecs
+  if (failureCount >= MAX_FAILURES) {
+    // Email de suspension
+    sendAccountSuspendedEmail(tenant.id, {
+      amount: invoice.amount_due
+    }).catch(err => console.error('[Stripe Webhook] Erreur email suspension:', err));
+  } else if (failureCount === 1) {
+    // Premier échec : email standard
+    sendPaymentFailedEmail(tenant.id, {
+      amount: invoice.amount_due,
+      nextRetryDate
+    }).catch(err => console.error('[Stripe Webhook] Erreur email payment failed:', err));
+  } else {
+    // 2e+ échec : email d'escalade
+    sendDunningEmail(tenant.id, {
+      failureCount,
+      amount: invoice.amount_due,
+      nextRetryDate
+    }).catch(err => console.error('[Stripe Webhook] Erreur email dunning:', err));
+  }
+
+  captureMessage(`Payment failed for tenant ${tenant.id} (attempt ${failureCount}/${MAX_FAILURES})`, failureCount >= MAX_FAILURES ? 'error' : 'warning', {
+    tags: { service: 'stripe', type: 'payment_failed', severity: failureCount >= MAX_FAILURES ? 'suspension' : 'dunning' },
+    extra: { tenantId: tenant.id, invoiceId: invoice.id, amount: invoice.amount_due, failureCount }
+  });
+  console.log(`[Stripe Webhook] Paiement echoue pour ${tenant.id}: ${invoice.id} (échec ${failureCount}/${MAX_FAILURES})`);
 }
 
 async function handleTrialWillEnd(subscription) {

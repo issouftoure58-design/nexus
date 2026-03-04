@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authApi, api } from '@/lib/api';
-import { Loader2, AlertCircle, Lock, Mail, Sparkles, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertCircle, Lock, Mail, Sparkles, ArrowLeft, Shield } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -13,6 +13,13 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // 2FA state
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [tempToken, setTempToken] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -20,13 +27,48 @@ export default function Login() {
 
     try {
       const result = await authApi.login(email, password);
-      api.setToken(result.token);
-      navigate('/');
+
+      if (result.requires_2fa && result.temp_token) {
+        setRequires2FA(true);
+        setTempToken(result.temp_token);
+        setIsLoading(false);
+        setTimeout(() => codeInputRef.current?.focus(), 100);
+        return;
+      }
+
+      if (result.token) {
+        api.setToken(result.token);
+        navigate('/');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de connexion');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const result = await authApi.validate2FA(tempToken, totpCode);
+      api.setToken(result.token);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Code invalide');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setRequires2FA(false);
+    setTempToken('');
+    setTotpCode('');
+    setError('');
+    setUseBackupCode(false);
   };
 
   return (
@@ -53,64 +95,134 @@ export default function Login() {
             <span className="text-white font-bold text-2xl">N</span>
           </div>
           <CardTitle className="text-2xl font-bold">NEXUS Admin</CardTitle>
-          <CardDescription>Connectez-vous à votre espace administration</CardDescription>
+          <CardDescription>
+            {requires2FA ? 'Vérification en deux étapes' : 'Connectez-vous à votre espace administration'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@nexus.com"
-                  className="pl-10"
-                  required
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Se connecter'
+          {!requires2FA ? (
+            /* Login classique */
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
               )}
-            </Button>
-          </form>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@nexus.com"
+                    className="pl-10"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mot de passe
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Se connecter'
+                )}
+              </Button>
+            </form>
+          ) : (
+            /* Étape 2FA */
+            <form onSubmit={handle2FASubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div className="text-center py-2">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-cyan-50 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-cyan-600" />
+                </div>
+                <p className="text-sm text-gray-600">
+                  {useBackupCode
+                    ? 'Entrez un code de secours'
+                    : 'Entrez le code à 6 chiffres de votre application d\'authentification'}
+                </p>
+              </div>
+
+              <div>
+                <Input
+                  ref={codeInputRef}
+                  type="text"
+                  inputMode={useBackupCode ? 'text' : 'numeric'}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(useBackupCode ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder={useBackupCode ? 'Code de secours' : '000000'}
+                  className="text-center text-2xl tracking-widest font-mono"
+                  maxLength={useBackupCode ? 8 : 6}
+                  autoComplete="one-time-code"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+                disabled={isLoading || (!useBackupCode && totpCode.length !== 6) || (useBackupCode && totpCode.length === 0)}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Vérifier'
+                )}
+              </Button>
+
+              <div className="flex items-center justify-between text-sm">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Retour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUseBackupCode(!useBackupCode); setTotpCode(''); setError(''); }}
+                  className="text-cyan-600 hover:text-cyan-700"
+                >
+                  {useBackupCode ? 'Utiliser le code TOTP' : 'Utiliser un code de secours'}
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 pt-4 border-t text-center space-y-3">
             <p className="text-sm text-gray-600">

@@ -9,10 +9,11 @@
 
 import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlobalMenu } from './GlobalMenu';
-import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
-import { api } from '@/lib/api';
+import { api, notificationsApi } from '@/lib/api';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -65,6 +66,38 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const userInfo = getUserInfo();
+  const queryClient = useQueryClient();
+
+  // Notifications query
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications-inbox'],
+    queryFn: () => notificationsApi.list({ limit: 5 }),
+    refetchInterval: 30000, // Refresh every 30s
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications-inbox'] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications-inbox'] }),
+  });
+
+  const unreadCount = notifData?.unread_count || 0;
+  const notifications = notifData?.notifications || [];
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "À l'instant";
+    if (minutes < 60) return `Il y a ${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Il y a ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `Il y a ${days}j`;
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -115,38 +148,57 @@ export function AppLayout({ children }: AppLayoutProps) {
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-md transition-colors relative"
               >
                 <Bell className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
 
               {notifOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
                   <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                     <span className="font-semibold text-gray-900 dark:text-white">Notifications</span>
-                    <span className="text-xs text-cyan-600 cursor-pointer hover:underline">Tout marquer lu</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => markAllReadMutation.mutate()}
+                        className="text-xs text-cyan-600 hover:underline flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        Tout marquer lu
+                      </button>
+                    )}
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    <div className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 border-l-4 border-cyan-500 cursor-pointer">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Nouvelle prestation confirmée</p>
-                      <p className="text-xs text-gray-500">Marie Dupont - Coupe + Brushing demain 14h</p>
-                      <p className="text-xs text-gray-400 mt-1">Il y a 5 min</p>
-                    </div>
-                    <div className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Paiement reçu</p>
-                      <p className="text-xs text-gray-500">45€ - Facture #2026-0045</p>
-                      <p className="text-xs text-gray-400 mt-1">Il y a 2h</p>
-                    </div>
-                    <div className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Rappel J-1 envoyé</p>
-                      <p className="text-xs text-gray-500">3 clients notifiés pour demain</p>
-                      <p className="text-xs text-gray-400 mt-1">Hier</p>
-                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-gray-500">
+                        Aucune notification
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => {
+                            if (!notif.read_at) markReadMutation.mutate(notif.id);
+                            if (notif.link) { navigate(notif.link); setNotifOpen(false); }
+                          }}
+                          className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${!notif.read_at ? 'border-l-4 border-cyan-500 bg-cyan-50/30 dark:bg-cyan-950/20' : ''}`}
+                        >
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{notif.title}</p>
+                          {notif.message && <p className="text-xs text-gray-500 mt-0.5">{notif.message}</p>}
+                          <p className="text-xs text-gray-400 mt-1">{timeAgo(notif.created_at)}</p>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <div
-                    onClick={() => { navigate('/notifications'); setNotifOpen(false); }}
-                    className="p-3 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-cyan-600 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    Voir toutes les notifications <ChevronRight className="w-4 h-4" />
-                  </div>
+                  {notifications.length > 0 && (
+                    <div
+                      onClick={() => { navigate('/audit-log'); setNotifOpen(false); }}
+                      className="p-3 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-cyan-600 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      Voir tout l'historique <ChevronRight className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

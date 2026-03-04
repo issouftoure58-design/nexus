@@ -67,8 +67,15 @@ import adminOrdersRoutes from './routes/adminOrders.js';
 import ordersRoutes from './routes/orders.js';
 import adminDisponibilitesRoutes from './routes/adminDisponibilites.js';
 import adminParametresRoutes from './routes/adminParametres.js';
+import adminApiKeysRoutes from './routes/adminApiKeys.js';
+import adminAuditLogRoutes from './routes/adminAuditLog.js';
+import adminInvitationsRoutes from './routes/adminInvitations.js';
 import adminAgentsRoutes from './routes/adminAgents.js';
 import adminStockRoutes from './routes/adminStock.js';
+import adminNotificationsRoutes from './routes/adminNotifications.js';
+import adminDocumentsRoutes from './routes/adminDocuments.js';
+import adminReferralsRoutes from './routes/adminReferrals.js';
+import adminSSORoutes from './routes/adminSSO.js';
 import modulesRoutes from './routes/modules.js';
 import adminIARoutes from './routes/adminIA.js';
 import adminMenuRoutes from './routes/adminMenu.js';
@@ -98,6 +105,12 @@ import { resolveTenantByDomain } from './middleware/resolveTenant.js';
 
 // 🛡️ TENANT SHIELD - Protection isolation multi-tenant
 import { tenantShield, validateBodyTenant } from './middleware/tenantShield.js';
+
+// 📋 AUDIT LOG - Logging automatique des mutations admin
+import { auditLogMiddleware } from './middleware/auditLog.js';
+
+// 🔐 RBAC - Contrôle d'accès granulaire par rôle
+import { rbacMiddleware } from './middleware/rbac.js';
 
 // Import du scheduler
 import { startScheduler } from './jobs/scheduler.js';
@@ -247,6 +260,56 @@ app.get('/health', async (req, res) => {
   });
 });
 
+// Status page publique pour monitoring externe et clients
+app.get('/api/status', async (req, res) => {
+  const services = [];
+  let allOperational = true;
+
+  // Database
+  try {
+    const start = Date.now();
+    const { supabase: sb } = await import('./config/supabase.js');
+    const { error } = await sb.from('tenants').select('id').limit(1);
+    const latency = Date.now() - start;
+    services.push({ name: 'Base de données', status: error ? 'degraded' : 'operational', latency });
+    if (error) allOperational = false;
+  } catch {
+    services.push({ name: 'Base de données', status: 'down' });
+    allOperational = false;
+  }
+
+  // API
+  services.push({ name: 'API', status: 'operational', latency: 0 });
+
+  // Auth
+  services.push({ name: 'Authentification', status: 'operational' });
+
+  // Payments
+  services.push({
+    name: 'Paiements (Stripe)',
+    status: process.env.STRIPE_SECRET_KEY ? 'operational' : 'not_configured'
+  });
+
+  // Messaging
+  services.push({
+    name: 'Messagerie (Twilio)',
+    status: process.env.TWILIO_ACCOUNT_SID ? 'operational' : 'not_configured'
+  });
+
+  // Email
+  services.push({
+    name: 'Email (Resend)',
+    status: process.env.RESEND_API_KEY ? 'operational' : 'not_configured'
+  });
+
+  res.json({
+    status: allOperational ? 'operational' : 'degraded',
+    updated_at: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    services,
+  });
+});
+
 // ============= LANDING PAGE AGENT (Public, avant tenant resolution) =============
 // Agent commercial IA pour le site vitrine - pas besoin de tenant
 app.use('/api/landing', landingAgentRoutes);
@@ -292,6 +355,12 @@ app.use('/api/payment', paymentLimiter, paymentRoutes);
 
 // Routes WhatsApp (Webhook Twilio)
 app.use('/api/whatsapp', whatsappRoutes);
+
+// 📋 AUDIT LOG: Log automatique des mutations admin (POST/PUT/PATCH/DELETE)
+app.use('/api/admin', auditLogMiddleware());
+
+// 🔐 RBAC: Contrôle d'accès granulaire par rôle (admin/manager/viewer)
+app.use('/api/admin', rbacMiddleware());
 
 // Routes Admin Auth (login, logout, etc.)
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -372,7 +441,18 @@ app.use('/api/seo', seoRoutes);
 app.use('/api/rh', rhRoutes);
 
 // Routes API REST Publique v1 (pour intégrations tierces)
-app.use('/api/v1', apiPublicRoutes);
+// API Versioning: header API-Version + réponse avec X-API-Version
+app.use('/api/v1', (req, res, next) => {
+  const requestedVersion = req.headers['api-version'];
+  const currentVersion = '2026-03-03';
+  res.set('X-API-Version', currentVersion);
+  res.set('X-API-Supported-Versions', '2026-03-03');
+  if (requestedVersion && requestedVersion !== currentVersion) {
+    res.set('X-API-Version-Warning', `Requested version ${requestedVersion} not found, using ${currentVersion}`);
+  }
+  req.apiVersion = currentVersion;
+  next();
+}, apiPublicRoutes);
 
 // Routes Branding & White-Label
 app.use('/api/branding', brandingRoutes);
@@ -396,8 +476,15 @@ app.use('/api/admin/orders', adminOrdersRoutes);
 app.use('/api/orders', ordersRoutes);  // Routes publiques checkout panier
 app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
 app.use('/api/admin/parametres', adminParametresRoutes);
+app.use('/api/admin', adminApiKeysRoutes);
+app.use('/api/admin/audit-logs', adminAuditLogRoutes);
+app.use('/api/admin/invitations', adminInvitationsRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
 app.use('/api/admin/stock', adminStockRoutes);
+app.use('/api/admin/notifications', adminNotificationsRoutes);
+app.use('/api/admin/documents', adminDocumentsRoutes);
+app.use('/api/admin/referrals', adminReferralsRoutes);
+app.use('/api/admin/sso', adminSSORoutes);
 app.use('/api/admin/onboarding', onboardingRoutes);
 
 // Routes Admin IA Config (Telephone & WhatsApp)

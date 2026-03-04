@@ -41,6 +41,7 @@ router.use(authenticateAdmin, requireProPlan);
 // Types de triggers disponibles
 const TRIGGER_TYPES = [
   { id: 'new_client', label: 'Nouveau client', description: 'Déclenché quand un nouveau client est créé' },
+  { id: 'rdv_created', label: 'RDV créé', description: 'Déclenché quand un nouveau RDV est créé' },
   { id: 'rdv_completed', label: 'RDV terminé', description: 'Déclenché quand un RDV est marqué comme terminé' },
   { id: 'rdv_cancelled', label: 'RDV annulé', description: 'Déclenché quand un RDV est annulé' },
   { id: 'facture_payee', label: 'Facture payée', description: 'Déclenché quand une facture est payée' },
@@ -58,7 +59,8 @@ const ACTION_TYPES = [
   { id: 'remove_tag', label: 'Retirer un tag', icon: 'x' },
   { id: 'create_task', label: 'Créer une tâche', icon: 'check-square' },
   { id: 'update_field', label: 'Modifier un champ', icon: 'edit' },
-  { id: 'webhook', label: 'Appeler un webhook', icon: 'globe' }
+  { id: 'webhook', label: 'Appeler un webhook', icon: 'globe' },
+  { id: 'send_to_segment', label: 'Envoyer au segment', icon: 'users' }
 ];
 
 // Templates de workflows prédéfinis
@@ -115,6 +117,18 @@ const WORKFLOW_TEMPLATES = [
       ],
       actions: [
         { type: 'add_tag', tag: 'VIP', delay_minutes: 0 }
+      ]
+    }
+  },
+  {
+    id: 'confirmation_sms',
+    nom: 'SMS de confirmation RDV',
+    description: 'Envoie un SMS de confirmation au client lors de la création d\'un RDV',
+    trigger_type: 'rdv_created',
+    config: {
+      conditions: [],
+      actions: [
+        { type: 'send_sms', message: 'Bonjour {{prenom}}, votre RDV est confirmé pour le {{date}} à {{heure}}. À bientôt !', to_field: 'telephone', delay_minutes: 0 }
       ]
     }
   },

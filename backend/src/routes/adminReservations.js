@@ -702,6 +702,23 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (re
     // 📄 Note: Pas de création de facture à ce stade
     // La facture sera créée quand la réservation passera en statut "terminé"
 
+    // Trigger workflows rdv_created (non bloquant)
+    try {
+      triggerWorkflows('rdv_created', {
+        tenant_id: tenantId,
+        entity: {
+          ...reservation,
+          type: 'reservation',
+          prenom: reservation?.clients?.prenom,
+          nom: reservation?.clients?.nom,
+          telephone: reservation?.clients?.telephone,
+          email: reservation?.clients?.email
+        }
+      });
+    } catch (e) {
+      console.error('[ADMIN RESERVATIONS] Workflow trigger non bloquant:', e.message);
+    }
+
     res.json({
       reservation,
       facture: null,

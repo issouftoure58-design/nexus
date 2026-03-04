@@ -67,6 +67,10 @@ class ApiClient {
     }
   }
 
+  getToken(): string | null {
+    return this.token;
+  }
+
   setToken(token: string) {
     this.token = token;
 
@@ -261,13 +265,120 @@ export const api = new ApiClient();
 // Auth
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<{ token: string; admin: { id: number; email: string; nom: string; role: string } }>(
+    api.post<{ token?: string; admin?: { id: number; email: string; nom: string; role: string }; requires_2fa?: boolean; temp_token?: string }>(
       '/admin/auth/login',
       { email, password },
       { skipAuth: true }
     ),
-  verify: () => api.get<{ admin: { id: number; email: string; nom: string; role: string } }>('/admin/auth/me'),
+  verify: () => api.get<{ admin: { id: number; email: string; nom: string; role: string; totp_enabled?: boolean } }>('/admin/auth/me'),
   logout: () => api.post('/admin/auth/logout'),
+  // 2FA TOTP
+  setup2FA: () =>
+    api.post<{ secret: string; otpAuthUrl: string; backupCodes: string[] }>('/admin/auth/2fa/setup'),
+  verify2FA: (code: string) =>
+    api.post<{ success: boolean }>('/admin/auth/2fa/verify', { code }),
+  validate2FA: (tempToken: string, code: string) =>
+    api.post<{ token: string; admin: { id: number; email: string; nom: string; role: string } }>(
+      '/admin/auth/2fa/validate',
+      { temp_token: tempToken, code },
+      { skipAuth: true }
+    ),
+  disable2FA: (password: string) =>
+    api.post<{ success: boolean }>('/admin/auth/2fa/disable', { password }),
+  get2FAStatus: () =>
+    api.get<{ enabled: boolean; verified_at: string | null; backup_codes_remaining: number }>('/admin/auth/2fa/status'),
+  getPermissions: () =>
+    api.get<{ role: string; permissions: Record<string, string[]> }>('/admin/auth/permissions'),
+  getSessions: () =>
+    api.get<{ sessions: { id: string; ip_address: string; user_agent: string; device_info: string; last_active_at: string; created_at: string; expires_at: string; is_current: boolean }[] }>('/admin/auth/sessions'),
+  revokeSession: (id: string) =>
+    api.delete(`/admin/auth/sessions/${id}`),
+  revokeAllSessions: () =>
+    api.post<{ success: boolean }>('/admin/auth/sessions/revoke-all'),
+};
+
+// Invitations
+export const invitationsApi = {
+  list: () =>
+    api.get<{ invitations: { id: string; email: string; role: string; invited_by: string; expires_at: string; accepted_at: string | null; created_at: string }[] }>('/admin/invitations'),
+  send: (email: string, role: string) =>
+    api.post<{ invitation: { id: string; email: string; role: string; expires_at: string } }>('/admin/invitations', { email, role }),
+  revoke: (id: string) => api.delete(`/admin/invitations/${id}`),
+  verify: (token: string) =>
+    api.get<{ valid: boolean; email: string; role: string; tenant_name: string }>(`/admin/invitations/verify/${token}`, { skipAuth: true } as any),
+  accept: (token: string, nom: string, password: string) =>
+    api.post<{ success: boolean; message: string }>('/admin/invitations/accept', { token, nom, password }, { skipAuth: true }),
+};
+
+// Notifications in-app
+export const notificationsApi = {
+  list: (params?: { limit?: number; offset?: number; unread?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    if (params?.unread) query.set('unread', 'true');
+    return api.get<{ notifications: { id: string; type: string; title: string; message: string; link: string; icon: string; read_at: string | null; created_at: string }[]; total: number; unread_count: number }>(`/admin/notifications?${query}`);
+  },
+  markRead: (id: string) => api.patch(`/admin/notifications/${id}/read`),
+  markAllRead: () => api.patch('/admin/notifications/read-all'),
+};
+
+// Documents / Upload
+export const documentsApi = {
+  upload: async (file: File, options?: { category?: string; entity_type?: string; entity_id?: string }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (options?.category) formData.append('category', options.category);
+    if (options?.entity_type) formData.append('entity_type', options.entity_type);
+    if (options?.entity_id) formData.append('entity_id', options.entity_id);
+    const token = api.getToken() || localStorage.getItem('nexus_admin_token');
+    const resp = await fetch(`${API_BASE}/admin/documents/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Erreur upload' }));
+      throw new Error(err.error || 'Erreur upload');
+    }
+    return resp.json();
+  },
+  list: (params?: { category?: string; entity_type?: string; entity_id?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.set('category', params.category);
+    if (params?.entity_type) query.set('entity_type', params.entity_type);
+    if (params?.entity_id) query.set('entity_id', params.entity_id);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    return api.get<{ documents: any[]; total: number; page: number; limit: number; pages: number }>(`/admin/documents?${query}`);
+  },
+  getUrl: (id: string) => api.get<{ url: string; file_name: string; mime_type: string; expires_in: number }>(`/admin/documents/${id}`),
+  delete: (id: string) => api.delete(`/admin/documents/${id}`),
+  getQuota: () => api.get<{ current_gb: string; limit_gb: number; percentage: number; plan: string }>('/admin/documents/quota'),
+};
+
+// Referrals / Parrainage
+export const referralsApi = {
+  getCode: () => api.get<{ referral_code: string }>('/admin/referrals/code'),
+  getStats: () => api.get<{ total: number; pending: number; completed: number; rewarded: number; total_earned: number }>('/admin/referrals/stats'),
+  list: (params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    return api.get<{ referrals: any[]; total: number }>(`/admin/referrals?${query}`);
+  },
+  create: () => api.post<any>('/admin/referrals'),
+};
+
+// SSO
+export const ssoApi = {
+  getProviders: () => api.get<{ providers: any[] }>('/admin/sso/providers'),
+  configureProvider: (config: any) => api.post<any>('/admin/sso/providers', config),
+  deleteProvider: (id: string) => api.delete(`/admin/sso/providers/${id}`),
+  initiateOIDC: (tenantId: string, providerId: string) =>
+    api.post<{ authorization_url: string; state: string }>('/admin/sso/oidc/initiate', { tenant_id: tenantId, provider_id: providerId }, { skipAuth: true }),
+  callbackOIDC: (tenantId: string, providerId: string, code: string) =>
+    api.post<{ token: string; admin: any }>('/admin/sso/oidc/callback', { tenant_id: tenantId, provider_id: providerId, code }, { skipAuth: true }),
 };
 
 // Dashboard Stats
@@ -288,6 +399,17 @@ export const clientsApi = {
   create: (data: CreateClientData) => api.post<{ client: Client }>('/admin/clients', data),
   update: (id: number, data: Partial<Client>) => api.put<{ client: Client }>(`/admin/clients/${id}`, data),
   delete: (id: number) => api.delete(`/admin/clients/${id}`),
+  importCSV: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = api.getToken() || localStorage.getItem('nexus_admin_token');
+    const resp = await fetch(`${API_BASE}/admin/clients/import`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    return resp.json();
+  },
 };
 
 // Reservations
@@ -331,6 +453,34 @@ export const servicesApi = {
   create: (data: CreateServiceData) => api.post<{ service: Service }>('/admin/services', data),
   update: (id: number, data: Partial<Service>) => api.put<{ service: Service }>(`/admin/services/${id}`, data),
   delete: (id: number) => api.delete(`/admin/services/${id}`),
+};
+
+// Disponibilités (horaires + congés)
+export const disponibilitesApi = {
+  getHoraires: () => api.get<{ horaires: Array<{
+    jour: number;
+    nom: string;
+    heure_debut: string | null;
+    heure_fin: string | null;
+    is_active: boolean;
+    id: number | null;
+  }> }>('/admin/disponibilites/horaires'),
+  updateHoraires: (horaires: Array<{
+    jour: number;
+    heure_debut: string | null;
+    heure_fin: string | null;
+    is_active: boolean;
+  }>) => api.put('/admin/disponibilites/horaires', { horaires }),
+  getConges: () => api.get<{ conges: Array<{
+    id: number;
+    date_debut: string;
+    date_fin: string;
+    motif: string;
+    type: string;
+  }> }>('/admin/disponibilites/conges'),
+  createConge: (data: { date_debut: string; date_fin: string; motif?: string }) =>
+    api.post('/admin/disponibilites/conges', data),
+  deleteConge: (id: number) => api.delete(`/admin/disponibilites/conges/${id}`),
 };
 
 // Stock

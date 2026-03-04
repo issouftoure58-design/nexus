@@ -428,6 +428,128 @@ export function templatePaymentFailed({ tenantName, adminName, amount, nextRetry
 }
 
 /**
+ * Email: Deuxième échec de paiement (dunning escalade)
+ */
+export function templatePaymentFailedEscalation({ tenantName, adminName, failureCount, amount, nextRetryDate }) {
+  const isLastWarning = failureCount >= 3;
+  return baseTemplate({
+    title: isLastWarning ? `🚨 Dernier avertissement — Suspension imminente` : `⚠️ ${failureCount}e échec de paiement`,
+    preheader: isLastWarning
+      ? `Votre compte sera suspendu sans action de votre part`
+      : `Tentative ${failureCount} échouée — mettez à jour votre moyen de paiement`,
+    content: `
+      <h2 style="color: ${BRAND_COLORS.danger}; font-size: 22px; margin: 0 0 20px;">
+        ${isLastWarning ? '🚨 Suspension imminente' : `⚠️ ${failureCount}e échec de paiement`}
+      </h2>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+        Bonjour ${adminName || ''},
+      </p>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+        Nous n'avons pas pu prélever <strong>${formatPrice(amount)}</strong> pour votre abonnement <strong>${tenantName}</strong>.
+        Il s'agit de la <strong>${failureCount}e tentative échouée</strong>.
+      </p>
+
+      <div style="background: ${BRAND_COLORS.danger}15; border: 2px solid ${BRAND_COLORS.danger}; border-radius: 12px; padding: 20px; margin: 25px 0;">
+        <p style="color: ${BRAND_COLORS.dark}; font-size: 15px; margin: 0; font-weight: bold;">
+          ${isLastWarning
+            ? '⛔ Votre compte sera suspendu au prochain échec. Vous perdrez l\'accès à toutes les fonctionnalités.'
+            : `🔄 Prochaine tentative ${nextRetryDate ? `le <strong>${formatDate(nextRetryDate)}</strong>` : 'dans quelques jours'}.`}
+        </p>
+      </div>
+
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0;">
+        Mettez à jour votre moyen de paiement immédiatement pour éviter toute interruption.
+      </p>
+    `,
+    ctaText: 'Mettre à jour ma carte maintenant',
+    ctaUrl: `${APP_URL}/subscription`
+  });
+}
+
+/**
+ * Email: Compte suspendu pour impayé
+ */
+export function templateAccountSuspended({ tenantName, adminName, amount }) {
+  return baseTemplate({
+    title: `🚫 Compte suspendu — Paiement requis`,
+    preheader: `Votre accès NEXUS est suspendu suite à des impayés`,
+    content: `
+      <h2 style="color: ${BRAND_COLORS.danger}; font-size: 22px; margin: 0 0 20px;">
+        🚫 Compte suspendu
+      </h2>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+        Bonjour ${adminName || ''},
+      </p>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+        Suite à plusieurs échecs de paiement de <strong>${formatPrice(amount)}</strong>,
+        votre compte <strong>${tenantName}</strong> a été <strong>suspendu</strong>.
+      </p>
+
+      <div style="background: ${BRAND_COLORS.danger}15; border: 2px solid ${BRAND_COLORS.danger}; border-radius: 12px; padding: 20px; margin: 25px 0;">
+        <p style="color: ${BRAND_COLORS.dark}; font-size: 15px; margin: 0 0 10px; font-weight: bold;">
+          Ce que cela signifie :
+        </p>
+        <ul style="color: #475569; font-size: 14px; margin: 0; padding-left: 20px;">
+          <li>Vos données sont conservées en sécurité</li>
+          <li>L'accès aux fonctionnalités est désactivé</li>
+          <li>Vos agents IA sont mis en pause</li>
+        </ul>
+      </div>
+
+      <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0;">
+        Pour réactiver votre compte, mettez à jour votre moyen de paiement. L'accès sera rétabli immédiatement.
+      </p>
+    `,
+    ctaText: 'Réactiver mon compte',
+    ctaUrl: `${APP_URL}/subscription`
+  });
+}
+
+/**
+ * Envoie un email d'escalade dunning
+ */
+export async function sendDunningEmail(tenantId, { failureCount, amount, nextRetryDate }) {
+  const data = await getTenantWithAdmin(tenantId);
+  if (!data?.admin?.email) return { success: false, error: 'No admin email' };
+
+  const html = templatePaymentFailedEscalation({
+    tenantName: data.tenant.name,
+    adminName: data.admin.nom,
+    failureCount,
+    amount,
+    nextRetryDate
+  });
+
+  return sendEmail({
+    to: data.admin.email,
+    subject: failureCount >= 3
+      ? `🚨 Dernier avertissement — Suspension imminente`
+      : `⚠️ ${failureCount}e échec de paiement — Action requise`
+  , html
+  });
+}
+
+/**
+ * Envoie un email de suspension de compte
+ */
+export async function sendAccountSuspendedEmail(tenantId, { amount }) {
+  const data = await getTenantWithAdmin(tenantId);
+  if (!data?.admin?.email) return { success: false, error: 'No admin email' };
+
+  const html = templateAccountSuspended({
+    tenantName: data.tenant.name,
+    adminName: data.admin.nom,
+    amount
+  });
+
+  return sendEmail({
+    to: data.admin.email,
+    subject: `🚫 Compte suspendu — Paiement requis`,
+    html
+  });
+}
+
+/**
  * Email: Abonnement annulé
  */
 export function templateSubscriptionCancelled({ tenantName, adminName, endDate }) {

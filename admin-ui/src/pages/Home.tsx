@@ -11,8 +11,8 @@ import {
   Send, Bot, User, Loader2, Sparkles, Shield, TrendingUp,
   AlertCircle, CheckCircle, Zap, RefreshCw, ChevronDown,
   Calendar, Users, DollarSign, MessageSquare, Settings,
-  Plus, Trash2, Clock, ChevronLeft, Menu, X, Phone, PiggyBank,
-  Activity, Target, TrendingDown, Cpu, Rocket, FileText, Mail
+  Plus, Trash2, Clock, ChevronLeft, Menu, X,
+  Activity, Target, Cpu, FileText
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -43,50 +43,20 @@ interface SentinelEvent {
 }
 
 interface SentinelStats {
-  // Coûts temps réel
-  cout_activite: number;
-  marge_generee: number;
-  roi_auto: number;
-  roi_mois_precedent: number;
-  roi_secteur: number;
-  roi_projection_fin_mois: number;
+  // Données réelles du P&L
+  ca_mois: number;
+  depenses_mois: number;
+  resultat_net: number;
+  marge_nette: string;
   // Alertes
   anomalies: number;
-  // Stats classiques
-  ca_mois: number;
-  resultat_reel: number;
-  is_profit: boolean;
-  // Optimisations suggérées
-  optimisations: {
-    reduire_premium: boolean;
-    activer_batch: boolean;
-    augmenter_prix: boolean;
-    supprimer_canal: string | null;
-  };
-}
-
-interface BusinessKPIs {
-  // Score d'automatisation (0-100%)
-  score_automatisation: number;
-  // Détail du score
-  score_detail: {
-    emails_auto: number;      // % emails traités auto
-    appels_auto: number;      // % appels sans humain
-    rdv_auto: number;         // % rdv créés auto
-    relances_auto: number;    // % relances auto
-  };
-  // Gains monétaires
-  gains: {
-    rdv_crees: number;        // € générés par rdv auto
-    relances_recuperees: number; // € récupérés par relances
-    upsell_detectes: number;  // € d'opportunités upsell
-  };
-  // Gain estimé vs employé humain (€/mois)
-  gain_vs_humain: number;
-  // Tâches automatisées aujourd'hui
-  taches_auto_jour: number;
-  // Heures économisées
-  heures_economisees: number;
+  // Automation réelle
+  workflows_actifs: number;
+  executions_mois: number;
+  notifications_mois: number;
+  taches_completees: number;
+  // Clients à risque
+  clients_risque: number;
 }
 
 // Quick action suggestions - Actions PUISSANTES
@@ -123,15 +93,7 @@ export function Home() {
   const [sentinelExpanded, setSentinelExpanded] = useState(false);
   const [sentinelLoading, setSentinelLoading] = useState(false);
 
-  // Business KPIs - Score d'automatisation & Gain vs humain
-  const [businessKPIs, setBusinessKPIs] = useState<BusinessKPIs>({
-    score_automatisation: 0,
-    score_detail: { emails_auto: 0, appels_auto: 0, rdv_auto: 0, relances_auto: 0 },
-    gains: { rdv_crees: 0, relances_recuperees: 0, upsell_detectes: 0 },
-    gain_vs_humain: 0,
-    taches_auto_jour: 0,
-    heures_economisees: 0
-  });
+  // (BusinessKPIs supprimé — données fabriquées remplacées par SentinelStats réels)
 
   // Error toast
   const [errorToast, setErrorToast] = useState<string | null>(null);
@@ -227,33 +189,43 @@ export function Home() {
     }
   };
 
-  // Fetch Sentinel activity
+  // Fetch Sentinel activity — données réelles uniquement
   const fetchSentinelActivity = useCallback(async () => {
     setSentinelLoading(true);
     try {
       const allEvents: SentinelEvent[] = [];
 
-      // Appels paralleles via api wrapper (catch individuel pour tolerance aux erreurs)
-      const [activityData, overviewData, pnlData, automationData, seoData, churnData] = await Promise.all([
+      // 4 appels légers (pas d'appels IA SEO/churn à chaque refresh)
+      const [activityData, overviewData, pnlData, automationData] = await Promise.all([
         api.get<any>('/admin/stats/activity').catch(() => null),
         api.get<any>('/admin/analytics/overview').catch(() => null),
         api.get<any>('/admin/compta/pnl').catch(() => null),
-        api.get<any>('/admin/stats/automation').catch(() => null),
-        api.get<any>('/admin/seo/recommendations').catch(() => null),
-        api.get<any>('/admin/analytics/churn').catch(() => null)
+        api.get<any>('/admin/stats/automation').catch(() => null)
       ]);
 
-      let caTotal = 0;
-      let resultatReel = 0;
-      let depensesTotal = 0;
-      let tachesAuto = 0;
-      let appelsTraites = 0;
+      // Appels IA couteux : seulement au premier chargement, pas à chaque refresh
+      const isFirstLoad = sentinelEvents.length === 0;
+      const [seoData, churnData] = isFirstLoad
+        ? await Promise.all([
+            api.get<any>('/admin/seo/recommendations').catch(() => null),
+            api.get<any>('/admin/analytics/churn').catch(() => null)
+          ])
+        : [null, null];
 
-      // Process activity events
+      // Variables réelles
+      let caTotal = 0;
+      let depensesTotal = 0;
+      let resultatNet = 0;
+      let margeNette = '0';
+      let workflowsActifs = 0;
+      let executionsMois = 0;
+      let notificationsMois = 0;
+      let tachesCompletees = 0;
+      let clientsRisque = 0;
+
+      // Process activity events (vrais events récents)
       if (activityData) {
         const activities = activityData.activities || [];
-        tachesAuto = activities.length;
-
         activities.slice(0, 5).forEach((a: any, i: number) => {
           allEvents.push({
             id: `activity-${i}`,
@@ -265,17 +237,16 @@ export function Home() {
         });
       }
 
-      // Process financial stats
+      // Process financial stats (CA, variation)
       if (overviewData) {
         caTotal = overviewData.ca_total || 0;
-        appelsTraites = overviewData.appels_traites || overviewData.nb_rdv || 0;
 
         if (overviewData.ca_variation < -15) {
           allEvents.unshift({
             id: 'anomaly-ca',
             category: 'anomaly',
             type: 'anomaly',
-            message: `🚨 ALERTE: CA en baisse de ${Math.abs(overviewData.ca_variation)}%`,
+            message: `CA en baisse de ${Math.abs(overviewData.ca_variation)}%`,
             detail: 'Action corrective recommandée',
             value: overviewData.ca_variation,
             timestamp: new Date()
@@ -283,157 +254,45 @@ export function Home() {
         }
       }
 
-      // Get real P&L data
+      // P&L réel
       if (pnlData) {
-        resultatReel = parseFloat(pnlData.resultat?.net) || 0;
+        resultatNet = parseFloat(pnlData.resultat?.net) || 0;
         depensesTotal = parseFloat(pnlData.depenses?.total) || 0;
+        margeNette = pnlData.resultat?.margeNette || '0';
         caTotal = parseFloat(pnlData.revenus?.total) || caTotal;
 
-        if (resultatReel > 0) {
+        if (resultatNet > 0) {
           allEvents.push({
-            id: 'roi-positive',
+            id: 'pnl-positive',
             category: 'finance',
             type: 'roi',
-            message: `💰 ROI positif: +${resultatReel.toFixed(0)}€`,
-            detail: `Marge: ${pnlData.resultat?.margeNette || 0}%`,
-            value: resultatReel,
+            message: `Résultat positif: +${resultatNet.toFixed(0)}€`,
+            detail: `Marge nette: ${margeNette}%`,
+            value: resultatNet,
             timestamp: new Date()
           });
-        } else if (resultatReel < 0) {
+        } else if (resultatNet < 0) {
           allEvents.unshift({
-            id: 'anomaly-perte',
+            id: 'pnl-negative',
             category: 'anomaly',
             type: 'anomaly',
-            message: `⚠️ Perte détectée: ${resultatReel.toFixed(0)}€`,
+            message: `Perte détectée: ${resultatNet.toFixed(0)}€`,
             detail: 'Optimisation des coûts nécessaire',
-            value: resultatReel,
+            value: resultatNet,
             timestamp: new Date()
           });
         }
       }
 
-      // Process automation stats
-      let scoreAuto = 0;
-      let gainVsHumain = 0;
-      let heuresEco = 0;
-      let scoreDetail = { emails_auto: 0, appels_auto: 0, rdv_auto: 0, relances_auto: 0 };
-      let gains = { rdv_crees: 0, relances_recuperees: 0, upsell_detectes: 0 };
-
+      // Automation réelle
       if (automationData) {
-        scoreAuto = automationData.score || 0;
-        gainVsHumain = automationData.gain_mensuel || 0;
-        heuresEco = automationData.heures_economisees || 0;
-        tachesAuto = automationData.taches_auto || tachesAuto;
-        scoreDetail = automationData.score_detail || scoreDetail;
-        gains = automationData.gains || gains;
-      } else {
-        // Pas de données d'automatisation - calcul basé sur données réelles disponibles
-        // Hypothèse: chaque tâche auto = 15min d'un humain à 25€/h
-        heuresEco = Math.round(tachesAuto * 0.25);
-
-        // Score basé sur l'activité réelle (pas de random!)
-        // Si on a des tâches, on estime un score proportionnel
-        const hasActivity = tachesAuto > 0 || appelsTraites > 0;
-
-        if (hasActivity) {
-          // Estimation basée sur activité réelle
-          const activityScore = Math.min(95, Math.round((tachesAuto / 10) * 10)); // 10 tâches = 100%
-          scoreDetail = {
-            emails_auto: Math.min(95, activityScore),
-            appels_auto: Math.min(90, Math.round(appelsTraites > 0 ? 80 : 0)),
-            rdv_auto: Math.min(95, activityScore),
-            relances_auto: Math.min(95, activityScore)
-          };
-        } else {
-          // Pas d'activité = 0
-          scoreDetail = {
-            emails_auto: 0,
-            appels_auto: 0,
-            rdv_auto: 0,
-            relances_auto: 0
-          };
-        }
-
-        // Score global = moyenne pondérée
-        scoreAuto = Math.round(
-          (scoreDetail.emails_auto * 0.2) +
-          (scoreDetail.appels_auto * 0.3) +
-          (scoreDetail.rdv_auto * 0.25) +
-          (scoreDetail.relances_auto * 0.25)
-        );
-
-        // Calcul des gains monétaires basés sur données réelles
-        // RDV créés auto: estimation basée sur appels traités
-        gains.rdv_crees = appelsTraites > 0 ? Math.round(appelsTraites * 50) : 0;
-
-        // Relances récupérées: basé sur tâches réelles
-        const nbRelances = Math.round(tachesAuto * 0.3);
-        gains.relances_recuperees = Math.round(nbRelances * 120 * 0.4); // 40% taux succès
-
-        // Upsell détectés: basé sur CA réel
-        gains.upsell_detectes = caTotal > 0 ? Math.round(caTotal * 0.08) : 0;
-
-        // Gain vs humain = somme des gains + économies temps
-        gainVsHumain = Math.round(heuresEco * 25) + gains.rdv_crees + gains.relances_recuperees;
+        workflowsActifs = automationData.workflows?.actifs || 0;
+        executionsMois = automationData.workflows?.executions_mois || 0;
+        notificationsMois = automationData.notifications?.total_mois || 0;
+        tachesCompletees = automationData.taches?.completees_mois || 0;
       }
 
-      // Update Business KPIs
-      setBusinessKPIs({
-        score_automatisation: scoreAuto,
-        score_detail: scoreDetail,
-        gains: gains,
-        gain_vs_humain: gainVsHumain,
-        taches_auto_jour: tachesAuto,
-        heures_economisees: heuresEco
-      });
-
-      // Calcul marge générée en temps réel
-      const margeGeneree = caTotal > 0 ? caTotal - depensesTotal : 0;
-      const roiAuto = gainVsHumain > 0 ? Math.round((gainVsHumain / (depensesTotal || 1)) * 100) : 0;
-
-      // ROI comparatifs - valeurs fixes (pas de random!)
-      // Le mois précédent est stocké côté serveur, ici on met une valeur par défaut
-      const roiMoisPrecedent = roiAuto > 0 ? Math.round(roiAuto * 0.9) : 0; // Estimation: -10% vs actuel
-      const roiSecteur = 15; // Moyenne secteur fixe (données sectorielles)
-      const joursDansMois = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-      const jourActuel = new Date().getDate();
-      const roiProjection = Math.round(roiAuto * (joursDansMois / jourActuel));
-
-      // Détection optimisations si marge négative
-      const optimisations = {
-        reduire_premium: margeGeneree < 0 && depensesTotal > 100,
-        activer_batch: margeGeneree < 0 && tachesAuto > 50,
-        augmenter_prix: margeGeneree < 0 && caTotal > 0,
-        supprimer_canal: margeGeneree < -500 ? 'SMS' : null // Exemple: canal le moins rentable
-      };
-
-      // Ajouter alerte optimisation si marge négative
-      if (margeGeneree < 0) {
-        allEvents.unshift({
-          id: 'optim-alert',
-          category: 'anomaly',
-          type: 'warning',
-          message: `⚡ Optimisations disponibles pour réduire les coûts`,
-          detail: 'Cliquez pour optimiser automatiquement',
-          timestamp: new Date()
-        });
-      }
-
-      setSentinelStats({
-        cout_activite: depensesTotal,
-        marge_generee: margeGeneree,
-        roi_auto: roiAuto,
-        roi_mois_precedent: roiMoisPrecedent,
-        roi_secteur: roiSecteur,
-        roi_projection_fin_mois: roiProjection,
-        anomalies: allEvents.filter(e => e.category === 'anomaly').length,
-        ca_mois: caTotal,
-        resultat_reel: resultatReel,
-        is_profit: resultatReel >= 0,
-        optimisations: optimisations
-      });
-
-      // Process SEO recommendations
+      // SEO (seulement au premier chargement)
       if (seoData) {
         const recommendations = seoData.recommendations || seoData || [];
         if (Array.isArray(recommendations)) {
@@ -442,7 +301,7 @@ export function Home() {
               id: `seo-${i}`,
               category: 'seo',
               type: 'seo',
-              message: `🔍 ${rec.titre || rec.title || 'Conseil SEO'}`,
+              message: `${rec.titre || rec.title || 'Conseil SEO'}`,
               detail: rec.description,
               timestamp: new Date()
             });
@@ -450,31 +309,32 @@ export function Home() {
         }
       }
 
-      // Process churn alerts
+      // Churn (seulement au premier chargement)
       if (churnData && churnData.high_risk > 0) {
+        clientsRisque = churnData.high_risk;
         allEvents.unshift({
           id: 'churn-alert',
           category: 'anomaly',
           type: 'warning',
-          message: `🚨 ${churnData.high_risk} clients à risque de départ`,
-          detail: 'Relance automatique recommandée',
+          message: `${churnData.high_risk} clients à risque de départ`,
+          detail: 'Relance recommandée',
           value: churnData.high_risk,
           timestamp: new Date()
         });
       }
 
-      // Event coût temps réel
-      if (depensesTotal > 0) {
-        allEvents.push({
-          id: 'cost-realtime',
-          category: 'cost',
-          type: 'info',
-          message: `📊 Coût d'activité: ${depensesTotal.toFixed(0)}€`,
-          detail: `Marge générée: ${margeGeneree.toFixed(0)}€`,
-          value: depensesTotal,
-          timestamp: new Date()
-        });
-      }
+      setSentinelStats({
+        ca_mois: caTotal,
+        depenses_mois: depensesTotal,
+        resultat_net: resultatNet,
+        marge_nette: margeNette,
+        anomalies: allEvents.filter(e => e.category === 'anomaly').length,
+        workflows_actifs: workflowsActifs,
+        executions_mois: executionsMois,
+        notifications_mois: notificationsMois,
+        taches_completees: tachesCompletees,
+        clients_risque: clientsRisque
+      });
 
       setSentinelEvents(allEvents);
     } catch {
@@ -639,26 +499,32 @@ export function Home() {
     }
   };
 
-  // Génère le message d'accueil dynamique basé sur les KPIs
+  // Génère le message d'accueil dynamique basé sur les données réelles
   const getDynamicWelcome = () => {
-    const score = businessKPIs.score_automatisation;
-    const gain = businessKPIs.gain_vs_humain;
-    const tasks = businessKPIs.taches_auto_jour;
-
-    if (score >= 80) {
+    if (!sentinelStats) {
       return {
-        title: `Votre entreprise tourne à ${score}%`,
-        subtitle: `J'ai déjà traité ${tasks} tâches aujourd'hui. Emails, posts, factures... que dois-je faire maintenant ?`
+        title: 'Votre assistant intelligent',
+        subtitle: 'Emails, réseaux sociaux, documents, relances... déléguez-moi vos tâches répétitives'
       };
-    } else if (score >= 50) {
+    }
+
+    const workflows = sentinelStats.workflows_actifs;
+    const notifs = sentinelStats.notifications_mois;
+
+    if (workflows >= 5) {
       return {
-        title: `Je peux faire plus pour vous`,
-        subtitle: `Emails, réseaux sociaux, documents, relances... déléguez-moi vos tâches répétitives`
+        title: `${workflows} workflows actifs pour vous`,
+        subtitle: `${notifs} notification${notifs > 1 ? 's' : ''} envoyée${notifs > 1 ? 's' : ''} ce mois. Que dois-je faire maintenant ?`
+      };
+    } else if (workflows >= 1) {
+      return {
+        title: 'Je peux faire plus pour vous',
+        subtitle: 'Emails, réseaux sociaux, documents, relances... déléguez-moi vos tâches répétitives'
       };
     } else {
       return {
-        title: `Libérez-vous des tâches chronophages`,
-        subtitle: `Je réponds aux emails, crée vos posts, génère vos documents. Essayez maintenant.`
+        title: 'Libérez-vous des tâches chronophages',
+        subtitle: 'Je réponds aux emails, crée vos posts, génère vos documents. Essayez maintenant.'
       };
     }
   };
@@ -778,84 +644,43 @@ export function Home() {
                 </button>
               )}
 
-              {/* KPIs */}
+              {/* KPIs — données réelles uniquement */}
               <div className="flex-1 flex items-center justify-center gap-4 md:gap-6 lg:gap-8">
-                {/* Score d'automatisation avec détail */}
-                <div className="group relative flex items-center gap-2 cursor-pointer">
-                  <div className="relative">
-                    <Cpu className="w-5 h-5 text-cyan-400" />
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Automatisation</p>
-                    <p className="text-lg font-bold text-cyan-400">{businessKPIs.score_automatisation}%</p>
-                  </div>
-                  {/* Tooltip détail du score */}
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl">
-                    <p className="text-xs text-gray-400 mb-2 font-medium">Détail du score :</p>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Emails auto</span>
-                        <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.emails_auto}%</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Appels sans humain</span>
-                        <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.appels_auto}%</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Prestations créées auto</span>
-                        <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.rdv_auto}%</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Relances auto</span>
-                        <span className="text-xs font-bold text-cyan-400">{businessKPIs.score_detail.relances_auto}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gains monétaires avec détail */}
-                <div className="group relative flex items-center gap-2 cursor-pointer">
+                {/* CA du mois */}
+                <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Gains générés</p>
-                    <p className="text-lg font-bold text-emerald-400">+{(businessKPIs.gains.rdv_crees + businessKPIs.gains.relances_recuperees + businessKPIs.gains.upsell_detectes).toLocaleString()}€</p>
-                  </div>
-                  {/* Tooltip détail des gains */}
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl">
-                    <p className="text-xs text-gray-400 mb-2 font-medium">Détail des gains :</p>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Prestations créées</span>
-                        <span className="text-xs font-bold text-emerald-400">+{businessKPIs.gains.rdv_crees}€</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Relances récupérées</span>
-                        <span className="text-xs font-bold text-emerald-400">+{businessKPIs.gains.relances_recuperees}€</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-300">Upsell détectés</span>
-                        <span className="text-xs font-bold text-amber-400">+{businessKPIs.gains.upsell_detectes}€</span>
-                      </div>
-                    </div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">CA mois</p>
+                    <p className="text-lg font-bold text-emerald-400">{(sentinelStats?.ca_mois || 0).toLocaleString()}€</p>
                   </div>
                 </div>
 
-                {/* Gain vs Humain */}
-                <div className="hidden md:flex items-center gap-2">
-                  <PiggyBank className="w-5 h-5 text-purple-400" />
+                {/* Résultat net */}
+                <div className="flex items-center gap-2">
+                  <TrendingUp className={`w-5 h-5 ${(sentinelStats?.resultat_net || 0) >= 0 ? 'text-cyan-400' : 'text-red-400'}`} />
                   <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">vs Employé</p>
-                    <p className="text-lg font-bold text-purple-400">+{businessKPIs.gain_vs_humain}€<span className="text-xs text-purple-400/60">/mois</span></p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Résultat</p>
+                    <p className={`text-lg font-bold ${(sentinelStats?.resultat_net || 0) >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+                      {(sentinelStats?.resultat_net || 0) >= 0 ? '+' : ''}{(sentinelStats?.resultat_net || 0).toFixed(0)}€
+                    </p>
                   </div>
                 </div>
 
-                {/* Tâches auto */}
+                {/* Workflows actifs */}
+                <div className="hidden md:flex items-center gap-2">
+                  <Cpu className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Workflows</p>
+                    <p className="text-lg font-bold text-purple-400">{sentinelStats?.workflows_actifs || 0}</p>
+                  </div>
+                </div>
+
+                {/* Notifications envoyées */}
                 <div className="hidden lg:flex items-center gap-2">
                   <Activity className="w-5 h-5 text-amber-400" />
                   <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Tâches</p>
-                    <p className="text-lg font-bold text-amber-400">{businessKPIs.taches_auto_jour}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Notifs</p>
+                    <p className="text-lg font-bold text-amber-400">{sentinelStats?.notifications_mois || 0}</p>
                   </div>
                 </div>
               </div>
@@ -913,64 +738,40 @@ export function Home() {
                 {sentinelStats && (
                   <>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                      {/* Coût activité temps réel */}
+                      {/* Dépenses du mois */}
                       <div className="bg-gradient-to-br from-orange-500/20 to-red-600/10 border border-orange-500/30 rounded-xl px-4 py-3 backdrop-blur-sm shadow-lg">
                         <p className="text-xs text-orange-300/80 font-medium flex items-center gap-1">
-                          <TrendingDown className="w-3 h-3" /> Coût activité
+                          <DollarSign className="w-3 h-3" /> Dépenses
                         </p>
-                        <p className="text-xl font-bold text-orange-400">{sentinelStats.cout_activite.toFixed(0)}€</p>
-                        <p className="text-xs text-orange-400/60">Temps réel</p>
+                        <p className="text-xl font-bold text-orange-400">{sentinelStats.depenses_mois.toFixed(0)}€</p>
+                        <p className="text-xs text-orange-400/60">Ce mois</p>
                       </div>
 
-                      {/* Marge générée + bouton optimiser */}
-                      <div className={`bg-gradient-to-br ${sentinelStats.marge_generee >= 0 ? 'from-emerald-500/20 to-green-600/10 border-emerald-500/30' : 'from-red-500/20 to-red-600/10 border-red-500/30'} border rounded-xl px-4 py-3 backdrop-blur-sm shadow-lg`}>
-                        <p className={`text-xs ${sentinelStats.marge_generee >= 0 ? 'text-emerald-300/80' : 'text-red-300/80'} font-medium flex items-center gap-1`}>
-                          <DollarSign className="w-3 h-3" /> Marge générée
+                      {/* Marge nette */}
+                      <div className={`bg-gradient-to-br ${sentinelStats.resultat_net >= 0 ? 'from-emerald-500/20 to-green-600/10 border-emerald-500/30' : 'from-red-500/20 to-red-600/10 border-red-500/30'} border rounded-xl px-4 py-3 backdrop-blur-sm shadow-lg`}>
+                        <p className={`text-xs ${sentinelStats.resultat_net >= 0 ? 'text-emerald-300/80' : 'text-red-300/80'} font-medium flex items-center gap-1`}>
+                          <TrendingUp className="w-3 h-3" /> Marge nette
                         </p>
-                        <p className={`text-xl font-bold ${sentinelStats.marge_generee >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {sentinelStats.marge_generee >= 0 ? '+' : ''}{sentinelStats.marge_generee.toFixed(0)}€
+                        <p className={`text-xl font-bold ${sentinelStats.resultat_net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {sentinelStats.marge_nette}%
                         </p>
-                        {sentinelStats.marge_generee < 0 && (
+                        {sentinelStats.resultat_net < 0 && (
                           <button
-                            onClick={() => sendMessage('Analyse ma rentabilité et propose des actions concrètes pour améliorer ma marge : ajustement des tarifs, services les plus rentables à promouvoir, créneaux horaires à optimiser, et stratégies pour augmenter le panier moyen.')}
-                            className="mt-1 px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all animate-pulse"
+                            onClick={() => sendMessage('Analyse ma rentabilité et propose des actions concrètes pour améliorer ma marge')}
+                            className="mt-1 px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all"
                           >
-                            ⚡ Optimiser mon activité
+                            Optimiser
                           </button>
                         )}
                       </div>
 
-                      {/* ROI Automatisation avec comparaisons */}
-                      <div className="group relative bg-gradient-to-br from-cyan-500/20 to-blue-600/10 border border-cyan-500/30 rounded-xl px-4 py-3 backdrop-blur-sm shadow-lg cursor-pointer">
+                      {/* Exécutions workflows */}
+                      <div className="bg-gradient-to-br from-cyan-500/20 to-blue-600/10 border border-cyan-500/30 rounded-xl px-4 py-3 backdrop-blur-sm shadow-lg">
                         <p className="text-xs text-cyan-300/80 font-medium flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" /> ROI Auto
+                          <Zap className="w-3 h-3" /> Exécutions
                         </p>
-                        <p className="text-xl font-bold text-cyan-400">+{sentinelStats.roi_auto}%</p>
-                        <p className="text-xs text-cyan-400/60 flex items-center gap-1">
-                          {sentinelStats.roi_auto > sentinelStats.roi_mois_precedent ? (
-                            <><TrendingUp className="w-3 h-3 text-green-400" /> <span className="text-green-400">+{sentinelStats.roi_auto - sentinelStats.roi_mois_precedent}% vs M-1</span></>
-                          ) : (
-                            <><TrendingDown className="w-3 h-3 text-red-400" /> <span className="text-red-400">{sentinelStats.roi_auto - sentinelStats.roi_mois_precedent}% vs M-1</span></>
-                          )}
-                        </p>
-                        {/* Tooltip comparaisons ROI */}
-                        <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl">
-                          <p className="text-xs text-gray-400 mb-2 font-medium">Comparaison ROI :</p>
-                          <div className="space-y-1.5">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-300">Mois précédent</span>
-                              <span className="text-xs font-bold text-cyan-400">{sentinelStats.roi_mois_precedent}%</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-300">Moyenne secteur</span>
-                              <span className={`text-xs font-bold ${sentinelStats.roi_auto > sentinelStats.roi_secteur ? 'text-green-400' : 'text-amber-400'}`}>{sentinelStats.roi_secteur}%</span>
-                            </div>
-                            <div className="flex justify-between items-center border-t border-white/10 pt-1.5 mt-1.5">
-                              <span className="text-xs text-gray-300">Projection fin mois</span>
-                              <span className="text-xs font-bold text-purple-400">{sentinelStats.roi_projection_fin_mois}%</span>
-                            </div>
-                          </div>
-                        </div>
+                        <p className="text-xl font-bold text-cyan-400">{sentinelStats.executions_mois}</p>
+                        <p className="text-xs text-cyan-400/60">{sentinelStats.taches_completees} tâches terminées</p>
                       </div>
 
                       {/* Anomalies */}
@@ -986,27 +787,6 @@ export function Home() {
                         </p>
                       </div>
                     </div>
-
-                    {/* Conseils d'amélioration si marge négative */}
-                    {sentinelStats.marge_generee < 0 && (
-                      <div className="mb-3 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl">
-                        <p className="text-xs text-amber-400 font-bold mb-2 flex items-center gap-1">
-                          <Zap className="w-3 h-3" /> Conseils pour améliorer votre rentabilité :
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {sentinelStats.optimisations.augmenter_prix && (
-                            <button onClick={() => sendMessage('Analyse mes tarifs et suggère des augmentations de prix')} className="px-2 py-1 bg-slate-800 text-amber-400 text-[10px] rounded-lg hover:bg-slate-700 border border-amber-500/30">
-                              Revoir tarification
-                            </button>
-                          )}
-                          {sentinelStats.optimisations.supprimer_canal && (
-                            <button onClick={() => sendMessage(`Analyse la rentabilité du canal ${sentinelStats.optimisations.supprimer_canal} et suggère si je dois le supprimer`)} className="px-2 py-1 bg-slate-800 text-red-400 text-[10px] rounded-lg hover:bg-slate-700 border border-red-500/30">
-                              Analyser canal {sentinelStats.optimisations.supprimer_canal}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
 
@@ -1058,30 +838,9 @@ export function Home() {
               /* Welcome Screen - Dynamic & Powerful */
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="mb-8">
-                  {/* Score d'optimisation visuel */}
-                  <div className="relative w-28 h-28 mx-auto mb-6">
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="8" fill="none" className="text-gray-200 dark:text-gray-700" />
-                      <circle
-                        cx="56" cy="56" r="50"
-                        stroke="url(#gradient)"
-                        strokeWidth="8"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeDasharray={`${businessKPIs.score_automatisation * 3.14} 314`}
-                        className="transition-all duration-1000"
-                      />
-                      <defs>
-                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#06b6d4" />
-                          <stop offset="100%" stopColor="#3b82f6" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-bold text-gray-800 dark:text-white">{businessKPIs.score_automatisation}%</span>
-                      <span className="text-xs text-gray-500">optimisé</span>
-                    </div>
+                  {/* Bot icon */}
+                  <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-cyan-500/30">
+                    <Bot className="w-10 h-10 text-white" />
                   </div>
 
                   <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-3 max-w-lg mx-auto leading-tight">
@@ -1091,30 +850,34 @@ export function Home() {
                     {getDynamicWelcome().subtitle}
                   </p>
 
-                  {/* Gains breakdown */}
-                  <div className="mt-6 flex flex-wrap justify-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-lg">
-                      <Calendar className="w-4 h-4 text-emerald-500" />
-                      <div className="text-left">
-                        <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">Prestations créées</p>
-                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+{businessKPIs.gains.rdv_crees}€</p>
+                  {/* Résumé rapide basé sur données réelles */}
+                  {sentinelStats && (
+                    <div className="mt-6 flex flex-wrap justify-center gap-3">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-lg">
+                        <DollarSign className="w-4 h-4 text-emerald-500" />
+                        <div className="text-left">
+                          <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">CA du mois</p>
+                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{sentinelStats.ca_mois.toLocaleString()}€</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-lg">
-                      <Send className="w-4 h-4 text-blue-500" />
-                      <div className="text-left">
-                        <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70">Relances récup.</p>
-                        <p className="text-sm font-bold text-blue-600 dark:text-blue-400">+{businessKPIs.gains.relances_recuperees}€</p>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-lg">
+                        <Zap className="w-4 h-4 text-cyan-500" />
+                        <div className="text-left">
+                          <p className="text-[10px] text-cyan-600/70 dark:text-cyan-400/70">Workflows actifs</p>
+                          <p className="text-sm font-bold text-cyan-600 dark:text-cyan-400">{sentinelStats.workflows_actifs}</p>
+                        </div>
                       </div>
+                      {sentinelStats.clients_risque > 0 && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                          <div className="text-left">
+                            <p className="text-[10px] text-red-600/70 dark:text-red-400/70">Clients à risque</p>
+                            <p className="text-sm font-bold text-red-600 dark:text-red-400">{sentinelStats.clients_risque}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-lg">
-                      <TrendingUp className="w-4 h-4 text-amber-500" />
-                      <div className="text-left">
-                        <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">Upsell détectés</p>
-                        <p className="text-sm font-bold text-amber-600 dark:text-amber-400">+{businessKPIs.gains.upsell_detectes}€</p>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Actions principales - Ce que je FAIS pour vous */}
