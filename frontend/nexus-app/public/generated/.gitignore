@@ -1,0 +1,8 @@
+# Ignore all generated images
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Keep this .gitignore file
+!.gitignore
