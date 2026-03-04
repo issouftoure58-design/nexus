@@ -5,6 +5,8 @@ import { sendConfirmation } from '../services/notificationService.js';
 import { createReservationUnified } from '../core/unified/nexusCore.js';
 // 🔒 Config publique pour le checkout + règles métier
 import { SERVICE_OPTIONS, TRAVEL_FEES, BLOCKING_STATUTS, BUSINESS_HOURS } from '../config/businessRules.js';
+// 🔒 Horaires dynamiques par tenant
+import { getBusinessHoursForTenant } from '../services/tenantBusinessRules.js';
 // 🔒 Business type pour default lieu
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
 
@@ -727,16 +729,17 @@ router.get('/checkout/available-slots', async (req, res) => {
     const dateObj = new Date(year, month - 1, day);
     const dayOfWeek = dateObj.getDay();
 
-    // 🔒 G9: Horaires depuis source unique (businessRules.js)
-    const businessHours = BUSINESS_HOURS.getHours(dayOfWeek);
-    const horaires = businessHours ? { ouverture: businessHours.open, fermeture: businessHours.close } : null;
+    // 🔒 Horaires dynamiques depuis DB (fallback hardcodé)
+    const tenantHours = await getBusinessHoursForTenant(tenantId);
+    const dayHours = tenantHours.getHours(dayOfWeek);
+    const horaires = dayHours ? { ouverture: dayHours.open, fermeture: dayHours.close } : null;
 
     if (!horaires) {
       return res.json({
         success: true,
         date,
         slots: [],
-        message: 'Fatou ne travaille pas ce jour',
+        message: 'Fermé ce jour',
       });
     }
 
@@ -831,9 +834,10 @@ router.get('/checkout/available-dates', async (req, res) => {
     const dureeTotale = parseInt(duration) || 60;
     const nbDays = parseInt(days) || 14;
 
-    // 🔒 G9: Helper pour convertir les horaires
+    // 🔒 Horaires dynamiques depuis DB
+    const tenantHours = await getBusinessHoursForTenant(tenantId);
     const getHoraires = (dow) => {
-      const bh = BUSINESS_HOURS.getHours(dow);
+      const bh = tenantHours.getHours(dow);
       return bh ? { ouverture: bh.open, fermeture: bh.close } : null;
     };
 
@@ -944,9 +948,11 @@ router.get('/checkout/week-availability', async (req, res) => {
     // Pour les prestations multi-jours, calculer la durée par jour
     const durationPerDay = nbDays > 1 ? Math.ceil(dureeTotale / nbDays) : dureeTotale;
 
-    // 🔒 G9: Helper pour convertir les horaires depuis source unique
+    // 🔒 Horaires dynamiques depuis DB (fallback hardcodé)
+    const tenantHours = await getBusinessHoursForTenant(tenantId);
+
     const getHoraires = (dow) => {
-      const bh = BUSINESS_HOURS.getHours(dow);
+      const bh = tenantHours.getHours(dow);
       return bh ? { ouverture: bh.open, fermeture: bh.close } : null;
     };
 
@@ -967,14 +973,14 @@ router.get('/checkout/week-availability', async (req, res) => {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
-    // Helper: Trouve les N prochains jours ouvrés (saute les dimanches)
+    // Helper: Trouve les N prochains jours ouvrés
     const getWorkingDays = (startDateObj, nbDaysNeeded) => {
       const workingDays = [];
       const current = new Date(startDateObj);
 
       while (workingDays.length < nbDaysNeeded) {
         const dayOfWeek = current.getDay();
-        if (BUSINESS_HOURS.isOpen(dayOfWeek)) {
+        if (tenantHours.isOpen(dayOfWeek)) {
           workingDays.push(formatDateStr(current));
         }
         current.setDate(current.getDate() + 1);
