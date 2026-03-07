@@ -467,8 +467,27 @@ router.get('/sentinel/backups', async (req, res) => {
  */
 router.post('/sentinel/backups', async (req, res) => {
   try {
-    const result = await createBackup();
-    res.json({ success: true, data: result });
+    // Backup tous les tenants actifs
+    const { data: tenants, error: tErr } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('statut', 'actif');
+
+    if (tErr || !tenants?.length) {
+      return res.status(500).json({ success: false, error: 'Aucun tenant actif trouvé' });
+    }
+
+    const results = [];
+    for (const t of tenants) {
+      const result = await createBackup(t.id);
+      results.push({ tenantId: t.id, ...result });
+    }
+
+    const failed = results.filter(r => !r.success).length;
+    res.json({
+      success: failed === 0,
+      data: { totalTenants: tenants.length, succeeded: tenants.length - failed, failed, backups: results }
+    });
   } catch (error) {
     console.error('[NEXUS ADMIN] Backup create error:', error);
     res.status(500).json({ success: false, error: error.message });
