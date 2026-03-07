@@ -20,7 +20,7 @@ export default function NexusLogin() {
 
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${baseUrl}/admin/auth/login`, {
+      const response = await fetch(`${baseUrl}/nexus/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -30,10 +30,6 @@ export default function NexusLogin() {
 
       if (!response.ok) {
         throw new Error(data.error || 'Erreur de connexion');
-      }
-
-      if (data.admin.role !== 'super_admin') {
-        throw new Error('Acces reserve aux operateurs NEXUS');
       }
 
       localStorage.setItem('nexus_superadmin_token', data.token);

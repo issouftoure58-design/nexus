@@ -102,6 +102,7 @@ const IGNORE_FILES = [
   'signup.js',          // création de tenant
   'provisioning.js',    // provisioning système
   'nexusAdmin.js',      // super-admin cross-tenant (requireSuperAdmin)
+  'nexusAuth.js',       // super-admin auth (cross-tenant, no tenant_id needed)
 ];
 
 // Dossiers à ignorer (tests, scripts CLI, migrations)

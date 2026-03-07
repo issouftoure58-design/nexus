@@ -100,6 +100,7 @@ import nexusAdminRoutes, {
   sentinelLiveRouter,
   optimizationRouter
 } from './routes/nexusAdmin.js';
+import nexusAuthRoutes from './routes/nexusAuth.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -324,6 +325,7 @@ app.use('/api', frontendReportRouter);
 
 // ============= NEXUS SUPER-ADMIN (cross-tenant, avant tenant shield) =============
 // Panel opérateur NEXUS — auth via JWT super_admin, pas besoin de tenant resolution
+app.use('/api/nexus/auth', nexusAuthRoutes);
 app.use('/api/nexus', errorRoutes);
 app.use('/api/nexus', nexusAdminRoutes);
 app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
