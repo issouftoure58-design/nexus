@@ -146,6 +146,7 @@ class Alerter {
       const path = await import('path');
 
       const alertsDir = path.join(process.cwd(), 'data', 'sentinel', 'alerts');
+      await fs.mkdir(alertsDir, { recursive: true });
       const date = new Date().toISOString().split('T')[0];
       const filePath = path.join(alertsDir, `${date}.json`);
 

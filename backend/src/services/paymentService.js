@@ -29,7 +29,9 @@ const PAYPAL_API_URL = PAYPAL_MODE === 'live'
   : 'https://api-m.sandbox.paypal.com';
 
 if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-  console.warn('[PaymentService] PAYPAL_CLIENT_ID ou PAYPAL_CLIENT_SECRET non défini');
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[PaymentService] PAYPAL_CLIENT_ID ou PAYPAL_CLIENT_SECRET non défini');
+  }
 }
 
 /**
