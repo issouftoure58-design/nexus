@@ -948,14 +948,15 @@ sentinelIntelligenceRouter.get('/recommendations', async (req, res) => {
 
     // --- Recommandations TOUS ENVIRONNEMENTS ---
 
-    // Mémoire élevée (pertinent partout)
+    // Mémoire élevée (RSS vs limite réelle, pas heap ratio)
     const mem = process.memoryUsage();
-    const memPct = Math.round((mem.heapUsed / mem.heapTotal) * 100);
-    if (memPct > 90) {
+    const memLimitMB = parseInt(process.env.MEMORY_LIMIT_MB || '512', 10);
+    const rssPct = Math.round((mem.rss / (memLimitMB * 1024 * 1024)) * 100);
+    if (rssPct > 85) {
       recommendations.push({
-        id: 'rec-memory', title: 'Utilisation mémoire critique',
-        description: `Le heap est à ${memPct}% — risque de crash imminent`,
-        priority: 'high', category: 'performance',
+        id: 'rec-memory', title: 'Utilisation mémoire élevée',
+        description: `RSS à ${rssPct}% de la limite (${Math.round(mem.rss / 1024 / 1024)}MB / ${memLimitMB}MB)`,
+        priority: rssPct > 95 ? 'high' : 'medium', category: 'performance',
         action: 'Redémarrer le serveur ou augmenter la RAM'
       });
     }

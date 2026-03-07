@@ -30,12 +30,19 @@ interface Recommendation {
   action?: string;
 }
 
+interface Investigation {
+  anomalyId: string;
+  severity: string;
+  recommendation: string;
+}
+
 export default function SentinelIntelligence() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [investigations, setInvestigations] = useState<Record<string, Investigation>>({});
 
   const fetchAll = async () => {
     try {
@@ -86,8 +93,10 @@ export default function SentinelIntelligence() {
   const investigateAnomaly = async (id: string) => {
     setActionLoading(`inv-${id}`);
     try {
-      await nexusApi.post(`/admin/sentinel-intelligence/anomalies/${id}/investigate`);
-      await fetchAll();
+      const res = await nexusApi.post<{ investigation?: Investigation }>(`/admin/sentinel-intelligence/anomalies/${id}/investigate`);
+      if (res.investigation) {
+        setInvestigations(prev => ({ ...prev, [id]: res.investigation as Investigation }));
+      }
     } catch {} finally { setActionLoading(null); }
   };
 
@@ -135,9 +144,18 @@ export default function SentinelIntelligence() {
                   </div>
                   <button onClick={() => investigateAnomaly(a.id)} disabled={!!actionLoading}
                     className="text-[10px] px-2 py-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition whitespace-nowrap disabled:opacity-50">
-                    {actionLoading === `inv-${a.id}` ? '...' : 'Investiguer'}
+                    {actionLoading === `inv-${a.id}` ? '...' : investigations[a.id] ? 'Re-investiguer' : 'Investiguer'}
                   </button>
                 </div>
+                {investigations[a.id] && (
+                  <div className="mt-2 p-2 bg-cyan-950/30 border border-cyan-900/50 rounded text-[11px]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-cyan-400 font-medium">Investigation</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${sevColors[investigations[a.id].severity] || 'text-slate-400 bg-slate-800'}`}>{investigations[a.id].severity}</span>
+                    </div>
+                    <div className="text-slate-300">{investigations[a.id].recommendation}</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
