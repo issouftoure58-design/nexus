@@ -600,8 +600,11 @@ sentinelIntelligenceRouter.get('/health-score', async (req, res) => {
 
     // Calcul score basé sur les métriques système réelles
     const uptimeScore = Math.min(uptime / 86400, 1) * 100; // Max après 24h
-    const memoryUsage = mem.heapUsed / mem.heapTotal;
-    const memoryScore = (1 - memoryUsage) * 100;
+    // Performance: RSS vs limite mémoire (512MB par défaut sur Render free, 2GB sur paid)
+    const rssBytes = mem.rss;
+    const memLimitMB = parseInt(process.env.MEMORY_LIMIT_MB || '512', 10);
+    const rssPct = rssBytes / (memLimitMB * 1024 * 1024);
+    const memoryScore = rssPct < 0.6 ? 100 : rssPct < 0.75 ? 85 : rssPct < 0.85 ? 70 : rssPct < 0.95 ? 50 : 20;
     const sentinelActive = sentinelStatus.status === 'ACTIVE' ? 100 : 30;
 
     // Latence réelle: ping DB
