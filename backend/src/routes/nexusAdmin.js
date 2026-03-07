@@ -94,14 +94,22 @@ router.get('/dashboard', async (req, res) => {
       totalCalls = aiSnapshots.reduce((sum, s) => sum + (s.ai_conversations || 0), 0);
     }
 
-    // 4. Alertes récentes
-    const recentAlerts = alerter.getHistory(8).reverse().map(a => ({
-      id: a.id,
-      tenant_id: a.data?.tenantId || null,
-      level: a.level.toLowerCase(),
+    // 4. Alertes récentes (depuis error_logs pour cohérence avec onglet Erreurs)
+    const { data: recentErrorLogs } = await supabase
+      .from('error_logs')
+      .select('id, tenant_id, level, message, created_at')
+      .in('level', ['fatal', 'error', 'warning'])
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    const recentAlerts = (recentErrorLogs || []).map(e => ({
+      id: String(e.id),
+      tenant_id: e.tenant_id,
+      level: e.level === 'fatal' ? 'critical' : e.level,
       percentage: 0,
-      message: a.title,
-      created_at: a.timestamp
+      message: e.message,
+      created_at: e.created_at
     }));
 
     // 5. Tenants à risque (quota > 80%)

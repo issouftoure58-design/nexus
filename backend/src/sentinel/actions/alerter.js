@@ -2,10 +2,16 @@
  * SENTINEL - Alerter
  *
  * Canaux: SMS (critique), Email (important), Dashboard (info)
+ * Toutes les alertes sont persistées dans error_logs (via errorTracker)
+ * pour cohérence avec l'onglet Erreurs du dashboard.
  * Numero SMS alertes critiques: 0760537694
  */
 
 import { ALERT_PHONE } from '../config/thresholds.js';
+import { captureMessage } from '../../services/errorTracker.js';
+
+// Map alerter levels to error_logs levels
+const LEVEL_MAP = { CRITICAL: 'fatal', URGENT: 'error', WARNING: 'warning', INFO: 'info' };
 
 class Alerter {
   constructor() {
@@ -44,21 +50,22 @@ class Alerter {
 
     console.log(`[SENTINEL] ALERT ${level}: ${title}`, data);
 
+    // Persist dans error_logs pour visibilité dans l'onglet Erreurs
+    const errorLevel = LEVEL_MAP[level] || 'info';
+    captureMessage(`[SENTINEL] ${title}`, errorLevel, {
+      extra: { alertLevel: level, ...data },
+    });
+
     // Send based on level
     switch (level) {
       case 'CRITICAL':
         await this.sendSMS(alert);
-        await this.logToFile(alert);
         break;
       case 'URGENT':
         await this.sendEmail(alert);
-        await this.logToFile(alert);
         break;
       case 'WARNING':
-        await this.logToFile(alert);
-        break;
       case 'INFO':
-        // Just log
         break;
     }
 
@@ -137,34 +144,6 @@ class Alerter {
     } catch (error) {
       console.error('[SENTINEL] Email failed:', error.message);
       return { sent: false, error: error.message };
-    }
-  }
-
-  async logToFile(alert) {
-    try {
-      const fs = await import('fs/promises');
-      const path = await import('path');
-
-      const alertsDir = path.join(process.cwd(), 'data', 'sentinel', 'alerts');
-      await fs.mkdir(alertsDir, { recursive: true });
-      const date = new Date().toISOString().split('T')[0];
-      const filePath = path.join(alertsDir, `${date}.json`);
-
-      let alerts = [];
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        alerts = JSON.parse(content);
-      } catch {
-        // File doesn't exist yet
-      }
-
-      alerts.push(alert);
-      await fs.writeFile(filePath, JSON.stringify(alerts, null, 2));
-
-      return { logged: true };
-    } catch (error) {
-      console.error('[SENTINEL] Log to file failed:', error.message);
-      return { logged: false, error: error.message };
     }
   }
 
