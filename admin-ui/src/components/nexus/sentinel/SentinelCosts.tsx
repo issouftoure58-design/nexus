@@ -50,23 +50,20 @@ export default function SentinelCosts() {
         if (nexusRes.status === 'fulfilled') {
           const nexusData = nexusRes.value;
           const cb = nexusData.costBreakdown as Record<string, number> | undefined;
-          const anthropicCost = cb?.anthropic || 0;
-          const twilioCost = cb?.twilio || 0;
-          const elevenlabsCost = cb?.elevenlabs || 0;
+          const aiCost = cb?.anthropic || 0;
+          const smsCost = cb?.twilio_sms || 0;
+          const voiceCost = cb?.twilio_voice || 0;
+          const emailCost = cb?.email || 0;
           const summary = nexusData.summary as Record<string, number> | undefined;
           const totalCalls = summary?.totalCalls || 0;
-          const twilioDetails = nexusData.twilioDetails as Record<string, { count?: number }> | undefined;
-          const twilioSms = twilioDetails?.sms?.count || 0;
-          const twilioVoice = twilioDetails?.voice?.count || 0;
-          const elevenLabsDetails = nexusData.elevenLabsDetails as Record<string, number> | undefined;
-          const elevenLabsChars = elevenLabsDetails?.characters || 0;
 
           setMonthCosts({
-            totalCost: anthropicCost + twilioCost + elevenlabsCost,
+            totalCost: aiCost + smsCost + voiceCost + emailCost,
             services: {
-              claude: { cost: anthropicCost, calls: totalCalls },
-              elevenlabs: { cost: elevenlabsCost, calls: elevenLabsChars },
-              twilio: { cost: twilioCost, calls: twilioSms + twilioVoice },
+              claude: { cost: aiCost, calls: totalCalls },
+              twilio_sms: { cost: smsCost, calls: 0 },
+              twilio_voice: { cost: voiceCost, calls: 0 },
+              email: { cost: emailCost, calls: 0 },
             }
           });
 
@@ -76,23 +73,23 @@ export default function SentinelCosts() {
               totalCost: todayData.total || 0,
               services: {
                 claude: { cost: todayData.anthropic || 0, calls: 0 },
-                elevenlabs: { cost: todayData.elevenlabs || 0, calls: 0 },
-                twilio: { cost: todayData.twilio || 0, calls: 0 },
+                twilio_sms: { cost: 0, calls: 0 },
+                twilio_voice: { cost: 0, calls: 0 },
+                email: { cost: 0, calls: 0 },
               }
             });
           } else {
             setTodayCosts({ totalCost: 0, services: {} });
           }
 
-          // Budgets dérivés du plan Business (somme de tous les tenants)
-          // Les vrais budgets viendront du pricing API si disponible
+          // Budgets depuis pricing API (source unique de vérité)
           const totalTenants = (nexusData.summary as Record<string, number>)?.totalTenants || 1;
-          const baseBudgets = { ai: 30, sms: 40, voice: 15 }; // Business plan defaults
+          const baseBudgets = { ai: 30, sms: 40, voice: 15 };
           setBudget({
             services: {
-              claude: { spent: anthropicCost, budget: baseBudgets.ai * totalTenants },
-              elevenlabs: { spent: elevenlabsCost, budget: baseBudgets.voice * totalTenants },
-              twilio: { spent: twilioCost, budget: baseBudgets.sms * totalTenants },
+              claude: { spent: aiCost, budget: baseBudgets.ai * totalTenants },
+              twilio_sms: { spent: smsCost, budget: baseBudgets.sms * totalTenants },
+              twilio_voice: { spent: voiceCost, budget: baseBudgets.voice * totalTenants },
             }
           });
         }
@@ -106,18 +103,18 @@ export default function SentinelCosts() {
           const pricingParsed = (pricingData as { data?: PricingData }).data ?? pricingData as PricingData;
           setPricing(pricingParsed);
 
-          // Mettre à jour les budgets avec les données réelles du plan Business (aggrégé)
-          if (pricingParsed.plans) {
+          // Mettre à jour les budgets avec les données réelles du pricing API
+          if (pricingParsed.plans && nexusRes.status === 'fulfilled') {
             const businessPlan = (pricingParsed.plans as Record<string, PlanBudgets>).business;
-            if (businessPlan && nexusRes.status === 'fulfilled') {
+            if (businessPlan) {
               const nexusData = nexusRes.value;
               const totalTenants = (nexusData.summary as Record<string, number>)?.totalTenants || 1;
               const cb = nexusData.costBreakdown as Record<string, number> | undefined;
               setBudget({
                 services: {
                   claude: { spent: cb?.anthropic || 0, budget: businessPlan.budget_ai * totalTenants },
-                  elevenlabs: { spent: cb?.elevenlabs || 0, budget: businessPlan.budget_voice * totalTenants },
-                  twilio: { spent: cb?.twilio || 0, budget: businessPlan.budget_sms * totalTenants },
+                  twilio_sms: { spent: cb?.twilio_sms || 0, budget: businessPlan.budget_sms * totalTenants },
+                  twilio_voice: { spent: cb?.twilio_voice || 0, budget: businessPlan.budget_voice * totalTenants },
                 }
               });
             }
@@ -142,18 +139,17 @@ export default function SentinelCosts() {
     </div>
   );
 
-  // N'afficher que les services actifs (avec des couts ou un budget)
-  const allServices = ['claude', 'elevenlabs', 'twilio'];
+  const allServices = ['claude', 'twilio_sms', 'twilio_voice'];
   const serviceLabels: Record<string, string> = {
-    claude: 'Anthropic Claude', elevenlabs: 'ElevenLabs', twilio: 'Twilio',
+    claude: 'Anthropic Claude', twilio_sms: 'Twilio SMS', twilio_voice: 'Twilio Voice',
   };
   const serviceDescs: Record<string, string> = {
     claude: 'Conversations IA, outils, analyse de texte',
-    elevenlabs: 'Synthese vocale pour Halimah',
-    twilio: 'SMS de rappel, appels telephoniques, WhatsApp',
+    twilio_sms: 'SMS de rappel et notifications',
+    twilio_voice: 'Appels telephoniques et WhatsApp',
   };
   const serviceColors: Record<string, string> = {
-    claude: 'bg-purple-500', elevenlabs: 'bg-cyan-500', twilio: 'bg-blue-500',
+    claude: 'bg-purple-500', twilio_sms: 'bg-blue-500', twilio_voice: 'bg-cyan-500',
   };
   const services = allServices;
 

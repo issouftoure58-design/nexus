@@ -143,10 +143,9 @@ export default function SentinelOverview() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {['API Gateway', 'PostgreSQL', 'Claude API', 'Twilio', 'ElevenLabs', 'Redis', 'WebSocket'].map((name, i) => (
-              <ServiceCard key={name} service={{ name, status: 'ok' }} index={i} />
-            ))}
+          <div className="text-center py-4">
+            <div className="text-slate-400 text-sm">Aucune donnee de monitoring disponible</div>
+            <div className="text-[10px] text-slate-600 mt-1">SENTINEL doit etre actif pour surveiller les services</div>
           </div>
         )}
       </div>

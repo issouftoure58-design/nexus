@@ -12,11 +12,11 @@
  */
 
 import { healthMonitor } from './monitors/healthMonitor.js';
-import { costMonitor } from './monitors/costMonitor.js';
 import { securityShield } from './monitors/securityShield.js';
 import { alerter } from './actions/alerter.js';
 import { autoHeal } from './actions/autoHeal.js';
 import { THRESHOLDS } from './config/thresholds.js';
+import { supabase } from '../config/supabase.js';
 
 // Multi-tenant cost tracking
 import { trackTenantCall, getTenantUsage, getAllTenantUsage, resetTenantUsage, initTenantUsageFromDB } from './monitors/tenantCostTracker.js';
@@ -36,7 +36,7 @@ class Sentinel {
     try {
       // Initialize monitors
       this.monitors.health = healthMonitor;
-      this.monitors.costs = costMonitor;
+      // costMonitor supprimé (dead code, jamais alimenté). checkCosts() lit la DB directement.
       this.monitors.security = securityShield;
 
       // Start periodic health checks
@@ -82,15 +82,23 @@ class Sentinel {
   }
 
   async checkCosts() {
-    const costs = await costMonitor.getTodayCosts();
+    // Lire les coûts réels du jour depuis sentinel_daily_costs
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: todayCosts } = await supabase
+      .from('sentinel_daily_costs')
+      .select('total_cost_eur')
+      .eq('date', todayStr);
 
-    if (costs.total >= THRESHOLDS.daily.shutdown) {
+    const total = (todayCosts || []).reduce((s, c) => s + (c.total_cost_eur || 0), 0);
+    const costs = { total, date: todayStr };
+
+    if (total >= THRESHOLDS.daily.shutdown) {
       await alerter.send('CRITICAL', 'Daily cost limit reached - entering degraded mode', costs);
       await autoHeal.attempt('costs', costs);
       return { action: 'SHUTDOWN_NON_ESSENTIAL' };
-    } else if (costs.total >= THRESHOLDS.daily.critical) {
+    } else if (total >= THRESHOLDS.daily.critical) {
       await alerter.send('CRITICAL', 'Daily costs critical', costs);
-    } else if (costs.total >= THRESHOLDS.daily.warning) {
+    } else if (total >= THRESHOLDS.daily.warning) {
       await alerter.send('WARNING', 'Daily costs warning', costs);
     }
 

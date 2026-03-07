@@ -8,24 +8,21 @@
 
 import { supabase } from '../config/supabase.js';
 import { sendSMS } from './smsService.js';
+import { PRICING as P } from '../config/pricing.js';
 
-// Prix unitaires pour calcul couts
+// Prix unitaires (EUR) — source unique : config/pricing.js
 const PRICING = {
-  // Anthropic Claude (par 1M tokens)
-  AI_INPUT_PER_1M: 3.00, // $3 / 1M input tokens
-  AI_OUTPUT_PER_1M: 15.00, // $15 / 1M output tokens
-  USD_TO_EUR: 0.92,
+  AI_INPUT_PER_1M: P.anthropic.sonnet.input,
+  AI_OUTPUT_PER_1M: P.anthropic.sonnet.output,
+  USD_TO_EUR: 1, // Plus de conversion — tout est déjà en EUR
 
-  // Twilio
-  SMS_FR: 0.0725, // EUR par SMS France
-  SMS_INTL: 0.12, // EUR par SMS international
-  VOICE_PER_MIN: 0.015, // EUR par minute
+  SMS_FR: P.twilio.sms_outbound_fr,
+  SMS_INTL: 0.12,
+  VOICE_PER_MIN: P.twilio.voice_per_minute,
 
-  // Resend
-  EMAIL_PER_1K: 1.00, // $1 pour 1000 emails
+  EMAIL_PER_1K: P.email.per_email * 1000,
 
-  // Storage (Supabase)
-  STORAGE_PER_GB: 0.021, // $0.021 per GB
+  STORAGE_PER_GB: 0.021,
 };
 
 class SentinelCollector {

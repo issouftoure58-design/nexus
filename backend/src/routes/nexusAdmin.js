@@ -9,10 +9,11 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin, requireSuperAdmin } from './adminAuth.js';
 import { sentinel } from '../sentinel/index.js';
-import { alerter } from '../sentinel/actions/alerter.js';
+
 import { getRecentLogs, getSecurityStats, getRateLimitStats } from '../sentinel/security/index.js';
 import { createBackup, listBackups, restoreBackup } from '../sentinel/backup/index.js';
 import { getStatus as getUptimeStatus } from '../sentinel/monitoring/index.js';
+import { PRICING as GLOBAL_PRICING, PLAN_BUDGETS, PLAN_PRICES } from '../config/pricing.js';
 
 const router = express.Router();
 
@@ -20,12 +21,7 @@ const router = express.Router();
 router.use(authenticateAdmin);
 router.use(requireSuperAdmin);
 
-// Prix par plan (source de vérité: migration 041)
-const PLAN_PRICES = {
-  starter: 99,
-  pro: 249,
-  business: 499
-};
+// Prix par plan importés depuis config/pricing.js (source unique de vérité)
 
 // ============================================
 // DASHBOARD
@@ -52,7 +48,7 @@ router.get('/dashboard', async (req, res) => {
     const planDistribution = { starter: 0, pro: 0, business: 0 };
     for (const t of activeTenants) {
       const plan = (t.plan || 'starter').toLowerCase();
-      mrr += PLAN_PRICES[plan] || 0;
+      mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }
 
@@ -68,8 +64,9 @@ router.get('/dashboard', async (req, res) => {
 
     const costBreakdown = {
       anthropic: 0,
-      twilio: 0,
-      elevenlabs: 0
+      twilio_sms: 0,
+      twilio_voice: 0,
+      email: 0
     };
 
     let totalCost = 0;
@@ -77,8 +74,9 @@ router.get('/dashboard', async (req, res) => {
     if (costs) {
       for (const c of costs) {
         costBreakdown.anthropic += c.ai_cost_eur || 0;
-        costBreakdown.twilio += (c.sms_cost_eur || 0) + (c.voice_cost_eur || 0);
-        costBreakdown.elevenlabs += c.voice_cost_eur || 0; // ElevenLabs = voice synthesis
+        costBreakdown.twilio_sms += c.sms_cost_eur || 0;
+        costBreakdown.twilio_voice += c.voice_cost_eur || 0;
+        costBreakdown.email += c.emails_cost_eur || 0;
         totalCost += c.total_cost_eur || 0;
       }
     }
@@ -162,8 +160,9 @@ router.get('/dashboard', async (req, res) => {
       },
       costBreakdown: {
         anthropic: Math.round(costBreakdown.anthropic * 100) / 100,
-        twilio: Math.round(costBreakdown.twilio * 100) / 100,
-        elevenlabs: Math.round(costBreakdown.elevenlabs * 100) / 100
+        twilio_sms: Math.round(costBreakdown.twilio_sms * 100) / 100,
+        twilio_voice: Math.round(costBreakdown.twilio_voice * 100) / 100,
+        email: Math.round(costBreakdown.email * 100) / 100
       },
       todayCosts,
       alerts: {
@@ -236,7 +235,7 @@ router.get('/tenants', async (req, res) => {
     const tenantsResult = (tenants || []).map(t => {
       const plan = (t.plan || 'starter').toLowerCase();
       const cost = costByTenant[t.id] || 0;
-      const planPrice = PLAN_PRICES[plan] || 99;
+      const planPrice = PLAN_PRICES[plan]?.monthly || 99;
       const costPercentage = planPrice > 0 ? Math.round((cost / planPrice) * 100) : 0;
 
       return {
@@ -539,7 +538,7 @@ router.get('/billing', async (req, res) => {
 
     for (const t of (tenants || [])) {
       const plan = (t.plan || 'starter').toLowerCase();
-      mrr += PLAN_PRICES[plan] || 0;
+      mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }
 
@@ -688,15 +687,22 @@ sentinelIntelligenceRouter.get('/health-score', async (req, res) => {
  */
 sentinelIntelligenceRouter.get('/alerts', async (req, res) => {
   try {
-    const history = alerter.getHistory(50);
-    const alerts = history.reverse().map(a => ({
-      id: a.id,
-      title: a.title,
-      message: a.title,
-      type: a.data?.type || 'system',
-      severity: a.level === 'CRITICAL' ? 'critical' : a.level === 'URGENT' ? 'high' : a.level === 'WARNING' ? 'medium' : 'low',
-      level: a.level.toLowerCase(),
-      created_at: a.timestamp
+    const { data: logs } = await supabase
+      .from('error_logs')
+      .select('id, message, level, context, created_at')
+      .in('level', ['fatal', 'error', 'warning'])
+      .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const alerts = (logs || []).map(e => ({
+      id: String(e.id),
+      title: e.message,
+      message: e.message,
+      type: e.context?.extra?.alertLevel ? 'system' : 'error',
+      severity: e.level === 'fatal' ? 'critical' : e.level === 'error' ? 'high' : 'medium',
+      level: e.level,
+      created_at: e.created_at
     }));
 
     res.json({ data: alerts });
@@ -742,24 +748,30 @@ sentinelIntelligenceRouter.get('/anomalies', async (req, res) => {
       }
     }
 
-    // 2. Alertes système (mémoire, services down)
-    const alertHistory = alerter.getHistory(30);
-    for (const a of alertHistory) {
-      if (a.level === 'CRITICAL') {
-        anomalies.push({
-          id: `sys-${a.id}`,
-          metric: 'system',
-          type: 'system_alert',
-          description: a.title,
-          severity: 'high',
-          status: 'detected',
-          detected_at: a.timestamp,
-          tenant_id: null
-        });
-      }
+    // 2. Alertes système depuis error_logs (persisté via alerter → captureMessage)
+    const { data: sysAlerts } = await supabase
+      .from('error_logs')
+      .select('id, message, level, created_at')
+      .eq('level', 'fatal')
+      .like('message', '%[SENTINEL]%')
+      .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    for (const a of sysAlerts || []) {
+      anomalies.push({
+        id: `sys-${a.id}`,
+        metric: 'system',
+        type: 'system_alert',
+        description: a.message.replace('[SENTINEL] ', ''),
+        severity: 'high',
+        status: 'detected',
+        detected_at: a.created_at,
+        tenant_id: null
+      });
     }
 
-    // 3. Erreurs applicatives récentes
+    // 3. Erreurs applicatives récentes (non-SENTINEL)
     const { data: errorLogs } = await supabase
       .from('error_logs')
       .select('id, message, level, created_at, tenant_id')
@@ -812,9 +824,13 @@ sentinelIntelligenceRouter.post('/anomalies/detect', async (req, res) => {
       }
     }
 
-    // Alertes critiques
-    const criticalAlerts = alerter.getHistory(30).filter(a => a.level === 'CRITICAL');
-    detected += criticalAlerts.length;
+    // Alertes critiques (depuis error_logs)
+    const { data: critLogs } = await supabase
+      .from('error_logs')
+      .select('id')
+      .eq('level', 'fatal')
+      .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString());
+    detected += (critLogs || []).length;
 
     res.json({ success: true, message: 'Détection terminée', detected });
   } catch (error) {
@@ -1040,25 +1056,26 @@ sentinelAutopilotRouter.use(requireSuperAdmin);
 sentinelAutopilotRouter.get('/status', async (req, res) => {
   try {
     const sentinelStatus = sentinel.getStatus();
-    const healthHistory = sentinel.monitors?.health?.getHistory?.(10) || [];
 
-    // Stats réelles basées sur les health checks exécutés
-    const totalScans = healthHistory.length;
-    const warningsFound = healthHistory.filter(h =>
-      Object.values(h || {}).some(v => v && typeof v === 'object' && v.status === 'WARNING')
-    ).length;
-    const criticalFound = healthHistory.filter(h =>
-      Object.values(h || {}).some(v => v && typeof v === 'object' && v.status === 'CRITICAL')
-    ).length;
+    // Stats depuis error_logs (persisté, survit aux restarts)
+    const h24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentLogs } = await supabase
+      .from('error_logs')
+      .select('id, message, level, created_at')
+      .gte('created_at', h24)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-    // Alertes récentes comme "actions" de l'autopilot
-    const alertHistory = alerter.getHistory(20);
-    const recentActions = alertHistory.slice(-10).reverse().map(a => ({
-      id: a.id,
-      type: a.level === 'CRITICAL' ? 'AUTO_ALERT' : 'MONITORING',
-      description: a.title,
+    const logs = recentLogs || [];
+    const criticalCount = logs.filter(l => l.level === 'fatal').length;
+    const warningCount = logs.filter(l => l.level === 'warning').length;
+
+    const recentActions = logs.slice(0, 10).map(l => ({
+      id: String(l.id),
+      type: l.level === 'fatal' ? 'AUTO_ALERT' : 'MONITORING',
+      description: l.message,
       status: 'executed',
-      executedAt: a.timestamp
+      executedAt: l.created_at
     }));
 
     res.json({
@@ -1067,15 +1084,15 @@ sentinelAutopilotRouter.get('/status', async (req, res) => {
       autoScanEnabled: true,
       scanIntervalMinutes: 5,
       stats: {
-        totalScans,
-        totalActionsProposed: warningsFound + criticalFound,
-        totalActionsExecuted: alertHistory.length,
+        totalScans: logs.length,
+        totalActionsProposed: warningCount + criticalCount,
+        totalActionsExecuted: logs.length,
         lastScanAt: sentinelStatus.lastCheck
       },
       summary: {
         pending: 0,
-        executed: alertHistory.length,
-        failed: criticalFound
+        executed: logs.length,
+        failed: criticalCount
       },
       recentActions
     });
@@ -1099,25 +1116,30 @@ sentinelLiveRouter.get('/events', async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const type = req.query.type || 'all';
 
-    // Récupérer les alertes récentes comme événements
-    const history = alerter.getHistory(limit);
+    // Événements depuis error_logs (persisté)
+    const { data: logs } = await supabase
+      .from('error_logs')
+      .select('id, message, level, context, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-    const events = history.reverse().map((a, i) => ({
-      id: a.id || `evt-${i}`,
+    const events = (logs || []).map(l => ({
+      id: String(l.id),
       type: 'system',
-      category: a.level === 'CRITICAL' ? 'error' : a.level === 'WARNING' ? 'security' : 'system',
-      icon: a.level === 'CRITICAL' ? '🔴' : a.level === 'WARNING' ? '🟡' : '🔵',
-      timestamp: a.timestamp,
-      action: a.title,
-      reason: JSON.stringify(a.data || {}).substring(0, 100)
+      category: l.level === 'fatal' ? 'error' : l.level === 'warning' ? 'security' : 'system',
+      icon: l.level === 'fatal' ? '🔴' : l.level === 'warning' ? '🟡' : '🔵',
+      timestamp: l.created_at,
+      action: l.message,
+      reason: l.context?.extra ? JSON.stringify(l.context.extra).substring(0, 100) : ''
     }));
 
+    const now = Date.now();
     res.json({
       events: type === 'all' ? events : events.filter(e => e.category === type),
       stats: {
         total: events.length,
-        last5min: events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 300000).length,
-        last1min: events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 60000).length,
+        last5min: events.filter(e => now - new Date(e.timestamp).getTime() < 300000).length,
+        last1min: events.filter(e => now - new Date(e.timestamp).getTime() < 60000).length,
         byType: {}
       }
     });
@@ -1170,36 +1192,35 @@ optimizationRouter.get('/cache/stats', async (req, res) => {
  */
 optimizationRouter.get('/pricing', async (req, res) => {
   try {
-    // Pricing réel des APIs (mis à jour mars 2026)
+    // Pricing depuis config/pricing.js (source unique de vérité)
     res.json({
       data: {
         anthropic: {
-          haiku: { input_per_1m: 0.25, output_per_1m: 1.25 },
-          sonnet: { input_per_1m: 3, output_per_1m: 15 },
-          opus: { input_per_1m: 15, output_per_1m: 75 },
+          haiku: { input_per_1m: GLOBAL_PRICING.anthropic.haiku.input, output_per_1m: GLOBAL_PRICING.anthropic.haiku.output },
+          sonnet: { input_per_1m: GLOBAL_PRICING.anthropic.sonnet.input, output_per_1m: GLOBAL_PRICING.anthropic.sonnet.output },
+          opus: { input_per_1m: GLOBAL_PRICING.anthropic.opus.input, output_per_1m: GLOBAL_PRICING.anthropic.opus.output },
         },
         twilio: {
-          sms_outbound_fr: 0.0725,
-          sms_inbound: 0.0075,
-          voice_per_min: 0.015,
-          whatsapp_per_msg: 0.005,
+          sms_outbound_fr: GLOBAL_PRICING.twilio.sms_outbound_fr,
+          sms_inbound: GLOBAL_PRICING.twilio.sms_inbound,
+          voice_per_min: GLOBAL_PRICING.twilio.voice_per_minute,
+          whatsapp_per_msg: GLOBAL_PRICING.twilio.whatsapp_session,
         },
         elevenlabs: {
-          turbo_per_char: 0.00015,
-          multilingual_per_char: 0.00030,
+          turbo_per_char: GLOBAL_PRICING.elevenlabs.turbo,
+          multilingual_per_char: GLOBAL_PRICING.elevenlabs.multilingual,
         },
         dalle: {
-          standard: 0.04,
-          hd: 0.08,
+          standard: GLOBAL_PRICING.dalle.standard_1024,
+          hd: GLOBAL_PRICING.dalle.hd_1024,
         },
         tavily: {
-          per_search: 0.003,
+          per_search: GLOBAL_PRICING.tavily.search,
         },
-        plans: {
-          starter: { price: 99, budget_ai: 5, budget_sms: 8, budget_voice: 3 },
-          pro: { price: 249, budget_ai: 15, budget_sms: 20, budget_voice: 8 },
-          business: { price: 499, budget_ai: 30, budget_sms: 40, budget_voice: 15 },
-        },
+        plans: Object.fromEntries(Object.entries(PLAN_PRICES).map(([plan, prices]) => [
+          plan,
+          { price: prices.monthly, budget_ai: PLAN_BUDGETS[plan].ai, budget_sms: PLAN_BUDGETS[plan].sms, budget_voice: PLAN_BUDGETS[plan].voice }
+        ])),
       }
     });
   } catch (error) {

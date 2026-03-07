@@ -11,14 +11,15 @@ import { checkAndAlert } from '../alerts.js';
 import { checkQuota, getPlan } from './quotas.js';
 import { getTenantConfig } from '../../config/tenants/index.js';
 import { saveUsage, loadTodayUsage } from '../persistence.js';
+import { PRICING as GLOBAL_PRICING } from '../../config/pricing.js';
 
 // Structure : { tenantId: { calls, tokensIn, tokensOut, cost, history[] } }
 const tenantUsage = {};
 
-// Prix Claude API (par token, en EUR)
+// Prix Claude API (par token, en EUR) — depuis config/pricing.js
 const PRICING = {
-  haiku: { input: 0.25 / 1_000_000, output: 1.25 / 1_000_000 },
-  sonnet: { input: 3 / 1_000_000, output: 15 / 1_000_000 },
+  haiku: { input: GLOBAL_PRICING.anthropic.haiku.input / 1_000_000, output: GLOBAL_PRICING.anthropic.haiku.output / 1_000_000 },
+  sonnet: { input: GLOBAL_PRICING.anthropic.sonnet.input / 1_000_000, output: GLOBAL_PRICING.anthropic.sonnet.output / 1_000_000 },
 };
 
 function initTenant(tenantId) {
