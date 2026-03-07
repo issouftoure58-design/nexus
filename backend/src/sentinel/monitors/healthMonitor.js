@@ -36,9 +36,9 @@ class HealthMonitor {
 
   async checkMemory() {
     const used = process.memoryUsage();
-    const heapUsedMB = Math.round(used.heapUsed / 1024 / 1024);
-    const heapTotalMB = Math.round(used.heapTotal / 1024 / 1024);
-    const usagePercent = Math.round((used.heapUsed / used.heapTotal) * 100);
+    const rssMB = Math.round(used.rss / 1024 / 1024);
+    const memLimitMB = parseInt(process.env.MEMORY_LIMIT_MB || '512', 10);
+    const usagePercent = Math.round((rssMB / memLimitMB) * 100);
 
     let status = 'OK';
     if (usagePercent > 90) status = 'CRITICAL';
@@ -46,10 +46,11 @@ class HealthMonitor {
 
     return {
       status,
-      heapUsedMB,
-      heapTotalMB,
+      rssMB,
+      memLimitMB,
       usagePercent,
-      rss: Math.round(used.rss / 1024 / 1024)
+      heapUsedMB: Math.round(used.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(used.heapTotal / 1024 / 1024)
     };
   }
 
