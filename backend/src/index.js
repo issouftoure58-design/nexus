@@ -764,9 +764,12 @@ app.listen(PORT, '0.0.0.0', () => {
   startNotificationWorker();
 
   // Initialiser SENTINEL guardian system
-  sentinel.init().then(result => {
+  sentinel.init().then(async result => {
     if (result.success) {
       console.log('[SENTINEL] Guardian system initialized successfully');
+      // Démarrer le monitoring uptime (scan services toutes les 60s)
+      const { startMonitoring } = await import('./sentinel/monitoring/index.js');
+      startMonitoring(60);
     } else {
       console.error('[SENTINEL] Initialization failed:', result.error);
     }

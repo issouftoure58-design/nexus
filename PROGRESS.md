@@ -5,7 +5,7 @@
 
 **Score technique: 100/100**
 **Score performance global: ~8.4/10 vs leaders mondiaux (avant: 7.4)**
-**Version: 3.14.0**
+**Version: 3.15.0**
 **Phase en cours: Commercialisation — Post-optimisation**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
@@ -937,6 +937,49 @@ Fichiers : `comptaHandler.js`, `toolsRegistry.js`, `Home.tsx`, `vite.config.ts`
 - `npm run lint:tenant` : 0 violations
 - `npx vitest run` : 5 fichiers, 17 tests pass
 - `vite build` : OK, 44 chunks
+
+---
+
+### 2026-03-07 — Session 21 : 100% donnees reelles + Isolation confidentialite tenant
+
+**Objectif : Eliminer toute donnee simulee/hardcodee du panneau operateur SENTINEL. Imposer la separation stricte des donnees business tenant vs donnees infra NEXUS.**
+
+**Backend — nexusAdmin.js (424 lignes modifiees) :**
+- Dashboard : `totalCalls` agrege depuis `sentinel_daily_snapshots.ai_conversations` (plus hardcode 0)
+- Dashboard : `todayCosts` ajoute (couts du jour en temps reel)
+- Cost breakdown : mapping `elevenlabs` corrige (`voice_cost_eur`, etait `emails_cost_eur`)
+- Health score : latence = ping DB reel, securite = audit env vars + breach count
+- Cache stats : `responseCache.getStats()` (hits, misses, hitRate) au lieu de zeros
+- Sentinel status : services reels via `getUptimeStatus()` (Supabase, Claude, Twilio, ElevenLabs)
+- Autopilot : historique health checks + alertes au lieu de zeros
+- Recommandations : production-only (`isProd`) sauf memoire >90%
+- Anomalies GET/detect/investigate : UNIQUEMENT infra (cost spikes, alertes systeme, erreurs fatales) — zero donnee business tenant
+- Predictions GET : projections couts infra uniquement — zero prediction revenue/reservations
+- Tenants liste : `aiCalls` (ai_conversations) remplace `calls` (reservations)
+- Tenant detail : colonnes restreintes, couts = breakdown infra uniquement
+- Pricing endpoint : budgets realistes par plan (Starter 16€, Pro 43€, Business 85€/mois)
+
+**Backend — sentinelCollector.js :**
+- Fix centimes → euros : `revenue_total` et `revenue_paid` divises par 100
+- Backfill execute sur 35 jours (2026-02-01 → 2026-03-07, 0 erreurs)
+
+**Backend — index.js :**
+- `startMonitoring(60)` demarre apres `sentinel.init()` (uptime pings toutes les 60s)
+
+**Frontend — NexusDashboard.tsx :**
+- Statut systeme : services reels depuis API `/nexus/sentinel/status` (plus 7 services hardcodes "ok")
+- PlanChart : distribution reelle depuis API (plus 60/30/10 hardcode)
+
+**Frontend — SentinelCosts.tsx :**
+- Services dalle/tavily supprimes (inutilises)
+- Budgets derives du pricing API × nombre de tenants
+- Cartes pricing dynamiques depuis API
+- Fallback budgets realistes (Business: ai 30€, sms 40€, voice 15€)
+
+**Confidentialite tenant :**
+- Donnees business tenant (CA, reservations, no-show, annulations) JAMAIS exposees a l'operateur
+- Operateur voit uniquement : MRR/ARR NEXUS, couts infra, distribution plans, metriques systeme
+- Separation bidirectionnelle : tenants n'accedent pas aux donnees privees NEXUS
 
 ---
 

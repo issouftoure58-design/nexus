@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
 > **Derniere mise a jour:** 2026-03-07
-> **Version:** 3.14.0
+> **Version:** 3.15.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~8.4/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -198,8 +198,9 @@ Push main → GitHub Actions CI:
 | Frontend errors | errorReporter.ts (window.onerror + unhandledrejection → POST /api/errors/report) | Actif |
 | Logs | Winston (fichiers + console JSON en prod) | Actif |
 | Health | `/health` enrichi (DB, Redis, Stripe, Twilio, memory) | Actif |
-| Uptime | SENTINEL (6 services, pings HTTP reels toutes les 5 min) | Actif |
-| Couts | SENTINEL cost tracker (multi-tenant, mode degrade auto) | Actif |
+| Uptime | SENTINEL (6 services, pings HTTP reels toutes les 60s) | Actif |
+| Couts | SENTINEL cost tracker (multi-tenant, mode degrade auto, budgets plan) | Actif |
+| Confidentialite | Isolation donnees business tenant / donnees infra operateur | Actif |
 | Quotas | Middleware quotas + alertes error tracking | Actif |
 | Backfill | Auto-detection gaps + rattrapage snapshots manquants | Actif |
 | Mode degrade | isDegraded() limite IA/TTS/images si couts critiques | Actif |
@@ -287,4 +288,4 @@ Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Squ
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-07 (v3.14.0 — SENTINEL Error Tracker remplace Sentry)*
+*Derniere synchronisation: 2026-03-07 (v3.15.0 — 100% donnees reelles + isolation confidentialite tenant)*

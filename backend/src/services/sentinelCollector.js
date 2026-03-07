@@ -81,13 +81,14 @@ class SentinelCollector {
       const pending = reservations?.filter(r => r.statut === 'en_attente' || r.statut === 'demande').length || 0;
       const noShows = reservations?.filter(r => r.statut === 'no_show').length || 0;
 
-      // 3. REVENUS (prix_total en centimes)
-      const revenueTotal = reservations?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
-      // Considérer comme payé les RDV terminés ou confirmés
-      const revenuePaid = reservations?.filter(r => r.statut === 'termine' || r.statut === 'confirme')
+      // 3. REVENUS (prix_total stocké en centimes dans la table reservations → convertir en euros)
+      const revenueTotalCts = reservations?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+      const revenuePaidCts = reservations?.filter(r => r.statut === 'termine' || r.statut === 'confirme')
         .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
-      const revenuePending = revenueTotal - revenuePaid;
-      const averageBasket = totalReservations > 0 ? revenueTotal / totalReservations : 0;
+      const revenueTotal = Math.round(revenueTotalCts) / 100; // centimes → euros
+      const revenuePaid = Math.round(revenuePaidCts) / 100;
+      const revenuePending = Math.round((revenueTotalCts - revenuePaidCts)) / 100;
+      const averageBasket = totalReservations > 0 ? Math.round(revenueTotalCts / totalReservations) / 100 : 0;
 
       // 4. TAUX
       const noShowRate = totalReservations > 0 ? (noShows / totalReservations) * 100 : 0;

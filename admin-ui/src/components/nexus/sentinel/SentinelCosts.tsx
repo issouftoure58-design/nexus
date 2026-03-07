@@ -27,7 +27,8 @@ function useAnimatedNumber(target: number, duration = 1000, decimals = 0) {
 interface ServiceCost { cost: number; calls: number; }
 interface CostData { totalCost: number; services: Record<string, ServiceCost>; }
 interface BudgetData { services: Record<string, { spent: number; budget: number }>; }
-interface PricingData { [key: string]: unknown; }
+interface PlanBudgets { budget_ai: number; budget_sms: number; budget_voice: number; }
+interface PricingData { plans?: Record<string, PlanBudgets>; [key: string]: unknown; }
 
 export default function SentinelCosts() {
   const [todayCosts, setTodayCosts] = useState<CostData | null>(null);
@@ -66,8 +67,6 @@ export default function SentinelCosts() {
               claude: { cost: anthropicCost, calls: totalCalls },
               elevenlabs: { cost: elevenlabsCost, calls: elevenLabsChars },
               twilio: { cost: twilioCost, calls: twilioSms + twilioVoice },
-              dalle: { cost: 0, calls: 0 },
-              tavily: { cost: 0, calls: 0 },
             }
           });
 
@@ -79,21 +78,21 @@ export default function SentinelCosts() {
                 claude: { cost: todayData.anthropic || 0, calls: 0 },
                 elevenlabs: { cost: todayData.elevenlabs || 0, calls: 0 },
                 twilio: { cost: todayData.twilio || 0, calls: 0 },
-                dalle: { cost: 0, calls: 0 },
-                tavily: { cost: 0, calls: 0 },
               }
             });
           } else {
             setTodayCosts({ totalCost: 0, services: {} });
           }
 
+          // Budgets dérivés du plan Business (somme de tous les tenants)
+          // Les vrais budgets viendront du pricing API si disponible
+          const totalTenants = (nexusData.summary as Record<string, number>)?.totalTenants || 1;
+          const baseBudgets = { ai: 30, sms: 40, voice: 15 }; // Business plan defaults
           setBudget({
             services: {
-              claude: { spent: anthropicCost, budget: 150 },
-              elevenlabs: { spent: elevenlabsCost, budget: 20 },
-              twilio: { spent: twilioCost, budget: 80 },
-              dalle: { spent: 0, budget: 30 },
-              tavily: { spent: 0, budget: 10 },
+              claude: { spent: anthropicCost, budget: baseBudgets.ai * totalTenants },
+              elevenlabs: { spent: elevenlabsCost, budget: baseBudgets.voice * totalTenants },
+              twilio: { spent: twilioCost, budget: baseBudgets.sms * totalTenants },
             }
           });
         }
@@ -104,7 +103,25 @@ export default function SentinelCosts() {
         }
         if (pricingRes.status === 'fulfilled') {
           const pricingData = pricingRes.value;
-          setPricing((pricingData as { data?: PricingData }).data ?? pricingData as PricingData);
+          const pricingParsed = (pricingData as { data?: PricingData }).data ?? pricingData as PricingData;
+          setPricing(pricingParsed);
+
+          // Mettre à jour les budgets avec les données réelles du plan Business (aggrégé)
+          if (pricingParsed.plans) {
+            const businessPlan = (pricingParsed.plans as Record<string, PlanBudgets>).business;
+            if (businessPlan && nexusRes.status === 'fulfilled') {
+              const nexusData = nexusRes.value;
+              const totalTenants = (nexusData.summary as Record<string, number>)?.totalTenants || 1;
+              const cb = nexusData.costBreakdown as Record<string, number> | undefined;
+              setBudget({
+                services: {
+                  claude: { spent: cb?.anthropic || 0, budget: businessPlan.budget_ai * totalTenants },
+                  elevenlabs: { spent: cb?.elevenlabs || 0, budget: businessPlan.budget_voice * totalTenants },
+                  twilio: { spent: cb?.twilio || 0, budget: businessPlan.budget_sms * totalTenants },
+                }
+              });
+            }
+          }
         }
       } catch (err) {
         console.error('[SentinelCosts] Error:', err);
@@ -125,22 +142,20 @@ export default function SentinelCosts() {
     </div>
   );
 
-  const services = ['claude', 'elevenlabs', 'twilio', 'dalle', 'tavily'];
+  // N'afficher que les services actifs (avec des couts ou un budget)
+  const allServices = ['claude', 'elevenlabs', 'twilio'];
   const serviceLabels: Record<string, string> = {
     claude: 'Anthropic Claude', elevenlabs: 'ElevenLabs', twilio: 'Twilio',
-    dalle: 'DALL-E (images)', tavily: 'Tavily (recherche)',
   };
   const serviceDescs: Record<string, string> = {
     claude: 'Conversations IA, outils, analyse de texte',
     elevenlabs: 'Synthese vocale pour Halimah',
     twilio: 'SMS de rappel, appels telephoniques, WhatsApp',
-    dalle: 'Generation d\'images pour reseaux sociaux',
-    tavily: 'Recherche web pour enrichir les reponses IA',
   };
   const serviceColors: Record<string, string> = {
     claude: 'bg-purple-500', elevenlabs: 'bg-cyan-500', twilio: 'bg-blue-500',
-    dalle: 'bg-pink-500', tavily: 'bg-green-500',
   };
+  const services = allServices;
 
   const todayTotal = todayCosts?.totalCost ?? 0;
   const monthTotal = monthCosts?.totalCost ?? 0;
@@ -185,25 +200,39 @@ export default function SentinelCosts() {
           <div className="text-sm font-medium text-white mb-1">Grille tarifaire des services</div>
           <div className="text-[10px] text-slate-600 mb-3">Prix unitaires factures par les fournisseurs externes</div>
           <div className="grid md:grid-cols-2 gap-3">
-            <PricingCard title="Claude IA" items={[
-              { label: 'Haiku (rapide)', price: '0.25€ / 1M tokens entree' },
-              { label: 'Sonnet (standard)', price: '3€ / 1M tokens entree' },
-              { label: 'Opus (puissant)', price: '15€ / 1M tokens entree' },
-            ]} />
-            <PricingCard title="Twilio" items={[
-              { label: 'SMS sortant (France)', price: '0.0725€ / SMS' },
-              { label: 'SMS entrant', price: '0.0075€ / SMS' },
-              { label: 'Appel vocal', price: '0.015€ / minute' },
-            ]} />
-            <PricingCard title="ElevenLabs" items={[
-              { label: 'Voix Turbo', price: '0.00015€ / caractere' },
-              { label: 'Voix Multilingual', price: '0.00030€ / caractere' },
-            ]} />
-            <PricingCard title="Autres" items={[
-              { label: 'DALL-E Standard', price: '0.04€ / image' },
-              { label: 'DALL-E HD', price: '0.08€ / image' },
-              { label: 'Tavily recherche', price: '0.003€ / requete' },
-            ]} />
+            <PricingCard title="Claude IA" items={
+              (pricing as Record<string, Record<string, Record<string, number>>>).anthropic
+                ? Object.entries((pricing as Record<string, Record<string, Record<string, number>>>).anthropic).map(([model, prices]) => ({
+                    label: model.charAt(0).toUpperCase() + model.slice(1),
+                    price: `${prices.input_per_1m}€ / 1M tokens entree`
+                  }))
+                : [{ label: 'Haiku', price: '0.25€ / 1M tokens' }]
+            } />
+            <PricingCard title="Twilio" items={
+              (pricing as Record<string, Record<string, number>>).twilio
+                ? [
+                    { label: 'SMS sortant (FR)', price: `${(pricing as Record<string, Record<string, number>>).twilio.sms_outbound_fr}€ / SMS` },
+                    { label: 'SMS entrant', price: `${(pricing as Record<string, Record<string, number>>).twilio.sms_inbound}€ / SMS` },
+                    { label: 'Appel vocal', price: `${(pricing as Record<string, Record<string, number>>).twilio.voice_per_min}€ / minute` },
+                  ]
+                : [{ label: 'SMS', price: '0.0725€ / SMS' }]
+            } />
+            <PricingCard title="ElevenLabs" items={
+              (pricing as Record<string, Record<string, number>>).elevenlabs
+                ? [
+                    { label: 'Voix Turbo', price: `${(pricing as Record<string, Record<string, number>>).elevenlabs.turbo_per_char}€ / caractere` },
+                    { label: 'Voix Multilingual', price: `${(pricing as Record<string, Record<string, number>>).elevenlabs.multilingual_per_char}€ / caractere` },
+                  ]
+                : [{ label: 'Voix', price: '0.00015€ / char' }]
+            } />
+            <PricingCard title="Budgets par plan" items={
+              (pricing as Record<string, Record<string, PlanBudgets>>).plans
+                ? Object.entries((pricing as Record<string, Record<string, PlanBudgets>>).plans).map(([plan, p]) => ({
+                    label: plan.charAt(0).toUpperCase() + plan.slice(1),
+                    price: `IA ${p.budget_ai}€ | SMS ${p.budget_sms}€ | Voix ${p.budget_voice}€`
+                  }))
+                : [{ label: 'Business', price: 'IA 200€ | SMS 100€ | Voix 80€' }]
+            } />
           </div>
         </div>
       )}

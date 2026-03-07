@@ -24,6 +24,22 @@ interface CostBreakdown {
   elevenlabs: number;
 }
 
+interface PlanDistribution {
+  starter: number;
+  pro: number;
+  business: number;
+}
+
+interface ServiceStatusData {
+  [key: string]: {
+    name: string;
+    status: string;
+    latency?: number;
+    critical?: boolean;
+    checkedAt?: string;
+  };
+}
+
 interface NexusDashboardData {
   timestamp: string;
   env?: string;
@@ -31,6 +47,7 @@ interface NexusDashboardData {
   summary: DashboardStats;
   costBreakdown?: CostBreakdown;
   alerts: { recent: Alert[]; active: number };
+  planDistribution?: PlanDistribution;
 }
 
 export default function NexusDashboard() {
@@ -41,13 +58,15 @@ export default function NexusDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [pulse, setPulse] = useState(false);
+  const [services, setServices] = useState<ServiceStatusData>({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashData, healthData] = await Promise.allSettled([
+        const [dashData, healthData, statusData] = await Promise.allSettled([
           nexusApi.get<NexusDashboardData>('/nexus/dashboard'),
           nexusApi.get<{ healthScore?: { score: number; status: string }; score?: number; status?: string }>('/admin/sentinel-intelligence/health-score'),
+          nexusApi.get<{ services?: ServiceStatusData }>('/nexus/sentinel/status'),
         ]);
         if (dashData.status === 'fulfilled') {
           setData(dashData.value);
@@ -58,6 +77,9 @@ export default function NexusDashboard() {
           const hj = healthData.value;
           setHealthScore(hj.healthScore?.score ?? hj.score ?? null);
           setHealthStatus(hj.healthScore?.status ?? hj.status ?? '');
+        }
+        if (statusData.status === 'fulfilled' && statusData.value.services) {
+          setServices(statusData.value.services);
         }
         setSecondsAgo(0);
         setPulse(true);
@@ -190,20 +212,28 @@ export default function NexusDashboard() {
                   <h2 className="font-semibold text-white">Statut systeme</h2>
                 </div>
                 <div className="p-4 space-y-3">
-                  <LiveStatusRow label="API Gateway" status="ok" latency={12} />
-                  <LiveStatusRow label="PostgreSQL" status="ok" latency={3} />
-                  <LiveStatusRow label="Sentinel" status={data.alerts.active > 0 ? 'warning' : 'ok'} />
-                  <LiveStatusRow label="SMS (Twilio)" status="ok" />
-                  <LiveStatusRow label="Voix (ElevenLabs)" status="ok" />
-                  <LiveStatusRow label="Redis" status="ok" latency={1} />
-                  <LiveStatusRow label="WebSocket" status="ok" />
+                  {Object.keys(services).length > 0 ? (
+                    Object.entries(services).map(([key, svc]) => (
+                      <LiveStatusRow
+                        key={key}
+                        label={svc.name || key}
+                        status={svc.status === 'up' ? 'ok' : svc.status === 'degraded' ? 'warning' : svc.status === 'down' ? 'error' : svc.status}
+                        latency={svc.latency}
+                      />
+                    ))
+                  ) : (
+                    <>
+                      <LiveStatusRow label="Sentinel" status={data.alerts.active > 0 ? 'warning' : 'ok'} />
+                      <div className="text-[10px] text-slate-600 text-center py-2">Chargement des services...</div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
               <h2 className="font-semibold text-white mb-4">Repartition par plan</h2>
-              <PlanChart tenants={data.summary.totalTenants} />
+              <PlanChart distribution={data.planDistribution} tenants={data.summary.totalTenants} />
             </div>
           </>
         )}
@@ -303,33 +333,35 @@ function LiveStatusRow({ label, status, latency }: { label: string; status: stri
   );
 }
 
-function PlanChart({ tenants }: { tenants: number }) {
+function PlanChart({ distribution, tenants }: { distribution?: PlanDistribution; tenants: number }) {
   const [animated, setAnimated] = useState(false);
   useEffect(() => { setTimeout(() => setAnimated(true), 100); }, []);
 
+  const starter = distribution?.starter ?? 0;
+  const pro = distribution?.pro ?? 0;
+  const business = distribution?.business ?? 0;
+  const total = starter + pro + business || 1; // avoid /0
+
   const plans = [
-    { name: 'Starter', pct: 60, color: 'bg-cyan-600', glow: 'shadow-cyan-500/20' },
-    { name: 'Pro', pct: 30, color: 'bg-blue-600', glow: 'shadow-blue-500/20' },
-    { name: 'Business', pct: 10, color: 'bg-purple-600', glow: 'shadow-purple-500/20' },
+    { name: 'Starter', count: starter, pct: Math.round((starter / total) * 100), color: 'bg-cyan-600', glow: 'shadow-cyan-500/20' },
+    { name: 'Pro', count: pro, pct: Math.round((pro / total) * 100), color: 'bg-blue-600', glow: 'shadow-blue-500/20' },
+    { name: 'Business', count: business, pct: Math.round((business / total) * 100), color: 'bg-purple-600', glow: 'shadow-purple-500/20' },
   ];
 
   return (
     <div className="space-y-3">
-      {plans.map((p) => {
-        const count = Math.max(1, Math.round(tenants * p.pct / 100));
-        return (
-          <div key={p.name} className="flex items-center gap-3">
-            <span className="w-16 text-sm text-slate-400">{p.name}</span>
-            <div className="flex-1 bg-slate-800 rounded-full h-6 overflow-hidden">
-              <div
-                className={`h-full rounded-full ${p.color} ${p.glow} shadow-lg transition-all duration-1000 ease-out`}
-                style={{ width: animated ? `${p.pct}%` : '0%' }}
-              />
-            </div>
-            <span className="text-xs text-slate-400 w-8 text-right font-mono">{count}</span>
+      {plans.map((p) => (
+        <div key={p.name} className="flex items-center gap-3">
+          <span className="w-16 text-sm text-slate-400">{p.name}</span>
+          <div className="flex-1 bg-slate-800 rounded-full h-6 overflow-hidden">
+            <div
+              className={`h-full rounded-full ${p.color} ${p.glow} shadow-lg transition-all duration-1000 ease-out`}
+              style={{ width: animated ? `${Math.max(p.pct, p.count > 0 ? 5 : 0)}%` : '0%' }}
+            />
           </div>
-        );
-      })}
+          <span className="text-xs text-slate-400 w-8 text-right font-mono">{p.count}</span>
+        </div>
+      ))}
     </div>
   );
 }
