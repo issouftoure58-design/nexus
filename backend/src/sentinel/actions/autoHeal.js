@@ -7,12 +7,36 @@
  * - DB connexion perdue -> Reconnexion auto
  * - Rate limit proche -> Active throttling
  * - Cout journalier depasse -> Mode degrade
+ *
+ * Mode degrade persiste en DB (survit aux restarts)
  */
+
+import { supabase } from '../../config/supabase.js';
 
 class AutoHeal {
   constructor() {
     this.actions = [];
     this.degradedMode = false;
+  }
+
+  /**
+   * Charge l'etat depuis la DB (appele au demarrage)
+   */
+  async loadState() {
+    try {
+      const { data } = await supabase
+        .from('sentinel_state')
+        .select('value')
+        .eq('key', 'degraded_mode')
+        .single();
+
+      if (data?.value?.active) {
+        this.degradedMode = true;
+        console.log(`[SENTINEL] Degraded mode RESTORED from DB (since ${data.value.since})`);
+      }
+    } catch (err) {
+      console.error('[SENTINEL] Failed to load degraded mode state:', err.message);
+    }
   }
 
   async attempt(metric, data) {
@@ -45,6 +69,7 @@ class AutoHeal {
       }
 
       this.actions.push(action);
+      if (this.actions.length > 100) this.actions.shift();
       return action.result;
     } catch (error) {
       action.result = { success: false, error: error.message };
@@ -58,33 +83,24 @@ class AutoHeal {
 
     const actions = [];
 
-    // Force garbage collection if available (requires --expose-gc flag)
     if (global.gc) {
       global.gc();
       actions.push('gc_forced');
       console.log('[SENTINEL] Garbage collection forced');
     }
 
-    // Log memory state
     const mem = process.memoryUsage();
-    console.log(`[SENTINEL] Memory: heap ${Math.round(mem.heapUsed/1024/1024)}MB / ${Math.round(mem.heapTotal/1024/1024)}MB`);
+    console.log(`[SENTINEL] Memory: RSS ${Math.round(mem.rss/1024/1024)}MB`);
 
-    // Note: On Render, the best solution for memory issues is to restart the service
-    // This auto-heal just logs the situation
     if (data.usagePercent > 90) {
       console.log('[SENTINEL-ACTION] CRITICAL: System health critical!');
-      console.log('[SENTINEL] Recommend: Restart service or increase memory');
     }
 
-    // Return success even if gc wasn't available - we did what we could
-    console.log(`[SENTINEL-ACTION] Repair result for memory: ${actions.length > 0 ? 'PARTIAL' : 'LOGGED'}`);
     return { success: true, action: 'memory_logged', actions };
   }
 
   async healDatabase(data) {
     console.log('[SENTINEL] Healing database connection...');
-
-    // Just log - Supabase handles reconnection automatically
     return { success: true, action: 'db_reconnect_requested', note: 'Supabase auto-reconnects' };
   }
 
@@ -104,9 +120,22 @@ class AutoHeal {
   }
 
   async handleCostOverrun(data) {
-    console.log('[SENTINEL] Handling cost overrun...');
+    console.log('[SENTINEL] Handling cost overrun — activating degraded mode');
 
     this.degradedMode = true;
+
+    // Persist to DB
+    try {
+      await supabase
+        .from('sentinel_state')
+        .upsert({
+          key: 'degraded_mode',
+          value: { active: true, reason: 'cost_overrun', since: new Date().toISOString(), data },
+          updated_at: new Date().toISOString()
+        });
+    } catch (err) {
+      console.error('[SENTINEL] Failed to persist degraded mode:', err.message);
+    }
 
     return {
       success: true,
@@ -120,9 +149,23 @@ class AutoHeal {
     };
   }
 
-  exitDegradedMode() {
+  async exitDegradedMode() {
     this.degradedMode = false;
     console.log('[SENTINEL] Exiting degraded mode');
+
+    // Persist to DB
+    try {
+      await supabase
+        .from('sentinel_state')
+        .upsert({
+          key: 'degraded_mode',
+          value: { active: false, reason: null, since: null },
+          updated_at: new Date().toISOString()
+        });
+    } catch (err) {
+      console.error('[SENTINEL] Failed to persist degraded mode exit:', err.message);
+    }
+
     return { success: true };
   }
 

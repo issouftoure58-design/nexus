@@ -6,9 +6,12 @@
  * - Rate limiting abuse
  * - DDoS patterns
  * - Malicious IPs
+ *
+ * IP blacklist persiste en DB (survit aux restarts)
  */
 
 import { THRESHOLDS } from '../config/thresholds.js';
+import { supabase } from '../../config/supabase.js';
 
 class SecurityShield {
   constructor() {
@@ -34,6 +37,45 @@ class SecurityShield {
       /jailbreak/i,
       /DAN mode/i
     ];
+  }
+
+  /**
+   * Charge la blacklist depuis la DB (appele au demarrage)
+   */
+  async loadState() {
+    try {
+      const { data } = await supabase
+        .from('sentinel_state')
+        .select('value')
+        .eq('key', 'ip_blacklist')
+        .single();
+
+      if (data?.value?.ips?.length > 0) {
+        for (const ip of data.value.ips) {
+          this.blacklist.add(ip);
+        }
+        console.log(`[SENTINEL] IP blacklist RESTORED: ${this.blacklist.size} IPs`);
+      }
+    } catch (err) {
+      console.error('[SENTINEL] Failed to load blacklist:', err.message);
+    }
+  }
+
+  /**
+   * Persiste la blacklist en DB
+   */
+  async _persistBlacklist() {
+    try {
+      await supabase
+        .from('sentinel_state')
+        .upsert({
+          key: 'ip_blacklist',
+          value: { ips: Array.from(this.blacklist) },
+          updated_at: new Date().toISOString()
+        });
+    } catch (err) {
+      console.error('[SENTINEL] Failed to persist blacklist:', err.message);
+    }
   }
 
   analyze(request) {
@@ -64,8 +106,7 @@ class SecurityShield {
 
       // Auto-ban if too many violations
       if (rateCheck.violations > 10) {
-        this.blacklist.add(ip);
-        console.log(`[SENTINEL] IP blacklisted: ${ip}`);
+        this.addToBlacklist(ip);
       }
 
       return result;
@@ -114,7 +155,7 @@ class SecurityShield {
     }
     if (counts.day.window !== day) {
       counts.day = { count: 0, window: day };
-      counts.violations = 0; // Reset violations daily
+      counts.violations = 0;
     }
 
     // Increment counts
@@ -178,11 +219,13 @@ class SecurityShield {
   addToBlacklist(ip) {
     this.blacklist.add(ip);
     console.log(`[SENTINEL] Added to blacklist: ${ip}`);
+    this._persistBlacklist();
   }
 
   removeFromBlacklist(ip) {
     this.blacklist.delete(ip);
     console.log(`[SENTINEL] Removed from blacklist: ${ip}`);
+    this._persistBlacklist();
   }
 
   getBlacklist() {

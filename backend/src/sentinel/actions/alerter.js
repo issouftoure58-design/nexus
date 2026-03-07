@@ -9,6 +9,7 @@
 
 import { ALERT_PHONE } from '../config/thresholds.js';
 import { captureMessage } from '../../services/errorTracker.js';
+import { supabase } from '../../config/supabase.js';
 
 // Map alerter levels to error_logs levels
 const LEVEL_MAP = { CRITICAL: 'fatal', URGENT: 'error', WARNING: 'warning', INFO: 'info' };
@@ -18,6 +19,42 @@ class Alerter {
     this.alertHistory = [];
     this.lastAlertTime = {};
     this.cooldownMinutes = 5; // Minimum time between same alerts
+  }
+
+  /**
+   * Pre-load cooldowns from error_logs to avoid spam after restart
+   */
+  async loadCooldowns() {
+    try {
+      const since = new Date(Date.now() - this.cooldownMinutes * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('error_logs')
+        .select('message, created_at')
+        .like('message', '[SENTINEL]%')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (data?.length > 0) {
+        for (const row of data) {
+          // Reconstruct alertKey from message
+          const match = row.message.match(/^\[SENTINEL\] (.+)$/);
+          if (match) {
+            const title = match[1];
+            // Set cooldown for all levels (we don't store level in message, but title is unique enough)
+            for (const level of ['CRITICAL', 'URGENT', 'WARNING', 'INFO']) {
+              const key = `${level}:${title}`;
+              if (!this.lastAlertTime[key]) {
+                this.lastAlertTime[key] = new Date(row.created_at).getTime();
+              }
+            }
+          }
+        }
+        console.log(`[SENTINEL] Alert cooldowns restored: ${Object.keys(this.lastAlertTime).length} entries`);
+      }
+    } catch (err) {
+      console.error('[SENTINEL] Failed to load alert cooldowns:', err.message);
+    }
   }
 
   async send(level, title, data = {}) {

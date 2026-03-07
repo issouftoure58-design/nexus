@@ -36,8 +36,12 @@ class Sentinel {
     try {
       // Initialize monitors
       this.monitors.health = healthMonitor;
-      // costMonitor supprimé (dead code, jamais alimenté). checkCosts() lit la DB directement.
       this.monitors.security = securityShield;
+
+      // Restore persisted state (blacklist, degraded mode, alert cooldowns)
+      await securityShield.loadState();
+      await autoHeal.loadState();
+      await alerter.loadCooldowns();
 
       // Start periodic health checks
       this.startHealthChecks();
