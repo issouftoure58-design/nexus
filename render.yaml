@@ -13,25 +13,59 @@ services:
       - key: PORT
         value: "5000"
       # Secrets - configured in Render Dashboard (sync: false)
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      # --- Core ---
+      - key: ADMIN_PASSWORD
         sync: false
       - key: JWT_SECRET
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: CORS_ORIGIN
         sync: false
+      - key: WEBHOOK_BASE_URL
+        sync: false
+      # --- Database ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- Cache ---
+      - key: REDIS_URL
+        sync: false
+      # --- Paiements ---
       - key: STRIPE_SECRET_KEY
         sync: false
-      - key: STRIPE_WEBHOOK_SECRET
+      - key: STRIPE_PUBLIC_KEY
         sync: false
+      # --- IA ---
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      # --- Twilio ---
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
         sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_FR_BUNDLE_SID
+        sync: false
+      - key: TWILIO_FR_ADDRESS_SID
+        sync: false
+      - key: TWILIO_FR_MOBILE_BUNDLE_SID
+        sync: false
+      - key: TWILIO_WABA_BU_SID
+        sync: false
+      # --- Email ---
       - key: RESEND_API_KEY
         sync: false
-      - key: CORS_ORIGIN
+      # --- Monitoring ---
+      - key: SENTRY_DSN
         sync: false
 
   # Fat's Hair Afro - Site vitrine client (Node.js pour contrôle cache)

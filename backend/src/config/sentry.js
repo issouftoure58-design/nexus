@@ -1,86 +1,19 @@
 /**
- * Sentry Error Monitoring Configuration
- * Centralized error tracking for NEXUS
+ * Sentry Shim — Redirects to SENTINEL errorTracker
+ * Drop-in replacement: existing imports from sentry.js continue to work
  */
 
-import * as Sentry from '@sentry/node';
-import logger from './logger.js';
+import { captureException, captureMessage } from '../services/errorTracker.js';
 
-let sentryInitialized = false;
+export { captureException, captureMessage };
 
-export function initSentry(app) {
-  const dsn = process.env.SENTRY_DSN;
-
-  if (!dsn) {
-    logger.warn('No SENTRY_DSN configured - error monitoring disabled', { tag: 'SENTRY' });
-    return;
-  }
-
-  if (sentryInitialized) return;
-  sentryInitialized = true;
-
-  Sentry.init({
-    dsn,
-    environment: process.env.NODE_ENV || 'development',
-    release: process.env.npm_package_version || '1.0.0',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-    beforeSend(event) {
-      if (event.request?.headers) {
-        delete event.request.headers.authorization;
-        delete event.request.headers.cookie;
-        delete event.request.headers['x-api-key'];
-      }
-      if (event.request?.data && typeof event.request.data === 'object') {
-        ['password', 'token', 'apiKey', 'secret', 'credit_card'].forEach(field => {
-          if (event.request.data[field]) {
-            event.request.data[field] = '[REDACTED]';
-          }
-        });
-      }
-      return event;
-    },
-    ignoreErrors: [
-      'TENANT_REQUIRED',
-      'UNAUTHORIZED',
-      'Invalid API key',
-      'Rate limit exceeded'
-    ]
-  });
-
-  // Apply request handler middleware
-  app.use(Sentry.Handlers.requestHandler());
+export function initSentry() {
+  // No-op: error tracking is now handled by SENTINEL errorTracker
 }
 
-export function sentryErrorHandler(app) {
-  if (!process.env.SENTRY_DSN) return;
-
-  app.use(Sentry.Handlers.errorHandler({
-    shouldHandleError(error) {
-      return !error.status || error.status >= 500;
-    }
-  }));
+export function sentryErrorHandler() {
+  // Return passthrough middleware
+  return (err, req, res, next) => next(err);
 }
-
-export const captureException = (err, context = {}) => {
-  if (process.env.SENTRY_DSN) {
-    Sentry.withScope(scope => {
-      if (context.tags) Object.entries(context.tags).forEach(([k, v]) => scope.setTag(k, v));
-      if (context.extra) Object.entries(context.extra).forEach(([k, v]) => scope.setExtra(k, v));
-      if (context.user) scope.setUser(context.user);
-      if (context.level) scope.setLevel(context.level);
-      Sentry.captureException(err);
-    });
-  }
-};
-
-export const captureMessage = (msg, level = 'info', context = {}) => {
-  if (process.env.SENTRY_DSN) {
-    Sentry.withScope(scope => {
-      if (context.tags) Object.entries(context.tags).forEach(([k, v]) => scope.setTag(k, v));
-      if (context.extra) Object.entries(context.extra).forEach(([k, v]) => scope.setExtra(k, v));
-      Sentry.captureMessage(msg, level);
-    });
-  }
-};
 
 export default { initSentry, sentryErrorHandler, captureException, captureMessage };

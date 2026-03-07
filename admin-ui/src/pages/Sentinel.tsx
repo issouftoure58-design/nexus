@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { api } from '../lib/api';
+import { api, type SentinelDashboardData, type SentinelAnalyticsData, type SentinelInsight } from '../lib/api';
 import {
   TrendingUp,
   TrendingDown,
@@ -45,73 +45,10 @@ import {
   Bar
 } from 'recharts';
 
-// ============================================
-// TYPES
-// ============================================
-
-interface DashboardData {
-  today: {
-    total_clients: number;
-    new_clients: number;
-    total_reservations: number;
-    revenue_paid: number;
-    no_show_rate: number;
-  };
-  trends: {
-    total_revenue: number;
-    total_reservations: number;
-    total_new_clients: number;
-    avg_daily_revenue: number;
-    revenue_trend: string;
-    revenue_change: number;
-    reservations_trend: string;
-    reservations_change: number;
-  };
-  insights: Insight[];
-  performance: {
-    revenue: { current: number; goal: number; projected: number; progress: number };
-    new_clients: { current: number; goal: number; projected: number; progress: number };
-    reservations: { current: number; goal: number; projected: number; progress: number };
-  };
-  period: {
-    start: string;
-    end: string;
-    days: number;
-  };
-}
-
-interface Insight {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  priority: number;
-  status: string;
-  created_at: string;
-}
-
-interface AnalyticsData {
-  forecast: {
-    historique: { month: string; ca: number }[];
-    forecasts: { month: string; predicted_ca: string; confidence: number }[];
-    growth_rate: string;
-    avg_monthly: string;
-  };
-  trends: {
-    nouveaux_30j: number;
-    actifs: number;
-    a_risque: number;
-    perdus: number;
-    vip: number;
-    total: number;
-    evolution: { month: string; nouveaux: number }[];
-  };
-  clusters: {
-    segments: { name: string; count: number; percentage: string; avg_value: string }[];
-    recommendations: { segment: string; action: string; description: string }[];
-  };
-  patterns: { type: string; title: string; description: string; recommendation: string }[];
-}
+// Types importés depuis api.ts (source de vérité)
+type DashboardData = SentinelDashboardData;
+type Insight = SentinelInsight;
+type AnalyticsData = SentinelAnalyticsData;
 
 // ============================================
 // CONSTANTS
@@ -588,15 +525,25 @@ function PredictionsTab({ analyticsData }: { analyticsData: AnalyticsData | null
 
   const growthPositive = parseFloat(analyticsData.forecast?.growth_rate || '0') > 0;
 
+  const historique = (analyticsData.forecast?.historique || []).slice(-6);
+  const forecasts = analyticsData.forecast?.forecasts || [];
+  const lastHistorique = historique[historique.length - 1];
+
   const chartData = [
-    ...(analyticsData.forecast?.historique || []).slice(-6).map(h => ({
+    ...historique.map(h => ({
       month: h.month,
       ca: h.ca,
-      predicted_ca: null
+      predicted_ca: null as number | null
     })),
-    ...(analyticsData.forecast?.forecasts || []).map(f => ({
+    // Point de raccord : le dernier mois historique apparaît aussi sur la ligne prévision
+    ...(lastHistorique ? [{
+      month: lastHistorique.month,
+      ca: lastHistorique.ca,
+      predicted_ca: lastHistorique.ca
+    }] : []),
+    ...forecasts.map(f => ({
       month: f.month,
-      ca: null,
+      ca: null as number | null,
       predicted_ca: parseFloat(f.predicted_ca || '0')
     }))
   ];
@@ -910,7 +857,7 @@ function SegmentationTab({ analyticsData }: { analyticsData: AnalyticsData | nul
                       size="sm"
                       variant="ghost"
                       className="h-6 text-xs"
-                      onClick={() => handleSegmentAction(reco.segment.toLowerCase().replace(/\s+/g, '_'))}
+                      onClick={() => handleSegmentAction(reco.segment_key || reco.segment.toLowerCase().replace(/\s+/g, '_'))}
                     >
                       Voir les clients →
                     </Button>

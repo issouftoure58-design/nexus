@@ -41,7 +41,7 @@ interface Agent {
   updated_at: string;
 }
 
-const AGENT_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
+const AGENT_TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   reception: { label: 'Assistant IA', icon: Bot, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
   web: { label: 'Chatbot Web', icon: MessageSquare, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
   phone: { label: 'Assistant Vocal', icon: Phone, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -95,11 +95,12 @@ export default function IAAdmin() {
       if (result.agents?.length > 0 && !selectedAgent) {
         selectAgent(result.agents[0]);
       }
-    } catch (err: any) {
-      if (err.message?.includes('403') || err.message?.includes('Plan')) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      if (message.includes('403') || message.includes('Plan')) {
         setError('Cette fonctionnalite necessite le module Agent IA');
       } else {
-        setError(err.message);
+        setError(message);
       }
     } finally {
       setLoading(false);

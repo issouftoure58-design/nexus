@@ -190,16 +190,21 @@ ${t.gerante} - ${t.telephone}`;
         formattedPhone = '+33' + formattedPhone;
       }
 
-      const smsResult = await twilioClient.messages.create({
-        body: smsMessage,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: formattedPhone
-      });
+      const smsParams = { body: smsMessage, to: formattedPhone };
+      if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+        smsParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+      } else if (process.env.TWILIO_PHONE_NUMBER) {
+        smsParams.from = process.env.TWILIO_PHONE_NUMBER;
+      } else {
+        throw new Error('Ni TWILIO_MESSAGING_SERVICE_SID ni TWILIO_PHONE_NUMBER configuré');
+      }
+      const smsResult = await twilioClient.messages.create(smsParams);
 
       results.sms = { success: true, sid: smsResult.sid };
       console.log(`[Notification] ✅ SMS confirmation envoyé à ${formattedPhone} (SID: ${smsResult.sid})`);
     } catch (error) {
       console.error('[Notification] ❌ Erreur envoi SMS:', error.message);
+      logger.error('SMS_SEND_FAILED', { phone: formattedPhone, error: error.message, tenantId, type: 'confirmation' });
       results.sms = { success: false, error: error.message };
     }
   }
@@ -277,7 +282,7 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   }
 
   // 3. Envoyer SMS via Twilio
-  if (clientPhone && process.env.TWILIO_PHONE_NUMBER) {
+  if (clientPhone) {
     try {
       const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
 
@@ -306,16 +311,21 @@ ${t.gerante} - ${t.telephone}`;
         formattedPhone = '+33' + formattedPhone;
       }
 
-      const smsResult = await twilioClient.messages.create({
-        body: smsMessage,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: formattedPhone
-      });
+      const smsParams = { body: smsMessage, to: formattedPhone };
+      if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+        smsParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+      } else if (process.env.TWILIO_PHONE_NUMBER) {
+        smsParams.from = process.env.TWILIO_PHONE_NUMBER;
+      } else {
+        throw new Error('Ni TWILIO_MESSAGING_SERVICE_SID ni TWILIO_PHONE_NUMBER configuré');
+      }
+      const smsResult = await twilioClient.messages.create(smsParams);
 
       results.sms = { success: true, sid: smsResult.sid };
       console.log(`[Notification] ✅ SMS rappel J-1 envoyé à ${formattedPhone} (SID: ${smsResult.sid})`);
     } catch (error) {
       console.error('[Notification] ❌ Erreur envoi SMS rappel:', error.message);
+      logger.error('SMS_SEND_FAILED', { phone: clientPhone, error: error.message, tenantId, type: 'rappel_j1' });
       results.sms = { success: false, error: error.message };
     }
   }

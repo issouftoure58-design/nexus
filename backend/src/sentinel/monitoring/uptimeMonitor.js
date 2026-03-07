@@ -5,6 +5,27 @@
 
 import { supabase } from '../../config/supabase.js';
 
+// Ping réseau léger avec timeout 5s
+async function pingService(url, label) {
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const latency = Date.now() - start;
+    // Tout code HTTP (même 401/403) = service joignable
+    return { status: 'up', latency };
+  } catch (err) {
+    const latency = Date.now() - start;
+    console.warn(`[SENTINEL] Ping ${label} failed: ${err.message}`);
+    return { status: 'degraded', error: err.message, latency };
+  }
+}
+
 // Services a surveiller
 const SERVICES = {
   database: {
@@ -36,7 +57,7 @@ const SERVICES = {
       if (!process.env.ANTHROPIC_API_KEY) {
         return { status: 'degraded', error: 'API key not configured' };
       }
-      return { status: 'up', latency: 0 };
+      return pingService('https://api.anthropic.com', 'Claude API');
     },
   },
   twilio: {
@@ -46,7 +67,7 @@ const SERVICES = {
       if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
         return { status: 'degraded', error: 'Credentials not configured' };
       }
-      return { status: 'up', latency: 0 };
+      return pingService('https://api.twilio.com', 'Twilio');
     },
   },
   elevenlabs: {
@@ -56,7 +77,7 @@ const SERVICES = {
       if (!process.env.ELEVENLABS_API_KEY) {
         return { status: 'degraded', error: 'API key not configured' };
       }
-      return { status: 'up', latency: 0 };
+      return pingService('https://api.elevenlabs.io', 'ElevenLabs');
     },
   },
   whatsapp: {

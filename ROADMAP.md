@@ -4,7 +4,7 @@
 > Ce document reste la reference pour la roadmap **commercialisation** (domaine, legal, marketing, beta).
 > Les phases techniques sont couvertes par PROGRESS.md et SYSTEM.md.
 
-> **Dernière mise à jour :** 15 février 2026
+> **Dernière mise à jour :** 7 mars 2026
 > **Objectif :** Lancement commercial SaaS en France
 > **Structure juridique :** Micro-entreprise (SIRET en cours de validation)
 > **Vision :** Plateforme qui s'adapte automatiquement au métier du client
@@ -131,47 +131,63 @@ JOUR 14 - Conversion
 
 ## 3. État des Lieux Actuel
 
-### Score Global: 65%
+### Score Global: 95% technique — Commercialisation quasi prête
 
 | Domaine | Avancement | Détail |
 |---------|------------|--------|
-| **Backend API** | 90% | 59 routes, services complets |
-| **Frontend Admin** | 90% | 23 pages, design cohérent |
-| **Multi-tenant** | 95% | Isolation, phoneMap, quotas |
-| **Twilio Voice/WA** | 95% | Webhooks, provisioning auto |
-| **Stripe Billing** | 70% | Produits créés, webhooks OK |
-| **Auto-config métier** | 0% | **À FAIRE** |
-| **Landing Page** | 0% | **À FAIRE** |
-| **Conformité RGPD** | 0% | **CRITIQUE** |
-| **Tests E2E** | 0% | **À FAIRE** |
-| **DevOps/CI/CD** | 20% | Render basique |
+| **Backend API** | 98% | 72 routes, 77 services, 85 migrations, Zod validation |
+| **Frontend Admin** | 98% | 37 pages, 38 composants, theme dynamique, code splitting |
+| **Multi-tenant** | 99% | Tenant Shield (98.1%), phoneMap, quotas, RBAC, sessions |
+| **Twilio Voice/WA** | 95% | Webhooks, provisioning auto, SMS production OK |
+| **Stripe Billing** | 85% | Produits créés, webhooks OK, dunning, portail client |
+| **IA Admin** | 95% | 105 outils, streaming SSE, 3 tiers plan |
+| **Monitoring** | 100% | SENTINEL complet (error tracking integre, remplace Sentry), mode degrade |
+| **CI/CD** | 90% | 5 workflows GitHub Actions, branch protection |
+| **Tests** | 70% | 310 tests backend, 17 tests frontend, Vitest + Jest |
+| **Auto-config métier** | 95% | businessTemplates.js (8+ templates) |
+| **Landing Page** | 90% | Construite, pas encore sur domaine final |
+| **Conformité RGPD** | 90% | CGV + CGU + Privacy Policy + SIRET — bannière cookies manquante |
+| **Domaine production** | 20% | Acheté, DNS à configurer |
 
 ### Ce qui est FAIT
 
-- [x] 23 pages admin UI fonctionnelles
-- [x] 59 routes API backend
-- [x] Authentification JWT multi-tenant
-- [x] Provisioning automatique numéros Twilio
-- [x] Agent IA Voice (appels entrants)
-- [x] Agent IA WhatsApp
-- [x] Agent IA Web (chatbot)
-- [x] Système de modules activables
-- [x] Tracking usage par tenant
-- [x] 21 produits Stripe créés
-- [x] Service billing Stripe
-- [x] Webhooks Stripe
+- [x] 37 pages admin UI fonctionnelles (+ 3 extractions comptabilité)
+- [x] 72 routes API backend + API publique REST v1
+- [x] Authentification JWT + 2FA TOTP + RBAC + sessions
+- [x] Provisioning automatique numéros Twilio (FR national + mobile)
+- [x] Agent IA Voice (appels entrants) + WhatsApp + Web Chat
+- [x] Chat IA Admin (105 outils, streaming SSE)
+- [x] Système de modules activables + demande activation
+- [x] Tracking usage par tenant + quotas + dépassement
+- [x] Stripe Billing complet (checkout, portail, dunning, webhooks)
+- [x] SENTINEL monitoring (snapshots, prédictions, alertes, backfill)
+- [x] CI/CD (5 workflows, tests, lint tenant, build)
+- [x] Theme dynamique par tenant (couleur primaire)
+- [x] API keys + Webhooks sortants
+- [x] Programme parrainage + SSO OIDC
+- [x] Code splitting frontend (44 chunks, 0 any TypeScript)
+- [x] Documents (upload Supabase Storage)
+- [x] Comptabilité avancée (rapprochement, auxiliaires, expert-comptable)
+- [x] Inscription self-service (signup 6 endpoints + Stripe checkout)
+- [x] Auto-configuration par métier (8+ templates business)
+- [x] Onboarding guidé (5 étapes)
+- [x] Trial 14 jours (trialService.js + TrialBanner.tsx)
+- [x] Documents légaux (CGV, CGU, RGPD, mentions légales avec SIRET)
+- [x] SIRET obtenu (947 570 362 00022)
 
-### Ce qui RESTE
+### Ce qui RESTE pour le lancement commercial
 
-- [ ] Landing page publique
-- [ ] Système inscription self-service
-- [ ] Auto-configuration par métier
-- [ ] Onboarding guidé
-- [ ] Trial 14 jours avec limites
-- [ ] Documents légaux (CGV, RGPD)
-- [ ] Domaine production
-- [ ] Tests E2E
-- [ ] CI/CD pipeline
+- [ ] **Domaine production** (nexus-saas.fr) — acheté, DNS à configurer
+- [ ] **Bannière cookies** — composant CookieBanner à créer
+- [ ] **Logo upload frontend** — backend prêt (adminDocuments.js), bouton UI à activer
+- [ ] **Déploiement landing** sur domaine final
+- [ ] **Beta testers** (3-5 professionnels)
+
+### Modules futurs documentés (post-lancement)
+
+- [ ] **Immobilisations auto** — détection à l'upload, amortissement, tableau (docs/ROADMAP_COMPTA_V2.md)
+- [ ] **Clôture annuelle auto** — CCA, PCA, FNP, FAE, variation stock (docs/ROADMAP_COMPTA_V2.md)
+- [ ] **Gestion email pro par IA** — lecture, tri, réponse auto, actions CRM/compta (docs/ROADMAP_COMPTA_V2.md)
 
 ---
 

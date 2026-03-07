@@ -3,14 +3,23 @@
  * Wrapper réutilisable pour l'envoi de SMS depuis le workflow engine
  */
 
+import { isDegraded } from '../sentinel/index.js';
+
 /**
  * Envoie un SMS via Twilio
  * @param {string} telephone - Numéro du destinataire
  * @param {string} message - Contenu du SMS
  * @param {string} tenantId - ID du tenant (pour traçabilité)
+ * @param {object} options - Options supplémentaires
+ * @param {boolean} options.essential - Si true, envoyé même en mode dégradé (confirmations, alertes)
  * @returns {Promise<{success: boolean, sid?: string, simulated?: boolean}>}
  */
-export async function sendSMS(telephone, message, tenantId = null) {
+export async function sendSMS(telephone, message, tenantId = null, options = {}) {
+  // Mode dégradé : bloquer SMS non-essentiels (marketing, rappels)
+  if (isDegraded() && !options.essential) {
+    console.log(`[SMS] Bloqué en mode dégradé (non-essentiel), tenant: ${tenantId}`);
+    return { success: false, error: 'SMS non-essentiel bloqué (mode dégradé Sentinel)', degradedMode: true };
+  }
   if (!telephone || !message) {
     console.warn('[SMS] Paramètres manquants:', { telephone: !!telephone, message: !!message });
     return { success: false, error: 'telephone et message requis' };

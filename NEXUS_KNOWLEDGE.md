@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-04
-**Version:** 3.10.0 (Horaires dynamiques par tenant — business_hours)
+**Derniere mise a jour:** 2026-03-07
+**Version:** 3.14.0 (SENTINEL Error Tracker remplace Sentry)
 
 ---
 
@@ -57,8 +57,8 @@
 
 | Metrique | Valeur |
 |----------|--------|
-| Routes API | 53 (10 orphelines supprimees) |
-| Services metier | 68 |
+| Routes API | 54 (+1 backfill endpoint) |
+| Services metier | 69 |
 | Modules disponibles | 21 |
 | Plans tarifaires | 3 (Starter/Pro/Business) |
 | Tenants actifs | 3 |
@@ -280,7 +280,7 @@ MODULES AVANCES
 **Notifications:**
 - `notificationService.js`
 - `emailService.js`
-- `smsService.js` (wrapper Twilio SMS, formatage +33, Messaging Service)
+- `smsService.js` (wrapper Twilio SMS, formatage +33, Messaging Service, mode degrade bloque non-essentiels)
 - `whatsappService.js` (URLs dynamiques via tenantBusinessService)
 - `voiceService.js` (phrases TTS multi-tenant)
 
@@ -295,31 +295,33 @@ MODULES AVANCES
 ### Architecture SENTINEL
 
 ```
-SENTINEL = 5 modules principaux
+SENTINEL = 7 modules principaux
 
 1. HEALTH MONITOR
    ├── Uptime serveur
    ├── Memoire (heapUsed, rss)
    ├── CPU usage
    ├── Connexions DB (latency check)
-   └── APIs externes (Claude, Twilio, Stripe)
+   └── APIs externes — pings HTTP HEAD reels (Claude, Twilio, ElevenLabs) avec timeout 5s
 
 2. COSTS MONITOR (Multi-tenant)
-   ├── Claude tokens
+   ├── Claude tokens (tracking unique, pas de double comptage)
    ├── ElevenLabs caracteres
    ├── Twilio SMS/Voice
    ├── Stripe fees
-   └── Google Maps requests
+   ├── Google Maps requests
+   └── Mode degrade auto si seuil shutdown atteint (isDegraded())
 
 3. SECURITY SHIELD
    ├── Detection prompt injection
    ├── Rate limiting (20/min, 200/h, 1000/day)
    ├── IP blacklist/whitelist
    ├── DDoS pattern detection
-   └── Blocage brute force
+   ├── Blocage brute force
+   └── getLogsByTenant() — logs tenant-scoped obligatoire
 
 4. BACKUP & PERSISTENCE
-   ├── Sauvegardes automatiques par tenant
+   ├── Sauvegardes automatiques par tenant (table parametres exclue — systeme)
    ├── Persistence usage
    └── Archivage logs
 
@@ -327,8 +329,38 @@ SENTINEL = 5 modules principaux
    ├── Collecte metriques 30sec
    ├── Anomaly detection
    ├── Auto-repair attempts
-   └── Alertes Slack/Email/SMS
+   ├── Alertes SMS + persistence DB (decommente)
+   └── Convention centimes (DB stocke centimes, frontend divise /100)
+
+6. BACKFILL & AUTO-REPAIR
+   ├── backfill(from, to) — rattrapage snapshots manquants
+   ├── autoBackfillGaps() — detection gaps automatique au demarrage
+   ├── POST /api/sentinel/backfill — endpoint admin
+   └── scheduler.js appelle autoBackfillGaps() avant chaque snapshot
+
+7. ERROR TRACKING (remplace Sentry — v3.14.0)
+   ├── Table error_logs (migration 067)
+   ├── services/errorTracker.js — captureException/captureMessage (API Sentry-compatible)
+   ├── Fingerprinting SHA-256 (message + premier stack frame) pour grouper erreurs similaires
+   ├── Frontend: errorReporter.ts (window.onerror + unhandledrejection, debounce 10/min)
+   ├── POST /api/errors/report — endpoint public rate-limited (30/min)
+   ├── GET /api/nexus/errors — liste paginee (superadmin)
+   ├── GET /api/nexus/errors/stats — stats 24h (superadmin)
+   └── Dashboard: onglet "Erreurs" dans SENTINEL (SentinelErrors.tsx)
 ```
+
+### Mode degrade (isDegraded)
+
+Quand les couts atteignent le seuil shutdown, `autoHeal.attempt('costs')` active le mode degrade.
+`isDegraded()` exporte depuis `sentinel/index.js` est consulte par :
+
+| Service | Comportement en mode degrade |
+|---------|------------------------------|
+| `adminChatService.js` | max_tokens reduit a 500 (au lieu de 4096) |
+| `aiRoutingService.js` | max_tokens plafonne a 500 |
+| `generateImage.js` | Generation image bloquee |
+| `ttsService.js` | Synthese vocale bloquee |
+| `smsService.js` | SMS non-essentiels bloques (`options.essential` requis) |
 
 ### Seuils d'alerte (thresholds.js)
 
@@ -343,14 +375,22 @@ SENTINEL = 5 modules principaux
 
 | Fichier | Role |
 |---------|------|
+| `sentinel/index.js` | Init + exports (isDegraded, checkCosts) |
 | `sentinel/core/sentinel.js` | Moteur principal |
-| `monitors/healthMonitor.js` | Sante serveur |
-| `monitors/costMonitor.js` | Couts par tenant |
-| `monitors/tenantCostTracker.js` | Usage API par tenant |
-| `security/securityShield.js` | Protection securite |
-| `security/accountService.js` | Gestion comptes |
-| `backup/backupService.js` | Sauvegardes |
-| `persistence.js` | Stockage alertes |
+| `sentinel/monitoring/uptimeMonitor.js` | Pings HTTP reels (Claude, Twilio, ElevenLabs) |
+| `sentinel/monitors/costMonitor.js` | Couts par tenant |
+| `sentinel/monitors/tenantCostTracker.js` | Usage API par tenant (sans double tracking) |
+| `sentinel/security/securityShield.js` | Protection securite |
+| `sentinel/security/securityLogger.js` | Logs securite + getLogsByTenant() |
+| `sentinel/actions/autoHeal.js` | Auto-repair + mode degrade |
+| `sentinel/backup/backupService.js` | Sauvegardes (parametres exclu) |
+| `sentinel/config/thresholds.js` | Seuils + ALERT_PHONE (env var) |
+| `sentinel/persistence.js` | Stockage alertes |
+| `services/sentinelCollector.js` | Snapshots quotidiens + backfill + alertes SMS |
+| `services/errorTracker.js` | Error tracking (remplace Sentry) — captureException/captureMessage |
+| `routes/errorRoutes.js` | API erreurs (list/stats/report frontend) |
+| `config/sentry.js` | Shim → re-exports vers errorTracker (compatibilite 5 fichiers) |
+| `jobs/scheduler.js` | Cron jobs + autoBackfillGaps |
 
 ---
 
@@ -426,8 +466,9 @@ idx_segments_tenant (tenant_id)
 - `seo/` - SEO tools
 - `rh/` - Ressources humaines
 - `marketing/` - Campaigns
-- `comptabilite/` - Compta
+- `comptabilite/` - Compta (rapprochement, auxiliaires, expert-comptable)
 - `factures/` - Facturation
+- `analytics/` - Comptabilite analytique (marges, seuil de rentabilite)
 - `sentinel/` - Monitoring
 
 ---
@@ -792,6 +833,83 @@ CREATE TABLE IF NOT EXISTS plan_quotas (
    ├── Gestion echecs paiement
    └── Upgrade/Downgrade a la demande
 ```
+
+---
+
+## 9bis. COMPTABILITE ANALYTIQUE
+
+### Service analytiqueService.js
+
+**Fichier:** `backend/src/services/analytiqueService.js`
+**Route:** `GET /api/admin/analytics/analytique?debut=YYYY-MM-DD&fin=YYYY-MM-DD&businessType=salon`
+**Frontend:** `admin-ui/src/pages/Analytics.tsx`
+
+**Fonction principale:** `getComptabiliteAnalytique(tenantId, dateDebut, dateFin, businessType)`
+
+### Double classification des depenses
+
+Chaque categorie de depense a 2 axes independants :
+- **type** (`direct` / `indirect`) → pour la **marge brute** (CA - couts de production)
+- **variable** (`true` / `false`) → pour le **seuil de rentabilite** (charges fixes / taux marge sur CV)
+
+| Categorie | Salon | Restaurant | Hotel | Service domicile |
+|-----------|-------|------------|-------|------------------|
+| Salaires | direct, fixe | direct, fixe | direct, fixe | direct, fixe |
+| Cotisations | direct, fixe | direct, fixe | direct, fixe | direct, fixe |
+| Fournitures | direct, **variable** | direct, **variable** | direct, **variable** | direct, **variable** |
+| Charges (elec, gaz) | indirect, fixe | direct, **variable** | direct, **variable** | indirect, fixe |
+| Transport | indirect, fixe | direct, **variable** | indirect, fixe | direct, **variable** |
+| Materiel | indirect, fixe | indirect, fixe | indirect, fixe | direct, fixe |
+| Loyer, assurance... | indirect, fixe | indirect, fixe | indirect, fixe | indirect, fixe |
+
+### Formules
+
+```
+Marge brute         = CA HT - couts directs (production)
+Taux marge brute    = marge brute / CA HT * 100
+Marge sur CV        = CA HT - couts variables
+Taux marge sur CV   = marge sur CV / CA HT * 100
+Seuil rentabilite   = charges fixes / (taux marge sur CV / 100)
+Resultat net        = CA HT - couts directs - couts indirects
+```
+
+### Sources de donnees
+
+| Donnee | Table Supabase | Comptabilite |
+|--------|----------------|--------------|
+| CA HT, par service | `factures` (payee + envoyee) | Oui |
+| Depenses, marges | `depenses` | Oui |
+| CA par collaborateur | `reservations` + `reservation_lignes` | Non (operationnel) |
+| Salaires | `rh_bulletins_paie` | Oui |
+
+### Synthese retournee (champs API)
+
+```typescript
+interface AnalytiqueSynthese {
+  ca_ht: number;
+  couts_directs: number;      // production (salaires, fournitures, cotisations)
+  couts_indirects: number;    // structure (loyer, assurance, telecom...)
+  couts_variables: number;    // varient avec l'activite (fournitures...)
+  charges_fixes: number;      // fixes quel que soit le volume
+  marge_brute: number;        // CA - couts directs
+  taux_marge_brute: number;   // marge brute / CA * 100
+  taux_marge_cv: number;      // marge sur CV / CA * 100
+  resultat_net: number;       // CA - tous les couts
+  marge_nette: number;        // resultat net / CA * 100
+  seuil_rentabilite: number;  // charges fixes / taux marge CV
+  point_mort_atteint: boolean;
+}
+```
+
+### businessType — Chaine complete
+
+```
+Tenant DB → GET /api/admin/profile → ProfileContext → Analytics.tsx
+  → query string ?businessType=xxx → route adminAnalytics.js
+  → getComptabiliteAnalytique() → CLASSIFICATIONS[businessType]
+```
+
+Fallback: `'salon'` si non specifie.
 
 ---
 
@@ -1281,20 +1399,31 @@ Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, trans
 | ~~**P1**~~ | ~~Redis eviction policy~~ | BullMQ jobs | ✅ FAIT (2026-03-02) — noeviction |
 | **P1** | Configurer STRIPE_WEBHOOK_SECRET sur Render | Monetisation | 🔶 A faire (manuel) |
 | **P1** | Tester webhooks Stripe en staging | Monetisation | 🔶 A faire |
-| **P0** | 2FA/MFA TOTP pour admins | Securite critique | 🔶 Sprint 1 |
-| **P0** | Audit log generique (qui fait quoi) | Tracabilite/SOC2 | 🔶 Sprint 1 |
-| **P0** | Invitation equipe par email | Multi-user tenant | 🔶 Sprint 1 |
-| **P0** | RBAC granulaire (permissions par module) | Securite equipe | 🔶 Sprint 1 |
-| **P0** | Dunning Stripe (retry paiement echoue) | Revenue | 🔶 Sprint 1 |
-| **P0** | Session management | Securite | 🔶 Sprint 1 |
-| **P1** | Status page publique | Confiance client | 🔶 Sprint 2 |
-| **P1** | i18n FR + EN | International | 🔶 Sprint 2 |
-| **P1** | Notifications in-app | UX | 🔶 Sprint 2 |
-| **P1** | Email auth DKIM/SPF/DMARC | Deliverabilite | 🔶 Sprint 2 |
-| **P2** | Import CSV clients/RDV | Onboarding client | 🔶 Sprint 3 |
-| **P2** | Webhook retry + dead letter queue | Fiabilite API | 🔶 Sprint 3 |
-| **P2** | Rate limiting transparent (headers) | Developer XP | 🔶 Sprint 3 |
-| **P2** | Revenue analytics operateur (MRR/LTV) | Pilotage SaaS | 🔶 Sprint 3 |
+| ~~**P0**~~ | ~~2FA/MFA TOTP pour admins~~ | Securite critique | ✅ Sprint 1 |
+| ~~**P0**~~ | ~~Audit log generique~~ | Tracabilite/SOC2 | ✅ Sprint 1 |
+| ~~**P0**~~ | ~~Invitation equipe par email~~ | Multi-user tenant | ✅ Sprint 1 |
+| ~~**P0**~~ | ~~RBAC granulaire~~ | Securite equipe | ✅ Sprint 1 |
+| ~~**P0**~~ | ~~Dunning Stripe~~ | Revenue | ✅ Sprint 1 |
+| ~~**P0**~~ | ~~Session management~~ | Securite | ✅ Sprint 1 |
+| ~~**P1**~~ | ~~Status page publique~~ | Confiance client | ✅ Sprint 2 |
+| **P1** | i18n FR + EN | International | 🔶 Differe |
+| ~~**P1**~~ | ~~Notifications in-app~~ | UX | ✅ Sprint 2 |
+| ~~**P1**~~ | ~~Email auth headers~~ | Deliverabilite | ✅ Sprint 2 |
+| ~~**P2**~~ | ~~Import CSV clients~~ | Onboarding client | ✅ Sprint 3 |
+| ~~**P2**~~ | ~~Webhook retry + dead letter~~ | Fiabilite API | ✅ Sprint 3 |
+| ~~**P2**~~ | ~~Rate limiting transparent~~ | Developer XP | ✅ Sprint 3 |
+| ~~**P2**~~ | ~~Revenue analytics operateur~~ | Pilotage SaaS | ✅ Sprint 3 |
+| ~~**P1**~~ | ~~Audit Sentinel (9 problemes)~~ | Fiabilite monitoring | ✅ Session 16 |
+| ~~**P1**~~ | ~~Mode degrade enforced~~ | Protection couts | ✅ Session 16 |
+| ~~**P1**~~ | ~~Backfill snapshots manquants~~ | Continuite donnees | ✅ Session 16 |
+| ~~**P1**~~ | ~~Scheduler bugs (.eq plan + date)~~ | Collecte quotidienne | ✅ Session 16 |
+| ~~**P0**~~ | ~~Fix SMS prod (messagingServiceSid)~~ | Fiabilite notifications | ✅ Session 18 |
+| ~~**P1**~~ | ~~N+1 queries backend~~ | Performance | ✅ Session 18 (3 batchs) |
+| ~~**P1**~~ | ~~Code splitting frontend~~ | Performance | ✅ Session 18 (36 lazy, 44 chunks) |
+| ~~**P1**~~ | ~~TypeScript any cleanup~~ | Qualite code | ✅ Session 18 (86→0 any) |
+| ~~**P1**~~ | ~~Zod validation backend~~ | Securite API | ✅ Session 18 (5 routes) |
+| ~~**P1**~~ | ~~Tests frontend Vitest~~ | Qualite | ✅ Session 18 (17 tests) |
+| ~~**P1**~~ | ~~Response helpers standardises~~ | API Design | ✅ Session 18 |
 | **P2** | Tests E2E restaurant/hotel | Qualite | 🔶 A faire |
 | **P2** | UI avancee resto (plan salle, menu) | Features | 🔶 En cours |
 | **P2** | UI avancee hotel (calendrier, tarifs) | Features | 🔶 En cours |
@@ -1329,13 +1458,13 @@ landing (App.jsx monorepo).
 | fatshairafro-web | web_service | https://fatshairafro-web.onrender.com |
 | nexus-redis | redis | redis://red-d6i3mjc50q8c73au4g10:6379 |
 
-**Env vars Render backend (24):**
+**Env vars Render backend (23):**
 NODE_ENV, PORT, DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,
 JWT_SECRET, ADMIN_PASSWORD, ANTHROPIC_API_KEY, OPENAI_API_KEY,
 TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WABA_BU_SID, TWILIO_MESSAGING_SERVICE_SID,
 TWILIO_FR_BUNDLE_SID, TWILIO_FR_MOBILE_BUNDLE_SID, TWILIO_FR_ADDRESS_SID,
 RESEND_API_KEY, STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY,
-CORS_ORIGIN, SENTRY_DSN, REDIS_URL, WEBHOOK_BASE_URL
+CORS_ORIGIN, REDIS_URL, WEBHOOK_BASE_URL
 
 **CORS_ORIGIN** (singulier, callback-based):
 `https://fatshairafro-web.onrender.com,https://nexus-landing.onrender.com`
@@ -1628,6 +1757,98 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 
 ## 17. HISTORIQUE DES MODIFICATIONS
 
+### 2026-03-07 (Session 19) — Facturation chat cablée + Fix streaming SSE
+
+**2 changements majeurs :**
+
+**1. comptable_facturation câblé sur pdfService :**
+- Action `creer` : avec `rdv_id` → `createFactureFromReservation()` crée la facture en DB, retourne numéro + lien PDF. Sans `rdv_id` → génère toutes les factures manquantes (RDV terminés sans facture).
+- Action `exporter` : recherche par `facture_id` ou `numero`, retourne les liens PDF `/api/factures/:id/pdf?download=true`.
+- `toolsRegistry.js` mis à jour : description enrichie, ajout paramètres `facture_id`, `numero`, `statut`, `client_id`, `limit`.
+
+**2. Fix streaming SSE (réponses en bloc → cascade temps réel) :**
+- **Cause racine** : le frontend n'envoyait pas `Accept: text/event-stream` → le middleware `compression` (gzip) bufferisait tout le stream SSE.
+- **Fix 1** : Ajout `'Accept': 'text/event-stream'` au fetch SSE dans `Home.tsx` — correspond au filtre compression dans `index.js` ligne 173.
+- **Fix 2** : Buffer de lignes SSE incomplètes (`sseBuffer`) — les chunks TCP coupés entre 2 `reader.read()` ne perdent plus de données.
+- **Fix 3** : `TextDecoder({ stream: true })` pour les caractères multi-octets.
+- **Fix 4** : Vite proxy `configure()` avec `flushHeaders()` pour SSE en dev.
+
+**Fichiers modifiés :**
+- `backend/src/tools/handlers/comptaHandler.js` — import + actions creer/exporter
+- `backend/src/tools/toolsRegistry.js` — schema comptable_facturation enrichi
+- `admin-ui/src/pages/Home.tsx` — Accept header + SSE buffer fix
+- `admin-ui/vite.config.ts` — proxy SSE flush
+
+---
+
+### 2026-03-07 (Session 18) — Optimisation 7.4 → 8.4/10 + Fix SMS Production
+
+**6 phases. Score global 7.4 → ~8.4/10. SMS production repare.**
+
+| Phase | Scope | Impact |
+|-------|-------|--------|
+| **0 — SMS Fix** | `notificationService.js`, `scheduler.js` | messagingServiceSid, SMS dans condition succes, Sentry logs |
+| **1 — N+1 Fix** | `adminSegments.js`, `sentinel.js` | 3 batchs (Promise.all → single query) |
+| **2 — API** | `response.js`, `validate.js`, 5 routes | Zod validation + helpers standardises |
+| **3 — Splitting** | `App.tsx`, `vite.config.ts` | 36 lazy pages, 4 vendor chunks, index 67KB |
+| **4 — TypeScript** | 17+ fichiers | 86 `any` → 0, interfaces typees |
+| **5 — Tests** | 5 fichiers test | Vitest + jsdom, 17 tests pass |
+
+**Fichiers crees (4) :** `backend/src/utils/response.js`, `backend/src/middleware/validate.js`, `admin-ui/vitest.config.ts`, `admin-ui/src/test/setup.ts`
+**Fichiers modifies (25+) :** notificationService.js, scheduler.js, adminSegments.js, sentinel.js, adminReservations.js, adminChatRoutes.js, adminClients.js, adminDevis.js, adminServices.js, App.tsx, vite.config.ts, api.ts, Services.tsx, Activites.tsx, Home.tsx, Comptabilite.tsx, FormulaireEmploye.tsx, GestionPaie.tsx, Stock.tsx, Parametres.tsx, IAWhatsApp.tsx, IATelephone.tsx, IAAdmin.tsx, RH.tsx, Onboarding.tsx, etc.
+
+**Verifications :** `node --check` 11/11, `tsc --noEmit` 0 erreurs, `lint:tenant` 0 violations, `vitest` 17/17 pass, `vite build` OK
+
+---
+
+### 2026-03-06 (Session 16) — Audit Sentinel : 9 fixes + Scheduler + Backfill + Predictions
+
+**Audit complet Sentinel : 9 problemes (3 HAUTE, 3 MOYENNE, 3 BASSE), tous resolus.**
+
+**Fixes par severite :**
+- **P1 (HAUTE)** : Mode degrade enforced — `isDegraded()` consulte par 5 services (adminChat, aiRouting, generateImage, tts, sms). `autoHeal.attempt('costs')` connecte dans `checkCosts()`.
+- **P2 (HAUTE)** : Alertes client decommentees — SMS + persistence DB via `notificationService`.
+- **P3 (HAUTE→OK)** : Revenue centimes documente (convention standard, frontend compense).
+- **P4 (MOYENNE)** : Uptime checks reels — pings HTTP HEAD avec timeout 5s (remplace verification env var).
+- **P5 (MOYENNE)** : Double tracking couts supprime — `costMonitor.trackClaudeUsage()` retire de `tenantCostTracker.js`.
+- **P6 (MOYENNE)** : Security logs tenant-scoped — `getLogsByTenant(tenantId)` avec tenantId obligatoire.
+- **P7 (BASSE)** : Telephone alertes → `process.env.SENTINEL_ALERT_PHONE` (env var).
+- **P8 (BASSE)** : Types frontend centralises dans `api.ts` + `sentinelApi` wrapper.
+- **P9 (BASSE)** : Table `parametres` exclue du backup tenant (table systeme sans tenant_id).
+
+**2 bugs scheduler corriges :**
+1. `.eq('plan', 'business')` → `.in('plan_id', ['business', 'enterprise'])` — colonne incorrecte.
+2. `runDailyCollection(tenant.id)` → `runDailyCollection()` — passait tenant ID comme parametre date.
+
+**Backfill mechanism cree :**
+- `sentinelCollector.backfill(from, to)` : rattrapage snapshots + couts par jour/tenant
+- `sentinelCollector.autoBackfillGaps()` : detection gaps automatique
+- `POST /api/sentinel/backfill` : endpoint admin
+- `scheduler.js` : appel `autoBackfillGaps()` avant chaque snapshot
+- Backfill execute localement : 13 jours (21 fev — 5 mars), 2 tenants, 0 erreurs
+
+**2 fixes Predictions/Segmentation :**
+- Graphique forecast : pont entre derniere donnee historique et premiere prediction (plus de gap)
+- Filtre segment : utilise `segment_key` au lieu de conversion label (accent `à_risque` vs `a_risque`)
+
+**Fichiers modifies (18) :** sentinel/index.js, sentinel/config/thresholds.js, sentinel/backup/backupService.js, sentinel/monitors/tenantCostTracker.js, sentinel/monitoring/uptimeMonitor.js, sentinel/security/securityLogger.js, services/sentinelCollector.js, services/adminChatService.js, services/aiRoutingService.js, services/ttsService.js, services/smsService.js, tools/halimahPro/generateImage.js, routes/sentinel.js, jobs/scheduler.js, admin-ui/src/lib/api.ts, admin-ui/src/pages/Sentinel.tsx, admin-ui/src/pages/ChurnPrevention.tsx
+
+**Verifications :** `tsc --noEmit` 0 erreurs, `node --check` 13/13 OK, `npm run lint:tenant` 0 violations
+
+---
+
+### 2026-03-05 (Session 15b) — Refactoring Comptabilite + Fix Analytique
+
+**Extraction Comptabilite.tsx (5271 → 3206 lignes) :**
+- 3 onglets extraits : `Rapprochement.tsx`, `ComptesAuxiliaires.tsx`, `ExpertComptable.tsx`
+- Sidebar + routes ajoutees
+
+**Fix seuil de rentabilite :**
+- Double classification depenses (type + variable) par business type
+- Seuil nexus-test : 1.7M€ → 6 371€
+
+---
+
 ### 2026-03-03 (Session 14) — Fix 5 problemes communication inter-modules
 
 **Probleme:** Audit inter-modules a revele 5 bugs : (1) SMS/WhatsApp workflow engine simules, (2) aucune notification a la creation de RDV, (3) segments CRM deconnectes des workflows, (4) mapping champs Stripe fragile (`whatsapp` vs `agent_ia_whatsapp`), (5) actions differees jamais executees.
@@ -1782,7 +2003,7 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 - Redis: eviction policy `allkeys-lru` → `noeviction` via API Render
 - Migration 052: colonnes `relance_24h_envoyee` + `relance_24h_date` sur reservations
 - PostgREST schema cache reloaded (`NOTIFY pgrst`)
-- Health check enrichi: DB ok (150ms), Redis ok, Stripe/Twilio/Sentry true
+- Health check enrichi: DB ok (150ms), Redis ok, Stripe/Twilio true, error_tracking: sentinel
 
 **Fichiers modifies:**
 - `backend/src/queues/notificationWorker.js` — rewrite complet Bull → BullMQ

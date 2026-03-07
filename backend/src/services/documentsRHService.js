@@ -259,7 +259,7 @@ function preparerDonnees(type, membre, dsnParams, tenant, options) {
     date_fin: formatDate(membre.date_fin_contrat),
     poste: membre.poste || membre.role || '',
     classification: membre.classification_niveau || '',
-    salaire_brut: formatMontant(membre.salaire_base),
+    salaire_brut: formatMontant(membre.salaire_mensuel),
     heures_hebdo: membre.heures_hebdo || 35,
     heures_mensuelles: membre.heures_mensuelles || 151.67,
     lieu_travail: entreprise.adresse
@@ -467,7 +467,7 @@ function genererContratCDD(doc, donnees, y, W) {
 
   doc.font('Helvetica-Bold').text(`Motif du recours au CDD :`, 50, y);
   y += 15;
-  doc.font('Helvetica').text(`Accroissement temporaire d'activité`, 50, y);
+  doc.font('Helvetica').text(donnees.contrat.motif_recours || 'Accroissement temporaire d\'activité', 50, y);
   y += 25;
 
   doc.text(`Poste : ${donnees.contrat.poste}`, 50, y);

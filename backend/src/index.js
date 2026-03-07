@@ -15,8 +15,9 @@ import logger from './config/logger.js';
 // Import des middlewares sécurité
 import { apiLimiter, paymentLimiter } from './middleware/rateLimiter.js';
 
-// Import Sentry monitoring
-import { initSentry, sentryErrorHandler } from './config/sentry.js';
+// Import SENTINEL error tracking (replaces Sentry)
+import { captureException } from './services/errorTracker.js';
+import errorRoutes, { frontendReportRouter } from './routes/errorRoutes.js';
 
 // Import Swagger documentation
 import { setupSwagger } from './config/swagger.js';
@@ -124,8 +125,8 @@ import { sentinel } from './sentinel/index.js';
 // Création de l'application Express
 const app = express();
 
-// ============= SENTRY (avant tout middleware) =============
-initSentry(app);
+// ============= ERROR TRACKING (SENTINEL) =============
+// No init needed — errorTracker is always active
 
 // ============= SWAGGER DOCUMENTATION =============
 setupSwagger(app);
@@ -247,7 +248,7 @@ app.get('/health', async (req, res) => {
   // Services externes (config check, pas d'appel)
   checks.stripe = !!process.env.STRIPE_SECRET_KEY;
   checks.twilio = !!process.env.TWILIO_ACCOUNT_SID;
-  checks.sentry = !!process.env.SENTRY_DSN;
+  checks.error_tracking = 'sentinel'; // SENTINEL replaces Sentry
   checks.sentinel = sentinel.getStatus().status;
 
   const status = healthy ? 'ok' : 'degraded';
@@ -318,8 +319,12 @@ app.use('/api/landing', landingAgentRoutes);
 // Paiement public pour le widget de reservation client - gere sa propre resolution tenant
 app.use('/api/public/payment', publicPaymentRoutes);
 
+// ============= FRONTEND ERROR REPORT (public, avant tenant shield) =============
+app.use('/api', frontendReportRouter);
+
 // ============= NEXUS SUPER-ADMIN (cross-tenant, avant tenant shield) =============
 // Panel opérateur NEXUS — auth via JWT super_admin, pas besoin de tenant resolution
+app.use('/api/nexus', errorRoutes);
 app.use('/api/nexus', nexusAdminRoutes);
 app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
 app.use('/api/sentinel/autopilot', sentinelAutopilotRouter);
@@ -525,12 +530,15 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// Sentry error handler (capture les erreurs avant le handler global)
-sentryErrorHandler(app);
-
-// Gestion des erreurs globale
+// Gestion des erreurs globale + SENTINEL error tracking
 app.use((err, req, res, next) => {
   logger.error('Unhandled error', { error: err.message, stack: err.stack });
+
+  // Track errors with status >= 500 (or no status) via SENTINEL
+  if (!err.status || err.status >= 500) {
+    captureException(err, { req });
+  }
+
   res.status(err.status || 500).json({
     success: false,
     error: err.message || 'Erreur serveur interne',
@@ -742,6 +750,13 @@ app.listen(PORT, '0.0.0.0', () => {
 
   // Démarrer le scheduler de jobs
   startScheduler();
+
+  // Seed superadmin si les variables d'env sont définies
+  if (process.env.NEXUS_SUPERADMIN_EMAIL && process.env.NEXUS_SUPERADMIN_PASSWORD) {
+    import('../scripts/seed-superadmin.js').then(m => m.seedSuperAdmin()).catch(err =>
+      console.error('[seed-superadmin] Boot seed error:', err.message)
+    );
+  }
 
   // Démarrer le worker de notifications (BullMQ)
   startNotificationWorker();

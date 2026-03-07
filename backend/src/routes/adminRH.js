@@ -85,7 +85,7 @@ function calculerCPAcquis(dateEmbauche) {
   // 2.5 jours par mois, max 25 jours ouvrés (ou 30 ouvrables)
   const cpAcquis = Math.min(moisTravailles * 2.5, 25);
 
-  return Math.round(cpAcquis * 10) / 10; // Arrondir à 0.5 près
+  return Math.round(cpAcquis * 2) / 2; // Arrondir à 0.5 près
 }
 
 /**

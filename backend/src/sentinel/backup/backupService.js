@@ -21,7 +21,7 @@ export const CONFIG = {
     'reviews',
     'orders',
     'order_items',
-    'parametres',
+    // 'parametres' exclu : table système sans tenant_id, pas de backup tenant
     'horaires_hebdo',
     'blocs_indispo',
     'conges',
@@ -51,13 +51,9 @@ async function exportTable(tableName, tenantId) {
     // Construire la requête de base
     let query = supabase.from(tableName).select('*');
 
-    // Tables système sans tenant_id (admin_users a tenant_id donc on filtre)
-    const tablesWithoutTenantId = ['parametres'];
-
-    if (!tablesWithoutTenantId.includes(tableName)) {
-      // Filtrer par tenant_id AVANT de charger les données
-      query = query.eq('tenant_id', tenantId);
-    }
+    // TENANT SHIELD: Toutes les tables sont filtrées par tenant_id
+    // 'parametres' est une table système exclue du backup tenant (voir CONFIG.tables)
+    query = query.eq('tenant_id', tenantId);
 
     const { data, error } = await query;
 

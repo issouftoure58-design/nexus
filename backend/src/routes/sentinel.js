@@ -177,6 +177,30 @@ router.post('/refresh', authenticateAdmin, requireAdminPlan('business'), async (
   }
 });
 
+/**
+ * POST /api/sentinel/backfill
+ * Rattraper les jours manquants (super-admin ou owner uniquement)
+ */
+router.post('/backfill', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const { from, to } = req.body;
+
+    if (!from || !to) {
+      return res.status(400).json({
+        success: false,
+        error: 'Paramètres "from" et "to" requis (YYYY-MM-DD)'
+      });
+    }
+
+    const result = await sentinelCollector.backfill(from, to);
+    res.json({ success: true, data: result });
+
+  } catch (error) {
+    console.error('[SENTINEL] Backfill error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // ACTIVITE DETAILLEE
 // ============================================
@@ -528,23 +552,24 @@ router.put('/goals', authenticateAdmin, requireAdminPlan('business'), async (req
 
     if (error) throw error;
 
-    // Si custom, sauvegarder les objectifs mensuels détaillés
+    // Si custom, sauvegarder les objectifs mensuels détaillés (batch upsert)
     if (goal_type === 'custom' && monthly_goals && Array.isArray(monthly_goals)) {
       const year = new Date().getFullYear();
+      const now = new Date().toISOString();
 
-      for (const mg of monthly_goals) {
-        await supabase
-          .from('sentinel_monthly_goals')
-          .upsert({
-            tenant_id: tenantId,
-            year,
-            month: mg.month,
-            goal_revenue: mg.revenue || 0,
-            goal_new_clients: mg.clients || 0,
-            goal_reservations: mg.reservations || 0,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'tenant_id,year,month' });
-      }
+      const rows = monthly_goals.map(mg => ({
+        tenant_id: tenantId,
+        year,
+        month: mg.month,
+        goal_revenue: mg.revenue || 0,
+        goal_new_clients: mg.clients || 0,
+        goal_reservations: mg.reservations || 0,
+        updated_at: now
+      }));
+
+      await supabase
+        .from('sentinel_monthly_goals')
+        .upsert(rows, { onConflict: 'tenant_id,year,month' });
     }
 
     res.json({ success: true, data });
@@ -585,6 +610,8 @@ router.get('/monthly-goals', authenticateAdmin, requireAdminPlan('business'), as
 // HELPERS
 // ============================================
 
+// Convention: prix_total stocké en centimes dans la DB (standard Stripe/Supabase)
+// Le frontend divise par 100 via formatCurrency(amount / 100) pour affichage en EUR
 function calculateTrends(snapshots) {
   if (!snapshots || snapshots.length < 2) {
     return { insufficient_data: true };

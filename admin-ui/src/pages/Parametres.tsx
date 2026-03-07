@@ -125,7 +125,7 @@ function ProfileSubSection() {
   useEffect(() => {
     if (parametresData?.parametres?.salon) {
       const salonParams = parametresData.parametres.salon;
-      const getValue = (cle: string) => salonParams.find((p: any) => p.cle === cle)?.valeur || '';
+      const getValue = (cle: string) => salonParams.find((p: { cle: string; valeur: string }) => p.cle === cle)?.valeur || '';
       setFormData({
         businessName: getValue('nom_salon'),
         email: getValue('email_salon'),
@@ -379,7 +379,7 @@ function NotificationsSubSection() {
   const notifParams = parametresData?.parametres?.notifications || [];
   const settings: Record<string, boolean> = {};
   for (const item of NOTIF_ITEMS) {
-    const found = notifParams.find((p: any) => p.cle === item.key);
+    const found = notifParams.find((p: { cle: string; valeur: string }) => p.cle === item.key);
     settings[item.key] = found ? found.valeur === 'true' : item.defaultVal === 'true';
   }
 

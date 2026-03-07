@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -6,46 +7,67 @@ import { TenantProvider } from './contexts/TenantContext';
 import { ProfileProvider } from './contexts/ProfileContext';
 import { ModuleGate } from './components/ModuleGate/ModuleGate';
 
-// Pages
-import Dashboard from './pages/Dashboard';
+// Login/Signup restent statiques (premier écran)
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import Clients from './pages/Clients';
-import Activites from './pages/Activites';
-import Agenda from './pages/Agenda';
-import Services from './pages/Services';
-import Comptabilite from './pages/Comptabilite';
-import Stock from './pages/Stock';
-import Parametres from './pages/Parametres';
-import Subscription from './pages/Subscription';
-import { Home } from './pages/Home';
-import Onboarding from './pages/Onboarding';
 
-// New Layout
+// Superadmin NEXUS (lazy)
+const NexusLogin = lazy(() => import('./pages/nexus/NexusLogin'));
+const NexusDashboard = lazy(() => import('./pages/nexus/NexusDashboard'));
+const NexusTenants = lazy(() => import('./pages/nexus/NexusTenants'));
+const NexusSentinel = lazy(() => import('./pages/nexus/NexusSentinel'));
+const NexusBilling = lazy(() => import('./pages/nexus/NexusBilling'));
+const NexusSettings = lazy(() => import('./pages/nexus/NexusSettings'));
+import NexusProtectedRoute from './components/nexus/NexusProtectedRoute';
+
+// Lazy-loaded pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Activites = lazy(() => import('./pages/Activites'));
+const Agenda = lazy(() => import('./pages/Agenda'));
+const Services = lazy(() => import('./pages/Services'));
+const Comptabilite = lazy(() => import('./pages/Comptabilite'));
+const Rapprochement = lazy(() => import('./pages/Rapprochement'));
+const ComptesAuxiliaires = lazy(() => import('./pages/ComptesAuxiliaires'));
+const ExpertComptable = lazy(() => import('./pages/ExpertComptable'));
+const Stock = lazy(() => import('./pages/Stock'));
+const Parametres = lazy(() => import('./pages/Parametres'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const SegmentsPage = lazy(() => import('./pages/Segments'));
+const WorkflowsPage = lazy(() => import('./pages/Workflows'));
+const PipelinePage = lazy(() => import('./pages/Pipeline'));
+const DevisPage = lazy(() => import('./pages/Devis'));
+const PrestationsPage = lazy(() => import('./pages/Prestations'));
+const SEODashboard = lazy(() => import('./pages/SEODashboard'));
+const SEOArticles = lazy(() => import('./pages/SEOArticles'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const ChurnPrevention = lazy(() => import('./pages/ChurnPrevention'));
+const RH = lazy(() => import('./pages/RH'));
+const Sentinel = lazy(() => import('./pages/Sentinel'));
+const IAAdmin = lazy(() => import('./pages/IAAdmin'));
+const IATelephone = lazy(() => import('./pages/IATelephone'));
+const IAWhatsApp = lazy(() => import('./pages/IAWhatsApp'));
+const Menu = lazy(() => import('./pages/Menu'));
+const FloorPlan = lazy(() => import('./pages/FloorPlan'));
+const RoomCalendar = lazy(() => import('./pages/RoomCalendar'));
+const TarifsSaisonniers = lazy(() => import('./pages/TarifsSaisonniers'));
+const AuditLog = lazy(() => import('./pages/AuditLog'));
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
+const Disponibilites = lazy(() => import('./pages/Disponibilites'));
+
+// Layout
 import { AppLayout } from './components/layout/AppLayout';
 
-// Existing pages
-import SegmentsPage from './pages/Segments';
-import WorkflowsPage from './pages/Workflows';
-import PipelinePage from './pages/Pipeline';
-import DevisPage from './pages/Devis';
-import PrestationsPage from './pages/Prestations';
-import SEODashboard from './pages/SEODashboard';
-import SEOArticles from './pages/SEOArticles';
-// Analytics est maintenant intégré dans Sentinel
-import ChurnPrevention from './pages/ChurnPrevention';
-import RH from './pages/RH';
-import Sentinel from './pages/Sentinel';
-import IAAdmin from './pages/IAAdmin';
-import IATelephone from './pages/IATelephone';
-import IAWhatsApp from './pages/IAWhatsApp';
-import Menu from './pages/Menu';
-import FloorPlan from './pages/FloorPlan';
-import RoomCalendar from './pages/RoomCalendar';
-import TarifsSaisonniers from './pages/TarifsSaisonniers';
-import AuditLog from './pages/AuditLog';
-import AcceptInvite from './pages/AcceptInvite';
-import Disponibilites from './pages/Disponibilites';
+// Page loader for Suspense fallback
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 // Helper pour récupérer le token du tenant actuel
 function getCurrentToken(): string | null {
@@ -121,6 +143,7 @@ function App() {
       <TenantProvider>
         <ProfileProvider>
         <div className="min-h-screen bg-white dark:bg-gray-950">
+          <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -154,9 +177,12 @@ function App() {
 
             {/* Modules Business */}
             <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Suivi dépenses, P&L et exports"><Comptabilite /></ModuleRoute>} />
-            <Route path="/stock" element={<ModuleRoute module="ecommerce" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
-            <Route path="/analytics" element={<Navigate to="/sentinel" replace />} />
-            <Route path="/rh" element={<ModuleRoute module="rh_avance" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
+            <Route path="/rapprochement" element={<ModuleRoute module="comptabilite" moduleTitle="Rapprochement Bancaire" moduleDescription="Rapprochement des écritures bancaires"><Rapprochement /></ModuleRoute>} />
+            <Route path="/auxiliaires" element={<ModuleRoute module="comptabilite" moduleTitle="Comptes Auxiliaires" moduleDescription="Balance clients, fournisseurs et personnel"><ComptesAuxiliaires /></ModuleRoute>} />
+            <Route path="/expert-comptable" element={<ModuleRoute module="comptabilite" moduleTitle="Expert-Comptable" moduleDescription="Journaux, grand livre, balance et exports"><ExpertComptable /></ModuleRoute>} />
+            <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
+            <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
+            <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
             {/* Modules Marketing */}
             <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
@@ -174,11 +200,21 @@ function App() {
             {/* Modules SEO & Système */}
             <Route path="/seo" element={<ModuleRoute module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
             <Route path="/seo/articles" element={<ModuleRoute module="seo"><SEOArticles /></ModuleRoute>} />
-            <Route path="/sentinel" element={<ModuleRoute module="sentinel_pro" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
+            <Route path="/sentinel" element={<ModuleRoute module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
+
+            {/* Superadmin NEXUS routes */}
+            <Route path="/nexus/login" element={<NexusLogin />} />
+            <Route path="/nexus/dashboard" element={<NexusProtectedRoute><NexusDashboard /></NexusProtectedRoute>} />
+            <Route path="/nexus/tenants" element={<NexusProtectedRoute><NexusTenants /></NexusProtectedRoute>} />
+            <Route path="/nexus/sentinel/:tab?" element={<NexusProtectedRoute><NexusSentinel /></NexusProtectedRoute>} />
+            <Route path="/nexus/billing" element={<NexusProtectedRoute><NexusBilling /></NexusProtectedRoute>} />
+            <Route path="/nexus/settings" element={<NexusProtectedRoute><NexusSettings /></NexusProtectedRoute>} />
+            <Route path="/nexus" element={<Navigate to="/nexus/dashboard" replace />} />
 
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </div>
         </ProfileProvider>
       </TenantProvider>

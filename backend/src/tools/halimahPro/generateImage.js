@@ -16,6 +16,7 @@ import path from 'path';
 import { generateImage as replicateGenerateImage, generateImageHD } from '../../services/replicateService.js';
 import EnvironmentManager from '../../services/environmentManager.js';
 import { isDevelopment, isFeatureEnabled, getCurrentEnvironment } from '../../config/environments.js';
+import { isDegraded } from '../../sentinel/index.js';
 
 // Fallback DALL-E si Replicate non configuré
 import OpenAI from 'openai';
@@ -44,6 +45,15 @@ const DEFAULT_PROVIDER = process.env.IMAGE_PROVIDER || 'replicate';
  * @param {boolean} hd - Utiliser la version HD (Flux Pro ou DALL-E HD)
  */
 export async function generateImage({ prompt, style = 'african', format = 'square', outputName, provider, hd = false }) {
+  // Mode dégradé Sentinel : génération d'images désactivée
+  if (isDegraded()) {
+    return {
+      success: false,
+      error: 'Génération d\'images désactivée (mode dégradé Sentinel — seuil de coûts dépassé)',
+      degradedMode: true,
+    };
+  }
+
   // En dev, retourner une image placeholder
   if (isDevelopment() || !isFeatureEnabled('imageGeneration')) {
     EnvironmentManager.log('info', 'Image Generation (MOCK)', { prompt: prompt.slice(0, 50) + '...' });

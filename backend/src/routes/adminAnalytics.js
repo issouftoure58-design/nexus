@@ -12,6 +12,7 @@ import {
   detectPatterns
 } from '../ai/predictiveAnalytics.js';
 import { analyzeChurnRiskAll, scheduleChurnPrevention } from '../ai/predictions.js';
+import { getComptabiliteAnalytique } from '../services/analytiqueService.js';
 
 const router = express.Router();
 
@@ -283,6 +284,26 @@ router.get('/patterns', authenticateAdmin, async (req, res) => {
 });
 
 /**
+ * GET /api/admin/analytics/analytique
+ * Comptabilité analytique : CA/service, CA/collab, marges, seuil de rentabilité
+ */
+router.get('/analytique', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const now = new Date();
+    const debut = req.query.debut || `${now.getFullYear()}-01-01`;
+    const fin = req.query.fin || now.toISOString().split('T')[0];
+    const businessType = req.query.businessType || 'salon';
+
+    const data = await getComptabiliteAnalytique(tenantId, debut, fin, businessType);
+    res.json(data);
+  } catch (error) {
+    console.error('[Analytics] Erreur comptabilité analytique:', error);
+    res.status(500).json({ error: 'Erreur comptabilité analytique' });
+  }
+});
+
+/**
  * GET /api/admin/analytics/dashboard
  * Dashboard analytics complet
  */
@@ -304,6 +325,78 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[Analytics] Erreur dashboard analytics:', error);
     res.status(500).json({ error: 'Erreur dashboard analytics' });
+  }
+});
+
+/**
+ * GET /api/admin/analytics/churn/distribution
+ * Distribution des scores de churn, niveaux de risque, top facteurs
+ */
+router.get('/churn/distribution', authenticateAdmin, async (req, res) => {
+  try {
+    const analysis = await analyzeChurnRiskAll(req.admin.tenant_id);
+    const clients = analysis.clients || [];
+
+    // Distribution par tranche de score
+    const tranches = [
+      { min: 0, max: 20, tranche: '0-20' },
+      { min: 21, max: 40, tranche: '21-40' },
+      { min: 41, max: 60, tranche: '41-60' },
+      { min: 61, max: 80, tranche: '61-80' },
+      { min: 81, max: 100, tranche: '81-100' }
+    ];
+
+    const distribution = tranches.map(({ min, max, tranche }) => ({
+      tranche,
+      count: clients.filter(c => (c.score || 0) >= min && (c.score || 0) <= max).length
+    }));
+
+    // Repartition par niveau de risque
+    const lowCount = clients.filter(c => (c.score || 0) <= 30).length;
+    const mediumCount = clients.filter(c => (c.score || 0) > 30 && (c.score || 0) <= 60).length;
+    const highCount = clients.filter(c => (c.score || 0) > 60 && (c.score || 0) <= 80).length;
+    const criticalCount = clients.filter(c => (c.score || 0) > 80).length;
+
+    const risk_levels = [
+      { name: 'Faible', value: lowCount, color: '#22c55e' },
+      { name: 'Moyen', value: mediumCount, color: '#f59e0b' },
+      { name: 'Eleve', value: highCount, color: '#ef4444' },
+      { name: 'Critique', value: criticalCount, color: '#7f1d1d' }
+    ];
+
+    // Top facteurs de churn
+    const factorCounts = {};
+    clients.forEach(client => {
+      if (Array.isArray(client.factors)) {
+        client.factors.forEach(f => {
+          const name = f.name || 'Inconnu';
+          factorCounts[name] = (factorCounts[name] || 0) + 1;
+        });
+      } else {
+        // Facteurs déduits du score
+        const score = client.score || 0;
+        const lastVisitDays = client.derniere_visite
+          ? Math.floor((Date.now() - new Date(client.derniere_visite).getTime()) / (1000 * 60 * 60 * 24))
+          : 999;
+
+        if (lastVisitDays > 60) {
+          factorCounts['Pas de visite depuis 60j+'] = (factorCounts['Pas de visite depuis 60j+'] || 0) + 1;
+        }
+        if (score > 50) {
+          factorCounts['Frequence en baisse'] = (factorCounts['Frequence en baisse'] || 0) + 1;
+        }
+      }
+    });
+
+    const top_factors = Object.entries(factorCounts)
+      .map(([factor, count]) => ({ factor, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    res.json({ distribution, risk_levels, top_factors });
+  } catch (error) {
+    console.error('[Analytics] Erreur churn distribution:', error);
+    res.status(500).json({ error: 'Erreur distribution churn' });
   }
 });
 

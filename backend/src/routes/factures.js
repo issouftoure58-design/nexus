@@ -47,12 +47,25 @@ async function genererEcrituresFacture(tenantId, factureId) {
       return;
     }
 
-    // Supprimer les anciennes écritures si elles existent
-    await supabase
+    // GUARD: ne jamais appeler genererEcrituresFacture sur un avoir
+    if (facture.type === 'avoir') {
+      console.log(`[FACTURES] Facture ${factureId} est un avoir — genererEcrituresFacture ignoré`);
+      return;
+    }
+
+    // IMMUTABILITE: si des écritures VT existent déjà, ne pas les recréer
+    const { data: existingEcritures } = await supabase
       .from('ecritures_comptables')
-      .delete()
+      .select('id')
       .eq('facture_id', factureId)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('journal_code', 'VT')
+      .limit(1);
+
+    if (existingEcritures && existingEcritures.length > 0) {
+      console.log(`[FACTURES] Écritures VT déjà existantes pour facture ${factureId} — immutable`);
+      return;
+    }
 
     const dateFacture = facture.date_facture;
     const periode = dateFacture?.slice(0, 7);
@@ -168,6 +181,422 @@ async function genererEcrituresFacture(tenantId, factureId) {
   }
 }
 
+// ============================================
+// SYSTÈME D'AVOIRS (NOTES DE CRÉDIT)
+// ============================================
+
+/**
+ * Génère un numéro d'avoir unique
+ * Format: AV-{PREFIX}-{YEAR}-{SEQUENCE:5}
+ */
+async function generateNumeroAvoir(tenantId) {
+  const year = new Date().getFullYear();
+  const prefix = tenantId.substring(0, 3).toUpperCase();
+
+  const { data: lastAvoir } = await supabase
+    .from('factures')
+    .select('numero')
+    .eq('tenant_id', tenantId)
+    .eq('type', 'avoir')
+    .like('numero', `AV-${prefix}-${year}-%`)
+    .order('numero', { ascending: false })
+    .limit(1)
+    .single();
+
+  let sequence = 1;
+  if (lastAvoir?.numero) {
+    const match = lastAvoir.numero.match(/-(\d+)$/);
+    if (match) {
+      sequence = parseInt(match[1], 10) + 1;
+    }
+  }
+
+  return `AV-${prefix}-${year}-${String(sequence).padStart(5, '0')}`;
+}
+
+/**
+ * Génère les écritures comptables VT inversées pour un avoir
+ * PAS d'écritures BQ/CA (pas de mouvement bancaire)
+ */
+async function genererEcrituresAvoir(tenantId, avoir, factureOriginale) {
+  try {
+    const dateAvoir = avoir.date_facture;
+    const periode = dateAvoir?.slice(0, 7);
+    const exercice = parseInt(dateAvoir?.slice(0, 4)) || new Date().getFullYear();
+    const montantTTC = Math.abs(avoir.montant_ttc || 0);
+    const montantHT = Math.abs(avoir.montant_ht || montantTTC);
+    const montantTVA = Math.abs(avoir.montant_tva || (montantTTC - montantHT));
+
+    const compteClient = getCompteAuxiliaireClient(factureOriginale.client_id);
+
+    const ecritures = [];
+
+    // Journal VT inversé — CREDIT 411XXX (réduire créance client)
+    ecritures.push({
+      tenant_id: tenantId,
+      journal_code: 'VT',
+      date_ecriture: dateAvoir,
+      numero_piece: avoir.numero,
+      compte_numero: compteClient,
+      compte_libelle: `Client ${avoir.client_nom || factureOriginale.client_id}`,
+      libelle: `Avoir ${avoir.numero} (ref: ${factureOriginale.numero})`,
+      debit: 0,
+      credit: montantTTC,
+      facture_id: avoir.id,
+      periode,
+      exercice
+    });
+
+    // DEBIT 706 Prestations (réduire CA)
+    ecritures.push({
+      tenant_id: tenantId,
+      journal_code: 'VT',
+      date_ecriture: dateAvoir,
+      numero_piece: avoir.numero,
+      compte_numero: '706',
+      compte_libelle: 'Prestations de services',
+      libelle: `Avoir ${avoir.numero}`,
+      debit: montantHT,
+      credit: 0,
+      facture_id: avoir.id,
+      periode,
+      exercice
+    });
+
+    // DEBIT 44571 TVA collectée (réduire TVA)
+    if (montantTVA > 0) {
+      ecritures.push({
+        tenant_id: tenantId,
+        journal_code: 'VT',
+        date_ecriture: dateAvoir,
+        numero_piece: avoir.numero,
+        compte_numero: '44571',
+        compte_libelle: 'TVA collectée',
+        libelle: `TVA avoir ${avoir.numero}`,
+        debit: montantTVA,
+        credit: 0,
+        facture_id: avoir.id,
+        periode,
+        exercice
+      });
+    }
+
+    if (ecritures.length > 0) {
+      const { error } = await supabase
+        .from('ecritures_comptables')
+        .insert(ecritures);
+
+      if (error) {
+        console.error('[AVOIRS] Erreur insertion écritures avoir:', error);
+      } else {
+        console.log(`[AVOIRS] ${ecritures.length} écritures VT inversées générées pour avoir ${avoir.numero}`);
+      }
+    }
+  } catch (err) {
+    console.error('[AVOIRS] Erreur génération écritures avoir:', err);
+  }
+}
+
+/**
+ * Crée un avoir (note de crédit) pour une facture existante
+ * @param {string} tenantId - ID du tenant
+ * @param {number} factureOrigineId - ID de la facture originale
+ * @param {string} motif - Motif de l'avoir (obligatoire)
+ * @returns {Promise<{success: boolean, avoir?: object, error?: string}>}
+ */
+export async function createAvoir(tenantId, factureOrigineId, motif) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  if (!factureOrigineId) throw new Error('facture_origine_id requis');
+  if (!motif || !motif.trim()) throw new Error('motif requis');
+
+  try {
+    // 1. Lire facture originale (🔒 TENANT ISOLATION)
+    const { data: facture, error: fetchError } = await supabase
+      .from('factures')
+      .select('*')
+      .eq('id', factureOrigineId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (fetchError || !facture) {
+      return { success: false, error: 'Facture originale non trouvée' };
+    }
+
+    // 2. Validations
+    if (facture.type === 'avoir') {
+      return { success: false, error: 'Impossible de créer un avoir sur un avoir' };
+    }
+
+    if (facture.avoir_emis) {
+      return { success: false, error: 'Un avoir total a déjà été émis pour cette facture' };
+    }
+
+    const statutsEmis = ['generee', 'envoyee', 'payee'];
+    if (!statutsEmis.includes(facture.statut)) {
+      return { success: false, error: `Impossible de créer un avoir sur une facture en statut "${facture.statut}"` };
+    }
+
+    // 3. Calculer le net restant (facture - avoirs partiels existants)
+    const { data: avoirsExistants } = await supabase
+      .from('factures')
+      .select('montant_ttc, montant_ht, montant_tva')
+      .eq('facture_origine_id', factureOrigineId)
+      .eq('tenant_id', tenantId)
+      .eq('type', 'avoir');
+
+    // Somme des avoirs partiels déjà émis (montants négatifs en DB)
+    const totalAvoirsTTC = (avoirsExistants || []).reduce((sum, a) => sum + Math.abs(a.montant_ttc || 0), 0);
+    const totalAvoirsHT = (avoirsExistants || []).reduce((sum, a) => sum + Math.abs(a.montant_ht || 0), 0);
+    const totalAvoirsTVA = (avoirsExistants || []).reduce((sum, a) => sum + Math.abs(a.montant_tva || 0), 0);
+
+    // Net restant à annuler
+    const netTTC = (facture.montant_ttc || 0) - totalAvoirsTTC;
+    const netHT = (facture.montant_ht || 0) - totalAvoirsHT;
+    const netTVA = (facture.montant_tva || 0) - totalAvoirsTVA;
+
+    if (netTTC <= 0) {
+      console.log(`[AVOIRS] Facture ${facture.numero} déjà entièrement couverte par des avoirs partiels (net: ${netTTC/100}€)`);
+      // Marquer avoir_emis même si net = 0
+      await supabase.from('factures').update({ avoir_emis: true }).eq('id', factureOrigineId).eq('tenant_id', tenantId);
+      return { success: true, avoir: null, message: 'Facture déjà couverte par des avoirs existants' };
+    }
+
+    // 4. Générer numéro d'avoir
+    const numero = await generateNumeroAvoir(tenantId);
+
+    // 5. Insérer l'avoir pour le NET restant (pas le montant total de la facture)
+    const avoirDescription = totalAvoirsTTC > 0
+      ? `Avoir ref. ${facture.numero} — ${motif.trim()} (net après ${avoirsExistants.length} avoir(s) partiel(s))`
+      : facture.service_description;
+
+    const { data: avoir, error: insertError } = await supabase
+      .from('factures')
+      .insert({
+        tenant_id: tenantId,
+        numero,
+        type: 'avoir',
+        facture_origine_id: factureOrigineId,
+        motif_avoir: motif.trim(),
+        reservation_id: facture.reservation_id,
+        client_id: facture.client_id,
+        client_nom: facture.client_nom,
+        client_email: facture.client_email,
+        client_telephone: facture.client_telephone,
+        client_adresse: facture.client_adresse,
+        service_nom: facture.service_nom,
+        service_description: avoirDescription,
+        date_prestation: facture.date_prestation,
+        montant_ht: -netHT,
+        taux_tva: facture.taux_tva,
+        montant_tva: -netTVA,
+        montant_ttc: -netTTC,
+        frais_deplacement: 0,
+        statut: 'generee',
+        date_facture: new Date().toISOString().split('T')[0]
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    // 6. Marquer facture originale comme avoir_emis (total)
+    const { error: updateError } = await supabase
+      .from('factures')
+      .update({ avoir_emis: true })
+      .eq('id', factureOrigineId)
+      .eq('tenant_id', tenantId);
+
+    if (updateError) {
+      console.error('[AVOIRS] Erreur marquage avoir_emis:', updateError);
+    }
+
+    // 7. Générer écritures VT inversées (pas de BQ/CA)
+    await genererEcrituresAvoir(tenantId, avoir, facture);
+
+    const logExtra = totalAvoirsTTC > 0
+      ? ` (net: ${(netTTC/100).toFixed(2)}€ après ${(totalAvoirsTTC/100).toFixed(2)}€ d'avoirs partiels)`
+      : '';
+    console.log(`[AVOIRS] Avoir ${numero} créé pour facture ${facture.numero}${logExtra} (motif: ${motif})`);
+    return { success: true, avoir };
+  } catch (error) {
+    console.error('[AVOIRS] Erreur création avoir:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Crée un avoir PARTIEL (note de crédit pour la différence uniquement)
+ * Utilisé quand le prix d'une prestation baisse après facturation
+ * @param {string} tenantId
+ * @param {number} factureOrigineId - ID de la facture originale
+ * @param {number} montantDiffTTC - Montant de la baisse en centimes (positif)
+ * @param {string} motif - Ex: "Correction prix: 120.00€ → 100.00€"
+ */
+export async function createAvoirPartiel(tenantId, factureOrigineId, montantDiffTTC, motif) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  if (!factureOrigineId) throw new Error('facture_origine_id requis');
+  if (!montantDiffTTC || montantDiffTTC <= 0) throw new Error('montant_diff_ttc doit être positif');
+
+  try {
+    const { data: facture, error: fetchError } = await supabase
+      .from('factures')
+      .select('*')
+      .eq('id', factureOrigineId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (fetchError || !facture) {
+      return { success: false, error: 'Facture originale non trouvée' };
+    }
+
+    if (facture.type === 'avoir') {
+      return { success: false, error: 'Impossible de créer un avoir sur un avoir' };
+    }
+
+    if (facture.avoir_emis) {
+      return { success: false, error: 'Un avoir total a déjà été émis pour cette facture' };
+    }
+
+    const statutsEmis = ['generee', 'envoyee', 'payee'];
+    if (!statutsEmis.includes(facture.statut)) {
+      return { success: false, error: `Facture non émise (statut: ${facture.statut})` };
+    }
+
+    // Vérifier que le montant ne dépasse pas le net restant
+    const { data: avoirsExistants } = await supabase
+      .from('factures')
+      .select('montant_ttc')
+      .eq('facture_origine_id', factureOrigineId)
+      .eq('tenant_id', tenantId)
+      .eq('type', 'avoir');
+
+    const totalAvoirsTTC = (avoirsExistants || []).reduce((sum, a) => sum + Math.abs(a.montant_ttc || 0), 0);
+    const netRestant = (facture.montant_ttc || 0) - totalAvoirsTTC;
+
+    if (montantDiffTTC > netRestant) {
+      return { success: false, error: `Montant trop élevé. Net restant: ${(netRestant/100).toFixed(2)}€` };
+    }
+
+    // Calculer HT/TVA proportionnellement
+    const tauxTVA = facture.taux_tva || 20;
+    const diffHT = Math.round(montantDiffTTC / (1 + tauxTVA / 100));
+    const diffTVA = montantDiffTTC - diffHT;
+
+    const numero = await generateNumeroAvoir(tenantId);
+
+    const { data: avoir, error: insertError } = await supabase
+      .from('factures')
+      .insert({
+        tenant_id: tenantId,
+        numero,
+        type: 'avoir',
+        facture_origine_id: factureOrigineId,
+        motif_avoir: motif,
+        reservation_id: facture.reservation_id,
+        client_id: facture.client_id,
+        client_nom: facture.client_nom,
+        client_email: facture.client_email,
+        client_telephone: facture.client_telephone,
+        client_adresse: facture.client_adresse,
+        service_nom: facture.service_nom,
+        service_description: `Avoir partiel ref. ${facture.numero} — ${motif}`,
+        date_prestation: facture.date_prestation,
+        montant_ht: -diffHT,
+        taux_tva: tauxTVA,
+        montant_tva: -diffTVA,
+        montant_ttc: -montantDiffTTC,
+        frais_deplacement: 0,
+        statut: 'generee',
+        date_facture: new Date().toISOString().split('T')[0]
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    // Avoir partiel : NE PAS marquer avoir_emis (facture toujours partiellement valide)
+    await genererEcrituresAvoir(tenantId, avoir, facture);
+
+    console.log(`[AVOIRS] Avoir partiel ${numero}: -${(montantDiffTTC/100).toFixed(2)}€ (ref: ${facture.numero})`);
+    return { success: true, avoir };
+  } catch (error) {
+    console.error('[AVOIRS] Erreur création avoir partiel:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Crée une facture COMPLÉMENTAIRE (supplément)
+ * Utilisé quand le prix d'une prestation augmente après facturation
+ * @param {string} tenantId
+ * @param {number} factureOrigineId - ID de la facture originale
+ * @param {number} montantDiffTTC - Montant de la hausse en centimes (positif)
+ * @param {string} motif - Ex: "Augmentation prix: 100.00€ → 120.00€"
+ */
+export async function createFactureComplementaire(tenantId, factureOrigineId, montantDiffTTC, motif) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  if (!factureOrigineId) throw new Error('facture_origine_id requis');
+  if (!montantDiffTTC || montantDiffTTC <= 0) throw new Error('montant_diff_ttc doit être positif');
+
+  try {
+    const { data: facture, error: fetchError } = await supabase
+      .from('factures')
+      .select('*')
+      .eq('id', factureOrigineId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (fetchError || !facture) {
+      return { success: false, error: 'Facture originale non trouvée' };
+    }
+
+    // Calculer HT/TVA proportionnellement
+    const tauxTVA = facture.taux_tva || 20;
+    const diffHT = Math.round(montantDiffTTC / (1 + tauxTVA / 100));
+    const diffTVA = montantDiffTTC - diffHT;
+
+    const numero = await generateNumeroFacture(tenantId);
+
+    const { data: complement, error: insertError } = await supabase
+      .from('factures')
+      .insert({
+        tenant_id: tenantId,
+        numero,
+        type: 'facture',
+        facture_origine_id: factureOrigineId,
+        reservation_id: facture.reservation_id,
+        client_id: facture.client_id,
+        client_nom: facture.client_nom,
+        client_email: facture.client_email,
+        client_telephone: facture.client_telephone,
+        client_adresse: facture.client_adresse,
+        service_nom: facture.service_nom,
+        service_description: `Complément ref. ${facture.numero} — ${motif}`,
+        date_prestation: facture.date_prestation,
+        montant_ht: diffHT,
+        taux_tva: tauxTVA,
+        montant_tva: diffTVA,
+        montant_ttc: montantDiffTTC,
+        frais_deplacement: 0,
+        statut: 'generee',
+        date_facture: new Date().toISOString().split('T')[0]
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    // Générer écritures VT normales
+    await genererEcrituresFacture(tenantId, complement.id);
+
+    console.log(`[FACTURES] Complément ${numero}: +${(montantDiffTTC/100).toFixed(2)}€ (ref: ${facture.numero})`);
+    return { success: true, facture: complement };
+  } catch (error) {
+    console.error('[FACTURES] Erreur création facture complémentaire:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 /**
  * Génère un numéro de facture unique
  * Format: {PREFIX}-{YEAR}-{SEQUENCE:5}
@@ -213,88 +642,39 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
 
   try {
     // Vérifier si une facture existe déjà (🔒 TENANT ISOLATION)
+    // Filtrer type='facture' pour exclure les avoirs liés à la même réservation
     const { data: existing } = await supabase
       .from('factures')
       .select('id, statut, montant_ttc')
       .eq('reservation_id', reservationId)
       .eq('tenant_id', tenantId)
+      .eq('type', 'facture')
       .single();
 
     if (existing) {
-      if (updateIfExists) {
-        // Re-lire la réservation pour synchroniser TOUS les champs (pas juste le statut)
-        const { data: reservation, error: resError } = await supabase
-          .from('reservations')
-          .select(`
-            *,
-            clients(id, nom, prenom, email, telephone, type_client, raison_sociale)
-          `)
-          .eq('id', reservationId)
-          .eq('tenant_id', tenantId)
-          .single();
+      // IMMUTABILITE: une facture émise ne peut JAMAIS être modifiée
+      // Seul un avoir (note de crédit) permet de corriger
+      const statutsImmutables = ['generee', 'envoyee', 'payee'];
+      if (statutsImmutables.includes(existing.statut)) {
+        console.log(`[FACTURES] Facture ${existing.id} immutable (statut: ${existing.statut}) — aucune modification`);
+        return { success: true, facture: existing, message: 'Facture déjà existante (immutable)' };
+      }
 
-        if (resError || !reservation) {
-          throw new Error(`Réservation non trouvée: ${resError?.message || 'data is null'}`);
-        }
-
-        // Recalculer les montants depuis la réservation
-        let prixTTC = reservation.prix_total || reservation.prix_service || 0;
-        let fraisDeplacement = reservation.frais_deplacement || 0;
-
-        if (prixTTC > 0 && prixTTC < 1000) {
-          prixTTC = prixTTC * 100;
-        }
-        if (fraisDeplacement > 0 && fraisDeplacement < 1000) {
-          fraisDeplacement = fraisDeplacement * 100;
-        }
-
-        const tauxTVA = reservation.taux_tva || 20;
-        const totalTTC = prixTTC + fraisDeplacement;
-        const totalHT = Math.round(totalTTC / (1 + tauxTVA / 100));
-        const totalTVA = totalTTC - totalHT;
-
-        const updateFields = {
-          updated_at: new Date().toISOString(),
-          service_nom: reservation.service_nom || 'Prestation',
-          service_description: reservation.notes || null,
-          date_prestation: reservation.date,
-          montant_ht: totalHT,
-          taux_tva: tauxTVA,
-          montant_tva: totalTVA,
-          montant_ttc: totalTTC,
-          frais_deplacement: fraisDeplacement,
-          client_nom: reservation.clients
-            ? (reservation.clients.type_client === 'professionnel' && reservation.clients.raison_sociale
-                ? reservation.clients.raison_sociale
-                : `${reservation.clients.prenom} ${reservation.clients.nom}`)
-            : reservation.client_nom || 'Client',
-          client_email: reservation.clients?.email || reservation.client_email,
-          client_telephone: reservation.clients?.telephone || reservation.client_telephone,
-        };
-
-        // Mettre à jour le statut seulement si différent
-        if (statut !== existing.statut) {
-          updateFields.statut = statut;
-        }
-
+      // Brouillon: autoriser uniquement le changement de statut (pas les montants)
+      if (updateIfExists && existing.statut === 'brouillon' && statut !== existing.statut) {
         const { data: updated, error: updateError } = await supabase
           .from('factures')
-          .update(updateFields)
+          .update({ statut, updated_at: new Date().toISOString() })
           .eq('id', existing.id)
+          .eq('tenant_id', tenantId)
           .select()
           .single();
 
         if (updateError) throw updateError;
-
-        // Régénérer les écritures comptables si montants changés
-        if (existing.montant_ttc !== totalTTC) {
-          await genererEcrituresFacture(tenantId, existing.id);
-          console.log(`[FACTURES] Écritures comptables régénérées pour facture ${existing.id}`);
-        }
-
-        console.log(`[FACTURES] Facture ${existing.id} synchronisée (TTC: ${totalTTC/100}€, statut: ${updated.statut})`);
+        console.log(`[FACTURES] Facture brouillon ${existing.id} statut mis à jour: ${existing.statut} → ${statut}`);
         return { success: true, facture: updated, message: 'Facture mise à jour' };
       }
+
       return { success: true, facture: existing, message: 'Facture déjà existante' };
     }
 
@@ -422,11 +802,13 @@ export async function updateFactureStatutFromReservation(reservationId, tenantId
  */
 export async function cancelFactureFromReservation(reservationId, tenantId, deleteFacture = false) {
   try {
+    // Filtrer type='facture' pour exclure les avoirs liés à la même réservation
     const { data: facture, error: fetchError } = await supabase
       .from('factures')
       .select('id, numero, statut')
       .eq('reservation_id', reservationId)
       .eq('tenant_id', tenantId)
+      .eq('type', 'facture')
       .single();
 
     if (fetchError || !facture) {
@@ -434,24 +816,25 @@ export async function cancelFactureFromReservation(reservationId, tenantId, dele
       return { success: true, message: 'Pas de facture associée' };
     }
 
-    // Si la facture est déjà payée, on ne peut pas la supprimer
-    if (facture.statut === 'payee') {
-      console.warn(`[FACTURES] Facture ${facture.numero} déjà payée, annulation impossible`);
-      return { success: false, error: 'Facture déjà payée, annulation impossible' };
+    // IMMUTABILITE: factures émises nécessitent un avoir
+    const statutsImmutables = ['generee', 'envoyee', 'payee'];
+    if (statutsImmutables.includes(facture.statut)) {
+      console.log(`[FACTURES] Facture ${facture.numero} immutable (${facture.statut}) — avoir requis`);
+      return { success: false, requiresAvoir: true, factureId: facture.id, error: 'Facture émise, un avoir est requis pour corriger' };
     }
 
+    // Brouillon: autoriser suppression/annulation
     if (deleteFacture) {
-      // Supprimer complètement (si brouillon)
       const { error } = await supabase
         .from('factures')
         .delete()
-        .eq('id', facture.id);
+        .eq('id', facture.id)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
-      console.log(`[FACTURES] Facture ${facture.numero} supprimée`);
+      console.log(`[FACTURES] Facture brouillon ${facture.numero} supprimée`);
       return { success: true, message: 'Facture supprimée' };
     } else {
-      // Annuler (garder l'historique)
       const { data: updated, error } = await supabase
         .from('factures')
         .update({
@@ -459,11 +842,12 @@ export async function cancelFactureFromReservation(reservationId, tenantId, dele
           updated_at: new Date().toISOString()
         })
         .eq('id', facture.id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
 
       if (error) throw error;
-      console.log(`[FACTURES] Facture ${facture.numero} annulée`);
+      console.log(`[FACTURES] Facture brouillon ${facture.numero} annulée`);
       return { success: true, facture: updated };
     }
   } catch (error) {
@@ -771,6 +1155,7 @@ router.patch('/:id/statut', async (req, res) => {
     if (error) throw error;
 
     // Régénérer les écritures comptables (notamment pour ajouter les écritures BQ/CA si payée)
+    // genererEcrituresFacture ignore les avoirs via son guard interne
     await genererEcrituresFacture(tenantId, parseInt(id));
 
     res.json({ success: true, facture: data });
@@ -1348,5 +1733,37 @@ function generateFactureHTML(facture, tenant) {
 </html>
 `;
 }
+
+// ============================================
+// ROUTE: CRÉER UN AVOIR
+// ============================================
+
+/**
+ * POST /api/factures/:id/avoir
+ * Crée un avoir (note de crédit) pour une facture existante
+ * @body {string} motif - Motif de l'avoir (obligatoire)
+ */
+router.post('/:id/avoir', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+    const { motif } = req.body;
+
+    if (!motif || !motif.trim()) {
+      return res.status(400).json({ success: false, error: 'Le motif est obligatoire' });
+    }
+
+    const result = await createAvoir(tenantId, parseInt(id), motif);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('[AVOIRS] Erreur route avoir:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 export default router;

@@ -167,6 +167,40 @@ export const MODULE_QUOTAS = {
   },
 };
 
+// Quotas ajustés par plan (override les valeurs MODULE_QUOTAS.included)
+const PLAN_QUOTA_OVERRIDES = {
+  starter: {
+    telephone_ia: { minutes: 0 },
+    sms_rdv: { sms: 200 },
+    whatsapp_ia: { messages: 0 },
+    web_chat_ia: { sessions: 200, messages: 2000 },
+    marketing_email: { emails: 1000 },
+  },
+  pro: {
+    telephone_ia: { minutes: 60 },
+    sms_rdv: { sms: 500 },
+    whatsapp_ia: { messages: 1500 },
+    web_chat_ia: { sessions: 800, messages: 8000 },
+    marketing_email: { emails: 5000 },
+  },
+  business: {
+    telephone_ia: { minutes: 300 },
+    sms_rdv: { sms: 2000 },
+    whatsapp_ia: { messages: 5000 },
+    web_chat_ia: { sessions: 2000, messages: 25000 },
+    marketing_email: { emails: 20000 },
+  },
+};
+
+/**
+ * Retourne les quotas inclus pour un module selon le plan du tenant
+ */
+function getIncludedQuotas(moduleId, plan) {
+  const override = PLAN_QUOTA_OVERRIDES[plan]?.[moduleId];
+  if (override) return override;
+  return MODULE_QUOTAS[moduleId]?.included || {};
+}
+
 // Table de mapping channel -> module
 const CHANNEL_TO_MODULE = {
   telephone: 'telephone_ia',
@@ -408,8 +442,9 @@ class QuotaManager {
 
   /**
    * Calcule le montant total d'overage pour un tenant ce mois
+   * @param {string} plan - Plan du tenant (starter, pro, business)
    */
-  async calculateOverage(tenantId) {
+  async calculateOverage(tenantId, plan) {
     const usage = await this.getCurrentUsage(tenantId);
     const overages = {};
     let totalOverage = 0;
@@ -419,9 +454,10 @@ class QuotaManager {
 
       const moduleUsage = usage[moduleId] || {};
       const moduleOverages = {};
+      const included = plan ? getIncludedQuotas(moduleId, plan) : quota.included;
 
-      for (const [metric, limit] of Object.entries(quota.included)) {
-        if (limit === null) continue;
+      for (const [metric, limit] of Object.entries(included)) {
+        if (limit === null || limit === 0) continue;
 
         const used = moduleUsage[metric] || 0;
         const excess = Math.max(0, used - limit);
@@ -456,8 +492,9 @@ class QuotaManager {
 
   /**
    * Récupère le statut complet des quotas pour un tenant
+   * @param {string} plan - Plan du tenant (starter, pro, business)
    */
-  async getQuotaStatus(tenantId) {
+  async getQuotaStatus(tenantId, plan) {
     const usage = await this.getCurrentUsage(tenantId);
     const status = {};
 
@@ -472,8 +509,10 @@ class QuotaManager {
       };
 
       if (!quota.unlimited) {
-        for (const [metric, limit] of Object.entries(quota.included)) {
-          if (limit === null) continue;
+        const included = plan ? getIncludedQuotas(moduleId, plan) : quota.included;
+
+        for (const [metric, limit] of Object.entries(included)) {
+          if (limit === null || limit === 0) continue;
 
           const used = moduleUsage[metric] || 0;
           const percentage = limit > 0 ? Math.round((used / limit) * 100) : 0;
@@ -497,7 +536,7 @@ class QuotaManager {
     }
 
     // Ajouter le total overage
-    const overage = await this.calculateOverage(tenantId);
+    const overage = await this.calculateOverage(tenantId, plan);
 
     return {
       tenantId,

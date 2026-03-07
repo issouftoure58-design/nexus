@@ -164,6 +164,34 @@ export async function getRecentLogs(limit = 100, filters = {}) {
   }
 }
 
+/**
+ * Version tenant-scoped obligatoire — TENANT SHIELD
+ * Utiliser cette fonction depuis les routes tenant (pas super-admin)
+ */
+export async function getLogsByTenant(tenantId, limit = 100, filters = {}) {
+  if (!tenantId) throw new Error('tenant_id requis pour getLogsByTenant');
+
+  try {
+    let query = supabase
+      .from('sentinel_security_logs')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (filters.severity) query = query.eq('severity', filters.severity);
+    if (filters.eventType) query = query.eq('event_type', filters.eventType);
+    if (filters.ip) query = query.eq('ip_address', filters.ip);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('[SENTINEL] Error fetching tenant security logs:', err.message);
+    return [];
+  }
+}
+
 export async function getSecurityStats(hours = 24, tenantId = null) {
   try {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();

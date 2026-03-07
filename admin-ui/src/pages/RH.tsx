@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EntityLink } from '@/components/EntityLink';
-import FormulaireEmploye from '@/components/rh/FormulaireEmploye';
+import FormulaireEmploye, { type EmployeSubmitData } from '@/components/rh/FormulaireEmploye';
 import GestionAbsences from '@/components/rh/GestionAbsences';
 import GestionPaie from '@/components/rh/GestionPaie';
 import GenerateurDSN from '@/components/rh/GenerateurDSN';
@@ -341,19 +341,21 @@ export default function RH() {
     }
   };
 
-  const handleSubmitMembre = async (data: any) => {
+  const handleSubmitMembre = async (data: EmployeSubmitData) => {
     try {
       const endpoint = editMembre
         ? `/admin/rh/membres/${editMembre.id}`
         : '/admin/rh/membres';
 
+      const { diplomes, ...membreData } = data;
+
       const membre = editMembre
-        ? await api.put<Membre>(endpoint, data)
-        : await api.post<Membre>(endpoint, data);
+        ? await api.put<Membre>(endpoint, membreData)
+        : await api.post<Membre>(endpoint, membreData);
 
       // If diplomas provided, save them
-      if (data.diplomes && data.diplomes.length > 0) {
-        for (const diplome of data.diplomes) {
+      if (diplomes && diplomes.length > 0) {
+        for (const diplome of diplomes) {
           if (diplome.intitule) {
             await api.post(`/admin/rh/membres/${editMembre?.id || membre.id}/diplomes`, diplome);
           }
@@ -375,8 +377,41 @@ export default function RH() {
     await handleSubmitMembre({
       ...formData,
       salaire_mensuel: formData.salaire_mensuel ? Math.round(parseFloat(formData.salaire_mensuel) * 100) : 0,
-      nir: formData.nir || null,
-      date_naissance: formData.date_naissance || null
+      nir: formData.nir || '',
+      date_naissance: formData.date_naissance || '',
+      diplomes: [],
+      // Required EmployeSubmitData fields with defaults
+      sexe: '',
+      lieu_naissance: '',
+      nationalite: 'Française',
+      adresse_rue: '',
+      adresse_cp: '',
+      adresse_ville: '',
+      adresse_pays: 'France',
+      piece_identite_type: '',
+      piece_identite_numero: '',
+      piece_identite_expiration: '',
+      poste: '',
+      type_contrat: 'cdi',
+      date_fin_contrat: '',
+      temps_travail: 'temps_plein',
+      heures_hebdo: 35,
+      heures_mensuelles: 151.67,
+      jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
+      convention_collective: '',
+      classification_niveau: '',
+      classification_echelon: '',
+      classification_coefficient: null,
+      categorie_sociopro: '',
+      regime_ss: 'general',
+      mutuelle_obligatoire: true,
+      mutuelle_dispense: false,
+      prevoyance: false,
+      iban: '',
+      bic: '',
+      contact_urgence_nom: '',
+      contact_urgence_tel: '',
+      contact_urgence_lien: '',
     });
   };
 
@@ -664,7 +699,7 @@ export default function RH() {
     const periode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     try {
-      const data = await api.get<any>(`/admin/rh/documents/etat-cotisations?periode=${periode}`);
+      const data = await api.get<{ periode: string; date_generation: string; nb_salaries: number; masse_salariale_brute: number; cotisations: { urssaf: Record<string, number>; retraite: Record<string, number>; prevoyance: Record<string, number>; pole_emploi: Record<string, number> }; total: number; total_patronal: number; total_salarial: number; total_cotisations: number }>(`/admin/rh/documents/etat-cotisations?periode=${periode}`);
 
       // Creer texte
       let content = `ETAT DES COTISATIONS SOCIALES\n`;

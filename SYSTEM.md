@@ -1,8 +1,8 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-04
-> **Version:** 3.10.0
-> **Status:** Production Ready (Score 100/100)
+> **Derniere mise a jour:** 2026-03-07
+> **Version:** 3.14.0
+> **Status:** Production Ready (Score technique 100/100 | Performance ~8.4/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
 ---
@@ -16,7 +16,7 @@ Deploy: Render.com
 AI: Claude (Anthropic) + OpenAI TTS
 Telephonie: Twilio (WhatsApp + Voice + SMS)
 Paiements: Stripe (mode live)
-Monitoring: Sentry + Winston + SENTINEL
+Monitoring: SENTINEL (error tracking + monitoring) + Winston
 CI/CD: GitHub Actions (5 workflows)
 ```
 
@@ -30,19 +30,23 @@ nexus/
 │   ├── src/
 │   │   ├── ai/                # Intelligence artificielle
 │   │   ├── automation/        # Workflows automatises
-│   │   ├── config/            # Configuration (supabase, redis, sentry, logger)
+│   │   ├── config/            # Configuration (supabase, redis, logger)
 │   │   ├── core/              # Logique metier centrale (NexusCore unifie)
 │   │   ├── jobs/              # Taches planifiees (cron)
-│   │   ├── middleware/        # Auth, tenant, rate limit, quotas
+│   │   ├── middleware/        # Auth, tenant, rate limit, quotas, Zod validate
 │   │   ├── modules/           # Modules metier (commerce, crm, hr, seo, social, sentinel)
-│   │   ├── routes/            # 54 fichiers routes API
+│   │   ├── routes/            # 72 fichiers routes API
 │   │   ├── sentinel/          # Monitoring & securite
-│   │   ├── services/          # 69 services metier
-│   │   ├── utils/             # Utilitaires
+│   │   ├── services/          # 77 services metier
+│   │   ├── utils/             # Utilitaires (response.js, whatsappTemplates, etc.)
 │   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
-│   ├── migrations/            # 64 migrations SQL (+ archive/)
+│   ├── migrations/            # 85 migrations SQL (+ archive/)
 │   └── tests/                 # 19 suites, 310 tests
+│
+├── admin-ui/                  # Dashboard admin officiel (React/Vite/TS)
+│   ├── src/__tests__/         # 5 suites Vitest, 17 tests
+│   ├── vitest.config.ts       # Config Vitest + jsdom
 │
 ├── frontend/
 │   └── nexus-app/             # App publique (reservations, chat)
@@ -81,9 +85,10 @@ nexus/
 | Linter statique | `scripts/tenant-shield-lint.js` | Actif |
 | CI/CD GitHub | `.github/workflows/tenant-shield.yml` | Actif |
 | Middleware runtime | `middleware/tenantShield.js` | Actif |
-| Sentry monitoring | 12 points critiques (Stripe, Twilio, quotas) | Actif |
+| SENTINEL error tracking | captureException/captureMessage → error_logs DB | Actif |
 | Rate limiting | 4 limiteurs (api, login, payment, notification) | Actif |
 | CSP/Helmet | Headers securite stricts | Actif |
+| Zod validation | `middleware/validate.js` (5 routes critiques) | Actif |
 
 ```bash
 npm run lint:tenant    # Verifier violations
@@ -126,6 +131,7 @@ npm run shield         # Les deux
 | `/api/admin/reservations/*` | Gestion RDV |
 | `/api/admin/services/*` | Gestion services |
 | `/api/admin/stats/*` | Statistiques dashboard |
+| `/api/admin/analytics/*` | Analytics (overview, revenue, clients, analytique) |
 | `/api/admin/quotas` | Quotas et limites |
 | `/api/admin/ia/*` | Config IA par canal (telephone, whatsapp) |
 | `/api/admin/agents/*` | Gestion agents IA (ai_agents) |
@@ -148,7 +154,8 @@ npm run shield         # Les deux
 | **Business** (499€) | 105 | Tout Pro + Strategie (4), Analytics avance (5), RH complet (+6), Agent IA (6), Recherche web (4), Pro Tools (4) |
 
 Architecture: `src/tools/handlers/` (20 handlers + dispatcher O(1) dans index.js)
-Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 non implemente)
+Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 stub restant)
+Note: `comptable_facturation` (creer/exporter) câblé sur `createFactureFromReservation` + liens PDF
 
 ---
 
@@ -187,12 +194,15 @@ Push main → GitHub Actions CI:
 
 | Composant | Outil | Status |
 |-----------|-------|--------|
-| Errors | Sentry (12 points critiques) | Actif |
+| Errors | SENTINEL errorTracker (error_logs DB, fingerprinting, dashboard) | Actif |
+| Frontend errors | errorReporter.ts (window.onerror + unhandledrejection → POST /api/errors/report) | Actif |
 | Logs | Winston (fichiers + console JSON en prod) | Actif |
 | Health | `/health` enrichi (DB, Redis, Stripe, Twilio, memory) | Actif |
-| Uptime | SENTINEL (6 services, checks toutes les 5 min) | Actif |
-| Couts | SENTINEL cost tracker (multi-tenant) | Actif |
-| Quotas | Middleware quotas + alertes Sentry | Actif |
+| Uptime | SENTINEL (6 services, pings HTTP reels toutes les 5 min) | Actif |
+| Couts | SENTINEL cost tracker (multi-tenant, mode degrade auto) | Actif |
+| Quotas | Middleware quotas + alertes error tracking | Actif |
+| Backfill | Auto-detection gaps + rattrapage snapshots manquants | Actif |
+| Mode degrade | isDegraded() limite IA/TTS/images si couts critiques | Actif |
 
 ---
 
@@ -215,7 +225,7 @@ Push main → GitHub Actions CI:
 - **Render:** https://dashboard.render.com
 - **Stripe:** https://dashboard.stripe.com
 - **Twilio:** https://console.twilio.com
-- **Sentry:** https://sentry.io
+- ~~Sentry~~ remplace par SENTINEL Error Tracker (v3.14.0)
 
 ---
 
@@ -223,18 +233,58 @@ Push main → GitHub Actions CI:
 
 ## ROADMAP COMMERCIALISATION
 
-Audit SaaS B2B (2026-03-03) — 4 sprints identifies. Voir PROGRESS.md pour le detail.
+Sprints 1-5 TERMINES. Voir PROGRESS.md pour le detail.
 
-| Sprint | Focus | Items | Effort estime |
-|--------|-------|-------|---------------|
-| **1** | Securite & Equipe | 2FA, audit log, invitations, RBAC, dunning, sessions | ~8j |
-| **2** | Communication & Ops | Status page, i18n, notifications in-app, email auth | ~6j |
-| **3** | Data & Developer XP | Import CSV, webhook retry, rate limit headers, proration, upload, revenue analytics | ~10j |
-| **4** | Croissance | SSO, API versioning, parrainage, usage billing | post-launch |
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| **1** | Securite & Equipe (2FA, audit log, invitations, RBAC, dunning, sessions) | TERMINE |
+| **2** | Communication & Ops (status page, notifications in-app, email deliverability) | TERMINE |
+| **3** | Data & Developer XP (import CSV, webhook retry, upload, revenue analytics) | TERMINE |
+| **4** | Croissance (SSO, API versioning, parrainage, usage billing) | TERMINE |
+| **5** | Horaires dynamiques (business_hours, disponibilites admin) | TERMINE |
 
-Migration DB 055 requise : `audit_logs`, `user_sessions`, `invitations`, `notifications_inbox`, `totp_secrets`
+Quick Wins commercialisation (2026-03-07):
+- QW1: Dashboard Churn Visuel (3 graphiques recharts)
+- QW2: Templates Devis par Metier (7 templates, 4 metiers)
+- QW3: Relance Auto Devis (email J+3 + SMS J+7)
+
+---
+
+## AUDIT PERFORMANCE — SCORE GLOBAL 7.4/10
+
+Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Square).
+
+### Scores par axe
+
+| Categorie | Score | Forces | Faiblesses |
+|-----------|-------|--------|------------|
+| **Backend** | 7.5 | Tenant Shield 9.2, Securite multi-couche, SENTINEL | N+1 queries, pas TS, API inconsistante |
+| **Frontend** | 7.4 | UX/UI 8.5, 37 pages, React Query | Bundle 1.8MB, 0 splitting, 108 `any` |
+| **Features** | 7.2 | Multi-tenant 9.0, Monitoring 8.5, Booking 8.2 | Marketing 6.0, RH 5.5, Mobile 6.5 |
+| **Securite** | 7.4 | Auth 8.5, Isolation 9.0, Headers 8.5 | .env dans git (CRITIQUE), pas Zod |
+
+### Comparaison directe
+
+| Plateforme | Score |
+|------------|-------|
+| Square | 8.5 |
+| Fresha | 8.3 |
+| Mindbody | 8.2 |
+| Treatwell | 8.0 |
+| **NEXUS** | **7.4** |
+
+### Avantages concurrentiels NEXUS
+1. Multi-tenant natif (9.0) — architecture des le depart
+2. IA integree (105 outils admin) — pas de plugin externe
+3. SENTINEL monitoring (8.5) — auto-degrade, cost-aware
+4. Multi-metier (salon/restaurant/hotel/services) — une plateforme
+5. Prix agressif (99/249/499€) — vs 200-1000€+ concurrents
+
+### Risque critique a corriger
+- **backend/.env traque dans git** avec secrets reels (Supabase, Stripe, Twilio, Anthropic)
+- Action: `git rm --cached backend/.env` + revoquer + regenerer tous les secrets
 
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-03 (v3.9.0 — audit SaaS B2B)*
+*Derniere synchronisation: 2026-03-07 (v3.14.0 — SENTINEL Error Tracker remplace Sentry)*

@@ -15,6 +15,7 @@
 
 import openaiTTS from './openaiTTSService.js';
 import elevenLabsTTS from './voiceService.js';
+import { isDegraded } from '../sentinel/index.js';
 
 // ============================================
 // CONFIGURATION
@@ -105,6 +106,15 @@ function selectProvider(options = {}) {
  * Convertit du texte en audio (routing automatique)
  */
 async function textToSpeech(text, options = {}) {
+  // Mode dégradé Sentinel : synthèse vocale désactivée
+  if (isDegraded()) {
+    return {
+      success: false,
+      error: 'Synthèse vocale désactivée (mode dégradé Sentinel — seuil de coûts dépassé)',
+      degradedMode: true,
+    };
+  }
+
   const provider = selectProvider(options);
 
   if (!provider) {

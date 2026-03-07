@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { api, type ChurnClient, type ChurnAnalysis } from '@/lib/api';
 import {
   AlertTriangle,
   Mail,
@@ -18,31 +18,9 @@ import {
   Shield,
   CheckCircle
 } from 'lucide-react';
+import ChurnCharts from '@/components/churn/ChurnCharts';
 
-interface ChurnClient {
-  client_id: number;
-  name: string;
-  email: string;
-  risk_score: number;
-  risk_level: 'high' | 'medium' | 'low';
-  last_activity_days: number;
-  total_spent: number;
-  factors: {
-    inactivity: number;
-    frequency_drop: number;
-    spending_drop: number;
-    engagement: number;
-  };
-}
-
-interface ChurnAnalysis {
-  total_clients: number;
-  at_risk: number;
-  high_risk: number;
-  medium_risk: number;
-  clients: ChurnClient[];
-}
-
+// Types importés depuis api.ts (source de vérité)
 type ActionType = 'email_retention' | 'sms_rappel' | 'promo_personnalisee';
 
 const formatCurrency = (amount: number) => {
@@ -200,6 +178,9 @@ export default function ChurnPrevention() {
           </div>
         </Card>
       </div>
+
+      {/* Graphiques Churn */}
+      <ChurnCharts />
 
       {/* Filtres */}
       <div className="flex gap-2 mb-4">

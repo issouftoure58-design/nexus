@@ -14,6 +14,8 @@ import { GlobalMenu } from './GlobalMenu';
 import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
 import { api, notificationsApi } from '@/lib/api';
+import { useTenant } from '@/hooks/useTenant';
+import { applyTenantTheme } from '@/lib/themeColors';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -67,6 +69,12 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const userInfo = getUserInfo();
   const queryClient = useQueryClient();
+  const { branding } = useTenant();
+
+  // Appliquer la couleur primaire du tenant
+  useEffect(() => {
+    applyTenantTheme(branding?.primaryColor);
+  }, [branding?.primaryColor]);
 
   // Notifications query
   const { data: notifData } = useQuery({

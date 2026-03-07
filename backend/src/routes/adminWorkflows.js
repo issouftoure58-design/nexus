@@ -47,7 +47,9 @@ const TRIGGER_TYPES = [
   { id: 'facture_payee', label: 'Facture payée', description: 'Déclenché quand une facture est payée' },
   { id: 'facture_en_retard', label: 'Facture en retard', description: 'Déclenché quand une facture dépasse son échéance' },
   { id: 'client_inactive', label: 'Client inactif', description: 'Déclenché pour les clients sans RDV depuis X jours' },
-  { id: 'anniversaire', label: 'Anniversaire client', description: 'Déclenché le jour de l\'anniversaire du client' }
+  { id: 'anniversaire', label: 'Anniversaire client', description: 'Déclenché le jour de l\'anniversaire du client' },
+  { id: 'devis_envoye', label: 'Devis envoyé', description: 'Déclenché quand un devis est envoyé au client' },
+  { id: 'devis_expire', label: 'Devis expiré', description: 'Déclenché quand un devis dépasse sa date de validité' }
 ];
 
 // Types d'actions disponibles
@@ -146,6 +148,48 @@ const WORKFLOW_TEMPLATES = [
           priorite: 'normal',
           due_days: 7,
           delay_minutes: 0
+        }
+      ]
+    }
+  },
+  {
+    id: 'relance_devis_j3',
+    nom: 'Relance devis J+3',
+    description: 'Email de relance 3 jours après envoi du devis',
+    trigger_type: 'devis_envoye',
+    config: {
+      delay_jours: 3,
+      conditions: [
+        { field: 'devis.statut', operator: 'eq', value: 'envoye' }
+      ],
+      actions: [
+        {
+          type: 'send_email',
+          subject: 'Votre devis {{devis.numero}} - Avez-vous des questions ?',
+          template: 'relance_devis',
+          body: 'Bonjour {{client.prenom}},\n\nNous vous avons envoyé le devis {{devis.numero}} il y a quelques jours.\n\nN\'hésitez pas à nous contacter si vous avez des questions.\n\nCordialement',
+          to_field: 'email',
+          delay_minutes: 4320
+        }
+      ]
+    }
+  },
+  {
+    id: 'relance_devis_j7',
+    nom: 'Relance devis J+7',
+    description: 'SMS de relance 7 jours après envoi du devis',
+    trigger_type: 'devis_envoye',
+    config: {
+      delay_jours: 7,
+      conditions: [
+        { field: 'devis.statut', operator: 'eq', value: 'envoye' }
+      ],
+      actions: [
+        {
+          type: 'send_sms',
+          message: 'Bonjour {{client.prenom}}, votre devis {{devis.numero}} de {{devis.montant_ttc}}€ est toujours valable. Repondez OUI pour accepter ou contactez-nous !',
+          to_field: 'telephone',
+          delay_minutes: 10080
         }
       ]
     }

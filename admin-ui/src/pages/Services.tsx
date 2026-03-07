@@ -32,6 +32,17 @@ import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
 import { PricingFields, PriceDisplay, ServiceLabel, BusinessTypeField, FeatureField } from '@/components/forms';
 
+interface ServiceExtended extends Service {
+  zone?: string;
+  capacite?: number;
+  capacite_max?: number;
+  service_dispo?: 'midi' | 'soir' | 'midi_soir';
+  type_chambre?: 'simple' | 'double' | 'twin' | 'triple' | 'familiale' | 'suite' | 'suite_junior' | 'deluxe';
+  etage?: number;
+  equipements?: string[];
+  vue?: string;
+}
+
 export default function Services() {
   const queryClient = useQueryClient();
   const { t, isPricingMode, getPricingModes, isBusinessType } = useProfile();
@@ -99,13 +110,13 @@ export default function Services() {
 
       // Restaurant: Zone filter
       if (filters.zone !== 'all') {
-        const zone = (service as any).zone;
+        const zone = (service as ServiceExtended).zone;
         if (zone !== filters.zone) return false;
       }
 
       // Restaurant: Capacité filter
       if (filters.capacity !== 'all') {
-        const cap = (service as any).capacite || (service as any).capacite_max || 2;
+        const cap = (service as ServiceExtended).capacite || (service as ServiceExtended).capacite_max || 2;
         if (filters.capacity === 'small' && cap > 2) return false;
         if (filters.capacity === 'medium' && (cap < 3 || cap > 4)) return false;
         if (filters.capacity === 'large' && cap < 5) return false;
@@ -113,7 +124,7 @@ export default function Services() {
 
       // Restaurant: Service dispo filter
       if (filters.serviceDispo !== 'all') {
-        const dispo = (service as any).service_dispo || 'midi_soir';
+        const dispo = (service as ServiceExtended).service_dispo || 'midi_soir';
         if (filters.serviceDispo === 'midi' && dispo === 'soir') return false;
         if (filters.serviceDispo === 'soir' && dispo === 'midi') return false;
         if (filters.serviceDispo === 'midi_soir' && dispo !== 'midi_soir') return false;
@@ -121,7 +132,7 @@ export default function Services() {
 
       // Hotel: Type chambre filter
       if (filters.typeChambre !== 'all') {
-        const typeChambre = (service as any).type_chambre;
+        const typeChambre = (service as ServiceExtended).type_chambre;
         if (typeChambre !== filters.typeChambre) return false;
       }
 
@@ -469,16 +480,16 @@ export default function Services() {
                       <>
                         <div className="flex items-center gap-2 text-gray-600">
                           <Users className="h-4 w-4 text-cyan-500" />
-                          <span className="text-sm font-medium">{(service as any).capacite || 4} places</span>
+                          <span className="text-sm font-medium">{(service as ServiceExtended).capacite || 4} places</span>
                         </div>
-                        {(service as any).zone && (
+                        {(service as ServiceExtended).zone && (
                           <Badge variant="outline" className="text-xs">
-                            {(service as any).zone}
+                            {(service as ServiceExtended).zone}
                           </Badge>
                         )}
-                        {(service as any).service_dispo && (service as any).service_dispo !== 'midi_soir' && (
+                        {(service as ServiceExtended).service_dispo && (service as ServiceExtended).service_dispo !== 'midi_soir' && (
                           <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                            {(service as any).service_dispo === 'midi' ? 'Midi' : 'Soir'}
+                            {(service as ServiceExtended).service_dispo === 'midi' ? 'Midi' : 'Soir'}
                           </Badge>
                         )}
                       </>
@@ -487,22 +498,22 @@ export default function Services() {
                     {/* Hotel: Type + Capacité + Prix/nuit */}
                     {isBusinessType('hotel') && (
                       <>
-                        {(service as any).type_chambre && (
+                        {(service as ServiceExtended).type_chambre && (
                           <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                            {(service as any).type_chambre === 'simple' ? 'Simple' :
-                             (service as any).type_chambre === 'double' ? 'Double' :
-                             (service as any).type_chambre === 'twin' ? 'Twin' :
-                             (service as any).type_chambre === 'triple' ? 'Triple' :
-                             (service as any).type_chambre === 'familiale' ? 'Familiale' :
-                             (service as any).type_chambre === 'suite' ? 'Suite' :
-                             (service as any).type_chambre === 'suite_junior' ? 'Suite Jr.' :
-                             (service as any).type_chambre === 'deluxe' ? 'Deluxe' :
-                             (service as any).type_chambre}
+                            {(service as ServiceExtended).type_chambre === 'simple' ? 'Simple' :
+                             (service as ServiceExtended).type_chambre === 'double' ? 'Double' :
+                             (service as ServiceExtended).type_chambre === 'twin' ? 'Twin' :
+                             (service as ServiceExtended).type_chambre === 'triple' ? 'Triple' :
+                             (service as ServiceExtended).type_chambre === 'familiale' ? 'Familiale' :
+                             (service as ServiceExtended).type_chambre === 'suite' ? 'Suite' :
+                             (service as ServiceExtended).type_chambre === 'suite_junior' ? 'Suite Jr.' :
+                             (service as ServiceExtended).type_chambre === 'deluxe' ? 'Deluxe' :
+                             (service as ServiceExtended).type_chambre}
                           </Badge>
                         )}
                         <div className="flex items-center gap-2 text-gray-600">
                           <Users className="h-4 w-4 text-cyan-500" />
-                          <span className="text-sm font-medium">{(service as any).capacite_max || 2} pers.</span>
+                          <span className="text-sm font-medium">{(service as ServiceExtended).capacite_max || 2} pers.</span>
                         </div>
                         <div className="flex items-center gap-2 text-gray-900">
                           <Euro className="h-4 w-4 text-green-500" />
@@ -626,15 +637,15 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     taux_cnaps: service?.taux_cnaps ?? 0.50,
     categorie: service?.categorie || '',
     // Restaurant specific
-    capacite: (service as any)?.capacite || 4,
-    zone: (service as any)?.zone || 'interieur',
-    service_dispo: (service as any)?.service_dispo || 'midi_soir', // midi, soir, midi_soir
+    capacite: (service as ServiceExtended | undefined)?.capacite || 4,
+    zone: (service as ServiceExtended | undefined)?.zone || 'interieur',
+    service_dispo: (service as ServiceExtended | undefined)?.service_dispo || 'midi_soir', // midi, soir, midi_soir
     // Hotel specific
-    etage: (service as any)?.etage || 0,
-    capacite_max: (service as any)?.capacite_max || 2,
-    equipements: (service as any)?.equipements || [],
-    vue: (service as any)?.vue || '',
-    type_chambre: (service as any)?.type_chambre || 'double', // simple, double, twin, suite, familiale
+    etage: (service as ServiceExtended | undefined)?.etage || 0,
+    capacite_max: (service as ServiceExtended | undefined)?.capacite_max || 2,
+    equipements: (service as ServiceExtended | undefined)?.equipements || [],
+    vue: (service as ServiceExtended | undefined)?.vue || '',
+    type_chambre: (service as ServiceExtended | undefined)?.type_chambre || 'double', // simple, double, twin, suite, familiale
   });
   const [error, setError] = useState('');
 
@@ -662,8 +673,8 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     e.preventDefault();
     setError('');
 
-    // Données de base
-    const data: any = {
+    // Données de base - use Partial<ServiceExtended> with required fields
+    const data: { nom: string; description?: string; actif: boolean; duree?: number; prix?: number; [key: string]: unknown } = {
       nom: formData.nom,
       description: formData.description || undefined,
       actif: formData.actif,
@@ -706,9 +717,9 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     }
 
     if (isEditing) {
-      updateMutation.mutate(data);
+      updateMutation.mutate(data as Partial<Service>);
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(data as { nom: string; description?: string; duree: number; prix: number });
     }
   };
 
@@ -887,7 +898,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                   <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilité</label>
                   <select
                     value={formData.service_dispo}
-                    onChange={(e) => setFormData(d => ({ ...d, service_dispo: e.target.value }))}
+                    onChange={(e) => setFormData(d => ({ ...d, service_dispo: e.target.value as 'midi' | 'soir' | 'midi_soir' }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   >
                     <option value="midi_soir">Midi & Soir</option>
@@ -1003,7 +1014,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type de chambre</label>
                   <select
                     value={formData.type_chambre}
-                    onChange={(e) => setFormData(d => ({ ...d, type_chambre: e.target.value }))}
+                    onChange={(e) => setFormData(d => ({ ...d, type_chambre: e.target.value as 'simple' | 'double' | 'twin' | 'triple' | 'familiale' | 'suite' | 'suite_junior' | 'deluxe' }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   >
                     <option value="simple">Simple</option>

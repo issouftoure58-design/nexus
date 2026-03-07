@@ -97,12 +97,12 @@ export default function IAWhatsApp() {
     onError: () => setTestStatus('error'),
   });
 
-  const handleChange = (field: keyof IAConfig, value: any) => {
+  const handleChange = (field: keyof IAConfig, value: string | number | boolean | string[]) => {
     setConfig(c => ({ ...c, [field]: value }));
     setHasChanges(true);
   };
 
-  const handleBusinessHoursChange = (field: string, value: any) => {
+  const handleBusinessHoursChange = (field: string, value: string | boolean) => {
     setConfig(c => ({
       ...c,
       business_hours: { ...c.business_hours, [field]: value }

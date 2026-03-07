@@ -5,6 +5,7 @@
 
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { reportError } from '@/lib/errorReporter';
 
 interface Props {
   children: ReactNode;
@@ -31,9 +32,11 @@ class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.setState({ errorInfo });
 
-    // Log error to console
     console.error('[ErrorBoundary] Uncaught error:', error);
     console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+
+    // Report to SENTINEL error tracking
+    reportError(error, { componentStack: errorInfo.componentStack, type: 'ErrorBoundary' });
   }
 
   private handleGoHome = (): void => {

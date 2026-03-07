@@ -161,10 +161,14 @@ export async function getFacturesARelancer(tenantId) {
       statut,
       niveau_relance,
       date_derniere_relance,
-      en_contentieux
+      en_contentieux,
+      type,
+      avoir_emis
     `)
     .eq('tenant_id', tenantId)
     .not('statut', 'in', '(payee,annulee)')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .order('date_echeance', { ascending: true, nullsFirst: false });
 
   if (error) {
@@ -202,9 +206,11 @@ export async function getStatsRelances(tenantId) {
 
   const { data, error } = await db
     .from('factures')
-    .select('id, numero, date_echeance, date_facture, montant_ttc, niveau_relance, en_contentieux, statut')
+    .select('id, numero, date_echeance, date_facture, montant_ttc, niveau_relance, en_contentieux, statut, type, avoir_emis')
     .eq('tenant_id', tenantId)
-    .not('statut', 'in', '(payee,annulee)');
+    .not('statut', 'in', '(payee,annulee)')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false);
 
   if (error) {
     console.error('[Relances] Erreur stats:', error.message);
@@ -554,11 +560,13 @@ export async function traiterToutesRelances() {
 
   console.log(`\n[Relances] 🚀 Début traitement relances - ${new Date().toLocaleString('fr-FR')}`);
 
-  // Récupérer tous les tenants avec des factures impayées
+  // Récupérer tous les tenants avec des factures impayées (exclure avoirs)
   const { data: tenants, error } = await db
     .from('factures')
     .select('tenant_id')
     .not('statut', 'in', '(payee,annulee)')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .not('date_echeance', 'is', null);
 
   if (error) {

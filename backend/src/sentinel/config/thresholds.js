@@ -47,6 +47,6 @@ export const THRESHOLDS = {
   }
 };
 
-export const ALERT_PHONE = '0760537694';
+export const ALERT_PHONE = process.env.SENTINEL_ALERT_PHONE || '0760537694';
 
 export default THRESHOLDS;

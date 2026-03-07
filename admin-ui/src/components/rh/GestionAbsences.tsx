@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api';
 import {
   Calendar,
   Plus,
@@ -129,13 +130,8 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
 
   const fetchAbsences = async () => {
     try {
-      const response = await fetch('/api/admin/rh/absences', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAbsences(data);
-      }
+      const data = await api.get<Absence[]>('/admin/rh/absences');
+      setAbsences(data);
     } catch (err) {
       console.error('Erreur fetch absences:', err);
     } finally {
@@ -145,13 +141,8 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
 
   const fetchCompteurs = async () => {
     try {
-      const response = await fetch('/api/admin/rh/compteurs', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCompteurs(data);
-      }
+      const data = await api.get<Compteur[]>('/admin/rh/compteurs');
+      setCompteurs(data);
     } catch (err) {
       console.error('Erreur fetch compteurs:', err);
     }
@@ -166,53 +157,35 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     }
 
     try {
-      const response = await fetch('/api/admin/rh/absences', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          membre_id: parseInt(formData.membre_id),
-          date_fin: formData.date_fin || formData.date_debut
-        })
+      await api.post('/admin/rh/absences', {
+        ...formData,
+        membre_id: parseInt(formData.membre_id),
+        date_fin: formData.date_fin || formData.date_debut
       });
-
-      if (response.ok) {
-        setShowForm(false);
-        setFormData({
-          membre_id: '',
-          type: 'conge',
-          date_debut: '',
-          date_fin: '',
-          demi_journee: false,
-          periode: 'matin',
-          motif: ''
-        });
-        fetchAbsences();
-        fetchCompteurs();
-        onRefresh();
-      } else {
-        const err = await response.json();
-        alert(err.error || 'Erreur lors de la création');
-      }
-    } catch (err) {
-      console.error('Erreur création absence:', err);
+      setShowForm(false);
+      setFormData({
+        membre_id: '',
+        type: 'conge',
+        date_debut: '',
+        date_fin: '',
+        demi_journee: false,
+        periode: 'matin',
+        motif: ''
+      });
+      fetchAbsences();
+      fetchCompteurs();
+      onRefresh();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erreur lors de la création');
     }
   };
 
   const handleApprove = async (id: number) => {
     try {
-      const response = await fetch(`/api/admin/rh/absences/${id}/approve`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        fetchAbsences();
-        fetchCompteurs();
-        onRefresh();
-      }
+      await api.put(`/admin/rh/absences/${id}/approve`);
+      fetchAbsences();
+      fetchCompteurs();
+      onRefresh();
     } catch (err) {
       console.error('Erreur approbation:', err);
     }
@@ -225,20 +198,11 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     }
 
     try {
-      const response = await fetch(`/api/admin/rh/absences/${id}/refuse`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ commentaire_refus: refusMotif })
-      });
-      if (response.ok) {
-        setShowRefusModal(null);
-        setRefusMotif('');
-        fetchAbsences();
-        onRefresh();
-      }
+      await api.put(`/admin/rh/absences/${id}/refuse`, { commentaire_refus: refusMotif });
+      setShowRefusModal(null);
+      setRefusMotif('');
+      fetchAbsences();
+      onRefresh();
     } catch (err) {
       console.error('Erreur refus:', err);
     }
@@ -248,15 +212,10 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     if (!confirm('Annuler cette absence ?')) return;
 
     try {
-      const response = await fetch(`/api/admin/rh/absences/${id}/cancel`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        fetchAbsences();
-        fetchCompteurs();
-        onRefresh();
-      }
+      await api.put(`/admin/rh/absences/${id}/cancel`);
+      fetchAbsences();
+      fetchCompteurs();
+      onRefresh();
     } catch (err) {
       console.error('Erreur annulation:', err);
     }
@@ -266,14 +225,9 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     if (!confirm('Supprimer définitivement cette demande d\'absence ?')) return;
 
     try {
-      const response = await fetch(`/api/admin/rh/absences/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        fetchAbsences();
-        onRefresh();
-      }
+      await api.delete(`/admin/rh/absences/${id}`);
+      fetchAbsences();
+      onRefresh();
     } catch (err) {
       console.error('Erreur suppression:', err);
     }
@@ -281,14 +235,9 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
 
   const handleRecalculerCompteurs = async () => {
     try {
-      const response = await fetch('/api/admin/rh/compteurs/recalculer', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (response.ok) {
-        fetchCompteurs();
-        alert('Compteurs recalculés avec succès');
-      }
+      await api.post('/admin/rh/compteurs/recalculer');
+      fetchCompteurs();
+      alert('Compteurs recalculés avec succès');
     } catch (err) {
       console.error('Erreur recalcul:', err);
     }
@@ -436,7 +385,7 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
       </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {membres.slice(0, 4).map(membre => {
+        {membres.map(membre => {
           const compteur = getCompteurMembre(membre.id);
           const cpSolde = compteur?.cp?.solde ?? 0;
           const alerteCP = cpSolde < 5;

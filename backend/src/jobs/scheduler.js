@@ -644,16 +644,17 @@ export async function sendRelance24hJob() {
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
         // Au moins un canal a fonctionné = succès
-        if (result.email.success || result.whatsapp.success) {
+        if (result.email?.success || result.whatsapp?.success || result.sms?.success) {
           sent++;
-          console.log(`[Scheduler] ✅ Relance 24h envoyée: RDV ${rdv.id} - ${rdv.client_prenom || rdv.client_nom} (Email: ${result.email.success ? '✓' : '✗'}, WhatsApp: ${result.whatsapp.success ? '✓' : '✗'})`);
+          console.log(`[Scheduler] ✅ Relance 24h envoyée: RDV ${rdv.id} - ${rdv.client_prenom || rdv.client_nom} (Email: ${result.email?.success ? '✓' : '✗'}, WhatsApp: ${result.whatsapp?.success ? '✓' : '✗'}, SMS: ${result.sms?.success ? '✓' : '✗'})`);
         } else {
           // Même si l'envoi échoue, on garde le flag pour éviter spam
           // L'admin peut voir dans les logs et renvoyer manuellement si besoin
           errors++;
           console.error(`[Scheduler] ❌ Échec relance RDV ${rdv.id} (flag conservé pour éviter spam):`, {
-            email: result.email.error,
-            whatsapp: result.whatsapp.error
+            email: result.email?.error,
+            whatsapp: result.whatsapp?.error,
+            sms: result.sms?.error
           });
         }
       } catch (error) {
@@ -945,6 +946,16 @@ export async function sentinelSnapshotJob() {
   console.log(`\n[Scheduler] 📊 Début job: ${jobName}`);
 
   try {
+    // Auto-backfill : rattraper les jours manquants avant la collecte du jour
+    try {
+      const gapResult = await sentinelCollector.autoBackfillGaps();
+      if (gapResult.daysProcessed > 0) {
+        console.log(`[Scheduler] 📊 Auto-backfill: ${gapResult.daysProcessed} jours rattrapés`);
+      }
+    } catch (err) {
+      console.error('[Scheduler] Auto-backfill error (non-blocking):', err.message);
+    }
+
     const db = getSupabase();
     if (!db) {
       console.log('[Scheduler] ⚠️ Supabase non configuré, skip SENTINEL snapshot');
@@ -954,8 +965,8 @@ export async function sentinelSnapshotJob() {
     // Récupérer tous les tenants Business actifs
     const { data: tenants, error } = await db
       .from('tenants')
-      .select('id, name, plan')
-      .eq('plan', 'business')
+      .select('id, name, plan_id')
+      .in('plan_id', ['business', 'enterprise'])
       .in('statut', ['actif', 'essai']);
 
     if (error) {
@@ -975,7 +986,7 @@ export async function sentinelSnapshotJob() {
 
     for (const tenant of tenants) {
       try {
-        await sentinelCollector.runDailyCollection(tenant.id);
+        await sentinelCollector.runDailyCollection();
         processed++;
         console.log(`[Scheduler] ✅ SENTINEL snapshot ${tenant.name} (${tenant.id})`);
       } catch (err) {
@@ -1010,8 +1021,8 @@ export async function sentinelInsightsJob() {
     // Récupérer tous les tenants Business actifs
     const { data: tenants, error } = await db
       .from('tenants')
-      .select('id, name, plan')
-      .eq('plan', 'business')
+      .select('id, name, plan_id')
+      .in('plan_id', ['business', 'enterprise'])
       .in('statut', ['actif', 'essai']);
 
     if (error) {

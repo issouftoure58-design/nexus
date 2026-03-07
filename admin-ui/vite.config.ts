@@ -13,6 +13,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-ui': ['lucide-react', 'class-variance-authority', 'clsx', 'tailwind-merge'],
+        }
+      }
+    }
   },
   server: {
     port: 3001,
@@ -21,6 +31,14 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
+        configure: (proxy) => {
+          // Disable buffering for SSE streaming
+          proxy.on('proxyRes', (proxyRes, _req, res) => {
+            if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
+              res.flushHeaders();
+            }
+          });
+        },
       },
     },
   },

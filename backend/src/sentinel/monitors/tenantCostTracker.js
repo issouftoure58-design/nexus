@@ -1,13 +1,12 @@
 /**
  * SENTINEL - Tenant Cost Tracker
  *
- * Suivi des coûts API par tenant. Complète le costMonitor existant
- * en ajoutant la dimension multi-tenant.
+ * Suivi des coûts API par tenant (source de vérité unique).
+ * Remplace le double tracking avec costMonitor.
  *
  * Stockage en mémoire + persistance Supabase.
  */
 
-import { costMonitor } from './costMonitor.js';
 import { checkAndAlert } from '../alerts.js';
 import { checkQuota, getPlan } from './quotas.js';
 import { getTenantConfig } from '../../config/tenants/index.js';
@@ -36,7 +35,6 @@ function initTenant(tenantId) {
 
 /**
  * Track un appel Claude API pour un tenant.
- * Met aussi à jour le costMonitor global.
  */
 export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
   initTenant(tenantId);
@@ -61,8 +59,8 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
     tenantUsage[tenantId].history.shift();
   }
 
-  // Aussi tracker dans le costMonitor (maintenant multi-tenant)
-  costMonitor.trackClaudeUsage(tenantId, tokensIn, tokensOut);
+  // Note: costMonitor.trackClaudeUsage() supprimé — double tracking
+  // tenantCostTracker est la source de vérité pour les coûts par tenant
 
   // Vérifier quota et alerter si nécessaire
   try {

@@ -21,7 +21,7 @@ DEVELOPPEMENT (TRAVAILLER ICI)
 │       ├── services/    # Services metier
 │       ├── controllers/ # Controleurs
 │       ├── middleware/  # Auth, rate limiting
-│       ├── config/      # Supabase, Sentry, env
+│       ├── config/      # Supabase, Redis, env
 │       ├── jobs/        # Bull/Redis jobs
 │       └── modules/     # AI, SEO modules
 ├── .claudeproject       # Config dev
@@ -84,7 +84,6 @@ Les variables sont configurees sur Render Dashboard:
 - OPENAI_API_KEY
 - ANTHROPIC_API_KEY
 - STRIPE_SECRET_KEY
-- SENTRY_DSN
 - RESEND_API_KEY
 - TWILIO_*
 - PAYPAL_*

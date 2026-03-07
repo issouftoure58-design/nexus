@@ -86,6 +86,7 @@ class Sentinel {
 
     if (costs.total >= THRESHOLDS.daily.shutdown) {
       await alerter.send('CRITICAL', 'Daily cost limit reached - entering degraded mode', costs);
+      await autoHeal.attempt('costs', costs);
       return { action: 'SHUTDOWN_NON_ESSENTIAL' };
     } else if (costs.total >= THRESHOLDS.daily.critical) {
       await alerter.send('CRITICAL', 'Daily costs critical', costs);
@@ -112,6 +113,11 @@ class Sentinel {
 
 export const sentinel = new Sentinel();
 export default sentinel;
+
+// Mode dégradé : expose le check global pour les services
+export function isDegraded() {
+  return autoHeal.isDegraded();
+}
 
 // Alertes
 import { THRESHOLDS_ALERTS, checkAndAlert, sendSlackAlert, resetAlerts } from './alerts.js';

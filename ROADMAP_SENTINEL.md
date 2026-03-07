@@ -124,11 +124,11 @@ Endpoints a implementer:
 
 ## PHASE 4 — CHECKLIST PRE-LAUNCH [PRIORITE MOYENNE]
 
-- [ ] Activer PITR Supabase (Dashboard > Database > Backups)
+- [ ] Activer PITR Supabase — REPORTE (requiert plan Pro Supabase 25$/mois, backups daily suffisants pour l'instant)
 - [ ] Valider CGV avec juriste
 - [ ] Inviter 2-3 clients beta via /api/signup
-- [ ] Monitorer Sentry 48h
-- [ ] Configurer STRIPE_WEBHOOK_SECRET sur Render
+- [x] ~~Monitorer Sentry 48h~~ → SENTINEL Error Tracker actif (v3.14.0)
+- [x] Configurer STRIPE_WEBHOOK_SECRET sur Render — FAIT
 - [ ] Tester webhook Stripe (paiement test → event recu)
 
 ---

@@ -1,13 +1,45 @@
 import express from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
-import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation } from './factures.js';
+import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
 import logger from '../config/logger.js';
+import { validate } from '../middleware/validate.js';
+
+const createReservationSchema = z.object({
+  client_id: z.string().uuid(),
+  service: z.string().optional(),
+  date_rdv: z.string().min(1, 'Date requise'),
+  heure_rdv: z.string().optional(),
+  heure_fin: z.string().optional(),
+  date_fin: z.string().optional(),
+  lieu: z.string().optional(),
+  adresse_client: z.string().optional(),
+  adresse_facturation: z.string().optional(),
+  notes: z.string().max(2000).optional(),
+  membre_id: z.string().uuid().optional(),
+  services: z.array(z.object({
+    service_id: z.string().uuid(),
+    nom: z.string().optional(),
+    prix: z.number().optional(),
+    duree: z.number().optional(),
+  })).optional(),
+  membre_ids: z.array(z.string().uuid()).optional(),
+  pricing_mode: z.string().optional(),
+  remise_type: z.string().optional(),
+  remise_valeur: z.number().optional(),
+  remise_motif: z.string().optional(),
+  montant_ht: z.number().optional(),
+  montant_tva: z.number().optional(),
+  prix_total: z.number().optional(),
+  duree_totale_minutes: z.number().optional(),
+  frais_deplacement: z.number().optional(),
+}).passthrough();
 
 const router = express.Router();
 
@@ -413,7 +445,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/reservations
 // Créer une réservation/prestation avec multi-services et multi-membres
-router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), async (req, res) => {
+router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(createReservationSchema), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
@@ -924,27 +956,13 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       details: { updates }
     });
 
-    // 📄 Synchronisation facture
+    // 📄 Facture immutable — plus de synchronisation automatique
+    // Les factures émises sont immutables (loi comptable française)
+    // Correction = avoir (note de crédit) via POST /api/factures/:id/avoir
     let facture = null;
 
-    // Si des champs affectant la facture ont changé (service, prix, date, frais), synchroniser
-    const prixChanged = updates.service_nom || updates.prix_total !== undefined || updates.frais_deplacement !== undefined || updates.date;
-    if (prixChanged && !updates.statut) {
-      try {
-        const syncResult = await createFactureFromReservation(req.params.id, tenantId, {
-          updateIfExists: true
-        });
-        if (syncResult.success && syncResult.message === 'Facture mise à jour') {
-          facture = syncResult.facture;
-          console.log(`[ADMIN EDIT] Facture synchronisée après modification prestation`);
-        }
-      } catch (factureErr) {
-        console.error('[ADMIN EDIT] Erreur sync facture (non bloquant):', factureErr.message);
-      }
-    }
-
     if (updates.statut && updates.statut !== currentRdv.statut) {
-      // Terminé → Confirmé : remettre la facture en "générée"
+      // Terminé → Confirmé : vérifier si facture émise (immutable)
       if (updates.statut === 'confirme' && currentRdv.statut === 'termine') {
         try {
           const { data: factureExistante } = await supabase
@@ -954,38 +972,35 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
             .eq('tenant_id', tenantId)
             .single();
 
-          if (factureExistante && factureExistante.statut === 'payee') {
-            await supabase
-              .from('factures')
-              .update({
-                statut: 'generee',
-                date_paiement: null,
-                mode_paiement: null
-              })
-              .eq('id', factureExistante.id);
-
-            // Supprimer les écritures de paiement (BQ/CA)
-            await supabase
-              .from('ecritures_comptables')
-              .delete()
-              .eq('facture_id', factureExistante.id)
-              .in('journal_code', ['BQ', 'CA']);
-
-            console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} remise en générée`);
-            facture = { ...factureExistante, statut: 'generee' };
+          if (factureExistante) {
+            const statutsImmutables = ['generee', 'envoyee', 'payee'];
+            if (statutsImmutables.includes(factureExistante.statut)) {
+              // Facture immutable — ne pas modifier, juste un warning
+              console.warn(`[ADMIN EDIT] Facture ${factureExistante.numero} immutable (${factureExistante.statut}) — non modifiée. Créer un avoir si nécessaire.`);
+              facture = factureExistante;
+            }
           }
         } catch (factureErr) {
-          console.error('[ADMIN EDIT] Erreur retour facture générée:', factureErr.message);
+          console.error('[ADMIN EDIT] Erreur vérification facture:', factureErr.message);
         }
       }
 
-      // Annulé : annuler la facture
+      // Annulé : auto-créer un avoir si facture émise, sinon annuler normalement
       if (updates.statut === 'annule') {
         try {
           const cancelResult = await cancelFactureFromReservation(req.params.id, tenantId, false);
-          if (cancelResult.success && cancelResult.facture) {
+          if (cancelResult.requiresAvoir) {
+            // Facture immutable → auto-créer un avoir total
+            const avoirResult = await createAvoir(tenantId, cancelResult.factureId, 'Annulation prestation');
+            if (avoirResult.success) {
+              facture = { avoirCree: true, avoir: avoirResult.avoir };
+              console.log(`[ADMIN EDIT] Avoir auto-créé: ${avoirResult.avoir.numero} (annulation prestation)`);
+            } else {
+              console.error('[ADMIN EDIT] Erreur création avoir auto:', avoirResult.error);
+            }
+          } else if (cancelResult.success && cancelResult.facture) {
             facture = cancelResult.facture;
-            console.log(`[ADMIN EDIT] Facture annulée`);
+            console.log(`[ADMIN EDIT] Facture brouillon annulée`);
           }
         } catch (factureErr) {
           console.error('[ADMIN EDIT] Erreur annulation facture:', factureErr.message);
@@ -1113,29 +1128,41 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
         console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
 
-        // Mettre à jour la facture associée si elle existe et n'est pas payée
-        const { data: factureExistante } = await supabase
+        // Auto-ajustement facture si prix a changé
+        const { data: factureAjust } = await supabase
           .from('factures')
-          .select('id, numero, statut, montant_ht, montant_ttc')
+          .select('id, numero, statut, montant_ttc, type, avoir_emis')
           .eq('reservation_id', req.params.id)
           .eq('tenant_id', tenantId)
+          .eq('type', 'facture')
+          .eq('avoir_emis', false)
           .single();
 
-        console.log(`[ADMIN EDIT] Facture trouvée:`, factureExistante ? `${factureExistante.numero} (${factureExistante.statut})` : 'aucune');
-
-        if (factureExistante && factureExistante.statut !== 'payee') {
-          await supabase
-            .from('factures')
-            .update({
-              montant_ht: prixHT,
-              montant_ttc: prixTTC
-            })
-            .eq('id', factureExistante.id)
-            .eq('tenant_id', tenantId);
-
-          console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} mise à jour: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
-        } else if (factureExistante) {
-          console.log(`[ADMIN EDIT] Facture ${factureExistante.numero} déjà payée, non modifiée`);
+        if (factureAjust && ['generee', 'envoyee', 'payee'].includes(factureAjust.statut)) {
+          const oldTTC = factureAjust.montant_ttc;
+          if (prixTTC !== oldTTC && prixTTC > 0) {
+            if (prixTTC < oldTTC) {
+              // Baisse de prix → avoir partiel automatique
+              const diff = oldTTC - prixTTC;
+              const result = await createAvoirPartiel(tenantId, factureAjust.id, diff,
+                `Correction prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTTC/100).toFixed(2)}€`);
+              if (result.success) {
+                facture = { ...factureAjust, avoirPartiel: result.avoir };
+                console.log(`[ADMIN EDIT] Avoir partiel auto: ${result.avoir.numero} (-${(diff/100).toFixed(2)}€)`);
+              }
+            } else {
+              // Hausse de prix → facture complémentaire automatique
+              const diff = prixTTC - oldTTC;
+              const result = await createFactureComplementaire(tenantId, factureAjust.id, diff,
+                `Augmentation prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTTC/100).toFixed(2)}€`);
+              if (result.success) {
+                facture = { ...factureAjust, complement: result.facture };
+                console.log(`[ADMIN EDIT] Facture complémentaire auto: ${result.facture.numero} (+${(diff/100).toFixed(2)}€)`);
+              }
+            }
+          }
+        } else {
+          console.log(`[ADMIN EDIT] Pas de facture émise à ajuster`);
         }
       }
     }
@@ -1284,10 +1311,9 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // Retour de terminé vers confirmé → Remettre la facture en "générée"
+    // Retour de terminé vers confirmé → facture immutable, juste un warning
     if (statut === 'confirme' && currentRdv.statut === 'termine') {
       try {
-        // Trouver la facture liée
         const { data: factureExistante } = await supabase
           .from('factures')
           .select('id, numero, statut')
@@ -1295,42 +1321,34 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
           .eq('tenant_id', tenantId)
           .single();
 
-        if (factureExistante && factureExistante.statut === 'payee') {
-          // Remettre la facture en générée
-          await supabase
-            .from('factures')
-            .update({
-              statut: 'generee',
-              date_paiement: null,
-              mode_paiement: null
-            })
-            .eq('id', factureExistante.id);
-
-          // Supprimer les écritures de paiement (BQ/CA)
-          await supabase
-            .from('ecritures_comptables')
-            .delete()
-            .eq('facture_id', factureExistante.id)
-            .in('journal_code', ['BQ', 'CA']);
-
-          console.log(`[ADMIN RESERVATIONS] Facture ${factureExistante.numero} remise en générée`);
-          facture = { ...factureExistante, statut: 'generee' };
+        if (factureExistante) {
+          const statutsImmutables = ['generee', 'envoyee', 'payee'];
+          if (statutsImmutables.includes(factureExistante.statut)) {
+            console.warn(`[ADMIN RESERVATIONS] Facture ${factureExistante.numero} immutable (${factureExistante.statut}) — non modifiée. Créer un avoir si nécessaire.`);
+            facture = factureExistante;
+          }
         }
       } catch (factureErr) {
-        console.error('[ADMIN RESERVATIONS] Erreur retour facture générée:', factureErr.message);
+        console.error('[ADMIN RESERVATIONS] Erreur vérification facture:', factureErr.message);
       }
     }
 
-    // Note: Pas de création de facture lors de la confirmation
-    // La facture sera créée quand la réservation passera en statut "terminé"
-
     if (statut === 'annule') {
-      // RDV annulé → Annuler la facture associée
+      // RDV annulé → auto-créer un avoir si facture émise, sinon annuler normalement
       try {
         const cancelResult = await cancelFactureFromReservation(req.params.id, tenantId, false);
-        if (cancelResult.success && cancelResult.facture) {
+        if (cancelResult.requiresAvoir) {
+          // Facture immutable → auto-créer un avoir total
+          const avoirResult = await createAvoir(tenantId, cancelResult.factureId, 'Annulation prestation');
+          if (avoirResult.success) {
+            facture = { avoirCree: true, avoir: avoirResult.avoir };
+            console.log(`[ADMIN RESERVATIONS] Avoir auto-créé: ${avoirResult.avoir?.numero} (annulation prestation)`);
+          } else {
+            console.log(`[ADMIN RESERVATIONS] ${avoirResult.message || avoirResult.error}`);
+          }
+        } else if (cancelResult.success && cancelResult.facture) {
           facture = cancelResult.facture;
-          console.log(`[ADMIN RESERVATIONS] Facture annulée`);
+          console.log(`[ADMIN RESERVATIONS] Facture brouillon annulée`);
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur annulation facture:', factureErr.message);

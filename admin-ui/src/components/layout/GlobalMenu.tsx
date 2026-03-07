@@ -7,7 +7,7 @@ import {
   X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
-  ClipboardList, Clock
+  ClipboardList, Clock, Landmark, UserCheck
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -28,6 +28,9 @@ const menuItems = [
   { type: 'separator', label: 'Business' },
   { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'pro' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'pro' },
+  { icon: Landmark, label: 'Rapprochement', path: '/rapprochement', plan: 'pro' },
+  { icon: Users, label: 'Comptes Auxiliaires', path: '/auxiliaires', plan: 'pro' },
+  { icon: UserCheck, label: 'Expert-comptable', path: '/expert-comptable', plan: 'pro' },
   { icon: Package, label: 'Stock', path: '/stock', plan: 'pro' },
   { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'pro' },
   { type: 'separator', label: 'Marketing' },
@@ -120,15 +123,6 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
               >
                 <Icon className="w-5 h-5" />
                 <span className="flex-1">{item.label}</span>
-                {item.plan && (
-                  <span className={`
-                    text-xs px-1.5 py-0.5 rounded
-                    ${item.plan === 'pro' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' : ''}
-                    ${item.plan === 'business' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : ''}
-                  `}>
-                    {item.plan.toUpperCase()}
-                  </span>
-                )}
               </button>
             );
           })}

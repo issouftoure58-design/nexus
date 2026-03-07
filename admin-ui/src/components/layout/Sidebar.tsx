@@ -100,11 +100,14 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   'comptabilite': 'pro',
   'analytics': 'pro',
   'ecommerce': 'pro',
+  'stock': 'pro',
   // Business
   'rh_avance': 'business',
+  'rh': 'business',
   'paie': 'business',
   'seo': 'business',
   'sentinel_pro': 'business',
+  'sentinel': 'business',
   'social_media': 'pro',
   'assistant_ia': 'pro',
 };
@@ -145,8 +148,8 @@ const iaNav: NavItem[] = [
 const businessNav: NavItem[] = [
   { icon: TrendingUp, label: 'Analytics', path: '/analytics', requiredModule: 'analytics' },
   { icon: Calculator, label: 'Comptabilité', path: '/comptabilite', requiredModule: 'comptabilite' },
-  { icon: Package, label: 'Stock', path: '/stock', requiredModule: 'ecommerce' },
-  { icon: UserCog, label: 'Équipe RH', path: '/rh', requiredModule: 'rh_avance' },
+  { icon: Package, label: 'Stock', path: '/stock', requiredModule: 'stock' },
+  { icon: UserCog, label: 'Équipe RH', path: '/rh', requiredModule: 'rh' },
   { icon: Banknote, label: 'Paie', path: '/paie', requiredModule: 'paie' },
 ];
 
@@ -163,7 +166,7 @@ const marketingNav: NavItem[] = [
 
 // Système
 const systemNav: NavItem[] = [
-  { icon: Shield, label: 'Sentinel', path: '/sentinel', requiredModule: 'sentinel_pro' },
+  { icon: Shield, label: 'Sentinel', path: '/sentinel', requiredModule: 'sentinel' },
   { icon: FileText, label: 'Journal d\'audit', path: '/audit-log', alwaysShow: true },
   { icon: Settings, label: 'Paramètres', path: '/parametres', alwaysShow: true },
 ];

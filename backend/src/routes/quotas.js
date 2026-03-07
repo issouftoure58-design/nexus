@@ -9,12 +9,15 @@
  * ║   GET  /api/quotas/overage      - Calcul des dépassements                 ║
  * ║   GET  /api/quotas/pricing      - Grille tarifaire complète               ║
  * ║   POST /api/quotas/increment    - Incrémente usage (admin)                ║
+ * ║   POST /api/quotas/request-activation - Demande activation module        ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
 import express from 'express';
 import { quotaManager, MODULE_QUOTAS } from '../services/quotaManager.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { supabase } from '../config/supabase.js';
+import { sendEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -44,7 +47,22 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const status = await quotaManager.getQuotaStatus(tenantId);
+    // Récupérer le plan et modules actifs du tenant
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('plan_id, modules_actifs')
+      .eq('id', tenantId)
+      .single();
+    const plan = tenantRow?.plan_id || 'starter';
+
+    // Récupérer les demandes d'activation en cours
+    const { data: pendingReqs } = await supabase
+      .from('module_activation_requests')
+      .select('module_id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'pending');
+
+    const status = await quotaManager.getQuotaStatus(tenantId, plan);
 
     // Calculer la prochaine date de reset (1er du mois prochain)
     const resetDate = new Date();
@@ -55,6 +73,8 @@ router.get('/', async (req, res) => {
     res.json({
       success: true,
       ...status,
+      modulesActifs: tenantRow?.modules_actifs || {},
+      pendingActivations: (pendingReqs || []).map(r => r.module_id),
       resetDate: resetDate.toISOString(),
       resetInDays: Math.ceil((resetDate - new Date()) / (1000 * 60 * 60 * 24)),
     });
@@ -64,6 +84,114 @@ router.get('/', async (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+});
+
+// Modules accessibles par plan (pour vérifier l'éligibilité)
+const PLAN_MODULES = {
+  starter: ['sms_rdv', 'web_chat_ia', 'marketing_email'],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+};
+
+/**
+ * POST /api/quotas/request-activation
+ * Demande l'activation d'un module (canal) pour le tenant
+ */
+router.post('/request-activation', async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const { moduleId } = req.body;
+
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: 'Tenant ID requis' });
+    }
+
+    if (!moduleId) {
+      return res.status(400).json({ success: false, error: 'moduleId requis' });
+    }
+
+    // Vérifier que le module existe
+    if (!MODULE_QUOTAS[moduleId]) {
+      return res.status(404).json({ success: false, error: `Module inconnu: ${moduleId}` });
+    }
+
+    // Récupérer le plan du tenant
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('plan_id, name')
+      .eq('id', tenantId)
+      .single();
+    const plan = tenantRow?.plan_id || 'starter';
+
+    // Vérifier que le module est inclus dans le plan
+    const allowedModules = PLAN_MODULES[plan] || PLAN_MODULES.starter;
+    if (!allowedModules.includes(moduleId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Ce module n\'est pas disponible dans votre plan',
+      });
+    }
+
+    // Vérifier qu'il n'y a pas déjà une demande pending
+    const { data: existing } = await supabase
+      .from('module_activation_requests')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('module_id', moduleId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'Une demande d\'activation est déjà en cours pour ce module',
+      });
+    }
+
+    // Supprimer les anciennes demandes traitées pour ce module (approved/rejected)
+    await supabase
+      .from('module_activation_requests')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('module_id', moduleId)
+      .neq('status', 'pending');
+
+    // Insérer la demande
+    const { error: insertError } = await supabase
+      .from('module_activation_requests')
+      .insert({
+        tenant_id: tenantId,
+        module_id: moduleId,
+        status: 'pending',
+      });
+
+    if (insertError) {
+      console.error('[QUOTAS] Erreur insert activation request:', insertError.message);
+      return res.status(500).json({ success: false, error: 'Erreur lors de la demande' });
+    }
+
+    // Envoyer un email de notification à l'équipe
+    const moduleName = MODULE_QUOTAS[moduleId]?.name || moduleId;
+    const tenantName = tenantRow?.name || tenantId;
+    await sendEmail({
+      to: 'support@nexus-saas.com',
+      subject: `[NEXUS] Demande d'activation: ${moduleName} — ${tenantName}`,
+      html: `
+        <h2>Nouvelle demande d'activation</h2>
+        <p><strong>Tenant:</strong> ${tenantName} (${tenantId})</p>
+        <p><strong>Plan:</strong> ${plan}</p>
+        <p><strong>Module:</strong> ${moduleName} (${moduleId})</p>
+        <p>Connectez-vous au back-office pour traiter cette demande.</p>
+      `,
+    }).catch(err => {
+      console.error('[QUOTAS] Erreur envoi email activation:', err.message);
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[QUOTAS] Erreur request-activation:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

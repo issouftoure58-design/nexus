@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { api, comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAuxiliaireResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteDetailResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
+import { api, comptaApi, type Invoice, type Expense, type ComptaStats, type TVAData, type RelanceFacture, type RelanceStats, type RelanceSettings, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
 import {
   Euro,
   TrendingUp,
@@ -38,20 +38,13 @@ import {
   Gavel,
   Settings,
   Save,
-  Landmark,
   BarChart3,
   Wallet,
-  UserCheck,
-  Link2,
-  Building2,
-  FilePlus,
-  Share2,
-  Users
+  FilePlus
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { EntityLink } from '@/components/EntityLink';
-import { AuxiliaryLedgerModal } from '@/components/modals/AuxiliaryLedgerModal';
 
 const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
   brouillon: { label: 'Brouillon', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
@@ -80,26 +73,6 @@ const EXPENSE_CATEGORIES: Record<string, string> = {
   autre: 'Autre'
 };
 
-// Mapping catégories vers comptes comptables
-const COMPTE_PAR_CATEGORIE: Record<string, string> = {
-  fournitures: '601 - Achats fournitures',
-  loyer: '613 - Loyers',
-  charges: '606 - Électricité/Eau',
-  telecom: '626 - Télécom/Internet',
-  assurance: '616 - Assurances',
-  transport: '625 - Déplacements',
-  marketing: '623 - Publicité',
-  bancaire: '627 - Frais bancaires',
-  formation: '618 - Formation',
-  materiel: '615 - Entretien matériel',
-  logiciel: '651 - Abonnements',
-  comptabilite: '622 - Honoraires',
-  taxes: '635 - Impôts et taxes',
-  salaires: '641 - Rémunérations',
-  cotisations_sociales: '645 - Charges sociales',
-  autre: '658 - Charges diverses'
-};
-
 const COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
 
 // Liste des années disponibles
@@ -107,7 +80,7 @@ const AVAILABLE_YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullY
 
 export default function Comptabilite() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'expenses' | 'tva' | 'relances' | 'rapprochement' | 'resultat' | 'bilan' | 'auxiliaires' | 'expert'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'expenses' | 'tva' | 'relances' | 'resultat' | 'bilan'>('overview');
   const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
   const [showExpensePaymentModal, setShowExpensePaymentModal] = useState(false);
   const [pendingExpenseId, setPendingExpenseId] = useState<number | null>(null);
@@ -117,7 +90,6 @@ export default function Comptabilite() {
   const [pendingInvoiceId, setPendingInvoiceId] = useState<number | null>(null);
   const [invoicePaymentMode, setInvoicePaymentMode] = useState<'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque'>('cb');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [selectedAuxiliary, setSelectedAuxiliary] = useState<{ type: 'client' | 'fournisseur' | 'personnel'; compte: string; nom: string } | null>(null);
   const [isUploadingExpense, setIsUploadingExpense] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRelanceSettings, setShowRelanceSettings] = useState(false);
@@ -164,32 +136,12 @@ export default function Comptabilite() {
   const [relanceRetardFilter, setRelanceRetardFilter] = useState<string>('all');
   const [relanceNiveauFilter, setRelanceNiveauFilter] = useState<string>('all');
 
-  // Filtres rapprochement (à rapprocher)
-  const [rapproDateFilter, setRapproDateFilter] = useState<string>('all');
-  const [rapproPieceFilter, setRapproPieceFilter] = useState<string>('all');
-  const [rapproLibelleFilter, setRapproLibelleFilter] = useState<string>('all');
-  const [rapproDebitFilter, setRapproDebitFilter] = useState<string>('all');
-  const [rapproCreditFilter, setRapproCreditFilter] = useState<string>('all');
 
-  // Filtres rapprochement (rapprochées)
-  const [rapprocheeDateFilter, setRapprocheeDateFilter] = useState<string>('all');
-  const [rapprocheePieceFilter, setRapprocheePieceFilter] = useState<string>('all');
-  const [rapprocheeLibelleFilter, setRapprocheeLibelleFilter] = useState<string>('all');
-  const [rapprocheeDebitFilter, setRapprocheeDebitFilter] = useState<string>('all');
-  const [rapprocheeCreditFilter, setRapprocheeCreditFilter] = useState<string>('all');
 
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // État pour la régénération des écritures
-  const [isRegenerating, setIsRegenerating] = useState(false);
-
-  // État pour la consultation des journaux comptables
-  const [selectedJournal, setSelectedJournal] = useState<string>('BQ');
-  const [journalPeriode, setJournalPeriode] = useState<string>(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
 
   // État pour la période TVA
   const [tvaPeriode, setTvaPeriode] = useState<string>(() => {
@@ -227,80 +179,21 @@ export default function Comptabilite() {
     enabled: activeTab === 'relances',
   });
 
-  // Query pour les écritures du journal banque (BQ) pour le rapprochement
-  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number }>({
-    queryKey: ['ecritures-banque'],
-    queryFn: () => comptaApi.getEcrituresBanque(),
-    enabled: activeTab === 'rapprochement',
-  });
 
   // Query pour les journaux comptables
-  const { data: journauxData } = useQuery<Journal[]>({
-    queryKey: ['journaux'],
-    queryFn: () => comptaApi.getJournaux(),
-    enabled: activeTab === 'expert',
-  });
 
   // Query pour les écritures du journal sélectionné
-  const { data: ecrituresJournalData, isLoading: ecrituresJournalLoading } = useQuery<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>({
-    queryKey: ['ecritures-journal', selectedJournal, journalPeriode],
-    queryFn: () => comptaApi.getEcritures({ journal: selectedJournal, periode: journalPeriode }),
-    enabled: activeTab === 'expert' && !!selectedJournal,
-  });
 
   // Documents Comptables - Interface unifiée
-  const [docType, setDocType] = useState<'grand-livre' | 'balance' | 'journaux' | 'balance-agee'>('grand-livre');
-  const [compteFilter, setCompteFilter] = useState<string>('');
-  const [compteFilterApplied, setCompteFilterApplied] = useState<string>('');
 
   // Query pour le Grand Livre (avec filtre compte optionnel)
-  const { data: grandLivreData, isLoading: grandLivreLoading, refetch: refetchGrandLivre } = useQuery<GrandLivreResponse>({
-    queryKey: ['grand-livre', statsYear, compteFilterApplied],
-    queryFn: () => comptaApi.getGrandLivre({
-      exercice: statsYear,
-      compte: compteFilterApplied || undefined
-    }),
-    enabled: activeTab === 'expert' && docType === 'grand-livre',
-  });
 
   // Query pour la Balance Générale (avec sous-comptes)
-  const { data: balanceGeneraleData, isLoading: balanceGeneraleLoading, refetch: refetchBalance } = useQuery<BalanceGeneraleResponse>({
-    queryKey: ['balance-generale', statsYear, compteFilterApplied],
-    queryFn: () => comptaApi.getBalanceGenerale({
-      exercice: statsYear,
-      avec_sous_comptes: true,
-      compte: compteFilterApplied || undefined
-    }),
-    enabled: activeTab === 'expert' && docType === 'balance',
-  });
 
-  // Query pour la Balance Clients
-  const { data: balanceClientsData, isLoading: balanceClientsLoading } = useQuery<BalanceAuxiliaireResponse>({
-    queryKey: ['balance-clients', statsYear],
-    queryFn: () => comptaApi.getBalanceClients(statsYear),
-    enabled: activeTab === 'auxiliaires',
-  });
 
-  // Query pour la Balance Fournisseurs
-  const { data: balanceFournisseursData, isLoading: balanceFournisseursLoading } = useQuery<BalanceAuxiliaireResponse>({
-    queryKey: ['balance-fournisseurs', statsYear],
-    queryFn: () => comptaApi.getBalanceFournisseurs(statsYear),
-    enabled: activeTab === 'auxiliaires',
-  });
 
-  // Query pour la Balance Personnel
-  const { data: balancePersonnelData, isLoading: balancePersonnelLoading } = useQuery<BalanceAuxiliaireResponse>({
-    queryKey: ['balance-personnel', statsYear],
-    queryFn: () => comptaApi.getBalancePersonnel(statsYear),
-    enabled: activeTab === 'auxiliaires',
-  });
 
   // Query pour la Balance Âgée
-  const { data: balanceAgeeData, isLoading: balanceAgeeLoading } = useQuery<BalanceAgeeResponse>({
-    queryKey: ['balance-agee'],
-    queryFn: () => comptaApi.getBalanceAgee(),
-    enabled: activeTab === 'expert' && docType === 'balance-agee',
-  });
 
   // Paramètres de période pour les requêtes comptables
   const comptaPeriodeParams = useMemo(() => {
@@ -342,7 +235,7 @@ export default function Comptabilite() {
   // Mutation pour synchroniser les factures
   const syncMutation = useMutation({
     mutationFn: () => comptaApi.syncFactures(),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { nb_creees?: number; nb_mises_a_jour?: number; nb_echecs?: number; total_reservations?: number }) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       const nbEchecs = data.nb_echecs || 0;
       const message = nbEchecs > 0
@@ -385,7 +278,7 @@ export default function Comptabilite() {
   // Mutation pour envoi global par mail
   const sendAllMutation = useMutation({
     mutationFn: () => comptaApi.sendAllFactures(),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { nb_envoyees?: number }) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setNotification({
         type: 'success',
@@ -406,7 +299,7 @@ export default function Comptabilite() {
   const envoyerRelanceMutation = useMutation({
     mutationFn: ({ factureId, niveau }: { factureId: number; niveau: number }) =>
       comptaApi.envoyerRelance(factureId, niveau),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { message?: string }) => {
       queryClient.invalidateQueries({ queryKey: ['relances'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setNotification({ type: 'success', message: data.message || 'Relance envoyée' });
@@ -465,7 +358,7 @@ export default function Comptabilite() {
   const transmettreContentieuxMutation = useMutation({
     mutationFn: ({ factureId, service }: { factureId: number; service: 'interne' | 'huissier' }) =>
       comptaApi.transmettreContentieux(factureId, service),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { message?: string }) => {
       queryClient.invalidateQueries({ queryKey: ['relances'] });
       setNotification({ type: 'success', message: data.message || 'Dossier transmis au contentieux' });
       setTimeout(() => setNotification(null), 5000);
@@ -478,7 +371,7 @@ export default function Comptabilite() {
 
   const saveRelanceSettingsMutation = useMutation({
     mutationFn: (settings: RelanceSettings) => comptaApi.saveRelanceSettings(settings),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { message?: string }) => {
       queryClient.invalidateQueries({ queryKey: ['relance-settings'] });
       setShowRelanceSettings(false);
       setNotification({ type: 'success', message: data.message || 'Délais de relance mis à jour' });
@@ -491,25 +384,11 @@ export default function Comptabilite() {
   });
 
   // Mutation pour pointer les écritures
-  const pointerEcrituresMutation = useMutation({
-    mutationFn: ({ ids, lettrage }: { ids: number[]; lettrage?: string }) =>
-      comptaApi.pointerEcritures(ids, lettrage),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ecritures-banque'] });
-      setSelectedEcrituresForPointage([]);
-      setNotification({ type: 'success', message: 'Écritures pointées avec succès' });
-      setTimeout(() => setNotification(null), 3000);
-    },
-    onError: (err: Error) => {
-      setNotification({ type: 'error', message: err.message });
-      setTimeout(() => setNotification(null), 5000);
-    }
-  });
 
   // Fonctions d'export
   const formatCurrency = (amount: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
 
-  const exportToCSV = (data: any[], filename: string, headers: string[]) => {
+  const exportToCSV = (data: Record<string, unknown>[], filename: string, headers: string[]) => {
     const csvContent = [
       headers.join(';'),
       ...data.map(row => headers.map(h => {
@@ -566,190 +445,8 @@ export default function Comptabilite() {
     exportToCSV(data, 'tva', ['Type', 'Base HT', 'Montant']);
   };
 
-  // Export Grand Livre (toutes les écritures comptables)
-  const exportGrandLivre = () => {
-    const factures = invoicesData?.factures || [];
-    const depenses = expensesData?.depenses || [];
 
-    // Combine invoices and expenses into accounting entries
-    const entries: Array<{date: string; piece: string; compte: string; libelle: string; debit: string; credit: string}> = [];
 
-    // Écritures factures (ventes)
-    factures.forEach(f => {
-      // Client débité
-      entries.push({
-        date: f.date_facture,
-        piece: f.numero,
-        compte: '411 - Clients',
-        libelle: `Facture ${f.numero} - ${f.client_nom}`,
-        debit: ((f.montant_ttc || 0) / 100).toFixed(2),
-        credit: ''
-      });
-      // Produit crédité (HT)
-      entries.push({
-        date: f.date_facture,
-        piece: f.numero,
-        compte: '706 - Prestations de services',
-        libelle: `Facture ${f.numero} - ${f.client_nom}`,
-        debit: '',
-        credit: ((f.montant_ht || f.montant_ttc || 0) / 100).toFixed(2)
-      });
-      // TVA collectée
-      if (f.montant_tva && f.montant_tva > 0) {
-        entries.push({
-          date: f.date_facture,
-          piece: f.numero,
-          compte: '44571 - TVA collectée',
-          libelle: `TVA Facture ${f.numero}`,
-          debit: '',
-          credit: (f.montant_tva / 100).toFixed(2)
-        });
-      }
-      // Encaissement si payée
-      if (f.statut === 'payee') {
-        entries.push({
-          date: f.date_paiement || f.date_facture,
-          piece: f.numero,
-          compte: '512 - Banque',
-          libelle: `Encaissement ${f.numero}`,
-          debit: ((f.montant_ttc || 0) / 100).toFixed(2),
-          credit: ''
-        });
-        entries.push({
-          date: f.date_paiement || f.date_facture,
-          piece: f.numero,
-          compte: '411 - Clients',
-          libelle: `Règlement ${f.numero}`,
-          debit: '',
-          credit: ((f.montant_ttc || 0) / 100).toFixed(2)
-        });
-      }
-    });
-
-    // Écritures dépenses (charges)
-    depenses.forEach(d => {
-      const compteCharge = COMPTE_PAR_CATEGORIE[d.categorie] || '658 - Charges diverses';
-      // Charge débitée (HT)
-      entries.push({
-        date: d.date_depense,
-        piece: `DEP-${d.id}`,
-        compte: compteCharge,
-        libelle: d.libelle || d.categorie,
-        debit: ((d.montant || 0) / 100).toFixed(2),
-        credit: ''
-      });
-      // TVA déductible
-      if (d.montant_tva && d.montant_tva > 0 && d.deductible_tva !== false) {
-        entries.push({
-          date: d.date_depense,
-          piece: `DEP-${d.id}`,
-          compte: '44566 - TVA déductible',
-          libelle: `TVA ${d.libelle || d.categorie}`,
-          debit: (d.montant_tva / 100).toFixed(2),
-          credit: ''
-        });
-      }
-      // Fournisseur crédité (TTC)
-      entries.push({
-        date: d.date_depense,
-        piece: `DEP-${d.id}`,
-        compte: '401 - Fournisseurs',
-        libelle: d.libelle || d.categorie,
-        debit: '',
-        credit: ((d.montant_ttc || d.montant || 0) / 100).toFixed(2)
-      });
-      // Règlement si payée
-      if (d.payee !== false) {
-        entries.push({
-          date: d.date_paiement || d.date_depense,
-          piece: `DEP-${d.id}`,
-          compte: '401 - Fournisseurs',
-          libelle: `Règlement ${d.libelle || d.categorie}`,
-          debit: ((d.montant_ttc || d.montant || 0) / 100).toFixed(2),
-          credit: ''
-        });
-        entries.push({
-          date: d.date_paiement || d.date_depense,
-          piece: `DEP-${d.id}`,
-          compte: '512 - Banque',
-          libelle: `Paiement ${d.libelle || d.categorie}`,
-          debit: '',
-          credit: ((d.montant_ttc || d.montant || 0) / 100).toFixed(2)
-        });
-      }
-    });
-
-    // Trier par date
-    entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    exportToCSV(entries, 'grand_livre', ['Date', 'Piece', 'Compte', 'Libelle', 'Debit', 'Credit']);
-    setNotification({ type: 'success', message: 'Grand Livre exporté' });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // Export Balance (soldes des comptes)
-  const exportBalance = () => {
-    const factures = invoicesData?.factures || [];
-    const depenses = expensesData?.depenses || [];
-
-    // Totaux factures
-    const totalFacturesTTC = factures.reduce((sum, f) => sum + (f.montant_ttc || 0), 0) / 100;
-    const totalFacturesHT = factures.reduce((sum, f) => sum + (f.montant_ht || f.montant_ttc || 0), 0) / 100;
-    const totalTVACollectee = factures.reduce((sum, f) => sum + (f.montant_tva || 0), 0) / 100;
-    const totalFacturesPayees = factures.filter(f => f.statut === 'payee').reduce((sum, f) => sum + (f.montant_ttc || 0), 0) / 100;
-
-    // Totaux dépenses par catégorie
-    const depensesParCategorie: Record<string, number> = {};
-    let totalDepensesHT = 0;
-    let totalDepensesTTC = 0;
-    let totalTVADeductible = 0;
-    let totalDepensesPayees = 0;
-
-    depenses.forEach(d => {
-      const cat = d.categorie || 'autre';
-      const montantHT = (d.montant || 0) / 100;
-      const montantTTC = (d.montant_ttc || d.montant || 0) / 100;
-      const montantTVA = (d.montant_tva || 0) / 100;
-
-      depensesParCategorie[cat] = (depensesParCategorie[cat] || 0) + montantHT;
-      totalDepensesHT += montantHT;
-      totalDepensesTTC += montantTTC;
-      if (d.deductible_tva !== false) totalTVADeductible += montantTVA;
-      if (d.payee !== false) totalDepensesPayees += montantTTC;
-    });
-
-    // Construction de la balance
-    const data: Array<{compte: string; debit: string; credit: string; solde: string}> = [];
-
-    // Classe 4 - Tiers
-    data.push({ compte: '411 - Clients', debit: totalFacturesTTC.toFixed(2), credit: totalFacturesPayees.toFixed(2), solde: (totalFacturesTTC - totalFacturesPayees).toFixed(2) });
-    data.push({ compte: '401 - Fournisseurs', debit: totalDepensesPayees.toFixed(2), credit: totalDepensesTTC.toFixed(2), solde: (totalDepensesPayees - totalDepensesTTC).toFixed(2) });
-    data.push({ compte: '44566 - TVA déductible', debit: totalTVADeductible.toFixed(2), credit: '0.00', solde: totalTVADeductible.toFixed(2) });
-    data.push({ compte: '44571 - TVA collectée', debit: '0.00', credit: totalTVACollectee.toFixed(2), solde: (-totalTVACollectee).toFixed(2) });
-
-    // Classe 5 - Trésorerie
-    data.push({ compte: '512 - Banque', debit: totalFacturesPayees.toFixed(2), credit: totalDepensesPayees.toFixed(2), solde: (totalFacturesPayees - totalDepensesPayees).toFixed(2) });
-
-    // Classe 6 - Charges (par catégorie)
-    Object.entries(depensesParCategorie).sort().forEach(([cat, montant]) => {
-      const compte = COMPTE_PAR_CATEGORIE[cat] || '658 - Charges diverses';
-      data.push({ compte, debit: montant.toFixed(2), credit: '0.00', solde: montant.toFixed(2) });
-    });
-
-    // Classe 7 - Produits
-    data.push({ compte: '706 - Prestations de services', debit: '0.00', credit: totalFacturesHT.toFixed(2), solde: (-totalFacturesHT).toFixed(2) });
-
-    // Totaux
-    const totalDebit = data.reduce((s, d) => s + parseFloat(d.debit), 0);
-    const totalCredit = data.reduce((s, d) => s + parseFloat(d.credit), 0);
-    data.push({ compte: 'TOTAL', debit: totalDebit.toFixed(2), credit: totalCredit.toFixed(2), solde: (totalDebit - totalCredit).toFixed(2) });
-
-    exportToCSV(data, 'balance', ['Compte', 'Debit', 'Credit', 'Solde']);
-    setNotification({ type: 'success', message: 'Balance exportée' });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // Export Compte de Résultat
   const exportCompteResultat = () => {
     if (!compteResultatData) {
       setNotification({ type: 'error', message: 'Données non disponibles' });
@@ -773,7 +470,6 @@ export default function Comptabilite() {
       { poste: 'Total Charges d\'exploitation', montant: formatCurrency(compteResultatData.totaux.charges.exploitation) },
     ];
 
-    // Ajouter charges financières si présentes
     if (compteResultatData.charges.financieres.length > 0) {
       data.push({ poste: '', montant: '' });
       data.push({ poste: 'CHARGES FINANCIERES', montant: '' });
@@ -792,7 +488,6 @@ export default function Comptabilite() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Export Bilan
   const exportBilan = () => {
     if (!bilanData) {
       setNotification({ type: 'error', message: 'Données non disponibles' });
@@ -804,28 +499,24 @@ export default function Comptabilite() {
       { categorie: 'ACTIF', poste: '', montant: '' },
     ];
 
-    // Immobilisations
     if (bilanData.actif.immobilisations.length > 0) {
       bilanData.actif.immobilisations.forEach(c => {
         data.push({ categorie: 'Actif immobilisé', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
       });
     }
 
-    // Stocks
     if (bilanData.actif.stocks.length > 0) {
       bilanData.actif.stocks.forEach(c => {
         data.push({ categorie: 'Stocks', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
       });
     }
 
-    // Créances
     if (bilanData.actif.creances.length > 0) {
       bilanData.actif.creances.forEach(c => {
         data.push({ categorie: 'Créances', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
       });
     }
 
-    // Trésorerie
     if (bilanData.actif.tresorerie.length > 0) {
       bilanData.actif.tresorerie.forEach(c => {
         data.push({ categorie: 'Trésorerie', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
@@ -836,21 +527,18 @@ export default function Comptabilite() {
     data.push({ categorie: '', poste: '', montant: '' });
     data.push({ categorie: 'PASSIF', poste: '', montant: '' });
 
-    // Capitaux propres
     if (bilanData.passif.capitaux.length > 0) {
       bilanData.passif.capitaux.forEach(c => {
         data.push({ categorie: 'Capitaux propres', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
       });
     }
 
-    // Dettes
     if (bilanData.passif.dettes.length > 0) {
       bilanData.passif.dettes.forEach(c => {
         data.push({ categorie: 'Dettes', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
       });
     }
 
-    // Découverts bancaires
     if (bilanData.passif.decouvertsBancaires && bilanData.passif.decouvertsBancaires.length > 0) {
       bilanData.passif.decouvertsBancaires.forEach(c => {
         data.push({ categorie: 'Dettes financières', poste: `${c.numero} - ${c.libelle}`, montant: formatCurrency(c.solde) });
@@ -864,80 +552,6 @@ export default function Comptabilite() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Export Journal de Paie
-  const exportJournalPaie = async () => {
-    try {
-      const journaux = await api.get<any[]>(`/admin/rh/paie/journal?annee=${statsYear}`);
-
-      if (!journaux || journaux.length === 0) {
-        setNotification({ type: 'error', message: 'Aucun journal de paie pour cette année' });
-        setTimeout(() => setNotification(null), 3000);
-        return;
-      }
-
-      const data: Array<{periode: string; nb_salaries: string; brut: string; net: string; cotis_patronales: string; cotis_salariales: string; total_cotis: string}> = [];
-
-      journaux.forEach((j: { periode: string; nb_salaries: number; total_brut: number; total_net: number; total_cotisations_patronales: number; total_cotisations_salariales: number }) => {
-        data.push({
-          periode: j.periode,
-          nb_salaries: String(j.nb_salaries),
-          brut: ((j.total_brut || 0) / 100).toFixed(2),
-          net: ((j.total_net || 0) / 100).toFixed(2),
-          cotis_patronales: ((j.total_cotisations_patronales || 0) / 100).toFixed(2),
-          cotis_salariales: ((j.total_cotisations_salariales || 0) / 100).toFixed(2),
-          total_cotis: (((j.total_cotisations_patronales || 0) + (j.total_cotisations_salariales || 0)) / 100).toFixed(2)
-        });
-      });
-
-      // Totaux
-      const totaux = {
-        periode: 'TOTAL',
-        nb_salaries: '',
-        brut: journaux.reduce((s: number, j: { total_brut: number }) => s + (j.total_brut || 0), 0) / 100,
-        net: journaux.reduce((s: number, j: { total_net: number }) => s + (j.total_net || 0), 0) / 100,
-        cotis_patronales: journaux.reduce((s: number, j: { total_cotisations_patronales: number }) => s + (j.total_cotisations_patronales || 0), 0) / 100,
-        cotis_salariales: journaux.reduce((s: number, j: { total_cotisations_salariales: number }) => s + (j.total_cotisations_salariales || 0), 0) / 100,
-        total_cotis: 0
-      };
-      totaux.total_cotis = totaux.cotis_patronales + totaux.cotis_salariales;
-      data.push({
-        periode: totaux.periode,
-        nb_salaries: totaux.nb_salaries,
-        brut: totaux.brut.toFixed(2),
-        net: totaux.net.toFixed(2),
-        cotis_patronales: totaux.cotis_patronales.toFixed(2),
-        cotis_salariales: totaux.cotis_salariales.toFixed(2),
-        total_cotis: totaux.total_cotis.toFixed(2)
-      });
-
-      exportToCSV(data, `journal_paie_${statsYear}`, ['Periode', 'Nb Salaries', 'Brut', 'Net', 'Cotis Patronales', 'Cotis Salariales', 'Total Cotis']);
-      setNotification({ type: 'success', message: 'Journal de paie exporté' });
-      setTimeout(() => setNotification(null), 3000);
-    } catch {
-      setNotification({ type: 'error', message: 'Erreur export journal de paie' });
-      setTimeout(() => setNotification(null), 3000);
-    }
-  };
-
-  // Export FEC (Fichier des Écritures Comptables) - Via API backend
-  const exportFEC = () => {
-    comptaApi.exportFEC(statsYear);
-    setNotification({ type: 'success', message: `FEC ${statsYear} en cours de téléchargement...` });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // TODO: Backend not implemented - Invite expert-comptable by email
-  const handleInviteExpert = () => {
-    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // TODO: Backend not implemented - Generate access link for expert-comptable
-  const handleGenerateAccessLink = () => {
-    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
   // Upload et analyse de facture de dépense avec IA
   const handleExpenseUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -948,13 +562,13 @@ export default function Comptabilite() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const result = await api.upload<any>('/depenses/upload-facture', formData);
+      const result = await api.upload<{ success: boolean; extracted?: { fournisseur?: string; montant_ttc_euros?: string }; depense?: { libelle?: string; montant_ttc?: number }; error?: string }>('/depenses/upload-facture', formData);
 
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['expenses'] });
         setNotification({
           type: 'success',
-          message: `Dépense créée: ${result.extracted?.fournisseur || result.depense?.libelle || 'Facture importée'} - ${result.extracted?.montant_ttc_euros || (result.depense?.montant_ttc / 100).toFixed(2)}€`
+          message: `Dépense créée: ${result.extracted?.fournisseur || result.depense?.libelle || 'Facture importée'} - ${result.extracted?.montant_ttc_euros || ((result.depense?.montant_ttc ?? 0) / 100).toFixed(2)}€`
         });
       } else {
         setNotification({
@@ -1021,200 +635,15 @@ export default function Comptabilite() {
     return { ca, totalDepenses, benefice, montantImpaye, nbImpayees: impayees.length };
   }, [invoicesData, expensesData, statsPeriod, statsYear, statsMonth, statsDay]);
 
-  // Calcul du solde comptable pour le rapprochement bancaire
-  // Priorité: Journal BQ si disponible, sinon calcul depuis factures/dépenses
-  const soldeComptable = useMemo(() => {
-    // Si les écritures banque sont disponibles, utiliser le solde du journal BQ
-    if (ecrituresBanqueData?.ecritures && ecrituresBanqueData.ecritures.length > 0) {
-      const ecritures = ecrituresBanqueData.ecritures;
-      const encaissements = ecritures.filter(e => e.debit > 0);
-      const decaissements = ecritures.filter(e => e.credit > 0);
 
-      const totalEncaissements = encaissements.reduce((sum, e) => sum + e.debit, 0) / 100;
-      const totalDecaissements = decaissements.reduce((sum, e) => sum + e.credit, 0) / 100;
 
-      return {
-        totalFacturesPayees: totalEncaissements,
-        totalDepenses: totalDecaissements,
-        solde: ecrituresBanqueData.solde_comptable,
-        nbFacturesPayees: encaissements.length,
-        nbDepenses: decaissements.length,
-        sourceJournal: true
-      };
-    }
 
-    // Fallback: calcul depuis factures et dépenses
-    const factures = invoicesData?.factures || [];
-    const depenses = expensesData?.depenses || [];
 
-    // Total des factures payées (TTC car c'est ce qui est encaissé)
-    const totalFacturesPayees = factures
-      .filter(f => f.statut === 'payee')
-      .reduce((sum, f) => sum + (f.montant_ttc || 0), 0) / 100;
 
-    // Total des dépenses payées seulement
-    const depensesPayees = depenses.filter(d => d.payee !== false);
-    const totalDepenses = depensesPayees.reduce((sum, d) => sum + (d.montant || 0), 0) / 100;
 
-    // Solde comptable
-    const solde = totalFacturesPayees - totalDepenses;
 
-    return {
-      totalFacturesPayees,
-      totalDepenses,
-      solde,
-      nbFacturesPayees: factures.filter(f => f.statut === 'payee').length,
-      nbDepenses: depensesPayees.length,
-      sourceJournal: false
-    };
-  }, [invoicesData, expensesData, ecrituresBanqueData]);
 
-  // État pour le rapprochement bancaire
-  const [soldeBancaire, setSoldeBancaire] = useState<number | null>(null);
-  const [rapprochementSubTab, setRapprochementSubTab] = useState<'a_rapprocher' | 'rapprochees'>('a_rapprocher');
-  const [selectedEcrituresForPointage, setSelectedEcrituresForPointage] = useState<number[]>([]);
-  const [bankTransactions, setBankTransactions] = useState<Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}>>([]);
-  const bankFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calcul des écritures non rapprochées et rapprochées (base)
-  const ecrituresNonRapprochees = useMemo(() =>
-    (ecrituresBanqueData?.ecritures || []).filter(e => !e.lettrage),
-    [ecrituresBanqueData]
-  );
-  const ecrituresRapprochees = useMemo(() =>
-    (ecrituresBanqueData?.ecritures || []).filter(e => e.lettrage),
-    [ecrituresBanqueData]
-  );
-
-  // Fonction de filtrage montant pour rapprochement
-  const matchesRapproMontant = (montant: number, filter: string) => {
-    const m = montant / 100;
-    switch (filter) {
-      case 'all': return true;
-      case '0-50': return m <= 50;
-      case '50-100': return m > 50 && m <= 100;
-      case '100-500': return m > 100 && m <= 500;
-      case '500+': return m > 500;
-      default: return true;
-    }
-  };
-
-  // Écritures à rapprocher filtrées
-  const filteredEcrituresNonRapprochees = useMemo(() => {
-    return ecrituresNonRapprochees.filter(e => {
-      if (rapproDateFilter !== 'all' && e.date_ecriture?.slice(0, 7) !== rapproDateFilter) return false;
-      if (rapproPieceFilter !== 'all' && e.numero_piece !== rapproPieceFilter) return false;
-      if (rapproLibelleFilter !== 'all' && e.libelle !== rapproLibelleFilter) return false;
-      if (rapproDebitFilter !== 'all' && !matchesRapproMontant(e.debit || 0, rapproDebitFilter)) return false;
-      if (rapproCreditFilter !== 'all' && !matchesRapproMontant(e.credit || 0, rapproCreditFilter)) return false;
-      return true;
-    });
-  }, [ecrituresNonRapprochees, rapproDateFilter, rapproPieceFilter, rapproLibelleFilter, rapproDebitFilter, rapproCreditFilter]);
-
-  // Écritures rapprochées filtrées
-  const filteredEcrituresRapprochees = useMemo(() => {
-    return ecrituresRapprochees.filter(e => {
-      if (rapprocheeDateFilter !== 'all' && e.date_ecriture?.slice(0, 7) !== rapprocheeDateFilter) return false;
-      if (rapprocheePieceFilter !== 'all' && e.numero_piece !== rapprocheePieceFilter) return false;
-      if (rapprocheeLibelleFilter !== 'all' && e.libelle !== rapprocheeLibelleFilter) return false;
-      if (rapprocheeDebitFilter !== 'all' && !matchesRapproMontant(e.debit || 0, rapprocheeDebitFilter)) return false;
-      if (rapprocheeCreditFilter !== 'all' && !matchesRapproMontant(e.credit || 0, rapprocheeCreditFilter)) return false;
-      return true;
-    });
-  }, [ecrituresRapprochees, rapprocheeDateFilter, rapprocheePieceFilter, rapprocheeLibelleFilter, rapprocheeDebitFilter, rapprocheeCreditFilter]);
-
-  // Solde des écritures non rapprochées (l'écart à résoudre)
-  const soldeNonRapproche = useMemo(() => {
-    const debit = ecrituresNonRapprochees.reduce((s, e) => s + (e.debit || 0), 0);
-    const credit = ecrituresNonRapprochees.reduce((s, e) => s + (e.credit || 0), 0);
-    return (debit - credit) / 100;
-  }, [ecrituresNonRapprochees]);
-
-  // Solde des écritures rapprochées
-  const soldeRapproche = useMemo(() => {
-    const debit = ecrituresRapprochees.reduce((s, e) => s + (e.debit || 0), 0);
-    const credit = ecrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0);
-    return (debit - credit) / 100;
-  }, [ecrituresRapprochees]);
-
-  // L'écart réel = solde des écritures non rapprochées
-  const ecartRapprochement = soldeNonRapproche;
-
-  // Handler pour l'import du relevé bancaire CSV
-  const handleBankStatementImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
-
-      // Skip header line and parse transactions
-      const transactions: Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}> = [];
-      let totalSolde = 0;
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(';').map(p => p.trim().replace(/"/g, ''));
-        if (parts.length >= 3) {
-          // Try to parse: Date;Libelle;Montant or Date;Libelle;Debit;Credit
-          const date = parts[0];
-          const libelle = parts[1];
-          let montant = 0;
-          let type: 'credit' | 'debit' = 'credit';
-
-          if (parts.length === 3) {
-            // Single amount column
-            montant = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            type = montant >= 0 ? 'credit' : 'debit';
-            montant = Math.abs(montant);
-          } else if (parts.length >= 4) {
-            // Separate debit/credit columns
-            const debit = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            const credit = parseFloat(parts[3].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            if (debit > 0) {
-              montant = debit;
-              type = 'debit';
-            } else {
-              montant = credit;
-              type = 'credit';
-            }
-          }
-
-          if (date && montant > 0) {
-            transactions.push({ id: transactions.length + 1, date, libelle, montant, type, pointed: false });
-            totalSolde += type === 'credit' ? montant : -montant;
-          }
-        }
-      }
-
-      setBankTransactions(transactions);
-      // Auto-fill solde bancaire if we have transactions
-      if (transactions.length > 0) {
-        setSoldeBancaire(totalSolde);
-        setNotification({ type: 'success', message: `${transactions.length} transactions importées` });
-        setTimeout(() => setNotification(null), 3000);
-      }
-    };
-    reader.readAsText(file);
-    // Reset input
-    if (event.target) event.target.value = '';
-  };
-
-  // Export rapprochement
-  const exportRapprochement = () => {
-    const data = [
-      { element: 'Écritures à rapprocher', montant: ecrituresNonRapprochees.length.toString() },
-      { element: 'Solde à rapprocher', montant: soldeNonRapproche.toFixed(2) },
-      { element: 'Écritures rapprochées', montant: ecrituresRapprochees.length.toString() },
-      { element: 'Solde rapproché', montant: soldeRapproche.toFixed(2) },
-      { element: 'Total écritures BQ', montant: (ecrituresBanqueData?.ecritures?.length || 0).toString() },
-      { element: 'Solde comptable total', montant: soldeComptable.solde.toFixed(2) }
-    ];
-    exportToCSV(data, 'rapprochement_bancaire', ['Element', 'Montant']);
-    setNotification({ type: 'success', message: 'Rapprochement exporté' });
-    setTimeout(() => setNotification(null), 3000);
-  };
 
   // Options de filtres pour factures (valeurs uniques)
   const invoiceFilterOptions = useMemo(() => {
@@ -1575,7 +1004,7 @@ export default function Comptabilite() {
           <div className="border-l border-gray-200 mx-2 my-1" />
 
           {/* Onglets comptabilité avancée */}
-          {(['rapprochement', 'resultat', 'bilan', 'auxiliaires', 'expert'] as const).map((tab) => (
+          {(['resultat', 'bilan'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1586,11 +1015,8 @@ export default function Comptabilite() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               )}
             >
-              {tab === 'rapprochement' && <><Landmark className="h-3.5 w-3.5" /> Rapprochement</>}
               {tab === 'resultat' && <><BarChart3 className="h-3.5 w-3.5" /> Compte de résultat</>}
               {tab === 'bilan' && <><Wallet className="h-3.5 w-3.5" /> Bilan</>}
-              {tab === 'auxiliaires' && <><Users className="h-3.5 w-3.5" /> Comptes Auxiliaires</>}
-              {tab === 'expert' && <><UserCheck className="h-3.5 w-3.5" /> Expert-comptable</>}
             </button>
           ))}
         </div>
@@ -2807,579 +2233,6 @@ export default function Comptabilite() {
           </div>
         )}
 
-        {/* Rapprochement Bancaire Tab */}
-        {activeTab === 'rapprochement' && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Landmark className="h-5 w-5 text-purple-500" />
-                Rapprochement Bancaire
-              </h2>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1"
-                  onClick={() => refetchEcrituresBanque()}
-                  disabled={ecrituresBanqueFetching}
-                >
-                  <RefreshCw className={cn("h-4 w-4", ecrituresBanqueFetching && "animate-spin")} />
-                  {ecrituresBanqueFetching ? 'Chargement...' : 'Actualiser'}
-                </Button>
-                <Button variant="outline" size="sm" className="gap-1" onClick={exportRapprochement}>
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-              </div>
-            </div>
-
-            {/* Solde relevé bancaire */}
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-6">
-                  <div className="flex-1">
-                    <p className="text-sm text-blue-700 font-medium mb-2">Solde du relevé bancaire</p>
-                    <div className="flex items-center gap-2">
-                      <Euro className="h-5 w-5 text-blue-400" />
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Saisir le solde du relevé..."
-                        value={soldeBancaire ?? ''}
-                        onChange={(e) => setSoldeBancaire(e.target.value ? parseFloat(e.target.value) : null)}
-                        className="text-xl font-bold text-blue-700 bg-white border-blue-200 max-w-xs"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-center px-6 border-l border-blue-200">
-                    <p className="text-sm text-green-600 mb-1">Solde rapproché</p>
-                    <p className="text-2xl font-bold text-green-700">{formatCurrency(soldeRapproche)}</p>
-                  </div>
-                  <div className="text-center px-6 border-l border-blue-200">
-                    <p className="text-xs text-gray-500 mb-2">Relevé − Rapproché</p>
-                    {soldeBancaire !== null ? (
-                      Math.abs(soldeBancaire - soldeRapproche) < 0.01 ? (
-                        <div className="text-emerald-600">
-                          <CheckCircle className="h-6 w-6 mx-auto mb-1" />
-                          <p className="text-lg font-bold">0,00 €</p>
-                          <p className="text-xs">Rapprochement OK</p>
-                        </div>
-                      ) : (
-                        <div className="text-orange-600">
-                          <AlertTriangle className="h-6 w-6 mx-auto mb-1" />
-                          <p className="text-lg font-bold">{formatCurrency(soldeBancaire - soldeRapproche)}</p>
-                          <p className="text-xs">Écart à justifier</p>
-                        </div>
-                      )
-                    ) : (
-                      <div className="text-gray-400">
-                        <p className="text-lg font-bold">—</p>
-                        <p className="text-xs">En attente du relevé</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Résumé des soldes */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Écritures à rapprocher */}
-              <Card className={cn(
-                "border-2",
-                ecrituresNonRapprochees.length === 0 ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
-              )}>
-                <CardContent className="p-4">
-                  <p className={cn(
-                    "text-sm mb-1",
-                    ecrituresNonRapprochees.length === 0 ? "text-emerald-600" : "text-orange-600"
-                  )}>À rapprocher</p>
-                  <p className={cn(
-                    "text-2xl font-bold",
-                    ecrituresNonRapprochees.length === 0 ? "text-emerald-700" : "text-orange-700"
-                  )}>{ecrituresNonRapprochees.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">écriture(s) en suspens</p>
-                </CardContent>
-              </Card>
-
-              {/* Solde en suspens */}
-              <Card className={cn(
-                "border-2",
-                soldeNonRapproche === 0 ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
-              )}>
-                <CardContent className="p-4">
-                  <p className={cn(
-                    "text-sm mb-1",
-                    soldeNonRapproche === 0 ? "text-emerald-600" : "text-orange-600"
-                  )}>Solde en suspens</p>
-                  <p className={cn(
-                    "text-2xl font-bold",
-                    soldeNonRapproche === 0 ? "text-emerald-700" : "text-orange-700"
-                  )}>{formatCurrency(soldeNonRapproche)}</p>
-                  <p className="text-xs text-gray-500 mt-1">non confirmé</p>
-                </CardContent>
-              </Card>
-
-              {/* Écritures rapprochées */}
-              <Card className="bg-green-50 border-green-200">
-                <CardContent className="p-4">
-                  <p className="text-sm text-green-600 mb-1">Rapprochées</p>
-                  <p className="text-2xl font-bold text-green-700">{ecrituresRapprochees.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">écriture(s) confirmées</p>
-                </CardContent>
-              </Card>
-
-              {/* Solde total comptable */}
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="p-4">
-                  <p className="text-sm text-blue-600 mb-1">Solde comptable total</p>
-                  <p className="text-2xl font-bold text-blue-700">{formatCurrency(soldeComptable.solde)}</p>
-                  <p className="text-xs text-gray-500 mt-1">rapproché + en suspens</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Sub-tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-              <button
-                onClick={() => setRapprochementSubTab('a_rapprocher')}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
-                  rapprochementSubTab === 'a_rapprocher'
-                    ? "bg-orange-600 text-white"
-                    : "text-gray-600 hover:bg-gray-200"
-                )}
-              >
-                <AlertCircle className="h-4 w-4" />
-                À rapprocher ({ecrituresNonRapprochees.length})
-              </button>
-              <button
-                onClick={() => setRapprochementSubTab('rapprochees')}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
-                  rapprochementSubTab === 'rapprochees'
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-200"
-                )}
-              >
-                <CheckCircle className="h-4 w-4" />
-                Rapprochées ({ecrituresRapprochees.length})
-              </button>
-            </div>
-
-            {/* Écritures à rapprocher */}
-            {rapprochementSubTab === 'a_rapprocher' && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-orange-500" />
-                    Écritures à rapprocher
-                  </CardTitle>
-                  {selectedEcrituresForPointage.length > 0 && (
-                    <Button
-                      size="sm"
-                      className="gap-2 bg-green-600 hover:bg-green-700"
-                      onClick={() => {
-                        const lettrage = `RAP-${Date.now().toString(36).toUpperCase()}`;
-                        pointerEcrituresMutation.mutate({ ids: selectedEcrituresForPointage, lettrage });
-                      }}
-                      disabled={pointerEcrituresMutation.isPending}
-                    >
-                      {pointerEcrituresMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4" />
-                      )}
-                      Pointer {selectedEcrituresForPointage.length} écriture(s)
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {ecrituresBanqueLoading ? (
-                    <div className="py-8 text-center">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                    </div>
-                  ) : filteredEcrituresNonRapprochees.length === 0 ? (
-                    <div className="py-8 text-center text-gray-500">
-                      <CheckCircle className="h-12 w-12 text-emerald-300 mx-auto mb-3" />
-                      <p className="font-medium text-emerald-600">
-                        {ecrituresNonRapprochees.length === 0 ? 'Toutes les écritures sont rapprochées !' : 'Aucune écriture ne correspond aux filtres'}
-                      </p>
-                      {(rapproDateFilter !== 'all' || rapproPieceFilter !== 'all' || rapproLibelleFilter !== 'all' || rapproDebitFilter !== 'all' || rapproCreditFilter !== 'all') && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setRapproDateFilter('all');
-                            setRapproPieceFilter('all');
-                            setRapproLibelleFilter('all');
-                            setRapproDebitFilter('all');
-                            setRapproCreditFilter('all');
-                          }}
-                          className="mt-2 text-xs"
-                        >
-                          Effacer les filtres
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr>
-                            <th className="w-10 py-2 px-3 bg-gray-50">
-                              <input
-                                type="checkbox"
-                                checked={selectedEcrituresForPointage.length === filteredEcrituresNonRapprochees.length && filteredEcrituresNonRapprochees.length > 0}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedEcrituresForPointage(filteredEcrituresNonRapprochees.map(ec => ec.id));
-                                  } else {
-                                    setSelectedEcrituresForPointage([]);
-                                  }
-                                }}
-                                className="rounded border-gray-300"
-                              />
-                            </th>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapproDateFilter}
-                                onChange={(e) => setRapproDateFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Date ▼</option>
-                                {[...new Set(ecrituresNonRapprochees.map(e => e.date_ecriture?.slice(0, 7)).filter(Boolean))].sort().reverse().map(mois => (
-                                  <option key={mois} value={mois}>
-                                    {new Date(mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
-                                  </option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapproPieceFilter}
-                                onChange={(e) => setRapproPieceFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Pièce ▼</option>
-                                {[...new Set(ecrituresNonRapprochees.map(e => e.numero_piece).filter(Boolean))].sort().map(p => (
-                                  <option key={p} value={p}>{p}</option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapproLibelleFilter}
-                                onChange={(e) => setRapproLibelleFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Libellé ▼</option>
-                                {[...new Set(ecrituresNonRapprochees.map(e => e.libelle).filter(Boolean))].sort().map(lib => (
-                                  <option key={lib} value={lib}>{lib.length > 30 ? lib.slice(0, 30) + '...' : lib}</option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-right py-2 px-3">
-                              <select
-                                value={rapproDebitFilter}
-                                onChange={(e) => setRapproDebitFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
-                              >
-                                <option value="all">Débit ▼</option>
-                                <option value="0-50">0-50€</option>
-                                <option value="50-100">50-100€</option>
-                                <option value="100-500">100-500€</option>
-                                <option value="500+">500€+</option>
-                              </select>
-                            </th>
-                            <th className="text-right py-2 px-3">
-                              <select
-                                value={rapproCreditFilter}
-                                onChange={(e) => setRapproCreditFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
-                              >
-                                <option value="all">Crédit ▼</option>
-                                <option value="0-50">0-50€</option>
-                                <option value="50-100">50-100€</option>
-                                <option value="100-500">100-500€</option>
-                                <option value="500+">500€+</option>
-                              </select>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredEcrituresNonRapprochees.map((e) => (
-                            <tr key={e.id} className={cn(
-                              "border-t hover:bg-orange-50 cursor-pointer",
-                              selectedEcrituresForPointage.includes(e.id) && "bg-orange-100"
-                            )}
-                            onClick={() => {
-                              setSelectedEcrituresForPointage(prev =>
-                                prev.includes(e.id)
-                                  ? prev.filter(id => id !== e.id)
-                                  : [...prev, e.id]
-                              );
-                            }}
-                            >
-                              <td className="py-2 px-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedEcrituresForPointage.includes(e.id)}
-                                  onChange={() => {}}
-                                  className="rounded border-gray-300"
-                                />
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date_ecriture)}</td>
-                              <td className="py-2 px-3 text-xs text-gray-500">{e.numero_piece || '-'}</td>
-                              <td className="py-2 px-3">{e.libelle}</td>
-                              <td className="py-2 px-3 text-right font-medium text-green-600 whitespace-nowrap">
-                                {e.debit > 0 ? formatCurrency(e.debit / 100) : ''}
-                              </td>
-                              <td className="py-2 px-3 text-right font-medium text-red-600 whitespace-nowrap">
-                                {e.credit > 0 ? formatCurrency(e.credit / 100) : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50 font-medium">
-                          <tr>
-                            <td colSpan={4} className="py-2 px-3 text-right">
-                              Total ({filteredEcrituresNonRapprochees.length} écriture{filteredEcrituresNonRapprochees.length > 1 ? 's' : ''}) :
-                            </td>
-                            <td className="py-2 px-3 text-right text-green-600">
-                              {formatCurrency(filteredEcrituresNonRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
-                            </td>
-                            <td className="py-2 px-3 text-right text-red-600">
-                              {formatCurrency(filteredEcrituresNonRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Écritures rapprochées */}
-            {rapprochementSubTab === 'rapprochees' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    Écritures rapprochées
-                    <span className="text-xs font-normal text-gray-500">
-                      ({filteredEcrituresRapprochees.length} écriture{filteredEcrituresRapprochees.length > 1 ? 's' : ''})
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {filteredEcrituresRapprochees.length === 0 ? (
-                    <div className="py-8 text-center text-gray-500">
-                      <Landmark className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p>{ecrituresRapprochees.length === 0 ? 'Aucune écriture rapprochée pour le moment.' : 'Aucune écriture ne correspond aux filtres'}</p>
-                      {ecrituresRapprochees.length === 0 && (
-                        <p className="text-xs mt-1">Sélectionnez des écritures dans l'onglet "À rapprocher" et cliquez sur "Pointer".</p>
-                      )}
-                      {(rapprocheeDateFilter !== 'all' || rapprocheePieceFilter !== 'all' || rapprocheeLibelleFilter !== 'all' || rapprocheeDebitFilter !== 'all' || rapprocheeCreditFilter !== 'all') && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setRapprocheeDateFilter('all');
-                            setRapprocheePieceFilter('all');
-                            setRapprocheeLibelleFilter('all');
-                            setRapprocheeDebitFilter('all');
-                            setRapprocheeCreditFilter('all');
-                          }}
-                          className="mt-2 text-xs"
-                        >
-                          Effacer les filtres
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapprocheeDateFilter}
-                                onChange={(e) => setRapprocheeDateFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Date ▼</option>
-                                {[...new Set(ecrituresRapprochees.map(e => e.date_ecriture?.slice(0, 7)).filter(Boolean))].sort().reverse().map(mois => (
-                                  <option key={mois} value={mois}>
-                                    {new Date(mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
-                                  </option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapprocheePieceFilter}
-                                onChange={(e) => setRapprocheePieceFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Pièce ▼</option>
-                                {[...new Set(ecrituresRapprochees.map(e => e.numero_piece).filter(Boolean))].sort().map(p => (
-                                  <option key={p} value={p}>{p}</option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-left py-2 px-3">
-                              <select
-                                value={rapprocheeLibelleFilter}
-                                onChange={(e) => setRapprocheeLibelleFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600"
-                              >
-                                <option value="all">Libellé ▼</option>
-                                {[...new Set(ecrituresRapprochees.map(e => e.libelle).filter(Boolean))].sort().map(lib => (
-                                  <option key={lib} value={lib}>{lib.length > 30 ? lib.slice(0, 30) + '...' : lib}</option>
-                                ))}
-                              </select>
-                            </th>
-                            <th className="text-right py-2 px-3">
-                              <select
-                                value={rapprocheeDebitFilter}
-                                onChange={(e) => setRapprocheeDebitFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
-                              >
-                                <option value="all">Débit ▼</option>
-                                <option value="0-50">0-50€</option>
-                                <option value="50-100">50-100€</option>
-                                <option value="100-500">100-500€</option>
-                                <option value="500+">500€+</option>
-                              </select>
-                            </th>
-                            <th className="text-right py-2 px-3">
-                              <select
-                                value={rapprocheeCreditFilter}
-                                onChange={(e) => setRapprocheeCreditFilter(e.target.value)}
-                                className="w-full text-sm text-gray-600 bg-transparent border-none cursor-pointer hover:text-cyan-600 text-right"
-                              >
-                                <option value="all">Crédit ▼</option>
-                                <option value="0-50">0-50€</option>
-                                <option value="50-100">50-100€</option>
-                                <option value="100-500">100-500€</option>
-                                <option value="500+">500€+</option>
-                              </select>
-                            </th>
-                            <th className="text-center py-2 px-3 text-gray-600">Code</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredEcrituresRapprochees.map((e) => (
-                            <tr key={e.id} className="border-t hover:bg-green-50">
-                              <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date_ecriture)}</td>
-                              <td className="py-2 px-3 text-xs text-gray-500">{e.numero_piece || '-'}</td>
-                              <td className="py-2 px-3">{e.libelle}</td>
-                              <td className="py-2 px-3 text-right font-medium text-green-600 whitespace-nowrap">
-                                {e.debit > 0 ? formatCurrency(e.debit / 100) : ''}
-                              </td>
-                              <td className="py-2 px-3 text-right font-medium text-red-600 whitespace-nowrap">
-                                {e.credit > 0 ? formatCurrency(e.credit / 100) : ''}
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">
-                                  {e.lettrage}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50 font-medium">
-                          <tr>
-                            <td colSpan={3} className="py-2 px-3 text-right">
-                              Total ({filteredEcrituresRapprochees.length} écriture{filteredEcrituresRapprochees.length > 1 ? 's' : ''}) :
-                            </td>
-                            <td className="py-2 px-3 text-right text-green-600">
-                              {formatCurrency(filteredEcrituresRapprochees.reduce((s, e) => s + (e.debit || 0), 0) / 100)}
-                            </td>
-                            <td className="py-2 px-3 text-right text-red-600">
-                              {formatCurrency(filteredEcrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
-                            </td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Import relevé bancaire */}
-            <Card className="border-dashed border-2">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-6">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-700 mb-1 flex items-center gap-2">
-                      <Upload className="h-4 w-4" />
-                      Importer un relevé bancaire
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Importez votre relevé CSV pour faciliter le pointage. Format: Date;Libelle;Montant ou Date;Libelle;Debit;Credit
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    ref={bankFileInputRef}
-                    accept=".csv,.txt"
-                    onChange={handleBankStatementImport}
-                    className="hidden"
-                  />
-                  <Button variant="outline" className="gap-2" onClick={() => bankFileInputRef.current?.click()}>
-                    <Upload className="h-4 w-4" />
-                    Choisir un fichier
-                  </Button>
-                </div>
-
-                {/* Transactions importées */}
-                {bankTransactions.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-medium text-gray-700">
-                        {bankTransactions.length} transaction(s) importée(s)
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => setBankTransactions([])}>
-                        Effacer
-                      </Button>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto border rounded-lg">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                            <th className="text-right py-2 px-3 text-gray-600">Montant</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {bankTransactions.map((tx, i) => (
-                            <tr key={i} className="border-t hover:bg-gray-50">
-                              <td className="py-2 px-3">{tx.date}</td>
-                              <td className="py-2 px-3">{tx.libelle}</td>
-                              <td className={cn(
-                                "py-2 px-3 text-right font-medium",
-                                tx.type === 'credit' ? "text-green-600" : "text-red-600"
-                              )}>
-                                {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.montant)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Compte de Résultat Tab */}
         {activeTab === 'resultat' && (
@@ -3848,926 +2701,8 @@ export default function Comptabilite() {
           </div>
         )}
 
-        {/* Comptes Auxiliaires Tab */}
-        {activeTab === 'auxiliaires' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Balance Clients */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Users className="h-5 w-5 text-blue-600" />
-                      </div>
-                      Balance Clients (411)
-                    </CardTitle>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {balanceClientsData?.comptes?.length || 0} comptes
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {balanceClientsLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                    </div>
-                  ) : balanceClientsData?.comptes && balanceClientsData.comptes.length > 0 ? (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {balanceClientsData.comptes.map((compte) => (
-                        <div
-                          key={compte.compte}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedAuxiliary({
-                            type: 'client',
-                            compte: compte.compte,
-                            nom: compte.nom
-                          })}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-semibold">
-                              {compte.nom.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{compte.nom}</p>
-                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-semibold ${compte.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(Math.abs(compte.solde))}
-                            </p>
-                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-gray-400 py-8">Aucun compte client auxiliaire</p>
-                  )}
-                  {balanceClientsData?.totaux && (
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                      <span className="font-medium text-gray-600">Total Clients</span>
-                      <span className={`font-bold ${balanceClientsData.totaux.solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(Math.abs(balanceClientsData.totaux.solde))}
-                        <span className="text-xs ml-1">{balanceClientsData.totaux.solde >= 0 ? 'D' : 'C'}</span>
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Balance Fournisseurs */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        <Building2 className="h-5 w-5 text-orange-600" />
-                      </div>
-                      Balance Fournisseurs (401)
-                    </CardTitle>
-                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                      {balanceFournisseursData?.comptes?.length || 0} comptes
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {balanceFournisseursLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
-                    </div>
-                  ) : balanceFournisseursData?.comptes && balanceFournisseursData.comptes.length > 0 ? (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {balanceFournisseursData.comptes.map((compte) => (
-                        <div
-                          key={compte.compte}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedAuxiliary({
-                            type: 'fournisseur',
-                            compte: compte.compte,
-                            nom: compte.nom
-                          })}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-semibold">
-                              {compte.nom.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{compte.nom}</p>
-                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-semibold ${compte.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(Math.abs(compte.solde))}
-                            </p>
-                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-gray-400 py-8">Aucun compte fournisseur auxiliaire</p>
-                  )}
-                  {balanceFournisseursData?.totaux && (
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                      <span className="font-medium text-gray-600">Total Fournisseurs</span>
-                      <span className={`font-bold ${balanceFournisseursData.totaux.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(Math.abs(balanceFournisseursData.totaux.solde))}
-                        <span className="text-xs ml-1">{balanceFournisseursData.totaux.solde >= 0 ? 'D' : 'C'}</span>
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Balance Personnel */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <UserCheck className="h-5 w-5 text-purple-600" />
-                      </div>
-                      Balance Personnel (421/431)
-                    </CardTitle>
-                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                      {balancePersonnelData?.comptes?.length || 0} comptes
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {balancePersonnelLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-                    </div>
-                  ) : balancePersonnelData?.comptes && balancePersonnelData.comptes.length > 0 ? (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {balancePersonnelData.comptes.map((compte) => (
-                        <div
-                          key={compte.compte}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-purple-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedAuxiliary({
-                            type: 'personnel',
-                            compte: compte.compte,
-                            nom: compte.nom
-                          })}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-semibold">
-                              {compte.nom.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{compte.nom}</p>
-                              <p className="text-xs text-gray-500 font-mono">{compte.compte}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-semibold ${compte.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(Math.abs(compte.solde))}
-                            </p>
-                            <p className="text-xs text-gray-500">{compte.solde >= 0 ? 'Débiteur' : 'Créditeur'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-gray-400 py-8">Aucun compte personnel auxiliaire</p>
-                  )}
-                  {balancePersonnelData?.totaux && (
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                      <span className="font-medium text-gray-600">Total Personnel</span>
-                      <span className={`font-bold ${balancePersonnelData.totaux.solde < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(Math.abs(balancePersonnelData.totaux.solde))}
-                        <span className="text-xs ml-1">{balancePersonnelData.totaux.solde >= 0 ? 'D' : 'C'}</span>
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Info */}
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-700">
-              <p className="font-medium mb-1">Comptes Auxiliaires</p>
-              <p className="text-purple-600">
-                Cliquez sur un compte pour voir le grand livre détaillé avec toutes les écritures et le solde progressif.
-                Les comptes 411 correspondent aux clients, 401 aux fournisseurs, et 421/431 au personnel.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Auxiliary Ledger Modal */}
-        {selectedAuxiliary && (
-          <AuxiliaryLedgerModal
-            type={selectedAuxiliary.type}
-            compte={selectedAuxiliary.compte}
-            nom={selectedAuxiliary.nom}
-            onClose={() => setSelectedAuxiliary(null)}
-          />
-        )}
-
-        {/* Expert-Comptable Tab */}
-        {activeTab === 'expert' && (
-          <div className="space-y-6">
-            {/* Documents Comptables - Interface Unifiée */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-purple-500" />
-                  Documents Comptables - Exercice {statsYear}
-                </CardTitle>
-                <p className="text-sm text-gray-500">Consultez et exportez vos documents comptables avec filtrage par compte</p>
-              </CardHeader>
-              <CardContent>
-                {/* Sélecteur de type de document + Filtre compte */}
-                <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-                  {/* Type de document */}
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Type de document</label>
-                    <div className="flex gap-1 bg-white p-1 rounded-lg border">
-                      {[
-                        { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
-                        { id: 'balance', label: 'Balance', icon: Scale },
-                        { id: 'journaux', label: 'Journaux', icon: Calculator },
-                        { id: 'balance-agee', label: 'Balance Âgée', icon: Clock },
-                      ].map((doc) => (
-                        <button
-                          key={doc.id}
-                          onClick={() => {
-                            setDocType(doc.id as typeof docType);
-                            setCompteFilter('');
-                            setCompteFilterApplied('');
-                          }}
-                          className={cn(
-                            "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5",
-                            docType === doc.id
-                              ? "bg-purple-100 text-purple-700"
-                              : "text-gray-600 hover:bg-gray-100"
-                          )}
-                        >
-                          <doc.icon className="h-3.5 w-3.5" />
-                          {doc.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Filtre par compte */}
-                  {(docType === 'grand-livre' || docType === 'balance') && (
-                    <div className="flex-1 min-w-[400px]">
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">Filtrer par compte</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={compteFilter}
-                          onChange={(e) => {
-                            setCompteFilter(e.target.value);
-                            if (e.target.value) {
-                              setCompteFilterApplied(e.target.value);
-                            }
-                          }}
-                          className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
-                        >
-                          <option value="">-- Tous les comptes --</option>
-                          <optgroup label="Classes">
-                            <option value="1">1 - Capitaux</option>
-                            <option value="2">2 - Immobilisations</option>
-                            <option value="3">3 - Stocks</option>
-                            <option value="4">4 - Tiers</option>
-                            <option value="5">5 - Financiers</option>
-                            <option value="6">6 - Charges</option>
-                            <option value="7">7 - Produits</option>
-                          </optgroup>
-                          <optgroup label="Tiers">
-                            <option value="401">401 - Fournisseurs</option>
-                            <option value="411">411 - Clients</option>
-                            <option value="421">421 - Personnel</option>
-                            <option value="431">431 - Sécurité sociale</option>
-                            <option value="445">445 - TVA</option>
-                          </optgroup>
-                          <optgroup label="Financiers">
-                            <option value="512">512 - Banque</option>
-                            <option value="530">530 - Caisse</option>
-                          </optgroup>
-                          <optgroup label="Charges courantes">
-                            <option value="601">601 - Achats matières</option>
-                            <option value="606">606 - Fournitures</option>
-                            <option value="613">613 - Loyers</option>
-                            <option value="616">616 - Assurances</option>
-                            <option value="626">626 - Télécom</option>
-                            <option value="641">641 - Salaires</option>
-                            <option value="645">645 - Charges sociales</option>
-                          </optgroup>
-                          <optgroup label="Produits">
-                            <option value="706">706 - Prestations services</option>
-                            <option value="707">707 - Ventes marchandises</option>
-                          </optgroup>
-                        </select>
-                        <Input
-                          placeholder="Ou saisir un compte..."
-                          value={compteFilter}
-                          onChange={(e) => setCompteFilter(e.target.value)}
-                          className="flex-1"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              setCompteFilterApplied(compteFilter);
-                            }
-                          }}
-                        />
-                        <Button
-                          onClick={() => setCompteFilterApplied(compteFilter)}
-                          className="gap-2"
-                        >
-                          <Filter className="h-4 w-4" />
-                          Filtrer
-                        </Button>
-                        {compteFilterApplied && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setCompteFilter('');
-                              setCompteFilterApplied('');
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      {compteFilterApplied && (
-                        <p className="text-xs text-purple-600 mt-1">
-                          Filtre actif : comptes commençant par "{compteFilterApplied}"
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Bouton export */}
-                  <div className="flex items-end">
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => {
-                        if (docType === 'grand-livre') exportGrandLivre();
-                        else if (docType === 'balance') exportBalance();
-                      }}
-                    >
-                      <Download className="h-4 w-4" />
-                      Exporter
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Contenu du document sélectionné */}
-
-                {/* Grand Livre */}
-                {docType === 'grand-livre' && (
-                  <>
-                    {grandLivreLoading ? (
-                      <div className="py-8 text-center">
-                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-                        <p className="text-gray-500 mt-2">Chargement du Grand Livre...</p>
-                      </div>
-                    ) : grandLivreData?.grand_livre && grandLivreData.grand_livre.length > 0 ? (
-                      <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                        {grandLivreData.grand_livre.map((compte) => (
-                          <div key={compte.compte_numero} className="border rounded-lg overflow-hidden">
-                            <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                              <div>
-                                <span className="font-mono text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{compte.compte_numero}</span>
-                                <span className="ml-2 font-medium">{compte.compte_libelle}</span>
-                              </div>
-                              <div className="text-sm">
-                                <span className="text-green-600 mr-4">D: {formatCurrency(compte.total_debit)}</span>
-                                <span className="text-red-600 mr-4">C: {formatCurrency(compte.total_credit)}</span>
-                                <span className={compte.solde >= 0 ? "text-blue-600 font-medium" : "text-orange-600 font-medium"}>
-                                  Solde: {formatCurrency(compte.solde)}
-                                </span>
-                              </div>
-                            </div>
-                            {compte.mouvements && compte.mouvements.length > 0 && (
-                              <div className="max-h-48 overflow-y-auto">
-                                <table className="w-full text-sm">
-                                  <thead className="bg-gray-100 sticky top-0">
-                                    <tr>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Jnl</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                                      <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
-                                      <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {compte.mouvements.map((e, idx) => (
-                                      <tr key={idx} className="border-t hover:bg-gray-50">
-                                        <td className="py-1.5 px-3">{formatDate(e.date)}</td>
-                                        <td className="py-1.5 px-3 text-xs text-gray-500">{e.journal}</td>
-                                        <td className="py-1.5 px-3">{e.libelle}</td>
-                                        <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit) : ''}</td>
-                                        <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit) : ''}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        <div className="bg-purple-50 rounded-lg p-4 flex justify-between items-center sticky bottom-0">
-                          <span className="font-medium text-purple-700">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {grandLivreData.nb_comptes} compte(s)</span>
-                          <div>
-                            <span className="text-green-600 mr-6">Total Débit: {formatCurrency(grandLivreData.totaux?.debit || 0)}</span>
-                            <span className="text-red-600">Total Crédit: {formatCurrency(grandLivreData.totaux?.credit || 0)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center text-gray-500">
-                        {compteFilterApplied
-                          ? `Aucune écriture trouvée pour les comptes commençant par "${compteFilterApplied}"`
-                          : 'Aucune écriture trouvée pour cet exercice'
-                        }
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Balance Générale */}
-                {docType === 'balance' && (
-                  <>
-                    {balanceGeneraleLoading ? (
-                      <div className="py-8 text-center">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                      </div>
-                    ) : balanceGeneraleData?.balance && balanceGeneraleData.balance.length > 0 ? (
-                      <>
-                        <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 sticky top-0">
-                              <tr>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                                <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Débit</th>
-                                <th className="text-right py-2 px-3 font-medium text-gray-600">Mvt Crédit</th>
-                                <th className="text-right py-2 px-3 font-medium text-gray-600">Solde D</th>
-                                <th className="text-right py-2 px-3 font-medium text-gray-600">Solde C</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {balanceGeneraleData.balance.map((c) => (
-                                <React.Fragment key={c.numero}>
-                                  <tr className="border-t hover:bg-gray-50 font-medium">
-                                    <td className="py-2 px-3">
-                                      <span className="font-mono bg-gray-100 px-1.5 rounded">{c.numero}</span>
-                                    </td>
-                                    <td className="py-2 px-3">{c.libelle}</td>
-                                    <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.debit)}</td>
-                                    <td className="py-2 px-3 text-right text-red-600">{formatCurrency(c.credit)}</td>
-                                    <td className="py-2 px-3 text-right">{c.solde_debiteur > 0 ? formatCurrency(c.solde_debiteur) : ''}</td>
-                                    <td className="py-2 px-3 text-right">{c.solde_crediteur > 0 ? formatCurrency(c.solde_crediteur) : ''}</td>
-                                  </tr>
-                                  {c.sous_comptes?.map((sc) => (
-                                    <tr key={sc.numero} className="border-t hover:bg-blue-50 text-sm text-gray-600 bg-gray-50">
-                                      <td className="py-1.5 px-3 pl-8">
-                                        <span className="font-mono text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sc.numero}</span>
-                                      </td>
-                                      <td className="py-1.5 px-3">{sc.libelle}</td>
-                                      <td className="py-1.5 px-3 text-right text-green-500">{formatCurrency(sc.debit)}</td>
-                                      <td className="py-1.5 px-3 text-right text-red-500">{formatCurrency(sc.credit)}</td>
-                                      <td className="py-1.5 px-3 text-right" colSpan={2}>{formatCurrency(sc.solde)}</td>
-                                    </tr>
-                                  ))}
-                                </React.Fragment>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="bg-green-50 rounded-lg p-3 flex justify-between items-center mt-2">
-                          <span className="font-bold text-green-700">TOTAUX {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {balanceGeneraleData.nb_comptes} compte(s)</span>
-                          <div className="font-bold">
-                            <span className="text-green-700 mr-4">D: {formatCurrency(balanceGeneraleData.totaux?.debit || 0)}</span>
-                            <span className="text-red-700 mr-4">C: {formatCurrency(balanceGeneraleData.totaux?.credit || 0)}</span>
-                            <span className="text-blue-700 mr-4">SD: {formatCurrency(balanceGeneraleData.totaux?.solde_debiteur || 0)}</span>
-                            <span className="text-orange-700">SC: {formatCurrency(balanceGeneraleData.totaux?.solde_crediteur || 0)}</span>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="py-8 text-center text-gray-500">
-                        {compteFilterApplied
-                          ? `Aucun compte trouvé commençant par "${compteFilterApplied}"`
-                          : 'Aucune donnée'
-                        }
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Journaux */}
-                {docType === 'journaux' && (
-                  <div className="space-y-4">
-                    <div className="flex gap-4 items-center flex-wrap">
-                      <div className="min-w-[200px]">
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">Journal</label>
-                        <select
-                          value={selectedJournal}
-                          onChange={(e) => setSelectedJournal(e.target.value)}
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
-                        >
-                          <option value="">-- Choisir un journal --</option>
-                          <option value="BQ">BQ - Banque</option>
-                          <option value="CA">CA - Caisse</option>
-                          <option value="VT">VT - Ventes</option>
-                          <option value="AC">AC - Achats</option>
-                          <option value="PA">PA - Paie</option>
-                          <option value="OD">OD - Opérations Diverses</option>
-                          <option value="AN">AN - À-Nouveaux</option>
-                        </select>
-                      </div>
-                      <div className="min-w-[200px]">
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">Période</label>
-                        <select
-                          value={journalPeriode}
-                          onChange={(e) => setJournalPeriode(e.target.value)}
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
-                        >
-                          {(() => {
-                            const options = [];
-                            const now = new Date();
-                            // Inclure 6 mois futurs + 24 mois passés
-                            for (let i = -6; i < 24; i++) {
-                              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                              const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                              const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                              options.push(<option key={value} value={value}>{label}</option>);
-                            }
-                            return options;
-                          })()}
-                        </select>
-                      </div>
-                      {selectedJournal && ecrituresJournalData?.ecritures && (
-                        <div className="ml-auto text-sm text-gray-600">
-                          {ecrituresJournalData.ecritures.length} écriture(s)
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedJournal && (
-                      <>
-                        {ecrituresJournalLoading ? (
-                          <div className="py-8 text-center">
-                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                          </div>
-                        ) : ecrituresJournalData?.ecritures && ecrituresJournalData.ecritures.length > 0 ? (
-                          <>
-                            <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
-                              <table className="w-full text-sm">
-                                <thead className="bg-gray-50 sticky top-0">
-                                  <tr>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Pièce</th>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Compte</th>
-                                    <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
-                                    <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {ecrituresJournalData.ecritures.map((e) => (
-                                    <tr key={e.id} className="border-t hover:bg-gray-50">
-                                      <td className="py-1.5 px-3">{formatDate(e.date_ecriture)}</td>
-                                      <td className="py-1.5 px-3 text-xs text-gray-500">{e.numero_piece}</td>
-                                      <td className="py-1.5 px-3">
-                                        <span className="font-mono text-xs bg-gray-100 px-1 rounded">{e.compte_numero}</span>
-                                      </td>
-                                      <td className="py-1.5 px-3">{e.libelle}</td>
-                                      <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit / 100) : ''}</td>
-                                      <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit / 100) : ''}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            <div className="bg-gray-100 rounded-lg p-3 flex justify-between items-center">
-                              <span className="font-medium text-gray-700">Totaux Journal {selectedJournal}</span>
-                              <div className="font-medium flex items-center gap-4">
-                                <span className="text-green-700">Débit: {formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}</span>
-                                <span className="text-red-700">Crédit: {formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}</span>
-                                {selectedJournal === 'BQ' && ecrituresJournalData.totaux?.solde_banque !== undefined && (
-                                  <span className={cn(
-                                    "px-3 py-1 rounded-lg",
-                                    ecrituresJournalData.totaux.solde_banque >= 0 ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-                                  )}>
-                                    Solde Banque: {formatCurrency(ecrituresJournalData.totaux.solde_banque)}
-                                  </span>
-                                )}
-                                {selectedJournal === 'CA' && ecrituresJournalData.totaux?.solde_caisse !== undefined && (
-                                  <span className={cn(
-                                    "px-3 py-1 rounded-lg",
-                                    ecrituresJournalData.totaux.solde_caisse >= 0 ? "bg-amber-100 text-amber-700" : "bg-orange-100 text-orange-700"
-                                  )}>
-                                    Solde Caisse: {formatCurrency(ecrituresJournalData.totaux.solde_caisse)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="py-8 text-center text-gray-500">
-                            Aucune écriture pour ce journal sur cette période
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Balance Âgée */}
-                {docType === 'balance-agee' && (
-                  <>
-                    {balanceAgeeLoading ? (
-                      <div className="py-8 text-center">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-                      </div>
-                    ) : balanceAgeeData?.clients && balanceAgeeData.clients.length > 0 ? (
-                      <>
-                        {/* KPIs */}
-                        <div className="grid grid-cols-6 gap-3 mb-6">
-                          <div className="bg-gray-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-gray-500">Total dû</p>
-                            <p className="text-lg font-bold text-gray-800">{formatCurrency((balanceAgeeData.totaux?.total_du || 0) / 100)}</p>
-                          </div>
-                          <div className="bg-green-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-green-600">Non échu</p>
-                            <p className="text-lg font-bold text-green-700">{formatCurrency((balanceAgeeData.totaux?.non_echu || 0) / 100)}</p>
-                          </div>
-                          <div className="bg-yellow-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-yellow-600">0-30 jours</p>
-                            <p className="text-lg font-bold text-yellow-700">{formatCurrency((balanceAgeeData.totaux?.echu_0_30 || 0) / 100)}</p>
-                          </div>
-                          <div className="bg-orange-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-orange-600">31-60 jours</p>
-                            <p className="text-lg font-bold text-orange-700">{formatCurrency((balanceAgeeData.totaux?.echu_31_60 || 0) / 100)}</p>
-                          </div>
-                          <div className="bg-red-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-red-600">61-90 jours</p>
-                            <p className="text-lg font-bold text-red-700">{formatCurrency((balanceAgeeData.totaux?.echu_61_90 || 0) / 100)}</p>
-                          </div>
-                          <div className="bg-rose-50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-rose-600">+90 jours</p>
-                            <p className="text-lg font-bold text-rose-700">{formatCurrency((balanceAgeeData.totaux?.echu_plus_90 || 0) / 100)}</p>
-                          </div>
-                        </div>
-
-                        {/* Tableau */}
-                        <div className="border rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-amber-50">
-                              <tr>
-                                <th className="text-left py-2 px-3 font-medium text-amber-700">Compte</th>
-                                <th className="text-left py-2 px-3 font-medium text-amber-700">Client</th>
-                                <th className="text-right py-2 px-3 font-medium text-amber-700">Total dû</th>
-                                <th className="text-right py-2 px-3 font-medium text-green-600">Non échu</th>
-                                <th className="text-right py-2 px-3 font-medium text-yellow-600">0-30j</th>
-                                <th className="text-right py-2 px-3 font-medium text-orange-600">31-60j</th>
-                                <th className="text-right py-2 px-3 font-medium text-red-600">61-90j</th>
-                                <th className="text-right py-2 px-3 font-medium text-rose-600">+90j</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {balanceAgeeData.clients.map((c) => (
-                                <tr key={c.client_id} className="border-t hover:bg-amber-50">
-                                  <td className="py-2 px-3">
-                                    <span className="font-mono text-xs bg-amber-100 text-amber-700 px-1.5 rounded">{c.compte}</span>
-                                  </td>
-                                  <td className="py-2 px-3">{c.client_nom}</td>
-                                  <td className="py-2 px-3 text-right font-medium">{formatCurrency(c.total_du / 100)}</td>
-                                  <td className="py-2 px-3 text-right text-green-600">{c.non_echu > 0 ? formatCurrency(c.non_echu / 100) : '-'}</td>
-                                  <td className="py-2 px-3 text-right text-yellow-600">{c.echu_0_30 > 0 ? formatCurrency(c.echu_0_30 / 100) : '-'}</td>
-                                  <td className="py-2 px-3 text-right text-orange-600">{c.echu_31_60 > 0 ? formatCurrency(c.echu_31_60 / 100) : '-'}</td>
-                                  <td className="py-2 px-3 text-right text-red-600">{c.echu_61_90 > 0 ? formatCurrency(c.echu_61_90 / 100) : '-'}</td>
-                                  <td className="py-2 px-3 text-right text-rose-600">{c.echu_plus_90 > 0 ? formatCurrency(c.echu_plus_90 / 100) : '-'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="py-8 text-center text-gray-500">
-                        Aucune créance client à analyser
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Exports pour Transmission */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Share2 className="h-5 w-5 text-purple-500" />
-                  Exports pour Transmission
-                </CardTitle>
-                <p className="text-sm text-gray-500">Exportez vos données comptables pour votre expert-comptable</p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportGrandLivre}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-blue-100 rounded-lg">
-                        <FileText className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Grand Livre</h4>
-                        <p className="text-xs text-gray-500">Écritures comptables</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBalance}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-green-100 rounded-lg">
-                        <Scale className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Balance</h4>
-                        <p className="text-xs text-gray-500">Soldes des comptes</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportFacturesToExcel}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-purple-100 rounded-lg">
-                        <Calculator className="h-6 w-6 text-purple-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Journal Ventes</h4>
-                        <p className="text-xs text-gray-500">Factures</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportDepensesToExcel}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-orange-100 rounded-lg">
-                        <Euro className="h-6 w-6 text-orange-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Journal Achats</h4>
-                        <p className="text-xs text-gray-500">Dépenses</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportJournalPaie}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-rose-100 rounded-lg">
-                        <Users className="h-6 w-6 text-rose-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Journal Paie</h4>
-                        <p className="text-xs text-gray-500">Salaires</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportCompteResultat}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-cyan-100 rounded-lg">
-                        <BarChart3 className="h-6 w-6 text-cyan-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Compte Résultat</h4>
-                        <p className="text-xs text-gray-500">P&L</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportBilan}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-pink-100 rounded-lg">
-                        <Wallet className="h-6 w-6 text-pink-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">Bilan</h4>
-                        <p className="text-xs text-gray-500">Actif/Passif</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border hover:shadow-md transition-shadow cursor-pointer" onClick={exportFEC}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="p-3 bg-indigo-100 rounded-lg">
-                        <Landmark className="h-6 w-6 text-indigo-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">FEC</h4>
-                        <p className="text-xs text-gray-500">Format légal</p>
-                      </div>
-                      <Download className="h-5 w-5 text-gray-400" />
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-4 mt-4 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    disabled={isRegenerating}
-                    onClick={async () => {
-                      setIsRegenerating(true);
-                      try {
-                        const result = await comptaApi.genererToutesEcritures();
-                        setNotification({ type: 'success', message: result.message || 'Écritures régénérées' });
-                        setTimeout(() => window.location.reload(), 1500);
-                      } catch {
-                        setNotification({ type: 'error', message: 'Erreur lors de la régénération' });
-                        setIsRegenerating(false);
-                        setTimeout(() => setNotification(null), 3000);
-                      }
-                    }}
-                  >
-                    <RefreshCw className={cn("h-4 w-4", isRegenerating && "animate-spin")} />
-                    {isRegenerating ? 'Régénération...' : 'Régénérer les écritures'}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={async () => {
-                      const exercicePrecedent = new Date().getFullYear() - 1;
-                      const confirmer = confirm(
-                        `Générer les à nouveaux pour ${exercicePrecedent + 1} à partir de l'exercice ${exercicePrecedent} ?\n\n` +
-                        `Cette action va reporter les soldes des comptes de bilan et affecter le résultat de l'exercice ${exercicePrecedent}.`
-                      );
-                      if (!confirmer) return;
-
-                      try {
-                        const result = await comptaApi.genererANouveaux(exercicePrecedent);
-                        const message = result.resultat !== undefined
-                          ? `${result.message}\nRésultat: ${result.resultat?.toFixed(2)}€ (${result.resultat_type})`
-                          : result.message;
-                        setNotification({ type: 'success', message });
-                        window.location.reload();
-                      } catch (err: unknown) {
-                        const error = err as Error;
-                        setNotification({ type: 'error', message: error.message || 'Erreur génération à nouveaux' });
-                      }
-                      setTimeout(() => setNotification(null), 5000);
-                    }}
-                  >
-                    <FileText className="h-4 w-4" />
-                    Générer les À-Nouveaux
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Connexion Expert-Comptable */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-purple-500" />
-                  Connexion Expert-Comptable
-                </CardTitle>
-                <p className="text-sm text-gray-500">Donnez accès à vos données comptables à votre expert</p>
-              </CardHeader>
-              <CardContent>
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6">
-                  <div className="text-center">
-                    <UserCheck className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-700 mb-2">Connecter un expert-comptable</h3>
-                    <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-                      Invitez votre expert-comptable à accéder à vos données comptables en lecture seule, ou envoyez-lui des exports périodiques.
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                      <Button className="gap-2" onClick={handleInviteExpert} disabled title="Fonctionnalité en cours de développement">
-                        <Mail className="h-4 w-4" />
-                        Inviter par email
-                      </Button>
-                      <Button variant="outline" className="gap-2" onClick={handleGenerateAccessLink} disabled title="Fonctionnalité en cours de développement">
-                        <Link2 className="h-4 w-4" />
-                        Générer un lien d'accès
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
       </div>
 

@@ -18,6 +18,7 @@ import {
   cacheClaudeResponse
 } from './optimization/cacheService.js';
 import logger from '../config/logger.js';
+import { isDegraded } from '../sentinel/index.js';
 
 // Client Anthropic (singleton)
 let anthropicClient = null;
@@ -40,7 +41,8 @@ const MODELS = {
   SONNET: 'claude-sonnet-4-20250514'
 };
 const MODEL_DEFAULT = MODELS.SONNET;
-const MAX_TOKENS = 4096;
+const MAX_TOKENS_NORMAL = 4096;
+const MAX_TOKENS_DEGRADED = 500;
 const MAX_TOOL_ITERATIONS = 5; // Limite pour éviter les boucles infinies
 
 // Flag pour éviter de recréer les tables à chaque appel
@@ -197,7 +199,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
       // Vrai streaming via SDK Anthropic
       const stream = client.messages.stream({
         model: MODEL_DEFAULT,
-        max_tokens: MAX_TOKENS,
+        max_tokens: isDegraded() ? MAX_TOKENS_DEGRADED : MAX_TOKENS_NORMAL,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,
         tools: availableTools,
@@ -289,7 +291,7 @@ export async function chat(tenantId, messages, adminId = null) {
 
       const response = await client.messages.create({
         model: MODEL_DEFAULT,
-        max_tokens: MAX_TOKENS,
+        max_tokens: isDegraded() ? MAX_TOKENS_DEGRADED : MAX_TOKENS_NORMAL,
         system: buildSystemPrompt(tenant),
         messages: conversationMessages,
         tools: availableTools,

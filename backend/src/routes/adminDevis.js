@@ -6,9 +6,39 @@
  */
 
 import express from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import NotificationService from '../services/notificationService.js';
+import { validate } from '../middleware/validate.js';
+
+const createDevisSchema = z.object({
+  client_id: z.string().uuid().optional(),
+  client_nom: z.string().max(200).optional(),
+  client_email: z.string().email().optional().or(z.literal('')),
+  client_telephone: z.string().max(20).optional(),
+  client_adresse: z.string().max(500).optional(),
+  adresse_facturation: z.string().max(500).optional(),
+  service_id: z.string().uuid().optional(),
+  service_nom: z.string().max(200).optional(),
+  service_description: z.string().max(2000).optional(),
+  duree_minutes: z.number().int().positive().optional(),
+  lieu: z.string().max(200).optional(),
+  montant_ht: z.number().min(0).optional(),
+  taux_tva: z.number().min(0).max(100).optional(),
+  frais_deplacement: z.number().min(0).optional(),
+  validite_jours: z.number().int().positive().optional(),
+  notes: z.string().max(2000).optional(),
+  opportunite_id: z.string().uuid().optional(),
+  lignes: z.array(z.object({
+    service_id: z.string().uuid().optional(),
+    description: z.string().optional(),
+    quantite: z.number().optional(),
+    prix_unitaire: z.number().optional(),
+  })).optional(),
+  date_prestation: z.string().optional(),
+  heure_prestation: z.string().optional(),
+}).passthrough();
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -58,6 +88,109 @@ async function logDevisHistorique(devisId, tenantId, action, ancienStatut, nouve
     changed_by: changedBy
   });
 }
+
+// ============================================
+// TEMPLATES DE DEVIS PAR METIER
+// ============================================
+
+const DEVIS_TEMPLATES = [
+  {
+    id: 'coiffure_complet',
+    metier: 'coiffure',
+    nom: 'Forfait Coiffure Complet',
+    description: 'Coupe + Couleur + Brushing',
+    lignes: [
+      { description: 'Coupe femme', quantite: 1, prix_unitaire: 35 },
+      { description: 'Coloration racines', quantite: 1, prix_unitaire: 45 },
+      { description: 'Brushing', quantite: 1, prix_unitaire: 20 }
+    ],
+    conditions: 'Devis valable 30 jours.'
+  },
+  {
+    id: 'coiffure_mariage',
+    metier: 'coiffure',
+    nom: 'Forfait Mariage',
+    description: 'Essai + Jour J coiffure + maquillage',
+    lignes: [
+      { description: 'Essai coiffure mariee', quantite: 1, prix_unitaire: 60 },
+      { description: 'Coiffure jour J', quantite: 1, prix_unitaire: 120 },
+      { description: 'Maquillage jour J', quantite: 1, prix_unitaire: 80 }
+    ],
+    conditions: 'Acompte de 30% a la reservation. Devis valable 30 jours.'
+  },
+  {
+    id: 'restaurant_groupe',
+    metier: 'restaurant',
+    nom: 'Menu Groupe',
+    description: 'Menu 3 services pour groupe 10+',
+    lignes: [
+      { description: 'Menu entree + plat + dessert (par personne)', quantite: 10, prix_unitaire: 35 },
+      { description: 'Vin (bouteille pour 4)', quantite: 3, prix_unitaire: 25 },
+      { description: 'Cafe / the', quantite: 10, prix_unitaire: 3 }
+    ],
+    conditions: 'Minimum 10 personnes. Confirmation 48h a l\'avance.'
+  },
+  {
+    id: 'restaurant_evenement',
+    metier: 'restaurant',
+    nom: 'Evenement Prive',
+    description: 'Privatisation salle + menu',
+    lignes: [
+      { description: 'Privatisation salle (soiree)', quantite: 1, prix_unitaire: 500 },
+      { description: 'Cocktail dinatoire (par personne)', quantite: 30, prix_unitaire: 45 },
+      { description: 'Animation DJ', quantite: 1, prix_unitaire: 300 }
+    ],
+    conditions: 'Acompte 50%. Annulation possible 7 jours avant.'
+  },
+  {
+    id: 'hotel_seminaire',
+    metier: 'hotel',
+    nom: 'Seminaire Entreprise',
+    description: 'Salle + hebergement + restauration',
+    lignes: [
+      { description: 'Salle de reunion (journee)', quantite: 1, prix_unitaire: 350 },
+      { description: 'Chambre single (nuit)', quantite: 10, prix_unitaire: 95 },
+      { description: 'Pause cafe + dejeuner (par personne)', quantite: 10, prix_unitaire: 30 }
+    ],
+    conditions: 'Reservation confirmee a reception du bon de commande.'
+  },
+  {
+    id: 'services_entretien',
+    metier: 'services',
+    nom: 'Contrat Entretien',
+    description: 'Menage regulier bureau/domicile',
+    lignes: [
+      { description: 'Menage 3h (par passage)', quantite: 4, prix_unitaire: 75 },
+      { description: 'Produits d\'entretien', quantite: 1, prix_unitaire: 15 }
+    ],
+    conditions: 'Engagement mensuel. Preavis 15 jours.'
+  },
+  {
+    id: 'services_demenagement',
+    metier: 'services',
+    nom: 'Devis Demenagement',
+    description: 'Demenagement appartement T2-T3',
+    lignes: [
+      { description: 'Equipe 2 demenageurs (demi-journee)', quantite: 1, prix_unitaire: 350 },
+      { description: 'Camion 20m3', quantite: 1, prix_unitaire: 150 },
+      { description: 'Cartons fournis (lot 20)', quantite: 2, prix_unitaire: 30 }
+    ],
+    conditions: 'Assurance incluse. Supplement etage sans ascenseur : 50€/etage.'
+  }
+];
+
+/**
+ * GET /api/admin/devis/templates
+ * Liste les templates de devis par metier
+ */
+router.get('/templates', async (req, res) => {
+  const { metier } = req.query;
+  let templates = DEVIS_TEMPLATES;
+  if (metier) {
+    templates = templates.filter(t => t.metier === metier);
+  }
+  res.json({ templates });
+});
 
 // ============================================
 // ROUTES CRUD
@@ -177,7 +310,7 @@ router.get('/:id', async (req, res) => {
  * POST /api/admin/devis
  * Créer un nouveau devis
  */
-router.post('/', async (req, res) => {
+router.post('/', validate(createDevisSchema), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const {

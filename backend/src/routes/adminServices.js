@@ -1,7 +1,22 @@
 import express from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
+import { validate } from '../middleware/validate.js';
+
+const updateServiceSchema = z.object({
+  nom: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional(),
+  prix: z.number().int().min(0).optional(),
+  duree_minutes: z.number().int().positive().optional(),
+  duree: z.number().int().positive().optional(),
+  taux_tva: z.number().min(0).max(100).optional(),
+  taxe_cnaps: z.boolean().optional(),
+  taux_cnaps: z.number().min(0).max(100).optional(),
+  categorie: z.string().max(100).optional(),
+  actif: z.boolean().optional(),
+}).passthrough();
 
 const router = express.Router();
 
@@ -233,7 +248,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 });
 
 // PUT /api/admin/services/:id - Modifier service
-router.put('/:id', authenticateAdmin, async (req, res) => {
+router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;

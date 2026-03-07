@@ -1,4 +1,5 @@
 import express from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireClientsQuota } from '../middleware/quotas.js';
@@ -6,6 +7,21 @@ import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import logger from '../config/logger.js';
 import multer from 'multer';
+import { validate } from '../middleware/validate.js';
+
+const createClientSchema = z.object({
+  prenom: z.string().max(100).optional(),
+  nom: z.string().max(100).optional(),
+  telephone: z.string().min(1, 'Téléphone requis').max(20),
+  email: z.string().email('Email invalide').optional().or(z.literal('')),
+  adresse: z.string().max(500).optional(),
+  code_postal: z.string().max(10).optional(),
+  ville: z.string().max(100).optional(),
+  complement_adresse: z.string().max(500).optional(),
+  type_client: z.enum(['particulier', 'professionnel']).optional(),
+  raison_sociale: z.string().max(200).optional(),
+  siret: z.string().max(20).optional(),
+}).passthrough();
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
@@ -115,7 +131,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // Créer un nouveau client
 // 🔒 TRIAL CHECK: Vérifie limite trial (50 clients)
 // 🔒 QUOTA CHECK: Vérifie limite clients selon plan (Starter: 1000, Pro: 3000, Business: illimité)
-router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClientsQuota, async (req, res) => {
+router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClientsQuota, validate(createClientSchema), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;

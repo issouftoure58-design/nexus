@@ -367,32 +367,36 @@ router.get('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) =
 
     if (error) throw error;
 
-    // Enrichir avec stats par client
-    const clientsEnriched = await Promise.all(
-      (segmentClients || []).map(async (sc) => {
-        // CA du client
-        const { data: rdvs } = await supabase
-          .from('reservations')
-          .select('prix_total')
-          .eq('client_id', sc.clients.id)
-          .eq('tenant_id', tenantId)
-          .in('statut', ['confirme', 'termine']);
+    // Enrichir avec stats par client — batch query (pas de N+1)
+    const clientIds = (segmentClients || []).map(sc => sc.clients.id);
+    const { data: allRdvs } = clientIds.length > 0 ? await supabase
+      .from('reservations')
+      .select('client_id, prix_total')
+      .eq('tenant_id', tenantId)
+      .in('client_id', clientIds)
+      .in('statut', ['confirme', 'termine']) : { data: [] };
 
-        const ca = (rdvs || []).reduce((sum, r) => sum + (r.prix_total || 0), 0);
+    const statsByClient = {};
+    (allRdvs || []).forEach(r => {
+      if (!statsByClient[r.client_id]) statsByClient[r.client_id] = { ca: 0, nb: 0 };
+      statsByClient[r.client_id].ca += (r.prix_total || 0);
+      statsByClient[r.client_id].nb += 1;
+    });
 
-        return {
-          segment_client_id: sc.id,
-          source: sc.source,
-          added_at: sc.added_at,
-          notes: sc.notes,
-          client: {
-            ...sc.clients,
-            ca_total_euros: (ca / 100).toFixed(2),
-            nb_rdv: rdvs?.length || 0
-          }
-        };
-      })
-    );
+    const clientsEnriched = (segmentClients || []).map(sc => {
+      const stats = statsByClient[sc.clients.id] || { ca: 0, nb: 0 };
+      return {
+        segment_client_id: sc.id,
+        source: sc.source,
+        added_at: sc.added_at,
+        notes: sc.notes,
+        client: {
+          ...sc.clients,
+          ca_total_euros: (stats.ca / 100).toFixed(2),
+          nb_rdv: stats.nb
+        }
+      };
+    });
 
     res.json({
       success: true,
@@ -573,22 +577,26 @@ async function refreshDynamicSegment(segmentId, tenantId, criteres) {
     let clientsFiltered = clientsBase;
 
     if (criteres.min_rdv || criteres.min_ca_euros) {
-      const enrichedClients = await Promise.all(
-        clientsBase.map(async (client) => {
-          const { data: rdvs } = await supabase
-            .from('reservations')
-            .select('prix_total')
-            .eq('client_id', client.id)
-            .eq('tenant_id', tenantId)
-            .in('statut', ['confirme', 'termine']);
+      // Batch query — une seule requête au lieu de N
+      const allClientIds = clientsBase.map(c => c.id);
+      const { data: allRdvs } = allClientIds.length > 0 ? await supabase
+        .from('reservations')
+        .select('client_id, prix_total')
+        .eq('tenant_id', tenantId)
+        .in('client_id', allClientIds)
+        .in('statut', ['confirme', 'termine']) : { data: [] };
 
-          return {
-            id: client.id,
-            nb_rdv: rdvs?.length || 0,
-            ca_euros: (rdvs || []).reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100
-          };
-        })
-      );
+      const statsByClient = {};
+      (allRdvs || []).forEach(r => {
+        if (!statsByClient[r.client_id]) statsByClient[r.client_id] = { ca: 0, nb: 0 };
+        statsByClient[r.client_id].ca += (r.prix_total || 0);
+        statsByClient[r.client_id].nb += 1;
+      });
+
+      const enrichedClients = clientsBase.map(client => {
+        const stats = statsByClient[client.id] || { ca: 0, nb: 0 };
+        return { id: client.id, nb_rdv: stats.nb, ca_euros: stats.ca / 100 };
+      });
 
       clientsFiltered = enrichedClients.filter(c => {
         if (criteres.min_rdv && c.nb_rdv < criteres.min_rdv) return false;

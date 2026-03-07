@@ -1,9 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, comptaApi, Devis, DevisStats, DevisCreateData } from '../lib/api';
-import { X, Printer, Download, Send, Edit2, Check, XCircle, Play, Clock, User, MapPin, Phone, Mail, Calendar, FileText, Users } from 'lucide-react';
+import { X, Printer, Download, Send, Edit2, Check, XCircle, Play, Clock, User, MapPin, Phone, Mail, Calendar, FileText, Users, LayoutTemplate } from 'lucide-react';
 import { useProfile } from '../contexts/ProfileContext';
 import { FeatureField, PricingFields } from '../components/forms';
+
+// Types pour les templates de devis
+interface DevisTemplateLigne {
+  description: string;
+  quantite: number;
+  prix_unitaire: number;
+}
+
+interface DevisTemplate {
+  id: string;
+  metier: string;
+  nom: string;
+  description: string;
+  lignes: DevisTemplateLigne[];
+  conditions: string;
+}
 
 // Types pour les données
 interface Client {
@@ -68,7 +84,9 @@ export default function DevisPage() {
   const [showRejectModal, setShowRejectModal] = useState<Devis | null>(null);
   const [showExecuteModal, setShowExecuteModal] = useState<Devis | null>(null);
   const [showDetailModal, setShowDetailModal] = useState<string | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [templatePreFill, setTemplatePreFill] = useState<DevisTemplate | null>(null);
 
   // Récupérer les devis
   const { data, isLoading, error } = useQuery({
@@ -212,18 +230,28 @@ export default function DevisPage() {
           <h1 className="text-2xl font-bold text-gray-900">Devis</h1>
           <p className="text-sm text-gray-500">Gestion des devis clients</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingDevis(null);
-            setShowForm(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nouveau devis
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowTemplateModal(true)}
+            className="px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 flex items-center gap-2"
+          >
+            <LayoutTemplate className="w-5 h-5" />
+            Utiliser un template
+          </button>
+          <button
+            onClick={() => {
+              setEditingDevis(null);
+              setTemplatePreFill(null);
+              setShowForm(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nouveau devis
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -441,9 +469,11 @@ export default function DevisPage() {
       {showForm && (
         <DevisFormModal
           devis={editingDevis}
+          templatePreFill={templatePreFill}
           onClose={() => {
             setShowForm(false);
             setEditingDevis(null);
+            setTemplatePreFill(null);
           }}
           onSubmit={(data) => {
             if (editingDevis) {
@@ -514,6 +544,19 @@ export default function DevisPage() {
           }}
         />
       )}
+
+      {/* Modal Templates */}
+      {showTemplateModal && (
+        <TemplateSelectModal
+          onClose={() => setShowTemplateModal(false)}
+          onSelect={(template) => {
+            setShowTemplateModal(false);
+            setTemplatePreFill(template);
+            setEditingDevis(null);
+            setShowForm(true);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -548,12 +591,13 @@ interface ServiceLigne {
 
 interface DevisFormModalProps {
   devis: Devis | null;
+  templatePreFill?: DevisTemplate | null;
   onClose: () => void;
   onSubmit: (data: DevisCreateData) => void;
   isLoading: boolean;
 }
 
-function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalProps) {
+function DevisFormModal({ devis, templatePreFill, onClose, onSubmit, isLoading }: DevisFormModalProps) {
   // Profile métier
   const { profile, t, isPricingMode, isBusinessType } = useProfile();
 
@@ -597,6 +641,25 @@ function DevisFormModal({ devis, onClose, onSubmit, isLoading }: DevisFormModalP
 
   // Adresse facturation même que prestation
   const [memeAdresse, setMemeAdresse] = useState(true);
+
+  // Pre-remplir depuis un template
+  useEffect(() => {
+    if (templatePreFill && !devis) {
+      setServiceLignes(
+        templatePreFill.lignes.map((l, i) => ({
+          service_id: -(i + 1), // IDs négatifs temporaires pour les lignes template
+          service_nom: l.description,
+          quantite: l.quantite,
+          prix_unitaire: l.prix_unitaire,
+          duree_minutes: 0,
+          affectations: Array.from({ length: l.quantite }, (_, idx) => ({ index: idx }))
+        }))
+      );
+      if (templatePreFill.conditions) {
+        setFormData(prev => ({ ...prev, notes: templatePreFill.conditions }));
+      }
+    }
+  }, [templatePreFill, devis]);
 
   // Fetch clients
   const { data: clientsData } = useQuery<{ clients: Client[] }>({
@@ -2465,6 +2528,81 @@ function DevisDetailModal({ devisId, onClose, onEdit, onSend, onAccept, onReject
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// MODAL SELECTION TEMPLATE
+// ============================================
+
+const METIER_LABELS: Record<string, string> = {
+  coiffure: 'Coiffure',
+  restaurant: 'Restaurant',
+  hotel: 'Hotel',
+  services: 'Services'
+};
+
+function TemplateSelectModal({ onClose, onSelect }: { onClose: () => void; onSelect: (t: DevisTemplate) => void }) {
+  const { data, isLoading } = useQuery<{ templates: DevisTemplate[] }>({
+    queryKey: ['devis-templates'],
+    queryFn: () => api.get<{ templates: DevisTemplate[] }>('/admin/devis/templates'),
+  });
+
+  const templates = data?.templates || [];
+  const metiers = [...new Set(templates.map(t => t.metier))];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <LayoutTemplate className="w-5 h-5" />
+            Templates de devis
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-4 overflow-y-auto max-h-[65vh]">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            metiers.map(metier => (
+              <div key={metier} className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+                  {METIER_LABELS[metier] || metier}
+                </h3>
+                <div className="grid gap-3">
+                  {templates.filter(t => t.metier === metier).map(template => {
+                    const total = template.lignes.reduce((s, l) => s + l.quantite * l.prix_unitaire, 0);
+                    return (
+                      <button
+                        key={template.id}
+                        onClick={() => onSelect(template)}
+                        className="text-left p-4 border rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900">{template.nom}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">{template.description}</p>
+                            <p className="text-xs text-gray-400 mt-1">{template.lignes.length} ligne{template.lignes.length > 1 ? 's' : ''}</p>
+                          </div>
+                          <span className="text-sm font-semibold text-blue-600 whitespace-nowrap ml-4">
+                            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(total)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>

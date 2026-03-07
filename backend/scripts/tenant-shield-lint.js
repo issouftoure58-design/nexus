@@ -88,6 +88,7 @@ const IGNORE_FILES = [
   'apiAuth.js',
   'auth.js',
   // Services système cross-tenant
+  'errorTracker.js',   // SENTINEL error tracking (super-admin, cross-tenant)
   'costTracker.js',
   'responseCache.js',
   'taskQueue.js',

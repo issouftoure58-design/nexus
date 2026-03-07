@@ -184,9 +184,6 @@ export function DocumentsRH() {
     queryFn: fetchDocumentTypes
   });
 
-  // Debug: log types
-  console.log('[DocumentsRH] documentTypes:', documentTypes, 'error:', typesError, typesErrorMsg);
-
   const { data: documents = [], isLoading: loadingDocs, refetch: refetchDocs } = useQuery({
     queryKey: ['rh-documents', filters],
     queryFn: () => fetchDocuments(filters)
@@ -205,45 +202,35 @@ export function DocumentsRH() {
   // Mutations
   const genererMutation = useMutation({
     mutationFn: async (data: { membre_id: number; type: string; donnees_supplementaires?: Record<string, unknown> }) => {
-      console.log('[DocumentsRH] Generating document:', data);
       const res = await fetch(`${API_BASE}/admin/rh/documents/generer`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data)
       });
-      console.log('[DocumentsRH] Response status:', res.status);
       if (!res.ok) {
         const err = await res.json();
-        console.error('[DocumentsRH] Generation error:', err);
         throw new Error(err.error || 'Erreur génération');
       }
       return res.json();
     },
-    onSuccess: (data) => {
-      console.log('[DocumentsRH] Document generated:', data);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rh-documents'] });
       setShowGenererModal(false);
       setGenererForm({ membre_id: '', type: '', notes: '' });
     },
     onError: (error) => {
-      console.error('[DocumentsRH] Mutation error:', error);
       alert('Erreur: ' + (error as Error).message);
     }
   });
 
   const downloadPDF = async (documentId: number, filename: string) => {
-    console.log('[DocumentsRH] Downloading PDF:', documentId, filename);
     try {
       const fetchUrl = `${API_BASE}/admin/rh/documents/${documentId}/pdf`;
-      console.log('[DocumentsRH] Fetch URL:', fetchUrl);
       const res = await fetch(fetchUrl, {
         headers: getAuthHeaders()
       });
-      console.log('[DocumentsRH] Response status:', res.status);
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error('[DocumentsRH] Download error:', errorText);
-        throw new Error('Erreur téléchargement: ' + errorText);
+        throw new Error('Erreur téléchargement');
       }
 
       const blob = await res.blob();

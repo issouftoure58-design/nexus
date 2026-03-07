@@ -21,6 +21,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import modelRouter from './modelRouter.js';
+import { isDegraded } from '../sentinel/index.js';
 import {
   matchStaticResponse,
   getCachedClaudeResponse,
@@ -110,6 +111,11 @@ export async function chat(tenantId, userMessage, options = {}) {
     skipCache = false,
     maxTokens = 2048
   } = options;
+
+  // Mode dégradé : limiter les tokens
+  if (isDegraded()) {
+    maxTokens = Math.min(maxTokens, 500);
+  }
 
   serviceStats.totalRequests++;
 
@@ -261,6 +267,11 @@ export async function chatStream(tenantId, userMessage, options = {}) {
     onText = null,
     onToolUse = null
   } = options;
+
+  // Mode dégradé : limiter les tokens
+  if (isDegraded()) {
+    maxTokens = Math.min(maxTokens, 500);
+  }
 
   serviceStats.totalRequests++;
 

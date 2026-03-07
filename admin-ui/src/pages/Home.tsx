@@ -59,6 +59,59 @@ interface SentinelStats {
   clients_risque: number;
 }
 
+// API response types
+interface ApiConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt?: string;
+  messageCount?: number;
+}
+
+interface ApiMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+interface ActivityItem {
+  type?: string;
+  message: string;
+  time?: string;
+}
+
+interface ActivityResponse {
+  activities: ActivityItem[];
+}
+
+interface OverviewResponse {
+  ca_total: number;
+  ca_variation: number;
+}
+
+interface PnlResponse {
+  revenus?: { total: string };
+  depenses?: { total: string };
+  resultat?: { net: string; margeNette: string };
+}
+
+interface AutomationResponse {
+  workflows?: { actifs: number; executions_mois: number };
+  notifications?: { total_mois: number };
+  taches?: { completees_mois: number };
+}
+
+interface SeoRecommendation {
+  titre?: string;
+  title?: string;
+  description?: string;
+}
+
+interface ChurnResponse {
+  high_risk: number;
+}
+
 // Quick action suggestions - Actions PUISSANTES
 const QUICK_ACTIONS = [
   { label: 'Répondre à mes emails', prompt: 'Montre-moi mes emails en attente et propose des réponses', icon: Send },
@@ -125,8 +178,8 @@ export function Home() {
 
   const loadConversations = async () => {
     try {
-      const data = await api.get<{ conversations: any[] }>('/admin/chat/conversations');
-      const convs = (data.conversations || []).map((c: any) => ({
+      const data = await api.get<{ conversations: ApiConversation[] }>('/admin/chat/conversations');
+      const convs = (data.conversations || []).map((c: ApiConversation) => ({
         id: c.id,
         title: c.title || 'Nouvelle conversation',
         createdAt: new Date(c.createdAt),
@@ -145,8 +198,8 @@ export function Home() {
 
   const loadConversation = async (convId: string) => {
     try {
-      const data = await api.get<{ messages: any[] }>(`/admin/chat/conversations/${convId}/messages`);
-      const msgs = (data.messages || []).map((m: any) => ({
+      const data = await api.get<{ messages: ApiMessage[] }>(`/admin/chat/conversations/${convId}/messages`);
+      const msgs = (data.messages || []).map((m: ApiMessage) => ({
         id: m.id,
         role: m.role,
         content: m.content,
@@ -197,18 +250,18 @@ export function Home() {
 
       // 4 appels légers (pas d'appels IA SEO/churn à chaque refresh)
       const [activityData, overviewData, pnlData, automationData] = await Promise.all([
-        api.get<any>('/admin/stats/activity').catch(() => null),
-        api.get<any>('/admin/analytics/overview').catch(() => null),
-        api.get<any>('/admin/compta/pnl').catch(() => null),
-        api.get<any>('/admin/stats/automation').catch(() => null)
+        api.get<ActivityResponse>('/admin/stats/activity').catch(() => null),
+        api.get<OverviewResponse>('/admin/analytics/overview').catch(() => null),
+        api.get<PnlResponse>('/admin/compta/pnl').catch(() => null),
+        api.get<AutomationResponse>('/admin/stats/automation').catch(() => null)
       ]);
 
       // Appels IA couteux : seulement au premier chargement, pas à chaque refresh
       const isFirstLoad = sentinelEvents.length === 0;
       const [seoData, churnData] = isFirstLoad
         ? await Promise.all([
-            api.get<any>('/admin/seo/recommendations').catch(() => null),
-            api.get<any>('/admin/analytics/churn').catch(() => null)
+            api.get<{ recommendations: SeoRecommendation[] }>('/admin/seo/recommendations').catch(() => null),
+            api.get<ChurnResponse>('/admin/analytics/churn').catch(() => null)
           ])
         : [null, null];
 
@@ -226,7 +279,7 @@ export function Home() {
       // Process activity events (vrais events récents)
       if (activityData) {
         const activities = activityData.activities || [];
-        activities.slice(0, 5).forEach((a: any, i: number) => {
+        activities.slice(0, 5).forEach((a: ActivityItem, i: number) => {
           allEvents.push({
             id: `activity-${i}`,
             category: 'activity',
@@ -256,10 +309,10 @@ export function Home() {
 
       // P&L réel
       if (pnlData) {
-        resultatNet = parseFloat(pnlData.resultat?.net) || 0;
-        depensesTotal = parseFloat(pnlData.depenses?.total) || 0;
+        resultatNet = parseFloat(pnlData.resultat?.net ?? '0') || 0;
+        depensesTotal = parseFloat(pnlData.depenses?.total ?? '0') || 0;
         margeNette = pnlData.resultat?.margeNette || '0';
-        caTotal = parseFloat(pnlData.revenus?.total) || caTotal;
+        caTotal = parseFloat(pnlData.revenus?.total ?? '0') || caTotal;
 
         if (resultatNet > 0) {
           allEvents.push({
@@ -296,7 +349,7 @@ export function Home() {
       if (seoData) {
         const recommendations = seoData.recommendations || seoData || [];
         if (Array.isArray(recommendations)) {
-          recommendations.slice(0, 2).forEach((rec: any, i: number) => {
+          recommendations.slice(0, 2).forEach((rec: SeoRecommendation, i: number) => {
             allEvents.push({
               id: `seo-${i}`,
               category: 'seo',
@@ -347,7 +400,7 @@ export function Home() {
   const ensureConversation = useCallback(async (): Promise<string> => {
     if (currentConversationId) return currentConversationId;
 
-    const data = await api.post<{ conversation: any }>('/admin/chat/conversations', {
+    const data = await api.post<{ conversation: ApiConversation }>('/admin/chat/conversations', {
       title: 'Conversation du ' + new Date().toLocaleDateString('fr-FR')
     });
     const convId = data.conversation?.id;
@@ -397,7 +450,8 @@ export function Home() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify({ content: content.trim() })
       });
@@ -411,14 +465,17 @@ export function Home() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
+      let sseBuffer = '';
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          // Keep last (potentially incomplete) line in buffer
+          sseBuffer = lines.pop() || '';
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -437,7 +494,7 @@ export function Home() {
                   throw new Error(data.message || 'Erreur streaming');
                 }
               } catch (parseErr) {
-                if (parseErr instanceof SyntaxError) continue; // Ignore SSE parse errors
+                if (parseErr instanceof SyntaxError) continue;
                 throw parseErr;
               }
             }

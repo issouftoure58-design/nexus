@@ -5,6 +5,7 @@
 
 import { supabase } from '../../config/supabase.js';
 import logger from '../../config/logger.js';
+import { createFactureFromReservation } from '../../routes/factures.js';
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER
@@ -198,16 +199,95 @@ async function comptable_facturation(toolInput, tenantId, adminId) {
   }
 
   if (action === 'creer') {
+    if (toolInput.rdv_id) {
+      // Créer facture pour un RDV spécifique
+      const result = await createFactureFromReservation(toolInput.rdv_id, tenantId);
+      if (!result.success) {
+        return { success: false, error: result.error || 'Erreur création facture' };
+      }
+      const f = result.facture;
+      return {
+        success: true,
+        message: `Facture ${f.numero} créée`,
+        facture: {
+          id: f.id,
+          numero: f.numero,
+          client_nom: f.client_nom,
+          montant_ttc_euros: ((f.montant_ttc || 0) / 100).toFixed(2),
+          statut: f.statut,
+          date_facture: f.date_facture,
+          date_echeance: f.date_echeance
+        },
+        pdf_url: `/api/factures/${f.id}/pdf?download=true`
+      };
+    }
+
+    // Sans rdv_id : générer toutes les factures manquantes
+    const { data: rdvs } = await supabase
+      .from('reservations')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('statut', 'termine')
+      .is('facture_generee', null);
+
+    if (!rdvs || rdvs.length === 0) {
+      return { success: true, message: 'Aucun RDV terminé sans facture', nb_creees: 0 };
+    }
+
+    let creees = 0;
+    const factures = [];
+    for (const rdv of rdvs) {
+      const result = await createFactureFromReservation(rdv.id, tenantId);
+      if (result.success) {
+        creees++;
+        factures.push({
+          numero: result.facture.numero,
+          client_nom: result.facture.client_nom,
+          montant_ttc_euros: ((result.facture.montant_ttc || 0) / 100).toFixed(2)
+        });
+      }
+    }
+
     return {
-      success: false,
-      message: 'La creation de factures necessite le service PDF. Utilisez POST /api/factures pour creer une facture avec generation PDF automatique.'
+      success: true,
+      message: `${creees} facture(s) créée(s)`,
+      nb_creees: creees,
+      factures
     };
   }
 
   if (action === 'exporter') {
+    // Chercher la facture par ID ou numéro
+    let query = supabase
+      .from('factures')
+      .select('id, numero, client_nom, montant_ttc, statut')
+      .eq('tenant_id', tenantId);
+
+    if (toolInput.facture_id) {
+      query = query.eq('id', toolInput.facture_id);
+    } else if (toolInput.numero) {
+      query = query.eq('numero', toolInput.numero);
+    } else {
+      // Exporter les dernières factures
+      query = query.order('created_at', { ascending: false }).limit(toolInput.limit || 10);
+    }
+
+    const { data: factures, error } = await query;
+    if (error) throw error;
+    if (!factures || factures.length === 0) {
+      return { success: false, error: 'Aucune facture trouvée' };
+    }
+
     return {
-      success: false,
-      message: 'L\'export de factures sera disponible via le module d\'export. Utilisez l\'interface Nexus pour telecharger vos factures en PDF.'
+      success: true,
+      message: `${factures.length} facture(s) disponible(s) en PDF`,
+      factures: factures.map(f => ({
+        numero: f.numero,
+        client_nom: f.client_nom,
+        montant_ttc_euros: ((f.montant_ttc || 0) / 100).toFixed(2),
+        statut: f.statut,
+        pdf_url: `/api/factures/${f.id}/pdf?download=true`
+      }))
     };
   }
 

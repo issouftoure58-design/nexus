@@ -49,6 +49,49 @@ interface Service {
   taux_journalier?: number; // centimes/jour
   prix_forfait?: number; // centimes
   pricing_mode?: 'fixed' | 'hourly' | 'daily' | 'package';
+  // Restaurant (table)
+  capacite?: number;
+  zone?: string;
+  // Hotel (chambre)
+  capacite_max?: number;
+  vue?: string;
+}
+
+// === API Response Types ===
+interface ReservationsResponse {
+  reservations?: Reservation[];
+  pagination?: { total: number; pages: number; page: number };
+}
+
+interface ServicesResponse {
+  services?: Service[];
+}
+
+interface MembresResponse {
+  id: number;
+  nom: string;
+  prenom: string;
+  role: string;
+  statut: string;
+}
+
+interface MembresDisponiblesResponse {
+  disponibles: Membre[];
+  occupes: Membre[];
+  non_travail?: Membre[];
+}
+
+interface ClientsResponse {
+  clients?: Client[];
+}
+
+interface ClientCreateResponse {
+  client?: { id: number };
+  id?: number;
+}
+
+interface ReservationDetailResponse {
+  reservation?: Reservation;
 }
 
 interface Membre {
@@ -124,8 +167,9 @@ interface Reservation {
   heure?: string;
   heure_rdv?: string;
   duree?: number;
+  duree_minutes?: number;
   duree_totale?: number;
-  service?: any;
+  service?: string | { nom?: string; name?: string; duree_minutes?: number; duree?: number } | null;
   service_nom?: string;
   client?: Client | null;
   clients?: Client | null;
@@ -240,7 +284,7 @@ export default function Activites() {
 
   // Membres disponibles (filtrés selon date/heure)
   const [membresDisponibles, setMembresDisponibles] = useState<Membre[]>([]);
-  const [membresOccupes, setMembresOccupes] = useState<{id: number; nom: string; prenom: string; raison: string}[]>([]);
+  const [membresOccupes, setMembresOccupes] = useState<(Membre & { raison?: string })[]>([]);
   const [loadingDisponibilites, setLoadingDisponibilites] = useState(false);
 
   const [newRdvForm, setNewRdvForm] = useState({
@@ -351,10 +395,10 @@ export default function Activites() {
         }
       }
 
-      const data = await api.get<any>(`/admin/reservations?${params}`);
+      const data = await api.get<ReservationsResponse>(`/admin/reservations?${params}`);
 
       // Normaliser les données
-      const normalized = (data.reservations || data || []).map((r: any) => {
+      const normalized = (data.reservations || []).map((r: Reservation) => {
         let serviceName = 'Service';
         let serviceDuree = 60;
         if (typeof r.service === 'object' && r.service !== null) {
@@ -391,7 +435,7 @@ export default function Activites() {
       const today = new Date().toISOString().split('T')[0];
 
       // RDV aujourd'hui
-      const todayData = await api.get<any>(`/admin/reservations?date_debut=${today}&date_fin=${today}`);
+      const todayData = await api.get<ReservationsResponse>(`/admin/reservations?date_debut=${today}&date_fin=${today}`);
 
       // RDV cette semaine
       const startOfWeek = new Date();
@@ -399,10 +443,10 @@ export default function Activites() {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const weekData = await api.get<any>(`/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`);
+      const weekData = await api.get<ReservationsResponse>(`/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`);
 
       // RDV en attente
-      const waitingData = await api.get<any>(`/admin/reservations?statut=en_attente`);
+      const waitingData = await api.get<ReservationsResponse>(`/admin/reservations?statut=en_attente`);
 
       setStats({
         aujourd_hui: todayData.pagination?.total || (todayData.reservations || []).length || 0,
@@ -416,8 +460,8 @@ export default function Activites() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await api.get<any>('/admin/services');
-      setServices(data.services || data || []);
+      const data = await api.get<ServicesResponse>('/admin/services');
+      setServices(data.services || []);
     } catch {
       setError('Impossible de charger les services');
     }
@@ -425,8 +469,8 @@ export default function Activites() {
 
   const fetchMembres = useCallback(async () => {
     try {
-      const data = await api.get<any>('/admin/rh/membres');
-      setMembres((data || []).filter((m: any) => m.statut === 'actif'));
+      const data = await api.get<MembresResponse[]>('/admin/rh/membres');
+      setMembres((data || []).filter((m: MembresResponse) => m.statut === 'actif'));
     } catch {
       setError('Impossible de charger les membres');
     }
@@ -447,8 +491,8 @@ export default function Activites() {
     }
 
     try {
-      const data = await api.get<any>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
-      setClients(data.clients || data || []);
+      const data = await api.get<ClientsResponse>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
+      setClients(data.clients || []);
     } catch {
       setError('Impossible de rechercher les clients');
     }
@@ -470,7 +514,7 @@ export default function Activites() {
 
     setLoadingDisponibilites(true);
     try {
-      const data = await api.get<any>(
+      const data = await api.get<MembresDisponiblesResponse>(
         `/admin/rh/membres/disponibles?date=${date}&heure=${heure}&duree=${duree}`
       );
       setMembresDisponibles(data.disponibles || []);
@@ -832,8 +876,8 @@ export default function Activites() {
 
   const handleOpenDetail = async (rdv: Reservation) => {
     try {
-      const data = await api.get<any>(`/admin/reservations/${rdv.id}`);
-      setSelectedRdv(data.reservation || data);
+      const data = await api.get<ReservationDetailResponse>(`/admin/reservations/${rdv.id}`);
+      setSelectedRdv(data.reservation || data as unknown as Reservation);
       setShowDetailModal(true);
     } catch {
       setError('Impossible de charger les détails de la prestation');
@@ -856,8 +900,8 @@ export default function Activites() {
 
       fetchReservations();
       fetchStats();
-    } catch (error: any) {
-      const msg = error.message || '';
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
       // Gérer le cas où le membre est requis (backend renvoie code MEMBRE_REQUIS)
       if (msg.toLowerCase().includes('membre') && newStatut === 'termine') {
         const rdv = reservations.find(r => r.id === rdvId);
@@ -956,8 +1000,8 @@ export default function Activites() {
       setEditLignes([]);
       fetchReservations();
       fetchStats();
-    } catch (error: any) {
-      setEditError(error.message || 'Erreur lors de la modification');
+    } catch (error: unknown) {
+      setEditError(error instanceof Error ? error.message : 'Erreur lors de la modification');
     } finally {
       setEditLoading(false);
     }
@@ -970,8 +1014,8 @@ export default function Activites() {
       await api.delete(`/admin/reservations/${rdvId}`);
       fetchReservations();
       fetchStats();
-    } catch (error: any) {
-      setError(error.message || 'Impossible de supprimer la prestation');
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Impossible de supprimer la prestation');
     }
   };
 
@@ -1018,8 +1062,8 @@ export default function Activites() {
 
       // Si nouveau client, le créer d'abord
       if (createNewClient) {
-        const clientData = await api.post<any>('/admin/clients', newClientForm);
-        clientId = clientData.client?.id || clientData.id;
+        const clientData = await api.post<ClientCreateResponse>('/admin/clients', newClientForm);
+        clientId = clientData.client?.id ?? clientData.id ?? 0;
       }
 
       // Calculer les totaux
@@ -1095,8 +1139,8 @@ export default function Activites() {
       resetNewRdvForm();
       fetchReservations();
       fetchStats();
-    } catch (error: any) {
-      setCreateError(error.message || 'Erreur lors de la création');
+    } catch (error: unknown) {
+      setCreateError(error instanceof Error ? error.message : 'Erreur lors de la création');
     } finally {
       setCreateLoading(false);
     }
@@ -1451,7 +1495,7 @@ export default function Activites() {
                           {/* Afficher tous les services avec leurs membres assignés */}
                           {rdv.services && rdv.services.length > 0 ? (
                             <div className="space-y-1">
-                              {rdv.services.map((s: any, idx: number) => (
+                              {rdv.services.map((s: ReservationService, idx: number) => (
                                 <div key={s.id || idx}>
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1493,7 +1537,7 @@ export default function Activites() {
                           {/* Afficher tous les membres assignés */}
                           {rdv.membres && rdv.membres.length > 0 ? (
                             <div className="space-y-1">
-                              {rdv.membres.map((m: any, idx: number) => (
+                              {rdv.membres.map((m: ReservationMembre, idx: number) => (
                                 <div key={m.id || idx} className="flex items-center gap-1">
                                   <span className="text-sm text-gray-900 dark:text-white">
                                     {m.prenom} {m.nom}
@@ -2242,8 +2286,8 @@ export default function Activites() {
                       <option value={0}>-- Sélectionner une table --</option>
                       {services.filter(s => s.actif !== false).map((table) => (
                         <option key={table.id} value={table.id}>
-                          {table.nom} ({(table as any).capacite || 4} places)
-                          {(table as any).zone && ` - ${(table as any).zone}`}
+                          {table.nom} ({table.capacite || 4} places)
+                          {table.zone && ` - ${table.zone}`}
                         </option>
                       ))}
                     </select>
@@ -2264,7 +2308,7 @@ export default function Activites() {
                     />
                     {newRdvForm.table_id > 0 && services.find(s => s.id === newRdvForm.table_id) && (
                       <p className="text-xs text-amber-600 mt-1">
-                        Capacité max: {(services.find(s => s.id === newRdvForm.table_id) as any)?.capacite || 4} personnes
+                        Capacité max: {services.find(s => s.id === newRdvForm.table_id)?.capacite || 4} personnes
                       </p>
                     )}
                   </div>
@@ -2318,8 +2362,8 @@ export default function Activites() {
                       <option value={0}>-- Sélectionner une chambre --</option>
                       {services.filter(s => s.actif !== false).map((chambre) => (
                         <option key={chambre.id} value={chambre.id}>
-                          {chambre.nom} ({(chambre as any).capacite_max || 2} pers.) - {(chambre.prix / 100).toFixed(0)}€/nuit
-                          {(chambre as any).vue && ` - Vue ${(chambre as any).vue}`}
+                          {chambre.nom} ({chambre.capacite_max || 2} pers.) - {(chambre.prix / 100).toFixed(0)}€/nuit
+                          {chambre.vue && ` - Vue ${chambre.vue}`}
                         </option>
                       ))}
                     </select>
@@ -2995,7 +3039,7 @@ export default function Activites() {
 
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Service:</strong> {pendingTermineRdv.service_nom || pendingTermineRdv.service}
+                  <strong>Service:</strong> {pendingTermineRdv.service_nom || (typeof pendingTermineRdv.service === 'string' ? pendingTermineRdv.service : (pendingTermineRdv.service as { nom?: string })?.nom || 'Service')}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   <strong>Client:</strong> {pendingTermineRdv.clients?.prenom} {pendingTermineRdv.clients?.nom}

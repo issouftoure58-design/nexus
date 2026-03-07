@@ -25,7 +25,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-interface Diplome {
+export interface Diplome {
   id?: number;
   intitule: string;
   etablissement: string;
@@ -94,9 +94,64 @@ interface EmployeFormData {
   notes: string;
 }
 
+// Membre data as received from the API (partial, with numeric types for some fields)
+interface MembreData {
+  id?: number;
+  nom?: string;
+  prenom?: string;
+  sexe?: string;
+  date_naissance?: string;
+  lieu_naissance?: string;
+  nationalite?: string;
+  nir?: string;
+  email?: string;
+  telephone?: string;
+  adresse_rue?: string;
+  adresse_cp?: string;
+  adresse_ville?: string;
+  adresse_pays?: string;
+  piece_identite_type?: string;
+  piece_identite_numero?: string;
+  piece_identite_expiration?: string;
+  role?: string;
+  poste?: string;
+  type_contrat?: string;
+  date_embauche?: string;
+  date_fin_contrat?: string;
+  temps_travail?: string;
+  heures_hebdo?: number;
+  heures_mensuelles?: number;
+  jours_travailles?: string[];
+  convention_collective?: string;
+  classification_niveau?: string;
+  classification_echelon?: string;
+  classification_coefficient?: number;
+  categorie_sociopro?: string;
+  salaire_mensuel?: number;
+  regime_ss?: string;
+  mutuelle_obligatoire?: boolean;
+  mutuelle_dispense?: boolean;
+  prevoyance?: boolean;
+  iban?: string;
+  bic?: string;
+  contact_urgence_nom?: string;
+  contact_urgence_tel?: string;
+  contact_urgence_lien?: string;
+  notes?: string;
+}
+
+// Extended form data that includes computed fields sent to the API
+export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensuel' | 'heures_hebdo' | 'heures_mensuelles' | 'classification_coefficient'> {
+  salaire_mensuel: number;
+  heures_hebdo: number;
+  heures_mensuelles: number;
+  classification_coefficient: number | null;
+  diplomes: Diplome[];
+}
+
 interface FormulaireEmployeProps {
-  editMembre?: any;
-  onSubmit: (data: any) => Promise<void>;
+  editMembre?: MembreData | null;
+  onSubmit: (data: EmployeSubmitData) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
 }
@@ -222,8 +277,8 @@ export default function FormulaireEmploye({
         salaire_mensuel: editMembre.salaire_mensuel ? (editMembre.salaire_mensuel / 100).toString() : '',
         regime_ss: editMembre.regime_ss || 'general',
         mutuelle_obligatoire: editMembre.mutuelle_obligatoire !== false,
-        mutuelle_dispense: editMembre.mutuelle_dispense || false,
-        prevoyance: editMembre.prevoyance || false,
+        mutuelle_dispense: editMembre.mutuelle_dispense ?? false,
+        prevoyance: editMembre.prevoyance ?? false,
         iban: editMembre.iban || '',
         bic: editMembre.bic || '',
 
@@ -243,7 +298,7 @@ export default function FormulaireEmploye({
     }));
   };
 
-  const updateField = (field: keyof EmployeFormData, value: any) => {
+  const updateField = (field: keyof EmployeFormData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear error when field is updated
     if (errors[field]) {
@@ -255,28 +310,29 @@ export default function FormulaireEmploye({
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = (): Record<string, string> | null => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.nom.trim()) newErrors.nom = 'Nom requis';
     if (!formData.prenom.trim()) newErrors.prenom = 'Prénom requis';
-    if (formData.nir && !/^\d{15}$/.test(formData.nir.replace(/\s/g, ''))) {
-      newErrors.nir = 'NIR invalide (15 chiffres)';
+    if (formData.nir && !/^[\dABab]{15}$/.test(formData.nir.replace(/\s/g, ''))) {
+      newErrors.nir = 'NIR invalide (15 caractères, chiffres ou A/B pour la Corse)';
     }
     if (formData.iban && !/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/.test(formData.iban.replace(/\s/g, '').toUpperCase())) {
       newErrors.iban = 'IBAN invalide';
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0 ? null : newErrors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    const newErrors = validateForm();
+    if (newErrors) {
       // Expand sections with errors
-      const sectionsWithErrors = Object.keys(errors).reduce((acc, field) => {
+      const sectionsWithErrors = Object.keys(newErrors).reduce((acc, field) => {
         if (['nom', 'prenom', 'sexe', 'date_naissance', 'lieu_naissance', 'nationalite', 'nir', 'email', 'telephone'].includes(field)) {
           acc.identite = true;
         }
@@ -328,7 +384,7 @@ export default function FormulaireEmploye({
     setDiplomes(diplomes.filter((_, i) => i !== index));
   };
 
-  const SectionHeader = ({ title, icon: Icon, section }: { title: string; icon: any; section: string }) => (
+  const SectionHeader = ({ title, icon: Icon, section }: { title: string; icon: React.ElementType; section: string }) => (
     <button
       type="button"
       onClick={() => toggleSection(section)}
@@ -420,8 +476,8 @@ export default function FormulaireEmploye({
               <label className="block text-sm font-medium mb-1">NIR (Sécurité sociale)</label>
               <Input
                 value={formData.nir}
-                onChange={e => updateField('nir', e.target.value.replace(/[^\d]/g, '').slice(0, 15))}
-                placeholder="15 chiffres"
+                onChange={e => updateField('nir', e.target.value.replace(/[^\dABab]/g, '').slice(0, 15))}
+                placeholder="15 caractères (A/B pour Corse)"
                 maxLength={15}
                 className={errors.nir ? 'border-red-500' : ''}
               />

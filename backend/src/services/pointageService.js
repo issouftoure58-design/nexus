@@ -3,12 +3,7 @@
  * Alimente les heures travaillées depuis les réservations terminées
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { supabase } from '../config/supabase.js';
 
 /**
  * Synchronise le pointage depuis les réservations terminées
@@ -53,6 +48,7 @@ export async function synchroniserPointageDepuisReservations(tenantId, date = nu
   const { data: membres } = await supabase
     .from('rh_membres')
     .select('id, heures_mensuelles, heures_hebdo')
+    .eq('tenant_id', tenantId)
     .in('id', membreIds);
 
   const membresMap = new Map();
@@ -182,7 +178,8 @@ export async function calculerHeuresSupplementaires(tenantId, periode) {
 
   const { data: membres } = await supabase
     .from('rh_membres')
-    .select('id, salaire_base, heures_mensuelles')
+    .select('id, salaire_mensuel, heures_mensuelles')
+    .eq('tenant_id', tenantId)
     .in('id', membreIds);
 
   const membresMap = new Map();
@@ -207,8 +204,8 @@ export async function calculerHeuresSupplementaires(tenantId, periode) {
 
   for (const [membreId, data] of heuresParMembre) {
     const membre = membresMap.get(membreId) || {};
-    const tauxHoraire = membre.salaire_base && membre.heures_mensuelles
-      ? Math.round(membre.salaire_base / membre.heures_mensuelles)
+    const tauxHoraire = membre.salaire_mensuel && membre.heures_mensuelles
+      ? Math.round(membre.salaire_mensuel / membre.heures_mensuelles)
       : 0;
 
     // Calculer heures 25% et 50% par semaine (8 premières à 25%, au-delà à 50%)

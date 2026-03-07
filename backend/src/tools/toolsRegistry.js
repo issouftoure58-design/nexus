@@ -1196,14 +1196,19 @@ const TOOLS_ADMIN_COMMERCIAL = [
 const TOOLS_ADMIN_COMPTABLE = [
   {
     name: "comptable_facturation",
-    description: "Génère et gère les factures.",
+    description: "Génère et gère les factures. Actions: lister (filtrer par statut/client/date), creer (à partir d'un rdv_id ou générer toutes les manquantes), exporter (obtenir le lien PDF par facture_id ou numero).",
     input_schema: {
       type: "object",
       properties: {
         action: { type: "string", enum: ["creer", "lister", "exporter"] },
         periode: { type: "string" },
-        rdv_id: { type: "integer" },
-        format: { type: "string", enum: ["pdf", "csv"] }
+        rdv_id: { type: "integer", description: "ID du RDV pour créer sa facture" },
+        facture_id: { type: "integer", description: "ID de la facture à exporter" },
+        numero: { type: "string", description: "Numéro de facture (ex: FAC-2026-00001)" },
+        statut: { type: "string", enum: ["brouillon", "generee", "envoyee", "payee", "annulee"] },
+        client_id: { type: "integer" },
+        format: { type: "string", enum: ["pdf", "csv"] },
+        limit: { type: "integer" }
       },
       required: []
     }

@@ -15,6 +15,7 @@
  */
 
 import express from 'express';
+import { z } from 'zod';
 import { authenticateAdmin } from './adminAuth.js';
 import {
   listConversations,
@@ -26,6 +27,11 @@ import {
   sendMessage,
 } from '../controllers/adminChatController.js';
 import { enforceTrialLimit } from '../services/trialService.js';
+import { validate } from '../middleware/validate.js';
+
+const chatMessageSchema = z.object({
+  content: z.string().min(1, 'Message requis').max(2000, 'Message trop long (max 2000 caractères)'),
+});
 
 const router = express.Router();
 
@@ -85,13 +91,13 @@ router.get('/conversations/:id/messages', listMessages);
  *   { type: 'done', stop_reason: string }   - Stream terminé
  *   { type: 'error', message: string }      - Erreur
  */
-router.post('/conversations/:id/messages/stream', enforceTrialLimit('interactions_ia'), sendMessageStream);
+router.post('/conversations/:id/messages/stream', enforceTrialLimit('interactions_ia'), validate(chatMessageSchema), sendMessageStream);
 
 /**
  * POST /api/admin/chat/conversations/:id/messages
  * Envoyer un message sans streaming (fallback)
  * Body: { content: string }
  */
-router.post('/conversations/:id/messages', enforceTrialLimit('interactions_ia'), sendMessage);
+router.post('/conversations/:id/messages', enforceTrialLimit('interactions_ia'), validate(chatMessageSchema), sendMessage);
 
 export default router;

@@ -76,6 +76,16 @@ interface Bulletin {
   };
 }
 
+interface Membre {
+  id: number;
+  nom: string;
+  prenom: string;
+  poste: string;
+  statut: string;
+  heures_hebdo: number;
+  salaire_mensuel: number;
+}
+
 // API Functions
 const getAuthHeaders = () => {
   const token = localStorage.getItem('nexus_admin_token');
@@ -248,7 +258,7 @@ export function GestionPaie() {
   // Générer tous les bulletins pour les employés actifs
   const genererTousBulletinsMutation = useMutation({
     mutationFn: async () => {
-      const membresActifs = membres.filter((m: any) => m.statut === 'actif');
+      const membresActifs = membres.filter((m: Membre) => m.statut === 'actif');
       const results = [];
       for (const m of membresActifs) {
         const res = await fetch(`${API_BASE}/admin/rh/bulletins/generer`, {
@@ -485,7 +495,7 @@ export function GestionPaie() {
               onChange={(e) => setSelectedMembre(e.target.value ? parseInt(e.target.value) : null)}
             >
               <option value="">Tous les employés</option>
-              {membres.map((m: any) => (
+              {membres.map((m: Membre) => (
                 <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
               ))}
             </select>
@@ -544,7 +554,7 @@ export function GestionPaie() {
                             {r.jours_valides === r.jours_pointes ? (
                               <Badge className="bg-green-100 text-green-700">100%</Badge>
                             ) : (
-                              <Badge variant="outline">{Math.round(r.jours_valides / r.jours_pointes * 100)}%</Badge>
+                              <Badge variant="outline">{r.jours_pointes > 0 ? Math.round(r.jours_valides / r.jours_pointes * 100) : 0}%</Badge>
                             )}
                           </td>
                         </tr>
@@ -581,7 +591,7 @@ export function GestionPaie() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pointages.slice(0, 20).map((p) => (
+                      {pointages.map((p) => (
                         <tr key={p.id} className="border-b hover:bg-gray-50">
                           <td className="py-3">
                             {new Date(p.date_travail).toLocaleDateString('fr-FR', {
@@ -722,7 +732,7 @@ export function GestionPaie() {
                 Cliquez sur un employé pour régénérer son bulletin, ou utilisez le bouton ci-dessus pour générer tous les bulletins.
               </p>
               <div className="flex flex-wrap gap-2">
-                {membres.filter((m: any) => m.statut === 'actif').map((m: any) => {
+                {membres.filter((m: Membre) => m.statut === 'actif').map((m: Membre) => {
                   const hasBulletin = bulletins.some(b => b.membre_id === m.id);
                   return (
                     <Button

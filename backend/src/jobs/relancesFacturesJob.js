@@ -82,6 +82,8 @@ async function getFacturesJ7(tenantId) {
     .select('*')
     .eq('tenant_id', tenantId)
     .not('statut', 'in', '("payee","annulee")')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .eq('relance_j7_envoyee', false)
     .not('date_echeance', 'is', null)
     .lte('date_echeance', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -108,6 +110,8 @@ async function getFacturesJ14(tenantId) {
     .select('*')
     .eq('tenant_id', tenantId)
     .not('statut', 'in', '("payee","annulee")')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .eq('relance_j7_envoyee', true)  // J+7 déjà envoyée
     .eq('relance_j14_envoyee', false)
     .not('date_echeance', 'is', null)
@@ -135,6 +139,8 @@ async function getFacturesJ21(tenantId) {
     .select('*')
     .eq('tenant_id', tenantId)
     .not('statut', 'in', '("payee","annulee")')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .eq('relance_j14_envoyee', true)  // J+14 déjà envoyée
     .eq('relance_j21_envoyee', false)
     .not('date_echeance', 'is', null)
@@ -440,11 +446,13 @@ export async function traiterToutesRelancesJ7J14J21() {
 
   console.log(`\n[Relances] 🚀 Début traitement relances J+7/J+14/J+21 - ${new Date().toLocaleString('fr-FR')}`);
 
-  // Récupérer tous les tenants avec des factures impayées
+  // Récupérer tous les tenants avec des factures impayées (exclure avoirs)
   const { data: tenants, error } = await db
     .from('factures')
     .select('tenant_id')
     .not('statut', 'in', '("payee","annulee")')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false)
     .not('date_echeance', 'is', null);
 
   if (error) {
@@ -486,7 +494,9 @@ export async function getStatsRelances(tenantId) {
     .from('factures')
     .select('relance_j7_envoyee, relance_j14_envoyee, relance_j21_envoyee')
     .eq('tenant_id', tenantId)
-    .not('statut', 'in', '("payee","annulee")');
+    .not('statut', 'in', '("payee","annulee")')
+    .neq('type', 'avoir')
+    .eq('avoir_emis', false);
 
   if (error) {
     console.error('[Relances] Erreur stats:', error.message);

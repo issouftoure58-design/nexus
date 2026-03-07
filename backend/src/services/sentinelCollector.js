@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import { sendSMS } from './smsService.js';
 
 // Prix unitaires pour calcul couts
 const PRICING = {
@@ -361,10 +362,37 @@ class SentinelCollector {
         });
       }
 
-      // Envoyer notifications (TODO: integrer avec service notifications)
+      // Envoyer notifications aux admins du tenant
       for (const alert of alerts) {
         console.log(`[SENTINEL ALERT] ${tenantId}: ${alert.title}`);
-        // await notificationService.send(tenantId, alert);
+
+        // Persister l'alerte en base
+        await supabase.from('sentinel_alerts').insert({
+          tenant_id: tenantId,
+          type: alert.type,
+          title: alert.title,
+          message: alert.message,
+          date: dateStr,
+        }).catch(() => {});
+
+        // Notifier le premier admin par SMS si numéro disponible
+        try {
+          const { data: admin } = await supabase
+            .from('admin_users')
+            .select('telephone')
+            .eq('tenant_id', tenantId)
+            .eq('role', 'owner')
+            .limit(1)
+            .single();
+
+          if (admin?.telephone) {
+            await sendSMS(
+              admin.telephone,
+              `[NEXUS Sentinel] ${alert.title}\n${alert.message}`,
+              tenantId
+            );
+          }
+        } catch (_) { /* non-blocking */ }
       }
 
       return alerts;
@@ -438,6 +466,97 @@ class SentinelCollector {
     await this.collectDailySnapshot(tenantId, today);
     await this.collectDailyCosts(tenantId, today);
     return { collected: true, date: today };
+  }
+
+  /**
+   * Backfill : rattraper les jours manquants entre deux dates
+   * @param {string} fromDate - Date de début (YYYY-MM-DD)
+   * @param {string} toDate - Date de fin (YYYY-MM-DD)
+   * @returns {object} { success, daysProcessed, errors }
+   */
+  async backfill(fromDate, toDate) {
+    console.log(`[SENTINEL] Backfill: ${fromDate} → ${toDate}`);
+
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+      return { success: false, error: 'Dates invalides' };
+    }
+
+    const tenants = await this.getBusinessTenants();
+    if (tenants.length === 0) {
+      return { success: false, error: 'Aucun tenant Business actif' };
+    }
+
+    let daysProcessed = 0;
+    let errors = 0;
+
+    const current = new Date(start);
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      console.log(`[SENTINEL] Backfill jour: ${dateStr}`);
+
+      for (const tenant of tenants) {
+        try {
+          await this.collectDailySnapshot(tenant.id, dateStr);
+          await this.collectDailyCosts(tenant.id, dateStr);
+        } catch (err) {
+          console.error(`[SENTINEL] Backfill error ${tenant.id} ${dateStr}:`, err.message);
+          errors++;
+        }
+      }
+
+      daysProcessed++;
+      current.setDate(current.getDate() + 1);
+
+      // Pause entre chaque jour pour ne pas surcharger
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    console.log(`[SENTINEL] Backfill terminé: ${daysProcessed} jours, ${errors} erreurs`);
+    return { success: true, daysProcessed, errors, tenants: tenants.length };
+  }
+
+  /**
+   * Détecte les trous dans les snapshots et lance un backfill automatique
+   */
+  async autoBackfillGaps() {
+    try {
+      const tenants = await this.getBusinessTenants();
+      if (tenants.length === 0) return { filled: 0 };
+
+      // Vérifier le dernier snapshot pour le premier tenant
+      const { data: lastSnapshot } = await supabase
+        .from('sentinel_daily_snapshots')
+        .select('date')
+        .eq('tenant_id', tenants[0].id)
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!lastSnapshot) return { filled: 0 };
+
+      const lastDate = new Date(lastSnapshot.date);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      // Si le dernier snapshot est plus vieux qu'hier, backfill
+      const diffDays = Math.floor((yesterday - lastDate) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        const fromDate = new Date(lastDate);
+        fromDate.setDate(fromDate.getDate() + 1);
+        const fromStr = fromDate.toISOString().split('T')[0];
+
+        console.log(`[SENTINEL] Gap détecté: ${diffDays} jour(s) manquants (${fromStr} → ${yesterdayStr})`);
+        return this.backfill(fromStr, yesterdayStr);
+      }
+
+      return { filled: 0 };
+    } catch (err) {
+      console.error('[SENTINEL] autoBackfillGaps error:', err.message);
+      return { filled: 0, error: err.message };
+    }
   }
 }
 

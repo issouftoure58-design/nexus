@@ -547,19 +547,11 @@ export async function setDefaultPaymentMethod(tenantId, paymentMethodId) {
 export async function createPortalSession(tenantId, returnUrl) {
   if (!stripe) throw new Error('Stripe not configured');
 
-  const { data: tenant, error } = await supabase
-    .from('tenants')
-    .select('stripe_customer_id')
-    .eq('id', tenantId)
-    .single();
-
-  if (error) throw error;
-  if (!tenant?.stripe_customer_id) {
-    throw new Error('Pas de customer Stripe');
-  }
+  // Auto-creation du customer Stripe si inexistant
+  const customer = await getOrCreateCustomer(tenantId);
 
   const session = await stripe.billingPortal.sessions.create({
-    customer: tenant.stripe_customer_id,
+    customer: customer.id,
     return_url: returnUrl || `${process.env.APP_URL || 'http://localhost:5000'}/admin/subscription`
   });
 

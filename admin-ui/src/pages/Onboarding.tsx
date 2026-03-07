@@ -141,8 +141,8 @@ async function setupFromTemplate(payload: {
   address: string;
   phone: string;
   selectedServices?: Service[];
-  customHours?: Record<string, any>;
-}): Promise<any> {
+  customHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+}): Promise<{ success: boolean }> {
   return api.post('/tenants/setup-from-template', payload);
 }
 

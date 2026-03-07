@@ -590,7 +590,7 @@ ESSAI GRATUIT 14 JOURS
 | **Replicate** | Images IA, Vidéo | Pay-per-use |
 | **Stripe** | Paiements | 1.4% + 0.25€/transaction |
 | **Resend** | Emails transactionnels | $20/mois |
-| **Sentry** | Monitoring erreurs | $26/mois |
+| ~~Sentry~~ | ~~Monitoring erreurs~~ | ~~$26/mois~~ → SENTINEL integre (0€) |
 | **Redis (Upstash)** | Cache, Queues | $10-50/mois |
 
 ### Services sociaux (selon features activées)

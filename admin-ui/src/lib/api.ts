@@ -305,7 +305,7 @@ export const invitationsApi = {
     api.post<{ invitation: { id: string; email: string; role: string; expires_at: string } }>('/admin/invitations', { email, role }),
   revoke: (id: string) => api.delete(`/admin/invitations/${id}`),
   verify: (token: string) =>
-    api.get<{ valid: boolean; email: string; role: string; tenant_name: string }>(`/admin/invitations/verify/${token}`, { skipAuth: true } as any),
+    api.get<{ valid: boolean; email: string; role: string; tenant_name: string }>(`/admin/invitations/verify/${token}`, { skipAuth: true }),
   accept: (token: string, nom: string, password: string) =>
     api.post<{ success: boolean; message: string }>('/admin/invitations/accept', { token, nom, password }, { skipAuth: true }),
 };
@@ -350,7 +350,7 @@ export const documentsApi = {
     if (params?.entity_id) query.set('entity_id', params.entity_id);
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
-    return api.get<{ documents: any[]; total: number; page: number; limit: number; pages: number }>(`/admin/documents?${query}`);
+    return api.get<{ documents: { id: string; file_name: string; mime_type: string; size: number; category: string; entity_type?: string; entity_id?: string; created_at: string }[]; total: number; page: number; limit: number; pages: number }>(`/admin/documents?${query}`);
   },
   getUrl: (id: string) => api.get<{ url: string; file_name: string; mime_type: string; expires_in: number }>(`/admin/documents/${id}`),
   delete: (id: string) => api.delete(`/admin/documents/${id}`),
@@ -365,20 +365,20 @@ export const referralsApi = {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
-    return api.get<{ referrals: any[]; total: number }>(`/admin/referrals?${query}`);
+    return api.get<{ referrals: { id: string; referrer_id: string; referred_email: string; status: string; reward_amount: number; created_at: string }[]; total: number }>(`/admin/referrals?${query}`);
   },
-  create: () => api.post<any>('/admin/referrals'),
+  create: () => api.post<{ referral: { id: string; referral_code: string } }>('/admin/referrals'),
 };
 
 // SSO
 export const ssoApi = {
-  getProviders: () => api.get<{ providers: any[] }>('/admin/sso/providers'),
-  configureProvider: (config: any) => api.post<any>('/admin/sso/providers', config),
+  getProviders: () => api.get<{ providers: { id: string; name: string; type: string; enabled: boolean; client_id: string; created_at: string }[] }>('/admin/sso/providers'),
+  configureProvider: (config: { name: string; type: string; client_id: string; client_secret: string; issuer_url?: string }) => api.post<{ provider: { id: string; name: string; type: string } }>('/admin/sso/providers', config),
   deleteProvider: (id: string) => api.delete(`/admin/sso/providers/${id}`),
   initiateOIDC: (tenantId: string, providerId: string) =>
     api.post<{ authorization_url: string; state: string }>('/admin/sso/oidc/initiate', { tenant_id: tenantId, provider_id: providerId }, { skipAuth: true }),
   callbackOIDC: (tenantId: string, providerId: string, code: string) =>
-    api.post<{ token: string; admin: any }>('/admin/sso/oidc/callback', { tenant_id: tenantId, provider_id: providerId, code }, { skipAuth: true }),
+    api.post<{ token: string; admin: { id: string; email: string; nom: string; role: string; tenant_id: string } }>('/admin/sso/oidc/callback', { tenant_id: tenantId, provider_id: providerId, code }, { skipAuth: true }),
 };
 
 // Dashboard Stats
@@ -539,6 +539,9 @@ export const comptaApi = {
     date_paiement?: string;
     reference_paiement?: string;
   }) => api.post<{ success: boolean; facture: Invoice; message: string }>(`/factures/${factureId}/paiement`, data),
+  // Avoirs (notes de crédit)
+  creerAvoir: (factureId: number, motif: string) =>
+    api.post<{ success: boolean; avoir: Invoice }>(`/factures/${factureId}/avoir`, { motif }),
   // Relances
   getRelances: () => api.get<{ success: boolean; factures: RelanceFacture[]; stats: RelanceStats }>('/relances'),
   getRelanceHistorique: (factureId: number) => api.get<{ success: boolean; historique: RelanceHistorique[] }>(`/relances/historique/${factureId}`),
@@ -753,10 +756,68 @@ export interface RelanceSettings {
 }
 
 // Analytics
+export interface AnalytiqueSynthese {
+  ca_ht: number;
+  consommations: number;
+  charges_personnel: number;
+  charges_externes: number;
+  marge_brute: number;
+  taux_marge_brute: number;
+  ebe: number;
+  taux_ebe: number;
+  resultat_net: number;
+  marge_nette: number;
+  couts_variables: number;
+  charges_fixes: number;
+  taux_marge_cv: number;
+  seuil_rentabilite: number;
+  point_mort_atteint: boolean;
+}
+
+export interface AnalytiqueService {
+  nom: string;
+  ca_ht: number;
+  ca_ttc: number;
+  tva: number;
+  nb_factures: number;
+}
+
+export interface AnalytiqueCollaborateur {
+  nom: string;
+  role: string;
+  ca: number;
+  nb_rdv: number;
+  salaire_mensuel: number;
+}
+
+export interface AnalytiqueDepenseCategorie {
+  categorie: string;
+  total: number;
+  count: number;
+  sig: 'achat' | 'personnel' | 'externe';
+  variable: boolean;
+}
+
+export interface AnalytiqueData {
+  par_service: AnalytiqueService[];
+  par_collaborateur: AnalytiqueCollaborateur[];
+  depenses: { par_categorie: AnalytiqueDepenseCategorie[] };
+  synthese: AnalytiqueSynthese;
+  tendance_mensuelle: Array<Record<string, string | number>>;
+}
+
 export const analyticsApi = {
   getOverview: () => api.get<AnalyticsOverview>('/admin/analytics/overview'),
   getRevenue: (period: string) => api.get<RevenueData>(`/admin/analytics/revenue?period=${period}`),
   getClients: () => api.get<ClientsAnalytics>('/admin/analytics/clients'),
+  getAnalytique: (debut?: string, fin?: string, businessType?: string) => {
+    const params = new URLSearchParams();
+    if (debut) params.set('debut', debut);
+    if (fin) params.set('fin', fin);
+    if (businessType) params.set('businessType', businessType);
+    const qs = params.toString();
+    return api.get<AnalytiqueData>(`/admin/analytics/analytique${qs ? `?${qs}` : ''}`);
+  },
 };
 
 // RH / Team
@@ -1146,6 +1207,11 @@ export interface Invoice {
   statut: 'brouillon' | 'generee' | 'envoyee' | 'payee' | 'annulee';
   // Lien réservation
   reservation_id?: number;
+  // Avoirs (notes de crédit)
+  type?: 'facture' | 'avoir';
+  facture_origine_id?: number;
+  avoir_emis?: boolean;
+  motif_avoir?: string;
   // Legacy / compatibilité
   montant_ht_euros?: string;
   montant_ttc_euros?: string;
@@ -1645,4 +1711,139 @@ export interface CategorieDetailResponse {
     payee: boolean;
     recurrence: string;
   }>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SENTINEL TYPES
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface SentinelInsight {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  priority: number;
+  status: string;
+  created_at: string;
+}
+
+export interface SentinelDashboardData {
+  today: {
+    total_clients: number;
+    new_clients: number;
+    total_reservations: number;
+    revenue_paid: number;
+    no_show_rate: number;
+  };
+  trends: {
+    total_revenue: number;
+    total_reservations: number;
+    total_new_clients: number;
+    avg_daily_revenue: number;
+    revenue_trend: string;
+    revenue_change: number;
+    reservations_trend: string;
+    reservations_change: number;
+  };
+  insights: SentinelInsight[];
+  performance: {
+    revenue: { current: number; goal: number; projected: number; progress: number };
+    new_clients: { current: number; goal: number; projected: number; progress: number };
+    reservations: { current: number; goal: number; projected: number; progress: number };
+  };
+  period: {
+    start: string;
+    end: string;
+    days: number;
+  };
+}
+
+export interface SentinelAnalyticsData {
+  forecast: {
+    historique: { month: string; ca: number }[];
+    forecasts: { month: string; predicted_ca: string; confidence: number }[];
+    growth_rate: string;
+    avg_monthly: string;
+  };
+  trends: {
+    nouveaux_30j: number;
+    actifs: number;
+    a_risque: number;
+    perdus: number;
+    vip: number;
+    total: number;
+    evolution: { month: string; nouveaux: number }[];
+  };
+  clusters: {
+    segments: { name: string; count: number; percentage: string; avg_value: string }[];
+    recommendations: { segment: string; segment_key?: string; action: string; description: string }[];
+  };
+  patterns: { type: string; title: string; description: string; recommendation: string }[];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHURN TYPES
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface ChurnClient {
+  client_id: number;
+  name: string;
+  email: string;
+  risk_score: number;
+  risk_level: 'high' | 'medium' | 'low';
+  last_activity_days: number;
+  total_spent: number;
+  factors: {
+    inactivity: number;
+    frequency_drop: number;
+    spending_drop: number;
+    engagement: number;
+  };
+}
+
+export interface ChurnAnalysis {
+  total_clients: number;
+  at_risk: number;
+  high_risk: number;
+  medium_risk: number;
+  clients: ChurnClient[];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SENTINEL API
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const sentinelApi = {
+  getDashboard: () =>
+    api.get<{ success: boolean; data: SentinelDashboardData }>('/sentinel/dashboard'),
+
+  refresh: () =>
+    api.post<{ success: boolean }>('/sentinel/refresh'),
+
+  getActivity: (period: '7d' | '30d' | '90d') =>
+    api.get<{ success: boolean; data: unknown }>(`/sentinel/activity/${period}`),
+
+  getCosts: (period: '7d' | '30d' | '90d') =>
+    api.get<{ success: boolean; data: unknown }>(`/sentinel/costs/${period}`),
+
+  getInsights: (status?: string) =>
+    api.get<{ success: boolean; data: SentinelInsight[] }>(`/sentinel/insights${status ? `?status=${status}` : ''}`),
+
+  generateInsights: () =>
+    api.post<{ success: boolean; data: SentinelInsight[] }>('/sentinel/insights/generate'),
+
+  dismissInsight: (id: string, reason?: string) =>
+    api.patch<{ success: boolean }>(`/sentinel/insights/${id}/dismiss`, { reason }),
+
+  implementInsight: (id: string, notes?: string) =>
+    api.patch<{ success: boolean }>(`/sentinel/insights/${id}/implement`, { notes }),
+
+  getGoals: () =>
+    api.get<{ success: boolean; data: Record<string, unknown> }>('/sentinel/goals'),
+
+  updateGoals: (goals: Record<string, unknown>) =>
+    api.put<{ success: boolean; data: Record<string, unknown> }>('/sentinel/goals', goals),
+
+  getMonthlyGoals: (year?: number) =>
+    api.get<{ success: boolean; data: unknown[] }>(`/sentinel/monthly-goals${year ? `?year=${year}` : ''}`),
 }

@@ -443,7 +443,7 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
   const [error, setError] = useState('');
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => stockApi.create(data),
+    mutationFn: (data: { nom: string; description?: string; quantite: number; prix_achat: number; prix_vente: number; seuil_alerte?: number }) => stockApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       onClose();
@@ -452,7 +452,7 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => stockApi.update(product!.id, data),
+    mutationFn: (data: { nom: string; description?: string; quantite: number; prix_achat: number; prix_vente: number; seuil_alerte?: number }) => stockApi.update(product!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       onClose();

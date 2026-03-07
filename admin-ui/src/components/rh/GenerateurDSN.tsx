@@ -259,7 +259,9 @@ export function GenerateurDSN() {
     return (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
   };
 
-  const isConfigComplete = formData.siren && formData.siret && formData.raison_sociale;
+  const sirenValid = formData.siren ? /^\d{9}$/.test(formData.siren) : false;
+  const siretValid = formData.siret ? /^\d{14}$/.test(formData.siret) : false;
+  const isConfigComplete = sirenValid && siretValid && formData.raison_sociale;
 
   return (
     <div className="space-y-6">
@@ -335,10 +337,14 @@ export function GenerateurDSN() {
                   <label className="text-sm font-medium">SIREN *</label>
                   <Input
                     value={formData.siren || ''}
-                    onChange={(e) => handleInputChange('siren', e.target.value)}
+                    onChange={(e) => handleInputChange('siren', e.target.value.replace(/\D/g, ''))}
                     placeholder="123456789"
                     maxLength={9}
+                    className={formData.siren && !sirenValid ? 'border-red-500' : ''}
                   />
+                  {formData.siren && !sirenValid && (
+                    <p className="text-red-500 text-xs mt-1">SIREN invalide (9 chiffres requis)</p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium">Raison sociale *</label>
@@ -393,10 +399,14 @@ export function GenerateurDSN() {
                   <label className="text-sm font-medium">SIRET *</label>
                   <Input
                     value={formData.siret || ''}
-                    onChange={(e) => handleInputChange('siret', e.target.value)}
+                    onChange={(e) => handleInputChange('siret', e.target.value.replace(/\D/g, ''))}
                     placeholder="12345678900012"
                     maxLength={14}
+                    className={formData.siret && !siretValid ? 'border-red-500' : ''}
                   />
+                  {formData.siret && !siretValid && (
+                    <p className="text-red-500 text-xs mt-1">SIRET invalide (14 chiffres requis)</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Code NAF (APE)</label>
