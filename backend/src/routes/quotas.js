@@ -50,10 +50,10 @@ router.get('/', async (req, res) => {
     // Récupérer le plan et modules actifs du tenant
     const { data: tenantRow } = await supabase
       .from('tenants')
-      .select('plan_id, modules_actifs')
+      .select('plan, modules_actifs')
       .eq('id', tenantId)
       .single();
-    const plan = tenantRow?.plan_id || 'starter';
+    const plan = tenantRow?.plan || 'starter';
 
     // Récupérer les demandes d'activation en cours
     const { data: pendingReqs } = await supabase
@@ -119,10 +119,10 @@ router.post('/request-activation', async (req, res) => {
     // Récupérer le plan du tenant
     const { data: tenantRow } = await supabase
       .from('tenants')
-      .select('plan_id, name')
+      .select('plan, name')
       .eq('id', tenantId)
       .single();
-    const plan = tenantRow?.plan_id || 'starter';
+    const plan = tenantRow?.plan || 'starter';
 
     // Vérifier que le module est inclus dans le plan
     const allowedModules = PLAN_MODULES[plan] || PLAN_MODULES.starter;

@@ -965,8 +965,8 @@ export async function sentinelSnapshotJob() {
     // Récupérer tous les tenants Business actifs
     const { data: tenants, error } = await db
       .from('tenants')
-      .select('id, name, plan_id')
-      .in('plan_id', ['business', 'enterprise'])
+      .select('id, name, plan')
+      .in('plan', ['business', 'enterprise'])
       .in('statut', ['actif', 'essai']);
 
     if (error) {
@@ -1021,8 +1021,8 @@ export async function sentinelInsightsJob() {
     // Récupérer tous les tenants Business actifs
     const { data: tenants, error } = await db
       .from('tenants')
-      .select('id, name, plan_id')
-      .in('plan_id', ['business', 'enterprise'])
+      .select('id, name, plan')
+      .in('plan', ['business', 'enterprise'])
       .in('statut', ['actif', 'essai']);
 
     if (error) {

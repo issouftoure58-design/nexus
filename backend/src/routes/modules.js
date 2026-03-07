@@ -676,17 +676,17 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Récupérer tenant avec plan_id
+    // Récupérer tenant avec plan
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('modules_actifs, plan_id, plan')
+      .select('modules_actifs, plan')
       .eq('id', tenantId)
       .single();
 
     if (tenantError) throw tenantError;
 
     const modulesActifs = tenant?.modules_actifs || { socle: true };
-    const tenantPlan = tenant?.plan_id || tenant?.plan || 'starter';
+    const tenantPlan = tenant?.plan || 'starter';
 
     // ════════════════════════════════════════════════════════════════
     // VÉRIFICATION PLAN - SÉCURITÉ CRITIQUE
@@ -962,17 +962,17 @@ router.post('/bulk', authenticateAdmin, async (req, res) => {
 
     console.log(`[MODULES] Bulk update pour ${tenantId}:`, { activate, deactivate });
 
-    // Récupérer tenant avec plan_id
+    // Récupérer tenant avec plan
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('modules_actifs, plan_id, plan')
+      .select('modules_actifs, plan')
       .eq('id', tenantId)
       .single();
 
     if (tenantError) throw tenantError;
 
     let modulesActifs = { ...tenant?.modules_actifs } || { socle: true };
-    const tenantPlan = tenant?.plan_id || tenant?.plan || 'starter';
+    const tenantPlan = tenant?.plan || 'starter';
 
     const errors = [];
     const activated = [];

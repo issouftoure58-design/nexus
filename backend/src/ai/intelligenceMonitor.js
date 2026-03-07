@@ -373,7 +373,7 @@ export async function jobIntelligenceMonitoring() {
     const { data: tenants, error: errTenants } = await supabase
       .from('tenants')
       .select('id, name')
-      .eq('plan_id', 'business');
+      .eq('plan', 'business');
 
     if (errTenants) {
       console.error('[INTELLIGENCE] Erreur recuperation tenants:', errTenants);

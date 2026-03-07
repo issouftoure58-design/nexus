@@ -274,7 +274,6 @@ router.post('/', async (req, res) => {
         tier: plan_id, // Required field
         status: 'trial',
         domain: `${tenant_id}.nexus.app`,
-        plan_id,
         plan: plan_id,
         secteur_id,
         modules_actifs,

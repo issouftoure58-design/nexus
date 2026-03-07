@@ -136,8 +136,8 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Déterminer le plan (priorité: plan > plan_id > tier)
-    const plan = (tenant.plan || tenant.plan_id || tenant.tier || 'starter').toLowerCase();
+    // Déterminer le plan (priorité: plan > tier)
+    const plan = (tenant.plan || tenant.tier || 'starter').toLowerCase();
 
     // Construire les quotas (merge défaut + custom)
     const quotas = {
@@ -271,11 +271,11 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
     // Récupérer le tenant pour connaître son plan
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan, plan_id, tier, modules_actifs')
+      .select('plan, tier, modules_actifs')
       .eq('id', tenantId)
       .single();
 
-    const currentPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
+    const currentPlan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
     const activeModules = tenant?.modules_actifs || {};
 
     // Enrichir les modules avec leur statut

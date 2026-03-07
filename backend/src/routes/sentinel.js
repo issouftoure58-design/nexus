@@ -31,7 +31,7 @@ const requireAdminPlan = (minPlan) => {
       // Récupérer le plan du tenant
       const { data: tenant, error } = await supabase
         .from('tenants')
-        .select('plan, plan_id')
+        .select('plan')
         .eq('id', req.admin.tenant_id)
         .single();
 
@@ -43,7 +43,7 @@ const requireAdminPlan = (minPlan) => {
         });
       }
 
-      const plan = (tenant.plan || tenant.plan_id || 'starter').toLowerCase();
+      const plan = (tenant.plan || 'starter').toLowerCase();
       const userPlanIndex = planOrder.indexOf(plan);
       const requiredPlanIndex = planOrder.indexOf(minPlan);
 

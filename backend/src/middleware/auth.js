@@ -79,7 +79,7 @@ export const authenticateToken = async (req, res, next) => {
     // Recuperer le plan du tenant
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('id, name, plan_id, modules_actifs, statut')
+      .select('id, name, plan, modules_actifs, statut')
       .eq('id', user.tenant_id)
       .single();
 
@@ -89,7 +89,7 @@ export const authenticateToken = async (req, res, next) => {
       email: user.email,
       role: user.role,
       tenant_id: user.tenant_id,
-      plan: tenant?.plan_id || 'starter'
+      plan: tenant?.plan || 'starter'
     };
 
     req.tenant = tenant;

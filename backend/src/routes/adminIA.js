@@ -71,13 +71,13 @@ const requireProPlan = async (req, res, next) => {
 
     const { data: tenant, error } = await supabase
       .from('tenants')
-      .select('plan_id, plan')
+      .select('plan')
       .eq('id', tenantId)
       .single();
 
     if (error) throw error;
 
-    const plan = (tenant?.plan_id || tenant?.plan || 'starter').toLowerCase();
+    const plan = (tenant?.plan || 'starter').toLowerCase();
 
     if (plan === 'starter') {
       return res.status(403).json({

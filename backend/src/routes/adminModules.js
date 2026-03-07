@@ -106,11 +106,11 @@ router.get('/pricing', authenticateAdmin, async (req, res) => {
     const { data: tenant, error } = await supabase
       .from('tenants')
       .select(`
-        plan_id,
+        plan,
         options_canaux_actifs,
         module_metier_id,
         module_metier_paye,
-        plan:plans(id, nom, prix_mensuel)
+        plan_details:plans(id, nom, prix_mensuel)
       `)
       .eq('id', tenantId)
       .single();
@@ -132,12 +132,12 @@ router.get('/pricing', authenticateAdmin, async (req, res) => {
     }
 
     // Calculer totaux
-    const planPrix = tenant.plan?.prix_mensuel || 0;
+    const planPrix = tenant.plan_details?.prix_mensuel || 0;
     const optionsPrix = options.reduce((sum, o) => sum + o.prix, 0);
     const totalMensuel = planPrix + optionsPrix;
 
     const details = [
-      { type: 'plan', id: tenant.plan?.id, nom: tenant.plan?.nom, prix: planPrix }
+      { type: 'plan', id: tenant.plan_details?.id, nom: tenant.plan_details?.nom, prix: planPrix }
     ];
     options.forEach(o => {
       details.push({ type: 'option', id: o.id, nom: o.nom, prix: o.prix });
@@ -181,18 +181,18 @@ router.get('/plans', authenticateAdmin, async (req, res) => {
     // Récupérer plan actuel du tenant
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan_id')
+      .select('plan')
       .eq('id', tenantId)
       .single();
 
     const plansWithStatus = (plans || []).map(p => ({
       ...p,
-      est_actif: p.id === tenant?.plan_id
+      est_actif: p.id === tenant?.plan
     }));
 
     res.json({
       plans: plansWithStatus,
-      plan_actuel: tenant?.plan_id
+      plan_actuel: tenant?.plan
     });
   } catch (error) {
     console.error('[ADMIN MODULES] Erreur plans:', error);

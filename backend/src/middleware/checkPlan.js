@@ -33,7 +33,7 @@ export function requireModule(moduleName) {
         .select(`
           id,
           name,
-          plan_id,
+          plan,
           modules_actifs,
           statut,
           essai_fin
@@ -52,7 +52,7 @@ export function requireModule(moduleName) {
       const { data: plan } = await supabase
         .from('plans')
         .select('nom, modules, limites')
-        .eq('id', tenant.plan_id)
+        .eq('id', tenant.plan)
         .single();
 
       // ═══════════════════════════════════════════════════
@@ -158,7 +158,7 @@ export function checkUsageLimit(resource) {
       // Recuperer plan et limites
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('plan_id')
+        .select('plan')
         .eq('id', tenantId)
         .single();
 
@@ -169,7 +169,7 @@ export function checkUsageLimit(resource) {
       const { data: plan } = await supabase
         .from('plans')
         .select('limites')
-        .eq('id', tenant.plan_id)
+        .eq('id', tenant.plan)
         .single();
 
       const limites = plan?.limites || {};
@@ -392,7 +392,7 @@ export async function getTenantPlanInfo(tenantId) {
   try {
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan_id, modules_actifs, modules_metier_actifs, statut, essai_fin')
+      .select('plan, modules_actifs, modules_metier_actifs, statut, essai_fin')
       .eq('id', tenantId)
       .single();
 
@@ -401,7 +401,7 @@ export async function getTenantPlanInfo(tenantId) {
     const { data: plan } = await supabase
       .from('plans')
       .select('*')
-      .eq('id', tenant.plan_id)
+      .eq('id', tenant.plan)
       .single();
 
     return {

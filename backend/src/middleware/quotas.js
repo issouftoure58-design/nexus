@@ -42,7 +42,7 @@ export const PLAN_LIMITS = {
 export async function getTenantPlan(tenant_id) {
   const { data, error } = await supabase
     .from('tenants')
-    .select('plan_id')
+    .select('plan')
     .eq('id', tenant_id)
     .single();
 
@@ -51,7 +51,7 @@ export async function getTenantPlan(tenant_id) {
     return 'starter'; // défaut si erreur
   }
 
-  return data?.plan_id || 'starter';
+  return data?.plan || 'starter';
 }
 
 /**

@@ -435,7 +435,7 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
         .from('tenants')
         .select('id, name')
         .eq('statut', 'actif')
-        .in('plan_id', ['business', 'enterprise']);
+        .in('plan', ['business', 'enterprise']);
 
       console.log(`[SENTINEL] Found ${tenants?.length || 0} Business tenants`);
 

@@ -407,9 +407,9 @@ class SentinelCollector {
   async getBusinessTenants() {
     const { data: tenants } = await supabase
       .from('tenants')
-      .select('id, name, plan_id')
+      .select('id, name, plan')
       .eq('statut', 'actif')
-      .in('plan_id', ['business', 'enterprise']);
+      .in('plan', ['business', 'enterprise']);
 
     return tenants || [];
   }

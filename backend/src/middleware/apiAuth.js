@@ -355,7 +355,7 @@ export const requireBusinessPlan = async (req, res, next) => {
     // Recuperer le plan du tenant
     const { data: tenant, error } = await supabase
       .from('tenants')
-      .select('plan_id, statut')
+      .select('plan, statut')
       .eq('id', req.tenantId)
       .single();
 
@@ -378,7 +378,7 @@ export const requireBusinessPlan = async (req, res, next) => {
     const { data: plan } = await supabase
       .from('plans')
       .select('nom')
-      .eq('id', tenant.plan_id)
+      .eq('id', tenant.plan)
       .single();
 
     const planName = plan?.nom?.toLowerCase() || '';

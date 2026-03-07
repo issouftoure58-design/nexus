@@ -48,7 +48,6 @@ async function main() {
       .from('tenants')
       .update({
         plan: NEW_PLAN,
-        plan_id: NEW_PLAN,
         tier: NEW_PLAN
       })
       .eq('id', TENANT_ID);

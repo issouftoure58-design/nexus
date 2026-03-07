@@ -161,7 +161,7 @@ async function getTenantConfig(tenantId) {
   const { data: tenant, error } = await supabase
     .from('tenants')
     .select(`
-      plan_id,
+      plan,
       options_canaux_actifs,
       module_metier_id,
       module_metier_paye,
@@ -176,7 +176,7 @@ async function getTenantConfig(tenantId) {
   }
 
   // Utiliser le mapping PLAN_FEATURES au lieu d'une table plans
-  const planId = tenant.plan_id || 'starter';
+  const planId = tenant.plan || 'starter';
   const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
 
   const config = {

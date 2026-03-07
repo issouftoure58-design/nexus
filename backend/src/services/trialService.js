@@ -29,7 +29,7 @@ export async function getTrialStatus(tenantId) {
   try {
     const { data: tenant, error } = await supabase
       .from('tenants')
-      .select('id, name, statut, essai_fin, created_at, plan_id')
+      .select('id, name, statut, essai_fin, created_at, plan')
       .eq('id', tenantId)
       .single();
 
@@ -57,7 +57,7 @@ export async function getTrialStatus(tenantId) {
         isTrial: false,
         isActive: true,
         isPaid: true,
-        plan: tenant.plan_id,
+        plan: tenant.plan,
       };
     } else if (tenant.statut === 'expire' || tenant.statut === 'annule') {
       isExpired = true;
@@ -335,7 +335,7 @@ export async function convertTrialToPaid(tenantId, planId) {
       .from('tenants')
       .update({
         statut: 'actif',
-        plan_id: planId,
+        plan: planId,
         converted_at: new Date().toISOString(),
       })
       .eq('id', tenantId);
