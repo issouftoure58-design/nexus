@@ -659,12 +659,26 @@ router.get('/me', authenticateAdmin, async (req, res) => {
   res.setHeader('Expires', '0');
 
   try {
-    const { data: admin } = await supabase
+    let admin;
+    const { data, error } = await supabase
       .from('admin_users')
       .select('id, email, nom, role, totp_enabled, custom_permissions')
       .eq('id', req.admin.id)
       .eq('tenant_id', req.admin.tenant_id)
       .single();
+
+    if (error) {
+      // Fallback si custom_permissions n'existe pas encore
+      const { data: fallback } = await supabase
+        .from('admin_users')
+        .select('id, email, nom, role, totp_enabled')
+        .eq('id', req.admin.id)
+        .eq('tenant_id', req.admin.tenant_id)
+        .single();
+      admin = fallback;
+    } else {
+      admin = data;
+    }
 
     res.json({ admin });
   } catch (error) {
@@ -691,11 +705,24 @@ export async function authenticateAdmin(req, res, next) {
     }
 
     // Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
-    const { data: adminData, error } = await supabase
+    let adminData;
+    let error;
+
+    // Tenter avec custom_permissions, fallback sans si colonne absente (migration 069)
+    ({ data: adminData, error } = await supabase
       .from('admin_users')
       .select('id, email, nom, role, tenant_id, custom_permissions')
       .eq('id', decoded.id)
-      .single();
+      .single());
+
+    if (error) {
+      // Fallback: colonne custom_permissions n'existe peut-etre pas encore
+      ({ data: adminData, error } = await supabase
+        .from('admin_users')
+        .select('id, email, nom, role, tenant_id')
+        .eq('id', decoded.id)
+        .single());
+    }
 
     if (error || !adminData) {
       return res.status(401).json({ error: 'Admin non trouvé' });
@@ -705,7 +732,7 @@ export async function authenticateAdmin(req, res, next) {
       ...decoded,
       tenant_id: adminData.tenant_id,
       nom: adminData.nom,
-      custom_permissions: adminData.custom_permissions,
+      custom_permissions: adminData.custom_permissions || null,
     };
     req.token = token;
     next();

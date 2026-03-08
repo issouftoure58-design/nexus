@@ -27,17 +27,31 @@ router.get('/', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'Seul un admin peut gerer l\'equipe' });
     }
 
-    const { data, error } = await supabase
+    let data;
+    let error;
+
+    ({ data, error } = await supabase
       .from('admin_users')
       .select('id, email, nom, role, custom_permissions, actif, created_at')
       .eq('tenant_id', tenantId)
       .eq('actif', true)
-      .neq('id', req.admin.id) // Exclure l'admin connecte
-      .order('created_at', { ascending: true });
+      .neq('id', req.admin.id)
+      .order('created_at', { ascending: true }));
+
+    // Fallback si custom_permissions n'existe pas encore (migration 069)
+    if (error) {
+      ({ data, error } = await supabase
+        .from('admin_users')
+        .select('id, email, nom, role, actif, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('actif', true)
+        .neq('id', req.admin.id)
+        .order('created_at', { ascending: true }));
+    }
 
     if (error) throw error;
 
-    res.json({ members: data || [] });
+    res.json({ members: (data || []).map(m => ({ ...m, custom_permissions: m.custom_permissions || null })) });
   } catch (error) {
     logger.error('[TEAM] Erreur list:', error);
     res.status(500).json({ error: 'Erreur lors de la recuperation de l\'equipe' });
