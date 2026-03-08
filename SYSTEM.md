@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-07
-> **Version:** 3.15.0
+> **Derniere mise a jour:** 2026-03-08
+> **Version:** 3.16.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~8.4/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -41,7 +41,7 @@ nexus/
 │   │   ├── utils/             # Utilitaires (response.js, whatsappTemplates, etc.)
 │   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
-│   ├── migrations/            # 85 migrations SQL (+ archive/)
+│   ├── migrations/            # 88 migrations SQL (+ archive/)
 │   └── tests/                 # 19 suites, 310 tests
 │
 ├── admin-ui/                  # Dashboard admin officiel (React/Vite/TS)
@@ -200,10 +200,13 @@ Push main → GitHub Actions CI:
 | Health | `/health` enrichi (DB, Redis, Stripe, Twilio, memory) | Actif |
 | Uptime | SENTINEL (6 services, pings HTTP reels toutes les 60s) | Actif |
 | Couts | SENTINEL cost tracker (multi-tenant, mode degrade auto, budgets plan) | Actif |
+| Prix | config/pricing.js — source unique de verite (Anthropic, Twilio, ElevenLabs, Email) | Actif |
 | Confidentialite | Isolation donnees business tenant / donnees infra operateur | Actif |
 | Quotas | Middleware quotas + alertes error tracking | Actif |
 | Backfill | Auto-detection gaps + rattrapage snapshots manquants | Actif |
-| Mode degrade | isDegraded() limite IA/TTS/images si couts critiques | Actif |
+| Mode degrade | isDegraded() persiste en DB (sentinel_state), survit aux restarts | Actif |
+| Blacklist IP | Persistee en DB (sentinel_state), restauree au demarrage | Actif |
+| Alert cooldowns | Pre-charges depuis error_logs, anti-spam post-restart | Actif |
 
 ---
 

@@ -1,11 +1,11 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-07 UTC
+> Derniere mise a jour: 2026-03-08 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~8.4/10 vs leaders mondiaux (avant: 7.4)**
-**Version: 3.15.0**
+**Version: 3.16.0**
 **Phase en cours: Commercialisation — Post-optimisation**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
@@ -364,6 +364,41 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 
 ## HISTORIQUE DES SESSIONS
 
+### 2026-03-08 — Session 23 : Coherence plateforme — donnees synchronisees
+
+**Objectif : Toutes les donnees de la plateforme doivent communiquer, etre synchronisees, se suivre. Eliminer les donnees isolees, les sources dupliquees, et les colonnes fantomes.**
+
+**Phase 1 — Source unique de verite prix (config/pricing.js) :**
+- Nouveau fichier `config/pricing.js` : tous les prix API (Anthropic, Twilio, ElevenLabs, Email, DALL-E, Tavily) + budgets par plan + prix plans
+- `tenantCostTracker.js`, `sentinelCollector.js`, `nexusAdmin.js` : migres vers pricing.js (avant: 5 fichiers avec prix divergents)
+- Fix double-comptage ElevenLabs : costBreakdown restructure en `{anthropic, twilio_sms, twilio_voice, email}`
+
+**Phase 2 — Alertes et erreurs unifiees :**
+- 5 appels `alerter.getHistory()` dans nexusAdmin.js remplaces par queries `error_logs` (DB persistante)
+- Dashboard, alertes, anomalies, autopilot, live events : tous lisent error_logs
+- `sentinel.checkCosts()` reecrit : lit `sentinel_daily_costs` DB (avant: costMonitor in-memory jamais alimente)
+- 2 fichiers costMonitor supprimes (860 lignes de dead code)
+
+**Phase 3 — Fix plan_id fantome (22 fichiers) :**
+- La DB a uniquement la colonne `plan` sur `tenants`, mais 22 fichiers queryaient `plan_id` (colonne inexistante → null silencieux)
+- 4 bugs critiques corriges : `.eq('plan_id')` et `.in('plan_id')` dans sentinelInsights, sentinelCollector, intelligenceMonitor, scheduler retournaient 0 resultats
+- Middleware corriges : auth.js, checkPlan.js, apiAuth.js, quotas.js, moduleProtection.js
+- Routes corrigees : 10 fichiers (adminModules, quotas, social, sentinel, modules, adminSegments, tenants, adminPipeline, adminIA, adminWorkflows)
+- Services corriges : trialService.js, signup.js
+
+**Phase 4 — Persistence etat critique SENTINEL :**
+- Migration 068 : table `sentinel_state` (key/value JSONB)
+- IP blacklist : persiste en DB sur add/remove, restauree au demarrage
+- Mode degrade : persiste en DB sur activation/desactivation, restaure au demarrage
+- Alert cooldowns : pre-charges depuis error_logs pour eviter spam post-restart
+- Tout restaure AVANT que SENTINEL accepte des requetes
+
+**Fichiers crees (2):** config/pricing.js, migration 068
+**Fichiers modifies (30+):** nexusAdmin.js, sentinel/index.js, alerter.js, autoHeal.js, securityShield.js, sentinelCollector.js, tenantCostTracker.js, SentinelCosts.tsx, SentinelOverview.tsx, + 22 fichiers plan_id
+**Fichiers supprimes (2):** sentinel/monitors/costMonitor.js, services/optimization/costMonitor.js
+
+---
+
 ### 2026-03-06 — Session 16 : Audit Sentinel — 9 fixes + Scheduler + Predictions
 
 **Audit Sentinel complet : 9 problemes identifies (3 HAUTE, 3 MOYENNE, 3 BASSE), tous corriges.**
@@ -398,7 +433,7 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 - `backupService.js` : table `parametres` exclue (table systeme sans tenant_id)
 
 **2 bugs scheduler decouverts et corriges :**
-- `.eq('plan', 'business')` → `.in('plan_id', ['business', 'enterprise'])` (mauvaise colonne)
+- `.eq('plan', 'business')` → `.in('plan', ['business', 'enterprise'])` (corrige Session 23)
 - `runDailyCollection(tenant.id)` → `runDailyCollection()` (passait tenant ID comme date)
 
 **Backfill mechanism :**
