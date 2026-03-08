@@ -219,10 +219,19 @@ function TeamSubSection() {
   // Confirm deactivate
   const [confirmDeactivate, setConfirmDeactivate] = useState<string | null>(null);
 
-  // Team members
+  // Current user role — seul admin peut gerer l'equipe
+  const { data: permData } = useQuery({
+    queryKey: ['my-permissions'],
+    queryFn: () => authApi.getPermissions(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const isAdmin = permData?.role === 'admin' || permData?.role === 'super_admin';
+
+  // Team members (admin only)
   const { data: teamData, isLoading: teamLoading } = useQuery({
     queryKey: ['team-members'],
     queryFn: () => teamApi.list(),
+    enabled: isAdmin,
   });
 
   const { data: invitationsData, isLoading: invLoading } = useQuery({
@@ -373,94 +382,98 @@ function TeamSubSection() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(member)}>
-                    <Edit2 className="h-4 w-4 text-gray-500" />
-                  </Button>
-                  {confirmDeactivate === member.id ? (
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => deactivateMutation.mutate(member.id)} disabled={deactivateMutation.isPending}>
-                        <span className="text-xs text-red-600">Confirmer</span>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(null)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(member.id)}>
-                      <UserX className="h-4 w-4 text-red-400" />
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => openEditDialog(member)}>
+                      <Edit2 className="h-4 w-4 text-gray-500" />
                     </Button>
-                  )}
-                </div>
+                    {confirmDeactivate === member.id ? (
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => deactivateMutation.mutate(member.id)} disabled={deactivateMutation.isPending}>
+                          <span className="text-xs text-red-600">Confirmer</span>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(null)}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(member.id)}>
+                        <UserX className="h-4 w-4 text-red-400" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}
         </CardContent>
       </Card>
 
-      {/* Section 2 : Inviter */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Inviter un membre</CardTitle>
-            <CardDescription>Envoyez une invitation par email</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setShowInviteForm(!showInviteForm)}>
-            <Plus className="h-4 w-4 mr-1" />{showInviteForm ? 'Fermer' : 'Inviter'}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {showInviteForm && (
-            <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-2">
-                  <Input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="Email du membre"
-                  />
-                </div>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => handleInviteRoleChange(e.target.value)}
-                  className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="viewer">Lecteur</option>
-                </select>
-              </div>
-
-              {/* Toggle permissions */}
-              <button
-                onClick={() => setShowInvitePerms(!showInvitePerms)}
-                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-              >
-                {showInvitePerms ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                Personnaliser les permissions
-              </button>
-
-              {showInvitePerms && (
-                <div className="max-h-80 overflow-y-auto">
-                  <PermissionSelector value={invitePermissions} onChange={setInvitePermissions} />
-                </div>
-              )}
-
-              <Button
-                onClick={handleSendInvite}
-                disabled={!inviteEmail.trim() || sendMutation.isPending}
-                className="bg-gradient-to-r from-gray-700 to-gray-800"
-              >
-                {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Envoyer l\'invitation'}
-              </Button>
+      {/* Section 2 : Inviter (admin uniquement) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Inviter un membre</CardTitle>
+              <CardDescription>Envoyez une invitation par email</CardDescription>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <Button variant="outline" size="sm" onClick={() => setShowInviteForm(!showInviteForm)}>
+              <Plus className="h-4 w-4 mr-1" />{showInviteForm ? 'Fermer' : 'Inviter'}
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showInviteForm && (
+              <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <Input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="Email du membre"
+                    />
+                  </div>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => handleInviteRoleChange(e.target.value)}
+                    className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="viewer">Lecteur</option>
+                  </select>
+                </div>
 
-      {/* Section 3 : Invitations en attente */}
-      {pending.length > 0 && (
+                {/* Toggle permissions */}
+                <button
+                  onClick={() => setShowInvitePerms(!showInvitePerms)}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                >
+                  {showInvitePerms ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  Personnaliser les permissions
+                </button>
+
+                {showInvitePerms && (
+                  <div className="max-h-80 overflow-y-auto">
+                    <PermissionSelector value={invitePermissions} onChange={setInvitePermissions} />
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleSendInvite}
+                  disabled={!inviteEmail.trim() || sendMutation.isPending}
+                  className="bg-gradient-to-r from-gray-700 to-gray-800"
+                >
+                  {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Envoyer l\'invitation'}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Section 3 : Invitations en attente (admin uniquement) */}
+      {isAdmin && pending.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Invitations en attente</CardTitle>
@@ -496,6 +509,16 @@ function TeamSubSection() {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Message si non-admin */}
+      {!isAdmin && permData && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <Shield className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">Seul un administrateur peut inviter, modifier ou desactiver des membres</p>
           </CardContent>
         </Card>
       )}
