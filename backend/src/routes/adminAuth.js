@@ -661,7 +661,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
   try {
     const { data: admin } = await supabase
       .from('admin_users')
-      .select('id, email, nom, role, totp_enabled')
+      .select('id, email, nom, role, totp_enabled, custom_permissions')
       .eq('id', req.admin.id)
       .eq('tenant_id', req.admin.tenant_id)
       .single();
@@ -693,7 +693,7 @@ export async function authenticateAdmin(req, res, next) {
     // Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
     const { data: adminData, error } = await supabase
       .from('admin_users')
-      .select('id, email, nom, role, tenant_id')
+      .select('id, email, nom, role, tenant_id, custom_permissions')
       .eq('id', decoded.id)
       .single();
 
@@ -705,6 +705,7 @@ export async function authenticateAdmin(req, res, next) {
       ...decoded,
       tenant_id: adminData.tenant_id,
       nom: adminData.nom,
+      custom_permissions: adminData.custom_permissions,
     };
     req.token = token;
     next();
@@ -725,10 +726,10 @@ export function requireSuperAdmin(req, res, next) {
 }
 
 // ─── GET /permissions — Matrice de permissions du user connecté ──────────────
-import { getPermissionsForRole } from '../middleware/rbac.js';
+import { getPermissionsForRole, getEffectivePermissions } from '../middleware/rbac.js';
 
 router.get('/permissions', authenticateAdmin, (req, res) => {
-  const permissions = getPermissionsForRole(req.admin.role);
+  const permissions = getEffectivePermissions(req.admin.role, req.admin.custom_permissions);
   res.json({ role: req.admin.role, permissions });
 });
 

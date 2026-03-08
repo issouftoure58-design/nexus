@@ -301,13 +301,33 @@ export const authApi = {
 export const invitationsApi = {
   list: () =>
     api.get<{ invitations: { id: string; email: string; role: string; invited_by: string; expires_at: string; accepted_at: string | null; created_at: string }[] }>('/admin/invitations'),
-  send: (email: string, role: string) =>
-    api.post<{ invitation: { id: string; email: string; role: string; expires_at: string } }>('/admin/invitations', { email, role }),
+  send: (email: string, role: string, permissions?: Record<string, string[]>) =>
+    api.post<{ invitation: { id: string; email: string; role: string; expires_at: string } }>('/admin/invitations', { email, role, permissions }),
   revoke: (id: string) => api.delete(`/admin/invitations/${id}`),
   verify: (token: string) =>
-    api.get<{ valid: boolean; email: string; role: string; tenant_name: string }>(`/admin/invitations/verify/${token}`, { skipAuth: true }),
+    api.get<{ valid: boolean; email: string; role: string; tenant_name: string; custom_permissions: Record<string, string[]> | null }>(`/admin/invitations/verify/${token}`, { skipAuth: true }),
   accept: (token: string, nom: string, password: string) =>
     api.post<{ success: boolean; message: string }>('/admin/invitations/accept', { token, nom, password }, { skipAuth: true }),
+};
+
+// Team Management (admin permissions)
+export interface AdminTeamMember {
+  id: string;
+  email: string;
+  nom: string;
+  role: string;
+  custom_permissions: Record<string, string[]> | null;
+  actif: boolean;
+  created_at: string;
+}
+
+export const teamApi = {
+  list: () =>
+    api.get<{ members: AdminTeamMember[] }>('/admin/team'),
+  update: (userId: string, data: { role?: string; custom_permissions?: Record<string, string[]> | null }) =>
+    api.put<{ member: AdminTeamMember }>(`/admin/team/${userId}`, data),
+  deactivate: (userId: string) =>
+    api.delete(`/admin/team/${userId}`),
 };
 
 // Notifications in-app

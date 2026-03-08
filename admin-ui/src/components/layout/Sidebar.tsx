@@ -50,7 +50,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, useEffect, memo } from 'react';
+import { authApi } from '@/lib/api';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -112,9 +113,28 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   'assistant_ia': 'pro',
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MENU CONFIGURATION
-// ══════════════════════════════════════════════════════════════════════════════
+// Mapping requiredModule → module RBAC pour filtrer par permissions utilisateur
+const MODULE_TO_RBAC: Record<string, string> = {
+  reservations: 'reservations',
+  agent_ia_web: 'ia',
+  whatsapp: 'ia',
+  telephone: 'ia',
+  standard_ia: 'ia',
+  ia_reservation: 'ia',
+  assistant_ia: 'ia',
+  analytics: 'stats',
+  comptabilite: 'comptabilite',
+  stock: 'stock',
+  rh: 'rh',
+  rh_avance: 'rh',
+  paie: 'rh',
+  marketing: 'marketing',
+  social_media: 'marketing',
+  seo: 'seo',
+  sentinel: 'modules',
+  sentinel_pro: 'modules',
+  ecommerce: 'services',
+};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MENU CONFIGURATION - Mappé aux modules actifs
@@ -185,10 +205,18 @@ interface SidebarProps {
 export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<UpgradeModalData | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Record<string, string[]> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
   const { t, businessType, businessInfo } = useProfile();
+
+  // Charger les permissions effectives de l'utilisateur
+  useEffect(() => {
+    authApi.getPermissions()
+      .then(data => setUserPermissions(data.permissions))
+      .catch(() => setUserPermissions(null));
+  }, []);
 
   const shouldShowItem = useCallback((item: NavItem): boolean => {
     if (item.businessTypes && item.businessTypes.length > 0) {
@@ -196,8 +224,16 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
         return false;
       }
     }
+    // Filtrer par permissions utilisateur
+    if (userPermissions && item.requiredModule) {
+      const rbacModule = MODULE_TO_RBAC[item.requiredModule];
+      if (rbacModule) {
+        const perms = userPermissions[rbacModule];
+        if (!perms || perms.length === 0) return false;
+      }
+    }
     return true;
-  }, [businessType]);
+  }, [businessType, userPermissions]);
 
   const isItemLocked = useCallback((item: NavItem): boolean => {
     if (item.alwaysShow) return false;

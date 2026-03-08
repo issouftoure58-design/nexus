@@ -44,12 +44,24 @@ const ALL_PERMISSIONS = ['read', 'write', 'delete'];
 
 /**
  * Vérifie si un rôle a une permission sur un module
+ * @param {string} role - Le rôle de l'utilisateur
+ * @param {string} module - Le module cible
+ * @param {string} permission - La permission requise (read/write/delete)
+ * @param {object|null} customPermissions - Override JSONB custom_permissions (optionnel)
  */
-function hasPermission(role, module, permission) {
+function hasPermission(role, module, permission, customPermissions = null) {
   if (role === 'super_admin' || role === 'owner') {
     return true;
   }
 
+  // Si custom_permissions défini → l'utiliser en priorité
+  if (customPermissions) {
+    const perms = customPermissions[module];
+    if (!perms) return false; // Module absent = pas d'accès
+    return perms.includes(permission);
+  }
+
+  // Sinon → matrice par défaut
   const modulePerms = PERMISSIONS[module];
   if (!modulePerms) {
     // Module inconnu → seul admin et super_admin passent
@@ -95,7 +107,7 @@ export function requirePermission(module, permission = null) {
 
     const effectivePermission = permission || permissionFromMethod(req.method);
 
-    if (!hasPermission(req.admin.role, module, effectivePermission)) {
+    if (!hasPermission(req.admin.role, module, effectivePermission, req.admin.custom_permissions)) {
       logger.warn(`[RBAC] Accès refusé: admin ${req.admin.id} (role: ${req.admin.role}) → ${module}:${effectivePermission}`);
       return res.status(403).json({
         error: 'Permissions insuffisantes',
@@ -120,6 +132,7 @@ export function rbacMiddleware() {
     '/disponibilites': 'disponibilites',
     '/parametres': 'parametres',
     '/invitations': 'equipe',
+    '/team': 'equipe',
     '/compta': 'comptabilite',
     '/stock': 'stock',
     '/rh': 'rh',
@@ -167,7 +180,7 @@ export function rbacMiddleware() {
     const module = ROUTE_MODULE_MAP[matchedPrefix];
     const permission = permissionFromMethod(req.method);
 
-    if (!hasPermission(req.admin.role, module, permission)) {
+    if (!hasPermission(req.admin.role, module, permission, req.admin.custom_permissions)) {
       logger.warn(`[RBAC] Accès refusé: admin ${req.admin.id} (role: ${req.admin.role}) → ${module}:${permission} (${req.method} ${path})`);
       return res.status(403).json({
         error: 'Permissions insuffisantes',
@@ -198,4 +211,25 @@ export function getPermissionsForRole(role) {
   return result;
 }
 
-export default { requirePermission, rbacMiddleware, getPermissionsForRole, hasPermission };
+/**
+ * Retourne la matrice de permissions effective (custom_permissions override la matrice par défaut)
+ */
+export function getEffectivePermissions(role, customPermissions = null) {
+  if (role === 'super_admin' || role === 'owner') {
+    const result = {};
+    for (const module of Object.keys(PERMISSIONS)) {
+      result[module] = ALL_PERMISSIONS;
+    }
+    return result;
+  }
+
+  // Si custom_permissions défini → l'utiliser
+  if (customPermissions) {
+    return customPermissions;
+  }
+
+  // Sinon → matrice par défaut du rôle
+  return getPermissionsForRole(role);
+}
+
+export default { requirePermission, rbacMiddleware, getPermissionsForRole, getEffectivePermissions, hasPermission };

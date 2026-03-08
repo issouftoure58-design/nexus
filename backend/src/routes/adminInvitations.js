@@ -93,7 +93,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const tenantId = req.admin.tenant_id;
     if (!tenantId) return res.status(403).json({ error: 'tenant_id requis' });
 
-    const { email, role = 'manager' } = req.body;
+    const { email, role = 'manager', permissions = null } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email requis' });
@@ -169,16 +169,21 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const expiresAt = new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
 
     // Créer l'invitation
+    const insertData = {
+      tenant_id: tenantId,
+      email,
+      role,
+      token,
+      invited_by: req.admin.id,
+      expires_at: expiresAt,
+    };
+    if (permissions) {
+      insertData.custom_permissions = permissions;
+    }
+
     const { data: invitation, error } = await supabase
       .from('invitations')
-      .insert({
-        tenant_id: tenantId,
-        email,
-        role,
-        token,
-        invited_by: req.admin.id,
-        expires_at: expiresAt,
-      })
+      .insert(insertData)
       .select('id, email, role, expires_at, created_at')
       .single();
 
@@ -292,16 +297,22 @@ router.post('/accept', async (req, res) => {
     // Créer l'utilisateur
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    const newUserData = {
+      email: invitation.email,
+      password_hash: hashedPassword,
+      nom,
+      role: invitation.role,
+      tenant_id: invitation.tenant_id,
+      password_changed_at: new Date().toISOString(),
+    };
+    // Copier les custom_permissions de l'invitation vers le nouvel utilisateur
+    if (invitation.custom_permissions) {
+      newUserData.custom_permissions = invitation.custom_permissions;
+    }
+
     const { data: newUser, error: userError } = await supabase
       .from('admin_users')
-      .insert({
-        email: invitation.email,
-        password_hash: hashedPassword,
-        nom,
-        role: invitation.role,
-        tenant_id: invitation.tenant_id,
-        password_changed_at: new Date().toISOString(),
-      })
+      .insert(newUserData)
       .select('id, email, nom, role')
       .single();
 
@@ -332,7 +343,7 @@ router.get('/verify/:token', async (req, res) => {
   try {
     const { data: invitation } = await supabase
       .from('invitations')
-      .select('email, role, expires_at, accepted_at, tenant_id')
+      .select('email, role, expires_at, accepted_at, tenant_id, custom_permissions')
       .eq('token', req.params.token)
       .single();
 
@@ -360,6 +371,7 @@ router.get('/verify/:token', async (req, res) => {
       email: invitation.email,
       role: invitation.role,
       tenant_name: tenant?.name || 'NEXUS',
+      custom_permissions: invitation.custom_permissions || null,
     });
   } catch (error) {
     logger.error('[INVITATIONS] Erreur verify:', error);

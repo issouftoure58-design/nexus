@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { api, authApi, invitationsApi } from '@/lib/api';
+import { api, authApi, invitationsApi, teamApi } from '@/lib/api';
+import type { AdminTeamMember } from '@/lib/api';
+import { PermissionSelector, getDefaultPermissions } from '@/components/team/PermissionSelector';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTenant } from '@/hooks/useTenant';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Settings, User, Bell, Shield, Palette, Key, Globe, AlertCircle,
-  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Eye, EyeOff, Copy, Users, Mail, Clock, Monitor
+  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Eye, EyeOff, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -204,21 +206,41 @@ function TeamSubSection() {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('manager');
+  const [invitePermissions, setInvitePermissions] = useState<Record<string, string[]>>(getDefaultPermissions('manager'));
+  const [showInvitePerms, setShowInvitePerms] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const { data: invitationsData, isLoading } = useQuery({
+  // Edit member dialog
+  const [editingMember, setEditingMember] = useState<AdminTeamMember | null>(null);
+  const [editRole, setEditRole] = useState('');
+  const [editPermissions, setEditPermissions] = useState<Record<string, string[]>>({});
+  const [showEditPerms, setShowEditPerms] = useState(false);
+
+  // Confirm deactivate
+  const [confirmDeactivate, setConfirmDeactivate] = useState<string | null>(null);
+
+  // Team members
+  const { data: teamData, isLoading: teamLoading } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => teamApi.list(),
+  });
+
+  const { data: invitationsData, isLoading: invLoading } = useQuery({
     queryKey: ['invitations'],
     queryFn: () => invitationsApi.list(),
   });
 
   const sendMutation = useMutation({
-    mutationFn: ({ email, role }: { email: string; role: string }) => invitationsApi.send(email, role),
+    mutationFn: ({ email, role, permissions }: { email: string; role: string; permissions?: Record<string, string[]> }) =>
+      invitationsApi.send(email, role, permissions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
       setInviteEmail('');
       setInviteRole('manager');
+      setInvitePermissions(getDefaultPermissions('manager'));
       setShowInviteForm(false);
-      setFeedback({ message: 'Invitation envoyée avec succès', type: 'success' });
+      setShowInvitePerms(false);
+      setFeedback({ message: 'Invitation envoyee avec succes', type: 'success' });
     },
     onError: (err: Error) => setFeedback({ message: err.message || 'Erreur', type: 'error' }),
   });
@@ -227,26 +249,164 @@ function TeamSubSection() {
     mutationFn: (id: string) => invitationsApi.revoke(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
-      setFeedback({ message: 'Invitation révoquée', type: 'success' });
+      setFeedback({ message: 'Invitation revoquee', type: 'success' });
+    },
+    onError: (err: Error) => setFeedback({ message: err.message || 'Erreur', type: 'error' }),
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: { role?: string; custom_permissions?: Record<string, string[]> | null } }) =>
+      teamApi.update(userId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      setEditingMember(null);
+      setShowEditPerms(false);
+      setFeedback({ message: 'Membre modifie avec succes', type: 'success' });
+    },
+    onError: (err: Error) => setFeedback({ message: err.message || 'Erreur', type: 'error' }),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: (userId: string) => teamApi.deactivate(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      setConfirmDeactivate(null);
+      setFeedback({ message: 'Membre desactive avec succes', type: 'success' });
     },
     onError: (err: Error) => setFeedback({ message: err.message || 'Erreur', type: 'error' }),
   });
 
   const pending = (invitationsData?.invitations || []).filter(i => !i.accepted_at);
-  const accepted = (invitationsData?.invitations || []).filter(i => i.accepted_at);
+  const members = teamData?.members || [];
+
+  const handleInviteRoleChange = (role: string) => {
+    setInviteRole(role);
+    setInvitePermissions(getDefaultPermissions(role));
+  };
+
+  const openEditDialog = (member: AdminTeamMember) => {
+    setEditingMember(member);
+    setEditRole(member.role);
+    setEditPermissions(member.custom_permissions || getDefaultPermissions(member.role));
+    setShowEditPerms(false);
+  };
+
+  const handleEditRoleChange = (role: string) => {
+    setEditRole(role);
+    setEditPermissions(getDefaultPermissions(role));
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMember) return;
+    const defaultPerms = getDefaultPermissions(editRole);
+    const isCustom = JSON.stringify(editPermissions) !== JSON.stringify(defaultPerms);
+    updateMemberMutation.mutate({
+      userId: editingMember.id,
+      data: {
+        role: editRole,
+        custom_permissions: isCustom ? editPermissions : null,
+      },
+    });
+  };
+
+  const handleSendInvite = () => {
+    const defaultPerms = getDefaultPermissions(inviteRole);
+    const isCustom = JSON.stringify(invitePermissions) !== JSON.stringify(defaultPerms);
+    sendMutation.mutate({
+      email: inviteEmail,
+      role: inviteRole,
+      permissions: isCustom ? invitePermissions : undefined,
+    });
+  };
+
+  const roleLabel = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Admin';
+      case 'manager': return 'Manager';
+      case 'viewer': return 'Lecteur';
+      default: return role;
+    }
+  };
+
+  const roleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'admin': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'manager': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'viewer': return 'bg-gray-50 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-600 border-gray-200';
+    }
+  };
 
   return (
     <div className="space-y-6">
       {feedback && <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />}
 
+      {/* Section 1 : Membres actifs */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Membres de l'equipe</CardTitle>
+          <CardDescription>Gerez les membres actifs de votre equipe</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {teamLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-6">
+              <Users className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">Aucun autre membre dans l'equipe</p>
+            </div>
+          ) : (
+            members.map((member) => (
+              <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                    {member.nom?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{member.nom}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span>{member.email}</span>
+                      <Badge className={cn('text-xs', roleBadgeColor(member.role))}>{roleLabel(member.role)}</Badge>
+                      {member.custom_permissions && (
+                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">Personnalise</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(member)}>
+                    <Edit2 className="h-4 w-4 text-gray-500" />
+                  </Button>
+                  {confirmDeactivate === member.id ? (
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => deactivateMutation.mutate(member.id)} disabled={deactivateMutation.isPending}>
+                        <span className="text-xs text-red-600">Confirmer</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(null)}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmDeactivate(member.id)}>
+                      <UserX className="h-4 w-4 text-red-400" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 2 : Inviter */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Invitations</CardTitle>
-            <CardDescription>Invitez des membres à rejoindre votre équipe</CardDescription>
+            <CardTitle>Inviter un membre</CardTitle>
+            <CardDescription>Envoyez une invitation par email</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowInviteForm(!showInviteForm)}>
-            <Plus className="h-4 w-4 mr-1" />Inviter
+            <Plus className="h-4 w-4 mr-1" />{showInviteForm ? 'Fermer' : 'Inviter'}
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -263,7 +423,7 @@ function TeamSubSection() {
                 </div>
                 <select
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
+                  onChange={(e) => handleInviteRoleChange(e.target.value)}
                   className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
                 >
                   <option value="admin">Admin</option>
@@ -271,8 +431,24 @@ function TeamSubSection() {
                   <option value="viewer">Lecteur</option>
                 </select>
               </div>
+
+              {/* Toggle permissions */}
+              <button
+                onClick={() => setShowInvitePerms(!showInvitePerms)}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+              >
+                {showInvitePerms ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                Personnaliser les permissions
+              </button>
+
+              {showInvitePerms && (
+                <div className="max-h-80 overflow-y-auto">
+                  <PermissionSelector value={invitePermissions} onChange={setInvitePermissions} />
+                </div>
+              )}
+
               <Button
-                onClick={() => sendMutation.mutate({ email: inviteEmail, role: inviteRole })}
+                onClick={handleSendInvite}
                 disabled={!inviteEmail.trim() || sendMutation.isPending}
                 className="bg-gradient-to-r from-gray-700 to-gray-800"
               >
@@ -280,76 +456,99 @@ function TeamSubSection() {
               </Button>
             </div>
           )}
-
-          {isLoading ? (
-            <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
-          ) : pending.length === 0 && accepted.length === 0 ? (
-            <div className="text-center py-6">
-              <Mail className="h-10 w-10 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">Aucune invitation envoyée</p>
-            </div>
-          ) : (
-            <>
-              {pending.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">En attente</p>
-                  {pending.map((inv) => {
-                    const isExpired = new Date(inv.expires_at) < new Date();
-                    return (
-                      <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <Mail className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium">{inv.email}</p>
-                            <div className="flex items-center gap-2 text-xs text-gray-400">
-                              <Badge variant="outline" className="text-xs">{inv.role}</Badge>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {isExpired ? 'Expiré' : `Expire ${new Date(inv.expires_at).toLocaleDateString('fr-FR')}`}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isExpired ? (
-                            <Badge className="bg-red-50 text-red-700 border-red-200">Expiré</Badge>
-                          ) : (
-                            <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">En attente</Badge>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => revokeMutation.mutate(inv.id)} disabled={revokeMutation.isPending}>
-                            <Trash2 className="h-4 w-4 text-red-400" />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {accepted.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Acceptées</p>
-                  {accepted.map((inv) => (
-                    <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <div>
-                          <p className="text-sm font-medium">{inv.email}</p>
-                          <div className="flex items-center gap-2 text-xs text-gray-400">
-                            <Badge variant="outline" className="text-xs">{inv.role}</Badge>
-                            <span>Accepté le {new Date(inv.accepted_at!).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <Badge className="bg-green-50 text-green-700 border-green-200">Active</Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
         </CardContent>
       </Card>
+
+      {/* Section 3 : Invitations en attente */}
+      {pending.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invitations en attente</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pending.map((inv) => {
+              const isExpired = new Date(inv.expires_at) < new Date();
+              return (
+                <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-medium">{inv.email}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Badge variant="outline" className="text-xs">{roleLabel(inv.role)}</Badge>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {isExpired ? 'Expire' : `Expire ${new Date(inv.expires_at).toLocaleDateString('fr-FR')}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isExpired ? (
+                      <Badge className="bg-red-50 text-red-700 border-red-200">Expire</Badge>
+                    ) : (
+                      <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">En attente</Badge>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => revokeMutation.mutate(inv.id)} disabled={revokeMutation.isPending}>
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog Modifier membre */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Modifier {editingMember.nom}</h2>
+                <p className="text-sm text-gray-500">{editingMember.email}</p>
+              </div>
+              <button onClick={() => { setEditingMember(null); setShowEditPerms(false); }} className="p-1 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => handleEditRoleChange(e.target.value)}
+                  className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                >
+                  <option value="manager">Manager</option>
+                  <option value="viewer">Lecteur</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => setShowEditPerms(!showEditPerms)}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+              >
+                {showEditPerms ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                Personnaliser les permissions
+              </button>
+
+              {showEditPerms && (
+                <PermissionSelector value={editPermissions} onChange={setEditPermissions} />
+              )}
+            </div>
+            <div className="px-6 py-4 border-t flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => { setEditingMember(null); setShowEditPerms(false); }}>
+                Annuler
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={updateMemberMutation.isPending} className="bg-gradient-to-r from-gray-700 to-gray-800">
+                {updateMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sauvegarder'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
