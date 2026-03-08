@@ -333,8 +333,8 @@ export function GestionPaie() {
 
   const membres = Array.isArray(membresData) ? membresData : (membresData?.membres || []);
   const resume: ResumePointage[] = resumeData?.resume || [];
-  const pointages: Pointage[] = pointagesData?.pointages || [];
-  const bulletins: Bulletin[] = bulletinsData?.bulletins || [];
+  const pointages: Pointage[] = pointagesData?.pointages || (Array.isArray((pointagesData as any)?.data) ? (pointagesData as any).data : []);
+  const bulletins: Bulletin[] = bulletinsData?.bulletins || (Array.isArray((bulletinsData as any)?.data) ? (bulletinsData as any).data : []);
 
   // Stats
   const totalHeuresTravaillees = resume.reduce((sum, r) => sum + r.heures_travaillees, 0);

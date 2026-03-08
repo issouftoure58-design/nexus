@@ -104,9 +104,14 @@ export default function Sentinel() {
     setError(null);
     try {
       const [dashboardData, analytics] = await Promise.all([
-        api.get<{ data: DashboardData }>('/sentinel/dashboard'),
+        api.get<{ data: DashboardData }>('/sentinel/dashboard').catch(() => null),
         api.get<AnalyticsData>('/admin/analytics/dashboard').catch(() => null)
       ]);
+
+      if (!dashboardData?.data) {
+        setError('Impossible de charger les données Sentinel');
+        return;
+      }
 
       setData(dashboardData.data);
 
@@ -668,7 +673,7 @@ function PredictionsTab({ analyticsData }: { analyticsData: AnalyticsData | null
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
-            {analyticsData.patterns?.map((pattern, i) => (
+            {(analyticsData.patterns || []).map((pattern, i) => (
               <div key={i} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">

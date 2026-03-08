@@ -20,8 +20,8 @@ export default function NexusTenants() {
   useEffect(() => {
     const fetchTenants = async () => {
       try {
-        const json = await nexusApi.get<{ tenants: TenantInfo[] }>('/nexus/tenants');
-        setTenants(json.tenants);
+        const json = await nexusApi.get<any>('/nexus/tenants');
+        setTenants(json.tenants || (Array.isArray(json.data) ? json.data : []));
       } catch {
         setError('Erreur chargement des tenants');
       } finally {

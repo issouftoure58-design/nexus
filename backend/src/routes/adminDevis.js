@@ -756,7 +756,8 @@ router.post('/:id/envoyer', async (req, res) => {
         date_envoi: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (updateError) throw updateError;
 
@@ -807,7 +808,8 @@ router.post('/:id/accepter', async (req, res) => {
         date_acceptation: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (updateError) throw updateError;
 
@@ -1335,7 +1337,8 @@ router.post('/:id/rejeter', async (req, res) => {
         raison_rejet: raison || null,
         updated_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (updateError) throw updateError;
 

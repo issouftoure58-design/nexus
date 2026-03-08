@@ -127,7 +127,10 @@ export default function PipelinePage() {
   // Fetch services
   const { data: servicesData } = useQuery<{ services: Service[] }>({
     queryKey: ['services'],
-    queryFn: () => api.get('/admin/services')
+    queryFn: async () => {
+      const raw = await api.get<any>('/admin/services');
+      return { services: raw.services || (Array.isArray(raw.data) ? raw.data : []) };
+    }
   });
 
   // Calcul des montants

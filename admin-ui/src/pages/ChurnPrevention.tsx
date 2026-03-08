@@ -242,7 +242,7 @@ export default function ChurnPrevention() {
                       <p className="font-medium">
                         {client.factors && Object.keys(client.factors).length > 0
                           ? Object.entries(client.factors)
-                              .sort(([,a], [,b]) => b - a)[0]?.[0]
+                              .sort(([,a], [,b]) => (Number(b) || 0) - (Number(a) || 0))[0]?.[0]
                               ?.replace('_', ' ') || 'N/A'
                           : 'N/A'}
                       </p>

@@ -569,7 +569,11 @@ export const comptaApi = {
   creerAvoir: (factureId: number, motif: string) =>
     api.post<{ success: boolean; avoir: Invoice }>(`/factures/${factureId}/avoir`, { motif }),
   // Relances
-  getRelances: () => api.get<{ success: boolean; factures: RelanceFacture[]; stats: RelanceStats }>('/relances'),
+  getRelances: async () => {
+    const raw = await api.get<any>('/relances');
+    const inner = raw?.data && !Array.isArray(raw.data) && raw.pagination ? raw.data : raw;
+    return { success: true, factures: inner.factures || [], stats: inner.stats || {} } as { success: boolean; factures: RelanceFacture[]; stats: RelanceStats };
+  },
   getRelanceHistorique: (factureId: number) => api.get<{ success: boolean; historique: RelanceHistorique[] }>(`/relances/historique/${factureId}`),
   envoyerRelance: (factureId: number, niveau: number) => api.post<{ success: boolean; message: string }>(`/relances/${factureId}/envoyer`, { niveau }),
   marquerPayee: (factureId: number) => api.patch<{ success: boolean }>(`/relances/${factureId}/marquer-payee`),

@@ -61,7 +61,8 @@ export default function FloorPlanPage() {
   const { data: tablesData, isLoading: loadingTables, refetch, error: tablesError } = useQuery<{ services: Table[] }>({
     queryKey: ['services'],
     queryFn: async () => {
-      return api.get('/admin/services');
+      const raw = await api.get<any>('/admin/services');
+      return { services: raw.services || (Array.isArray(raw.data) ? raw.data : []) };
     }
   });
 

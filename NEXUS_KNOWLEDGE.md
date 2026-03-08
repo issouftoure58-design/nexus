@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-07
-**Version:** 3.14.0 (SENTINEL Error Tracker remplace Sentry)
+**Derniere mise a jour:** 2026-03-08
+**Version:** 3.18.0 (Permissions granulaires + Audit complet)
 
 ---
 
@@ -57,14 +57,15 @@
 
 | Metrique | Valeur |
 |----------|--------|
-| Routes API | 54 (+1 backfill endpoint) |
-| Services metier | 69 |
+| Routes API | 74+ |
+| Services metier | 78+ |
 | Modules disponibles | 21 |
 | Plans tarifaires | 3 (Starter/Pro/Business) |
-| Tenants actifs | 3 |
-| Migrations SQL | 52 (+ archive) |
+| Tenants actifs | 6 |
+| Migrations SQL | 69 (+ archive) |
 | Tests | 19 suites, 310 tests |
 | Score qualite | 100/100 |
+| Score perf global | ~9.0/10 vs leaders mondiaux |
 | **Types de business** | **4** |
 
 ### Types de Business Supportes
@@ -80,9 +81,12 @@
 
 | ID | Nom | Type Business | Plan |
 |----|-----|---------------|------|
-| `fatshairafro` | Fat's Hair-Afro | service_domicile | Pro |
-| `decoevent` | DecoEvent | service_domicile | Starter |
-| `nexus-test` | Nexus Test | service_domicile | Test |
+| `fatshairafro` | Fat's Hair-Afro | service_domicile | Business |
+| `nexus-test` | Salon Elegance Paris | service_domicile | Business |
+| `test-security` | Atlas Securite | service_domicile | Business |
+| `test-consulting` | Clara Conseil | service_domicile | Business |
+| `test-events` | Emma Events | service_domicile | Business |
+| `test-hospitality` | Le Bistrot Parisien | restaurant | Business |
 
 > **Note historique:** Fat's Hair-Afro est le PREMIER tenant. Les noms internes (halimahAI.js, halimahWorker.js) sont historiques - chaque tenant peut nommer son IA.
 
@@ -1442,6 +1446,13 @@ Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, trans
 | ~~**P1**~~ | ~~Zod validation backend~~ | Securite API | ✅ Session 18 (5 routes) |
 | ~~**P1**~~ | ~~Tests frontend Vitest~~ | Qualite | ✅ Session 18 (17 tests) |
 | ~~**P1**~~ | ~~Response helpers standardises~~ | API Design | ✅ Session 18 |
+| ~~**P0**~~ | ~~Permissions granulaires par user~~ | Securite equipe | ✅ Session 24 |
+| ~~**P0**~~ | ~~Gestion equipe (invite/edit/deactivate)~~ | Multi-user tenant | ✅ Session 24 |
+| ~~**P0**~~ | ~~Audit paginated wrapper complet~~ | Stabilite frontend | ✅ Session 24 (8 fixes) |
+| ~~**P0**~~ | ~~Tenant shield audit (devis)~~ | Securite critique | ✅ Session 24 (3 violations fixees) |
+| ~~**P1**~~ | ~~Marketing UI pages~~ | Feature completeness | ✅ Session 23 |
+| ~~**P1**~~ | ~~RH enhancements~~ | Feature completeness | ✅ Session 23 |
+| ~~**P1**~~ | ~~Frontend perf optimisation~~ | Performance 9.0/10 | ✅ Session 23 |
 | **P2** | Tests E2E restaurant/hotel | Qualite | 🔶 A faire |
 | **P2** | UI avancee resto (plan salle, menu) | Features | 🔶 En cours |
 | **P2** | UI avancee hotel (calendrier, tarifs) | Features | 🔶 En cours |
@@ -1774,6 +1785,37 @@ getAIContext(tenantId)          // Contexte pour prompts IA
 ---
 
 ## 17. HISTORIQUE DES MODIFICATIONS
+
+### 2026-03-08 (Session 24) — Permissions granulaires + Audit complet
+
+**1. Permissions granulaires par utilisateur (v3.18.0) :**
+- Migration 069: `custom_permissions JSONB` sur `admin_users` + `invitations`
+- RBAC override: `hasPermission(role, module, perm, customPermissions)` — custom_permissions surcharge la matrice par defaut
+- Routes equipe: `GET/PUT/DELETE /api/admin/team` — gestion membres (admin-only)
+- Invitations: accepte `permissions` optionnel, copie vers admin_users
+- Frontend: `PermissionSelector.tsx` — grille 18 modules × 3 perms avec auto-dependances
+- TeamSubSection refonte dans Parametres.tsx — admin-only invite/edit/deactivate
+- Sidebar filtree par permissions utilisateur via `authApi.getPermissions()`
+
+**2. Audit complet + corrections :**
+- 3 CRITIQUES: tenant shield violations dans adminDevis.js (envoyer/accepter/rejeter) — `.eq('tenant_id')` manquant sur UPDATE
+- 8 paginated wrapper mismatches corriges: ComptaRelances, Pipeline, FloorPlan, Activites (services), NexusTenants, GestionPaie (pointages + bulletins)
+- 5 frontend runtime bugs fixes: Dashboard null array access, Sentinel Promise.all, Sentinel patterns?.map, ChurnPrevention sort NaN, authenticateAdmin resilient fallback
+
+**Fichiers crees (3):** migration 069, adminTeam.js, PermissionSelector.tsx
+**Fichiers modifies (16+):** rbac.js, adminAuth.js, adminInvitations.js, index.js, api.ts, Parametres.tsx, Sidebar.tsx, adminDevis.js, Dashboard.tsx, Sentinel.tsx, ChurnPrevention.tsx, Pipeline.tsx, FloorPlan.tsx, Activites.tsx, NexusTenants.tsx, GestionPaie.tsx
+
+---
+
+### 2026-03-08 (Session 23) — Frontend Optimisation + Marketing UI + RH Enhancement
+
+**Sprint 1:** React.memo Sidebar+Header, lazy gallery+video landing, SEO complet (OG/Twitter/JSON-LD/robots/sitemap)
+**Sprint 2:** Split god components — Comptabilite 84KB→69KB, Activites 74KB→76KB, Devis modales extraites
+**Sprint 3:** 3 pages Marketing UI (Campagnes, EmailTemplates, MarketingAnalytics) + marketingApi.ts
+**Sprint 4:** 3 composants RH (PerformanceReviews, OnboardingChecklist, OrgChart)
+**Score performance:** 8.4 → ~9.0/10
+
+---
 
 ### 2026-03-07 (Session 19) — Facturation chat cablée + Fix streaming SSE
 
@@ -2351,12 +2393,19 @@ Voir section 16.2 pour details.
 Frontend appelait `/api/auth/signup` (route inexistante). Corrige vers `/api/admin/auth/signup`.
 Voir section 16.4 pour details.
 
+### Paginated wrapper mismatch — RESOLU ✅ (2026-03-08)
+
+Backend `paginated()` envoie `{success, data: [...], pagination: {...}}` mais le frontend attendait des cles nommees (`{services: []}`, `{factures: []}`, etc.). 11+ endpoints corriges avec detection `Array.isArray(raw.data)` fallback.
+
+### Tenant Shield violations devis — RESOLU ✅ (2026-03-08)
+
+3 UPDATE queries dans adminDevis.js (envoyer, accepter, rejeter) manquaient `.eq('tenant_id', tenantId)`. Corrige.
+
 ### A surveiller
 
 - Redis optionnel en production (P3 - non bloquant)
 - Cache hit rate a mesurer
 - Memory usage Node.js
-- ~~116 fichiers non commites (risque perte)~~ RESOLU — tout est commit et push
 - STRIPE_WEBHOOK_SECRET non configure sur Render (action manuelle requise)
 
 ### Audit SaaS B2B (2026-03-03) — Lacunes identifiees

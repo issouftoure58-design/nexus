@@ -264,7 +264,7 @@ export default function Dashboard() {
                         <div
                           className="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full"
                           style={{
-                            width: `${Math.min(100, (service.count / (stats?.servicesPopulaires[0]?.count || 1)) * 100)}%`
+                            width: `${Math.min(100, (service.count / (stats?.servicesPopulaires?.[0]?.count || 1)) * 100)}%`
                           }}
                         />
                       </div>

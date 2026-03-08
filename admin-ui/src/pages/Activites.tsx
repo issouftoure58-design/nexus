@@ -243,8 +243,9 @@ export default function Activites() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await api.get<ServicesResponse>('/admin/services');
-      setServices(data.services || []);
+      const data = await api.get<any>('/admin/services');
+      const services = data.services || (Array.isArray(data.data) ? data.data : []);
+      setServices(services);
     } catch {
       setError('Impossible de charger les services');
     }
