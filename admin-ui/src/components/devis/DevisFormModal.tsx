@@ -102,7 +102,10 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
   // Fetch membres equipe pour assignation
   const { data: membresData } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({
     queryKey: ['membres-equipe'],
-    queryFn: () => api.get<Array<{ id: number; nom: string; prenom: string; role: string }>>('/admin/rh/membres'),
+    queryFn: async () => {
+      const raw = await api.get<any>('/admin/rh/membres');
+      return Array.isArray(raw) ? raw : raw.data || [];
+    },
   });
 
   // Add service

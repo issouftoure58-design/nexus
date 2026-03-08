@@ -96,7 +96,10 @@ export default function ExecuteDevisModal({ devis, onClose, onExecute, isLoading
   // Fetch membres RH pour affectation
   const { data: membresData, isLoading: dispoLoading } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({
     queryKey: ['membres-equipe-execute'],
-    queryFn: () => api.get<Array<{ id: number; nom: string; prenom: string; role: string }>>('/admin/rh/membres'),
+    queryFn: async () => {
+      const raw = await api.get<any>('/admin/rh/membres');
+      return Array.isArray(raw) ? raw : raw.data || [];
+    },
   });
 
   // Convertir les membres en format ressource pour compatibilite avec l'UI existante

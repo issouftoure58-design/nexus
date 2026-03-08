@@ -130,8 +130,8 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
 
   const fetchAbsences = async () => {
     try {
-      const data = await api.get<Absence[]>('/admin/rh/absences');
-      setAbsences(data);
+      const raw = await api.get<any>('/admin/rh/absences');
+      setAbsences(Array.isArray(raw) ? raw : raw.data || []);
     } catch (err) {
       console.error('Erreur fetch absences:', err);
     } finally {

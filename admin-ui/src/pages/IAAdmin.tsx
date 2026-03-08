@@ -90,10 +90,11 @@ export default function IAAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.get<{ agents: Agent[] }>('/admin/agents');
-      setAgents(result.agents || []);
-      if (result.agents?.length > 0 && !selectedAgent) {
-        selectAgent(result.agents[0]);
+      const raw = await api.get<any>('/admin/agents');
+      const agentsList: Agent[] = raw.agents || raw.data || [];
+      setAgents(agentsList);
+      if (agentsList.length > 0 && !selectedAgent) {
+        selectAgent(agentsList[0]);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur inconnue';

@@ -449,7 +449,10 @@ export const reservationsApi = {
 
 // Services
 export const servicesApi = {
-  list: () => api.get<{ services: Service[] }>('/admin/services'),
+  list: async (): Promise<{ services: Service[] }> => {
+    const raw = await api.get<{ services?: Service[]; data?: Service[] }>('/admin/services');
+    return { services: raw.services || (raw as any).data || [] };
+  },
   get: (id: number) => api.get<{
     service: Service;
     stats: {
@@ -505,7 +508,10 @@ export const disponibilitesApi = {
 
 // Stock
 export const stockApi = {
-  list: () => api.get<{ produits: Product[] }>('/admin/stock'),
+  list: async (): Promise<{ produits: Product[] }> => {
+    const raw = await api.get<{ produits?: Product[]; data?: Product[] }>('/admin/stock');
+    return { produits: raw.produits || (raw as any).data || [] };
+  },
   create: (data: CreateProductData) => api.post<{ produit: Product }>('/admin/stock', data),
   update: (id: number, data: Partial<Product>) => api.put<{ produit: Product }>(`/admin/stock/${id}`, data),
   delete: (id: number) => api.delete(`/admin/stock/${id}`),
@@ -579,7 +585,12 @@ export const comptaApi = {
     if (params?.periode) query.set('periode', params.periode);
     if (params?.compte) query.set('compte', params.compte);
     if (params?.non_lettrees) query.set('non_lettrees', 'true');
-    return api.get<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>(`/journaux/ecritures?${query}`);
+    return api.get<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>(`/journaux/ecritures?${query}`)
+      .then(raw => {
+        if (raw.ecritures) return raw;
+        const d = (raw as any).data;
+        return { ecritures: d?.ecritures || [], totaux: d?.totaux || { debit: 0, credit: 0, solde: 0 } };
+      });
   },
   getEcrituresBanque: (params?: { periode?: string; non_pointees?: boolean }) => {
     const query = new URLSearchParams();
