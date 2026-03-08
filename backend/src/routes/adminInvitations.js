@@ -106,7 +106,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     // Vérifier le quota utilisateurs du plan
     const { data: tenantData } = await supabase
       .from('tenants')
-      .select('plan, nom')
+      .select('plan, name')
       .eq('id', tenantId)
       .single();
 
@@ -184,7 +184,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    const tenantName = tenantData?.nom || 'NEXUS';
+    const tenantName = tenantData?.name || 'NEXUS';
     const appUrl = process.env.APP_URL || 'https://app.nexus-ai-saas.com';
     const inviteUrl = `${appUrl}/accept-invite?token=${token}`;
 
@@ -351,7 +351,7 @@ router.get('/verify/:token', async (req, res) => {
     // Récupérer le nom du tenant
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('nom')
+      .select('name')
       .eq('id', invitation.tenant_id)
       .single();
 
@@ -359,7 +359,7 @@ router.get('/verify/:token', async (req, res) => {
       valid: true,
       email: invitation.email,
       role: invitation.role,
-      tenant_name: tenant?.nom || 'NEXUS',
+      tenant_name: tenant?.name || 'NEXUS',
     });
   } catch (error) {
     logger.error('[INVITATIONS] Erreur verify:', error);
