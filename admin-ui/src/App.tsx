@@ -44,6 +44,9 @@ const SEODashboard = lazy(() => import('./pages/SEODashboard'));
 const SEOArticles = lazy(() => import('./pages/SEOArticles'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const ChurnPrevention = lazy(() => import('./pages/ChurnPrevention'));
+const CampagnesPage = lazy(() => import('./pages/Campagnes'));
+const EmailTemplatesPage = lazy(() => import('./pages/EmailTemplates'));
+const MarketingAnalyticsPage = lazy(() => import('./pages/MarketingAnalytics'));
 const RH = lazy(() => import('./pages/RH'));
 const Sentinel = lazy(() => import('./pages/Sentinel'));
 const IAAdmin = lazy(() => import('./pages/IAAdmin'));
@@ -190,6 +193,9 @@ function App() {
             <Route path="/pipeline" element={<ModuleRoute module="marketing" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
             <Route path="/devis" element={<ModuleRoute module="marketing" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
+            <Route path="/campagnes" element={<ModuleRoute module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
+            <Route path="/email-templates" element={<ModuleRoute module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
+            <Route path="/marketing-analytics" element={<ModuleRoute module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
             <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
 
             {/* Modules IA */}

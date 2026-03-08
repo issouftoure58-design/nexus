@@ -12,9 +12,6 @@ import logger from '../config/logger.js';
 
 const router = express.Router();
 
-// Middleware auth sur toutes les routes
-router.use(authenticateAdmin);
-
 // ════════════════════════════════════════════════════════════════════
 // API KEYS
 // ════════════════════════════════════════════════════════════════════
@@ -23,7 +20,7 @@ router.use(authenticateAdmin);
  * GET /api/admin/api-keys
  * Liste les cles API du tenant
  */
-router.get('/api-keys', async (req, res) => {
+router.get('/api-keys', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
@@ -47,7 +44,7 @@ router.get('/api-keys', async (req, res) => {
  * Creer une nouvelle cle API
  * Body: { name, scopes?: string[], rate_limit_per_hour?: number, expires_at?: string }
  */
-router.post('/api-keys', async (req, res) => {
+router.post('/api-keys', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { name, scopes = ['admin'], rate_limit_per_hour = 1000, expires_at } = req.body;
@@ -104,7 +101,7 @@ router.post('/api-keys', async (req, res) => {
  * DELETE /api/admin/api-keys/:id
  * Revoquer une cle API
  */
-router.delete('/api-keys/:id', async (req, res) => {
+router.delete('/api-keys/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -140,7 +137,7 @@ router.delete('/api-keys/:id', async (req, res) => {
  * GET /api/admin/webhooks
  * Liste les webhooks du tenant
  */
-router.get('/webhooks', async (req, res) => {
+router.get('/webhooks', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
@@ -164,7 +161,7 @@ router.get('/webhooks', async (req, res) => {
  * Creer un webhook
  * Body: { name, url, events: string[] }
  */
-router.post('/webhooks', async (req, res) => {
+router.post('/webhooks', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { name, url, events } = req.body;
@@ -215,7 +212,7 @@ router.post('/webhooks', async (req, res) => {
  * DELETE /api/admin/webhooks/:id
  * Supprimer un webhook
  */
-router.delete('/webhooks/:id', async (req, res) => {
+router.delete('/webhooks/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;

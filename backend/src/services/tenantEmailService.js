@@ -14,8 +14,8 @@ import { supabase } from '../config/supabase.js';
 // ============================================================================
 
 const APP_NAME = 'NEXUS';
-const APP_URL = process.env.APP_URL || 'https://app.nexus-saas.com';
-const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@nexus-saas.com';
+const APP_URL = process.env.APP_URL || 'https://app.nexus-ai-saas.com';
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@nexus-ai-saas.com';
 
 // Couleurs de la marque
 const BRAND_COLORS = {

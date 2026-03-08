@@ -28,6 +28,8 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/checkPlan.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -244,23 +246,29 @@ router.post('/produits', async (req, res) => {
  * GET /api/stock/produits
  * Liste des produits avec filtres
  */
-router.get('/produits', async (req, res) => {
+router.get('/produits', paginate({ limit: 100 }), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { categorie, stock_bas, actif, search, limit = 100 } = req.query;
+    const { categorie, stock_bas, actif, search } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('produits')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('produits')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('nom', { ascending: true })
-      .limit(parseInt(limit));
+      .order('nom', { ascending: true });
 
-    if (categorie) query = query.eq('categorie', categorie);
-    if (actif !== undefined) query = query.eq('actif', actif === 'true');
-    if (search) query = query.or(`nom.ilike.%${search}%,reference.ilike.%${search}%`);
+    if (categorie) { query = query.eq('categorie', categorie); countQuery = countQuery.eq('categorie', categorie); }
+    if (actif !== undefined) { query = query.eq('actif', actif === 'true'); countQuery = countQuery.eq('actif', actif === 'true'); }
+    if (search) { query = query.or(`nom.ilike.%${search}%,reference.ilike.%${search}%`); countQuery = countQuery.or(`nom.ilike.%${search}%,reference.ilike.%${search}%`); }
 
-    const { data: produits, error } = await query;
+    const { count: total } = await countQuery;
+    const { data: produits, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -280,11 +288,7 @@ router.get('/produits', async (req, res) => {
       stock_zero: p.stock_actuel === 0,
     }));
 
-    res.json({
-      success: true,
-      produits: produitsFormatted,
-      count: produitsFormatted.length,
-    });
+    paginated(res, { data: produitsFormatted, page, limit, total: total || 0 });
   } catch (error) {
     console.error('[STOCK] Erreur liste produits:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -537,24 +541,30 @@ router.post('/mouvements', async (req, res) => {
  * GET /api/stock/mouvements
  * Historique des mouvements
  */
-router.get('/mouvements', async (req, res) => {
+router.get('/mouvements', paginate({ limit: 100 }), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { produit_id, type, date_debut, date_fin, limit = 100 } = req.query;
+    const { produit_id, type, date_debut, date_fin } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('mouvements_stock')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('mouvements_stock')
       .select('*, produits(nom, reference)')
       .eq('tenant_id', tenantId)
-      .order('date_mouvement', { ascending: false })
-      .limit(parseInt(limit));
+      .order('date_mouvement', { ascending: false });
 
-    if (produit_id) query = query.eq('produit_id', produit_id);
-    if (type) query = query.eq('type', type);
-    if (date_debut) query = query.gte('date_mouvement', date_debut);
-    if (date_fin) query = query.lte('date_mouvement', date_fin);
+    if (produit_id) { query = query.eq('produit_id', produit_id); countQuery = countQuery.eq('produit_id', produit_id); }
+    if (type) { query = query.eq('type', type); countQuery = countQuery.eq('type', type); }
+    if (date_debut) { query = query.gte('date_mouvement', date_debut); countQuery = countQuery.gte('date_mouvement', date_debut); }
+    if (date_fin) { query = query.lte('date_mouvement', date_fin); countQuery = countQuery.lte('date_mouvement', date_fin); }
 
-    const { data: mouvements, error } = await query;
+    const { count: total } = await countQuery;
+    const { data: mouvements, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -565,10 +575,7 @@ router.get('/mouvements', async (req, res) => {
       valeur_mouvement_euros: m.prix_unitaire ? ((m.quantite * m.prix_unitaire) / 100).toFixed(2) : null,
     }));
 
-    res.json({
-      success: true,
-      mouvements: mouvementsFormatted,
-    });
+    paginated(res, { data: mouvementsFormatted, page, limit, total: total || 0 });
   } catch (error) {
     console.error('[STOCK] Erreur historique mouvements:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -643,10 +650,16 @@ router.post('/inventaires', async (req, res) => {
  * GET /api/stock/inventaires
  * Liste des inventaires
  */
-router.get('/inventaires', async (req, res) => {
+router.get('/inventaires', paginate(), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { statut } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('inventaires')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('inventaires')
@@ -654,9 +667,10 @@ router.get('/inventaires', async (req, res) => {
       .eq('tenant_id', tenantId)
       .order('date_inventaire', { ascending: false });
 
-    if (statut) query = query.eq('statut', statut);
+    if (statut) { query = query.eq('statut', statut); countQuery = countQuery.eq('statut', statut); }
 
-    const { data: inventaires, error } = await query;
+    const { count: total } = await countQuery;
+    const { data: inventaires, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -666,10 +680,7 @@ router.get('/inventaires', async (req, res) => {
       valeur_ecarts_total_euros: (inv.valeur_ecarts_total / 100).toFixed(2),
     }));
 
-    res.json({
-      success: true,
-      inventaires: inventairesFormatted,
-    });
+    paginated(res, { data: inventairesFormatted, page, limit, total: total || 0 });
   } catch (error) {
     console.error('[STOCK] Erreur liste inventaires:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -925,10 +936,16 @@ router.post('/inventaires/:id/annuler', async (req, res) => {
  * GET /api/stock/alertes
  * Liste des alertes
  */
-router.get('/alertes', async (req, res) => {
+router.get('/alertes', paginate(), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { resolue, niveau } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('alertes_stock')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('alertes_stock')
@@ -936,18 +953,15 @@ router.get('/alertes', async (req, res) => {
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
-    if (resolue !== undefined) query = query.eq('resolue', resolue === 'true');
-    if (niveau) query = query.eq('niveau', niveau);
+    if (resolue !== undefined) { query = query.eq('resolue', resolue === 'true'); countQuery = countQuery.eq('resolue', resolue === 'true'); }
+    if (niveau) { query = query.eq('niveau', niveau); countQuery = countQuery.eq('niveau', niveau); }
 
-    const { data: alertes, error } = await query;
+    const { count: total } = await countQuery;
+    const { data: alertes, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json({
-      success: true,
-      alertes: alertes || [],
-      count: alertes?.length || 0,
-    });
+    paginated(res, { data: alertes || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[STOCK] Erreur alertes:', error);
     res.status(500).json({ success: false, error: error.message });

@@ -706,8 +706,6 @@ router.post('/import', authenticateAdmin, upload.single('file'), async (req, res
           email: email || null,
           telephone: telephone || null,
           adresse: adresse || null,
-          notes: notes || null,
-          source: 'import_csv',
         });
 
       if (insertErr) {

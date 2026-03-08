@@ -4,6 +4,8 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const updateServiceSchema = z.object({
   nom: z.string().min(1).max(200).optional(),
@@ -21,16 +23,23 @@ const updateServiceSchema = z.object({
 const router = express.Router();
 
 // GET /api/admin/services - Liste tous les services
-router.get('/', authenticateAdmin, async (req, res) => {
+router.get('/', authenticateAdmin, paginate(), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
+    const { page, limit, offset } = req.pagination;
+
+    const { count: total } = await supabase
+      .from('services')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     const { data: services, error } = await supabase
       .from('services')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('ordre', { ascending: true });
+      .order('ordre', { ascending: true })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -69,7 +78,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
       };
     });
 
-    res.json({ services: mappedServices });
+    paginated(res, { data: mappedServices, page, limit, total: total || 0 });
   } catch (error) {
     console.error('[ADMIN SERVICES] Erreur liste:', error);
     res.status(500).json({ error: 'Erreur serveur' });

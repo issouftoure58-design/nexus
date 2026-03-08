@@ -14,6 +14,8 @@ import {
   saveRelanceSettings
 } from '../services/relancesService.js';
 import { createClient } from '@supabase/supabase-js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -32,19 +34,22 @@ function getSupabase() {
  * GET /api/relances
  * Liste les factures à relancer pour le tenant avec stats
  */
-router.get('/', authenticateAdmin, async (req, res) => {
+router.get('/', authenticateAdmin, paginate(), async (req, res) => {
   try {
     const tenantId = req.admin?.tenant_id || req.admin?.tenant_id || (() => { throw new Error('TENANT_ID_REQUIRED'); })();
+    const { page, limit, offset } = req.pagination;
     const [factures, stats] = await Promise.all([
       getFacturesARelancer(tenantId),
       getStatsRelances(tenantId)
     ]);
 
-    res.json({
-      success: true,
-      factures,
-      stats,
-      count: factures.length
+    // Pagination côté application (service retourne tout)
+    const total = factures.length;
+    const paginatedFactures = factures.slice(offset, offset + limit);
+
+    paginated(res, {
+      data: { factures: paginatedFactures, stats },
+      page, limit, total
     });
   } catch (error) {
     console.error('[API Relances] Erreur liste:', error.message);

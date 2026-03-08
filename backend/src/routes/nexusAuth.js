@@ -118,14 +118,14 @@ router.post('/login', loginLimiter, async (req, res) => {
     // Create session in DB (required for authenticateAdmin validation)
     // Use '__nexus__' as tenant_id for superadmin sessions (column is NOT NULL)
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    createSession({
+    await createSession({
       adminId: user.id,
       tenantId: '__nexus__',
       token,
       ip: clientIp,
       userAgent: req.headers['user-agent'],
       expiresAt,
-    }).catch(err => logger.error('[NEXUS AUTH] Session creation error:', { error: err.message }));
+    });
 
     // Reset rate limit on success
     loginAttempts.delete(clientIp);

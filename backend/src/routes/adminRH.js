@@ -10,6 +10,8 @@ import { supabase } from '../config/supabase.js';
 import { validerDSN, genererRapport } from '../services/dsnValidator.js';
 import documentsRHService from '../services/documentsRHService.js';
 const { genererDocument, getOrCreateModeles, regenererPDF, MODELES_DEFAUT } = documentsRHService;
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -241,17 +243,25 @@ async function genererEcrituresPaie(tenantId, periode, salairesNet, cotisationsP
  * GET /api/admin/rh/membres
  * Liste des membres de l'equipe
  */
-router.get('/membres', authenticateAdmin, async (req, res) => {
+router.get('/membres', authenticateAdmin, paginate(), async (req, res) => {
   try {
+    const { page, limit, offset } = req.pagination;
+
+    const { count: total } = await supabase
+      .from('rh_membres')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', req.admin.tenant_id);
+
     const { data: membres, error } = await supabase
       .from('rh_membres')
       .select('*')
       .eq('tenant_id', req.admin.tenant_id)
-      .order('nom');
+      .order('nom')
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json(membres || []);
+    paginated(res, { data: membres || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[RH] Erreur liste membres:', error);
     res.status(500).json({ error: 'Erreur recuperation equipe' });
@@ -1407,9 +1417,15 @@ router.post('/performances', authenticateAdmin, async (req, res) => {
  * GET /api/admin/rh/absences
  * Liste des absences avec filtres
  */
-router.get('/absences', authenticateAdmin, async (req, res) => {
+router.get('/absences', authenticateAdmin, paginate(), async (req, res) => {
   try {
     const { membre_id, statut, type, date_debut, date_fin, annee } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('rh_absences')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', req.admin.tenant_id);
 
     let query = supabase
       .from('rh_absences')
@@ -1423,28 +1439,35 @@ router.get('/absences', authenticateAdmin, async (req, res) => {
 
     if (membre_id) {
       query = query.eq('membre_id', membre_id);
+      countQuery = countQuery.eq('membre_id', membre_id);
     }
     if (statut) {
       query = query.eq('statut', statut);
+      countQuery = countQuery.eq('statut', statut);
     }
     if (type) {
       query = query.eq('type', type);
+      countQuery = countQuery.eq('type', type);
     }
     if (date_debut) {
       query = query.gte('date_debut', date_debut);
+      countQuery = countQuery.gte('date_debut', date_debut);
     }
     if (date_fin) {
       query = query.lte('date_fin', date_fin);
+      countQuery = countQuery.lte('date_fin', date_fin);
     }
     if (annee) {
       query = query.gte('date_debut', `${annee}-01-01`).lte('date_debut', `${annee}-12-31`);
+      countQuery = countQuery.gte('date_debut', `${annee}-01-01`).lte('date_debut', `${annee}-12-31`);
     }
 
-    const { data: absences, error } = await query;
+    const { count: total } = await countQuery;
+    const { data: absences, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json(absences || []);
+    paginated(res, { data: absences || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[RH] Erreur absences:', error);
     res.status(500).json({ error: 'Erreur recuperation absences' });
@@ -4667,10 +4690,16 @@ router.get('/heures-supp', authenticateAdmin, async (req, res) => {
  * GET /api/admin/rh/pointage
  * Liste le pointage avec filtres (membre, période)
  */
-router.get('/pointage', authenticateAdmin, async (req, res) => {
+router.get('/pointage', authenticateAdmin, paginate({ limit: 100 }), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { membre_id, date_debut, date_fin, validated } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('rh_pointage')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('rh_pointage')
@@ -4683,16 +4712,17 @@ router.get('/pointage', authenticateAdmin, async (req, res) => {
       .eq('tenant_id', tenantId)
       .order('date_travail', { ascending: false });
 
-    if (membre_id) query = query.eq('membre_id', membre_id);
-    if (date_debut) query = query.gte('date_travail', date_debut);
-    if (date_fin) query = query.lte('date_travail', date_fin);
-    if (validated !== undefined) query = query.eq('validated', validated === 'true');
+    if (membre_id) { query = query.eq('membre_id', membre_id); countQuery = countQuery.eq('membre_id', membre_id); }
+    if (date_debut) { query = query.gte('date_travail', date_debut); countQuery = countQuery.gte('date_travail', date_debut); }
+    if (date_fin) { query = query.lte('date_travail', date_fin); countQuery = countQuery.lte('date_travail', date_fin); }
+    if (validated !== undefined) { query = query.eq('validated', validated === 'true'); countQuery = countQuery.eq('validated', validated === 'true'); }
 
-    const { data: pointages, error } = await query.limit(100);
+    const { count: total } = await countQuery;
+    const { data: pointages, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json({ pointages: pointages || [] });
+    paginated(res, { data: pointages || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[RH POINTAGE] Erreur liste:', error);
     res.status(500).json({ error: 'Erreur récupération pointage' });
@@ -5249,10 +5279,16 @@ router.put('/parametres-paie', authenticateAdmin, async (req, res) => {
  * GET /api/admin/rh/bulletins
  * Liste des bulletins de paie
  */
-router.get('/bulletins', authenticateAdmin, async (req, res) => {
+router.get('/bulletins', authenticateAdmin, paginate(), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { membre_id, periode, statut } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('rh_bulletins_paie')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('rh_bulletins_paie')
@@ -5265,15 +5301,16 @@ router.get('/bulletins', authenticateAdmin, async (req, res) => {
       .eq('tenant_id', tenantId)
       .order('periode', { ascending: false });
 
-    if (membre_id) query = query.eq('membre_id', membre_id);
-    if (periode) query = query.eq('periode', periode);
-    if (statut) query = query.eq('statut', statut);
+    if (membre_id) { query = query.eq('membre_id', membre_id); countQuery = countQuery.eq('membre_id', membre_id); }
+    if (periode) { query = query.eq('periode', periode); countQuery = countQuery.eq('periode', periode); }
+    if (statut) { query = query.eq('statut', statut); countQuery = countQuery.eq('statut', statut); }
 
-    const { data: bulletins, error } = await query.limit(50);
+    const { count: total } = await countQuery;
+    const { data: bulletins, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json({ bulletins: bulletins || [] });
+    paginated(res, { data: bulletins || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[RH BULLETINS] Erreur liste:', error);
     res.status(500).json({ error: 'Erreur récupération bulletins' });

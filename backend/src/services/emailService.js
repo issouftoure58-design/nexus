@@ -12,7 +12,9 @@ if (resendApiKey) {
   resend = new Resend(resendApiKey);
 }
 
-const DEFAULT_FROM = process.env.EMAIL_FROM || 'NEXUS <noreply@nexus-saas.com>';
+// En dev/test sans domaine verifie, Resend exige onboarding@resend.dev
+// En production avec domaine verifie, utiliser EMAIL_FROM=NEXUS <noreply@votredomaine.com>
+const DEFAULT_FROM = process.env.EMAIL_FROM || 'NEXUS <onboarding@resend.dev>';
 
 /**
  * Envoie un email avec bonnes pratiques deliverability
@@ -40,7 +42,7 @@ export async function sendEmail({ to, subject, html, from, replyTo, headers, tag
       html,
       reply_to: replyTo || undefined,
       headers: {
-        'List-Unsubscribe': `<mailto:unsubscribe@nexus-saas.com?subject=Unsubscribe>`,
+        'List-Unsubscribe': `<mailto:unsubscribe@nexus-ai-saas.com?subject=Unsubscribe>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'X-Mailer': 'NEXUS-SaaS',
         ...headers,

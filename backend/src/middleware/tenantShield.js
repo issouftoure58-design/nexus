@@ -32,6 +32,8 @@ const SYSTEM_ROUTES = [
 
   // Auth & Signup (pas encore de tenant)
   '/api/admin/auth',
+  '/api/admin/invitations/accept',
+  '/api/admin/invitations/verify',
   '/api/signup',
   '/api/trial/limits',  // Info publique sur les limites trial
 

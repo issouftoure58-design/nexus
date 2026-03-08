@@ -50,7 +50,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -155,11 +155,14 @@ const businessNav: NavItem[] = [
 
 // Marketing - Modules marketing
 const marketingNav: NavItem[] = [
+  { icon: Megaphone, label: 'Campagnes', path: '/campagnes', requiredModule: 'marketing' },
+  { icon: FileText, label: 'Templates Email', path: '/email-templates', requiredModule: 'marketing' },
+  { icon: Target, label: 'Analytics Mktg', path: '/marketing-analytics', requiredModule: 'marketing' },
   { icon: Share2, label: 'Réseaux Sociaux', path: '/social', requiredModule: 'social_media' },
-  { icon: Target, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
+  { icon: ClipboardList, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredModule: 'marketing' },
-  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', requiredModule: 'marketing' },
-  { icon: FileText, label: 'Devis', path: '/devis', requiredModule: 'marketing' },
+  { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'marketing' },
+  { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'marketing' },
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
 ];
@@ -179,7 +182,7 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
-export function Sidebar({ onLogout }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<UpgradeModalData | null>(null);
   const location = useLocation();
@@ -187,71 +190,39 @@ export function Sidebar({ onLogout }: SidebarProps) {
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
   const { t, businessType, businessInfo } = useProfile();
 
-  /**
-   * Vérifie si l'item doit être affiché
-   * NOUVEAU: On affiche TOUS les items, même non accessibles
-   * Filtrage uniquement par type de business
-   */
-  const shouldShowItem = (item: NavItem): boolean => {
-    // Si types de business requis, vérifier que le tenant correspond
+  const shouldShowItem = useCallback((item: NavItem): boolean => {
     if (item.businessTypes && item.businessTypes.length > 0) {
       if (!businessType || !item.businessTypes.includes(businessType)) {
         return false;
       }
     }
     return true;
-  };
+  }, [businessType]);
 
-  /**
-   * Vérifie si l'item est verrouillé (visible mais pas accessible)
-   * NOUVEAU: On vérifie si le tenant a accès au module/plan requis
-   */
-  const isItemLocked = (item: NavItem): boolean => {
-    // Items toujours disponibles
+  const isItemLocked = useCallback((item: NavItem): boolean => {
     if (item.alwaysShow) return false;
-
-    // Si module requis, vérifier qu'il est actif
-    if (item.requiredModule) {
-      return !hasModule(item.requiredModule);
-    }
-
-    // Si plan requis, vérifier le plan
-    if (item.requiredPlan) {
-      return !hasPlan(item.requiredPlan);
-    }
-
+    if (item.requiredModule) return !hasModule(item.requiredModule);
+    if (item.requiredPlan) return !hasPlan(item.requiredPlan);
     return false;
-  };
+  }, [hasModule, hasPlan]);
 
-  /**
-   * Détermine le plan requis pour un item verrouillé
-   */
-  const getRequiredPlanForItem = (item: NavItem): PlanType => {
-    if (item.requiredModule) {
-      return MODULE_TO_PLAN[item.requiredModule] || 'pro';
-    }
+  const getRequiredPlanForItem = useCallback((item: NavItem): PlanType => {
+    if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'pro';
     return item.requiredPlan || 'pro';
-  };
+  }, []);
 
-  /**
-   * Filtre les items visibles d'une section
-   * NOUVEAU: On affiche tous les items (filtrage business seulement)
-   */
-  const getVisibleItems = (items: NavItem[]): NavItem[] => {
+  const getVisibleItems = useCallback((items: NavItem[]): NavItem[] => {
     return items.filter(shouldShowItem);
-  };
+  }, [shouldShowItem]);
 
-  /**
-   * Gère le clic sur un item verrouillé
-   */
-  const handleLockedItemClick = (item: NavItem) => {
+  const handleLockedItemClick = useCallback((item: NavItem) => {
     const requiredPlan = getRequiredPlanForItem(item);
     setUpgradeModal({
       feature: item.label,
       requiredPlan,
       requiredModule: item.requiredModule,
     });
-  };
+  }, [getRequiredPlanForItem]);
 
   const NavLink = ({ item }: { item: NavItem }) => {
     const isActive = location.pathname === item.path;
@@ -525,6 +496,6 @@ export function Sidebar({ onLogout }: SidebarProps) {
       )}
     </aside>
   );
-}
+});
 
 export default Sidebar;

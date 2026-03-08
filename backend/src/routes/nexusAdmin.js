@@ -14,6 +14,8 @@ import { getRecentLogs, getSecurityStats, getRateLimitStats } from '../sentinel/
 import { createBackup, listBackups, restoreBackup } from '../sentinel/backup/index.js';
 import { getStatus as getUptimeStatus } from '../sentinel/monitoring/index.js';
 import { PRICING as GLOBAL_PRICING, PLAN_BUDGETS, PLAN_PRICES } from '../config/pricing.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -187,12 +189,20 @@ router.get('/dashboard', async (req, res) => {
  * GET /api/nexus/tenants
  * Liste tous les tenants avec plan, usage, quota, activité
  */
-router.get('/tenants', async (req, res) => {
+router.get('/tenants', paginate(), async (req, res) => {
   try {
+    const { page, limit, offset } = req.pagination;
+
+    // Count total
+    const { count: total } = await supabase
+      .from('tenants')
+      .select('*', { count: 'exact', head: true });
+
     const { data: tenants, error } = await supabase
       .from('tenants')
       .select('id, name, plan, statut, created_at, updated_at, essai_fin, whatsapp_number, phone_number')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -255,7 +265,7 @@ router.get('/tenants', async (req, res) => {
       };
     });
 
-    res.json({ tenants: tenantsResult });
+    paginated(res, { data: tenantsResult, page, limit, total: total || 0 });
   } catch (error) {
     console.error('[NEXUS ADMIN] Tenants error:', error);
     res.status(500).json({ success: false, error: error.message });

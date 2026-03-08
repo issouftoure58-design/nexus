@@ -1,8 +1,8 @@
 # NEXUS - SYSTEME COMPLET
 
 > **Derniere mise a jour:** 2026-03-08
-> **Version:** 3.16.0
-> **Status:** Production Ready (Score technique 100/100 | Performance ~8.4/10 vs leaders)
+> **Version:** 3.18.0
+> **Status:** Production Ready (Score technique 100/100 | Performance ~9.0/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
 ---
@@ -161,11 +161,26 @@ Note: `comptable_facturation` (creer/exporter) câblé sur `createFactureFromRes
 
 ## DEPLOIEMENT
 
+### Domaine & URLs production
+
+| Service | URL | Plateforme |
+|---------|-----|------------|
+| Admin Dashboard | `https://app.nexus-ai-saas.com` | Render (nexus-admin) |
+| Landing Page | `https://nexus-ai-saas.com` | Render (nexus-vitrine) |
+| Backend API | `https://nexus-backend-dev.onrender.com` | Render (nexus-backend-dev) |
+| Emails transactionnels | `noreply@nexus-ai-saas.com` | Resend (domaine verifie) |
+
+> **Domaine:** `nexus-ai-saas.com` (registrar: OVH)
+> **Architecture:** admin-ui proxy Node.js (`server.js`) → backend via `API_PROXY_TARGET`
+> **DNS:** `app` CNAME → nexus-admin-yedu.onrender.com | racine A → 216.24.57.1 | `www` CNAME → nexus-vitrine.onrender.com
+
 ### Services Render
 
 | Service | Type | URL |
 |---------|------|-----|
-| `nexus-backend-dev` | Web Service | nexus-backend-dev.onrender.com |
+| `nexus-admin` | Web Service (admin-ui) | nexus-admin-yedu.onrender.com → app.nexus-ai-saas.com |
+| `nexus-backend-dev` | Web Service (API) | nexus-backend-dev.onrender.com |
+| `nexus-vitrine` | Web Service (landing) | nexus-vitrine.onrender.com → nexus-ai-saas.com |
 | `fatshairafro-web` | Web Service | fatshairafro-web.onrender.com |
 
 ### CI/CD Pipeline
@@ -224,11 +239,13 @@ Push main → GitHub Actions CI:
 
 ## LIENS UTILES
 
+- **Production:** https://app.nexus-ai-saas.com (admin) | https://nexus-ai-saas.com (landing)
 - **GitHub:** https://github.com/issouftoure58-design/nexus
 - **Supabase:** https://supabase.com/dashboard/project/mmivralzwcmriciprfbc
 - **Render:** https://dashboard.render.com
 - **Stripe:** https://dashboard.stripe.com
 - **Twilio:** https://console.twilio.com
+- **Resend:** https://resend.com (emails depuis noreply@nexus-ai-saas.com)
 - ~~Sentry~~ remplace par SENTINEL Error Tracker (v3.14.0)
 
 ---

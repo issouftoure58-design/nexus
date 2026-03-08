@@ -17,6 +17,55 @@ const router = express.Router();
 const INVITE_EXPIRY_HOURS = 72;
 const VALID_ROLES = ['admin', 'manager', 'viewer'];
 
+// Limites utilisateurs par plan
+const PLAN_USER_LIMITS = {
+  starter: { max: 1, extraPrice: 1900 },   // +19€/user
+  pro: { max: 5, extraPrice: 1500 },        // +15€/user
+  business: { max: 20, extraPrice: 1200 },  // +12€/user
+};
+
+// GET /api/admin/invitations/limits — Limites du plan
+router.get('/limits', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'tenant_id requis' });
+
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('plan')
+      .eq('id', tenantId)
+      .single();
+
+    const plan = tenant?.plan || 'starter';
+    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
+
+    const { count: currentUsers } = await supabase
+      .from('admin_users')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('actif', true);
+
+    const { count: pendingInvites } = await supabase
+      .from('invitations')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString());
+
+    res.json({
+      plan,
+      maxUsers: limit.max,
+      extraPriceCents: limit.extraPrice,
+      currentUsers: currentUsers || 0,
+      pendingInvites: pendingInvites || 0,
+      remainingSeats: limit.max - (currentUsers || 0) - (pendingInvites || 0),
+    });
+  } catch (error) {
+    logger.error('[INVITATIONS] Erreur limits:', error);
+    res.status(500).json({ error: 'Erreur' });
+  }
+});
+
 // GET /api/admin/invitations — Lister les invitations du tenant
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
@@ -52,6 +101,41 @@ router.post('/', authenticateAdmin, async (req, res) => {
 
     if (!VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: `Rôle invalide. Valeurs possibles: ${VALID_ROLES.join(', ')}` });
+    }
+
+    // Vérifier le quota utilisateurs du plan
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('plan, nom')
+      .eq('id', tenantId)
+      .single();
+
+    const plan = tenantData?.plan || 'starter';
+    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
+
+    const { count: currentUsers } = await supabase
+      .from('admin_users')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('actif', true);
+
+    const { count: pendingInvites } = await supabase
+      .from('invitations')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString());
+
+    const totalSeats = (currentUsers || 0) + (pendingInvites || 0);
+
+    if (totalSeats >= limit.max) {
+      return res.status(403).json({
+        error: `Limite atteinte : ${limit.max} utilisateur(s) pour le plan ${plan}. Passez au plan supérieur ou contactez le support.`,
+        currentUsers: currentUsers || 0,
+        pendingInvites: pendingInvites || 0,
+        maxUsers: limit.max,
+        plan,
+      });
     }
 
     // Vérifier si l'email existe déjà dans le tenant
@@ -100,15 +184,8 @@ router.post('/', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Récupérer le nom du tenant pour l'email
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('nom')
-      .eq('id', tenantId)
-      .single();
-
-    const tenantName = tenant?.nom || 'NEXUS';
-    const appUrl = process.env.APP_URL || 'https://nexus-admin.onrender.com';
+    const tenantName = tenantData?.nom || 'NEXUS';
+    const appUrl = process.env.APP_URL || 'https://app.nexus-ai-saas.com';
     const inviteUrl = `${appUrl}/accept-invite?token=${token}`;
 
     // Envoyer l'email
@@ -219,7 +296,7 @@ router.post('/accept', async (req, res) => {
       .from('admin_users')
       .insert({
         email: invitation.email,
-        password: hashedPassword,
+        password_hash: hashedPassword,
         nom,
         role: invitation.role,
         tenant_id: invitation.tenant_id,

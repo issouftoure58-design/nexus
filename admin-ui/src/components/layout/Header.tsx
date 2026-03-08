@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Bell, Search, User, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ interface HeaderProps {
   onMenuClick?: () => void;
 }
 
-export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
+export const Header = memo(function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
       {/* Left side */}
@@ -55,4 +56,4 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
       </div>
     </header>
   );
-}
+});

@@ -16,6 +16,9 @@ import GenerateurDSN from '@/components/rh/GenerateurDSN';
 import ParametresSociaux from '@/components/rh/ParametresSociaux';
 import { DocumentsRH } from '@/components/rh/DocumentsRH';
 import PlanningEmploye from '@/components/rh/PlanningEmploye';
+import PerformanceReviews from '@/components/rh/PerformanceReviews';
+import OnboardingChecklist from '@/components/rh/OnboardingChecklist';
+import OrgChart from '@/components/rh/OrgChart';
 import {
   Users,
   UserPlus,
@@ -210,7 +213,7 @@ interface Candidature {
   created_at: string;
 }
 
-type TabType = 'equipe' | 'planning' | 'absences' | 'paie' | 'performances' | 'dsn' | 'recrutement' | 'documents' | 'parametres';
+type TabType = 'equipe' | 'planning' | 'absences' | 'paie' | 'performances' | 'dsn' | 'recrutement' | 'documents' | 'onboarding' | 'organigramme' | 'parametres';
 
 export default function RH() {
   const [tab, setTab] = useState<TabType>('equipe');
@@ -876,6 +879,20 @@ export default function RH() {
           Documents
         </button>
         <button
+          className={`px-4 py-2 -mb-px ${tab === 'onboarding' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('onboarding')}
+        >
+          <ClipboardList className="w-4 h-4 inline mr-2" />
+          Onboarding
+        </button>
+        <button
+          className={`px-4 py-2 -mb-px ${tab === 'organigramme' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('organigramme')}
+        >
+          <Users className="w-4 h-4 inline mr-2" />
+          Organigramme
+        </button>
+        <button
           className={`px-4 py-2 -mb-px ${tab === 'parametres' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
           onClick={() => setTab('parametres')}
         >
@@ -1042,8 +1059,13 @@ export default function RH() {
         <GestionPaie />
       )}
 
-      {/* Tab Performances (ancien - conservé pour compatibilité) */}
+      {/* Tab Performances */}
       {tab === 'performances' && (
+        <PerformanceReviews membres={membres} />
+      )}
+
+      {/* Legacy performances content removed — replaced by PerformanceReviews component */}
+      {false && (
         <div className="space-y-6">
           <Card className="p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -1527,6 +1549,12 @@ export default function RH() {
       )}
 
       {/* Tab Paramètres sociaux */}
+      {/* Tab Onboarding */}
+      {tab === 'onboarding' && <OnboardingChecklist membres={membres} />}
+
+      {/* Tab Organigramme */}
+      {tab === 'organigramme' && <OrgChart membres={membres} />}
+
       {tab === 'parametres' && <ParametresSociaux />}
     </div>
   );

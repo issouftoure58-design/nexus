@@ -894,7 +894,7 @@ export default function Subscription() {
               Notre équipe est là pour vous aider avec votre abonnement.
             </p>
             <a
-              href="mailto:support@nexus-saas.com"
+              href="mailto:support@nexus-ai-saas.com"
               className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
             >
               Contacter le support

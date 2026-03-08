@@ -48,12 +48,41 @@ export function requireModule(moduleName) {
         });
       }
 
-      // Recuperer plan
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('nom, modules, limites')
-        .eq('id', tenant.plan)
-        .single();
+      // Plan definitions (source de verite — pas de table plans en DB)
+      const PLAN_MODULES = {
+        starter: {
+          dashboard: true, clients: true, reservations: true,
+          facturation: true, agent_ia_web: true, documents: true
+        },
+        pro: {
+          dashboard: true, clients: true, reservations: true,
+          facturation: true, agent_ia_web: true, documents: true,
+          whatsapp: true, telephone: true, comptabilite: true,
+          crm_avance: true, marketing: true, pipeline: true,
+          commercial: true, stock: true, analytics: true, devis: true
+        },
+        business: {
+          dashboard: true, clients: true, reservations: true,
+          facturation: true, agent_ia_web: true, documents: true,
+          whatsapp: true, telephone: true, comptabilite: true,
+          crm_avance: true, marketing: true, pipeline: true,
+          commercial: true, stock: true, analytics: true, devis: true,
+          rh: true, seo: true, api: true, sentinel: true, whitelabel: true
+        }
+      };
+
+      const PLAN_LIMITES = {
+        starter: { clients_max: 200, reservations_mois: 500 },
+        pro: { clients_max: 2000, reservations_mois: 5000 },
+        business: { clients_max: -1, reservations_mois: -1 }
+      };
+
+      const planName = tenant.plan || 'starter';
+      const plan = {
+        nom: planName,
+        modules: PLAN_MODULES[planName] || PLAN_MODULES.starter,
+        limites: PLAN_LIMITES[planName] || PLAN_LIMITES.starter
+      };
 
       // ═══════════════════════════════════════════════════
       // VERIFICATION STATUT ABONNEMENT
@@ -108,9 +137,9 @@ export function requireModule(moduleName) {
 
         return res.status(403).json({
           error: 'Module non inclus',
-          message: `Le module "${moduleName}" n'est pas inclus dans votre plan ${plan?.nom || tenant.plan_id}.`,
+          message: `Le module "${moduleName}" n'est pas inclus dans votre plan ${plan.nom}.`,
           code: 'MODULE_NOT_INCLUDED',
-          current_plan: tenant.plan_id,
+          current_plan: tenant.plan,
           required_plans: requiredPlans,
           module: moduleName,
           action: 'upgrade',
@@ -166,13 +195,13 @@ export function checkUsageLimit(resource) {
         return res.status(404).json({ error: 'Tenant non trouve' });
       }
 
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('limites')
-        .eq('id', tenant.plan)
-        .single();
+      const PLAN_LIMITES = {
+        starter: { clients_max: 200, reservations_mois: 500 },
+        pro: { clients_max: 2000, reservations_mois: 5000 },
+        business: { clients_max: -1, reservations_mois: -1 }
+      };
 
-      const limites = plan?.limites || {};
+      const limites = PLAN_LIMITES[tenant.plan] || PLAN_LIMITES.starter;
 
       // Recuperer usage du mois
       const firstDayOfMonth = new Date();
@@ -398,15 +427,9 @@ export async function getTenantPlanInfo(tenantId) {
 
     if (!tenant) return null;
 
-    const { data: plan } = await supabase
-      .from('plans')
-      .select('*')
-      .eq('id', tenant.plan)
-      .single();
-
     return {
       tenant,
-      plan,
+      plan: { nom: tenant.plan || 'starter' },
       isActive: tenant.statut === 'actif' || tenant.statut === 'essai',
       isTrial: tenant.statut === 'essai',
       trialEndsAt: tenant.essai_fin

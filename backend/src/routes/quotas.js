@@ -175,7 +175,7 @@ router.post('/request-activation', async (req, res) => {
     const moduleName = MODULE_QUOTAS[moduleId]?.name || moduleId;
     const tenantName = tenantRow?.name || tenantId;
     await sendEmail({
-      to: 'support@nexus-saas.com',
+      to: 'support@nexus-ai-saas.com',
       subject: `[NEXUS] Demande d'activation: ${moduleName} — ${tenantName}`,
       html: `
         <h2>Nouvelle demande d'activation</h2>

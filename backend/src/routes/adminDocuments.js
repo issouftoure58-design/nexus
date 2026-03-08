@@ -39,7 +39,9 @@ const upload = multer({
     if (ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`Type de fichier non supporté: ${file.mimetype}`));
+      const err = new Error(`Type de fichier non supporté: ${file.mimetype}`);
+      err.code = 'INVALID_FILE_TYPE';
+      cb(err);
     }
   }
 });
@@ -57,7 +59,20 @@ router.use(authenticateAdmin);
  *   entity_type: string (client|reservation|depense|rh)
  *   entity_id: string
  */
-router.post('/upload', upload.single('file'), requireStorageQuota, async (req, res) => {
+router.post('/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `Fichier trop volumineux (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` });
+      }
+      if (err.code === 'INVALID_FILE_TYPE') {
+        return res.status(400).json({ error: err.message });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, requireStorageQuota, async (req, res) => {
   try {
     const { tenantId } = req;
     const adminId = req.admin?.id;

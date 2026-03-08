@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import { supabase } from '../config/supabase.js';
 import { requireModule } from '../middleware/moduleProtection.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = Router();
 
@@ -12,20 +14,27 @@ router.use(authenticateAdmin);
 router.use(requireModule('agent_ia_web'));
 
 // GET /api/admin/agents — List agents for current tenant
-router.get('/', async (req, res) => {
+router.get('/', paginate(), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
+    const { page, limit, offset } = req.pagination;
+
+    const { count: total } = await supabase
+      .from('ai_agents')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     const { data: agents, error } = await supabase
       .from('ai_agents')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('agent_type');
+      .order('agent_type')
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json({ success: true, agents: agents || [] });
+    paginated(res, { data: agents || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[AGENTS] Error fetching:', error);
     res.status(500).json({ success: false, error: 'Erreur récupération agents' });

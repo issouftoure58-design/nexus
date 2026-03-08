@@ -22,6 +22,8 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
 import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -491,36 +493,39 @@ router.post('/posts', async (req, res) => {
  * GET /api/social/posts
  * Liste les posts du tenant
  */
-router.get('/posts', async (req, res) => {
+router.get('/posts', paginate(), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { status, category, limit = 50, offset = 0 } = req.query;
+    const { status, category } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('social_posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = supabase
       .from('social_posts')
-      .select('*', { count: 'exact' })
+      .select('*')
       .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+      .order('created_at', { ascending: false });
 
     if (status && STATUSES.includes(status)) {
       query = query.eq('status', status);
+      countQuery = countQuery.eq('status', status);
     }
 
     if (category && CATEGORIES.includes(category)) {
       query = query.eq('category', category);
+      countQuery = countQuery.eq('category', category);
     }
 
-    const { data, error, count } = await query;
+    const { count: total } = await countQuery;
+    const { data, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json({
-      success: true,
-      posts: data,
-      count,
-      total: count,
-    });
+    paginated(res, { data: data || [], page, limit, total: total || 0 });
   } catch (error) {
     console.error('[SOCIAL] Erreur récupération posts:', error);
     res.status(500).json({

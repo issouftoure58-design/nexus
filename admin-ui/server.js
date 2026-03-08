@@ -9,13 +9,12 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// VITE_API_URL peut inclure /api, on extrait l'URL de base pour le proxy
-const VITE_API_URL = process.env.VITE_API_URL || 'https://nexus-backend-dev.onrender.com/api';
-const API_BASE_URL = VITE_API_URL.replace(/\/api\/?$/, '');
+// API_PROXY_TARGET = URL de base du backend (sans /api)
+const API_PROXY_TARGET = process.env.API_PROXY_TARGET || 'https://nexus-backend-dev.onrender.com';
 
 // Proxy API requests - forward /api/* to backend
 app.use('/api', createProxyMiddleware({
-  target: API_BASE_URL,
+  target: API_PROXY_TARGET,
   changeOrigin: true,
   secure: true,
   pathRewrite: (path) => `/api${path}`, // Préserver le prefix /api
@@ -38,5 +37,5 @@ app.get('/{*path}', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`API proxy target: ${API_BASE_URL}`);
+  console.log(`API proxy target: ${API_PROXY_TARGET}`);
 });

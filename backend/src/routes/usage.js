@@ -10,6 +10,8 @@
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import usageTracking from '../services/usageTrackingService.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -36,17 +38,14 @@ router.get('/current', authenticateAdmin, async (req, res) => {
  * GET /api/usage/history
  * Récupère l'historique d'usage sur plusieurs mois
  */
-router.get('/history', authenticateAdmin, async (req, res) => {
+router.get('/history', authenticateAdmin, paginate({ limit: 12 }), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { months = 6 } = req.query;
 
     const history = await usageTracking.getUsageHistory(tenantId, parseInt(months));
 
-    res.json({
-      success: true,
-      history,
-    });
+    paginated(res, { data: history, page: 1, limit: parseInt(months), total: history.length });
   } catch (error) {
     console.error('[USAGE API] Erreur:', error);
     res.status(500).json({ error: error.message });

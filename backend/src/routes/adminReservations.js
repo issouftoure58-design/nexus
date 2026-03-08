@@ -12,7 +12,7 @@ import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
 
 const createReservationSchema = z.object({
-  client_id: z.string().uuid(),
+  client_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
   service: z.string().optional(),
   date_rdv: z.string().min(1, 'Date requise'),
   heure_rdv: z.string().optional(),
@@ -22,14 +22,14 @@ const createReservationSchema = z.object({
   adresse_client: z.string().optional(),
   adresse_facturation: z.string().optional(),
   notes: z.string().max(2000).optional(),
-  membre_id: z.string().uuid().optional(),
+  membre_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]).optional(),
   services: z.array(z.object({
-    service_id: z.string().uuid(),
+    service_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
     nom: z.string().optional(),
     prix: z.number().optional(),
     duree: z.number().optional(),
   })).optional(),
-  membre_ids: z.array(z.string().uuid()).optional(),
+  membre_ids: z.array(z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)])).optional(),
   pricing_mode: z.string().optional(),
   remise_type: z.string().optional(),
   remise_valeur: z.number().optional(),

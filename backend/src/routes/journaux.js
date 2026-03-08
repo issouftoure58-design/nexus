@@ -6,6 +6,8 @@
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import { supabase } from '../config/supabase.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -105,9 +107,15 @@ router.get('/', async (req, res) => {
  * GET /api/journaux/ecritures
  * Liste des écritures avec filtres
  */
-router.get('/ecritures', async (req, res) => {
+router.get('/ecritures', paginate({ limit: 100 }), async (req, res) => {
   try {
     const { journal, periode, compte, non_lettrees } = req.query;
+    const { page, limit, offset } = req.pagination;
+
+    let countQuery = supabase
+      .from('ecritures_comptables')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', req.admin.tenant_id);
 
     let query = supabase
       .from('ecritures_comptables')
@@ -118,18 +126,23 @@ router.get('/ecritures', async (req, res) => {
 
     if (journal) {
       query = query.eq('journal_code', journal);
+      countQuery = countQuery.eq('journal_code', journal);
     }
     if (periode) {
       query = query.eq('periode', periode);
+      countQuery = countQuery.eq('periode', periode);
     }
     if (compte) {
       query = query.eq('compte_numero', compte);
+      countQuery = countQuery.eq('compte_numero', compte);
     }
     if (non_lettrees === 'true') {
       query = query.is('lettrage', null);
+      countQuery = countQuery.is('lettrage', null);
     }
 
-    const { data: ecritures, error } = await query.limit(500);
+    const { count: total } = await countQuery;
+    const { data: ecritures, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -176,16 +189,19 @@ router.get('/ecritures', async (req, res) => {
       }
     }
 
-    res.json({
-      ecritures: ecritures || [],
-      totaux: {
-        debit: totalDebit,
-        credit: totalCredit,
-        solde: totalDebit - totalCredit,
-        ...(soldeTresorerie !== null && { [labelSolde]: soldeTresorerie }),
-        // Garder solde_banque pour rétrocompatibilité
-        ...(journal === 'BQ' && soldeTresorerie !== null && { solde_banque: soldeTresorerie })
-      }
+    paginated(res, {
+      data: {
+        ecritures: ecritures || [],
+        totaux: {
+          debit: totalDebit,
+          credit: totalCredit,
+          solde: totalDebit - totalCredit,
+          ...(soldeTresorerie !== null && { [labelSolde]: soldeTresorerie }),
+          // Garder solde_banque pour rétrocompatibilité
+          ...(journal === 'BQ' && soldeTresorerie !== null && { solde_banque: soldeTresorerie })
+        }
+      },
+      page, limit, total: total || 0
     });
   } catch (error) {
     console.error('[JOURNAUX] Erreur écritures:', error);

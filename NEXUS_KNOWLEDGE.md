@@ -1206,11 +1206,24 @@ app.use(compression({
 
 ## 14. DEPLOIEMENT
 
+### Domaine & URLs production
+
+| Service | URL | Plateforme |
+|---------|-----|------------|
+| Admin Dashboard | `https://app.nexus-ai-saas.com` | Render (nexus-admin) |
+| Landing Page | `https://nexus-ai-saas.com` | Render (nexus-vitrine) |
+| Backend API | `https://nexus-backend-dev.onrender.com` | Render (nexus-backend-dev) |
+| Emails | `noreply@nexus-ai-saas.com` | Resend |
+
+> Domaine: `nexus-ai-saas.com` (registrar: OVH)
+> Admin-ui utilise un proxy Node.js (server.js) vers le backend via `API_PROXY_TARGET`
+
 ### Services Render
 
-- `nexus-api` (Web Service) - Backend API
-- `fatshairafro-web` (Static Site) - Site public
-- `nexus-admin` (Static Site) - Admin dashboard
+- `nexus-backend-dev` (Web Service) - Backend API
+- `nexus-admin` (Web Service) - Admin dashboard (root: admin-ui)
+- `nexus-vitrine` (Web Service) - Landing page
+- `fatshairafro-web` (Static Site) - Site public tenant
 
 ### Variables d'environnement requises
 
@@ -1227,6 +1240,7 @@ JWT_SECRET=your-secret-key
 
 # Notifications
 RESEND_API_KEY=re_...
+EMAIL_FROM=NEXUS <noreply@nexus-ai-saas.com>
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 
@@ -1234,12 +1248,16 @@ TWILIO_AUTH_TOKEN=...
 STRIPE_SECRET_KEY=sk_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-# CORS
-CORS_ORIGINS=https://domain1.com,https://domain2.com
+# CORS & URLs
+APP_URL=https://app.nexus-ai-saas.com
+CORS_ORIGIN=https://app.nexus-ai-saas.com
 
 # Serveur
 PORT=5000
 NODE_ENV=production
+
+# Admin-UI (nexus-admin service)
+API_PROXY_TARGET=https://nexus-backend-dev.onrender.com
 ```
 
 ---

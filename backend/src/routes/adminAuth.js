@@ -663,6 +663,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       .from('admin_users')
       .select('id, email, nom, role, totp_enabled')
       .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id)
       .single();
 
     res.json({ admin });

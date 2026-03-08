@@ -7,6 +7,8 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
+import { paginate } from '../middleware/paginate.js';
+import { paginated } from '../utils/response.js';
 
 const router = express.Router();
 
@@ -62,11 +64,19 @@ router.use(authenticateAdmin, requireProPlan);
  * GET /api/admin/pipeline
  * Liste opportunités avec stats par étape
  */
-router.get('/', async (req, res) => {
+router.get('/', paginate({ limit: 100 }), async (req, res) => {
   try {
     const tenant_id = req.admin.tenant_id;
+    const { page, limit, offset } = req.pagination;
 
-    // Toutes les opportunités actives (pas gagnées ni perdues)
+    // Count total
+    const { count: total } = await supabase
+      .from('opportunites')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenant_id)
+      .not('etape', 'in', '("gagne","perdu")');
+
+    // Opportunités actives paginées
     const { data: opportunites, error } = await supabase
       .from('opportunites')
       .select(`
@@ -75,7 +85,8 @@ router.get('/', async (req, res) => {
       `)
       .eq('tenant_id', tenant_id)
       .not('etape', 'in', '("gagne","perdu")')
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -118,11 +129,9 @@ router.get('/', async (req, res) => {
       previsionTotale += montantPondere;
     });
 
-    res.json({
-      pipeline,
-      stats,
-      previsionCA: previsionTotale.toFixed(2),
-      etapes: ETAPE_CONFIG
+    paginated(res, {
+      data: { pipeline, stats, previsionCA: previsionTotale.toFixed(2), etapes: ETAPE_CONFIG },
+      page, limit, total: total || 0
     });
   } catch (error) {
     console.error('[PIPELINE] Erreur get pipeline:', error);
@@ -575,11 +584,19 @@ router.delete('/:id', async (req, res) => {
  * GET /api/admin/pipeline/historique
  * Opportunités gagnées et perdues
  */
-router.get('/stats/historique', async (req, res) => {
+router.get('/stats/historique', paginate({ limit: 100 }), async (req, res) => {
   try {
     const { periode = '30' } = req.query;
+    const { page, limit, offset } = req.pagination;
     const dateDebut = new Date();
     dateDebut.setDate(dateDebut.getDate() - parseInt(periode));
+
+    const { count: total } = await supabase
+      .from('opportunites')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', req.admin.tenant_id)
+      .in('etape', ['gagne', 'perdu'])
+      .gte('date_cloture_reelle', dateDebut.toISOString());
 
     const { data, error } = await supabase
       .from('opportunites')
@@ -590,7 +607,8 @@ router.get('/stats/historique', async (req, res) => {
       .eq('tenant_id', req.admin.tenant_id)
       .in('etape', ['gagne', 'perdu'])
       .gte('date_cloture_reelle', dateDebut.toISOString())
-      .order('date_cloture_reelle', { ascending: false });
+      .order('date_cloture_reelle', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -601,16 +619,19 @@ router.get('/stats/historique', async (req, res) => {
     const caGagne = gagnees.reduce((sum, o) => sum + parseFloat(o.montant || 0), 0);
     const caPerdu = perdues.reduce((sum, o) => sum + parseFloat(o.montant || 0), 0);
 
-    res.json({
-      gagnees,
-      perdues,
-      stats: {
-        nbGagnees: gagnees.length,
-        nbPerdues: perdues.length,
-        tauxConversion: nbTotal > 0 ? ((gagnees.length / nbTotal) * 100).toFixed(1) : 0,
-        caGagne: caGagne.toFixed(2),
-        caPerdu: caPerdu.toFixed(2)
-      }
+    paginated(res, {
+      data: {
+        gagnees,
+        perdues,
+        stats: {
+          nbGagnees: gagnees.length,
+          nbPerdues: perdues.length,
+          tauxConversion: nbTotal > 0 ? ((gagnees.length / nbTotal) * 100).toFixed(1) : 0,
+          caGagne: caGagne.toFixed(2),
+          caPerdu: caPerdu.toFixed(2)
+        }
+      },
+      page, limit, total: total || 0
     });
   } catch (error) {
     console.error('[PIPELINE] Erreur get historique:', error);
