@@ -252,8 +252,9 @@ export default function Activites() {
 
   const fetchMembres = useCallback(async () => {
     try {
-      const data = await api.get<MembresResponse[]>('/admin/rh/membres');
-      setMembres((data || []).filter((m: MembresResponse) => m.statut === 'actif'));
+      const raw = await api.get<MembresResponse[] | { data: MembresResponse[] }>('/admin/rh/membres');
+      const list = Array.isArray(raw) ? raw : (raw as any).data || [];
+      setMembres(list.filter((m: MembresResponse) => m.statut === 'actif'));
     } catch {
       setError('Impossible de charger les membres');
     }

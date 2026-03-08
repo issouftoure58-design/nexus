@@ -332,11 +332,11 @@ export default function RH() {
         api.get<Candidature[]>('/admin/rh/candidatures').catch(() => null),
       ]);
 
-      if (dashData) setDashboard(dashData);
-      if (membresData) setMembres(membresData);
-      if (absencesData) setAbsences(absencesData);
-      if (recrutementsData) setRecrutements(recrutementsData);
-      if (candidaturesData) setCandidatures(candidaturesData);
+      if (dashData) setDashboard((dashData as any).data ?? dashData);
+      if (membresData) setMembres(Array.isArray(membresData) ? membresData : (membresData as any).data || []);
+      if (absencesData) setAbsences(Array.isArray(absencesData) ? absencesData : (absencesData as any).data || []);
+      if (recrutementsData) setRecrutements(Array.isArray(recrutementsData) ? recrutementsData : (recrutementsData as any).data || []);
+      if (candidaturesData) setCandidatures(Array.isArray(candidaturesData) ? candidaturesData : (candidaturesData as any).data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des donnees RH');
     } finally {

@@ -194,11 +194,14 @@ export default function PipelinePage() {
     setNewOpp({ nom: '', description: '', source: 'autre', priorite: 'normale', date_debut: '', date_cloture_prevue: '' });
   };
 
-  // Fetch pipeline data
-  const { data, isLoading, error } = useQuery<PipelineData>({
+  // Fetch pipeline data (API returns paginated wrapper { data: PipelineData, page, limit, total })
+  const { data: rawData, isLoading, error } = useQuery<PipelineData | { data: PipelineData }>({
     queryKey: ['pipeline'],
     queryFn: () => api.get('/admin/pipeline')
   });
+  const data: PipelineData | undefined = rawData
+    ? ('pipeline' in rawData ? rawData as PipelineData : (rawData as { data: PipelineData }).data)
+    : undefined;
 
   // Move opportunity mutation
   const moveMutation = useMutation({
