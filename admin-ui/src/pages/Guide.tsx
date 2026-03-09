@@ -49,7 +49,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Gestion des clients',
     content: [
       "Le fichier clients centralise toutes les informations : coordonnées, historique des prestations, CA total, fréquence de visite et points de fidélité.",
-      "Importez vos clients existants via CSV (menu '...' > Importer). Le système détecte automatiquement les doublons par email.",
+      "Ajoutez vos clients manuellement via le bouton '+'. Le système détecte automatiquement les doublons par email.",
       "Les tags (VIP, PRO) permettent de segmenter rapidement. Cliquez sur un client pour voir son détail complet avec statistiques."
     ]
   },
