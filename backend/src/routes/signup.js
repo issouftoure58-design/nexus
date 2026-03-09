@@ -421,6 +421,7 @@ router.post('/', async (req, res) => {
       'automobile': 'garage',
       'commerce': 'commerce',
       'artisanat': 'artisan',
+      'hotellerie': 'hotel',
       'autre': 'autre',
     };
 
@@ -436,6 +437,7 @@ router.post('/', async (req, res) => {
       'garage': 'generic',
       'commerce': 'generic',
       'artisan': 'generic',
+      'hotel': 'generic',
       'autre': 'generic',
     };
     const dbTemplateId = dbTemplateMap[templateKey] || 'generic';

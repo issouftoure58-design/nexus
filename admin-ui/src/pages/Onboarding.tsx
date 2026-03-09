@@ -24,6 +24,7 @@ import {
   Car,
   Wrench,
   Store,
+  Hotel,
   Check,
   ArrowRight,
   ArrowLeft,
@@ -88,6 +89,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   car: Car,
   wrench: Wrench,
   store: Store,
+  hotel: Hotel,
   building: Building2,
 };
 

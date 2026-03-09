@@ -479,6 +479,71 @@ export const BUSINESS_TEMPLATES = {
   },
 
   // ============================================
+  // HÔTEL / HÉBERGEMENT
+  // ============================================
+  hotel: {
+    id: 'hotel',
+    name: 'Hôtel / Hébergement',
+    icon: 'hotel',
+    emoji: '🏨',
+    description: 'Hôtels, chambres d\'hôtes, gîtes, appart-hôtels',
+
+    defaultServices: [
+      { name: 'Chambre Simple', duration: 0, price: 80, category: 'chambre' },
+      { name: 'Chambre Double', duration: 0, price: 120, category: 'chambre' },
+      { name: 'Chambre Twin', duration: 0, price: 120, category: 'chambre' },
+      { name: 'Suite Junior', duration: 0, price: 180, category: 'suite' },
+      { name: 'Suite Prestige', duration: 0, price: 280, category: 'suite' },
+      { name: 'Petit-déjeuner', duration: 0, price: 15, category: 'restauration' },
+      { name: 'Demi-pension', duration: 0, price: 35, category: 'restauration' },
+      { name: 'Pension complète', duration: 0, price: 55, category: 'restauration' },
+      { name: 'Late check-out (14h)', duration: 0, price: 30, category: 'option' },
+      { name: 'Parking', duration: 0, price: 15, category: 'option' },
+      { name: 'Transfert aéroport/gare', duration: 0, price: 40, category: 'option' },
+    ],
+
+    defaultHours: {
+      monday: { open: '00:00', close: '23:59' },
+      tuesday: { open: '00:00', close: '23:59' },
+      wednesday: { open: '00:00', close: '23:59' },
+      thursday: { open: '00:00', close: '23:59' },
+      friday: { open: '00:00', close: '23:59' },
+      saturday: { open: '00:00', close: '23:59' },
+      sunday: { open: '00:00', close: '23:59' },
+    },
+
+    iaConfig: {
+      channel_telephone: {
+        greeting: "Hôtel {business_name}, bonjour ! Comment puis-je vous aider ?",
+        personality: "Vous êtes le concierge virtuel de l'hôtel {business_name}. Soyez élégant, accueillant et attentionné. Aidez les clients à réserver une chambre en demandant : dates de séjour, nombre de personnes, type de chambre souhaité. Informez sur les tarifs, les services inclus et les options (petit-déjeuner, parking, late check-out). Pour les demandes spéciales (lit bébé, chambre PMR, vue mer), notez-les et transmettez à la réception.",
+        tone: 'elegant_welcoming',
+        canBook: true,
+        canQuote: true,
+        canTransfer: true,
+        transferKeywords: ['parler à la réception', 'réclamation', 'groupe', 'événement', 'séminaire', 'demande spéciale'],
+      },
+      channel_whatsapp: {
+        greeting: "Bonjour ! 🏨 Bienvenue à l'hôtel {business_name}. Comment puis-je vous aider ?",
+        personality: "Concierge virtuel WhatsApp de l'hôtel {business_name}. Soyez chaleureux et efficace. Aidez à réserver en demandant dates, nombre de personnes et préférences. Informez sur les disponibilités et tarifs.",
+        tone: 'elegant_welcoming',
+        canBook: true,
+        canQuote: true,
+        quickReplies: ['Réserver une chambre', 'Disponibilités', 'Tarifs', 'Services & options'],
+      },
+      channel_web: {
+        greeting: "Bienvenue à l'hôtel {business_name} ! Puis-je vous aider à réserver votre séjour ?",
+        personality: "Concierge virtuel de l'hôtel. Guidez les visiteurs vers la réservation en demandant leurs dates et préférences.",
+        tone: 'elegant_welcoming',
+        canBook: true,
+        canQuote: true,
+      },
+    },
+
+    recommendedModules: ['reservations', 'telephone', 'whatsapp', 'comptabilite'],
+    suggestedPlan: 'business',
+  },
+
+  // ============================================
   // AUTRE / GÉNÉRIQUE
   // ============================================
   autre: {
