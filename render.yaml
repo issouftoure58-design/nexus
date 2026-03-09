@@ -81,13 +81,15 @@ services:
       - key: NODE_ENV
         value: production
 
-  # Landing page (site vitrine marketing)
+  # Landing page (site vitrine marketing) — Web Service avec proxy API
   - type: web
-    name: nexus-landing
+    name: nexus-vitrine
     runtime: node
     rootDir: landing
-    buildCommand: npm install && npm run build
-    startCommand: npx serve dist -s -l 3000
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node server.js
     envVars:
+      - key: API_PROXY_TARGET
+        value: https://nexus-backend-dev.onrender.com
       - key: NODE_ENV
         value: production
