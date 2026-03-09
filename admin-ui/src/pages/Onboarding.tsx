@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { api } from '../lib/api';
+import { useTenantContext } from '../contexts/TenantContext';
 import {
   Scissors,
   UtensilsCrossed,
@@ -50,7 +51,6 @@ interface BusinessTemplate {
   description: string;
   recommendedModules: string[];
   suggestedPlan: string;
-  estimatedMonthlyPrice: number;
   servicesCount: number;
 }
 
@@ -67,7 +67,6 @@ interface TemplatePreview {
   iaConfig: Record<string, any>;
   recommendedModules: string[];
   suggestedPlan: string;
-  estimatedMonthlyPrice: number;
 }
 
 interface Service {
@@ -102,21 +101,27 @@ const DAY_LABELS: Record<string, string> = {
   sunday: 'Dimanche',
 };
 
-const PLAN_INFO: Record<string, { name: string; description: string; color: string }> = {
+const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number; originalPrice: number }> = {
   starter: {
     name: 'Starter',
     description: 'Pour démarrer votre activité',
     color: 'from-blue-500 to-cyan-500',
+    price: 79,
+    originalPrice: 99,
   },
   pro: {
     name: 'Pro',
     description: 'Pour les équipes en croissance',
     color: 'from-cyan-500 to-emerald-500',
+    price: 199,
+    originalPrice: 249,
   },
   business: {
     name: 'Business',
     description: 'Solution complète',
     color: 'from-purple-500 to-pink-500',
+    price: 399,
+    originalPrice: 499,
   },
 };
 
@@ -237,9 +242,20 @@ function ServiceCard({
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Canaux IA accessibles par plan
+const PLAN_CHANNELS: Record<string, string[]> = {
+  starter: ['web'],
+  pro: ['web', 'whatsapp', 'telephone'],
+  business: ['web', 'whatsapp', 'telephone'],
+};
+
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { plan: tenantPlan } = useTenantContext();
   const [step, setStep] = useState(0);
+
+  // Canaux disponibles selon le plan réel du tenant
+  const availableChannels = PLAN_CHANNELS[tenantPlan] || PLAN_CHANNELS.starter;
 
   // État de l'onboarding
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -251,7 +267,7 @@ export default function Onboarding() {
   });
   const [services, setServices] = useState<Service[]>([]);
   const [hours, setHours] = useState<Record<string, any>>({});
-  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set(['whatsapp']));
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set(['web']));
 
   // Charger les templates disponibles
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
@@ -280,7 +296,8 @@ export default function Onboarding() {
     onSuccess: async () => {
       // Marquer onboarding comme terminé
       await completeOnboarding();
-      localStorage.setItem('nexus_onboarding_done', 'true');
+      const ct = localStorage.getItem('nexus_current_tenant');
+      localStorage.setItem(ct ? `nexus_onboarding_done_${ct}` : 'nexus_onboarding_done', 'true');
       navigate('/');
     },
   });
@@ -365,7 +382,8 @@ export default function Onboarding() {
   }
 
   const selectedTemplate = templates.find(t => t.id === selectedType);
-  const planInfo = preview?.suggestedPlan ? (PLAN_INFO[preview.suggestedPlan] || PLAN_INFO.starter) : PLAN_INFO.starter;
+  // Utiliser le plan réel du tenant (choisi au signup), pas le plan suggéré par le template
+  const planInfo = PLAN_INFO[tenantPlan] || PLAN_INFO.starter;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 relative">
@@ -444,9 +462,6 @@ export default function Onboarding() {
                           <div className="flex items-center gap-2 mt-2">
                             <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
                               {template.servicesCount} services
-                            </span>
-                            <span className="text-xs bg-cyan-100 text-cyan-700 px-2 py-1 rounded-full">
-                              ~{template.estimatedMonthlyPrice}€/mois
                             </span>
                           </div>
                         </div>
@@ -648,15 +663,17 @@ export default function Onboarding() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 {[
-                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Réponses auto 24/7' },
-                  { id: 'telephone', icon: PhoneCall, label: 'Téléphone', desc: 'Standard IA vocal' },
-                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site' },
+                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site', minPlan: 'starter' },
+                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Réponses auto 24/7', minPlan: 'pro' },
+                  { id: 'telephone', icon: PhoneCall, label: 'Téléphone', desc: 'Standard IA vocal', minPlan: 'pro' },
                 ].map((channel) => {
+                  const isAvailable = availableChannels.includes(channel.id);
                   const isSelected = selectedChannels.has(channel.id);
                   return (
                     <button
                       key={channel.id}
                       onClick={() => {
+                        if (!isAvailable) return;
                         const newChannels = new Set(selectedChannels);
                         if (isSelected) {
                           newChannels.delete(channel.id);
@@ -665,18 +682,26 @@ export default function Onboarding() {
                         }
                         setSelectedChannels(newChannels);
                       }}
+                      disabled={!isAvailable}
                       className={cn(
-                        'p-4 rounded-xl border-2 text-center transition-all',
-                        isSelected
-                          ? 'border-cyan-500 bg-cyan-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                        'p-4 rounded-xl border-2 text-center transition-all relative',
+                        !isAvailable
+                          ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+                          : isSelected
+                            ? 'border-cyan-500 bg-cyan-50'
+                            : 'border-gray-200 hover:border-gray-300'
                       )}
                     >
+                      {!isAvailable && (
+                        <span className="absolute top-2 right-2 text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                          Plan Pro
+                        </span>
+                      )}
                       <channel.icon className={cn(
                         'w-8 h-8 mx-auto mb-2',
-                        isSelected ? 'text-cyan-500' : 'text-gray-400'
+                        !isAvailable ? 'text-gray-300' : isSelected ? 'text-cyan-500' : 'text-gray-400'
                       )} />
-                      <h3 className="font-semibold text-gray-900">{channel.label}</h3>
+                      <h3 className={cn('font-semibold', isAvailable ? 'text-gray-900' : 'text-gray-400')}>{channel.label}</h3>
                       <p className="text-xs text-gray-500 mt-1">{channel.desc}</p>
                     </button>
                   );
@@ -690,12 +715,13 @@ export default function Onboarding() {
               )}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-white/70 text-sm">Plan recommandé</span>
+                    <span className="text-white/70 text-sm">Votre plan</span>
                     <h3 className="text-2xl font-bold">{planInfo.name}</h3>
                     <p className="text-white/80 text-sm mt-1">{planInfo.description}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-3xl font-bold">{preview?.estimatedMonthlyPrice || 99}€</span>
+                    <span className="text-lg line-through text-white/50">{planInfo.originalPrice}€</span>
+                    <span className="text-3xl font-bold ml-1">{planInfo.price}€</span>
                     <span className="text-white/70">/mois</span>
                   </div>
                 </div>
@@ -791,7 +817,8 @@ export default function Onboarding() {
         <div className="text-center mt-6">
           <button
             onClick={() => {
-              localStorage.setItem('nexus_onboarding_done', 'true');
+              const ct = localStorage.getItem('nexus_current_tenant');
+      localStorage.setItem(ct ? `nexus_onboarding_done_${ct}` : 'nexus_onboarding_done', 'true');
               navigate('/');
             }}
             className="text-white/50 hover:text-white/70 text-sm transition-colors"

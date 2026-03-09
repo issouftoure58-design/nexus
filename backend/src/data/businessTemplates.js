@@ -73,7 +73,6 @@ export const BUSINESS_TEMPLATES = {
 
     recommendedModules: ['reservations', 'whatsapp', 'seo', 'marketing'],
     suggestedPlan: 'business',
-    estimatedMonthlyPrice: 99,
   },
 
   // ============================================
@@ -139,7 +138,6 @@ export const BUSINESS_TEMPLATES = {
 
     recommendedModules: ['reservations', 'whatsapp', 'marketing', 'seo'],
     suggestedPlan: 'business',
-    estimatedMonthlyPrice: 99,
   },
 
   // ============================================
@@ -152,12 +150,14 @@ export const BUSINESS_TEMPLATES = {
     emoji: '🍽️',
     description: 'Restaurants, brasseries, bistrots',
 
+    // Restaurant = réservation de TABLE (créneau + couverts), pas de prestation avec prix.
+    // Le client réserve une table, mange, paie l'addition sur place.
     defaultServices: [
-      { name: 'Réservation 2 personnes', duration: 90, price: 0, category: 'reservation' },
-      { name: 'Réservation 3-4 personnes', duration: 90, price: 0, category: 'reservation' },
-      { name: 'Réservation 5-6 personnes', duration: 120, price: 0, category: 'reservation' },
-      { name: 'Réservation groupe (7+)', duration: 150, price: 0, category: 'groupe' },
-      { name: 'Privatisation salle', duration: 240, price: 0, category: 'evenement' },
+      { name: 'Table 1-2 couverts', duration: 0, price: 0, category: 'table' },
+      { name: 'Table 3-4 couverts', duration: 0, price: 0, category: 'table' },
+      { name: 'Table 5-6 couverts', duration: 0, price: 0, category: 'table' },
+      { name: 'Table 7+ couverts (groupe)', duration: 0, price: 0, category: 'groupe' },
+      { name: 'Privatisation (sur devis)', duration: 0, price: 0, category: 'evenement' },
     ],
 
     defaultHours: {
@@ -191,24 +191,24 @@ export const BUSINESS_TEMPLATES = {
     iaConfig: {
       channel_telephone: {
         greeting: "Bonjour ! Restaurant {business_name}, comment puis-je vous aider ?",
-        personality: "Vous êtes l'assistant du restaurant {business_name}. Soyez accueillant et efficace. Proposez des réservations en demandant le nombre de couverts, la date et l'heure souhaitées. Informez sur le menu du jour si demandé.",
+        personality: "Vous êtes l'assistant du restaurant {business_name}. Soyez accueillant et efficace. Pour les réservations, demandez : le nombre de couverts, la date, le service souhaité (midi ou soir) et le nom. Précisez les horaires des services. Informez sur le menu du jour et les suggestions du chef si demandé. Ne mentionnez jamais de prix de prestation — le client paie l'addition sur place après son repas.",
         tone: 'warm_welcoming',
         canBook: true,
         canQuote: false,
         canTransfer: true,
-        transferKeywords: ['parler au chef', 'allergies', 'menu spécial', 'réclamation'],
+        transferKeywords: ['parler au chef', 'allergies', 'menu spécial', 'réclamation', 'privatisation'],
       },
       channel_whatsapp: {
         greeting: "Bonjour ! 🍽️ Bienvenue au restaurant {business_name}. Souhaitez-vous réserver une table ?",
-        personality: "Assistant WhatsApp du restaurant. Aidez à réserver rapidement en demandant: nombre de personnes, date, heure, et nom.",
+        personality: "Assistant WhatsApp du restaurant. Aidez à réserver une table en demandant : nombre de couverts, date, service (midi ou soir), et nom. Ne mentionnez jamais de prix — le client paie l'addition sur place.",
         tone: 'warm_welcoming',
         canBook: true,
         canQuote: false,
-        quickReplies: ['Réserver une table', 'Voir le menu', 'Horaires', 'Nous trouver'],
+        quickReplies: ['Réserver une table', 'Menu du jour', 'Horaires des services', 'Nous trouver'],
       },
       channel_web: {
-        greeting: "Bienvenue au restaurant {business_name} ! Puis-je vous aider à réserver ?",
-        personality: "Assistant web du restaurant. Facilitez les réservations en ligne.",
+        greeting: "Bienvenue au restaurant {business_name} ! Souhaitez-vous réserver une table ?",
+        personality: "Assistant web du restaurant. Facilitez les réservations de table. Demandez le nombre de couverts, la date et le service (midi ou soir). Ne mentionnez jamais de prix.",
         tone: 'warm_welcoming',
         canBook: true,
         canQuote: false,
@@ -217,7 +217,6 @@ export const BUSINESS_TEMPLATES = {
 
     recommendedModules: ['reservations', 'telephone', 'whatsapp', 'marketing'],
     suggestedPlan: 'business',
-    estimatedMonthlyPrice: 99,
   },
 
   // ============================================
@@ -293,8 +292,7 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['reservations', 'telephone'],
-    suggestedPlan: 'essential',
-    estimatedMonthlyPrice: 49,
+    suggestedPlan: 'starter',
     specialNotes: [
       'Conformité RGPD santé renforcée',
       'Pas de conseil médical par IA',
@@ -362,7 +360,6 @@ export const BUSINESS_TEMPLATES = {
 
     recommendedModules: ['reservations', 'telephone', 'whatsapp'],
     suggestedPlan: 'business',
-    estimatedMonthlyPrice: 99,
   },
 
   // ============================================
@@ -419,8 +416,7 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['whatsapp', 'ecommerce', 'marketing'],
-    suggestedPlan: 'essential',
-    estimatedMonthlyPrice: 49,
+    suggestedPlan: 'starter',
   },
 
   // ============================================
@@ -480,7 +476,6 @@ export const BUSINESS_TEMPLATES = {
 
     recommendedModules: ['telephone', 'whatsapp', 'marketing'],
     suggestedPlan: 'business',
-    estimatedMonthlyPrice: 99,
   },
 
   // ============================================
@@ -533,8 +528,7 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['whatsapp'],
-    suggestedPlan: 'essential',
-    estimatedMonthlyPrice: 49,
+    suggestedPlan: 'starter',
   },
 };
 
@@ -545,13 +539,13 @@ export const NEXUS_PLANS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    price: 99,
+    price: 79,
+    originalPrice: 99,
     description: 'Pour démarrer avec l\'IA',
     includes: [
-      'Dashboard & Analytics',
-      'Gestion clients & réservations',
-      'IA assistant web',
-      '200 SMS/mois',
+      'Dashboard & Réservations',
+      'Facturation & Documents',
+      'Agent IA Web',
       'Support email',
     ],
     modules: ['base', 'reservations'],
@@ -560,34 +554,34 @@ export const NEXUS_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 249,
+    price: 199,
+    originalPrice: 249,
     description: 'Pour les professionnels actifs',
     popular: true,
     includes: [
       'Tout Starter +',
-      'IA téléphone & WhatsApp',
-      '500 SMS/mois, 60 min voix IA',
-      'Marketing automation',
-      'Comptabilité & Stock',
+      'WhatsApp & Téléphone IA',
+      'Comptabilité complète',
+      'CRM avancé & Stock',
       'Support prioritaire',
     ],
-    modules: ['base', 'reservations', 'comptabilite', 'marketing', 'stock'],
+    modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone'],
     maxIaModules: 3,
   },
   business: {
     id: 'business',
     name: 'Business',
-    price: 499,
+    price: 399,
+    originalPrice: 499,
     description: 'Pour les entreprises exigeantes',
     includes: [
       'Tout Pro +',
-      '2000 SMS/mois, 300 min voix IA',
+      'Marketing & Pipeline',
+      'Analytics & SEO',
       'RH & Planning',
-      'SEO & Sentinel',
-      'API illimitée',
-      'Support dédié',
+      'API & Account manager',
     ],
-    modules: ['base', 'reservations', 'rh_avance', 'comptabilite', 'marketing', 'stock', 'analytics', 'seo', 'sentinel'],
+    modules: ['base', 'reservations', 'rh_avance', 'comptabilite', 'stock', 'marketing', 'analytics', 'seo', 'sentinel', 'whatsapp', 'telephone'],
     maxIaModules: -1, // Illimité
   },
 };
@@ -614,7 +608,7 @@ export function getAllBusinessTemplates() {
  * Récupère un plan par son ID
  */
 export function getPlan(planId) {
-  return NEXUS_PLANS[planId] || NEXUS_PLANS.essential;
+  return NEXUS_PLANS[planId] || NEXUS_PLANS.starter;
 }
 
 /**

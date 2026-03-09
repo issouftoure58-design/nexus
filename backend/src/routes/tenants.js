@@ -313,7 +313,6 @@ router.get('/business-templates', async (req, res) => {
       description: t.description,
       recommendedModules: t.recommendedModules,
       suggestedPlan: t.suggestedPlan,
-      estimatedMonthlyPrice: t.estimatedMonthlyPrice,
       servicesCount: t.defaultServices.length,
     }));
 
@@ -620,7 +619,6 @@ router.post('/setup-from-template', authenticateAdmin, async (req, res) => {
         iaConfigsCreated,
         recommendedModules: template.recommendedModules,
         suggestedPlan: template.suggestedPlan,
-        estimatedPrice: template.estimatedMonthlyPrice,
       },
     });
   } catch (error) {
@@ -662,7 +660,6 @@ router.get('/template-preview/:type', async (req, res) => {
         iaConfig: template.iaConfig,
         recommendedModules: template.recommendedModules,
         suggestedPlan: template.suggestedPlan,
-        estimatedMonthlyPrice: template.estimatedMonthlyPrice,
         specialNotes: template.specialNotes || [],
       },
     });

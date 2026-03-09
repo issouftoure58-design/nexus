@@ -92,34 +92,31 @@ interface TenantResponse {
  * Détecte le slug du tenant depuis différentes sources
  */
 function detectTenantSlug(): string {
-  // 1. Essayer JWT token
+  // 1. Source de vérité : nexus_current_tenant (mis à jour par api.setToken)
+  const currentTenant = localStorage.getItem('nexus_current_tenant');
+  if (currentTenant) {
+    return currentTenant;
+  }
+
+  // 2. Fallback : décoder JWT token
   const token = localStorage.getItem('nexus_admin_token');
   if (token) {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
 
-      // Slug directement dans token
       if (payload.tenant_slug) {
-        console.log('[useTenant] Detected from JWT slug:', payload.tenant_slug);
         return payload.tenant_slug;
       }
 
-      // tenant_id dans token - utiliser directement comme slug
-      if (payload.tenant_id) {
-        if (typeof payload.tenant_id === 'string') {
-          console.log('[useTenant] Detected from JWT tenant_id:', payload.tenant_id);
-          return payload.tenant_id;
-        }
-
-        // Si tenant_id est un number, on le garde comme fallback
-        console.log('[useTenant] JWT tenant_id (numeric):', payload.tenant_id);
+      if (payload.tenant_id && typeof payload.tenant_id === 'string') {
+        return payload.tenant_id;
       }
     } catch (e) {
       console.warn('[useTenant] Failed to decode JWT:', e);
     }
   }
 
-  // 2. Essayer subdomain
+  // 3. Essayer subdomain
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
 
@@ -138,41 +135,35 @@ function detectTenantSlug(): string {
     };
 
     if (subdomainMap[subdomain]) {
-      console.log('[useTenant] Detected from subdomain:', subdomain, '→', subdomainMap[subdomain]);
       return subdomainMap[subdomain];
     }
 
-    // Si pas de mapping, utiliser le subdomain directement
     if (subdomain !== 'localhost' && subdomain !== '127') {
-      console.log('[useTenant] Using subdomain as slug:', subdomain);
       return subdomain;
     }
   }
 
-  // 3. Essayer URL param
+  // 4. Essayer URL param
   const params = new URLSearchParams(window.location.search);
   const tenantParam = params.get('tenant');
   if (tenantParam) {
-    console.log('[useTenant] Detected from URL param:', tenantParam);
     localStorage.setItem('nexus_tenant_slug', tenantParam);
     return tenantParam;
   }
 
-  // 4. Fallback : localStorage
+  // 5. Fallback : localStorage legacy
   const savedTenant = localStorage.getItem('nexus_tenant_slug');
   if (savedTenant) {
-    console.log('[useTenant] Using saved tenant:', savedTenant);
     return savedTenant;
   }
 
-  // 5. Default pour dev local uniquement
+  // 6. Default pour dev local uniquement
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    console.log('[useTenant] Dev mode - using default tenant: nexus-test');
     return 'nexus-test';
   }
 
-  // 6. Production: pas de fallback — tenant requis
-  console.error('[useTenant] ERREUR: Impossible de détecter le tenant en production');
+  // 7. Production: pas de fallback — tenant requis
+  console.error('[useTenant] ERREUR: Impossible de détecter le tenant');
   return '';
 }
 

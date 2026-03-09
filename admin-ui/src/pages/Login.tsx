@@ -37,6 +37,8 @@ export default function Login() {
       }
 
       if (result.token) {
+        // Nettoyer l'ancien tenant avant de connecter le nouveau
+        api.clearToken();
         api.setToken(result.token);
         navigate('/');
       }
@@ -54,6 +56,7 @@ export default function Login() {
 
     try {
       const result = await authApi.validate2FA(tempToken, totpCode);
+      api.clearToken();
       api.setToken(result.token);
       navigate('/');
     } catch (err) {
@@ -81,7 +84,7 @@ export default function Login() {
 
       {/* Bouton retour */}
       <a
-        href="https://nexus-vitrine.onrender.com"
+        href="https://nexus-ai-saas.com"
         className="absolute top-6 left-6 z-20 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="h-5 w-5" />

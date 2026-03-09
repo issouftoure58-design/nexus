@@ -117,8 +117,10 @@ function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode;
     return <Navigate to="/login" replace />;
   }
 
-  // Rediriger vers onboarding si pas encore fait
-  if (!skipOnboarding && !localStorage.getItem('nexus_onboarding_done')) {
+  // Rediriger vers onboarding si pas encore fait (par tenant)
+  const currentTenant = localStorage.getItem('nexus_current_tenant');
+  const onboardingKey = currentTenant ? `nexus_onboarding_done_${currentTenant}` : 'nexus_onboarding_done';
+  if (!skipOnboarding && !localStorage.getItem(onboardingKey)) {
     return <Navigate to="/onboarding" replace />;
   }
 
