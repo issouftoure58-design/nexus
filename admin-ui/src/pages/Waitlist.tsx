@@ -62,12 +62,12 @@ export default function WaitlistPage() {
   });
 
   // Data
-  const { data: statsData } = useQuery<{ stats: WaitlistStats }>({
+  const { data: statsData } = useQuery({
     queryKey: ['waitlist-stats'],
     queryFn: waitlistApi.getStats,
   });
 
-  const { data: listData, isLoading } = useQuery<{ waitlist: WaitlistEntry[] }>({
+  const { data: listData, isLoading } = useQuery({
     queryKey: ['waitlist', statusFilter],
     queryFn: () => waitlistApi.list({ status: statusFilter || undefined }),
   });

@@ -468,7 +468,7 @@ export const waitlistApi = {
     if (params?.status) query.set('status', params.status);
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
-    return api.get<{ waitlist: unknown[]; total: number; page: number }>(`/admin/waitlist?${query}`);
+    return api.get(`/admin/waitlist?${query}`) as Promise<{ waitlist: any[]; total: number; page: number }>;
   },
   add: (data: Record<string, unknown>) => api.post('/admin/waitlist', data),
   get: (id: number) => api.get(`/admin/waitlist/${id}`),
@@ -476,7 +476,7 @@ export const waitlistApi = {
   remove: (id: number) => api.delete(`/admin/waitlist/${id}`),
   notify: (id: number) => api.post(`/admin/waitlist/${id}/notify`),
   convert: (id: number) => api.post(`/admin/waitlist/${id}/convert`),
-  getStats: () => api.get<{ stats: Record<string, number> }>('/admin/waitlist/stats'),
+  getStats: () => api.get('/admin/waitlist/stats') as Promise<{ stats: Record<string, number> }>,
 };
 
 // Services
