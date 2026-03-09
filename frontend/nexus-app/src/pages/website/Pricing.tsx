@@ -23,8 +23,10 @@ const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 99,
-    yearlyPrice: 950,
+    price: 79,
+    originalPrice: 99,
+    yearlyPrice: 790,
+    launchOffer: 'Offre de lancement — 100 premiers clients',
     description: 'Pour demarrer votre activite',
     icon: Zap,
     color: 'from-gray-500 to-gray-600',
@@ -221,7 +223,7 @@ export default function Pricing() {
   };
 
   const getSavings = (plan: (typeof PLANS)[0]) => {
-    const monthlyTotal = plan.price * 12;
+    const monthlyTotal = ((plan as any).originalPrice || plan.price) * 12;
     const yearlySavings = monthlyTotal - plan.yearlyPrice;
     return yearlySavings;
   };
@@ -298,7 +300,13 @@ export default function Pricing() {
                   <div className="plan-price">
                     <span className="price-amount">{displayPrice}</span>
                     <span className="price-period">/mois</span>
+                    {(plan as any).originalPrice && billingPeriod === 'monthly' && (
+                      <span className="price-original" style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.9rem', marginLeft: '0.5rem' }}>{(plan as any).originalPrice}€</span>
+                    )}
                   </div>
+                  {(plan as any).launchOffer && (
+                    <p style={{ color: '#e65100', fontSize: '0.75rem', fontWeight: 600, marginTop: '-0.5rem', marginBottom: '0.5rem' }}>{(plan as any).launchOffer}</p>
+                  )}
 
                   {billingPeriod === 'yearly' && (
                     <p className="plan-savings">

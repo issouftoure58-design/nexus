@@ -110,9 +110,11 @@ const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 99,
-    yearlyPrice: 950,
+    price: 79,
+    originalPrice: 99,
+    yearlyPrice: 790,
     description: 'Pour démarrer votre activité',
+    launchOffer: 'Offre de lancement — 100 premiers clients',
     color: 'from-gray-500 to-gray-600',
     features: [
       { text: '1 utilisateur', icon: Users },
@@ -471,10 +473,17 @@ export default function Subscription() {
                     </div>
 
                     <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-                    <div className="flex items-baseline gap-1 mb-4">
+                    <div className="flex items-baseline gap-1 mb-1">
                       <span className="text-3xl font-bold text-gray-900">{displayPrice}€</span>
                       <span className="text-gray-500">{priceSuffix}</span>
+                      {(plan as any).originalPrice && billingCycle === 'monthly' && (
+                        <span className="text-sm text-gray-400 line-through ml-1">{(plan as any).originalPrice}€</span>
+                      )}
                     </div>
+                    {(plan as any).launchOffer && (
+                      <p className="text-xs text-orange-600 font-medium mb-3">{(plan as any).launchOffer}</p>
+                    )}
+                    {!(plan as any).launchOffer && <div className="mb-3" />}
 
                     <ul className="space-y-2 mb-6">
                       {plan.features.slice(0, 5).map((feature, idx) => {
