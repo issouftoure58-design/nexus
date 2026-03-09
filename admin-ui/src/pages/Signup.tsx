@@ -42,8 +42,8 @@ export default function Signup() {
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError('Le mot de passe doit contenir au moins 8 caracteres');
+    if (formData.password.length < 12) {
+      setError('Le mot de passe doit contenir au moins 12 caractères, une majuscule et un symbole (!@#$%^&*)');
       return;
     }
 
@@ -67,7 +67,8 @@ export default function Signup() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la creation du compte');
+        const details = data.details ? '\n• ' + data.details.join('\n• ') : '';
+        throw new Error((data.error || 'Erreur lors de la creation du compte') + details);
       }
 
       navigate('/login?registered=true');
@@ -160,9 +161,9 @@ export default function Signup() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  {error}
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span className="whitespace-pre-line">{error}</span>
                 </div>
               )}
 
@@ -202,7 +203,7 @@ export default function Signup() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="8 caracteres minimum" className="pl-10" required minLength={8} />
+                  <Input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="12 caracteres minimum" className="pl-10" required minLength={12} />
                 </div>
               </div>
 
