@@ -129,6 +129,7 @@ import { sentinel } from './sentinel/index.js';
 
 // Création de l'application Express
 const app = express();
+app.set('trust proxy', 1);
 
 // ============= ERROR TRACKING (SENTINEL) =============
 // No init needed — errorTracker is always active
