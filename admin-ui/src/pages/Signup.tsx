@@ -203,8 +203,19 @@ export default function Signup() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="12 caracteres minimum" className="pl-10" required minLength={12} />
+                  <Input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Mot de passe securise" className="pl-10" required minLength={12} />
                 </div>
+                <ul className="mt-1.5 text-xs text-gray-400 space-y-0.5">
+                  <li className={formData.password.length >= 12 ? 'text-green-600' : ''}>
+                    {formData.password.length >= 12 ? '✓' : '○'} 12 caracteres minimum
+                  </li>
+                  <li className={/[A-Z]/.test(formData.password) ? 'text-green-600' : ''}>
+                    {/[A-Z]/.test(formData.password) ? '✓' : '○'} Une majuscule
+                  </li>
+                  <li className={/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? 'text-green-600' : ''}>
+                    {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? '✓' : '○'} Un symbole (!@#$%^&*...)
+                  </li>
+                </ul>
               </div>
 
               <div>
