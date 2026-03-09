@@ -476,7 +476,7 @@ export const waitlistApi = {
   remove: (id: number) => api.delete(`/admin/waitlist/${id}`),
   notify: (id: number) => api.post(`/admin/waitlist/${id}/notify`),
   convert: (id: number) => api.post(`/admin/waitlist/${id}/convert`),
-  getStats: () => api.get('/admin/waitlist/stats') as Promise<{ stats: Record<string, number> }>,
+  getStats: () => api.get('/admin/waitlist/stats') as Promise<{ stats: { waiting: number; notified: number; converted: number; expired: number; cancelled: number; total: number } }>,
 };
 
 // Services
