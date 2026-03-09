@@ -174,14 +174,14 @@ const PLAN_QUOTA_OVERRIDES = {
     sms_rdv: { sms: 200 },
     whatsapp_ia: { messages: 0 },
     web_chat_ia: { sessions: 200, messages: 2000 },
-    marketing_email: { emails: 1000 },
+    marketing_email: { emails: 0 },
   },
   pro: {
     telephone_ia: { minutes: 60 },
     sms_rdv: { sms: 500 },
     whatsapp_ia: { messages: 1500 },
     web_chat_ia: { sessions: 800, messages: 8000 },
-    marketing_email: { emails: 5000 },
+    marketing_email: { emails: 0 },
   },
   business: {
     telephone_ia: { minutes: 300 },

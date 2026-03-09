@@ -88,117 +88,86 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 #### Canaux IA
 | Canal | Quota | Usage type |
 |-------|-------|------------|
-| Téléphone IA | 300 min/mois | ~10 min/jour, ~150 appels de 2 min |
-| WhatsApp IA | 1000 msg/mois | ~33 msg/jour |
-| Web Chat IA | 5000 msg/mois | ~166 msg/jour |
+| Web Chat IA | 200 sessions/mois | ~7 sessions/jour |
+| SMS notifications | 200 SMS/mois | Confirmations, rappels |
 
 #### Fonctionnalités incluses
 ```
-✅ Dashboard & Analytics complet
-✅ Gestion clients (1000 max)
-✅ Facturation avancée
-   → Devis, Factures, Relances auto, Acomptes
-✅ Documents & Fichiers (2 GB)
-✅ CRM de base
-   → Historique clients, Notes, Tags
-✅ Assistant Admin IA (64 outils)
-   → Client, Gestion, Marketing, Commercial, Compta
-   → Contenu, Mémoire, Planification, Agenda
-   → "Crée une facture pour client X" ✅
-   → "Relance les impayés" ✅
-✅ Réseaux Sociaux
-   → 100 posts IA/mois
-   → 100 images IA/mois
-✅ Notifications SMS
-✅ Espace client (réservation en ligne)
+✅ Dashboard
+✅ Gestion clients (200 max)
+✅ Réservations en ligne
+✅ Facturation & Documents (2 GB)
+✅ Agent IA Web (chatbot 24/7)
+✅ Notifications SMS (200/mois)
 ✅ 1 utilisateur inclus
 ✅ Support email (48h)
 ```
 
 #### Ce qui n'est PAS inclus
 ```
-❌ CRM avancé (segmentation, campagnes)
-❌ Marketing automation
-❌ Comptabilité complète
-❌ Stock & Inventaire
-❌ Multi-utilisateurs
-❌ SEO & Visibilité IA (Pro+)
-❌ Social Media Management (Pro+)
-❌ RH & Planning équipe (Pro: base, Business: complet)
-❌ Analytics avancé (Pro: KPI, Business: complet)
-❌ Stratégie IA (Business)
-❌ Agent IA autonome (Business)
-❌ Recherche web (Business)
-❌ API & Intégrations
-❌ SENTINEL Intelligence
+❌ WhatsApp IA (Pro+)
+❌ Téléphone IA (Pro+)
+❌ CRM avancé (Pro+)
+❌ Comptabilité & Devis (Pro+)
+❌ Stock & Inventaire (Pro+)
+❌ Marketing automation (Business)
+❌ Pipeline commercial (Business)
+❌ Analytics avancés & SEO (Business)
+❌ RH & Planning équipe (Business)
+❌ API & Intégrations (Business)
 ```
 
 ---
 
 ### PRO - 249€/mois
 
-**Cible:** Salons en croissance, équipes de 2-5 personnes
+**Cible:** PME en croissance, équipes de 2-5 personnes
 
 #### Canaux IA
 | Canal | Quota | Usage type |
 |-------|-------|------------|
-| Téléphone IA | 600 min/mois | ~20 min/jour, ~300 appels de 2 min |
-| WhatsApp IA | 2500 msg/mois | ~83 msg/jour |
-| Web Chat IA | 10000 msg/mois | ~333 msg/jour |
+| Téléphone IA | 60 min/mois | ~2 min/jour, ~30 appels de 2 min |
+| WhatsApp IA | 1500 msg/mois | ~50 msg/jour |
+| Web Chat IA | 800 sessions/mois | ~27 sessions/jour |
+| SMS | 500 SMS/mois | Confirmations, rappels, relances |
 
 #### Fonctionnalités incluses
 ```
 ✅ Tout STARTER +
 
-✅ Gestion clients (3000 max)
+✅ Gestion clients (2 000 max)
 ✅ Documents (10 GB)
+✅ WhatsApp IA
+✅ Téléphone IA
 ✅ CRM avancé
    → Segmentation clients
-   → Campagnes ciblées
-   → Prédictions comportementales
-✅ Assistant Admin IA PRO (76 outils)
-   → Tout Starter + SEO, Social, RH base, Analytics KPI
-   → "Analyse mes ventes du mois" ✅
-   → "Crée une campagne pour clients inactifs" ✅
-   → "Publie sur Instagram" ✅
-✅ Réseaux Sociaux
-   → 500 posts IA/mois
-   → 500 images IA/mois
-✅ Marketing automation
-   → Workflows automatisés
-   → Emails marketing
-   → SMS marketing
+   → Tags, filtres avancés
+   → Programme fidélité
 ✅ Comptabilité complète
    → Suivi dépenses
    → P&L automatique
    → Exports comptables
-✅ Commercial avancé
-   → Pipeline ventes
-   → Opportunités
-   → Suivi conversions
+✅ Devis & Facturation avancée
+   → Devis, relances auto, acomptes
 ✅ Stock & Inventaire
    → Gestion produits
    → Alertes stock bas
-   → Commandes fournisseurs
-✅ Analytics avancés
-   → Tableaux de bord personnalisés
-   → Rapports automatiques
+   → Historique mouvements
 ✅ 5 utilisateurs inclus (+20€/utilisateur supplémentaire)
 ✅ Support prioritaire (24h)
 ```
 
 #### Ce qui n'est PAS inclus
 ```
-❌ Clients illimités
-❌ Stratégie IA (SWOT, pricing, objectifs, rapport)
-❌ Analytics avancé (predictions, anomalies, evolution, comparaison)
-❌ RH complet (planning, temps travail, congés, objectifs, formation, bien-être)
-❌ Agent IA autonome (planification + exécution automatique)
-❌ Recherche web IA (concurrents, tendances, actualités)
-❌ Pro Tools (requêtes avancées, automations, patterns)
-❌ White-label
-❌ SENTINEL Intelligence
-❌ Account Manager dédié
+❌ Clients illimités (Business)
+❌ Marketing automation (Business)
+❌ Pipeline commercial (Business)
+❌ Analytics avancés (Business)
+❌ SEO & Visibilité IA (Business)
+❌ RH complet (Business)
+❌ API & Intégrations (Business)
+❌ White-label (Business)
+❌ Account Manager dédié (Business)
 ```
 
 ---
@@ -210,9 +179,11 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 #### Canaux IA
 | Canal | Quota | Usage type |
 |-------|-------|------------|
-| Téléphone IA | 1200 min/mois | ~40 min/jour, ~600 appels de 2 min |
+| Téléphone IA | 300 min/mois | ~10 min/jour, ~150 appels de 2 min |
 | WhatsApp IA | 5000 msg/mois | ~166 msg/jour |
-| Web Chat IA | Illimité | Fair use ~50000 msg |
+| Web Chat IA | 2000 sessions/mois | ~67 sessions/jour |
+| SMS | 2000 SMS/mois | Confirmations, rappels, campagnes |
+| Email Marketing | 20 000 emails/mois | Campagnes, newsletters |
 
 #### Fonctionnalités incluses
 ```
@@ -220,40 +191,37 @@ Les clients peuvent **retirer des canaux** qu'ils n'utilisent pas:
 
 ✅ Clients illimités
 ✅ Documents illimités
-✅ Assistant Admin IA Intelligence (105 outils)
-   → Tout Pro + Stratégie, Analytics avancé, RH complet
-   → Agent IA autonome, Recherche web, Pro Tools
-   → "Voici 3 opportunités détectées cette semaine" ✅
-   → "Analyse SWOT de mon business" ✅
-   → "Recherche mes concurrents" ✅
-✅ Réseaux Sociaux
-   → 1000 posts IA/mois
-   → 1000 images IA/mois
+✅ Marketing automation
+   → Workflows automatisés
+   → Campagnes email/SMS
+   → A/B testing
+✅ Pipeline commercial
+   → Opportunités de vente
+   → Suivi conversions
+✅ Analytics avancés
+   → Tableaux de bord personnalisés
+   → Anti-churn & prédictions IA
+   → Rapports automatiques
 ✅ SEO & Visibilité
    → Génération articles IA
    → Optimisation mots-clés
-   → Suivi référencement
-✅ RH & Multi-employés
-   → Planning équipe
-   → Gestion paie
-   → Congés & absences
-   → Performance employés
+   → Google My Business
+✅ RH & Planning équipe
+   → Planning, congés & absences
+   → Évaluations performance
+   → Organigramme
 ✅ API & Intégrations
    → API REST complète
    → Webhooks
-   → Intégrations tierces
-✅ White-label complet
-   → Votre marque
-   → Domaine personnalisé
-✅ SENTINEL Client Intelligence
-   → Monitoring business temps réel
-   → Alertes performance automatiques
-   → Recommandations IA proactives
-   → Détection anomalies
+✅ White-label
+   → Votre marque, domaine personnalisé
+✅ SENTINEL Intelligence
+   → Monitoring temps réel
+   → Alertes automatiques
 ✅ Multi-établissements
    → Gestion centralisée
    → Rapports consolidés
-✅ 10 utilisateurs inclus (+15€/utilisateur supplémentaire)
+✅ 20 utilisateurs inclus (+15€/utilisateur supplémentaire)
 ✅ Support dédié 24/7
 ✅ Account Manager dédié
 ```

@@ -29,10 +29,10 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                '1 Assistant IA (Telephone ou WhatsApp)',
-                'CRM & Gestion clients',
+                '200 clients max',
+                'Agent IA Web 24/7',
                 'Agenda & Reservations',
-                'Facturation & Devis',
+                'Facturation & Documents',
                 'Support email',
               ].map((feature) => (
                 <li key={feature} className="flex items-center gap-2 text-sm text-gray-300">
@@ -64,11 +64,11 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                'Tous les assistants IA inclus',
-                'CRM avance + Marketing',
-                'Agenda multi-employes',
-                'Comptabilite complete',
-                'Gestion des stocks',
+                '2 000 clients max',
+                'WhatsApp IA + Telephone IA',
+                'Comptabilite & Devis',
+                'CRM avance',
+                'Stock & Inventaire',
                 'Support prioritaire',
               ].map((feature) => (
                 <li key={feature} className="flex items-center gap-2 text-sm text-gray-300">
@@ -97,12 +97,12 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                'Tout le plan Pro inclus',
-                'Multi-sites / Multi-agences',
-                'API & Integrations',
-                'Rapports avances',
-                'Formations personnalisees',
-                'Account manager dedie',
+                'Clients illimites',
+                'Marketing automatise',
+                'Pipeline commercial',
+                'Analytics avances & SEO',
+                'RH & Planning equipe',
+                'API & Account manager dedie',
               ].map((feature) => (
                 <li key={feature} className="flex items-center gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />

@@ -116,10 +116,11 @@ const PLANS = [
     color: 'from-gray-500 to-gray-600',
     features: [
       { text: '1 utilisateur', icon: Users },
-      { text: '1000 clients max', icon: Users },
+      { text: '200 clients max', icon: Users },
       { text: '200 SMS/mois', icon: MessageSquare },
-      { text: 'Dashboard & CRM', icon: BarChart3 },
+      { text: 'Dashboard & CRM basique', icon: BarChart3 },
       { text: 'Réservations en ligne', icon: Clock },
+      { text: 'Facturation & Documents', icon: FileText },
       { text: 'Agent IA Web', icon: Globe },
       { text: 'Support email (48h)', icon: Clock },
     ],
@@ -134,15 +135,15 @@ const PLANS = [
     color: 'from-purple-500 to-indigo-600',
     features: [
       { text: '5 utilisateurs inclus', icon: Users },
-      { text: '5000 clients max', icon: Users },
+      { text: '2 000 clients max', icon: Users },
       { text: '500 SMS/mois', icon: MessageSquare },
       { text: '60 min voix IA/mois', icon: Phone },
       { text: 'Tout Starter +', icon: CheckCircle },
       { text: 'WhatsApp IA', icon: MessageSquare },
       { text: 'Téléphone IA', icon: Phone },
-      { text: 'Pipeline commercial', icon: BarChart3 },
-      { text: 'Marketing automatisé', icon: Sparkles },
-      { text: 'Comptabilité', icon: FileText },
+      { text: 'Comptabilité & Devis', icon: FileText },
+      { text: 'Stock & Inventaire', icon: Sparkles },
+      { text: 'CRM avancé', icon: BarChart3 },
       { text: 'Support prioritaire (24h)', icon: Zap },
     ],
   },
@@ -156,15 +157,15 @@ const PLANS = [
     features: [
       { text: '20 utilisateurs inclus', icon: Users },
       { text: 'Clients illimités', icon: Users },
-      { text: '2000 SMS/mois', icon: MessageSquare },
+      { text: '2 000 SMS/mois', icon: MessageSquare },
       { text: '300 min voix IA/mois', icon: Phone },
       { text: 'Tout Pro +', icon: CheckCircle },
+      { text: 'Marketing automatisé', icon: Sparkles },
+      { text: 'Pipeline commercial', icon: BarChart3 },
+      { text: 'Analytics avancés & SEO', icon: Star },
       { text: 'RH & Planning complet', icon: Shield },
-      { text: 'SEO IA', icon: Star },
       { text: 'API & Intégrations', icon: Shield },
-      { text: 'SENTINEL Intelligence', icon: Shield },
       { text: 'Account Manager dédié', icon: Crown },
-      { text: 'Support 24/7', icon: Zap },
     ],
   },
 ];
@@ -204,8 +205,8 @@ const ADDON_PACKS = {
 
 // Modules avec quotas visibles par plan
 const PLAN_MODULES: Record<string, string[]> = {
-  starter: ['sms_rdv', 'web_chat_ia', 'marketing_email'],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  starter: ['sms_rdv', 'web_chat_ia'],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia'],
   business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
 };
 

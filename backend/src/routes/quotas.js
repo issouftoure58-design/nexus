@@ -89,8 +89,8 @@ router.get('/', async (req, res) => {
 
 // Modules accessibles par plan (pour vérifier l'éligibilité)
 const PLAN_MODULES = {
-  starter: ['sms_rdv', 'web_chat_ia', 'marketing_email'],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  starter: ['sms_rdv', 'web_chat_ia'],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia'],
   business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
 };
 

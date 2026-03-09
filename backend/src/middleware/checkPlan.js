@@ -58,16 +58,16 @@ export function requireModule(moduleName) {
           dashboard: true, clients: true, reservations: true,
           facturation: true, agent_ia_web: true, documents: true,
           whatsapp: true, telephone: true, comptabilite: true,
-          crm_avance: true, marketing: true, pipeline: true,
-          commercial: true, stock: true, analytics: true, devis: true
+          crm_avance: true, devis: true, stock: true
         },
         business: {
           dashboard: true, clients: true, reservations: true,
           facturation: true, agent_ia_web: true, documents: true,
           whatsapp: true, telephone: true, comptabilite: true,
-          crm_avance: true, marketing: true, pipeline: true,
-          commercial: true, stock: true, analytics: true, devis: true,
-          rh: true, seo: true, api: true, sentinel: true, whitelabel: true
+          crm_avance: true, devis: true, stock: true,
+          marketing: true, pipeline: true, commercial: true,
+          analytics: true, seo: true, rh: true,
+          api: true, sentinel: true, whitelabel: true
         }
       };
 
@@ -356,18 +356,18 @@ function getRequiredPlans(moduleName) {
     'telephone': ['pro', 'business'],
     'comptabilite': ['pro', 'business'],
     'crm_avance': ['pro', 'business'],
-    'marketing': ['pro', 'business'],
-    'pipeline': ['pro', 'business'],
-    'commercial': ['pro', 'business'],
-    'stock': ['pro', 'business'],
-    'analytics': ['pro', 'business'],
     'devis': ['pro', 'business'],
+    'stock': ['pro', 'business'],
 
     // ════════════════════════════════════════════════════════════════
     // BUSINESS - Fonctionnalités premium (499€/mois)
     // ════════════════════════════════════════════════════════════════
-    'rh': ['business'],
+    'marketing': ['business'],
+    'pipeline': ['business'],
+    'commercial': ['business'],
+    'analytics': ['business'],
     'seo': ['business'],
+    'rh': ['business'],
     'api': ['business'],
     'sentinel': ['business'],
     'whitelabel': ['business']

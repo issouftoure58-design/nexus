@@ -101,7 +101,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     id: 'marketing',
     icon: Megaphone,
     title: 'Marketing & CRM',
-    badge: 'Pro',
+    badge: 'Business',
     content: [
       "Segmentez vos clients avec le CRM : par CA, fréquence, ancienneté ou tags personnalisés.",
       "Les Workflows automatisent vos relances : email de bienvenue, relance après X jours sans visite, anniversaire client.",
@@ -124,7 +124,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     id: 'rh',
     icon: UserCog,
     title: 'RH & Planning',
-    badge: 'Pro',
+    badge: 'Business',
     content: [
       "Gérez votre équipe : fiches employés, planning, congés et absences.",
       "L'organigramme visualise votre structure d'équipe. Le module Onboarding guide l'intégration des nouveaux arrivants.",
@@ -148,7 +148,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     id: 'analytics',
     icon: BarChart3,
     title: 'Analytics & SEO',
-    badge: 'Pro',
+    badge: 'Business',
     content: [
       "L'Analytics affiche votre rentabilité par service, marges et seuil de rentabilité.",
       "L'Anti-Churn identifie les clients à risque de départ et suggère des actions de rétention.",

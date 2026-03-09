@@ -15,15 +15,15 @@ import { captureMessage } from '../config/sentry.js';
  */
 export const PLAN_LIMITS = {
   starter: {
-    clients: 1000,
+    clients: 200,
     storage_gb: 2,
-    posts_per_month: 100,
+    posts_per_month: 0,
     images_per_month: 100
   },
   pro: {
-    clients: 3000,
+    clients: 2000,
     storage_gb: 10,
-    posts_per_month: 500,
+    posts_per_month: 0,
     images_per_month: 500
   },
   business: {
