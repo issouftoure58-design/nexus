@@ -164,7 +164,11 @@ function detectTenantSlug(): string {
   }
 
   // 7. Production: pas de fallback — tenant requis
-  console.error('[useTenant] ERREUR: Impossible de détecter le tenant');
+  // Ne pas alarmer si pas de token (état normal sur la page de login)
+  const hasToken = !!localStorage.getItem('nexus_admin_token');
+  if (hasToken) {
+    console.error('[useTenant] ERREUR: Impossible de détecter le tenant');
+  }
   return '';
 }
 

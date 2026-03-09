@@ -89,7 +89,7 @@ function getCurrentToken(): string | null {
 // Auth guard component
 function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode; skipOnboarding?: boolean }) {
   const token = getCurrentToken();
-  const { onboardingCompleted, isLoading: tenantLoading } = useTenantContext();
+  const { onboardingCompleted, isLoading: tenantLoading, tenant } = useTenantContext();
 
   const { isLoading, isError } = useQuery({
     queryKey: ['auth-verify'],
@@ -115,8 +115,9 @@ function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode;
     return <Navigate to="/login" replace />;
   }
 
-  // Rediriger vers onboarding si pas encore fait (source de vérité : DB serveur)
-  if (!skipOnboarding && !onboardingCompleted) {
+  // Rediriger vers onboarding seulement si les données tenant sont chargées
+  // et confirment que l'onboarding n'est pas fait
+  if (!skipOnboarding && tenant && !onboardingCompleted) {
     return <Navigate to="/onboarding" replace />;
   }
 
