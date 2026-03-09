@@ -87,13 +87,13 @@ function getCurrentToken(): string | null {
 }
 
 // Auth guard component
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode; skipOnboarding?: boolean }) {
   // DEMO_MODE désactivé - authentification réelle requise
   const DEMO_MODE = false;
 
   const token = getCurrentToken();
 
-  const { isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['auth-verify'],
     queryFn: authApi.verify,
     enabled: !!token,
@@ -115,6 +115,11 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (isError) {
     api.clearToken();
     return <Navigate to="/login" replace />;
+  }
+
+  // Rediriger vers onboarding si pas encore fait
+  if (!skipOnboarding && !localStorage.getItem('nexus_onboarding_done')) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
@@ -157,7 +162,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/cgv" element={<CGV />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
-            <Route path="/onboarding" element={<PrivateRoute><Onboarding /></PrivateRoute>} />
+            <Route path="/onboarding" element={<PrivateRoute skipOnboarding><Onboarding /></PrivateRoute>} />
 
             {/* Routes de base - toujours accessibles */}
             <Route path="/" element={<ModuleRoute><Home /></ModuleRoute>} />
