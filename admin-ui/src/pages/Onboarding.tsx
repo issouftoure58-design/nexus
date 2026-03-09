@@ -103,18 +103,18 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 const PLAN_INFO: Record<string, { name: string; description: string; color: string }> = {
-  essential: {
-    name: 'Essentiel',
-    description: 'Pour démarrer avec l\'IA',
+  starter: {
+    name: 'Starter',
+    description: 'Pour démarrer votre activité',
     color: 'from-blue-500 to-cyan-500',
+  },
+  pro: {
+    name: 'Pro',
+    description: 'Pour les équipes en croissance',
+    color: 'from-cyan-500 to-emerald-500',
   },
   business: {
     name: 'Business',
-    description: 'Pour les professionnels actifs',
-    color: 'from-cyan-500 to-emerald-500',
-  },
-  enterprise: {
-    name: 'Enterprise',
     description: 'Solution complète',
     color: 'from-purple-500 to-pink-500',
   },
@@ -365,7 +365,7 @@ export default function Onboarding() {
   }
 
   const selectedTemplate = templates.find(t => t.id === selectedType);
-  const planInfo = preview?.suggestedPlan ? PLAN_INFO[preview.suggestedPlan] : PLAN_INFO.essential;
+  const planInfo = preview?.suggestedPlan ? (PLAN_INFO[preview.suggestedPlan] || PLAN_INFO.starter) : PLAN_INFO.starter;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 relative">

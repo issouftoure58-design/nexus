@@ -44,25 +44,25 @@ const PLAN_INFO: Record<PlanType, { name: string; color: string; price: number }
 
 const PLAN_FEATURES: Record<PlanType, string[]> = {
   starter: [
-    'Gestion clients et services',
-    'Réservations en ligne',
-    'Facturation simple',
+    'Dashboard & Réservations',
+    'Facturation & Documents',
+    'Agent IA Web',
     'Support email',
   ],
   pro: [
     'Tout Starter +',
-    'CRM avancé & Segments',
-    'Analytics & Tableaux de bord',
+    'WhatsApp & Téléphone IA',
     'Comptabilité complète',
-    'Marketing automation',
+    'CRM avancé & Stock',
+    'Devis & Segments',
     'Support prioritaire',
   ],
   business: [
     'Tout Pro +',
-    'SEO & Contenu IA',
-    'Churn Prevention',
-    'SENTINEL Intelligence',
-    'RH & Gestion équipe',
+    'Marketing & Pipeline commercial',
+    'Analytics avancés & SEO',
+    'RH & Planning équipe',
+    'API & Intégrations',
     'Account Manager dédié',
   ],
 };

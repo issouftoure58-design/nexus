@@ -130,9 +130,11 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 249,
-    yearlyPrice: 2390,
+    price: 199,
+    originalPrice: 249,
+    yearlyPrice: 1990,
     description: 'Pour les équipes en croissance',
+    launchOffer: 'Offre de lancement — 100 premiers clients',
     popular: true,
     color: 'from-purple-500 to-indigo-600',
     features: [
@@ -152,9 +154,11 @@ const PLANS = [
   {
     id: 'business',
     name: 'Business',
-    price: 499,
-    yearlyPrice: 4790,
+    price: 399,
+    originalPrice: 499,
+    yearlyPrice: 3990,
     description: 'Pour les entreprises structurées',
+    launchOffer: 'Offre de lancement — 100 premiers clients',
     color: 'from-cyan-500 to-blue-600',
     features: [
       { text: '20 utilisateurs inclus', icon: Users },

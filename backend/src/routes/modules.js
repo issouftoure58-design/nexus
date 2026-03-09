@@ -30,9 +30,9 @@ const router = express.Router();
  * IMPORTANT: Synchronisé avec checkPlan.js et moduleProtection.js
  *
  * Grille tarifaire 2026:
- * - Starter (99€/mois): Fonctionnalités de base
- * - Pro (249€/mois): + WhatsApp, Téléphone, Marketing, Pipeline
- * - Business (499€/mois): + RH, SEO, API, SENTINEL
+ * - Starter (79€/mois offre lancement): Dashboard, Réservations, Facturation, Agent IA Web
+ * - Pro (249€/mois): + WhatsApp, Téléphone IA, Comptabilité, CRM, Stock, Devis
+ * - Business (499€/mois): + Marketing, Pipeline, Analytics, SEO, RH, API, SENTINEL
  */
 const MODULE_PLAN_ACCESS = {
   // STARTER - Inclus dans tous les plans
@@ -47,15 +47,15 @@ const MODULE_PLAN_ACCESS = {
   'standard_ia': ['pro', 'business'],
   'comptabilite': ['pro', 'business'],
   'crm_avance': ['pro', 'business'],
-  'marketing': ['pro', 'business'],
-  'pipeline': ['pro', 'business'],
   'stock': ['pro', 'business'],
-  'analytics': ['pro', 'business'],
   'devis': ['pro', 'business'],
 
   // BUSINESS - Exclusivement Business
-  'rh': ['business'],
+  'marketing': ['business'],
+  'pipeline': ['business'],
+  'analytics': ['business'],
   'seo': ['business'],
+  'rh': ['business'],
   'api': ['business'],
   'sentinel': ['business'],
   'whitelabel': ['business'],

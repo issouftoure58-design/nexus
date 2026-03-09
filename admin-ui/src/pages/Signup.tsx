@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Loader2, AlertCircle, Lock, Mail, User, Building, Phone, Check, ArrowLeft } from 'lucide-react';
 
 const PLANS = {
-  starter: { name: 'Starter', price: 99, features: ['1 assistant IA', 'CRM & Agenda', 'Support email'] },
-  pro: { name: 'Pro', price: 249, features: ['Tous les assistants IA', 'Marketing & Compta', 'Support prioritaire'] },
-  business: { name: 'Business', price: 499, features: ['Multi-sites', 'API & Webhooks', 'Account manager'] }
+  starter: { name: 'Starter', price: 79, originalPrice: 99, launchOffer: true, features: ['Dashboard & Réservations', 'Facturation & Documents', 'Agent IA Web', 'Support email'] },
+  pro: { name: 'Pro', price: 199, originalPrice: 249, launchOffer: true, features: ['Tout Starter +', 'WhatsApp & Téléphone IA', 'Comptabilité complète', 'CRM avancé & Stock', 'Support prioritaire'] },
+  business: { name: 'Business', price: 399, originalPrice: 499, launchOffer: true, features: ['Tout Pro +', 'Marketing & Pipeline', 'Analytics & SEO', 'RH & Planning', 'API & Account manager'] }
 };
 
 export default function Signup() {
@@ -89,7 +89,7 @@ export default function Signup() {
 
       {/* Bouton retour */}
       <a
-        href="https://nexus-vitrine.onrender.com"
+        href="https://nexus-ai-saas.com"
         className="absolute top-6 left-6 z-20 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="h-5 w-5" />
@@ -106,9 +106,15 @@ export default function Signup() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline gap-2">
+              {'originalPrice' in plan && plan.originalPrice && (
+                <span className="text-2xl line-through text-white/50">{plan.originalPrice}€</span>
+              )}
               <span className="text-5xl font-bold">{plan.price}€</span>
               <span className="text-cyan-100">/mois</span>
             </div>
+            {'launchOffer' in plan && plan.launchOffer && (
+              <p className="text-sm text-cyan-200 bg-white/10 rounded-full px-3 py-1 inline-block">Offre de lancement — 100 premiers clients</p>
+            )}
 
             <div className="space-y-3">
               {plan.features.map((feature, i) => (

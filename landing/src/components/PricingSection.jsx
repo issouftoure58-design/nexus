@@ -55,16 +55,17 @@ export default function PricingSection() {
 
           {/* Pro - Featured */}
           <div className="bg-gradient-to-b from-neon-cyan/10 to-dark-800 border-2 border-neon-cyan/50 rounded-2xl p-6 lg:p-8 relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-neon-cyan text-dark-900 text-xs font-bold px-3 py-1 rounded-full">
-              POPULAIRE
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+              OFFRE DE LANCEMENT
             </div>
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Pro</h3>
               <p className="text-gray-400 text-sm mb-4">Pour les professionnels</p>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-bold text-neon-cyan">249€</span>
+                <span className="text-4xl font-bold text-neon-cyan">199€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
+              <p className="text-sm text-gray-500 mt-1"><span className="line-through">249€</span> — 100 premiers clients</p>
             </div>
             <ul className="space-y-3 mb-8">
               {[
@@ -90,14 +91,18 @@ export default function PricingSection() {
           </div>
 
           {/* Business */}
-          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-purple-500/30 transition-colors">
+          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-purple-500/30 transition-colors relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+              OFFRE DE LANCEMENT
+            </div>
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Business</h3>
               <p className="text-gray-400 text-sm mb-4">Pour les entreprises</p>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-bold text-purple-400">499€</span>
+                <span className="text-4xl font-bold text-purple-400">399€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
+              <p className="text-sm text-gray-500 mt-1"><span className="line-through">499€</span> — 100 premiers clients</p>
             </div>
             <ul className="space-y-3 mb-8">
               {[
