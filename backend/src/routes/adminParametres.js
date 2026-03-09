@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { invalidateTwilioCache } from '../services/smsService.js';
 
 const router = express.Router();
 
@@ -505,6 +506,91 @@ router.get('/export/json', authenticateAdmin, async (req, res) => {
     res.json(exportData);
   } catch (error) {
     console.error('[ADMIN PARAMETRES] Erreur export:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// CONFIGURATION TWILIO (SMS/Voice par tenant)
+// ════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/parametres/twilio
+// Retourne la config Twilio du tenant (numéro + messaging service)
+router.get('/twilio', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('twilio_phone_number, twilio_messaging_service_sid')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      twilio_phone_number: data?.twilio_phone_number || null,
+      twilio_messaging_service_sid: data?.twilio_messaging_service_sid || null,
+      configured: !!(data?.twilio_phone_number || data?.twilio_messaging_service_sid),
+    });
+  } catch (error) {
+    console.error('[ADMIN PARAMETRES] Erreur lecture config Twilio:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PUT /api/admin/parametres/twilio
+// Met à jour la config Twilio du tenant
+router.put('/twilio', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { twilio_phone_number, twilio_messaging_service_sid } = req.body;
+
+    // Validation E.164 si numéro fourni
+    if (twilio_phone_number && !/^\+[1-9]\d{1,14}$/.test(twilio_phone_number)) {
+      return res.status(400).json({ error: 'Numéro invalide (format E.164 requis, ex: +33612345678)' });
+    }
+
+    // Validation SID Twilio si fourni
+    if (twilio_messaging_service_sid && !/^MG[a-f0-9]{32}$/.test(twilio_messaging_service_sid)) {
+      return res.status(400).json({ error: 'Messaging Service SID invalide (format MGxxxx requis)' });
+    }
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .update({
+        twilio_phone_number: twilio_phone_number || null,
+        twilio_messaging_service_sid: twilio_messaging_service_sid || null,
+      })
+      .eq('id', tenantId)
+      .select('twilio_phone_number, twilio_messaging_service_sid')
+      .single();
+
+    if (error) throw error;
+
+    // Invalider le cache SMS pour ce tenant
+    invalidateTwilioCache(tenantId);
+
+    // Logger l'action
+    await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
+      admin_id: req.admin.id,
+      action: 'update',
+      entite: 'twilio_config',
+      details: {
+        twilio_phone_number: twilio_phone_number || null,
+        twilio_messaging_service_sid: twilio_messaging_service_sid || null,
+      },
+    });
+
+    res.json({
+      message: 'Configuration Twilio mise à jour',
+      twilio_phone_number: data.twilio_phone_number,
+      twilio_messaging_service_sid: data.twilio_messaging_service_sid,
+      configured: !!(data.twilio_phone_number || data.twilio_messaging_service_sid),
+    });
+  } catch (error) {
+    console.error('[ADMIN PARAMETRES] Erreur mise à jour Twilio:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
