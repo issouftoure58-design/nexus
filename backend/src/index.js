@@ -102,6 +102,9 @@ import nexusAdminRoutes, {
   optimizationRouter
 } from './routes/nexusAdmin.js';
 import nexusAuthRoutes from './routes/nexusAuth.js';
+import cgvRoutes from './routes/cgv.js';
+import adminLoyaltyRoutes from './routes/adminLoyalty.js';
+import adminWaitlistRoutes from './routes/adminWaitlist.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -321,6 +324,9 @@ app.use('/api/landing', landingAgentRoutes);
 // Paiement public pour le widget de reservation client - gere sa propre resolution tenant
 app.use('/api/public/payment', publicPaymentRoutes);
 
+// ============= CGV (public, avant tenant shield) =============
+app.use('/api/cgv', cgvRoutes);
+
 // ============= FRONTEND ERROR REPORT (public, avant tenant shield) =============
 app.use('/api', frontendReportRouter);
 
@@ -405,6 +411,12 @@ app.use('/api/admin/analytics', adminAnalyticsRoutes);
 
 // Routes Admin RH Equipe (Business)
 app.use('/api/admin/rh', adminRHRoutes);
+
+// Routes Admin Fidélité (Programme de points)
+app.use('/api/admin/loyalty', adminLoyaltyRoutes);
+
+// Routes Admin Waitlist (Liste d'attente)
+app.use('/api/admin/waitlist', adminWaitlistRoutes);
 
 // Routes Admin Profile (Business Profiles)
 app.use('/api/admin/profile', adminProfileRoutes);

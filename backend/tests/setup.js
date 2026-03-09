@@ -78,7 +78,124 @@ global.testUtils = {
   }),
 
   // Sleep utility
-  sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Restaurant generators
+  // ═══════════════════════════════════════════════════════════════════════
+
+  generateMenuCategory: (tenantId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    nom: 'Entrées',
+    description: 'Nos entrées du moment',
+    ordre: 1,
+    actif: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides
+  }),
+
+  generatePlat: (tenantId, categorieId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    nom: 'Salade César',
+    description: 'Laitue romaine, parmesan, croûtons',
+    prix: 14.50,
+    categorie_id: categorieId,
+    menu_categories: { id: categorieId, nom: 'Entrées' },
+    allergenes: ['gluten', 'lactose'],
+    regime: ['vegetarien'],
+    disponible_midi: true,
+    disponible_soir: true,
+    plat_du_jour: false,
+    stock_limite: false,
+    stock_quantite: 0,
+    image_url: null,
+    ordre: 1,
+    actif: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides
+  }),
+
+  generateMenuDuJour: (tenantId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    date: new Date().toISOString().split('T')[0],
+    service: 'midi_soir',
+    formule_entree_plat: 18,
+    formule_plat_dessert: 18,
+    formule_complete: 24,
+    entrees: [],
+    plats: [],
+    desserts: [],
+    notes: null,
+    actif: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides
+  }),
+
+  generateRestaurantTenant: (overrides = {}) => ({
+    id: `resto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: 'Le Bistrot Parisien',
+    business_type: 'restaurant',
+    plan: 'business',
+    ...overrides
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Hotel generators
+  // ═══════════════════════════════════════════════════════════════════════
+
+  generateChambre: (tenantId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    nom: 'Chambre Deluxe 101',
+    type_chambre: 'double',
+    capacite: 2,
+    prix: 120,
+    actif: true,
+    created_at: new Date().toISOString(),
+    ...overrides
+  }),
+
+  generateTarifSaisonnier: (tenantId, serviceId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    service_id: serviceId,
+    nom: 'Haute saison été',
+    date_debut: '2026-06-01',
+    date_fin: '2026-08-31',
+    prix_nuit: 180,
+    prix_weekend: 220,
+    prix_semaine: null,
+    petit_dejeuner_inclus: true,
+    prix_petit_dejeuner: 15,
+    duree_min_nuits: 2,
+    actif: true,
+    created_at: new Date().toISOString(),
+    ...overrides
+  }),
+
+  generateOccupation: (tenantId, serviceId, overrides = {}) => ({
+    id: Math.floor(Math.random() * 100000),
+    tenant_id: tenantId,
+    service_id: serviceId,
+    date_occupation: new Date().toISOString().split('T')[0],
+    statut: 'reservee',
+    notes: null,
+    ...overrides
+  }),
+
+  generateHotelTenant: (overrides = {}) => ({
+    id: `hotel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: 'Hôtel Le Grand Paris',
+    business_type: 'hotel',
+    plan: 'business',
+    ...overrides
+  })
 };
 
 // Suppress console logs during tests (optional)

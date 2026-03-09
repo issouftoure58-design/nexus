@@ -1419,8 +1419,8 @@ Table `voice_recordings`: recording_sid, call_sid, caller_phone, duration, trans
 | ~~**P1**~~ | ~~WhatsApp dedie par tenant~~ | Multi-tenant | ✅ FAIT (2026-03-02) — plan 8/8 etapes |
 | ~~**P1**~~ | ~~notificationWorker Bull→BullMQ~~ | Crash backend | ✅ FAIT (2026-03-02) |
 | ~~**P1**~~ | ~~Redis eviction policy~~ | BullMQ jobs | ✅ FAIT (2026-03-02) — noeviction |
-| **P1** | Configurer STRIPE_WEBHOOK_SECRET sur Render | Monetisation | 🔶 A faire (manuel) |
-| **P1** | Tester webhooks Stripe en staging | Monetisation | 🔶 A faire |
+| ~~**P1**~~ | ~~Configurer STRIPE_WEBHOOK_SECRET sur Render~~ | Monetisation | ✅ FAIT (configure) |
+| ~~**P1**~~ | ~~Tester webhooks Stripe en staging~~ | Monetisation | ✅ FAIT |
 | ~~**P0**~~ | ~~2FA/MFA TOTP pour admins~~ | Securite critique | ✅ Sprint 1 |
 | ~~**P0**~~ | ~~Audit log generique~~ | Tracabilite/SOC2 | ✅ Sprint 1 |
 | ~~**P0**~~ | ~~Invitation equipe par email~~ | Multi-user tenant | ✅ Sprint 1 |
@@ -2406,7 +2406,7 @@ Backend `paginated()` envoie `{success, data: [...], pagination: {...}}` mais le
 - Redis optionnel en production (P3 - non bloquant)
 - Cache hit rate a mesurer
 - Memory usage Node.js
-- STRIPE_WEBHOOK_SECRET non configure sur Render (action manuelle requise)
+- ~~STRIPE_WEBHOOK_SECRET non configure sur Render~~ ✅ FAIT
 
 ### Audit SaaS B2B (2026-03-03) — Lacunes identifiees
 

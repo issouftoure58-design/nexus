@@ -764,7 +764,7 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
           ) : detail ? (
             <div className="space-y-6">
               {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-green-50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(detail.stats.ca_total)}</p>
                   <p className="text-xs text-green-600">CA Total</p>
@@ -782,6 +782,10 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
                     {detail.stats.frequence_jours ? `${detail.stats.frequence_jours}j` : '-'}
                   </p>
                   <p className="text-xs text-orange-600">Fréquence</p>
+                </div>
+                <div className="bg-pink-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-pink-700">{detail.client.loyalty_points || 0}</p>
+                  <p className="text-xs text-pink-600">Points fidélité</p>
                 </div>
               </div>
 

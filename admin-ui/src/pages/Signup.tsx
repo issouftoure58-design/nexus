@@ -22,13 +22,15 @@ export default function Signup() {
     email: '',
     telephone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    accept_cgv: false
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,6 +44,11 @@ export default function Signup() {
 
     if (formData.password.length < 8) {
       setError('Le mot de passe doit contenir au moins 8 caracteres');
+      return;
+    }
+
+    if (!formData.accept_cgv) {
+      setError('Vous devez accepter les Conditions Générales de Vente');
       return;
     }
 
@@ -201,13 +208,26 @@ export default function Signup() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700" disabled={isLoading}>
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  name="accept_cgv"
+                  id="accept_cgv"
+                  checked={formData.accept_cgv}
+                  onChange={handleChange}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                />
+                <label htmlFor="accept_cgv" className="text-sm text-gray-600">
+                  J'accepte les{' '}
+                  <a href="/cgv" target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline font-medium">
+                    Conditions Générales de Vente
+                  </a>
+                </label>
+              </div>
+
+              <Button type="submit" className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700" disabled={isLoading || !formData.accept_cgv}>
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Commencer l'essai gratuit"}
               </Button>
-
-              <p className="text-xs text-center text-gray-500">
-                En creant un compte, vous acceptez nos <a href="#" className="text-cyan-600 hover:underline">CGU</a> et notre <a href="#" className="text-cyan-600 hover:underline">politique de confidentialite</a>
-              </p>
             </form>
 
             <div className="mt-4 pt-4 border-t text-center">

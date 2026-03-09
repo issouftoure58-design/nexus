@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>NEXUS — Triptyque A4 plie en 3 (aere)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --primary: #1a365d;
+    --primary-light: #2b6cb0;
+    --accent: #38a169;
+    --text: #1a202c;
+    --text-light: #4a5568;
+    --text-muted: #718096;
+    --bg-light: #f7fafc;
+    --bg-blue: #ebf4ff;
+    --gradient-1: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+    --gradient-2: linear-gradient(135deg, #38a169 0%, #48bb78 100%);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: var(--text); background: #cbd5e0; }
+
+  .page {
+    width: 297mm;
+    height: 210mm;
+    background: white;
+    margin: 8mm auto;
+    display: grid;
+    grid-template-columns: 99mm 99mm 99mm;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+
+  .fold-line {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 1px dashed #cbd5e0; z-index: 10;
+  }
+  .fold-line:nth-child(1) { left: 99mm; }
+  .fold-line:nth-child(2) { left: 198mm; }
+
+  .panel { padding: 12mm 9mm; position: relative; overflow: hidden; }
+
+  /* ═══ COUVERTURE ═══ */
+  .cover {
+    background: var(--gradient-1); color: white;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+  }
+  .cover::before {
+    content: ''; position: absolute;
+    top: -50mm; right: -50mm; width: 120mm; height: 120mm;
+    background: rgba(255,255,255,0.04); border-radius: 50%;
+  }
+  .cover .logo {
+    width: 24mm; height: 24mm; background: white; border-radius: 6mm;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24pt; font-weight: 900; color: var(--primary);
+    margin-bottom: 7mm; box-shadow: 0 5px 18px rgba(0,0,0,0.25); z-index: 1;
+  }
+  .cover h1 { font-size: 28pt; font-weight: 900; letter-spacing: 5px; z-index: 1; margin-bottom: 4mm; }
+  .cover .line { width: 22mm; height: 2px; background: var(--accent); margin: 5mm 0; z-index: 1; }
+  .cover p { font-size: 10pt; line-height: 1.7; opacity: 0.92; z-index: 1; }
+  .cover .tag { margin-top: 7mm; font-size: 7.5pt; font-weight: 600; color: #c6f6d5; text-transform: uppercase; letter-spacing: 2.5px; z-index: 1; }
+  .cover .foot { position: absolute; bottom: 5mm; font-size: 6.5pt; opacity: 0.4; z-index: 1; }
+
+  /* ═══ DOS ═══ */
+  .back {
+    background: var(--bg-light);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+  }
+  .back h3 { font-size: 12pt; font-weight: 700; color: var(--primary); margin-bottom: 7mm; text-transform: uppercase; letter-spacing: 1.5px; }
+
+  .ct-row { display: flex; align-items: center; gap: 3mm; margin-bottom: 4mm; font-size: 9pt; }
+  .ct-row .ci {
+    width: 22px; height: 22px; background: var(--gradient-1); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 10px; font-weight: 700;
+  }
+
+  .qr-box {
+    width: 32mm; height: 32mm; margin: 6mm 0;
+    border: 2px solid var(--primary); border-radius: 4mm;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7pt; color: var(--text-muted); background: white; padding: 3mm;
+  }
+
+  .back .cta { font-size: 8pt; color: var(--text-light); margin-top: 3mm; }
+  .back .sectors { display: flex; flex-wrap: wrap; gap: 2mm; justify-content: center; margin-top: 6mm; }
+  .back .pill { background: var(--bg-blue); color: var(--primary); padding: 1.5mm 4mm; border-radius: 8mm; font-size: 7pt; font-weight: 500; }
+  .back .legal { margin-top: auto; padding-top: 5mm; font-size: 5.5pt; color: #a0aec0; }
+
+  /* ═══ RABAT ═══ */
+  .flap {
+    display: flex; flex-direction: column;
+    justify-content: center;
+  }
+  .flap h3 { font-size: 11pt; font-weight: 700; color: var(--primary); margin-bottom: 6mm; text-align: center; }
+
+  .stat-block {
+    background: #fff5f5; border-left: 3px solid #e53e3e;
+    padding: 4mm 5mm; margin-bottom: 4mm; border-radius: 0 3mm 3mm 0;
+  }
+  .stat-block .num { font-size: 16pt; font-weight: 900; color: #e53e3e; }
+  .stat-block .txt { font-size: 7.5pt; color: var(--text-light); line-height: 1.35; margin-top: 0.5mm; }
+
+  .sol-box {
+    background: var(--gradient-2); color: white;
+    padding: 5mm; border-radius: 4mm; margin-top: 5mm; text-align: center;
+  }
+  .sol-box h4 { font-size: 10pt; font-weight: 700; margin-bottom: 2mm; }
+  .sol-box p { font-size: 7.5pt; line-height: 1.45; opacity: 0.95; }
+
+  /* ═══ INTERIEUR GAUCHE — Fonctionnalites ═══ */
+  .inner-l { display: flex; flex-direction: column; }
+  .inner-l h3 { font-size: 11pt; font-weight: 700; color: var(--primary); margin-bottom: 5mm; padding-bottom: 2mm; border-bottom: 2px solid var(--accent); }
+
+  .feat {
+    display: flex; gap: 3mm; margin-bottom: 4.5mm; align-items: flex-start;
+  }
+  .feat .icon {
+    width: 20px; height: 20px; min-width: 20px;
+    background: var(--bg-blue); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; margin-top: 0.5mm;
+  }
+  .feat strong { font-size: 8pt; font-weight: 600; color: var(--primary); display: block; }
+  .feat span { font-size: 7pt; color: var(--text-muted); line-height: 1.35; }
+
+  /* ═══ INTERIEUR CENTRE — Captures ═══ */
+  .inner-c { display: flex; flex-direction: column; background: var(--bg-light); border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; }
+  .inner-c h3 { font-size: 11pt; font-weight: 700; color: var(--primary); margin-bottom: 4mm; text-align: center; padding-bottom: 2mm; border-bottom: 2px solid var(--orange); }
+
+  .screen {
+    border: 1px solid #e2e8f0; border-radius: 3mm;
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 3mm;
+  }
+  .screen img { width: 100%; height: 34mm; object-fit: cover; object-position: top; display: block; }
+  .screen .lbl { padding: 1.5mm 3mm; font-size: 6.5pt; color: var(--text-muted); background: white; text-align: center; }
+
+  .screen-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm; }
+  .screen-pair .screen img { height: 26mm; }
+
+  .ai-strip {
+    background: var(--gradient-1); color: white;
+    padding: 3mm 4mm; border-radius: 3mm; text-align: center; margin-top: auto;
+  }
+  .ai-strip .t { font-size: 8pt; font-weight: 700; margin-bottom: 1mm; }
+  .ai-strip .d { font-size: 6.5pt; opacity: 0.9; line-height: 1.35; }
+
+  /* ═══ INTERIEUR DROIT — Tarifs ═══ */
+  .inner-r { display: flex; flex-direction: column; }
+  .inner-r h3 { font-size: 11pt; font-weight: 700; color: var(--primary); margin-bottom: 5mm; text-align: center; padding-bottom: 2mm; border-bottom: 2px solid var(--primary-light); }
+
+  .plan {
+    border: 1.5px solid #e2e8f0; border-radius: 3mm;
+    padding: 4mm 5mm; margin-bottom: 4mm;
+  }
+  .plan.pop { border-color: var(--primary-light); background: var(--bg-blue); position: relative; }
+  .plan .badge {
+    position: absolute; top: -2mm; right: 3mm;
+    background: var(--accent); color: white; font-size: 5pt; font-weight: 700;
+    padding: 0.5mm 2mm; border-radius: 1mm; text-transform: uppercase;
+  }
+  .plan .name { font-size: 9pt; font-weight: 700; color: var(--primary); }
+  .plan .price { font-size: 16pt; font-weight: 900; color: var(--primary); margin: 1mm 0; }
+  .plan .price small { font-size: 7pt; font-weight: 400; color: var(--text-muted); }
+  .plan ul { list-style: none; padding: 0; }
+  .plan ul li { font-size: 7pt; color: var(--text-light); padding: 0.5mm 0 0.5mm 3.5mm; position: relative; }
+  .plan ul li::before { content: '✓'; position: absolute; left: 0; color: var(--accent); font-weight: 700; font-size: 7.5pt; }
+
+  .trial-box {
+    background: var(--accent); color: white;
+    text-align: center; padding: 3.5mm; border-radius: 3mm; margin-top: auto;
+    font-size: 9pt; font-weight: 700;
+  }
+  .trial-box small { display: block; font-weight: 400; font-size: 6.5pt; opacity: 0.9; margin-top: 0.5mm; }
+
+  @media print {
+    body { background: none; }
+    .page { margin: 0; box-shadow: none; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .fold-line { display: none; }
+  }
+  @page { size: 297mm 210mm landscape; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══ FACE EXTERIEURE ═══ -->
+<div class="page">
+  <div class="fold-line"></div>
+  <div class="fold-line"></div>
+
+  <!-- DOS -->
+  <div class="panel back">
+    <h3>Contactez-nous</h3>
+    <div class="ct-row"><div class="ci">@</div><span>nexussentinelai@yahoo.com</span></div>
+    <div class="ct-row"><div class="ci">T</div><span>+33 7 60 53 76 94</span></div>
+    <div class="ct-row"><div class="ci">W</div><span>nexus-ai-saas.com</span></div>
+    <div style="width:32mm;height:32mm;margin:5mm auto"><img src="screenshots/qr-nexus.svg" alt="QR" style="width:100%;height:100%;border-radius:3mm"></div>
+    <div class="cta">Scannez ou visitez <strong>nexus-ai-saas.com</strong></div>
+    <div class="sectors">
+      <div class="pill">Coiffure</div>
+      <div class="pill">Restaurants</div>
+      <div class="pill">Hotels</div>
+      <div class="pill">A domicile</div>
+    </div>
+    <div class="legal">NEXUS — SIREN 947 570 362<br>8 Rue des Monts Rouges, 95130 Franconville</div>
+  </div>
+
+  <!-- COUVERTURE -->
+  <div class="panel cover">
+    <div class="logo"><img src="screenshots/nexus-logo.svg" alt="NEXUS" style="width:80%;height:80%"></div>
+    <h1>NEXUS</h1>
+    <div class="line"></div>
+    <p>La plateforme tout-en-un<br>qui gere votre activite<br>pendant que vous<br>gerez vos clients</p>
+    <div class="line"></div>
+    <div class="tag">Propulse par l'IA</div>
+    <div class="foot">nexus-ai-saas.com</div>
+  </div>
+
+  <!-- RABAT -->
+  <div class="panel flap">
+    <h3>Le constat</h3>
+    <div class="stat-block"><div class="num">4-7</div><div class="txt">outils differents utilises par les PME de services</div></div>
+    <div class="stat-block"><div class="num">15h</div><div class="txt">par semaine perdues en gestion administrative</div></div>
+    <div class="stat-block"><div class="num">75%</div><div class="txt">des etablissements sans solution digitale integree</div></div>
+    <div class="sol-box">
+      <h4>La solution existe</h4>
+      <p>Un seul outil pour tout gerer : reservations, clients, facturation, marketing et IA.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FACE INTERIEURE ═══ -->
+<div class="page">
+  <div class="fold-line"></div>
+  <div class="fold-line"></div>
+
+  <!-- FONCTIONNALITES -->
+  <div class="panel inner-l">
+    <h3>Tout-en-un, vraiment.</h3>
+    <div class="feat"><div class="icon">📅</div><div><strong>Reservations</strong><span>Agenda en ligne, confirmation SMS/email, rappels anti no-show</span></div></div>
+    <div class="feat"><div class="icon">🤖</div><div><strong>IA 24h/24</strong><span>Chat web, WhatsApp, telephone. Prise de RDV automatique</span></div></div>
+    <div class="feat"><div class="icon">👥</div><div><strong>CRM & Fidelite</strong><span>Fiches clients, segmentation, programme de points</span></div></div>
+    <div class="feat"><div class="icon">💰</div><div><strong>Facturation</strong><span>Devis, factures, paiement en ligne, comptabilite</span></div></div>
+    <div class="feat"><div class="icon">📣</div><div><strong>Marketing</strong><span>Campagnes email/SMS, relances, A/B testing</span></div></div>
+    <div class="feat"><div class="icon">📊</div><div><strong>Analytics</strong><span>Dashboard, previsions IA, detection churn</span></div></div>
+    <div class="feat"><div class="icon">👔</div><div><strong>Equipe & RH</strong><span>Planning, paie, evaluations, organigramme</span></div></div>
+    <div class="feat"><div class="icon">🌐</div><div><strong>Site web inclus</strong><span>Vitrine pro generee avec votre marque</span></div></div>
+  </div>
+
+  <!-- CAPTURES -->
+  <div class="panel inner-c">
+    <h3>En images</h3>
+    <div class="screen">
+      <img src="screenshots/nexus-screenshot-01.png" alt="Dashboard">
+      <div class="lbl">Dashboard — KPI en temps reel</div>
+    </div>
+    <div class="screen-pair">
+      <div class="screen"><img src="screenshots/nexus-screenshot-20.png" alt="Chat IA"><div class="lbl">Chat IA</div></div>
+      <div class="screen"><img src="screenshots/nexus-screenshot-22.png" alt="WhatsApp"><div class="lbl">WhatsApp</div></div>
+    </div>
+    <div class="screen-pair">
+      <div class="screen"><img src="screenshots/nexus-screenshot-21.png" alt="Prestations"><div class="lbl">Prestations</div></div>
+      <div class="screen"><img src="screenshots/nexus-screenshot-04.png" alt="Agenda"><div class="lbl">Agenda</div></div>
+    </div>
+    <div class="ai-strip">
+      <div class="t">IA disponible 24h/24</div>
+      <div class="d">Vos clients reservent par chat, WhatsApp ou telephone. L'IA repond et confirme automatiquement.</div>
+    </div>
+  </div>
+
+  <!-- TARIFS -->
+  <div class="panel inner-r">
+    <h3>Nos offres</h3>
+    <div class="plan">
+      <div class="name">Starter</div>
+      <div class="price">99€<small>/mois</small></div>
+      <ul><li>Reservations + Agenda</li><li>CRM (200 clients)</li><li>Facturation basique</li><li>1 assistant IA</li><li>Support email</li></ul>
+    </div>
+    <div class="plan pop">
+      <div class="badge">Populaire</div>
+      <div class="name">Pro</div>
+      <div class="price">249€<small>/mois</small></div>
+      <ul><li>Tout Starter +</li><li>CRM illimite + Fidelite</li><li>Marketing automatise</li><li>Analytics avances</li><li>Multi-canaux SMS+WA</li><li>Support prioritaire</li></ul>
+    </div>
+    <div class="plan">
+      <div class="name">Business</div>
+      <div class="price">499€<small>/mois</small></div>
+      <ul><li>Tout Pro +</li><li>Multi-etablissements</li><li>RH & Comptabilite</li><li>API + Integrations</li><li>Manager dedie</li></ul>
+    </div>
+    <div class="trial-box">
+      14 jours d'essai gratuit
+      <small>Sans engagement — Sans carte bancaire</small>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

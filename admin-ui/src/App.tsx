@@ -59,6 +59,10 @@ const TarifsSaisonniers = lazy(() => import('./pages/TarifsSaisonniers'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const Disponibilites = lazy(() => import('./pages/Disponibilites'));
+const CGV = lazy(() => import('./pages/CGV'));
+const Fidelite = lazy(() => import('./pages/Fidelite'));
+const Waitlist = lazy(() => import('./pages/Waitlist'));
+const Guide = lazy(() => import('./pages/Guide'));
 
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
@@ -151,6 +155,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/cgv" element={<CGV />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<PrivateRoute><Onboarding /></PrivateRoute>} />
 
@@ -197,6 +202,9 @@ function App() {
             <Route path="/email-templates" element={<ModuleRoute module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
             <Route path="/marketing-analytics" element={<ModuleRoute module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
             <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
+            <Route path="/fidelite" element={<ModuleRoute moduleTitle="Programme Fidélité" moduleDescription="Gestion des points et récompenses clients"><Fidelite /></ModuleRoute>} />
+            <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
+            <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
             {/* Modules IA */}
             <Route path="/ia-admin" element={<ModuleRoute module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />

@@ -7,7 +7,7 @@ import {
   X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
-  ClipboardList, Clock, Landmark, UserCheck
+  ClipboardList, Clock, Landmark, UserCheck, Star, ListChecks, BookOpen
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -25,6 +25,8 @@ const menuItems = [
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
   { icon: Clock, label: 'Disponibilités', path: '/disponibilites' },
+  { icon: Star, label: 'Fidélité', path: '/fidelite' },
+  { icon: ListChecks, label: 'Liste d\'attente', path: '/waitlist' },
   { type: 'separator', label: 'Business' },
   { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'pro' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'pro' },
@@ -45,6 +47,7 @@ const menuItems = [
   { icon: Shield, label: 'Sentinel', path: '/sentinel', plan: 'business' },
   { type: 'separator' },
   { icon: CreditCard, label: 'Mon abonnement', path: '/subscription' },
+  { icon: BookOpen, label: 'Mode d\'emploi', path: '/guide' },
   { icon: Settings, label: 'Paramètres', path: '/parametres' },
 ];
 

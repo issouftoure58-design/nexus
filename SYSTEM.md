@@ -42,11 +42,11 @@ nexus/
 │   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
 │   ├── migrations/            # 88 migrations SQL (+ archive/)
-│   └── tests/                 # 19 suites, 310 tests
+│   └── tests/                 # 21 suites, 370 tests
 │
 ├── admin-ui/                  # Dashboard admin officiel (React/Vite/TS)
-│   ├── src/__tests__/         # 5 suites Vitest, 17 tests
-│   ├── vitest.config.ts       # Config Vitest + jsdom
+│   ├── src/__tests__/         # 9 suites Vitest, 56 tests
+│   ├── src/test/              # Helpers test (utils.tsx, setup.ts)
 │
 ├── frontend/
 │   └── nexus-app/             # App publique (reservations, chat)
@@ -188,10 +188,11 @@ Note: `comptable_facturation` (creer/exporter) câblé sur `createFactureFromRes
 ```
 Push main → GitHub Actions CI:
   1. lint:tenant + lint:syntax + healthcheck
-  2. Tests (Node 18 + 20) avec coverage
-  3. Build frontend (admin-ui + landing)
-  4. Boot test (syntax check)
-  5. Shield verification
+  2. Tests backend (Node 18 + 20) avec coverage
+  3. Tests admin-ui (Vitest)
+  4. Build frontend (admin-ui + landing)
+  5. Boot test (syntax check)
+  6. Shield verification
   → CI Success required pour merge
   → Render auto-deploy depuis main
 ```

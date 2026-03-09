@@ -447,6 +447,38 @@ export const reservationsApi = {
   delete: (id: number) => api.delete(`/admin/reservations/${id}`),
 };
 
+// Loyalty / Fidélité
+export const loyaltyApi = {
+  getConfig: () => api.get<{ config: { enabled: boolean; points_per_euro: number; signup_bonus: number; validity_days: number; min_redeem: number; redeem_ratio: number } }>('/admin/loyalty/config'),
+  updateConfig: (config: Record<string, unknown>) => api.put('/admin/loyalty/config', config),
+  getStats: () => api.get<{ stats: { total_points_circulation: number; active_members: number; earned_30d: number; redeemed_30d: number }; config: Record<string, unknown> }>('/admin/loyalty/stats'),
+  getLeaderboard: (limit?: number) => {
+    const query = limit ? `?limit=${limit}` : '';
+    return api.get<{ leaderboard: { id: number; nom: string; prenom: string; email: string; loyalty_points: number; total_spent: number }[] }>(`/admin/loyalty/leaderboard${query}`);
+  },
+  getClientDetail: (clientId: number) => api.get<{ points: number; total_spent: number; transactions: unknown[]; total: number }>(`/admin/loyalty/clients/${clientId}`),
+  adjustPoints: (clientId: number, points: number, reason: string) => api.post(`/admin/loyalty/clients/${clientId}/adjust`, { points, reason }),
+  redeemPoints: (clientId: number, points: number) => api.post(`/admin/loyalty/clients/${clientId}/redeem`, { points }),
+};
+
+// Waitlist / Liste d'attente
+export const waitlistApi = {
+  list: (params?: { status?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    return api.get<{ waitlist: unknown[]; total: number; page: number }>(`/admin/waitlist?${query}`);
+  },
+  add: (data: Record<string, unknown>) => api.post('/admin/waitlist', data),
+  get: (id: number) => api.get(`/admin/waitlist/${id}`),
+  update: (id: number, data: Record<string, unknown>) => api.patch(`/admin/waitlist/${id}`, data),
+  remove: (id: number) => api.delete(`/admin/waitlist/${id}`),
+  notify: (id: number) => api.post(`/admin/waitlist/${id}/notify`),
+  convert: (id: number) => api.post(`/admin/waitlist/${id}/convert`),
+  getStats: () => api.get<{ stats: Record<string, number> }>('/admin/waitlist/stats'),
+};
+
 // Services
 export const servicesApi = {
   list: async (): Promise<{ services: Service[] }> => {

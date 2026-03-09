@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>NEXUS — Plaquette A3 plie en 2 (4 pages A4)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --primary: #1a365d;
+    --primary-light: #2b6cb0;
+    --accent: #38a169;
+    --text: #1a202c;
+    --text-light: #4a5568;
+    --text-muted: #718096;
+    --bg-light: #f7fafc;
+    --bg-blue: #ebf4ff;
+    --gradient-1: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+    --gradient-2: linear-gradient(135deg, #38a169 0%, #48bb78 100%);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: var(--text); background: #cbd5e0; }
+
+  /* A3 paysage = 420mm x 297mm, plie en 2 = 2 pages A4 par face */
+  .sheet {
+    width: 420mm;
+    height: 297mm;
+    background: white;
+    margin: 8mm auto;
+    display: grid;
+    grid-template-columns: 210mm 210mm;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  }
+
+  .sheet::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; left: 210mm;
+    border-left: 1px dashed #cbd5e0;
+    z-index: 10;
+  }
+
+  .panel { padding: 18mm 20mm; position: relative; overflow: hidden; }
+
+  /* ═══ COUVERTURE ═══ */
+  .cover {
+    background: var(--gradient-1); color: white;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+  }
+  .cover::before {
+    content: ''; position: absolute;
+    top: -80mm; right: -80mm; width: 200mm; height: 200mm;
+    background: rgba(255,255,255,0.03); border-radius: 50%;
+  }
+  .cover .logo {
+    width: 32mm; height: 32mm; background: white; border-radius: 8mm;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32pt; font-weight: 900; color: var(--primary);
+    margin-bottom: 10mm; box-shadow: 0 8px 25px rgba(0,0,0,0.25); z-index: 1;
+  }
+  .cover h1 { font-size: 42pt; font-weight: 900; letter-spacing: 6px; z-index: 1; margin-bottom: 5mm; }
+  .cover .line { width: 35mm; height: 3px; background: var(--accent); margin: 6mm 0; z-index: 1; }
+  .cover p { font-size: 14pt; line-height: 1.7; opacity: 0.92; z-index: 1; max-width: 160mm; }
+  .cover .tag { margin-top: 10mm; font-size: 10pt; font-weight: 600; color: #c6f6d5; text-transform: uppercase; letter-spacing: 3px; z-index: 1; }
+  .cover .foot { position: absolute; bottom: 8mm; font-size: 8pt; opacity: 0.4; z-index: 1; }
+
+  /* ═══ DOS ═══ */
+  .back {
+    background: var(--bg-light);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+  }
+  .back h2 { font-size: 18pt; font-weight: 700; color: var(--primary); margin-bottom: 12mm; text-transform: uppercase; letter-spacing: 2px; }
+
+  .contact-row { display: flex; align-items: center; gap: 5mm; margin-bottom: 6mm; font-size: 12pt; }
+  .contact-row .ci {
+    width: 32px; height: 32px; background: var(--gradient-1); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 14px; font-weight: 700;
+  }
+
+  .qr-box {
+    width: 45mm; height: 45mm; margin: 10mm 0;
+    border: 2px solid var(--primary); border-radius: 5mm;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9pt; color: var(--text-muted); background: white; padding: 3mm;
+  }
+
+  .back .cta { font-size: 11pt; color: var(--text-light); margin-top: 4mm; }
+
+  .back .sectors {
+    display: flex; gap: 4mm; flex-wrap: wrap; justify-content: center; margin-top: 10mm;
+  }
+  .back .pill {
+    background: var(--bg-blue); color: var(--primary);
+    padding: 3mm 6mm; border-radius: 10mm; font-size: 9pt; font-weight: 500;
+  }
+
+  .back .legal { margin-top: auto; padding-top: 10mm; font-size: 7pt; color: #a0aec0; }
+
+  /* ═══ INTERIEUR GAUCHE — Probleme + Fonctionnalites ═══ */
+  .inner-l h2 { font-size: 16pt; font-weight: 800; color: var(--primary); margin-bottom: 8mm; }
+
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-bottom: 8mm; }
+  .stat-card {
+    background: #fff5f5; border-left: 4px solid #e53e3e;
+    padding: 5mm 6mm; border-radius: 0 4mm 4mm 0;
+  }
+  .stat-card .num { font-size: 22pt; font-weight: 900; color: #e53e3e; }
+  .stat-card .txt { font-size: 8.5pt; color: var(--text-light); line-height: 1.4; margin-top: 1mm; }
+
+  .solution {
+    background: var(--gradient-2); color: white;
+    padding: 8mm 10mm; border-radius: 5mm; margin-bottom: 10mm;
+  }
+  .solution h3 { font-size: 14pt; font-weight: 700; margin-bottom: 3mm; }
+  .solution p { font-size: 10pt; line-height: 1.55; opacity: 0.95; }
+
+  .feat-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4mm;
+  }
+  .feat-card {
+    display: flex; gap: 4mm; padding: 4mm;
+    border: 1px solid #edf2f7; border-radius: 3mm;
+  }
+  .feat-card .icon { font-size: 20pt; flex-shrink: 0; width: 12mm; text-align: center; }
+  .feat-card h4 { font-size: 9.5pt; font-weight: 700; color: var(--primary); margin-bottom: 1mm; }
+  .feat-card p { font-size: 7.5pt; color: var(--text-muted); line-height: 1.35; }
+
+  /* ═══ INTERIEUR DROIT — Captures + Tarifs ═══ */
+  .inner-r h2 { font-size: 16pt; font-weight: 800; color: var(--primary); margin-bottom: 6mm; }
+
+  .big-screen {
+    border: 1px solid #e2e8f0; border-radius: 4mm;
+    overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    margin-bottom: 5mm;
+  }
+  .big-screen img { width: 100%; height: 62mm; object-fit: cover; object-position: top; display: block; }
+  .big-screen .lbl { padding: 2.5mm 4mm; font-size: 8pt; color: var(--text-muted); background: var(--bg-light); }
+
+  .small-screens { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3mm; margin-bottom: 6mm; }
+  .sm-screen {
+    border: 1px solid #e2e8f0; border-radius: 3mm;
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .sm-screen img { width: 100%; height: 35mm; object-fit: cover; object-position: top; display: block; }
+  .sm-screen .lbl { padding: 1.5mm 2mm; font-size: 6pt; color: var(--text-muted); background: var(--bg-light); text-align: center; }
+
+  .pricing-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
+  .price-card {
+    border: 1.5px solid #e2e8f0; border-radius: 4mm;
+    padding: 5mm; text-align: center;
+  }
+  .price-card.pop { border-color: var(--primary-light); background: var(--bg-blue); position: relative; }
+  .price-card .badge {
+    position: absolute; top: -2.5mm; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: white; font-size: 6pt; font-weight: 700;
+    padding: 0.8mm 3mm; border-radius: 2mm; text-transform: uppercase;
+  }
+  .price-card .name { font-size: 10pt; font-weight: 700; color: var(--primary); }
+  .price-card .amt { font-size: 22pt; font-weight: 900; color: var(--primary); margin: 2mm 0; }
+  .price-card .amt small { font-size: 8pt; font-weight: 400; color: var(--text-muted); }
+  .price-card ul { list-style: none; text-align: left; padding: 0; }
+  .price-card ul li { font-size: 7pt; color: var(--text-light); padding: 0.8mm 0 0.8mm 4mm; position: relative; }
+  .price-card ul li::before { content: '✓'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+
+  .trial-bar {
+    background: var(--accent); color: white;
+    text-align: center; padding: 4mm; border-radius: 4mm; margin-top: 5mm;
+    font-size: 11pt; font-weight: 700;
+  }
+  .trial-bar small { display: block; font-weight: 400; font-size: 7.5pt; opacity: 0.9; }
+
+  @media print {
+    body { background: none; }
+    .sheet { margin: 0; box-shadow: none; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet::after { display: none; }
+  }
+  @page { size: 420mm 297mm landscape; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- FACE EXTERIEURE : [Dos] [Couverture] -->
+<div class="sheet">
+  <div class="panel back">
+    <h2>Contactez-nous</h2>
+    <div class="contact-row"><div class="ci">@</div><span>nexussentinelai@yahoo.com</span></div>
+    <div class="contact-row"><div class="ci">T</div><span>+33 7 60 53 76 94</span></div>
+    <div class="contact-row"><div class="ci">W</div><span>nexus-ai-saas.com</span></div>
+    <div style="width:45mm;height:45mm;margin:8mm auto"><img src="screenshots/qr-nexus.svg" alt="QR" style="width:100%;height:100%;border-radius:4mm"></div>
+    <div class="cta">Scannez ou visitez <strong>nexus-ai-saas.com</strong></div>
+    <div class="sectors">
+      <div class="pill">Coiffure & Beaute</div>
+      <div class="pill">Restaurants</div>
+      <div class="pill">Hotels</div>
+      <div class="pill">Services a domicile</div>
+      <div class="pill">Bien-etre</div>
+    </div>
+    <div class="legal">NEXUS — SIREN 947 570 362 — 8 Rue des Monts Rouges, 95130 Franconville — nexus-ai-saas.com — 2026</div>
+  </div>
+
+  <div class="panel cover">
+    <div class="logo"><img src="screenshots/nexus-logo.svg" alt="NEXUS" style="width:80%;height:80%"></div>
+    <h1>NEXUS</h1>
+    <div class="line"></div>
+    <p>La plateforme tout-en-un qui gere<br>votre activite pendant que vous<br>gerez vos clients</p>
+    <div class="line"></div>
+    <div class="tag">Propulse par l'Intelligence Artificielle</div>
+    <div class="foot">Reservations &bull; CRM &bull; Facturation &bull; Marketing &bull; IA</div>
+  </div>
+</div>
+
+<!-- FACE INTERIEURE : [Probleme+Features] [Captures+Tarifs] -->
+<div class="sheet">
+  <div class="panel inner-l">
+    <h2>Pourquoi NEXUS ?</h2>
+    <div class="stat-row">
+      <div class="stat-card"><div class="num">4-7</div><div class="txt">outils differents utilises par les PME de services</div></div>
+      <div class="stat-card"><div class="num">15h</div><div class="txt">par semaine perdues en gestion administrative</div></div>
+      <div class="stat-card"><div class="num">75%</div><div class="txt">des etablissements sans solution digitale integree</div></div>
+      <div class="stat-card"><div class="num">30%</div><div class="txt">de no-show sans relances automatisees</div></div>
+    </div>
+
+    <div class="solution">
+      <h3>Un seul outil pour tout gerer</h3>
+      <p>NEXUS remplace votre agenda papier, votre logiciel de caisse, vos fichiers Excel et tous vos autres outils par une plateforme unique avec IA integree.</p>
+    </div>
+
+    <div class="feat-grid">
+      <div class="feat-card"><div class="icon">📅</div><div><h4>Reservations</h4><p>Agenda en ligne, confirmation auto SMS/email, rappels anti no-show</p></div></div>
+      <div class="feat-card"><div class="icon">🤖</div><div><h4>IA 24h/24</h4><p>Chat web, WhatsApp, telephone. Prise de RDV automatique</p></div></div>
+      <div class="feat-card"><div class="icon">👥</div><div><h4>CRM & Fidelite</h4><p>Fiches clients, segmentation RFM, programme de points</p></div></div>
+      <div class="feat-card"><div class="icon">💰</div><div><h4>Facturation</h4><p>Devis, factures, paiement Stripe, comptabilite temps reel</p></div></div>
+      <div class="feat-card"><div class="icon">📣</div><div><h4>Marketing</h4><p>Campagnes email/SMS, templates, relances, A/B testing</p></div></div>
+      <div class="feat-card"><div class="icon">📊</div><div><h4>Analytics</h4><p>Dashboard temps reel, previsions IA, detection churn</p></div></div>
+      <div class="feat-card"><div class="icon">👔</div><div><h4>Equipe & RH</h4><p>Planning, fiches de paie, evaluations, organigramme</p></div></div>
+      <div class="feat-card"><div class="icon">🌐</div><div><h4>Site web inclus</h4><p>Vitrine pro generee avec votre marque, SEO optimise</p></div></div>
+    </div>
+  </div>
+
+  <div class="panel inner-r">
+    <h2>Votre futur quotidien</h2>
+    <div class="big-screen">
+      <img src="screenshots/nexus-screenshot-01.png" alt="Dashboard">
+      <div class="lbl">Dashboard principal — Tous vos indicateurs en un coup d'oeil</div>
+    </div>
+
+    <div class="small-screens">
+      <div class="sm-screen"><img src="screenshots/nexus-screenshot-20.png" alt="Chat IA"><div class="lbl">Chat IA Web</div></div>
+      <div class="sm-screen"><img src="screenshots/nexus-screenshot-21.png" alt="Prestations"><div class="lbl">Prestations</div></div>
+      <div class="sm-screen"><img src="screenshots/nexus-screenshot-22.png" alt="WhatsApp"><div class="lbl">WhatsApp IA</div></div>
+      <div class="sm-screen"><img src="screenshots/nexus-screenshot-04.png" alt="Agenda"><div class="lbl">Agenda</div></div>
+    </div>
+
+    <div class="pricing-row">
+      <div class="price-card">
+        <div class="name">Starter</div>
+        <div class="amt">99€<small>/mois</small></div>
+        <ul><li>Reservations + Agenda</li><li>CRM (200 clients)</li><li>Facturation basique</li><li>1 assistant IA</li><li>Support email</li></ul>
+      </div>
+      <div class="price-card pop">
+        <div class="badge">Populaire</div>
+        <div class="name">Pro</div>
+        <div class="amt">249€<small>/mois</small></div>
+        <ul><li>Tout Starter +</li><li>CRM illimite + Fidelite</li><li>Marketing automatise</li><li>Analytics avances</li><li>Multi-canaux SMS+WA</li><li>Support prioritaire</li></ul>
+      </div>
+      <div class="price-card">
+        <div class="name">Business</div>
+        <div class="amt">499€<small>/mois</small></div>
+        <ul><li>Tout Pro +</li><li>Multi-etablissements</li><li>RH & Comptabilite</li><li>API + Integrations</li><li>Manager dedie</li></ul>
+      </div>
+    </div>
+
+    <div class="trial-bar">14 jours d'essai gratuit <small>Sans engagement — Sans carte bancaire</small></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -279,11 +279,16 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
 // POST /api/admin/auth/signup (créer un compte)
 router.post('/signup', async (req, res) => {
   try {
-    const { entreprise, nom, email, telephone, password, plan = 'starter' } = req.body;
+    const { entreprise, nom, email, telephone, password, plan = 'starter', accept_cgv } = req.body;
 
     // Validation
     if (!entreprise || !nom || !email || !password) {
       return res.status(400).json({ error: 'Tous les champs obligatoires doivent être remplis' });
+    }
+
+    // CGV acceptance obligatoire
+    if (!accept_cgv) {
+      return res.status(400).json({ error: 'Vous devez accepter les Conditions Générales de Vente' });
     }
 
     // Valider le mot de passe
@@ -361,7 +366,9 @@ router.post('/signup', async (req, res) => {
         role: 'admin',
         tenant_id: tenant.id,
         telephone: telephone || null,
-        password_changed_at: new Date().toISOString()
+        password_changed_at: new Date().toISOString(),
+        cgv_accepted_at: new Date().toISOString(),
+        cgv_version: '1.0'
       })
       .select()
       .single();

@@ -10,6 +10,8 @@ import { enforceTrialLimit } from '../services/trialService.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
 import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
+import { earnPoints } from '../services/loyaltyService.js';
+import { notifyNextInLine } from '../services/waitlistService.js';
 
 const createReservationSchema = z.object({
   client_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
@@ -1292,6 +1294,15 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         console.error('[ADMIN RESERVATIONS] Erreur création facture:', factureErr.message);
       }
 
+      // Fidélité: auto-earn points sur réservation terminée
+      try {
+        if (currentRdv.client_id && facture?.montant_ttc) {
+          await earnPoints(tenantId, currentRdv.client_id, facture.montant_ttc, 'reservation', req.params.id);
+        }
+      } catch (loyaltyErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur loyalty earn (non bloquant):', loyaltyErr.message);
+      }
+
       // Déclencher workflows "rdv_completed"
       try {
         await triggerWorkflows('rdv_completed', {
@@ -1352,6 +1363,15 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur annulation facture:', factureErr.message);
+      }
+
+      // Waitlist: notifier le suivant quand un créneau se libère
+      try {
+        if (currentRdv.date_rdv && currentRdv.heure_rdv) {
+          await notifyNextInLine(tenantId, currentRdv.date_rdv, currentRdv.heure_rdv, currentRdv.heure_fin);
+        }
+      } catch (waitlistErr) {
+        console.error('[ADMIN RESERVATIONS] Erreur waitlist notify (non bloquant):', waitlistErr.message);
       }
 
       // Déclencher workflows "rdv_cancelled"
