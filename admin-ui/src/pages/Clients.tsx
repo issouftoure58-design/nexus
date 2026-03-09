@@ -22,7 +22,10 @@ import {
   Eye,
   X,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Upload,
+  CheckCircle2,
+  FileWarning
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -38,6 +41,9 @@ export default function Clients() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [importResult, setImportResult] = useState<{ summary: { total_lines: number; imported: number; skipped: number; errors: number }; skipped?: { line: number; email: string; reason: string }[]; errors?: { line: number; reason: string }[] } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Additional filters
@@ -127,6 +133,25 @@ export default function Clients() {
     setPage(1);
   };
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const result = await clientsApi.importCSV(file);
+      setImportResult(result);
+      if (result.summary?.imported > 0) {
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+      }
+    } catch {
+      setImportResult({ summary: { total_lines: 0, imported: 0, skipped: 0, errors: 1 }, errors: [{ line: 0, reason: 'Erreur lors de l\'import' }] });
+    } finally {
+      setImportLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
       day: 'numeric',
@@ -192,11 +217,51 @@ export default function Clients() {
             </div>
             <Button type="submit" variant="outline">Rechercher</Button>
           </form>
-          <Button onClick={() => setShowNewClientModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700">
-            <Plus className="h-4 w-4" />
-            Nouveau client
-          </Button>
+          <div className="flex gap-2">
+            <input type="file" ref={fileInputRef} accept=".csv" onChange={handleImportCSV} className="hidden" />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importLoading} className="gap-2">
+              {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Importer CSV
+            </Button>
+            <Button onClick={() => setShowNewClientModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700">
+              <Plus className="h-4 w-4" />
+              Nouveau client
+            </Button>
+          </div>
         </div>
+
+        {/* Import result banner */}
+        {importResult && (
+          <div className={cn(
+            "rounded-lg p-4 flex items-start gap-3",
+            importResult.summary.errors > 0 && importResult.summary.imported === 0
+              ? "bg-red-50 border border-red-200"
+              : importResult.summary.skipped > 0 || importResult.summary.errors > 0
+              ? "bg-yellow-50 border border-yellow-200"
+              : "bg-green-50 border border-green-200"
+          )}>
+            {importResult.summary.imported > 0 ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+            ) : (
+              <FileWarning className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
+            )}
+            <div className="flex-1 text-sm">
+              <p className="font-medium">
+                {importResult.summary.imported} client{importResult.summary.imported > 1 ? 's' : ''} importé{importResult.summary.imported > 1 ? 's' : ''}
+                {importResult.summary.skipped > 0 && ` · ${importResult.summary.skipped} doublon${importResult.summary.skipped > 1 ? 's' : ''} ignoré${importResult.summary.skipped > 1 ? 's' : ''}`}
+                {importResult.summary.errors > 0 && ` · ${importResult.summary.errors} erreur${importResult.summary.errors > 1 ? 's' : ''}`}
+              </p>
+              {importResult.errors && importResult.errors.length > 0 && (
+                <p className="text-red-600 mt-1">
+                  {importResult.errors.slice(0, 3).map(e => `Ligne ${e.line}: ${e.reason}`).join(' | ')}
+                </p>
+              )}
+            </div>
+            <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="p-4">
