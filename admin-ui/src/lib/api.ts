@@ -1125,7 +1125,7 @@ export interface Client {
 }
 
 export interface ClientDetail {
-  client: Client & { derniere_visite: string | null };
+  client: Client & { derniere_visite: string | null; loyalty_points?: number };
   stats: {
     ca_total: number;
     nb_rdv_total: number;
