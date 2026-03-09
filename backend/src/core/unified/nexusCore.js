@@ -94,7 +94,7 @@ import * as googleMapsService from '../../services/googleMapsService.js';
 const getDistanceFromSalon = googleMapsService.getDistanceFromSalon || null;
 
 // 💰 OPTIMISATION COÛTS - Réduction 88%
-import modelRouter from '../../services/modelRouter.js';
+import modelRouter, { MODELS as ROUTER_MODELS } from '../../services/modelRouter.js';
 import promptOptimizer from '../../services/promptOptimizer.js';
 import responseCache from '../../services/responseCache.js';
 
@@ -105,104 +105,16 @@ import liveEventStream from '../../services/liveEventStream.js';
 // CONFIGURATION
 // ============================================
 
-// Modèles adaptatifs
-const CLAUDE_HAIKU = 'claude-3-haiku-20240307';    // Rapide (~1-2s) - messages simples
-const CLAUDE_SONNET = 'claude-sonnet-4-20250514';  // Intelligent (~4-5s) - cas complexes
+// Modèles centralisés dans modelRouter.js (source unique de vérité)
+const CLAUDE_HAIKU = ROUTER_MODELS.HAIKU;
+const CLAUDE_SONNET = ROUTER_MODELS.SONNET;
 const MAX_TOKENS = 1024;
 
 // ============================================
 // SÉLECTION ADAPTATIVE DU MODÈLE
 // ============================================
-
-/**
- * Sélectionne le modèle approprié selon le message et le contexte
- * @param {string} message - Message de l'utilisateur
- * @param {Array} history - Historique de la conversation
- * @returns {{ model: string, reason: string }}
- */
-function selectModel(message, history = []) {
-  const msgLower = message.toLowerCase().trim();
-
-  // === PATTERNS HAIKU (messages simples) ===
-
-  // Salutations
-  const greetings = /^(salut|bonjour|bonsoir|coucou|hello|hey|hi|bsr|bjr)[\s!.,?]*$/i;
-  if (greetings.test(msgLower)) {
-    return { model: CLAUDE_HAIKU, reason: 'salutation' };
-  }
-
-  // Remerciements / Au revoir
-  const thanks = /^(merci|thanks|au revoir|bye|à bientôt|a bientot|ciao|bonne journée|bonne soirée)[\s!.,?]*$/i;
-  if (thanks.test(msgLower)) {
-    return { model: CLAUDE_HAIKU, reason: 'remerciement/au revoir' };
-  }
-
-  // Réponses courtes (oui, non, ok, d'accord...)
-  const shortResponses = /^(oui|non|ok|okay|d'accord|daccord|parfait|super|cool|bien|génial|entendu|compris|c'est bon|ca marche|ça marche)[\s!.,?]*$/i;
-  if (shortResponses.test(msgLower)) {
-    return { model: CLAUDE_HAIKU, reason: 'réponse courte' };
-  }
-
-  // Questions simples sur les horaires
-  const hoursQuestions = /\b(horaire|heure|ouvert|fermé|ouvre|ferme|disponible quand|quand.*ouvert)\b/i;
-  if (hoursQuestions.test(msgLower) && !msgLower.includes('réserv') && !msgLower.includes('rdv')) {
-    return { model: CLAUDE_HAIKU, reason: 'question horaires' };
-  }
-
-  // Questions simples sur l'adresse/lieu
-  const locationQuestions = /^.{0,50}\b(où|adresse|lieu|situé|localisation|comment venir|aller chez)\b.{0,50}$/i;
-  if (locationQuestions.test(msgLower) && msgLower.length < 80) {
-    return { model: CLAUDE_HAIKU, reason: 'question adresse' };
-  }
-
-  // Questions sur les services/tarifs (déjà dans le prompt)
-  const priceQuestions = /^.{0,30}\b(prix|tarif|coût|combien|services?|proposez|faites)\b.{0,50}$/i;
-  if (priceQuestions.test(msgLower) && msgLower.length < 100) {
-    // Sauf si c'est une demande de réservation
-    if (!msgLower.includes('réserv') && !msgLower.includes('rdv') && !msgLower.includes('rendez')) {
-      return { model: CLAUDE_HAIKU, reason: 'question prix/services' };
-    }
-  }
-
-  // === PATTERNS SONNET (cas complexes) ===
-
-  // Réservations explicites
-  const bookingPatterns = /\b(réserv|rdv|rendez-vous|prendre|book|disponib|créneaux?|samedi|dimanche|lundi|mardi|mercredi|jeudi|vendredi|demain|après-demain)\b/i;
-  if (bookingPatterns.test(msgLower)) {
-    return { model: CLAUDE_SONNET, reason: 'réservation/disponibilité' };
-  }
-
-  // Calculs (déplacement, prix total)
-  const calculPatterns = /\b(déplacement|domicile|chez moi|venir chez|distance|km|kilomètre|frais|total)\b/i;
-  if (calculPatterns.test(msgLower)) {
-    return { model: CLAUDE_SONNET, reason: 'calcul déplacement/prix' };
-  }
-
-  // Contexte de conversation avancée (historique > 4 messages)
-  if (history.length > 4) {
-    // Vérifier si on est dans un flow de réservation
-    const recentMessages = history.slice(-4).map(m =>
-      typeof m.content === 'string' ? m.content : ''
-    ).join(' ').toLowerCase();
-
-    if (recentMessages.includes('réserv') || recentMessages.includes('rdv') ||
-        recentMessages.includes('disponib') || recentMessages.includes('créneau')) {
-      return { model: CLAUDE_SONNET, reason: 'contexte réservation' };
-    }
-  }
-
-  // Messages longs (probablement complexes)
-  if (message.length > 150) {
-    return { model: CLAUDE_SONNET, reason: 'message long/complexe' };
-  }
-
-  // Par défaut : Haiku pour les messages courts, Sonnet sinon
-  if (message.length < 50) {
-    return { model: CLAUDE_HAIKU, reason: 'message court (défaut)' };
-  }
-
-  return { model: CLAUDE_SONNET, reason: 'défaut' };
-}
+// Déléguée à modelRouter.selectModel() — source unique de vérité
+// Voir backend/src/services/modelRouter.js
 
 // 🔒 C5: Cache sécurisé - TTL réduit pour éviter les race conditions
 // ⚠️ TODO: Remplacer par Redis en production pour invalidation synchrone
@@ -2578,10 +2490,15 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     const history = getConversationHistory(conversationId);
     history.push({ role: 'user', content: message });
 
-    // Sélection adaptative du modèle (une seule fois au début)
-    const { model: selectedModel, reason: modelReason } = selectModel(message, history);
-    const modelEmoji = selectedModel === CLAUDE_HAIKU ? '⚡' : '🧠';
-    console.log(`[NEXUS CORE] ${modelEmoji} Modèle: ${selectedModel === CLAUDE_HAIKU ? 'HAIKU' : 'SONNET'} (${modelReason})`);
+    // Sélection adaptative du modèle via modelRouter centralisé
+    const routerResultStream = modelRouter.selectModel({
+      userMessage: message,
+      context: { conversationLength: history.length }
+    });
+    const selectedModel = routerResultStream.model;
+    const modelReason = routerResultStream.reason;
+    const modelEmoji = selectedModel.includes('haiku') ? '⚡' : '🧠';
+    console.log(`[NEXUS CORE] ${modelEmoji} Modèle: ${selectedModel.includes('haiku') ? 'HAIKU' : 'SONNET'} (${modelReason})`);
 
     let currentModel = selectedModel;
     let continueLoop = true;

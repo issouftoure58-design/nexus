@@ -107,8 +107,8 @@ function App() {
     setRobotState('idle')
   }
 
-  // API URL pour l'agent commercial
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  // API URL pour l'agent commercial (relatif → passe par le proxy server.js)
+  const API_URL = ''
 
   // Gerer l'envoi d'un message utilisateur - Appel API avec streaming + TTS
   const handleSend = async (text) => {

@@ -29,7 +29,7 @@ import { getDistanceFromSalon } from '../services/googleMapsService.js';
 // *** NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***
 import { SERVICES as BUSINESS_SERVICES, TRAVEL_FEES, BUSINESS_HOURS } from '../config/businessRules.js';
 // Import du router IA pour optimisation des couts
-import modelRouter from '../services/modelRouter.js';
+import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
 import { matchStaticResponse } from '../services/optimization/cacheService.js';
 import logger from '../config/logger.js';
 
@@ -39,12 +39,7 @@ import logger from '../config/logger.js';
 
 const anthropic = new Anthropic();
 
-// Modeles disponibles - Sonnet pour fiabilite avec outils
-const MODELS = {
-  HAIKU: 'claude-3-haiku-20240307',
-  SONNET: 'claude-sonnet-4-20250514'
-};
-const MODEL_DEFAULT = MODELS.SONNET;
+// Modèles centralisés dans modelRouter.js (source unique de vérité)
 
 function getSupabase() {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -770,9 +765,17 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
   }
 
   try {
+    // Routage intelligent Haiku/Sonnet
+    const routing = modelRouter.selectModel({
+      userMessage: userMessage,
+      context: { conversationLength: messages.length }
+    });
+    const selectedModel = routing.model;
+    logger.info(`[HALIMAH AI] [ROUTER] ${selectedModel.includes('haiku') ? '⚡ HAIKU' : '🧠 SONNET'} — ${routing.reason}`);
+
     // Appel à Claude avec les outils
     let response = await anthropic.messages.create({
-      model: MODEL_DEFAULT,
+      model: selectedModel,
       max_tokens: 1024,
       system: systemPrompt,
       tools: tools,

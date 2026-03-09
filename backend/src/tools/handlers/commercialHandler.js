@@ -6,9 +6,7 @@
 import { supabase } from '../../config/supabase.js';
 import logger from '../../config/logger.js';
 import Anthropic from '@anthropic-ai/sdk';
-
-// Anthropic Sonnet for high-quality relance messages
-const MODEL_SONNET = 'claude-sonnet-4-20250514';
+import { MODEL_DEFAULT } from '../../services/modelRouter.js';
 
 let anthropicClient = null;
 
@@ -231,7 +229,7 @@ Reponds UNIQUEMENT en JSON valide :
 
   try {
     const response = await client.messages.create({
-      model: MODEL_SONNET,
+      model: MODEL_DEFAULT,
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }]
     });

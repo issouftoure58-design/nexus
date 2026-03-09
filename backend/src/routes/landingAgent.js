@@ -10,7 +10,7 @@
 
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { MODEL_DEFAULT } from '../services/modelRouter.js';
+import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
 
 const router = express.Router();
 
@@ -238,6 +238,11 @@ router.post('/chat', async (req, res) => {
 
     const client = getAnthropicClient();
 
+    // Routage intelligent Haiku/Sonnet (80%+ du chat landing = FAQ → Haiku)
+    const lastMsg = validMessages[validMessages.length - 1]?.content || '';
+    const routing = modelRouter.selectModel({ userMessage: lastMsg });
+    console.log(`[LANDING_AGENT] [ROUTER] ${routing.model.includes('haiku') ? '⚡ HAIKU' : '🧠 SONNET'} — ${routing.reason}`);
+
     if (stream) {
       // Streaming response
       res.setHeader('Content-Type', 'text/event-stream');
@@ -246,7 +251,7 @@ router.post('/chat', async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
 
       const streamResponse = await client.messages.create({
-        model: MODEL_DEFAULT,
+        model: routing.model,
         max_tokens: 500,
         system: NEXUS_COMMERCIAL_PROMPT,
         messages: validMessages,
@@ -265,7 +270,7 @@ router.post('/chat', async (req, res) => {
     } else {
       // Non-streaming response
       const response = await client.messages.create({
-        model: MODEL_DEFAULT,
+        model: routing.model,
         max_tokens: 500,
         system: NEXUS_COMMERCIAL_PROMPT,
         messages: validMessages

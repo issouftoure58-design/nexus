@@ -11,7 +11,7 @@ import { TOOLS_ADMIN, getToolsForPlan } from '../tools/toolsRegistry.js';
 // Import du dispatcher d'outils (remplace le switch monolithique)
 import { executeTool } from '../tools/handlers/index.js';
 // Import du router IA pour optimisation des couts
-import modelRouter from './modelRouter.js';
+import modelRouter, { MODEL_DEFAULT } from './modelRouter.js';
 import {
   matchStaticResponse,
   getCachedClaudeResponse,
@@ -35,12 +35,6 @@ function getAnthropicClient() {
   return anthropicClient;
 }
 
-// Modeles disponibles
-const MODELS = {
-  HAIKU: 'claude-haiku-4-5-20251001',
-  SONNET: 'claude-sonnet-4-20250514'
-};
-const MODEL_DEFAULT = MODELS.SONNET;
 const MAX_TOKENS_NORMAL = 4096;
 const MAX_TOKENS_DEGRADED = 500;
 const MAX_TOOL_ITERATIONS = 5; // Limite pour éviter les boucles infinies

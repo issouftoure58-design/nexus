@@ -21,17 +21,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 // *** IMPORT DEPUIS NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***
 import { SERVICES, TRAVEL_FEES, BUSINESS_HOURS, getAllServices } from '../config/businessRules.js';
+// Modèles centralisés depuis modelRouter
+import { MODELS, MODEL_FAST } from './modelRouter.js';
 
 const anthropic = new Anthropic();
 
 // ============================================
 // COST OPTIMIZATION: Model Routing & Prompt Caching
 // ============================================
-
-const MODELS = {
-  HAIKU: 'claude-3-haiku-20240307',      // 88% cheaper, for simple tasks
-  SONNET: 'claude-sonnet-4-20250514'     // More capable, for complex tasks
-};
 
 // Task complexity classification for intelligent routing
 const TASK_COMPLEXITY = {

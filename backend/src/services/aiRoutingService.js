@@ -20,7 +20,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import modelRouter from './modelRouter.js';
+import modelRouter, { MODELS } from './modelRouter.js';
 import { isDegraded } from '../sentinel/index.js';
 import {
   matchStaticResponse,
@@ -43,12 +43,6 @@ function getAnthropicClient() {
   }
   return anthropicClient;
 }
-
-// Modeles disponibles
-const MODELS = {
-  HAIKU: 'claude-3-haiku-20240307',
-  SONNET: 'claude-sonnet-4-20250514'
-};
 
 // Stats du service
 const serviceStats = {

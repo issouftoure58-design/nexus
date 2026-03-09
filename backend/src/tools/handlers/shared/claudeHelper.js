@@ -5,8 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../../../config/logger.js';
-
-const MODEL_HAIKU = 'claude-haiku-4-5-20251001';
+import { MODEL_FAST as MODEL_HAIKU } from '../../../services/modelRouter.js';
 
 let anthropicClient = null;
 

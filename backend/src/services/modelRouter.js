@@ -8,7 +8,7 @@
 
 // Modèles Claude disponibles - Source unique de vérité
 export const MODELS = {
-  HAIKU: 'claude-3-haiku-20240307',
+  HAIKU: 'claude-haiku-4-5-20251001',
   SONNET: 'claude-sonnet-4-20250514'
 };
 
