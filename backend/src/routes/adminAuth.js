@@ -334,11 +334,13 @@ router.post('/signup', async (req, res) => {
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
-        nom: entreprise,
+        id: finalSlug,
+        name: entreprise,
         slug: finalSlug,
         plan: plan,
-        status: 'trial',
-        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 jours
+        status: 'active',
+        statut: 'essai',
+        essai_fin: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         settings: {
           timezone: 'Europe/Paris',
           currency: 'EUR',
@@ -361,14 +363,11 @@ router.post('/signup', async (req, res) => {
       .from('admin_users')
       .insert({
         email,
-        password: hashedPassword,
+        password_hash: hashedPassword,
         nom,
         role: 'admin',
         tenant_id: tenant.id,
-        telephone: telephone || null,
         password_changed_at: new Date().toISOString(),
-        cgv_accepted_at: new Date().toISOString(),
-        cgv_version: '1.0'
       })
       .select()
       .single();
