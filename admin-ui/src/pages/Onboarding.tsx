@@ -251,7 +251,7 @@ const PLAN_CHANNELS: Record<string, string[]> = {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { plan: tenantPlan } = useTenantContext();
+  const { plan: tenantPlan, name: tenantName } = useTenantContext();
   const [step, setStep] = useState(0);
 
   // Canaux disponibles selon le plan réel du tenant
@@ -268,6 +268,33 @@ export default function Onboarding() {
   const [services, setServices] = useState<Service[]>([]);
   const [hours, setHours] = useState<Record<string, any>>({});
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set(['web']));
+
+  // Charger les données existantes (renseignées au signup) pour pré-remplir
+  const { data: existingData } = useQuery({
+    queryKey: ['onboarding-status'],
+    queryFn: () => api.get<{
+      success: boolean;
+      businessInfo: { nom: string; telephone: string; adresse: string; email: string };
+    }>('/admin/onboarding/status'),
+  });
+
+  // Pré-remplir avec les données du signup (une seule fois)
+  useEffect(() => {
+    if (existingData?.businessInfo) {
+      const info = existingData.businessInfo;
+      setBusinessInfo(prev => ({
+        businessName: prev.businessName || info.nom || tenantName || '',
+        ownerName: prev.ownerName || '',
+        address: prev.address || info.adresse || '',
+        phone: prev.phone || info.telephone || '',
+      }));
+    } else if (tenantName && tenantName !== 'NEXUS') {
+      setBusinessInfo(prev => ({
+        ...prev,
+        businessName: prev.businessName || tenantName,
+      }));
+    }
+  }, [existingData, tenantName]);
 
   // Charger les templates disponibles
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
