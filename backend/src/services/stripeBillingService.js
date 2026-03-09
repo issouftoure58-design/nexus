@@ -864,12 +864,13 @@ async function handleSubscriptionDeleted(subscription) {
   const tenantId = subscription.metadata?.tenant_id;
   if (!tenantId) return;
 
-  // Desactiver tous les modules sauf socle
+  // Desactiver tous les modules sauf socle + marquer le tenant comme annule
   await supabase
     .from('tenants')
     .update({
       modules_actifs: { socle: true },
       subscription_status: 'canceled',
+      statut: 'annule',
       stripe_subscription_id: null,
       updated_at: new Date().toISOString()
     })

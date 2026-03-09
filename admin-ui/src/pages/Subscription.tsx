@@ -98,7 +98,8 @@ type BillingCycle = 'monthly' | 'yearly';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   active: { label: 'Actif', color: 'bg-green-100 text-green-700' },
-  trialing: { label: 'Essai', color: 'bg-blue-100 text-blue-700' },
+  trialing: { label: 'Essai gratuit', color: 'bg-blue-100 text-blue-700' },
+  expired: { label: 'Essai expiré', color: 'bg-orange-100 text-orange-700' },
   past_due: { label: 'En retard', color: 'bg-red-100 text-red-700' },
   canceled: { label: 'Annulé', color: 'bg-gray-100 text-gray-500' },
   incomplete: { label: 'Incomplet', color: 'bg-yellow-100 text-yellow-700' },
@@ -332,8 +333,17 @@ export default function Subscription() {
 
   const currentPlanData = PLANS.find(p => p.id === currentPlan) || PLANS[0];
 
-  // Statut dynamique
-  const subStatus = subscriptionData?.status || 'active';
+  // Statut dynamique — priorité au statut tenant (essai/expire) sur le statut Stripe
+  const tenantStatut = tenant?.statut;
+  const subStatus = tenantStatut === 'essai'
+    ? 'trialing'
+    : tenantStatut === 'expire'
+    ? 'expired'
+    : tenantStatut === 'annule'
+    ? 'canceled'
+    : tenantStatut === 'suspendu'
+    ? 'past_due'
+    : subscriptionData?.status || (subscriptionData?.has_subscription ? 'active' : 'trialing');
   const statusInfo = STATUS_MAP[subStatus] || STATUS_MAP.active;
 
   if (loadingTenant) {
@@ -823,10 +833,23 @@ export default function Subscription() {
                   {statusInfo.label}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Facturation</span>
-                <span className="font-semibold text-gray-900">{currentPlanData.price}€/mois</span>
-              </div>
+              {tenantStatut === 'essai' && tenant?.essai_fin && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Fin d'essai</span>
+                  <span className="text-sm font-medium text-blue-700">
+                    {(() => {
+                      const days = Math.max(0, Math.ceil((new Date(tenant.essai_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                      return days > 0 ? `${days} jour${days > 1 ? 's' : ''} restant${days > 1 ? 's' : ''}` : 'Expiré';
+                    })()}
+                  </span>
+                </div>
+              )}
+              {tenantStatut !== 'essai' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Facturation</span>
+                  <span className="font-semibold text-gray-900">{currentPlanData.price}€/mois</span>
+                </div>
+              )}
               {subscriptionData?.current_period_end && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Prochain paiement</span>

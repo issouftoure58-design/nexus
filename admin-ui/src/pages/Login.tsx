@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authApi, api } from '@/lib/api';
-import { Loader2, AlertCircle, Lock, Mail, Sparkles, ArrowLeft, Shield } from 'lucide-react';
+import { Loader2, AlertCircle, Lock, Mail, Sparkles, ArrowLeft, Shield, XCircle, PauseCircle } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -107,9 +107,33 @@ export default function Login() {
             /* Login classique */
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  {error}
+                <div className={`p-3 rounded-lg flex flex-col gap-2 text-sm ${
+                  error.includes('essai gratuit') || error.includes('résilié')
+                    ? 'bg-orange-50 border border-orange-200 text-orange-800'
+                    : error.includes('suspendu')
+                    ? 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {error.includes('essai gratuit') || error.includes('résilié') ? (
+                      <XCircle className="h-4 w-4 flex-shrink-0" />
+                    ) : error.includes('suspendu') ? (
+                      <PauseCircle className="h-4 w-4 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    )}
+                    {error}
+                  </div>
+                  {error.includes('essai gratuit') && (
+                    <a href="/signup?plan=starter" className="text-cyan-600 hover:text-cyan-700 font-medium text-xs ml-6">
+                      Choisir un plan et continuer &rarr;
+                    </a>
+                  )}
+                  {error.includes('suspendu') && (
+                    <a href="mailto:support@nexus-ai-saas.com" className="text-cyan-600 hover:text-cyan-700 font-medium text-xs ml-6">
+                      Contacter le support &rarr;
+                    </a>
+                  )}
                 </div>
               )}
 

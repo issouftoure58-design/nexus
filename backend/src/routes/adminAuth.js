@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 import { verifyLogin, changePassword } from '../sentinel/security/accountService.js';
 import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordPolicy.js';
-import { loginLimiter } from '../middleware/rateLimiter.js';
+import { loginLimiter, signupLimiter } from '../middleware/rateLimiter.js';
 import logger from '../config/logger.js';
 import { totpService } from '../services/totpService.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
@@ -90,6 +90,45 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!loginResult.success) {
       const status = loginResult.expired ? 403 : 401;
       return res.status(status).json({ error: loginResult.error });
+    }
+
+    // 🔒 Vérifier le statut du tenant (essai expiré, suspendu, annulé)
+    {
+      const { data: tenantRow } = await supabase
+        .from('tenants')
+        .select('statut, essai_fin')
+        .eq('id', loginResult.user.tenant_id)
+        .single();
+
+      if (tenantRow) {
+        // Auto-expiration si essai dépassé
+        if (tenantRow.statut === 'essai' && tenantRow.essai_fin && new Date(tenantRow.essai_fin) < new Date()) {
+          await supabase
+            .from('tenants')
+            .update({ statut: 'expire', updated_at: new Date().toISOString() })
+            .eq('id', loginResult.user.tenant_id);
+          tenantRow.statut = 'expire';
+        }
+
+        if (tenantRow.statut === 'expire') {
+          return res.status(403).json({
+            error: 'Votre essai gratuit est terminé. Choisissez un plan pour continuer.',
+            code: 'TRIAL_EXPIRED'
+          });
+        }
+        if (tenantRow.statut === 'annule') {
+          return res.status(403).json({
+            error: 'Votre compte a été résilié.',
+            code: 'ACCOUNT_CANCELLED'
+          });
+        }
+        if (tenantRow.statut === 'suspendu') {
+          return res.status(403).json({
+            error: 'Abonnement suspendu suite à un échec de paiement. Mettez à jour votre moyen de paiement.',
+            code: 'SUBSCRIPTION_SUSPENDED'
+          });
+        }
+      }
     }
 
     // 🔒 2FA: Vérifier si TOTP activé avant de délivrer le JWT
@@ -277,7 +316,7 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/auth/signup (créer un compte)
-router.post('/signup', async (req, res) => {
+router.post('/signup', signupLimiter, async (req, res) => {
   try {
     const { entreprise, nom, email, telephone, password, plan = 'starter', accept_cgv } = req.body;
 
@@ -311,6 +350,22 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Un compte avec cet email existe déjà' });
     }
 
+    // 🔒 Anti-abus: vérifier unicité du téléphone
+    if (telephone) {
+      const formattedPhone = telephone.replace(/\s+/g, '').trim();
+      const { data: existingTenantByPhone } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('telephone', formattedPhone)
+        .neq('statut', 'annule')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingTenantByPhone) {
+        return res.status(400).json({ error: 'Un compte existe déjà avec ce numéro de téléphone' });
+      }
+    }
+
     // Créer le slug du tenant
     const slug = entreprise
       .toLowerCase()
@@ -341,6 +396,7 @@ router.post('/signup', async (req, res) => {
         status: 'active',
         statut: 'essai',
         essai_fin: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
         settings: {
           timezone: 'Europe/Paris',
           currency: 'EUR',

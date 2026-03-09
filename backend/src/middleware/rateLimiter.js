@@ -100,9 +100,37 @@ export const notificationLimiter = rateLimit({
   legacyHeaders: false
 });
 
+/**
+ * Rate limiter pour les inscriptions
+ * 3 par heure par IP (anti-abus essai gratuit)
+ */
+export const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 heure
+  max: 3,
+  message: {
+    success: false,
+    error: 'Trop de créations de compte. Réessayez dans 1 heure.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    logger.info('Signup bloqué', { tag: 'RATE LIMIT', ip: req.ip });
+    res.status(429).json({
+      success: false,
+      error: 'Trop de créations de compte depuis cette adresse',
+      message: 'Veuillez réessayer dans 1 heure',
+      retryAfter: 60 * 60
+    });
+  },
+  skip: (req) => {
+    return process.env.SKIP_RATE_LIMIT === 'true';
+  }
+});
+
 export default {
   loginLimiter,
   apiLimiter,
   paymentLimiter,
-  notificationLimiter
+  notificationLimiter,
+  signupLimiter
 };

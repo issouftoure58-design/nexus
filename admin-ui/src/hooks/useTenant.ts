@@ -75,7 +75,7 @@ export interface Tenant {
   modules: TenantModules;
   branding: TenantBranding;
   quotas: TenantQuotas;
-  statut: 'actif' | 'essai' | 'suspendu' | 'annule';
+  statut: 'actif' | 'essai' | 'expire' | 'suspendu' | 'annule';
   essai_fin?: string;
   onboarding_completed?: boolean;
 }
