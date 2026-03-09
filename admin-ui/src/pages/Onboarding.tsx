@@ -294,10 +294,8 @@ export default function Onboarding() {
   const setupMutation = useMutation({
     mutationFn: setupFromTemplate,
     onSuccess: async () => {
-      // Marquer onboarding comme terminé
+      // Marquer onboarding comme terminé (en DB via API)
       await completeOnboarding();
-      const ct = localStorage.getItem('nexus_current_tenant');
-      localStorage.setItem(ct ? `nexus_onboarding_done_${ct}` : 'nexus_onboarding_done', 'true');
       navigate('/');
     },
   });
@@ -816,9 +814,8 @@ export default function Onboarding() {
         {/* Skip option */}
         <div className="text-center mt-6">
           <button
-            onClick={() => {
-              const ct = localStorage.getItem('nexus_current_tenant');
-      localStorage.setItem(ct ? `nexus_onboarding_done_${ct}` : 'nexus_onboarding_done', 'true');
+            onClick={async () => {
+              await completeOnboarding();
               navigate('/');
             }}
             className="text-white/50 hover:text-white/70 text-sm transition-colors"

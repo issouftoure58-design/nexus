@@ -169,6 +169,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
         quotas: quotas,
         statut: tenant.statut || 'actif',
         essai_fin: tenant.essai_fin || null,
+        onboarding_completed: tenant.onboarding_completed || false,
       },
     };
 

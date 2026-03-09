@@ -77,6 +77,7 @@ export interface Tenant {
   quotas: TenantQuotas;
   statut: 'actif' | 'essai' | 'suspendu' | 'annule';
   essai_fin?: string;
+  onboarding_completed?: boolean;
 }
 
 interface TenantResponse {
@@ -320,6 +321,9 @@ export function useTenant() {
     // Helper quotas
     getQuota: (quotaName: keyof TenantQuotas) => currentQuotas[quotaName],
     isQuotaUnlimited: (quotaName: keyof TenantQuotas) => currentQuotas[quotaName] === -1,
+
+    // Onboarding
+    onboardingCompleted: tenant?.onboarding_completed || false,
 
     // Infos essai
     isOnTrial: tenant?.statut === 'essai',

@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import ErrorBoundary from './components/ErrorBoundary';
 import { authApi, api } from './lib/api';
-import { TenantProvider } from './contexts/TenantContext';
+import { TenantProvider, useTenantContext } from './contexts/TenantContext';
 import { ProfileProvider } from './contexts/ProfileContext';
 import { ModuleGate } from './components/ModuleGate/ModuleGate';
 
@@ -88,12 +88,10 @@ function getCurrentToken(): string | null {
 
 // Auth guard component
 function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode; skipOnboarding?: boolean }) {
-  // DEMO_MODE désactivé - authentification réelle requise
-  const DEMO_MODE = false;
-
   const token = getCurrentToken();
+  const { onboardingCompleted, isLoading: tenantLoading } = useTenantContext();
 
-  const { data, isLoading, isError } = useQuery({
+  const { isLoading, isError } = useQuery({
     queryKey: ['auth-verify'],
     queryFn: authApi.verify,
     enabled: !!token,
@@ -104,7 +102,7 @@ function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode;
     return <Navigate to="/login" replace />;
   }
 
-  if (isLoading) {
+  if (isLoading || tenantLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -117,10 +115,8 @@ function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode;
     return <Navigate to="/login" replace />;
   }
 
-  // Rediriger vers onboarding si pas encore fait (par tenant)
-  const currentTenant = localStorage.getItem('nexus_current_tenant');
-  const onboardingKey = currentTenant ? `nexus_onboarding_done_${currentTenant}` : 'nexus_onboarding_done';
-  if (!skipOnboarding && !localStorage.getItem(onboardingKey)) {
+  // Rediriger vers onboarding si pas encore fait (source de vérité : DB serveur)
+  if (!skipOnboarding && !onboardingCompleted) {
     return <Navigate to="/onboarding" replace />;
   }
 
