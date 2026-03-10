@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../config/supabase.js';
+import { BUSINESS_TYPES } from '../config/businessTypes.js';
 
 // Cache des profils (TTL: 5 minutes)
 const profileCache = new Map();
@@ -95,8 +96,42 @@ export async function loadProfile(tenantId) {
 
     const profileId = tenant.business_profile || 'beauty';
 
-    // Charger le profil
-    const profile = await getProfileById(profileId);
+    // Charger le profil depuis la DB
+    let profile = await getProfileById(profileId);
+
+    // Fallback: si pas en business_profiles table, construire depuis BUSINESS_TYPES
+    if (!profile && BUSINESS_TYPES[profileId]) {
+      const bt = BUSINESS_TYPES[profileId];
+      profile = {
+        id: profileId,
+        label: bt.label,
+        description: bt.description || bt.label,
+        icon: bt.icon || 'Building',
+        pricing: {
+          mode: bt.pricingMode || 'fixed',
+          allowedModes: bt.pricingModesAllowed || ['fixed'],
+        },
+        duration: {
+          mode: bt.durationMode || 'fixed',
+          allowMultiDay: bt.allowMultiDay || false,
+          allowOvernight: false,
+        },
+        terminology: {
+          reservation: bt.terminology?.reservation || { singular: 'RDV', plural: 'RDV' },
+          service: bt.terminology?.service || { singular: 'Service', plural: 'Services' },
+          client: bt.terminology?.client || { singular: 'Client', plural: 'Clients' },
+          employee: bt.terminology?.employee || { singular: 'Employé', plural: 'Employés' },
+          duration: bt.terminology?.duration || 'Durée',
+          quantity: bt.terminology?.quantity || 'Quantité',
+        },
+        fields: {
+          service: bt.fieldConfig?.service || { required: ['nom'], optional: [], forbidden: [] },
+          reservation: bt.fieldConfig?.reservation || { required: ['date_rdv'], optional: [], forbidden: [] },
+        },
+        rules: bt.businessRules || {},
+      };
+      console.log(`[PROFILES] ✓ Construit depuis BUSINESS_TYPES: ${profileId} pour ${tenantId}`);
+    }
 
     if (!profile) {
       console.error(`[PROFILES] Profil ${profileId} non trouvé pour tenant ${tenantId}`);

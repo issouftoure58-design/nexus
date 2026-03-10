@@ -73,7 +73,7 @@ router.get('/', async (req, res) => {
 
       console.log(`[ADMIN PROFILE] ✓ Profil enrichi pour ${tenantId} (${businessType})`);
     } catch (businessInfoError) {
-      console.warn('[ADMIN PROFILE] Infos business non disponibles, utilisation du profil standard');
+      console.error('[ADMIN PROFILE] ❌ Infos business non disponibles:', businessInfoError.message, businessInfoError.stack);
     }
 
     res.json({ profile });
