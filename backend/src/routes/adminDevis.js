@@ -9,6 +9,7 @@ import express from 'express';
 import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import NotificationService from '../services/notificationService.js';
 import { validate } from '../middleware/validate.js';
 
@@ -41,7 +42,7 @@ const createDevisSchema = z.object({
 }).passthrough();
 
 const router = express.Router();
-router.use(authenticateAdmin);
+router.use(authenticateAdmin, requireModule('devis'));
 
 // ============================================
 // HELPERS

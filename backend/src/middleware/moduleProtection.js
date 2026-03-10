@@ -10,6 +10,7 @@
 
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
+import { PLAN_FEATURES, ROUTE_MODULES, getPlansForFeature } from '../config/planFeatures.js';
 
 // Cache des configs tenant (TTL: 30 secondes pour sécurité)
 // 🔒 SÉCURITÉ: TTL court pour éviter les fenêtres d'exploitation
@@ -37,96 +38,29 @@ const MODULE_TYPES = {
   // Fonctionnalités incluses dans le plan (vérifier plan.colonne)
   'comptabilite': 'plan',
   'crm_avance': 'plan',
-  'marketing_automation': 'plan',
+  'marketing': 'plan',
   'commercial': 'plan',
-  'stock_inventaire': 'plan',
-  'analytics_avances': 'plan',
-  'seo_visibilite': 'plan',
-  'rh_multiemployes': 'plan',
-  'api_integrations': 'plan',
-  'white_label': 'plan',
+  'pipeline': 'plan',
+  'stock': 'plan',
+  'devis': 'plan',
+  'analytics': 'plan',
+  'seo': 'plan',
+  'rh': 'plan',
+  'api': 'plan',
+  'sentinel': 'plan',
+  'whitelabel': 'plan',
 
   // Fonctionnalités toujours disponibles avec un plan
   'reservations': 'always',
   'ecommerce': 'always',
   'paiements': 'always',
+  'facturation': 'always',
+  'clients': 'always',
+  'documents': 'always',
+  'dashboard': 'always',
 };
 
-/**
- * Plan features mapping (pas de table plans, on utilise le plan_id directement)
- *
- * Grille tarifaire 2026:
- * - STARTER (99€/mois): 1 user, 1000 clients, 200 SMS
- * - PRO (249€/mois): 5 users, 5000 clients, 500 SMS, 60min voix IA
- * - BUSINESS (499€/mois): 20 users, illimité, 2000 SMS, 300min voix IA
- */
-const PLAN_FEATURES = {
-  starter: {
-    // Fonctionnalités de base
-    dashboard: true,
-    clients: true,
-    reservations: true,
-    facturation: true,
-    agent_ia_web: true,
-    documents: true,
-    paiements: true,
-    ecommerce: true,
-  },
-  pro: {
-    // Tout Starter
-    dashboard: true,
-    clients: true,
-    reservations: true,
-    facturation: true,
-    agent_ia_web: true,
-    documents: true,
-    paiements: true,
-    ecommerce: true,
-    // + Fonctionnalités Pro
-    whatsapp: true,
-    telephone: true,
-    comptabilite: true,
-    crm_avance: true,
-    devis: true,
-    stock: true,
-    stock_inventaire: true,
-  },
-  business: {
-    // Tout Starter
-    dashboard: true,
-    clients: true,
-    reservations: true,
-    facturation: true,
-    agent_ia_web: true,
-    documents: true,
-    paiements: true,
-    ecommerce: true,
-    // Tout Pro
-    whatsapp: true,
-    telephone: true,
-    comptabilite: true,
-    crm_avance: true,
-    devis: true,
-    stock: true,
-    stock_inventaire: true,
-    // + Fonctionnalités Business exclusives
-    marketing: true,
-    marketing_automation: true,
-    pipeline: true,
-    commercial: true,
-    analytics: true,
-    analytics_avances: true,
-    seo: true,
-    seo_visibilite: true,
-    rh: true,
-    rh_multiemployes: true,
-    api: true,
-    api_integrations: true,
-    sentinel: true,
-    whitelabel: true,
-    white_label: true,
-  }
-};
+// PLAN_FEATURES importé depuis config/planFeatures.js (source unique de vérité)
 
 /**
  * Extrait les clés canal depuis PLAN_FEATURES pour un plan donné
@@ -311,58 +245,18 @@ export async function getActiveModules(tenantId) {
     activeModules.push(config.module_metier_id);
   }
 
-  // Ajouter fonctionnalités du plan
+  // Ajouter fonctionnalités du plan (noms canoniques depuis PLAN_FEATURES)
   if (config.plan) {
-    const planFeatures = ['comptabilite', 'crm_avance', 'marketing_automation', 'commercial',
-      'stock_inventaire', 'analytics_avances', 'seo_visibilite', 'rh_multiemployes',
-      'api_integrations', 'white_label'];
-
-    planFeatures.forEach(feat => {
-      if (config.plan[feat] === true) {
+    for (const [feat, enabled] of Object.entries(config.plan)) {
+      if (enabled === true && !activeModules.includes(feat)) {
         activeModules.push(feat);
       }
-    });
-
-    // Fonctionnalités toujours actives avec un plan
-    activeModules.push('reservations', 'ecommerce', 'paiements');
+    }
   }
 
   return activeModules;
 }
 
-/**
- * Mapping routes → modules requis
- * Utilisé pour auto-application du middleware
- */
-export const ROUTE_MODULES = {
-  // Réservations (toujours disponible avec un plan)
-  '/api/rendez-vous': 'reservations',
-  '/api/admin/reservations': 'reservations',
-  '/api/admin/disponibilites': 'reservations',
-
-  // Canaux clients (options payantes)
-  '/api/whatsapp': 'agent_ia_whatsapp',
-  '/api/twilio/whatsapp': 'agent_ia_whatsapp',
-  '/api/voice': 'agent_ia_telephone',
-  '/api/twilio/voice': 'agent_ia_telephone',
-  '/api/chat': 'agent_ia_web',
-  '/api/admin/agents': 'agent_ia_web',
-
-  // Business (toujours disponible avec un plan)
-  '/api/payment': 'paiements',
-  '/api/orders': 'ecommerce',
-  '/api/admin/orders': 'ecommerce',
-
-  // Fonctionnalités plan
-  '/api/admin/marketing': 'marketing_automation',
-  '/api/admin/seo': 'seo_visibilite',
-  '/api/admin/comptabilite': 'comptabilite',
-  '/api/admin/rh': 'rh_multiemployes',
-  '/api/admin/crm': 'crm_avance',
-  '/api/admin/analytics': 'analytics_avances'
-};
-
-// Export PLAN_FEATURES pour tests et vérification cohérence
-export { PLAN_FEATURES };
+// ROUTE_MODULES importé depuis config/planFeatures.js (source unique de vérité)
 
 export default { requireModule, hasModule, getActiveModules, invalidateModuleCache, ROUTE_MODULES, PLAN_FEATURES };

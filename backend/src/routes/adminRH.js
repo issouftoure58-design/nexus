@@ -6,6 +6,7 @@
 import express from 'express';
 import PDFDocument from 'pdfkit';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { supabase } from '../config/supabase.js';
 import { validerDSN, genererRapport } from '../services/dsnValidator.js';
 import documentsRHService from '../services/documentsRHService.js';
@@ -14,6 +15,9 @@ import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
 
 const router = express.Router();
+
+// Appliquer auth + vérification module RH (Business) globalement
+router.use(authenticateAdmin, requireModule('rh'));
 
 // ============================================
 // HELPER: CONVERSION CHAMPS VIDES

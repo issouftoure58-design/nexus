@@ -89,6 +89,8 @@ nexus/
 | Rate limiting | 6 limiteurs (api, login, payment, notification, signup, check) | Actif |
 | Trial enforcement | `enforceTrialLimit` sur routes critiques (reservations, clients, chat, emails, sms) | Actif |
 | Anti-fraude signup | Unicite email + telephone + SIRET, signupLimiter 3/h/IP | Actif |
+| Plan isolation | `config/planFeatures.js` source unique de verite, `requireModule()` sur toutes les routes | Actif |
+| Module protection | 7 routes admin securisees (compta, stock, devis, pipeline, RH, SEO, analytics) | Actif |
 | CSP/Helmet | Headers securite stricts | Actif |
 | Zod validation | `middleware/validate.js` (5 routes critiques) | Actif |
 

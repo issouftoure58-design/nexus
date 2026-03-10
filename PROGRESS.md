@@ -368,6 +368,36 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 
 ## HISTORIQUE DES SESSIONS
 
+### 2026-03-10 — Session 29 : Isolation plans + Business Plan enrichi
+
+**13 fichiers modifies. Source unique de verite pour les plans, 7 routes securisees, business plan mis a jour.**
+
+#### Isolation des plans — Source unique de verite
+- **`config/planFeatures.js`** (NOUVEAU) : source unique de verite pour PLAN_FEATURES, PLAN_LIMITS, ROUTE_MODULES, helpers (getFeaturesForPlan, getPlansForFeature, getMinPlanForFeature)
+- `moduleProtection.js` : suppression PLAN_FEATURES inline + import depuis planFeatures.js, noms canoniques (plus d'alias morts), `getActiveModules()` reecrit (iteration dynamique sur config.plan)
+- `checkPlan.js` : suppression PLAN_MODULES/PLAN_LIMITES/getRequiredPlans inline + import depuis planFeatures.js
+- `adminAuth.js` (signup) : suppression PLAN_MODULES inline + import getFeaturesForPlan
+
+#### 7 routes admin securisees avec requireModule()
+- `adminCompta.js` → `requireModule('comptabilite')` (Pro)
+- `adminStock.js` → `requireModule('stock')` (Pro)
+- `adminDevis.js` → `requireModule('devis')` (Pro)
+- `adminPipeline.js` → `requireModule('pipeline')` (Business) — remplace legacy `requireProPlan`
+- `adminRH.js` → `requireModule('rh')` (Business)
+- `adminSEO.js` → `requireModule('seo')` (Business)
+- `adminAnalytics.js` → `requireModule('analytics')` (Business)
+
+#### Business Plan mis a jour (MD + HTML)
+- CV fondateur complet : BEP Compta (2006), CQP APS (2008), IFOCOP (2009), SSIAP 1 (2024), 10 ans comptabilite, 4 ans gerant SARL
+- Version v3.18 → v3.21, tests 473 → 484 (24 suites backend + 10 suites admin-ui)
+- Modules corriges : detail exact Starter/Pro/Business (plus de "Pro+" generique)
+- Pages 43 → 46, composants 49 → 71
+- Stack IA mise a jour (Claude Opus 4.6, ElevenLabs, 4 verticales metier)
+
+**Fichiers modifies/crees (13):** planFeatures.js (NEW), moduleProtection.js, checkPlan.js, adminAuth.js, adminCompta.js, adminStock.js, adminDevis.js, adminPipeline.js, adminRH.js, adminSEO.js, adminAnalytics.js, BUSINESS_PLAN_NEXUS.md, BUSINESS_PLAN_NEXUS.html
+
+---
+
 ### 2026-03-10 — Session 28 : Admin IA adapte au metier + Securite Trial
 
 **8 fichiers modifies. IA admin adaptee au plan+metier, 7 failles trial corrigees.**

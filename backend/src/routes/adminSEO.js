@@ -8,10 +8,14 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { generateArticle, generateArticleIdeas, improveArticle } from '../ai/seoArticleGenerator.js';
 import { analyzeKeywords, generateSEORecommendations, analyzeCompetition } from '../ai/keywordAnalyzer.js';
 
 const router = express.Router();
+
+// Appliquer auth + vérification module SEO (Business) globalement
+router.use(authenticateAdmin, requireModule('seo'));
 
 // ============= ARTICLES =============
 

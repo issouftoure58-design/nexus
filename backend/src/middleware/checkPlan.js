@@ -5,6 +5,7 @@
 
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
+import { PLAN_FEATURES, PLAN_LIMITS, getPlansForFeature } from '../config/planFeatures.js';
 
 /**
  * Middleware verifiant l'acces d'un tenant a un module
@@ -48,40 +49,12 @@ export function requireModule(moduleName) {
         });
       }
 
-      // Plan definitions (source de verite — pas de table plans en DB)
-      const PLAN_MODULES = {
-        starter: {
-          dashboard: true, clients: true, reservations: true,
-          facturation: true, agent_ia_web: true, documents: true
-        },
-        pro: {
-          dashboard: true, clients: true, reservations: true,
-          facturation: true, agent_ia_web: true, documents: true,
-          whatsapp: true, telephone: true, comptabilite: true,
-          crm_avance: true, devis: true, stock: true
-        },
-        business: {
-          dashboard: true, clients: true, reservations: true,
-          facturation: true, agent_ia_web: true, documents: true,
-          whatsapp: true, telephone: true, comptabilite: true,
-          crm_avance: true, devis: true, stock: true,
-          marketing: true, pipeline: true, commercial: true,
-          analytics: true, seo: true, rh: true,
-          api: true, sentinel: true, whitelabel: true
-        }
-      };
-
-      const PLAN_LIMITES = {
-        starter: { clients_max: 200, reservations_mois: 500 },
-        pro: { clients_max: 2000, reservations_mois: 5000 },
-        business: { clients_max: -1, reservations_mois: -1 }
-      };
-
+      // PLAN_FEATURES et PLAN_LIMITS importés depuis config/planFeatures.js (source unique de vérité)
       const planName = tenant.plan || 'starter';
       const plan = {
         nom: planName,
-        modules: PLAN_MODULES[planName] || PLAN_MODULES.starter,
-        limites: PLAN_LIMITES[planName] || PLAN_LIMITES.starter
+        modules: PLAN_FEATURES[planName] || PLAN_FEATURES.starter,
+        limites: PLAN_LIMITS[planName] || PLAN_LIMITS.starter
       };
 
       // ═══════════════════════════════════════════════════
@@ -133,7 +106,7 @@ export function requireModule(moduleName) {
                          plan?.modules?.[moduleName];
 
       if (!moduleActif) {
-        const requiredPlans = getRequiredPlans(moduleName);
+        const requiredPlans = getPlansForFeature(moduleName);
 
         return res.status(403).json({
           error: 'Module non inclus',
@@ -195,13 +168,7 @@ export function checkUsageLimit(resource) {
         return res.status(404).json({ error: 'Tenant non trouve' });
       }
 
-      const PLAN_LIMITES = {
-        starter: { clients_max: 200, reservations_mois: 500 },
-        pro: { clients_max: 2000, reservations_mois: 5000 },
-        business: { clients_max: -1, reservations_mois: -1 }
-      };
-
-      const limites = PLAN_LIMITES[tenant.plan] || PLAN_LIMITES.starter;
+      const limites = PLAN_LIMITS[tenant.plan] || PLAN_LIMITS.starter;
 
       // Recuperer usage du mois
       const firstDayOfMonth = new Date();
@@ -329,52 +296,7 @@ export function checkUsageLimit(resource) {
   };
 }
 
-/**
- * Helper : quels plans incluent ce module
- *
- * Grille tarifaire 2026:
- * - STARTER (99€): Fonctionnalités de base
- * - PRO (249€): Fonctionnalités avancées + IA vocale
- * - BUSINESS (499€): Tout inclus + fonctionnalités premium
- */
-function getRequiredPlans(moduleName) {
-  const moduleToPlans = {
-    // ════════════════════════════════════════════════════════════════
-    // STARTER - Fonctionnalités de base (99€/mois)
-    // ════════════════════════════════════════════════════════════════
-    'dashboard': ['starter', 'pro', 'business'],
-    'clients': ['starter', 'pro', 'business'],
-    'reservations': ['starter', 'pro', 'business'],
-    'facturation': ['starter', 'pro', 'business'],
-    'agent_ia_web': ['starter', 'pro', 'business'],
-    'documents': ['starter', 'pro', 'business'],
-
-    // ════════════════════════════════════════════════════════════════
-    // PRO - Fonctionnalités avancées (249€/mois)
-    // ════════════════════════════════════════════════════════════════
-    'whatsapp': ['pro', 'business'],
-    'telephone': ['pro', 'business'],
-    'comptabilite': ['pro', 'business'],
-    'crm_avance': ['pro', 'business'],
-    'devis': ['pro', 'business'],
-    'stock': ['pro', 'business'],
-
-    // ════════════════════════════════════════════════════════════════
-    // BUSINESS - Fonctionnalités premium (499€/mois)
-    // ════════════════════════════════════════════════════════════════
-    'marketing': ['business'],
-    'pipeline': ['business'],
-    'commercial': ['business'],
-    'analytics': ['business'],
-    'seo': ['business'],
-    'rh': ['business'],
-    'api': ['business'],
-    'sentinel': ['business'],
-    'whitelabel': ['business']
-  };
-
-  return moduleToPlans[moduleName] || [];
-}
+// getPlansForFeature importé depuis config/planFeatures.js (source unique de vérité)
 
 /**
  * Middleware verifiant acces module metier (reservations, commandes, etc.)

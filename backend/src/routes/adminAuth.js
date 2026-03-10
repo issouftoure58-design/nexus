@@ -9,6 +9,7 @@ import logger from '../config/logger.js';
 import { totpService } from '../services/totpService.js';
 import { getBusinessTemplate, TEMPLATE_TO_PROFILE, generateIaConfig } from '../data/businessTemplates.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
+import { getFeaturesForPlan } from '../config/planFeatures.js';
 
 const router = express.Router();
 
@@ -397,27 +398,8 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const effectiveTemplate = template_type || 'autre';
     const businessProfile = TEMPLATE_TO_PROFILE[effectiveTemplate] || 'salon';
 
-    // Modules par plan — tous les plans incluent les modules de base
-    const PLAN_MODULES = {
-      starter: {
-        reservations: true, clients: true, services: true,
-        facturation: true, agent_ia_web: true, ia_reservation: true,
-      },
-      pro: {
-        reservations: true, clients: true, services: true,
-        facturation: true, agent_ia_web: true, ia_reservation: true,
-        comptabilite: true, analytics: true, marketing: true,
-        whatsapp: true, stock: true, crm_avance: true,
-      },
-      business: {
-        reservations: true, clients: true, services: true,
-        facturation: true, agent_ia_web: true, ia_reservation: true,
-        comptabilite: true, analytics: true, marketing: true,
-        whatsapp: true, telephone: true, stock: true,
-        crm_avance: true, seo: true, rh: true, sentinel: true,
-      },
-    };
-    const modulesActifs = PLAN_MODULES[plan] || PLAN_MODULES.starter;
+    // Modules par plan — depuis config/planFeatures.js (source unique de vérité)
+    const modulesActifs = getFeaturesForPlan(plan);
 
     // Créer le tenant avec template + business_profile + modules
     const { data: tenant, error: tenantError } = await supabase

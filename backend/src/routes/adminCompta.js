@@ -5,13 +5,14 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { calculatePnL, calculatePnLPeriode, calculatePnLAnnee, comparePnL } from '../services/comptaService.js';
 import PDFDocument from 'pdfkit';
 
 const router = express.Router();
 
-// Appliquer authentification
-router.use(authenticateAdmin);
+// Appliquer authentification + vérification module comptabilite (Pro+)
+router.use(authenticateAdmin, requireModule('comptabilite'));
 
 /**
  * GET /api/admin/compta/pnl

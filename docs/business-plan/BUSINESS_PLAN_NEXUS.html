@@ -616,8 +616,8 @@
 
   <h2>Traction actuelle</h2>
   <div class="kpi-row">
-    <div class="kpi-box"><div class="kpi-value">v3.18</div><div class="kpi-label">Version en production</div></div>
-    <div class="kpi-box"><div class="kpi-value success">473</div><div class="kpi-label">Tests automatises</div></div>
+    <div class="kpi-box"><div class="kpi-value">v3.21</div><div class="kpi-label">Version en production</div></div>
+    <div class="kpi-box"><div class="kpi-value success">484</div><div class="kpi-label">Tests automatises</div></div>
     <div class="kpi-box"><div class="kpi-value">100/100</div><div class="kpi-label">Score technique</div></div>
     <div class="kpi-box"><div class="kpi-value success">1</div><div class="kpi-label">Client Business actif</div></div>
   </div>
@@ -631,7 +631,7 @@
     <div class="kpi-box"><div class="kpi-value">87%</div><div class="kpi-label">Marge brute</div></div>
     <div class="kpi-box"><div class="kpi-value">640k</div><div class="kpi-label">Etablissements cibles</div></div>
     <div class="kpi-box"><div class="kpi-value">74</div><div class="kpi-label">Routes API</div></div>
-    <div class="kpi-box"><div class="kpi-value">43</div><div class="kpi-label">Pages frontend</div></div>
+    <div class="kpi-box"><div class="kpi-value">46</div><div class="kpi-label">Pages admin-ui</div></div>
   </div>
 
   <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 3</div>
@@ -705,12 +705,12 @@
   <h1><span class="section-number">3</span> Le Produit</h1>
 
   <h2>3.1 Architecture technique</h2>
-  <p>NEXUS est bati sur une architecture <strong>multi-tenant avec isolation stricte des donnees</strong> (Tenant Shield). Chaque client dispose d'un espace completement isole, garanti par 473 tests automatises.</p>
+  <p>NEXUS est bati sur une architecture <strong>multi-tenant avec isolation stricte des donnees</strong> (Tenant Shield). Chaque client dispose d'un espace completement isole, garanti par 484 tests automatises.</p>
 
   <table>
     <tr><th>Couche</th><th>Technologie</th><th>Role</th></tr>
     <tr><td>Backend</td><td>Node.js / Express.js</td><td>74 routes API, 78 services</td></tr>
-    <tr><td>Frontend</td><td>React / TypeScript / Vite</td><td>43 pages, 49 composants</td></tr>
+    <tr><td>Frontend</td><td>React / TypeScript / Vite</td><td>46 pages, 71 composants</td></tr>
     <tr><td>Base de donnees</td><td>Supabase (PostgreSQL)</td><td>RLS, 87 migrations</td></tr>
     <tr><td>Intelligence artificielle</td><td>Claude (Anthropic)</td><td>Agents conversationnels multi-canaux</td></tr>
     <tr><td>Paiement</td><td>Stripe</td><td>Abonnements, facturation, dunning</td></tr>
@@ -722,18 +722,27 @@
   <h2>3.2 Modules fonctionnels</h2>
   <table>
     <tr><th>Module</th><th>Plan</th><th>Description</th></tr>
-    <tr><td>Agenda & Reservations</td><td>Tous</td><td>Calendrier, RDV, multi-services</td></tr>
-    <tr><td>CRM & Clients</td><td>Tous</td><td>Fichier client, historique, segmentation RFM</td></tr>
-    <tr><td>Facturation</td><td>Tous</td><td>Auto-generation, relances, avoirs</td></tr>
-    <tr><td>Programme Fidelite</td><td>Tous</td><td>Points, recompenses, classement</td></tr>
-    <tr><td>Comptabilite</td><td>Pro+</td><td>P&L, journaux, rapprochement, expert-comptable</td></tr>
-    <tr><td>Marketing</td><td>Pro+</td><td>Segments, workflows, campagnes A/B</td></tr>
-    <tr><td>Stock</td><td>Pro+</td><td>Inventaire, alertes, mouvements</td></tr>
-    <tr><td>RH & Planning</td><td>Pro+</td><td>Equipe, conges, paie, evaluations</td></tr>
-    <tr><td>Agent IA (Web/Tel/WhatsApp)</td><td>Pro+</td><td>Assistants 24/7 multi-canaux</td></tr>
-    <tr><td>SENTINEL Monitoring</td><td>Business</td><td>Dashboard temps reel, alertes, anomalies</td></tr>
-    <tr><td>SEO & Visibilite</td><td>Business</td><td>Articles IA, Google My Business</td></tr>
-    <tr><td>Pipeline Commercial</td><td>Business</td><td>Opportunites, previsions CA</td></tr>
+    <tr><td>Dashboard</td><td>Starter</td><td>Vue d'ensemble activite, KPIs temps reel</td></tr>
+    <tr><td>Agenda & Reservations</td><td>Starter</td><td>Calendrier, RDV, multi-services, liste d'attente</td></tr>
+    <tr><td>CRM & Clients</td><td>Starter</td><td>Fichier client, historique, segmentation, fidelite</td></tr>
+    <tr><td>Facturation</td><td>Starter</td><td>Auto-generation, relances, avoirs</td></tr>
+    <tr><td>Agent IA Web</td><td>Starter</td><td>Chatbot 24/7 sur site client</td></tr>
+    <tr><td>Documents</td><td>Starter</td><td>Generation et gestion documents</td></tr>
+    <tr><td>E-commerce & Paiements</td><td>Starter</td><td>Boutique en ligne, paiement Stripe</td></tr>
+    <tr><td>Comptabilite</td><td>Pro</td><td>P&L, rapprochement, export expert-comptable</td></tr>
+    <tr><td>CRM Avance</td><td>Pro</td><td>Segmentation, workflows, relances auto</td></tr>
+    <tr><td>Devis</td><td>Pro</td><td>Generation, suivi, conversion en facture</td></tr>
+    <tr><td>Stock & Inventaire</td><td>Pro</td><td>Inventaire, alertes seuil, mouvements</td></tr>
+    <tr><td>Agent IA Telephone</td><td>Pro</td><td>Assistant vocal (Twilio + ElevenLabs)</td></tr>
+    <tr><td>Agent IA WhatsApp</td><td>Pro</td><td>Bot WhatsApp Business</td></tr>
+    <tr><td>Marketing & Campagnes</td><td>Business</td><td>Email/SMS, workflows, campagnes A/B</td></tr>
+    <tr><td>Pipeline Commercial</td><td>Business</td><td>Opportunites, etapes, previsions CA</td></tr>
+    <tr><td>Analytics Avances</td><td>Business</td><td>Previsions IA, clustering, churn</td></tr>
+    <tr><td>SEO & Visibilite</td><td>Business</td><td>Articles IA, mots-cles, recommandations</td></tr>
+    <tr><td>RH & Planning</td><td>Business</td><td>Equipe, conges, paie, evaluations, DSN</td></tr>
+    <tr><td>API & Webhooks</td><td>Business</td><td>Integration tierce, cles API</td></tr>
+    <tr><td>SENTINEL Monitoring</td><td>Business</td><td>Dashboard temps reel, alertes, couts</td></tr>
+    <tr><td>White-label</td><td>Business</td><td>Personnalisation marque complete</td></tr>
   </table>
 
   <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 5</div>
@@ -749,7 +758,7 @@
   </div>
 
   <h2>3.3 Le produit en images</h2>
-  <p class="text-muted text-small">Captures d'ecran reelles de la plateforme en production (v3.18.0)</p>
+  <p class="text-muted text-small">Captures d'ecran reelles de la plateforme en production (v3.21.0)</p>
 
   <div class="screenshot-grid">
     <div class="screenshot-item">
@@ -899,15 +908,41 @@
 
   <h2>5.1 Fondateur</h2>
   <div class="highlight">
-    <strong>Issouf Toure</strong> — CEO & CTO<br><br>
-    <ul style="margin-left:15px; font-size:14px;">
-      <li><strong>Entrepreneur autodidacte</strong> : a appris le developpement en construisant NEXUS de zero jusqu'a la v3.18.0</li>
-      <li>18 mois de R&D en autonomie complete — preuve de capacite d'apprentissage, de rigueur et de determination</li>
-      <li>Maitrise acquise sur le terrain : React, Node.js, PostgreSQL, IA (Claude/Anthropic), Stripe, Twilio</li>
-      <li>Experience entrepreneuriale prealable (projet tech 2023)</li>
-      <li>Connaissance terrain des besoins des PME de services (1er client en production)</li>
-    </ul>
+    <strong>Issouf Toure</strong> — CEO & CTO<br>
+    <span style="font-size:13px; color:var(--text-light);">SIREN : 947 570 362 — Nexus.AI, 8 rue des Monts Rouges, 95130 Franconville</span>
   </div>
+
+  <h3 style="margin-top:20px;">Formation</h3>
+  <table>
+    <tr><th>Annee</th><th>Diplome / Formation</th><th>Statut</th></tr>
+    <tr><td>2006</td><td>BEP Comptabilite</td><td>Obtenu</td></tr>
+    <tr><td>2008</td><td>CQP APS (Agent de Prevention et de Securite)</td><td>Obtenu</td></tr>
+    <tr><td>2009</td><td>Comptabilite et Gestion Informatisee — IFOCOP</td><td>Formation completee</td></tr>
+    <tr><td>2010</td><td>Bac Pro Comptabilite (alternance)</td><td>Non obtenu</td></tr>
+    <tr><td>2024</td><td>SSIAP 1 (Service de Securite Incendie)</td><td>Obtenu</td></tr>
+    <tr><td>2024-2026</td><td>Developpement full-stack (autodidacte)</td><td>En cours</td></tr>
+  </table>
+
+  <h3 style="margin-top:20px;">Experience professionnelle</h3>
+  <table>
+    <tr><th>Periode</th><th>Poste</th><th>Contexte</th></tr>
+    <tr><td>2005-2008</td><td>Agent de production (saisons ete)</td><td>Industrie</td></tr>
+    <tr><td>2007</td><td>Livreur de journaux</td><td>Presse</td></tr>
+    <tr><td>2008</td><td>Agent de securite</td><td>Securite privee</td></tr>
+    <tr><td>2010-2013</td><td>Assistant comptable</td><td>Cabinet / Entreprise</td></tr>
+    <tr><td>2014-2020</td><td><strong>Comptable</strong> (6 ans)</td><td>Entreprise</td></tr>
+    <tr><td>2019-2023</td><td><strong>Gerant de SARL</strong> — livraison de colis (4 ans)</td><td>Entrepreneur</td></tr>
+    <tr><td>2023-2025</td><td>Agent de securite</td><td>Securite privee</td></tr>
+    <tr><td>2024-present</td><td><strong>Fondateur & CTO NEXUS</strong></td><td>Nexus.AI</td></tr>
+  </table>
+
+  <h3 style="margin-top:20px;">Competences cles pour NEXUS</h3>
+  <ul style="margin-left:15px; font-size:14px;">
+    <li><strong>10 ans en comptabilite</strong> (BEP + assistant + comptable) — connaissance metier directe pour les modules facturation, compta, devis, P&L</li>
+    <li><strong>4 ans entrepreneur</strong> (gerant SARL) — gestion d'entreprise, relation client, logistique, administratif</li>
+    <li><strong>Developpeur full-stack autodidacte</strong> — React, Node.js, PostgreSQL, IA (Claude/Anthropic), Stripe, Twilio — NEXUS v3.21.0 construit seul (18 mois)</li>
+    <li><strong>Determination prouvee</strong> — 74 routes API, 78 services, 46 pages, 484 tests, score 100/100, 4 verticales metier</li>
+  </ul>
 
   <h2>5.2 Plan de recrutement</h2>
   <table>
@@ -931,7 +966,7 @@
     <tr><td>Statut social</td><td><strong>Demandeur d'emploi, beneficiaire ASS</strong></td></tr>
     <tr><td>Forme actuelle</td><td>Micro-entreprise (EI) — transformation en SASU prevue</td></tr>
     <tr><td>Apport cash</td><td>0 EUR — compense par l'actif logiciel et les prets d'honneur</td></tr>
-    <tr><td>Actif technologique</td><td>Plateforme NEXUS v3.18.0 — valorisee a 80 000 EUR (cout de remplacement)</td></tr>
+    <tr><td>Actif technologique</td><td>Plateforme NEXUS v3.21.0 — valorisee a 80 000 EUR (cout de remplacement)</td></tr>
     <tr><td>Eligible ACRE</td><td>Oui (beneficiaire ASS) — exoneration charges 1 an</td></tr>
     <tr><td>Eligible NACRE</td><td>Oui (beneficiaire ASS) — pret 0%, jusqu'a 10 000 EUR</td></tr>
   </table>
@@ -1168,7 +1203,7 @@
     <tr><th>Risque</th><th>Probabilite</th><th>Impact</th><th>Mitigation</th></tr>
     <tr><td>Acquisition clients lente</td><td><span class="risk-med">Moyenne</span></td><td><span class="risk-high">Fort</span></td><td>Offre freemium limitee, partenariats distributeurs, scenario pessimiste prepare</td></tr>
     <tr><td>Churn eleve</td><td><span class="risk-low">Faible</span></td><td><span class="risk-high">Fort</span></td><td>Onboarding assiste, CSM dedie, programme fidelite, prevention churn IA</td></tr>
-    <tr><td>Panne technique</td><td><span class="risk-low">Faible</span></td><td><span class="risk-high">Fort</span></td><td>473 tests, SENTINEL monitoring 24/7, backups automatiques</td></tr>
+    <tr><td>Panne technique</td><td><span class="risk-low">Faible</span></td><td><span class="risk-high">Fort</span></td><td>484 tests, SENTINEL monitoring 24/7, backups automatiques</td></tr>
     <tr><td>Concurrent agressif</td><td><span class="risk-med">Moyenne</span></td><td><span class="risk-med">Moyen</span></td><td>Multi-vertical = differenciateur difficile a copier, 18 mois d'avance technique</td></tr>
     <tr><td>Reglementation IA</td><td><span class="risk-low">Faible</span></td><td><span class="risk-med">Moyen</span></td><td>Conformite AI Act anticipee, donnees hebergees en Europe</td></tr>
   </table>
@@ -1214,7 +1249,7 @@
   <h1><span class="section-number">10</span> Conclusion</h1>
 
   <p style="font-size:16px; line-height:1.8;">
-    NEXUS dispose d'un <strong>produit mature</strong> (v3.18.0, score technique 100/100, 473 tests), d'un <strong>modele economique eprouve</strong> (SaaS par abonnement, marge brute 87%), et d'un <strong>marche adressable massif</strong> (640 000 etablissements en France, 75% non equipes).
+    NEXUS dispose d'un <strong>produit mature</strong> (v3.21.0, score technique 100/100, 484 tests), d'un <strong>modele economique eprouve</strong> (SaaS par abonnement, marge brute 87%), et d'un <strong>marche adressable massif</strong> (640 000 etablissements en France, 75% non equipes).
   </p>
 
   <p style="font-size:16px; line-height:1.8;">
@@ -1263,7 +1298,7 @@
   </div>
 
   <h1>Annexe A — Captures d'ecran de la plateforme</h1>
-  <p class="text-muted">Plateforme en production — v3.18.0 — app.nexus-ai-saas.com</p>
+  <p class="text-muted">Plateforme en production — v3.21.0 — app.nexus-ai-saas.com</p>
 
   <h3>A.1 Dashboard principal & Assistant IA</h3>
   <div class="screenshot-full">
@@ -1423,7 +1458,7 @@
 
   <h2>Chiffres techniques cles</h2>
   <div class="kpi-row">
-    <div class="kpi-box"><div class="kpi-value">473</div><div class="kpi-label">Tests automatises</div></div>
+    <div class="kpi-box"><div class="kpi-value">484</div><div class="kpi-label">Tests automatises</div></div>
     <div class="kpi-box"><div class="kpi-value success">0</div><div class="kpi-label">Echecs</div></div>
     <div class="kpi-box"><div class="kpi-value">87</div><div class="kpi-label">Migrations DB</div></div>
     <div class="kpi-box"><div class="kpi-value">100/100</div><div class="kpi-label">Score technique</div></div>
@@ -1473,7 +1508,7 @@
     </div>
   </div>
 
-  <p class="text-small text-muted">Note : Actif technologique du fondateur (plateforme NEXUS v3.18.0) valorise a 80 000 EUR en cout de remplacement — non inscrit au capital pour eviter les frais de commissaire aux apports.</p>
+  <p class="text-small text-muted">Note : Actif technologique du fondateur (plateforme NEXUS v3.21.0) valorise a 80 000 EUR en cout de remplacement — non inscrit au capital pour eviter les frais de commissaire aux apports.</p>
 
   <h2>C.2 Hypotheses detaillees</h2>
   <table class="compact">

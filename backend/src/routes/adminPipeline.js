@@ -6,6 +6,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
@@ -32,33 +33,8 @@ const ETAPE_CONFIG = {
   perdu: { label: 'Perdu', color: 'red', probability: 0 }
 };
 
-// Middleware: Vérifier plan PRO
-async function requireProPlan(req, res, next) {
-  try {
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('plan, tier')
-      .eq('id', req.admin.tenant_id)
-      .single();
-
-    const plan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
-
-    if (plan === 'starter') {
-      return res.status(403).json({
-        error: 'Pipeline commercial réservé aux plans Pro et Business',
-        required_plan: 'pro'
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error('[PIPELINE] Erreur vérification plan:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-}
-
-// Appliquer middleware
-router.use(authenticateAdmin, requireProPlan);
+// Appliquer middleware auth + vérification module pipeline (Business)
+router.use(authenticateAdmin, requireModule('pipeline'));
 
 /**
  * GET /api/admin/pipeline

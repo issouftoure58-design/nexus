@@ -5,6 +5,7 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import {
   forecastRevenue,
   analyzeClientTrends,
@@ -15,6 +16,9 @@ import { analyzeChurnRiskAll, scheduleChurnPrevention } from '../ai/predictions.
 import { getComptabiliteAnalytique } from '../services/analytiqueService.js';
 
 const router = express.Router();
+
+// Appliquer auth + vérification module analytics (Business) globalement
+router.use(authenticateAdmin, requireModule('analytics'));
 
 /**
  * GET /api/admin/analytics/overview

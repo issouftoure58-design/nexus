@@ -1,7 +1,7 @@
 # BUSINESS PLAN — NEXUS
 ## Plateforme SaaS de gestion intelligente pour PME de services
 
-**Version 1.0 — Mars 2026**
+**Version 2.0 — Mars 2026**
 **Confidentiel**
 
 ---
@@ -17,11 +17,15 @@ Les 1,2 million de PME de services en France utilisent en moyenne 4 a 7 outils d
 NEXUS remplace tous ces outils par une plateforme unique, avec des assistants IA integres qui automatisent les taches repetitives : prise de RDV par chatbot/telephone/WhatsApp, relances clients, facturation automatique, marketing cible.
 
 ### Traction actuelle
-- Plateforme en production (v3.18.0), score technique 100/100
-- 473 tests automatises, 0 echec
+- Plateforme en production (v3.21.0), score technique 100/100
+- 484 tests automatises (21 suites backend + 9 suites frontend), 0 echec
 - 1 client Business en production (salon de coiffure)
-- 74 routes API, 78 services backend, 43 pages frontend
-- Stack complete operationnelle : IA (Claude/Anthropic), paiement (Stripe), communication (Twilio), email (Resend)
+- 74 routes API, 78 services backend, 46 pages admin, 87 migrations DB
+- 4 verticales metier operationnelles : salon, restaurant, hotel, services a domicile
+- Systeme de plans isoles et securises (Starter/Pro/Business) avec gating par module
+- Stack complete operationnelle : IA (Claude Opus 4.6/Anthropic), paiement (Stripe), communication (Twilio), email (Resend)
+- Monitoring proprietaire SENTINEL (22 composants, alertes temps reel)
+- Domaine en production : nexus-ai-saas.com / app.nexus-ai-saas.com
 - Entreprise immatriculee (SIREN 947570362), comptes fournisseurs actifs, facturation en cours
 
 ### Demande de financement
@@ -79,38 +83,47 @@ NEXUS remplace tous ces outils par une plateforme unique, avec des assistants IA
 
 ### 3.1 Architecture technique
 
-NEXUS est bati sur une architecture multi-tenant avec isolation stricte des donnees (Tenant Shield). Chaque client dispose d'un espace completement isole, garanti par un systeme de protection verifie par 473 tests automatises.
+NEXUS est bati sur une architecture multi-tenant avec isolation stricte des donnees (Tenant Shield). Chaque client dispose d'un espace completement isole, garanti par un systeme de protection verifie par 484 tests automatises et un lint tenant automatique.
 
 **Stack technique :**
-- Backend : Node.js/Express.js (74 routes, 78 services)
-- Frontend : React/TypeScript/Vite (43 pages, 49 composants)
+- Backend : Node.js/Express.js (74 routes, 78 services, 16 middleware, 87 migrations)
+- Frontend admin : React/TypeScript/Vite (46 pages, 71 composants)
+- Landing : React/Vite + Spline 3D (site vitrine nexus-ai-saas.com)
 - Base de donnees : Supabase (PostgreSQL) avec RLS
-- IA : Claude (Anthropic) — agents conversationnels
-- Paiement : Stripe (abonnements, facturation, dunning)
-- Communication : Twilio (SMS, appels, WhatsApp)
-- Email : Resend (transactionnel + marketing)
-- Monitoring : SENTINEL (systeme proprietaire)
-- Deploiement : Render (cloud)
+- IA : Claude Opus 4.6 (Anthropic) — agents conversationnels multi-canal
+- Voix IA : ElevenLabs (synthese vocale naturelle francaise)
+- Paiement : Stripe (abonnements, facturation, dunning, webhooks)
+- Communication : Twilio (SMS, appels vocaux, WhatsApp Business)
+- Email : Resend (transactionnel + marketing, domaine verifie)
+- Monitoring : SENTINEL (systeme proprietaire, 22 composants, alertes temps reel)
+- Deploiement : Render (backend + admin-ui + landing, CI/CD GitHub Actions)
+- Securite : Isolation tenant stricte, rate limiting, CSRF, CORS, sessions DB, MFA (TOTP)
 
 ### 3.2 Modules fonctionnels
 
 | Module | Plan | Description |
 |--------|------|-------------|
-| Agenda & Reservations | Tous | Calendrier, RDV, multi-services |
-| CRM & Clients | Tous | Fichier client, historique, import CSV |
-| Facturation | Tous | Auto-generation, relances, avoirs |
-| Programme Fidelite | Tous | Points, recompenses, classement |
-| Liste d'attente | Tous | Notification auto sur annulation |
-| Comptabilite | Pro+ | P&L, rapprochement, expert-comptable |
-| Marketing | Pro+ | Segments, workflows, campagnes A/B |
-| Stock | Pro+ | Inventaire, alertes, mouvements |
-| RH & Planning | Pro+ | Equipe, conges, evaluations |
-| Agent IA Web | Pro+ | Chatbot 24/7 sur site client |
-| Agent IA Telephone | Pro+ | Assistant vocal appels entrants |
-| Agent IA WhatsApp | Pro+ | Bot WhatsApp pour clients |
-| SENTINEL Monitoring | Business | Dashboard temps reel, alertes |
-| SEO & Visibilite | Business | Articles IA, Google My Business |
-| API & Webhooks | Business | Integration tierce |
+| Dashboard | Starter | Vue d'ensemble activite, KPIs temps reel |
+| Agenda & Reservations | Starter | Calendrier, RDV, multi-services, liste d'attente |
+| CRM & Clients | Starter | Fichier client, historique, import CSV, fidelite |
+| Facturation | Starter | Auto-generation, relances, avoirs |
+| Agent IA Web | Starter | Chatbot 24/7 sur site client |
+| Documents | Starter | Generation et gestion documents |
+| E-commerce & Paiements | Starter | Boutique en ligne, paiement Stripe |
+| Comptabilite | Pro | P&L, rapprochement, export expert-comptable |
+| CRM Avance | Pro | Segmentation, workflows, relances auto |
+| Devis | Pro | Generation, suivi, conversion en facture |
+| Stock & Inventaire | Pro | Inventaire, alertes seuil, mouvements |
+| Agent IA Telephone | Pro | Assistant vocal appels entrants (Twilio+ElevenLabs) |
+| Agent IA WhatsApp | Pro | Bot WhatsApp Business pour clients |
+| Marketing & Campagnes | Business | Email/SMS, workflows, campagnes A/B |
+| Pipeline Commercial | Business | Opportunites, etapes, previsions CA |
+| Analytics Avances | Business | Previsions IA, clustering, churn |
+| SEO & Visibilite | Business | Articles IA, mots-cles, recommandations |
+| RH & Planning | Business | Equipe, conges, paie, evaluations, DSN |
+| API & Webhooks | Business | Integration tierce, cles API |
+| SENTINEL Monitoring | Business | Dashboard temps reel, alertes, couts |
+| White-label | Business | Personnalisation marque complete |
 
 ### 3.3 Grille tarifaire
 
@@ -180,12 +193,38 @@ Retention M3+        → 45/mois (churn 10% M1, puis 2.5%/mois)
 ### 5.1 Fondateur
 
 **Issouf Toure** — CEO & CTO
-- Entrepreneur autodidacte : a appris le developpement en construisant NEXUS de zero jusqu'a la v3.18.0
-- 18 mois de R&D en autonomie complete — preuve de capacite d'apprentissage et de determination
-- Maitrise acquise sur le terrain : React, Node.js, PostgreSQL, IA (Claude/Anthropic), Stripe, Twilio
-- Experience entrepreneuriale prealable (projet tech 2023)
-- Connaissance terrain des besoins des PME de services (1er client en production)
-- SIREN : 947570362 — Nexus.AI, Franconville (95130)
+- SIREN : 947570362 — Nexus.AI, 8 rue des Monts Rouges, 95130 Franconville
+
+**Formation :**
+
+| Annee | Diplome / Formation | Etablissement | Statut |
+|-------|---------------------|---------------|--------|
+| 2006 | BEP Comptabilite | | Obtenu |
+| 2008 | CQP APS (Agent de Prevention et de Securite) | | Obtenu |
+| 2009 | Comptabilite et Gestion Informatisee | IFOCOP | Formation completee |
+| 2010 | Bac Pro Comptabilite (alternance) | | Non obtenu |
+| 2024 | SSIAP 1 (Service de Securite Incendie) | | Obtenu |
+| 2024-2026 | Developpement full-stack (autodidacte) | Autoformation | En cours |
+
+**Experience professionnelle :**
+
+| Periode | Poste | Entreprise / Contexte |
+|---------|-------|-----------------------|
+| 2005-2008 | Agent de production (saisons ete) | Industrie |
+| 2007 | Livreur de journaux | Presse |
+| 2008 | Agent de securite | Securite privee |
+| 2010-2013 | Assistant comptable | Cabinet / Entreprise |
+| 2014-2020 | Comptable | Entreprise (6 ans) |
+| 2019-2023 | Gerant de SARL — livraison de colis | Entrepreneur (4 ans) |
+| 2023-2025 | Agent de securite | Securite privee |
+| 2024-present | Fondateur & CTO NEXUS | Nexus.AI (EI puis SASU) |
+
+**Competences cles pour NEXUS :**
+- **10 ans en comptabilite** (BEP + assistant + comptable) — connaissance metier directe pour construire les modules facturation, compta, devis, P&L de la plateforme
+- **4 ans entrepreneur** (gerant SARL) — gestion d'entreprise, relation client, logistique, administratif : comprehension terrain des besoins des PME
+- **Developpeur full-stack autodidacte** — a appris React, Node.js, PostgreSQL, IA (Claude/Anthropic), Stripe, Twilio en construisant NEXUS de zero jusqu'a la v3.21.0 (18 mois de R&D solo)
+- **Determination prouvee** — plateforme de 74 routes API, 78 services, 46 pages, 484 tests, score 100/100, construite seul sans formation prealable en developpement
+- **Connaissance terrain** — 1er client en production, 4 verticales metier operationnelles
 
 ### 5.2 Plan de recrutement
 
@@ -259,9 +298,9 @@ Le fondateur ne dispose pas d'apport en tresorerie mais a investi **18 mois de d
 
 | Element | Valorisation conservative |
 |---------|--------------------------|
-| Developpement plateforme (v3.18.0, 18 mois de travail) | 80 000 EUR |
-| 74 routes API, 78 services, 43 pages frontend | inclus |
-| 473 tests automatises, score technique 100/100 | inclus |
+| Developpement plateforme (v3.21.0, 18 mois de travail) | 80 000 EUR |
+| 74 routes API, 78 services, 46 pages frontend | inclus |
+| 484 tests automatises, score technique 100/100 | inclus |
 | Integrations IA (Claude), Stripe, Twilio, Resend | inclus |
 | 87 migrations DB, architecture multi-tenant | inclus |
 | 1 client Business en production (preuve de marche) | inclus |
@@ -452,7 +491,7 @@ BFR = 0 + 0 - 1 mois de charges variables = -800 EUR
 |--------|------------|--------|------------|
 | Acquisition clients lente | Moyenne | Fort | Offre freemium limitee, partenariats distributeurs |
 | Churn eleve | Faible | Fort | Onboarding assiste, CSM dedie, programme fidelite |
-| Panne technique | Faible | Fort | 473 tests, SENTINEL monitoring, backups |
+| Panne technique | Faible | Fort | 484 tests, SENTINEL monitoring, backups |
 | Concurrent agressif | Moyenne | Moyen | Multi-vertical = differenciateur difficile a copier |
 | Reglementation IA | Faible | Moyen | Conformite AI Act anticipee, donnees en Europe |
 
@@ -478,7 +517,7 @@ BFR = 0 + 0 - 1 mois de charges variables = -800 EUR
 
 ## 10. CONCLUSION
 
-NEXUS dispose d'un produit mature (v3.18.0, 100/100 technique, 473 tests), d'un modele economique eprouve (SaaS par abonnement, marge brute 87%), et d'un marche adressable massif (640 000 etablissements en France, 75% non equipes).
+NEXUS dispose d'un produit mature (v3.21.0, 100/100 technique, 484 tests), d'un modele economique eprouve (SaaS par abonnement, marge brute 87%), et d'un marche adressable massif (640 000 etablissements en France, 75% non equipes).
 
 Le financement demande de 85 000 EUR permettra de transformer un produit techniquement abouti en une entreprise commercialement viable, avec un chemin clair vers la rentabilite en Annee 3 et un CA previsionnel de pres de 500 000 EUR.
 

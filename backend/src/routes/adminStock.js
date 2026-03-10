@@ -6,11 +6,12 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 
 const router = express.Router();
 
-// Middleware auth admin
-router.use(authenticateAdmin);
+// Middleware auth admin + vérification module stock (Pro+)
+router.use(authenticateAdmin, requireModule('stock'));
 
 /**
  * GET /api/admin/stock
