@@ -183,8 +183,8 @@ export default function Services() {
     <div className="p-6">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('service', true)}</h1>
-        <p className="text-sm text-gray-500">{data?.services?.length || 0} {t('service', true).toLowerCase()} configurés</p>
+        <h1 className="text-2xl font-bold text-gray-900">{String(t('service', true))}</h1>
+        <p className="text-sm text-gray-500">{data?.services?.length || 0} {String(t('service', true)).toLowerCase()} configurées</p>
       </div>
       <div className="space-y-6">
         {/* Header with search */}
@@ -193,7 +193,7 @@ export default function Services() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
             <Input
               type="search"
-              placeholder={`Rechercher un ${t('service').toLowerCase()}...`}
+              placeholder={`Rechercher une ${String(t('service')).toLowerCase()}...`}
               value={searchInput}
               onChange={(e) => {
                 setSearchInput(e.target.value);
@@ -232,7 +232,7 @@ export default function Services() {
             className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
           >
             <Plus className="h-4 w-4" />
-            Nouveau {t('service').toLowerCase()}
+            Nouvelle {String(t('service')).toLowerCase()}
           </Button>
         </div>
 
@@ -375,7 +375,7 @@ export default function Services() {
 
             {hasActiveFilters && (
               <span className="text-sm text-gray-500">
-                {filteredServices.length} / {data?.services?.length || 0} {t('service', true).toLowerCase()}
+                {filteredServices.length} / {data?.services?.length || 0} {String(t('service', true)).toLowerCase()}
               </span>
             )}
           </div>
@@ -530,7 +530,7 @@ export default function Services() {
               <Card className="col-span-full">
                 <CardContent className="p-12 text-center">
                   <Search className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Aucun {t('service').toLowerCase()} trouvé avec ces filtres</p>
+                  <p className="text-gray-500">Aucune {String(t('service')).toLowerCase()} trouvée avec ces filtres</p>
                   <Button
                     variant="link"
                     onClick={resetFilters}
@@ -557,7 +557,7 @@ export default function Services() {
                       ? 'Aucune table configurée'
                       : isBusinessType('hotel')
                         ? 'Aucune chambre configurée'
-                        : `Aucun ${t('service').toLowerCase()} configuré`
+                        : `Aucune ${String(t('service')).toLowerCase()} configurée`
                     }
                   </p>
                   <Button
@@ -569,7 +569,7 @@ export default function Services() {
                       ? 'Créer votre première table'
                       : isBusinessType('hotel')
                         ? 'Créer votre première chambre'
-                        : `Créer votre premier ${t('service').toLowerCase()}`
+                        : `Créer votre première ${String(t('service')).toLowerCase()}`
                     }
                   </Button>
                 </CardContent>
@@ -729,7 +729,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
-          <CardTitle>{isEditing ? `Modifier le ${t('service').toLowerCase()}` : `Nouveau ${t('service').toLowerCase()}`}</CardTitle>
+          <CardTitle>{isEditing ? `Modifier la ${String(t('service')).toLowerCase()}` : `Nouvelle ${String(t('service')).toLowerCase()}`}</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
@@ -743,7 +743,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nom du {t('service').toLowerCase()} *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom de la {String(t('service')).toLowerCase()} *</label>
               <Input
                 value={formData.nom}
                 onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
@@ -1042,8 +1042,8 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
 
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div>
-                <p className="font-medium text-sm">{t('service')} actif</p>
-                <p className="text-xs text-gray-500">Visible et réservable par les {t('client', true).toLowerCase()}</p>
+                <p className="font-medium text-sm">{String(t('service'))} active</p>
+                <p className="text-xs text-gray-500">Visible et réservable par les {String(t('client', true)).toLowerCase()}</p>
               </div>
               <button
                 type="button"
@@ -1074,7 +1074,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                 ) : isEditing ? (
                   'Enregistrer'
                 ) : (
-                  `Créer le ${t('service').toLowerCase()}`
+                  `Créer la ${String(t('service')).toLowerCase()}`
                 )}
               </Button>
             </div>
