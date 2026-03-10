@@ -16,7 +16,7 @@ import { BUSINESS_TYPES } from '../config/businessTypes.js';
 // CONTEXTES PAR TYPE DE BUSINESS
 // ============================================
 
-const BUSINESS_CONTEXTS = {
+export const BUSINESS_CONTEXTS = {
   service_domicile: {
     description: 'prestataire de services à domicile',
     actions: [
