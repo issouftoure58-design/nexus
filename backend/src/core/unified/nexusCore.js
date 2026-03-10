@@ -373,6 +373,18 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         result = await checkAllergenesTool(tenantId, toolInput.plat_nom, toolInput.allergene_a_eviter);
         break;
 
+      case 'get_hotel_info':
+        result = await getHotelInfoTool(tenantId);
+        break;
+
+      case 'get_chambres_disponibles':
+        result = await getChambresDisponiblesTool(tenantId, toolInput.type_chambre, toolInput.nb_personnes);
+        break;
+
+      case 'check_room_availability':
+        result = await checkRoomAvailabilityTool(tenantId, toolInput.date_arrivee, toolInput.date_depart, toolInput.nb_personnes, toolInput.type_chambre);
+        break;
+
       case 'get_upcoming_days':
         result = await getUpcomingDays(toolInput.nb_jours, tenantId);
         break;
@@ -1005,6 +1017,239 @@ async function checkAllergenesTool(tenantId, platNom = null, allergeneAEviter = 
     return { success: false, error: 'Spécifiez un plat à vérifier ou un allergène à éviter.' };
   } catch (err) {
     console.error('[NEXUS CORE] checkAllergenes error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HOTEL TOOLS
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function getHotelInfoTool(tenantId) {
+  try {
+    const { data: tenant, error } = await db
+      .from('tenants')
+      .select('name, profile_config, adresse, telephone, email')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) throw error;
+
+    const config = tenant?.profile_config || {};
+    const info = config.hotel_info || null;
+
+    if (!info) {
+      return {
+        success: true,
+        disponible: false,
+        message: "Le gérant n'a pas encore renseigné les informations détaillées de l'hôtel. Vous pouvez indiquer au client les coordonnées de base.",
+        etablissement: { nom: tenant?.name, adresse: tenant?.adresse, telephone: tenant?.telephone, email: tenant?.email }
+      };
+    }
+
+    return {
+      success: true,
+      disponible: true,
+      informations: info,
+      etablissement: { nom: tenant?.name, adresse: tenant?.adresse, telephone: tenant?.telephone },
+      instruction: "Utilise ces informations pour répondre aux questions du client sur l'hôtel. Ne mentionne pas que tu lis un champ technique."
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] getHotelInfo error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function getChambresDisponiblesTool(tenantId, typeChambre = null, nbPersonnes = null) {
+  try {
+    let query = db
+      .from('services')
+      .select('id, nom, description, prix, duree, capacite, capacite_max, type_chambre, etage, vue, equipements, actif')
+      .eq('tenant_id', tenantId)
+      .not('type_chambre', 'is', null)
+      .eq('actif', true)
+      .order('type_chambre')
+      .order('nom');
+
+    if (typeChambre) {
+      query = query.eq('type_chambre', typeChambre);
+    }
+    if (nbPersonnes) {
+      query = query.gte('capacite_max', nbPersonnes);
+    }
+
+    const { data: chambres, error } = await query;
+    if (error) throw error;
+
+    if (!chambres || chambres.length === 0) {
+      return {
+        success: true,
+        chambres: [],
+        message: nbPersonnes
+          ? `Aucune chambre disponible pour ${nbPersonnes} personne(s).`
+          : "Aucune chambre n'est configurée pour cet hôtel."
+      };
+    }
+
+    // Charger les tarifs saisonniers pour chaque chambre
+    const serviceIds = chambres.map(c => c.id);
+    const today = new Date().toISOString().split('T')[0];
+    const { data: tarifs } = await db
+      .from('tarifs_saisonniers')
+      .select('service_id, nom, prix_nuit, prix_weekend, prix_petit_dejeuner, petit_dejeuner_inclus, date_debut, date_fin')
+      .eq('tenant_id', tenantId)
+      .in('service_id', serviceIds)
+      .lte('date_debut', today)
+      .gte('date_fin', today)
+      .eq('actif', true);
+
+    const tarifMap = {};
+    (tarifs || []).forEach(t => {
+      tarifMap[t.service_id] = t;
+    });
+
+    const result = chambres.map(c => {
+      const tarif = tarifMap[c.id];
+      return {
+        nom: c.nom,
+        type: c.type_chambre,
+        capacite: c.capacite_max || c.capacite || 2,
+        etage: c.etage,
+        vue: c.vue,
+        equipements: c.equipements || [],
+        prix_nuit: tarif ? `${(tarif.prix_nuit / 100).toFixed(0)}€` : `${(c.prix / 100).toFixed(0)}€`,
+        prix_weekend: tarif?.prix_weekend ? `${(tarif.prix_weekend / 100).toFixed(0)}€` : null,
+        petit_dejeuner: tarif?.petit_dejeuner_inclus ? 'Inclus' : (tarif?.prix_petit_dejeuner ? `${(tarif.prix_petit_dejeuner / 100).toFixed(0)}€/pers` : null),
+        saison: tarif?.nom || null
+      };
+    });
+
+    return {
+      success: true,
+      chambres: result,
+      total: result.length,
+      message: `${result.length} chambre(s) disponible(s).`
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] getChambresDisponibles error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function checkRoomAvailabilityTool(tenantId, dateArrivee, dateDepart, nbPersonnes = null, typeChambre = null) {
+  try {
+    if (!dateArrivee || !dateDepart) {
+      return { success: false, error: "Les dates d'arrivée et de départ sont requises." };
+    }
+
+    // 1. Récupérer toutes les chambres actives
+    let roomQuery = db
+      .from('services')
+      .select('id, nom, description, prix, capacite_max, type_chambre, etage, vue, equipements')
+      .eq('tenant_id', tenantId)
+      .not('type_chambre', 'is', null)
+      .eq('actif', true);
+
+    if (typeChambre) roomQuery = roomQuery.eq('type_chambre', typeChambre);
+    if (nbPersonnes) roomQuery = roomQuery.gte('capacite_max', nbPersonnes);
+
+    const { data: allRooms, error: roomErr } = await roomQuery;
+    if (roomErr) throw roomErr;
+
+    if (!allRooms || allRooms.length === 0) {
+      return { success: true, disponibles: [], message: "Aucune chambre ne correspond à vos critères." };
+    }
+
+    // 2. Vérifier les occupations existantes (réservations + blocages)
+    const roomIds = allRooms.map(r => r.id);
+    const { data: occupations } = await db
+      .from('chambres_occupation')
+      .select('service_id, date_occupation, statut')
+      .eq('tenant_id', tenantId)
+      .in('service_id', roomIds)
+      .gte('date_occupation', dateArrivee)
+      .lt('date_occupation', dateDepart);
+
+    // Aussi vérifier les réservations directes
+    const { data: reservations } = await db
+      .from('reservations')
+      .select('service_id, date_debut, date_fin')
+      .eq('tenant_id', tenantId)
+      .in('service_id', roomIds)
+      .in('statut', ['confirmee', 'en_attente'])
+      .lt('date_debut', dateDepart)
+      .gt('date_fin', dateArrivee);
+
+    // Chambres occupées sur la période
+    const occupiedRoomIds = new Set();
+    (occupations || []).forEach(o => {
+      if (['reservee', 'occupee', 'maintenance', 'bloquee'].includes(o.statut)) {
+        occupiedRoomIds.add(o.service_id);
+      }
+    });
+    (reservations || []).forEach(r => {
+      occupiedRoomIds.add(r.service_id);
+    });
+
+    // 3. Filtrer les chambres libres
+    const freeRooms = allRooms.filter(r => !occupiedRoomIds.has(r.id));
+
+    // 4. Charger les tarifs saisonniers pour le prix
+    const freeIds = freeRooms.map(r => r.id);
+    let tarifMap = {};
+    if (freeIds.length > 0) {
+      const { data: tarifs } = await db
+        .from('tarifs_saisonniers')
+        .select('service_id, nom, prix_nuit, prix_weekend, prix_petit_dejeuner, petit_dejeuner_inclus, date_debut, date_fin')
+        .eq('tenant_id', tenantId)
+        .in('service_id', freeIds)
+        .lte('date_debut', dateArrivee)
+        .gte('date_fin', dateDepart)
+        .eq('actif', true);
+
+      (tarifs || []).forEach(t => { tarifMap[t.service_id] = t; });
+    }
+
+    // Calcul du nombre de nuits
+    const d1 = new Date(dateArrivee);
+    const d2 = new Date(dateDepart);
+    const nbNuits = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+
+    const disponibles = freeRooms.map(r => {
+      const tarif = tarifMap[r.id];
+      const prixNuit = tarif ? tarif.prix_nuit : r.prix;
+      const totalEstime = prixNuit * nbNuits;
+      return {
+        nom: r.nom,
+        type: r.type_chambre,
+        capacite: r.capacite_max || 2,
+        etage: r.etage,
+        vue: r.vue,
+        equipements: r.equipements || [],
+        prix_nuit: `${(prixNuit / 100).toFixed(0)}€`,
+        total_estime: `${(totalEstime / 100).toFixed(0)}€ pour ${nbNuits} nuit(s)`,
+        saison: tarif?.nom || 'Tarif standard',
+        petit_dejeuner: tarif?.petit_dejeuner_inclus ? 'Inclus' : (tarif?.prix_petit_dejeuner ? `${(tarif.prix_petit_dejeuner / 100).toFixed(0)}€/pers` : null)
+      };
+    });
+
+    if (disponibles.length === 0) {
+      return {
+        success: true,
+        disponibles: [],
+        message: `Aucune chambre disponible du ${dateArrivee} au ${dateDepart}. Suggérez d'autres dates au client.`
+      };
+    }
+
+    return {
+      success: true,
+      disponibles,
+      nb_nuits: nbNuits,
+      dates: { arrivee: dateArrivee, depart: dateDepart },
+      message: `${disponibles.length} chambre(s) disponible(s) du ${dateArrivee} au ${dateDepart} (${nbNuits} nuit(s)).`
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] checkRoomAvailability error:', err.message);
     return { success: false, error: err.message };
   }
 }

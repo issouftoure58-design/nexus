@@ -41,7 +41,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "Chaque réservation passe par les statuts : En attente → Confirmée → Terminée (ou Annulée). Terminer une prestation génère automatiquement la facture.",
       "Configurez vos horaires d'ouverture et périodes de fermeture dans 'Disponibilités'. Les créneaux indisponibles sont automatiquement bloqués.",
       "Pour les restaurants : gérez vos tables via le Plan de salle. Chaque table est une ressource avec sa capacité (nombre de places) et sa zone (intérieur, terrasse, salon privé). Quand toutes les tables sont réservées sur un créneau, le restaurant est automatiquement marqué comme complet.",
-      "Pour les hôtels : le Calendrier des chambres affiche l'occupation en temps réel avec les arrivées et départs."
+      "Pour les hôtels : le Calendrier des chambres affiche l'occupation en temps réel avec les arrivées et départs. Les réservations fonctionnent par nuitées (date d'arrivée → date de départ). Quand toutes les chambres sont occupées sur une période, l'hôtel est complet."
     ]
   },
   {
@@ -63,7 +63,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "Pour les restaurants : chaque table est un service. Créez un service par table avec le nombre de places (capacité), la zone (intérieur, terrasse, salon privé) et la disponibilité (midi, soir, midi et soir). La capacité totale de votre restaurant correspond à la somme des places de toutes vos tables actives.",
       "Exemple : 7 tables (Table 1: 2 places terrasse, Table 2: 4 places intérieur, Salon: 20 places privé) = 26 couverts. Quand un client réserve pour 4 personnes, le système attribue automatiquement la plus petite table disponible qui convient (ici, la table de 4 places).",
       "Activez/désactivez une table pour refléter des changements permanents (terrasse fermée en hiver, table en réparation). L'occupation par réservation est gérée automatiquement.",
-      "Pour les hôtels : chaque chambre est un service avec son type, étage, vue et équipements. Les Tarifs Saisonniers permettent de varier les prix selon les périodes.",
+      "Pour les hôtels : chaque chambre est un service avec son type (simple, double, suite, familiale), étage, vue, capacité maximale et équipements (WiFi, TV, climatisation, minibar...). Les Tarifs Saisonniers permettent de varier les prix selon les périodes (haute saison, basse saison, événements). Le prix affiché aux clients tient compte automatiquement de la saison.",
+      "Exemple hôtel : Chambre Confort (double, 2 pers, 2e étage, vue jardin, 99€/nuit) — Suite Prestige (suite, 4 pers, 5e étage, vue mer, 249€/nuit). La disponibilité est calculée automatiquement : si une chambre est réservée du 15 au 18 mars, elle n'apparaît plus comme disponible sur ces dates.",
       "Le module Menu (restaurant uniquement) gère les catégories de plats, prix, allergènes et le menu du jour."
     ]
   },
@@ -158,7 +159,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "Tous les agents sont entraînés sur vos données (services, horaires, FAQ) et respectent votre ton de communication.",
       "Pour les restaurants : l'IA connaît la capacité de chaque table, vérifie la disponibilité en temps réel et attribue automatiquement la meilleure table selon le nombre de convives. Si le restaurant est complet, elle propose un autre créneau (midi/soir) ou un autre jour.",
       "L'IA restaurant peut aussi renseigner vos clients sur la carte : plats disponibles, prix, menu du jour, suggestions du chef, allergènes et régimes alimentaires (végétarien, vegan, halal, sans gluten...). Pour cela, renseignez votre carte dans le module Menu.",
-      "Pour les hôtels : l'IA vérifie la disponibilité des chambres et gère les réservations avec dates d'arrivée et de départ."
+      "Pour les hôtels : l'IA connaît toutes vos chambres (type, capacité, étage, vue, équipements, prix avec tarifs saisonniers). Elle vérifie la disponibilité en temps réel pour des dates données, calcule le prix total du séjour et propose les chambres adaptées au nombre de personnes.",
+      "L'IA hôtel peut aussi renseigner vos clients sur votre établissement : services, politique d'annulation, petit-déjeuner, parking, accès PMR, animaux, horaires check-in/check-out, etc. Pour cela, renseignez la section 'Informations hôtel' dans Paramètres > Activité."
     ]
   },
   {

@@ -204,6 +204,41 @@ export const TOOLS_CLIENT = [
     }
   },
   {
+    name: "get_hotel_info",
+    description: "Récupère les informations de l'hôtel renseignées par le gérant : services, équipements, politique d'annulation, petit-déjeuner, parking, accès PMR, check-in/check-out, animaux, ambiance, etc. OBLIGATOIRE pour répondre aux questions sur l'établissement (hors réservation de chambre).",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "get_chambres_disponibles",
+    description: "Liste les types de chambres de l'hôtel avec leurs caractéristiques (capacité, étage, vue, équipements, prix). Utilise quand un client demande les chambres, les prix ou les équipements.",
+    input_schema: {
+      type: "object",
+      properties: {
+        type_chambre: { type: "string", description: "Filtrer par type (simple, double, twin, suite, familiale)" },
+        nb_personnes: { type: "integer", description: "Nombre de personnes (filtre capacité minimum)" }
+      },
+      required: []
+    }
+  },
+  {
+    name: "check_room_availability",
+    description: "Vérifie la disponibilité des chambres pour des dates données. Retourne les chambres libres avec leurs prix (tarifs saisonniers inclus). OBLIGATOIRE avant de proposer une réservation hôtel.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date_arrivee: { type: "string", description: "Date d'arrivée (YYYY-MM-DD)" },
+        date_depart: { type: "string", description: "Date de départ (YYYY-MM-DD)" },
+        nb_personnes: { type: "integer", description: "Nombre de personnes" },
+        type_chambre: { type: "string", description: "Type de chambre souhaité (optionnel)" }
+      },
+      required: ["date_arrivee", "date_depart"]
+    }
+  },
+  {
     name: "get_salon_info",
     description: "Récupère les informations du salon (adresse, horaires, téléphone).",
     input_schema: {

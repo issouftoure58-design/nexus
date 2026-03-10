@@ -220,34 +220,38 @@ function ActiviteSubSection() {
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [changing, setChanging] = useState(false);
   const [newTemplate, setNewTemplate] = useState('');
-  const [restaurantInfo, setRestaurantInfo] = useState('');
-  const [restaurantInfoLoaded, setRestaurantInfoLoaded] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState('');
+  const [businessInfoLoaded, setBusinessInfoLoaded] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
 
   const currentTemplate = (tenant as any)?.template_id || 'autre';
   const currentInfo = TEMPLATE_LABELS[currentTemplate] || TEMPLATE_LABELS.autre;
   const professionId = (tenant as any)?.profession_id;
 
-  // Charger restaurant_info depuis profile_config
+  // Clé profile_config selon le métier
+  const infoKey = currentTemplate === 'restaurant' ? 'restaurant_info' : currentTemplate === 'hotel' ? 'hotel_info' : null;
+  const showInfoSection = infoKey !== null;
+
+  // Charger les infos métier depuis profile_config
   useEffect(() => {
-    if (currentTemplate === 'restaurant' && !restaurantInfoLoaded) {
+    if (showInfoSection && !businessInfoLoaded) {
       api.get<{ config: Record<string, unknown> }>('/admin/profile/config')
         .then((res) => {
-          const info = (res?.config as any)?.restaurant_info || '';
-          setRestaurantInfo(info);
-          setRestaurantInfoLoaded(true);
+          const info = (res?.config as any)?.[infoKey!] || '';
+          setBusinessInfo(info);
+          setBusinessInfoLoaded(true);
         })
-        .catch(() => setRestaurantInfoLoaded(true));
+        .catch(() => setBusinessInfoLoaded(true));
     }
-  }, [currentTemplate, restaurantInfoLoaded]);
+  }, [showInfoSection, businessInfoLoaded, infoKey]);
 
-  const handleSaveRestaurantInfo = async () => {
+  const handleSaveBusinessInfo = async () => {
     setSavingInfo(true);
     try {
       await api.patch('/admin/profile/config', {
-        config: { restaurant_info: restaurantInfo },
+        config: { [infoKey!]: businessInfo },
       });
-      setFeedback({ message: 'Informations restaurant enregistrées', type: 'success' });
+      setFeedback({ message: 'Informations enregistrées', type: 'success' });
     } catch {
       setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
     } finally {
@@ -333,25 +337,31 @@ function ActiviteSubSection() {
           </div>
         </div>
 
-        {/* Informations restaurant — visible uniquement pour les restaurants */}
-        {currentTemplate === 'restaurant' && (
+        {/* Informations établissement — restaurant ou hôtel */}
+        {showInfoSection && (
           <div className="space-y-3 pt-4 border-t">
             <label className="block text-sm font-medium text-gray-700">
-              Informations restaurant (visibles par l'IA)
+              {currentTemplate === 'restaurant'
+                ? 'Informations restaurant (visibles par l\'IA)'
+                : 'Informations hôtel (visibles par l\'IA)'}
             </label>
             <p className="text-xs text-gray-500">
-              Décrivez votre restaurant : carte, spécialités, menu du jour, politique allergènes, hygiène, traçabilité, ambiance, horaires spéciaux, etc. L'agent IA utilisera ces informations pour renseigner vos clients.
+              {currentTemplate === 'restaurant'
+                ? "Décrivez votre restaurant : carte, spécialités, menu du jour, politique allergènes, hygiène, traçabilité, ambiance, horaires spéciaux, etc. L'agent IA utilisera ces informations pour renseigner vos clients."
+                : "Décrivez votre établissement : services, équipements, politique d'annulation, petit-déjeuner, parking, accès PMR, check-in/check-out, animaux acceptés, ambiance, etc. L'agent IA utilisera ces informations pour renseigner vos clients."}
             </p>
             <textarea
-              value={restaurantInfo}
-              onChange={e => setRestaurantInfo(e.target.value)}
-              placeholder="Ex : Restaurant gastronomique français. Spécialités : foie gras maison, magret de canard, soufflé au chocolat. Menu du jour à 25€ (entrée + plat + dessert). Produits frais et locaux, traçabilité complète. Allergènes affichés sur chaque plat. Cuisine ouverte, normes HACCP respectées..."
+              value={businessInfo}
+              onChange={e => setBusinessInfo(e.target.value)}
+              placeholder={currentTemplate === 'restaurant'
+                ? "Ex : Restaurant gastronomique français. Spécialités : foie gras maison, magret de canard, soufflé au chocolat. Menu du jour à 25€ (entrée + plat + dessert). Produits frais et locaux, traçabilité complète. Allergènes affichés sur chaque plat. Cuisine ouverte, normes HACCP respectées..."
+                : "Ex : Hôtel 4 étoiles en centre-ville. Check-in à partir de 15h, check-out avant 11h. Petit-déjeuner buffet 18€/personne (7h-10h30). Parking souterrain 15€/nuit. WiFi gratuit. Animaux acceptés (supplément 20€/nuit). Piscine chauffée, spa, salle de fitness. Annulation gratuite jusqu'à 48h avant l'arrivée. Accès PMR au rez-de-chaussée."}
               rows={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
             />
             <div className="flex justify-end">
               <Button
-                onClick={handleSaveRestaurantInfo}
+                onClick={handleSaveBusinessInfo}
                 disabled={savingInfo}
                 className="bg-cyan-600 hover:bg-cyan-700"
               >
