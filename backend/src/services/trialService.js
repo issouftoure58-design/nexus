@@ -131,10 +131,18 @@ async function getTrialUsage(tenantId) {
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId);
 
+    // Compter les emails marketing envoyés
+    const { count: emailsCount } = await supabase
+      .from('email_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .gte('created_at', trialStart.toISOString());
+
     return {
       interactions_ia: interactionsIa,
       reservations: reservationsCount || 0,
       sms: smsCount || 0,
+      emails: emailsCount || 0,
       clients: clientsCount || 0,
     };
   } catch (err) {
@@ -258,11 +266,14 @@ export async function checkTrialLimit(tenantId, resource, amount = 1) {
  */
 export function enforceTrialLimit(resource) {
   return async (req, res, next) => {
-    // 🔒 SÉCURITÉ: JAMAIS de fallback à header (spoofing)
-    const tenantId = req.admin?.tenant_id || req.tenantId;
+    // 🔒 SÉCURITÉ: Uniquement depuis la session admin authentifiée
+    const tenantId = req.admin?.tenant_id;
 
     if (!tenantId) {
-      return next(); // Pas de tenant, laisser passer
+      return res.status(401).json({
+        error: 'Authentification requise',
+        code: 'AUTH_REQUIRED'
+      });
     }
 
     const check = await checkTrialLimit(tenantId, resource);

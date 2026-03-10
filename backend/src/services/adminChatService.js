@@ -7,7 +7,9 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
-import { TOOLS_ADMIN, getToolsForPlan } from '../tools/toolsRegistry.js';
+import { TOOLS_ADMIN, getToolsForPlan, getToolsForPlanAndBusiness } from '../tools/toolsRegistry.js';
+import { BUSINESS_CONTEXTS } from '../prompts/systemPrompt.js';
+import { BUSINESS_TYPES } from '../config/businessTypes.js';
 // Import du dispatcher d'outils (remplace le switch monolithique)
 import { executeTool } from '../tools/handlers/index.js';
 // Import du router IA pour optimisation des couts
@@ -86,18 +88,94 @@ export async function getTenant(tenantId) {
   }
 }
 
+// ============================================
+// HELPERS POUR LE SYSTEM PROMPT
+// ============================================
+
+/**
+ * Instructions comportementales spécifiques au métier
+ */
+function getBusinessInstructions(profile) {
+  const instructions = {
+    restaurant: [
+      'Demande TOUJOURS le nombre de couverts pour une réservation',
+      'Utilise check_table_availability AVANT de proposer un créneau',
+      'Mentionne la carte du jour et les allergènes si pertinent',
+      'Distingue service midi (11h-15h) et soir (18h-23h)'
+    ],
+    hotel: [
+      'Demande TOUJOURS les dates d\'arrivée et de départ',
+      'Utilise check_room_availability avant de confirmer une réservation',
+      'Mentionne les extras et services additionnels disponibles',
+      'Indique les horaires de check-in/check-out'
+    ],
+    service_domicile: [
+      'Demande TOUJOURS l\'adresse complète du client',
+      'Utilise calculate_travel_fee pour estimer les frais de déplacement',
+      'Vérifie que l\'adresse est dans la zone de couverture',
+      'Annonce les frais de déplacement avant confirmation'
+    ],
+    salon: [
+      'Propose les créneaux disponibles en priorité',
+      'Indique le temps estimé pour chaque prestation',
+      'Suggère des services complémentaires quand pertinent',
+      'Vérifie la disponibilité des membres de l\'équipe'
+    ]
+  };
+  return instructions[profile] || instructions.salon;
+}
+
+/**
+ * Fonctionnalités disponibles selon le plan
+ */
+function getPlanCapabilities(plan) {
+  const starter = [
+    'Gestion clients et réservations',
+    'Devis et facturation',
+    'Marketing email basique',
+    'Agenda et planification',
+    'Contenu et mémoire IA'
+  ];
+  const pro = [
+    'SEO et référencement',
+    'Réseaux sociaux',
+    'RH de base (équipe, heures, absences)',
+    'Analytics KPI'
+  ];
+  const business = [
+    'Stratégie et recommandations avancées',
+    'Analytics avancé et rapports',
+    'RH complet (recrutement, performance)',
+    'Agent IA autonome',
+    'Recherche web en temps réel',
+    'Outils Pro avancés'
+  ];
+
+  if (plan === 'business' || plan === 'enterprise') {
+    return { included: [...starter, ...pro, ...business], locked: [] };
+  }
+  if (plan === 'pro') {
+    return { included: [...starter, ...pro], locked: business };
+  }
+  return { included: starter, locked: [...pro, ...business] };
+}
+
 /**
  * Construit le prompt système pour Claude
  */
 export function buildSystemPrompt(tenant) {
-  const businessName = tenant?.business_name || 'NEXUS';
-  const businessType = tenant?.business_type || 'business';
-  const plan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
+  const businessName = tenant?.name || 'NEXUS';
+  const businessProfile = tenant?.business_profile || 'salon';
+  const plan = (tenant?.plan || 'starter').toLowerCase();
   const credits = tenant?.ai_credits_remaining ?? 1000;
+
+  // Contexte métier depuis systemPrompt.js et businessTypes.js
+  const context = BUSINESS_CONTEXTS[businessProfile] || BUSINESS_CONTEXTS.salon;
+  const typeConfig = BUSINESS_TYPES[businessProfile] || BUSINESS_TYPES.salon;
 
   // Date actuelle formatée avec date ISO
   const now = new Date();
-  const dateISO = now.toISOString().split('T')[0]; // 2026-02-20
+  const dateISO = now.toISOString().split('T')[0];
   const dateStr = now.toLocaleDateString('fr-FR', {
     weekday: 'long',
     year: 'numeric',
@@ -114,6 +192,29 @@ export function buildSystemPrompt(tenant) {
     d.setDate(now.getDate() + i);
     prochainsJours.push(`${d.getDate()} = ${JOURS[d.getDay()]} ${d.toISOString().split('T')[0]}`);
   }
+
+  // Terminologie métier
+  const terminology = typeConfig.terminology;
+  const termsSection = Object.entries(terminology)
+    .map(([key, val]) => {
+      if (typeof val === 'object' && val.singular) return `- ${key}: ${val.singular} / ${val.plural}`;
+      return `- ${key}: ${val}`;
+    })
+    .join('\n');
+
+  // Actions principales du métier
+  const actionsSection = context.actions.map(a => `- ${a}`).join('\n');
+
+  // Instructions spécifiques au métier
+  const bizInstructions = getBusinessInstructions(businessProfile);
+  const instructionsSection = bizInstructions.map(i => `- ${i}`).join('\n');
+
+  // Fonctionnalités disponibles selon le plan
+  const capabilities = getPlanCapabilities(plan);
+  const includedSection = capabilities.included.map(f => `✓ ${f}`).join('\n');
+  const lockedSection = capabilities.locked.length > 0
+    ? capabilities.locked.map(f => `🔒 ${f} (plan supérieur)`).join('\n')
+    : '';
 
   return `Tu es l'Assistant Admin Pro de ${businessName}, propulsé par NEXUS.
 
@@ -132,21 +233,34 @@ Quand l'utilisateur demande d'ajouter un événement à une date :
 3. Utilise TOUJOURS heure_fin si l'utilisateur donne une plage horaire ("de 10h à 11h30" → heure="10:00", heure_fin="11:30")
 
 ## IDENTITÉ
-- Tu es un assistant IA expert en gestion d'entreprise
+- Tu es un assistant IA expert en gestion de ${context.description}
 - Tu as accès à des outils pour gérer le business
 - Tu es proactif : tu utilises les outils directement
 
 ## CONTEXTE BUSINESS
 - Entreprise : ${businessName}
-- Type : ${businessType}
+- Type : ${context.description}
 - Plan : ${plan}
 - Crédits IA : ${credits}
+
+## TERMINOLOGIE MÉTIER
+${termsSection}
+
+## ACTIONS PRINCIPALES
+${actionsSection}
+
+## INSTRUCTIONS SPÉCIFIQUES (${typeConfig.label})
+${instructionsSection}
+
+## FONCTIONNALITÉS DISPONIBLES (Plan ${plan})
+${includedSection}${lockedSection ? '\n' + lockedSection : ''}
 
 ## RÈGLES IMPORTANTES
 1. **Sois proactif** : Utilise les outils directement. Ne demande pas "Voulez-vous que je...". Fais-le.
 2. **Concis** : Maximum 300 mots sauf demande explicite
 3. **Markdown** : Utilise le markdown pour structurer (tableaux, listes)
 4. **Pas d'emoji excessif** : 1-2 max par message
+5. **Terminologie** : Utilise TOUJOURS la terminologie métier ci-dessus (pas de termes génériques)
 
 ## ACTIONS CRITIQUES (confirmation requise)
 - Suppression de données
@@ -168,8 +282,9 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
-  const tenantPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
-  const availableTools = getToolsForPlan(tenantPlan);
+  const tenantPlan = (tenant?.plan || 'starter').toLowerCase();
+  const businessProfile = tenant?.business_profile || 'salon';
+  const availableTools = getToolsForPlanAndBusiness(tenantPlan, businessProfile);
 
   // Headers SSE
   res.setHeader('Content-Type', 'text/event-stream');
@@ -267,9 +382,10 @@ export async function chat(tenantId, messages, adminId = null) {
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
-  // Récupérer les outils disponibles selon le plan du tenant
-  const tenantPlan = (tenant?.plan || tenant?.plan_id || tenant?.tier || 'starter').toLowerCase();
-  const availableTools = getToolsForPlan(tenantPlan);
+  // Récupérer les outils disponibles selon le plan ET le type de business
+  const tenantPlan = (tenant?.plan || 'starter').toLowerCase();
+  const businessProfile = tenant?.business_profile || 'salon';
+  const availableTools = getToolsForPlanAndBusiness(tenantPlan, businessProfile);
 
   let conversationMessages = messages.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',

@@ -595,12 +595,13 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
   // Recuperer les infos du tenant pour le trial
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('plan, trial_ends_at')
+    .select('plan, essai_fin, statut')
     .eq('id', tenantId)
     .single();
 
-  // Calculer si le tenant a droit a un trial
-  const hasActiveTrial = tenant?.trial_ends_at && new Date(tenant.trial_ends_at) > new Date();
+  // 🔒 SÉCURITÉ: Ne JAMAIS accorder de trial Stripe si le tenant a déjà eu un essai
+  // (empêche le double trial: 14j NEXUS + 14j Stripe = 28j)
+  const hasHadTrial = tenant?.essai_fin != null;
 
   const sessionParams = {
     customer: customer.id,
@@ -622,8 +623,8 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
     }
   };
 
-  // Ajouter trial si applicable (14 jours par defaut)
-  if (!hasActiveTrial) {
+  // Pas de trial Stripe si le tenant a déjà bénéficié d'un essai NEXUS
+  if (!hasHadTrial) {
     sessionParams.subscription_data.trial_period_days = 14;
   }
 

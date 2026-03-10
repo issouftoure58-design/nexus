@@ -14,6 +14,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import { analyzeRFM, getSegmentClients, syncRFMSegments, RFM_SEGMENTS, RFM_CONFIG } from '../services/rfmService.js';
 import { sendWhatsAppNotification } from '../services/whatsappService.js';
 import { supabase } from '../config/supabase.js';
+import { enforceTrialLimit } from '../services/trialService.js';
 
 const router = express.Router();
 
@@ -149,7 +150,7 @@ router.get('/config', authenticateAdmin, (req, res) => {
  * POST /api/admin/rfm/segments/:key/campaign
  * Envoie une campagne WhatsApp/Email aux clients d'un segment
  */
-router.post('/segments/:key/campaign', authenticateAdmin, async (req, res) => {
+router.post('/segments/:key/campaign', authenticateAdmin, enforceTrialLimit('sms'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { key } = req.params;

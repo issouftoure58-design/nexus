@@ -5,7 +5,7 @@
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
-**Version: 3.20.0**
+**Version: 3.21.0**
 **Phase en cours: Commercialisation — Multi-business restaurant/hotel**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
@@ -367,6 +367,28 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-10 — Session 28 : Admin IA adapte au metier + Securite Trial
+
+**8 fichiers modifies. IA admin adaptee au plan+metier, 7 failles trial corrigees.**
+
+#### Admin IA adapte au metier + plan
+- `toolsRegistry.js` : nouvelle fonction `getToolsForPlanAndBusiness()` — filtre les outils par type de business (restaurant, hotel, domicile, salon)
+- `adminChatService.js` : `buildSystemPrompt()` reecrit — terminologie metier (BUSINESS_TYPES), actions principales (BUSINESS_CONTEXTS), instructions comportementales specifiques, fonctionnalites plan (incluses/verouillees)
+- Fix colonnes DB : `business_name` → `name`, `business_type` → `business_profile`, suppression fallbacks `plan_id`/`tier`
+
+#### Securite Trial — 7 failles corrigees
+1. **enforceTrialLimit bypass** : `next()` sans tenant → bloque avec 401 + suppression fallback `req.tenantId` spoofable
+2. **Trial limits SMS/emails** : `enforceTrialLimit('emails')` sur marketing campagnes, `enforceTrialLimit('sms')` sur RFM campaign
+3. **signupLimiter manquant** : ajoute sur POST `/api/signup` (3/h par IP)
+4. **Stripe double trial** : fix `trial_ends_at` → `essai_fin` + logique inversee (pas de trial Stripe si deja eu essai)
+5. **Multi-comptes** : verification unicite telephone + SIRET a l'inscription
+6. **Enumeration endpoints** : nouveau `checkLimiter` (10/min par IP) sur check-email et check-company
+7. **Emails non comptes** : ajout compteur `email_logs` dans `getTrialUsage()`
+
+**Fichiers modifies (8):** toolsRegistry.js, adminChatService.js, trialService.js, stripeBillingService.js, signup.js, rateLimiter.js, marketing.js, adminRFM.js
+
+---
 
 ### 2026-03-10 — Session 27 : Multi-business Restaurant/Hotel + Comptabilité Refactor
 

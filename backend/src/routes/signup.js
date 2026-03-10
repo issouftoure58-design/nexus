@@ -14,6 +14,7 @@ import Stripe from 'stripe';
 import { BUSINESS_TEMPLATES } from '../data/businessTemplates.js';
 import { sendWelcomeEmail } from '../services/tenantEmailService.js';
 import { applyReferralCode } from '../services/referralService.js';
+import { signupLimiter, checkLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -133,8 +134,9 @@ router.get('/business-types', (req, res) => {
 /**
  * POST /api/signup
  * Creer nouveau tenant + admin + abonnement
+ * 🔒 Rate limited: 3 inscriptions/heure par IP (anti-abus trial)
  */
-router.post('/', async (req, res) => {
+router.post('/', signupLimiter, async (req, res) => {
   const {
     // Entreprise
     company_name,
@@ -184,6 +186,42 @@ router.post('/', async (req, res) => {
         error: 'Email deja utilise',
         code: 'EMAIL_EXISTS'
       });
+    }
+
+    // 🔒 Anti-fraude: vérifier téléphone unique (empêche multi-comptes trial)
+    if (telephone) {
+      const normalizedPhone = telephone.replace(/[\s\-.()]/g, '');
+      const { data: existingPhone } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('telephone', normalizedPhone)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPhone) {
+        return res.status(400).json({
+          error: 'Ce numéro de téléphone est déjà associé à un compte',
+          code: 'PHONE_EXISTS'
+        });
+      }
+    }
+
+    // 🔒 Anti-fraude: vérifier SIRET unique (empêche multi-comptes trial)
+    if (siret) {
+      const normalizedSiret = siret.replace(/\s/g, '');
+      const { data: existingSiret } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('siret', normalizedSiret)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingSiret) {
+        return res.status(400).json({
+          error: 'Ce SIRET est déjà associé à un compte',
+          code: 'SIRET_EXISTS'
+        });
+      }
     }
 
     // Recuperer plan
@@ -636,8 +674,9 @@ router.post('/', async (req, res) => {
 /**
  * POST /api/signup/check-email
  * Verifier si un email est disponible
+ * 🔒 Rate limited: 10/min par IP (anti-énumération)
  */
-router.post('/check-email', async (req, res) => {
+router.post('/check-email', checkLimiter, async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
@@ -663,8 +702,9 @@ router.post('/check-email', async (req, res) => {
 /**
  * POST /api/signup/check-company
  * Verifier si un nom d'entreprise est disponible (genere tenant_id)
+ * 🔒 Rate limited: 10/min par IP (anti-énumération)
  */
-router.post('/check-company', async (req, res) => {
+router.post('/check-company', checkLimiter, async (req, res) => {
   const { company_name } = req.body;
 
   if (!company_name) {

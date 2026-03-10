@@ -1893,6 +1893,47 @@ export function getToolsForPlan(plan) {
   return baseTools;
 }
 
+// ============================================
+// FILTRAGE OUTILS PAR TYPE DE BUSINESS
+// ============================================
+
+const RESTAURANT_ONLY_TOOLS = [
+  'get_restaurant_info', 'get_menu', 'get_menu_du_jour',
+  'check_allergenes', 'check_table_availability'
+];
+const HOTEL_ONLY_TOOLS = [
+  'get_hotel_info', 'get_chambres_disponibles', 'check_room_availability'
+];
+const DOMICILE_ONLY_TOOLS = ['calculate_travel_fee'];
+
+const BUSINESS_TOOLS_INCLUDE = {
+  restaurant: RESTAURANT_ONLY_TOOLS,
+  hotel: HOTEL_ONLY_TOOLS,
+  service_domicile: DOMICILE_ONLY_TOOLS,
+  salon: []
+};
+
+const ALL_BUSINESS_SPECIFIC = [
+  ...RESTAURANT_ONLY_TOOLS, ...HOTEL_ONLY_TOOLS, ...DOMICILE_ONLY_TOOLS
+];
+
+/**
+ * Retourne les outils filtrés par plan ET type de business
+ * Un salon ne voit pas les outils restaurant/hotel/domicile, etc.
+ */
+export function getToolsForPlanAndBusiness(plan, businessType) {
+  const planTools = getToolsForPlan(plan);
+  const type = businessType?.toLowerCase() || 'salon';
+  const include = BUSINESS_TOOLS_INCLUDE[type] || [];
+
+  return planTools.filter(t => {
+    // Outils génériques → toujours inclus
+    if (!ALL_BUSINESS_SPECIFIC.includes(t.name)) return true;
+    // Outils métier → inclus seulement si le business type le requiert
+    return include.includes(t.name);
+  });
+}
+
 /**
  * Vérifie si un outil est disponible pour un plan donné
  */
@@ -1980,6 +2021,7 @@ export default {
   TOOLS_ADMIN,
   getToolsByCategory,
   getToolByName,
+  getToolsForPlanAndBusiness,
   listToolNames,
   TOOLS_STATS
 };

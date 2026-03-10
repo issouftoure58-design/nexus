@@ -33,6 +33,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/checkPlan.js';
+import { enforceTrialLimit } from '../services/trialService.js';
 
 const router = express.Router();
 
@@ -1072,8 +1073,9 @@ router.get('/campagnes/:id', async (req, res) => {
 /**
  * POST /api/marketing/campagnes/:id/start
  * Démarrer une campagne
+ * 🔒 Trial: vérifie limite emails
  */
-router.post('/campagnes/:id/start', async (req, res) => {
+router.post('/campagnes/:id/start', enforceTrialLimit('emails'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;

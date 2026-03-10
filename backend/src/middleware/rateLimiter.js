@@ -127,10 +127,29 @@ export const signupLimiter = rateLimit({
   }
 });
 
+/**
+ * Rate limiter pour les vérifications signup (email, company)
+ * 10 par minute par IP (anti-énumération)
+ */
+export const checkLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10,
+  message: {
+    success: false,
+    error: 'Trop de vérifications. Ralentissez.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    return process.env.SKIP_RATE_LIMIT === 'true';
+  }
+});
+
 export default {
   loginLimiter,
   apiLimiter,
   paymentLimiter,
   notificationLimiter,
-  signupLimiter
+  signupLimiter,
+  checkLimiter
 };

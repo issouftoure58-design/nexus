@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
 > **Derniere mise a jour:** 2026-03-10
-> **Version:** 3.20.0
+> **Version:** 3.21.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~9.0/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -86,7 +86,9 @@ nexus/
 | CI/CD GitHub | `.github/workflows/tenant-shield.yml` | Actif |
 | Middleware runtime | `middleware/tenantShield.js` | Actif |
 | SENTINEL error tracking | captureException/captureMessage → error_logs DB | Actif |
-| Rate limiting | 4 limiteurs (api, login, payment, notification) | Actif |
+| Rate limiting | 6 limiteurs (api, login, payment, notification, signup, check) | Actif |
+| Trial enforcement | `enforceTrialLimit` sur routes critiques (reservations, clients, chat, emails, sms) | Actif |
+| Anti-fraude signup | Unicite email + telephone + SIRET, signupLimiter 3/h/IP | Actif |
 | CSP/Helmet | Headers securite stricts | Actif |
 | Zod validation | `middleware/validate.js` (5 routes critiques) | Actif |
 
@@ -145,13 +147,48 @@ npm run shield         # Les deux
 
 ---
 
-## CHAT ADMIN IA — OUTILS PAR PLAN
+## CHAT ADMIN IA — OUTILS PAR PLAN ET METIER
 
 | Plan | Outils | Categories |
 |------|--------|------------|
 | **Starter** (99€) | 64 | Client, Gestion, Marketing, Commercial, Compta, Contenu, Memoire, Planification, Agenda |
 | **Pro** (249€) | 76 | Tout Starter + SEO (3), Social (4), RH base (4), Analytics KPI (1) |
 | **Business** (499€) | 105 | Tout Pro + Strategie (4), Analytics avance (5), RH complet (+6), Agent IA (6), Recherche web (4), Pro Tools (4) |
+
+**Filtrage par metier** (v3.21.0) : les outils specifiques a un metier ne sont envoyes qu'aux tenants concernes.
+
+| Metier | Outils exclusifs | Exclus de |
+|--------|-----------------|-----------|
+| Restaurant | get_restaurant_info, get_menu, get_menu_du_jour, check_allergenes, check_table_availability | Salon, Hotel, Domicile |
+| Hotel | get_hotel_info, get_chambres_disponibles, check_room_availability | Salon, Restaurant, Domicile |
+| Domicile | calculate_travel_fee | Salon, Restaurant, Hotel |
+| Salon | aucun exclusif | — |
+
+**System prompt adapte** : terminologie metier (`BUSINESS_TYPES`), actions principales (`BUSINESS_CONTEXTS`), instructions comportementales specifiques, fonctionnalites du plan (incluses/verouillees).
+
+## PLAN D'ESSAI (TRIAL)
+
+| Parametre | Valeur |
+|-----------|--------|
+| Duree | 14 jours (calcule serveur, non modifiable client) |
+| Plan | Starter (64 outils IA admin) |
+| Canal IA client | Web Chat uniquement (WhatsApp/Tel bloques par quota=0) |
+
+**Limites trial** (enforceTrialLimit middleware) :
+
+| Ressource | Limite | Route protegee |
+|-----------|--------|----------------|
+| Interactions IA (admin chat) | 50 | /api/admin/chat/conversations/*/messages |
+| Reservations | 10 | /api/admin/reservations |
+| Clients | 50 | /api/admin/clients |
+| SMS | 20 | /api/admin/rfm/segments/*/campaign |
+| Emails marketing | 100 | /api/marketing/campagnes/*/start |
+
+**Anti-fraude trial** :
+- `signupLimiter` : 3 inscriptions/heure par IP
+- `checkLimiter` : 10 verifications/min par IP (check-email, check-company)
+- Unicite telephone et SIRET a l'inscription
+- Pas de double trial Stripe (verifie `essai_fin` en DB avant d'accorder trial_period_days)
 
 Architecture: `src/tools/handlers/` (20 handlers + dispatcher O(1) dans index.js)
 Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 stub restant)
