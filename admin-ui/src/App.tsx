@@ -26,6 +26,7 @@ const Clients = lazy(() => import('./pages/Clients'));
 const Activites = lazy(() => import('./pages/Activites'));
 const Agenda = lazy(() => import('./pages/Agenda'));
 const Services = lazy(() => import('./pages/Services'));
+const Facturation = lazy(() => import('./pages/Facturation'));
 const Comptabilite = lazy(() => import('./pages/Comptabilite'));
 const Rapprochement = lazy(() => import('./pages/Rapprochement'));
 const ComptesAuxiliaires = lazy(() => import('./pages/ComptesAuxiliaires'));
@@ -192,8 +193,11 @@ function App() {
             {/* Redirection ancien chemin */}
             <Route path="/reservations/*" element={<Navigate to="/activites" replace />} />
 
+            {/* Facturation (Starter) */}
+            <Route path="/facturation" element={<ModuleRoute module="facturation" moduleTitle="Facturation" moduleDescription="Factures, dépenses et relances"><Facturation /></ModuleRoute>} />
+
             {/* Modules Business */}
-            <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Suivi dépenses, P&L et exports"><Comptabilite /></ModuleRoute>} />
+            <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Compte de résultat, bilan et analyses"><Comptabilite /></ModuleRoute>} />
             <Route path="/rapprochement" element={<ModuleRoute module="comptabilite" moduleTitle="Rapprochement Bancaire" moduleDescription="Rapprochement des écritures bancaires"><Rapprochement /></ModuleRoute>} />
             <Route path="/auxiliaires" element={<ModuleRoute module="comptabilite" moduleTitle="Comptes Auxiliaires" moduleDescription="Balance clients, fournisseurs et personnel"><ComptesAuxiliaires /></ModuleRoute>} />
             <Route path="/expert-comptable" element={<ModuleRoute module="comptabilite" moduleTitle="Expert-Comptable" moduleDescription="Journaux, grand livre, balance et exports"><ExpertComptable /></ModuleRoute>} />

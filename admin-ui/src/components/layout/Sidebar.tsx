@@ -92,6 +92,7 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   // Starter
   'agent_ia_web': 'starter',
   'reservations': 'starter',
+  'facturation': 'starter',
   // Pro
   'whatsapp': 'pro',
   'telephone': 'pro',
@@ -116,6 +117,7 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
 // Mapping requiredModule → module RBAC pour filtrer par permissions utilisateur
 const MODULE_TO_RBAC: Record<string, string> = {
   reservations: 'reservations',
+  facturation: 'comptabilite',
   agent_ia_web: 'ia',
   whatsapp: 'ia',
   telephone: 'ia',
@@ -166,6 +168,7 @@ const iaNav: NavItem[] = [
 
 // Business - Modules avancés
 const businessNav: NavItem[] = [
+  { icon: FileText, label: 'Facturation', path: '/facturation', requiredModule: 'facturation' },
   { icon: TrendingUp, label: 'Analytics', path: '/analytics', requiredModule: 'analytics' },
   { icon: Calculator, label: 'Comptabilité', path: '/comptabilite', requiredModule: 'comptabilite' },
   { icon: Package, label: 'Stock', path: '/stock', requiredModule: 'stock' },

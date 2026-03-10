@@ -145,11 +145,42 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       ...(tenant.quotas || {}),
     };
 
-    // Convertir modules_actifs (array) en objet avec booléens
-    const modulesArray = tenant.modules_actifs || [];
-    const modulesObject = Array.isArray(modulesArray)
-      ? modulesArray.reduce((acc, mod) => ({ ...acc, [mod]: true }), {})
-      : modulesArray; // Si c'est déjà un objet, le garder
+    // Convertir modules_actifs (array ou objet) en objet avec booléens
+    const modulesRaw = tenant.modules_actifs || [];
+    let modulesObject = Array.isArray(modulesRaw)
+      ? modulesRaw.reduce((acc, mod) => ({ ...acc, [mod]: true }), {})
+      : modulesRaw; // Si c'est déjà un objet, le garder
+
+    // Fallback: si modules vides, auto-peupler selon le plan
+    if (!modulesObject || Object.keys(modulesObject).length === 0) {
+      const PLAN_DEFAULT_MODULES = {
+        starter: {
+          reservations: true, clients: true, services: true,
+          facturation: true, agent_ia_web: true, ia_reservation: true,
+        },
+        pro: {
+          reservations: true, clients: true, services: true,
+          facturation: true, agent_ia_web: true, ia_reservation: true,
+          comptabilite: true, analytics: true, marketing: true,
+          whatsapp: true, stock: true, crm_avance: true,
+        },
+        business: {
+          reservations: true, clients: true, services: true,
+          facturation: true, agent_ia_web: true, ia_reservation: true,
+          comptabilite: true, analytics: true, marketing: true,
+          whatsapp: true, telephone: true, stock: true,
+          crm_avance: true, seo: true, rh: true, sentinel: true,
+        },
+      };
+      modulesObject = PLAN_DEFAULT_MODULES[plan] || PLAN_DEFAULT_MODULES.starter;
+
+      // Persister en DB pour ne pas recalculer à chaque requête
+      supabase.from('tenants')
+        .update({ modules_actifs: modulesObject })
+        .eq('id', tenantId)
+        .then(() => {})
+        .catch(err => console.error('[TENANTS] Error backfilling modules:', err.message));
+    }
 
     // Construire la réponse
     const response = {

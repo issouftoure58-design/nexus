@@ -397,7 +397,29 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const effectiveTemplate = template_type || 'autre';
     const businessProfile = TEMPLATE_TO_PROFILE[effectiveTemplate] || 'salon';
 
-    // Créer le tenant avec template + business_profile
+    // Modules par plan — tous les plans incluent les modules de base
+    const PLAN_MODULES = {
+      starter: {
+        reservations: true, clients: true, services: true,
+        facturation: true, agent_ia_web: true, ia_reservation: true,
+      },
+      pro: {
+        reservations: true, clients: true, services: true,
+        facturation: true, agent_ia_web: true, ia_reservation: true,
+        comptabilite: true, analytics: true, marketing: true,
+        whatsapp: true, stock: true, crm_avance: true,
+      },
+      business: {
+        reservations: true, clients: true, services: true,
+        facturation: true, agent_ia_web: true, ia_reservation: true,
+        comptabilite: true, analytics: true, marketing: true,
+        whatsapp: true, telephone: true, stock: true,
+        crm_avance: true, seo: true, rh: true, sentinel: true,
+      },
+    };
+    const modulesActifs = PLAN_MODULES[plan] || PLAN_MODULES.starter;
+
+    // Créer le tenant avec template + business_profile + modules
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -411,6 +433,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
         template_id: effectiveTemplate,
         business_profile: businessProfile,
         onboarding_step: 0,
+        modules_actifs: modulesActifs,
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
         ...(adresse ? { adresse } : {}),
         ...(profession_id ? { profession_id } : {}),
