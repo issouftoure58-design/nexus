@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EntityLink } from '@/components/EntityLink';
+import { useProfile } from '@/contexts/ProfileContext';
 import type { Reservation, ReservationService, ReservationMembre, Filters, Stats } from './types';
 import { STATUS_CONFIG, formatDate, formatCurrency, DEFAULT_FILTERS } from './types';
 
@@ -48,6 +49,7 @@ export default function PrestationsListe({
   onExportCSV,
   onOpenNew,
 }: PrestationsListeProps) {
+  const { t } = useProfile();
   const resetFilters = () => {
     onFiltersChange(DEFAULT_FILTERS);
     onPageChange(1);
@@ -174,9 +176,9 @@ export default function PrestationsListe({
               <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Heure</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employé</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('client')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('service')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('employee')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>

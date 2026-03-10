@@ -10,7 +10,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import { loadProfile, listProfiles, changeProfileTenant } from '../profiles/index.js';
 import { supabase } from '../config/supabase.js';
 // V2 - Multi-tenant business info
-import { getBusinessInfoSync, hasFeature, getTerminology } from '../services/tenantBusinessService.js';
+import { getBusinessInfo, getBusinessInfoSync, hasFeature, getTerminology } from '../services/tenantBusinessService.js';
 import { BUSINESS_TYPES } from '../config/businessTypes.js';
 
 const router = express.Router();
@@ -36,8 +36,8 @@ router.get('/', async (req, res) => {
 
     // V2 - Enrichir avec les infos du tenant
     try {
-      const businessInfo = getBusinessInfoSync(tenantId);
-      const businessType = businessInfo.business_type || 'service_domicile';
+      const businessInfo = await getBusinessInfo(tenantId);
+      const businessType = businessInfo.businessType || 'service_domicile';
       const businessTypeConfig = BUSINESS_TYPES[businessType] || BUSINESS_TYPES.service_domicile;
 
       // Enrichir le profil avec les infos V2

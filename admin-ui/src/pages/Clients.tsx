@@ -164,8 +164,8 @@ export default function Clients() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-        <p className="text-sm text-gray-500">{data?.pagination.total || 0} clients au total</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('client', true)}</h1>
+        <p className="text-sm text-gray-500">{data?.pagination.total || 0} {t('client', true).toLowerCase()} au total</p>
       </div>
       <div className="space-y-6">
         {/* Header actions */}
@@ -225,7 +225,7 @@ export default function Clients() {
             </Button>
             <Button onClick={() => setShowNewClientModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700">
               <Plus className="h-4 w-4" />
-              Nouveau client
+              Nouveau {t('client').toLowerCase()}
             </Button>
           </div>
         </div>
@@ -301,7 +301,7 @@ export default function Clients() {
 
             {hasActiveFilters && (
               <span className="text-sm text-gray-500">
-                {filteredClients.length} / {data?.clients?.length || 0} clients
+                {filteredClients.length} / {data?.clients?.length || 0} {t('client', true).toLowerCase()}
               </span>
             )}
           </div>
@@ -454,7 +454,7 @@ export default function Clients() {
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-500">
                           <Users className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                          <p>Aucun client trouvé</p>
+                          <p>Aucun {t('client').toLowerCase()} trouvé</p>
                           {(search || hasActiveFilters) && (
                             <Button
                               variant="link"
@@ -524,6 +524,7 @@ export default function Clients() {
 // New Client Modal Component
 function NewClientModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { t } = useProfile();
   const [typeClient, setTypeClient] = useState<'particulier' | 'professionnel'>('particulier');
   const [formData, setFormData] = useState({
     prenom: '',
@@ -580,7 +581,7 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-xl">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Nouveau client</CardTitle>
+          <CardTitle>Nouveau {t('client').toLowerCase()}</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>

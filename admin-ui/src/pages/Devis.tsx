@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, comptaApi, Devis, DevisCreateData } from '../lib/api';
 import { LayoutTemplate } from 'lucide-react';
+import { useProfile } from '@/contexts/ProfileContext';
 import {
   DevisFormModal,
   AcceptDevisModal,
@@ -18,6 +19,7 @@ import type { DevisTemplate } from '@/components/devis';
 
 export default function DevisPage() {
   const queryClient = useQueryClient();
+  const { t } = useProfile();
   const [filtreStatut, setFiltreStatut] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
@@ -255,7 +257,7 @@ export default function DevisPage() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numero</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('service')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant TTC</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiration</th>

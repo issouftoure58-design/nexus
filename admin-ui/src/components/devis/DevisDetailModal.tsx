@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, Devis } from '@/lib/api';
 import { X, Printer, Download, Send, Edit2, Check, XCircle, Play, Clock, User, MapPin, Phone, Mail, Calendar, FileText } from 'lucide-react';
 import { formatMontant, formatDateLong, STATUT_LABELS, StatutDevis } from './types';
+import { useProfile } from '@/contexts/ProfileContext';
 
 export interface DevisDetailModalProps {
   devisId: string;
@@ -15,6 +16,7 @@ export interface DevisDetailModalProps {
 }
 
 export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onAccept, onReject, onExecute }: DevisDetailModalProps) {
+  const { t } = useProfile();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Fetch devis details
@@ -220,7 +222,7 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
               <div className="bg-gray-50 rounded-lg p-5">
                 <h3 className="text-xs uppercase text-gray-500 font-semibold mb-3 flex items-center gap-2">
                   <User className="w-4 h-4" />
-                  Client
+                  {t('client')}
                 </h3>
                 <div className="space-y-2">
                   <p className="font-semibold text-lg">{devis.client_nom || '-'}</p>
@@ -249,7 +251,7 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
               <div className="bg-blue-50 rounded-lg p-5">
                 <h3 className="text-xs uppercase text-gray-500 font-semibold mb-3 flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  Prestation
+                  {t('service')}
                 </h3>
                 <div className="space-y-2">
                   {devis.lieu && (
@@ -281,7 +283,7 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
                 <tbody>
                   <tr className="border-b">
                     <td className="p-4">
-                      <div className="font-medium">{devis.service_nom || 'Prestation'}</div>
+                      <div className="font-medium">{devis.service_nom || t('service')}</div>
                       {devis.service_description && (
                         <div className="text-sm text-gray-500 mt-1">{devis.service_description}</div>
                       )}

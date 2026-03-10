@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Clock, User, MapPin, Phone, Mail, Euro, CheckCircle, XCircle, Play, FileText, Users } from 'lucide-react';
 import { api } from '../lib/api';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface Prestation {
   id: string;
@@ -65,6 +66,7 @@ const STATUT_LABELS: Record<StatutPrestation, { label: string; color: string; bg
 
 export default function PrestationsPage() {
   const queryClient = useQueryClient();
+  const { t } = useProfile();
   const [filtreStatut, setFiltreStatut] = useState<string>('');
   const [filtreDate, setFiltreDate] = useState<string>('');
   const [showDetailModal, setShowDetailModal] = useState<Prestation | null>(null);
@@ -124,7 +126,7 @@ export default function PrestationsPage() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-        Erreur lors du chargement des prestations
+        Erreur lors du chargement des {t('service', true).toLowerCase()}
       </div>
     );
   }
@@ -134,8 +136,8 @@ export default function PrestationsPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Prestations</h1>
-          <p className="text-sm text-gray-500">Suivi des prestations planifiées et réalisées</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('service', true)}</h1>
+          <p className="text-sm text-gray-500">Suivi des {t('service', true).toLowerCase()} planifiées et réalisées</p>
         </div>
       </div>
 
@@ -224,7 +226,7 @@ export default function PrestationsPage() {
             {prestations.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                  Aucune prestation trouvée
+                  Aucune {t('service').toLowerCase()} trouvée
                 </td>
               </tr>
             ) : (
@@ -346,6 +348,7 @@ export default function PrestationsPage() {
 
 // Modal de détail
 function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation; onClose: () => void }) {
+  const { t, isBusinessType } = useProfile();
   // Fetch détails complets
   const { data: detailData } = useQuery<{ lignes: PrestationLigne[]; ressources: PrestationRessource[] }>({
     queryKey: ['prestation-detail', prestation.id],
@@ -393,7 +396,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
           <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <User className="w-4 h-4" />
-              Client
+              {t('client')}
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -412,7 +415,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
               <div>
                 <p className="text-sm text-gray-500 flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
-                  {prestation.lieu_type === 'etablissement' ? 'Au salon' :
+                  {prestation.lieu_type === 'etablissement' ? (isBusinessType('restaurant') ? 'Au restaurant' : isBusinessType('hotel') ? "À l'hôtel" : 'Au salon') :
                    prestation.lieu_type === 'domicile' ? 'À domicile' : prestation.lieu_type}
                 </p>
                 {prestation.adresse && (
@@ -426,7 +429,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
           <div className="bg-blue-50 rounded-lg p-4">
             <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-blue-600" />
-              Rendez-vous
+              {t('reservation')}
             </h3>
             <div className="grid grid-cols-3 gap-4">
               <div>
@@ -458,7 +461,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
           {/* Services */}
           {lignes.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-700 mb-3">Services</h3>
+              <h3 className="font-semibold text-gray-700 mb-3">{t('service', true)}</h3>
               <div className="space-y-2">
                 {lignes.map((ligne) => (
                   <div key={ligne.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -480,7 +483,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
             <div>
               <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Personnel affecté
+                {t('employee', true)}
               </h3>
               <div className="flex flex-wrap gap-2">
                 {ressources.map((r) => (

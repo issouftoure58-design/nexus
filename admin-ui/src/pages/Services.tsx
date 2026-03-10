@@ -747,7 +747,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
               <Input
                 value={formData.nom}
                 onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
-                placeholder="Ex: Coupe femme"
+                placeholder={isBusinessType('restaurant') ? "Ex: Table terrasse 4p" : isBusinessType('hotel') ? "Ex: Chambre double vue mer" : isBusinessType('salon') ? "Ex: Coupe femme" : "Ex: Consultation standard"}
                 required
               />
             </div>
@@ -1042,8 +1042,8 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
 
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div>
-                <p className="font-medium text-sm">Service actif</p>
-                <p className="text-xs text-gray-500">Visible et réservable par les clients</p>
+                <p className="font-medium text-sm">{t('service')} actif</p>
+                <p className="text-xs text-gray-500">Visible et réservable par les {t('client', true).toLowerCase()}</p>
               </div>
               <button
                 type="button"

@@ -4,6 +4,7 @@
 
 import { Clock, X } from 'lucide-react';
 import { EntityLink } from '@/components/EntityLink';
+import { useProfile } from '@/contexts/ProfileContext';
 import type { Reservation, ReservationMembre } from './types';
 import { STATUS_CONFIG, formatDate, formatCurrency } from './types';
 
@@ -13,6 +14,7 @@ interface DetailModalProps {
 }
 
 export default function DetailModal({ reservation, onClose }: DetailModalProps) {
+  const { t } = useProfile();
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
@@ -85,7 +87,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
 
           {/* Services avec salariés assignés */}
           <div className="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg space-y-2">
-            <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">Services & Personnel</p>
+            <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">{t('service', true)} & {t('employee', true)}</p>
             {reservation.services && reservation.services.length > 0 ? (
               <>
                 {reservation.services.map((s, idx) => (
@@ -125,7 +127,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
           {/* Tous les employés assignés */}
           {reservation.membres && reservation.membres.length > 0 ? (
             <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <p className="text-xs text-purple-600 dark:text-purple-400 mb-2">Personnel assigné ({reservation.membres.length})</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mb-2">{t('employee', true)} ({reservation.membres.length})</p>
               <div className="space-y-1">
                 {reservation.membres.map((m: ReservationMembre, idx: number) => (
                   <div key={m.id || idx} className="flex items-center gap-2">
