@@ -357,6 +357,22 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         result = await checkTableAvailabilityTool(toolInput.date, toolInput.heure, toolInput.nb_couverts, tenantId);
         break;
 
+      case 'get_restaurant_info':
+        result = await getRestaurantInfoTool(tenantId);
+        break;
+
+      case 'get_menu':
+        result = await getMenuTool(tenantId, toolInput.categorie, toolInput.service, toolInput.regime);
+        break;
+
+      case 'get_menu_du_jour':
+        result = await getMenuDuJourTool(tenantId, toolInput.service);
+        break;
+
+      case 'check_allergenes':
+        result = await checkAllergenesTool(tenantId, toolInput.plat_nom, toolInput.allergene_a_eviter);
+        break;
+
       case 'get_upcoming_days':
         result = await getUpcomingDays(toolInput.nb_jours, tenantId);
         break;
@@ -654,6 +670,341 @@ async function checkTableAvailabilityTool(date, heure, nbCouverts, tenantId) {
     };
   } catch (err) {
     console.error('[NEXUS CORE] checkTableAvailability error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// --- GET RESTAURANT INFO (texte libre renseigné par l'admin) ---
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function getRestaurantInfoTool(tenantId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED');
+
+  const db = getSupabase();
+  if (!db) return { success: false, error: 'Base de données non disponible' };
+
+  try {
+    // Lire profile_config du tenant (champ JSONB)
+    const { data: tenant, error } = await db
+      .from('tenants')
+      .select('name, profile_config, adresse, telephone, email')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) throw error;
+
+    const config = tenant?.profile_config || {};
+    const info = config.restaurant_info || null;
+
+    if (!info) {
+      return {
+        success: true,
+        disponible: false,
+        nom: tenant?.name || '',
+        adresse: tenant?.adresse || '',
+        telephone: tenant?.telephone || '',
+        message: "Le gérant n'a pas encore renseigné les informations détaillées du restaurant. Vous pouvez consulter la carte avec get_menu ou proposer de réserver une table."
+      };
+    }
+
+    return {
+      success: true,
+      disponible: true,
+      nom: tenant?.name || '',
+      adresse: tenant?.adresse || '',
+      telephone: tenant?.telephone || '',
+      informations: info,
+      instruction: "Utilise ces informations pour répondre aux questions du client. Ne modifie pas le contenu, transmets fidèlement ce que le gérant a renseigné."
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] getRestaurantInfo error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// --- GET MENU (Restaurant) ---
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function getMenuTool(tenantId, categorie = null, service = null, regime = null) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED');
+
+  const db = getSupabase();
+  if (!db) return { success: false, error: 'Base de données non disponible' };
+
+  try {
+    // Charger les catégories
+    const { data: categories } = await db
+      .from('menu_categories')
+      .select('id, nom, description, ordre')
+      .eq('tenant_id', tenantId)
+      .eq('actif', true)
+      .order('ordre', { ascending: true });
+
+    // Charger les plats
+    let platsQuery = db
+      .from('plats')
+      .select('id, nom, description, prix, allergenes, regime, disponible_midi, disponible_soir, plat_du_jour, categorie_id, image_url, stock_limite, stock_quantite')
+      .eq('tenant_id', tenantId)
+      .eq('actif', true)
+      .order('ordre', { ascending: true });
+
+    const { data: plats } = await platsQuery;
+
+    if (!plats || plats.length === 0) {
+      return { success: true, message: 'La carte n\'est pas encore disponible.', categories: [], plats: [] };
+    }
+
+    // Filtrer par service (midi/soir)
+    let filteredPlats = plats;
+    if (service === 'midi') {
+      filteredPlats = filteredPlats.filter(p => p.disponible_midi);
+    } else if (service === 'soir') {
+      filteredPlats = filteredPlats.filter(p => p.disponible_soir);
+    }
+
+    // Filtrer par régime
+    if (regime) {
+      filteredPlats = filteredPlats.filter(p => p.regime && p.regime.includes(regime));
+    }
+
+    // Filtrer par catégorie (recherche flexible)
+    if (categorie) {
+      const catLower = categorie.toLowerCase();
+      const matchingCat = (categories || []).find(c => c.nom.toLowerCase().includes(catLower));
+      if (matchingCat) {
+        filteredPlats = filteredPlats.filter(p => p.categorie_id === matchingCat.id);
+      }
+    }
+
+    // Formater pour l'IA
+    const menuByCategory = {};
+    for (const plat of filteredPlats) {
+      const cat = (categories || []).find(c => c.id === plat.categorie_id);
+      const catName = cat?.nom || 'Autres';
+
+      if (!menuByCategory[catName]) menuByCategory[catName] = [];
+
+      const platInfo = {
+        nom: plat.nom,
+        prix: `${(plat.prix / 100).toFixed(2)}€`,
+        description: plat.description || null
+      };
+
+      if (plat.allergenes && plat.allergenes.length > 0) {
+        platInfo.allergenes = plat.allergenes;
+      }
+      if (plat.regime && plat.regime.length > 0) {
+        platInfo.regime = plat.regime;
+      }
+      if (plat.plat_du_jour) {
+        platInfo.plat_du_jour = true;
+      }
+      if (plat.stock_limite && plat.stock_quantite <= 0) {
+        platInfo.rupture = true;
+      }
+
+      menuByCategory[catName].push(platInfo);
+    }
+
+    return {
+      success: true,
+      menu: menuByCategory,
+      total_plats: filteredPlats.length,
+      plats_du_jour: filteredPlats.filter(p => p.plat_du_jour).map(p => p.nom),
+      regimes_disponibles: [...new Set(filteredPlats.flatMap(p => p.regime || []))],
+      message: `La carte propose ${filteredPlats.length} plat(s) dans ${Object.keys(menuByCategory).length} catégorie(s).`
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] getMenu error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// --- GET MENU DU JOUR (Restaurant) ---
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function getMenuDuJourTool(tenantId, service = null) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED');
+
+  const db = getSupabase();
+  if (!db) return { success: false, error: 'Base de données non disponible' };
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Déterminer le service selon l'heure si non spécifié
+    if (!service) {
+      const hour = new Date().getHours();
+      service = hour < 15 ? 'midi' : 'soir';
+    }
+
+    // Chercher le menu du jour
+    const { data: menuDuJour } = await db
+      .from('menu_du_jour')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('date', today)
+      .eq('actif', true)
+      .in('service', [service, 'midi_soir'])
+      .order('service', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Aussi récupérer les plats marqués "plat du jour"
+    const { data: platsDuJour } = await db
+      .from('plats')
+      .select('id, nom, description, prix, allergenes, regime, categorie_id')
+      .eq('tenant_id', tenantId)
+      .eq('actif', true)
+      .eq('plat_du_jour', true);
+
+    if (!menuDuJour && (!platsDuJour || platsDuJour.length === 0)) {
+      return {
+        success: true,
+        disponible: false,
+        message: `Pas de menu du jour configuré pour aujourd'hui (${service}). Consultez la carte avec get_menu.`
+      };
+    }
+
+    const result = {
+      success: true,
+      disponible: true,
+      date: today,
+      service
+    };
+
+    // Menu du jour avec formules
+    if (menuDuJour) {
+      result.formules = {};
+      if (menuDuJour.formule_entree_plat > 0) {
+        result.formules.entree_plat = `${(menuDuJour.formule_entree_plat / 100).toFixed(2)}€`;
+      }
+      if (menuDuJour.formule_plat_dessert > 0) {
+        result.formules.plat_dessert = `${(menuDuJour.formule_plat_dessert / 100).toFixed(2)}€`;
+      }
+      if (menuDuJour.formule_complete > 0) {
+        result.formules.complete = `${(menuDuJour.formule_complete / 100).toFixed(2)}€`;
+      }
+      if (menuDuJour.notes) {
+        result.notes = menuDuJour.notes;
+      }
+
+      // Charger les détails des plats du menu
+      const allIds = [
+        ...(menuDuJour.entrees || []),
+        ...(menuDuJour.plats || []),
+        ...(menuDuJour.desserts || [])
+      ].filter(Boolean);
+
+      if (allIds.length > 0) {
+        const { data: platsDetails } = await db
+          .from('plats')
+          .select('id, nom, description, prix, allergenes, regime')
+          .eq('tenant_id', tenantId)
+          .in('id', allIds);
+
+        const findPlat = (id) => platsDetails?.find(p => p.id === id);
+
+        if (menuDuJour.entrees?.length) {
+          result.entrees = menuDuJour.entrees.map(id => {
+            const p = findPlat(id);
+            return p ? { nom: p.nom, description: p.description, allergenes: p.allergenes } : null;
+          }).filter(Boolean);
+        }
+        if (menuDuJour.plats?.length) {
+          result.plats_principaux = menuDuJour.plats.map(id => {
+            const p = findPlat(id);
+            return p ? { nom: p.nom, description: p.description, allergenes: p.allergenes } : null;
+          }).filter(Boolean);
+        }
+        if (menuDuJour.desserts?.length) {
+          result.desserts = menuDuJour.desserts.map(id => {
+            const p = findPlat(id);
+            return p ? { nom: p.nom, description: p.description, allergenes: p.allergenes } : null;
+          }).filter(Boolean);
+        }
+      }
+    }
+
+    // Plats marqués "du jour" (en plus ou à la place du menu formel)
+    if (platsDuJour && platsDuJour.length > 0) {
+      result.suggestions_du_chef = platsDuJour.map(p => ({
+        nom: p.nom,
+        description: p.description,
+        prix: `${(p.prix / 100).toFixed(2)}€`,
+        allergenes: p.allergenes
+      }));
+    }
+
+    return result;
+  } catch (err) {
+    console.error('[NEXUS CORE] getMenuDuJour error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// --- CHECK ALLERGENES (Restaurant) ---
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function checkAllergenesTool(tenantId, platNom = null, allergeneAEviter = null) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED');
+
+  const db = getSupabase();
+  if (!db) return { success: false, error: 'Base de données non disponible' };
+
+  try {
+    // Cas 1: Vérifier les allergènes d'un plat spécifique
+    if (platNom) {
+      const { data: plats } = await db
+        .from('plats')
+        .select('nom, allergenes, regime, description')
+        .eq('tenant_id', tenantId)
+        .eq('actif', true)
+        .ilike('nom', `%${platNom}%`)
+        .limit(3);
+
+      if (!plats || plats.length === 0) {
+        return { success: true, message: `Plat "${platNom}" non trouvé dans la carte.` };
+      }
+
+      return {
+        success: true,
+        resultats: plats.map(p => ({
+          nom: p.nom,
+          allergenes: p.allergenes?.length ? p.allergenes : ['Aucun allergène renseigné'],
+          regime: p.regime?.length ? p.regime : [],
+          description: p.description
+        }))
+      };
+    }
+
+    // Cas 2: Trouver des plats sans un allergène donné
+    if (allergeneAEviter) {
+      const { data: allPlats } = await db
+        .from('plats')
+        .select('nom, prix, allergenes, regime, description, categorie_id')
+        .eq('tenant_id', tenantId)
+        .eq('actif', true);
+
+      // Filtrer côté JS (Postgres array NOT contains)
+      const safePlats = (allPlats || []).filter(p => {
+        if (!p.allergenes || p.allergenes.length === 0) return true;
+        return !p.allergenes.includes(allergeneAEviter);
+      });
+
+      return {
+        success: true,
+        allergene_evite: allergeneAEviter,
+        plats_compatibles: safePlats.map(p => ({
+          nom: p.nom,
+          prix: `${(p.prix / 100).toFixed(2)}€`,
+          description: p.description,
+          allergenes: p.allergenes || []
+        })),
+        total: safePlats.length,
+        message: `${safePlats.length} plat(s) sans ${allergeneAEviter} disponible(s).`
+      };
+    }
+
+    return { success: false, error: 'Spécifiez un plat à vérifier ou un allergène à éviter.' };
+  } catch (err) {
+    console.error('[NEXUS CORE] checkAllergenes error:', err.message);
     return { success: false, error: err.message };
   }
 }

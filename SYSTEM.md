@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-08
-> **Version:** 3.18.0
+> **Derniere mise a jour:** 2026-03-10
+> **Version:** 3.20.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~9.0/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -37,7 +37,7 @@ nexus/
 │   │   ├── modules/           # Modules metier (commerce, crm, hr, seo, social, sentinel)
 │   │   ├── routes/            # 72 fichiers routes API
 │   │   ├── sentinel/          # Monitoring & securite
-│   │   ├── services/          # 77 services metier
+│   │   ├── services/          # 78 services metier
 │   │   ├── utils/             # Utilitaires (response.js, whatsappTemplates, etc.)
 │   │   └── workers/           # Background workers (BullMQ)
 │   ├── scripts/               # Scripts utilitaires
@@ -155,6 +155,7 @@ npm run shield         # Les deux
 
 Architecture: `src/tools/handlers/` (20 handlers + dispatcher O(1) dans index.js)
 Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 stub restant)
+Client tools: 13 outils (12 generiques + `check_table_availability` restaurant)
 Note: `comptable_facturation` (creer/exporter) câblé sur `createFactureFromReservation` + liens PDF
 
 ---
@@ -265,6 +266,14 @@ Sprints 1-5 TERMINES. Voir PROGRESS.md pour le detail.
 | **4** | Croissance (SSO, API versioning, parrainage, usage billing) | TERMINE |
 | **5** | Horaires dynamiques (business_hours, disponibilites admin) | TERMINE |
 
+### Sprint 6 — Multi-Business Restaurant/Hotel [TERMINE]
+- Terminologie dynamique dans tous les formulaires/modales (useProfile)
+- Migration 076: colonnes restaurant/hotel sur services + business_hours multi-periodes + waitlist
+- Profil business: fallback BUSINESS_TYPES quand pas en DB
+- Restaurant: capacite/table management IA (restaurantAvailability.js)
+- Hotel: colonnes chambre (capacite_max, etage, vue, type_chambre, equipements)
+- Comptabilite: Facturation (Starter) separee, onglets consolides (Rapprochement, Auxiliaires, Expert)
+
 Quick Wins commercialisation (2026-03-07):
 - QW1: Dashboard Churn Visuel (3 graphiques recharts)
 - QW2: Templates Devis par Metier (7 templates, 4 metiers)
@@ -309,4 +318,4 @@ Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Squ
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-07 (v3.15.0 — 100% donnees reelles + isolation confidentialite tenant)*
+*Derniere synchronisation: 2026-03-10 (v3.20.0 — Multi-business restaurant/hotel + capacite IA)*

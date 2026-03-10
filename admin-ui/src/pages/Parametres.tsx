@@ -220,10 +220,40 @@ function ActiviteSubSection() {
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [changing, setChanging] = useState(false);
   const [newTemplate, setNewTemplate] = useState('');
+  const [restaurantInfo, setRestaurantInfo] = useState('');
+  const [restaurantInfoLoaded, setRestaurantInfoLoaded] = useState(false);
+  const [savingInfo, setSavingInfo] = useState(false);
 
   const currentTemplate = (tenant as any)?.template_id || 'autre';
   const currentInfo = TEMPLATE_LABELS[currentTemplate] || TEMPLATE_LABELS.autre;
   const professionId = (tenant as any)?.profession_id;
+
+  // Charger restaurant_info depuis profile_config
+  useEffect(() => {
+    if (currentTemplate === 'restaurant' && !restaurantInfoLoaded) {
+      api.get<{ config: Record<string, unknown> }>('/admin/profile/config')
+        .then((res) => {
+          const info = (res?.config as any)?.restaurant_info || '';
+          setRestaurantInfo(info);
+          setRestaurantInfoLoaded(true);
+        })
+        .catch(() => setRestaurantInfoLoaded(true));
+    }
+  }, [currentTemplate, restaurantInfoLoaded]);
+
+  const handleSaveRestaurantInfo = async () => {
+    setSavingInfo(true);
+    try {
+      await api.patch('/admin/profile/config', {
+        config: { restaurant_info: restaurantInfo },
+      });
+      setFeedback({ message: 'Informations restaurant enregistrées', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSavingInfo(false);
+    }
+  };
 
   const handleChange = async () => {
     if (!newTemplate || newTemplate === currentTemplate) return;
@@ -302,6 +332,34 @@ function ActiviteSubSection() {
             </Button>
           </div>
         </div>
+
+        {/* Informations restaurant — visible uniquement pour les restaurants */}
+        {currentTemplate === 'restaurant' && (
+          <div className="space-y-3 pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700">
+              Informations restaurant (visibles par l'IA)
+            </label>
+            <p className="text-xs text-gray-500">
+              Décrivez votre restaurant : carte, spécialités, menu du jour, politique allergènes, hygiène, traçabilité, ambiance, horaires spéciaux, etc. L'agent IA utilisera ces informations pour renseigner vos clients.
+            </p>
+            <textarea
+              value={restaurantInfo}
+              onChange={e => setRestaurantInfo(e.target.value)}
+              placeholder="Ex : Restaurant gastronomique français. Spécialités : foie gras maison, magret de canard, soufflé au chocolat. Menu du jour à 25€ (entrée + plat + dessert). Produits frais et locaux, traçabilité complète. Allergènes affichés sur chaque plat. Cuisine ouverte, normes HACCP respectées..."
+              rows={8}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            />
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveRestaurantInfo}
+                disabled={savingInfo}
+                className="bg-cyan-600 hover:bg-cyan-700"
+              >
+                {savingInfo ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer les informations'}
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

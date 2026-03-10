@@ -1,12 +1,12 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-08 UTC
+> Derniere mise a jour: 2026-03-10 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
-**Version: 3.18.0**
-**Phase en cours: Commercialisation — Post-optimisation**
+**Version: 3.20.0**
+**Phase en cours: Commercialisation — Multi-business restaurant/hotel**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
 ---
@@ -367,6 +367,44 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-10 — Session 27 : Multi-business Restaurant/Hotel + Comptabilité Refactor
+
+**13 commits. Support restaurant fonctionnel de bout en bout (admin + IA agent).**
+
+#### Onboarding & Auth
+- Onboarding unifie (signup → auto-login → config metier) + protection email case-insensitive
+
+#### Comptabilite
+- Separation Facturation (Starter) de Comptabilite (Pro) — 2 pages distinctes, acces par plan
+- Ajout Facturation dans GlobalMenu
+- Fusion Rapprochement + Comptes Auxiliaires + Expert-comptable en onglets dans Comptabilite (lazy-loaded, prop `embedded`, URL ?tab= sync)
+
+#### Adaptation multi-business (restaurant/hotel)
+- Tous les modales/formulaires adaptes a la terminologie du template metier (`useProfile()` → `t()`, `isBusinessType()`)
+- Fix `loadTenantBusinessConfig` colonnes inexistantes en DB
+- Grammaire francaise + securite `String()` dans Services.tsx (articles feminins)
+- Masquer champs salon (Periode prestation, Adresse facturation) dans modal reservation restaurant/hotel
+- **Migration 076** : colonnes restaurant (capacite, zone, service_dispo) + hotel (capacite_max, etage, vue, type_chambre, equipements) sur table services + business_hours multi-periodes (period_label, sort_order) + table waitlist
+- Fallback profil vers `BUSINESS_TYPES` quand pas trouve dans table `business_profiles` (fix: restaurant detecte comme service_domicile)
+- Zod schema: `duree: .min(0)` au lieu de `.positive()` (restaurant envoie `duree: 0`)
+- Payload POST reservation conditionnel par type metier (restaurant: table + couverts, hotel: chambre + dates, salon: serviceLignes)
+
+#### Capacite restaurant (IA agent)
+- **`restaurantAvailability.js`** (NOUVEAU) : service complet de gestion capacite
+  - `getTableAvailability(tenantId, date, heure)` — statut chaque table + totaux
+  - `findAvailableTable(tenantId, date, heure, nbCouverts, zone)` — best-fit (plus petite table suffisante)
+  - `isRestaurantFull(tenantId, date, heure)` — boolean + message
+  - `getRestaurantCapacityForDay(tenantId, date)` — capacite midi + soir
+- **Outil IA `check_table_availability`** — l'agent verifie la dispo avant de reserver
+- **`create_booking` enrichi** — accepte `nb_couverts`, `zone_preference`, auto-attribue table, rejette si complet
+- **`get_upcoming_days` enrichi** — pour restaurants, inclut capacite midi/soir par jour (tables libres, couverts dispo)
+- **Admin POST** — persiste `nb_couverts`, `table_id`, `service_type` en DB
+
+**Fichiers crees (4):** restaurantAvailability.js, migration 076
+**Fichiers modifies (~20):** nexusCore.js, toolsRegistry.js, adminReservations.js, adminServices.js, profiles/index.js, adminProfile.js, Activites.tsx, NewReservationModal.tsx, Services.tsx, Comptabilite.tsx, Rapprochement.tsx, ComptesAuxiliaires.tsx, ExpertComptable.tsx, GlobalMenu.tsx, App.tsx, etc.
+
+---
 
 ### 2026-03-08 — Session 26 : Tests E2E Restaurant & Hotel
 

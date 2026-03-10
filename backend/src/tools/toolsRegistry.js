@@ -159,6 +159,51 @@ export const TOOLS_CLIENT = [
     }
   },
   {
+    name: "get_restaurant_info",
+    description: "Récupère les informations du restaurant renseignées par le gérant : carte, spécialités, menu du jour, politique allergènes, hygiène, traçabilité, ambiance, etc. OBLIGATOIRE pour répondre aux questions sur le restaurant (hors réservation).",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "get_menu",
+    description: "Récupère la carte complète du restaurant depuis la base de données : catégories, plats, prix, allergènes et régimes alimentaires. Utilise cet outil quand un client demande la carte détaillée, les prix exacts ou les options alimentaires.",
+    input_schema: {
+      type: "object",
+      properties: {
+        categorie: { type: "string", description: "Filtrer par catégorie (ex: 'Entrées', 'Plats', 'Desserts')" },
+        service: { type: "string", enum: ["midi", "soir"], description: "Filtrer par service (midi ou soir)" },
+        regime: { type: "string", enum: ["vegetarien", "vegan", "halal", "casher", "sans_gluten"], description: "Filtrer par régime alimentaire" }
+      },
+      required: []
+    }
+  },
+  {
+    name: "get_menu_du_jour",
+    description: "Récupère le menu du jour avec les formules et plats sélectionnés. Utilise cet outil quand un client demande 'le menu du jour', 'les suggestions', 'le plat du jour'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        service: { type: "string", enum: ["midi", "soir"], description: "Service (midi ou soir). Par défaut: selon l'heure actuelle." }
+      },
+      required: []
+    }
+  },
+  {
+    name: "check_allergenes",
+    description: "Vérifie les allergènes d'un plat spécifique ou cherche des plats sans un allergène donné. Utilise quand un client a des restrictions alimentaires.",
+    input_schema: {
+      type: "object",
+      properties: {
+        plat_nom: { type: "string", description: "Nom du plat à vérifier" },
+        allergene_a_eviter: { type: "string", description: "Allergène à éviter (gluten, lactose, arachides, crustaces, oeufs, poisson, soja, fruits_a_coque, celeri, moutarde, sesame, sulfites)" }
+      },
+      required: []
+    }
+  },
+  {
     name: "get_salon_info",
     description: "Récupère les informations du salon (adresse, horaires, téléphone).",
     input_schema: {

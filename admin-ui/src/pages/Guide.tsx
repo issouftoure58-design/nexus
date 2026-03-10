@@ -40,7 +40,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "L'agenda affiche vos rendez-vous au jour, à la semaine ou au mois. Cliquez sur un créneau vide pour créer une réservation rapide.",
       "Chaque réservation passe par les statuts : En attente → Confirmée → Terminée (ou Annulée). Terminer une prestation génère automatiquement la facture.",
       "Configurez vos horaires d'ouverture et périodes de fermeture dans 'Disponibilités'. Les créneaux indisponibles sont automatiquement bloqués.",
-      "Pour les restaurants : gérez vos tables via le Plan de salle. Pour les hôtels : le Calendrier des chambres affiche l'occupation en temps réel."
+      "Pour les restaurants : gérez vos tables via le Plan de salle. Chaque table est une ressource avec sa capacité (nombre de places) et sa zone (intérieur, terrasse, salon privé). Quand toutes les tables sont réservées sur un créneau, le restaurant est automatiquement marqué comme complet.",
+      "Pour les hôtels : le Calendrier des chambres affiche l'occupation en temps réel avec les arrivées et départs."
     ]
   },
   {
@@ -59,8 +60,11 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Services & Prestations',
     content: [
       "Définissez vos services avec nom, durée, prix et catégorie. Les services sont utilisés pour les réservations et la facturation.",
-      "Pour les restaurants : le module Menu gère les catégories de plats, prix, allergènes et le menu du jour.",
-      "Pour les hôtels : les Tarifs Saisonniers permettent de varier les prix selon les périodes (haute/basse saison, week-end)."
+      "Pour les restaurants : chaque table est un service. Créez un service par table avec le nombre de places (capacité), la zone (intérieur, terrasse, salon privé) et la disponibilité (midi, soir, midi et soir). La capacité totale de votre restaurant correspond à la somme des places de toutes vos tables actives.",
+      "Exemple : 7 tables (Table 1: 2 places terrasse, Table 2: 4 places intérieur, Salon: 20 places privé) = 26 couverts. Quand un client réserve pour 4 personnes, le système attribue automatiquement la plus petite table disponible qui convient (ici, la table de 4 places).",
+      "Activez/désactivez une table pour refléter des changements permanents (terrasse fermée en hiver, table en réparation). L'occupation par réservation est gérée automatiquement.",
+      "Pour les hôtels : chaque chambre est un service avec son type, étage, vue et équipements. Les Tarifs Saisonniers permettent de varier les prix selon les périodes.",
+      "Le module Menu (restaurant uniquement) gère les catégories de plats, prix, allergènes et le menu du jour."
     ]
   },
   {
@@ -86,14 +90,24 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ]
   },
   {
-    id: 'comptabilite',
+    id: 'facturation',
     icon: FileText,
-    title: 'Comptabilité & Facturation',
-    badge: 'Pro',
+    title: 'Facturation',
     content: [
       "Les factures sont générées automatiquement quand une prestation est terminée. Suivez leur statut (générée, envoyée, payée, en retard).",
-      "Le module Comptabilité affiche votre P&L, le suivi des dépenses, et permet l'export comptable.",
-      "Le Rapprochement bancaire permet de matcher vos écritures avec vos relevés.",
+      "Créez des factures manuelles, envoyez-les par email et suivez les paiements. Le module est accessible dès le plan Starter."
+    ]
+  },
+  {
+    id: 'comptabilite',
+    icon: CreditCard,
+    title: 'Comptabilité',
+    badge: 'Pro',
+    content: [
+      "Le module Comptabilité regroupe 5 onglets : Compte de Résultat, Bilan, Rapprochement bancaire, Comptes Auxiliaires et Espace Expert-comptable.",
+      "Le Compte de résultat affiche votre P&L (chiffre d'affaires, charges, résultat net) sur la période sélectionnée.",
+      "Le Rapprochement bancaire permet de matcher vos écritures comptables avec vos relevés bancaires.",
+      "Les Comptes Auxiliaires détaillent les comptes clients et fournisseurs.",
       "L'espace Expert-comptable donne accès aux journaux, grand livre et balance pour votre comptable."
     ]
   },
@@ -141,7 +155,10 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "L'Agent IA Web est un chatbot 24/7 intégré à votre site. Il répond aux questions et prend les rendez-vous automatiquement.",
       "L'Agent IA Téléphone gère vos appels entrants : prise de RDV, informations, transfert vers un humain si nécessaire.",
       "L'Agent IA WhatsApp répond à vos clients sur WhatsApp avec les mêmes capacités que le chat web.",
-      "Tous les agents sont entraînés sur vos données (services, horaires, FAQ) et respectent votre ton de communication."
+      "Tous les agents sont entraînés sur vos données (services, horaires, FAQ) et respectent votre ton de communication.",
+      "Pour les restaurants : l'IA connaît la capacité de chaque table, vérifie la disponibilité en temps réel et attribue automatiquement la meilleure table selon le nombre de convives. Si le restaurant est complet, elle propose un autre créneau (midi/soir) ou un autre jour.",
+      "L'IA restaurant peut aussi renseigner vos clients sur la carte : plats disponibles, prix, menu du jour, suggestions du chef, allergènes et régimes alimentaires (végétarien, vegan, halal, sans gluten...). Pour cela, renseignez votre carte dans le module Menu.",
+      "Pour les hôtels : l'IA vérifie la disponibilité des chambres et gère les réservations avec dates d'arrivée et de départ."
     ]
   },
   {
@@ -260,7 +277,7 @@ export default function Guide() {
 
       {/* Footer */}
       <div className="text-center text-sm text-gray-400 pt-4">
-        <p>NEXUS v3.18.0 — Pour toute question, contactez support@nexus-ai-saas.com</p>
+        <p>NEXUS v3.20.0 — Pour toute question, contactez support@nexus-ai-saas.com</p>
       </div>
     </div>
   );
