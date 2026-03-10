@@ -709,18 +709,30 @@ export default function Activites() {
       if (!newRdvForm.client_id) missing.push(t('client', false));
     }
 
-    if (serviceLignes.length === 0) missing.push(`Au moins ${t('service', false).toLowerCase()}`);
-    if (!newRdvForm.date_rdv) missing.push('Date');
-
-    if (pricingMode === 'hourly') {
-      const hasValidAffectations = serviceLignes.some(sl =>
-        sl.affectations.some(aff => aff.heure_debut && aff.heure_fin)
-      );
-      if (!hasValidAffectations) {
-        missing.push('Heures des agents (définir heure début/fin pour au moins un agent)');
-      }
-    } else if (pricingMode !== 'daily') {
+    // Validation spécifique au type de business
+    if (isBusinessType('restaurant')) {
+      if (!newRdvForm.table_id) missing.push('Table');
+      if (!newRdvForm.date_rdv) missing.push('Date');
       if (!newRdvForm.heure_rdv) missing.push('Heure');
+    } else if (isBusinessType('hotel')) {
+      if (!newRdvForm.chambre_id) missing.push('Chambre');
+      if (!newRdvForm.date_rdv) missing.push('Date d\'arrivée');
+      if (!newRdvForm.date_checkout) missing.push('Date de départ');
+    } else {
+      // Salon / Service domicile
+      if (serviceLignes.length === 0) missing.push(`Au moins un ${String(t('service', false)).toLowerCase()}`);
+      if (!newRdvForm.date_rdv) missing.push('Date');
+
+      if (pricingMode === 'hourly') {
+        const hasValidAffectations = serviceLignes.some(sl =>
+          sl.affectations.some(aff => aff.heure_debut && aff.heure_fin)
+        );
+        if (!hasValidAffectations) {
+          missing.push('Heures des agents (définir heure début/fin pour au moins un agent)');
+        }
+      } else if (pricingMode !== 'daily') {
+        if (!newRdvForm.heure_rdv) missing.push('Heure');
+      }
     }
 
     if (missing.length > 0) {

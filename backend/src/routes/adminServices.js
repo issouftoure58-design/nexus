@@ -198,13 +198,20 @@ router.post('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps, categorie, actif } = req.body;
+    const {
+      nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps,
+      categorie, actif, pricing_mode, taux_horaire,
+      // Restaurant
+      capacite, zone, service_dispo,
+      // Hotel
+      capacite_max, etage, vue, type_chambre, equipements,
+    } = req.body;
 
     // Accepter duree_minutes OU duree pour la durée
-    const serviceDuree = duree_minutes || duree;
+    const serviceDuree = duree_minutes || duree || 0;
 
-    if (!nom || prix === undefined || !serviceDuree) {
-      return res.status(400).json({ error: 'Nom, prix et durée requis' });
+    if (!nom) {
+      return res.status(400).json({ error: 'Nom requis' });
     }
 
     // Récupérer le prochain ordre (🔒 TENANT ISOLATION)
@@ -219,21 +226,35 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const ordre = (maxOrdre?.ordre || 0) + 1;
 
     // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
+    const insertData = {
+      tenant_id: tenantId,
+      nom,
+      description: description || null,
+      prix: prix !== undefined ? Math.round(prix) : 0,
+      duree: serviceDuree,
+      taux_tva: taux_tva !== undefined ? parseFloat(taux_tva) : 20,
+      taxe_cnaps: taxe_cnaps ?? false,
+      taux_cnaps: taux_cnaps !== undefined ? parseFloat(taux_cnaps) : 0.50,
+      categorie: categorie || null,
+      actif: actif ?? true,
+      ordre,
+    };
+
+    // Champs optionnels par type métier
+    if (pricing_mode) insertData.pricing_mode = pricing_mode;
+    if (taux_horaire !== undefined) insertData.taux_horaire = taux_horaire;
+    if (capacite !== undefined) insertData.capacite = capacite;
+    if (zone) insertData.zone = zone;
+    if (service_dispo) insertData.service_dispo = service_dispo;
+    if (capacite_max !== undefined) insertData.capacite_max = capacite_max;
+    if (etage !== undefined) insertData.etage = etage;
+    if (vue) insertData.vue = vue;
+    if (type_chambre) insertData.type_chambre = type_chambre;
+    if (equipements) insertData.equipements = equipements;
+
     const { data: service, error } = await supabase
       .from('services')
-      .insert({
-        tenant_id: tenantId,
-        nom,
-        description: description || null,
-        prix: Math.round(prix), // Prix déjà en centimes depuis le frontend
-        duree: serviceDuree, // Le champ s'appelle 'duree' dans la DB
-        taux_tva: taux_tva !== undefined ? parseFloat(taux_tva) : 20, // TVA par défaut 20%
-        taxe_cnaps: taxe_cnaps ?? false, // Taxe CNAPS (sécurité privée)
-        taux_cnaps: taux_cnaps !== undefined ? parseFloat(taux_cnaps) : 0.50, // Taux CNAPS par défaut 0.50%
-        categorie: categorie || null,
-        actif: actif ?? true,
-        ordre
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -262,7 +283,14 @@ router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req,
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps, categorie, actif } = req.body;
+    const {
+      nom, description, prix, duree_minutes, duree, taux_tva, taxe_cnaps, taux_cnaps,
+      categorie, actif, pricing_mode, taux_horaire,
+      // Restaurant
+      capacite, zone, service_dispo,
+      // Hotel
+      capacite_max, etage, vue, type_chambre, equipements,
+    } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
@@ -276,6 +304,18 @@ router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req,
     if (taux_cnaps !== undefined) updates.taux_cnaps = parseFloat(taux_cnaps);
     if (categorie !== undefined) updates.categorie = categorie;
     if (actif !== undefined) updates.actif = actif;
+    if (pricing_mode !== undefined) updates.pricing_mode = pricing_mode;
+    if (taux_horaire !== undefined) updates.taux_horaire = taux_horaire;
+    // Restaurant fields
+    if (capacite !== undefined) updates.capacite = capacite;
+    if (zone !== undefined) updates.zone = zone;
+    if (service_dispo !== undefined) updates.service_dispo = service_dispo;
+    // Hotel fields
+    if (capacite_max !== undefined) updates.capacite_max = capacite_max;
+    if (etage !== undefined) updates.etage = etage;
+    if (vue !== undefined) updates.vue = vue;
+    if (type_chambre !== undefined) updates.type_chambre = type_chambre;
+    if (equipements !== undefined) updates.equipements = equipements;
 
     // 🔒 TENANT ISOLATION
     const { data: service, error } = await supabase
