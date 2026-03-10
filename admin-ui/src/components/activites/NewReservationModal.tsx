@@ -685,29 +685,31 @@ export default function NewReservationModal({
             </div>
           </FeatureField>
 
-          {/* === ADRESSE DE FACTURATION === */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={newRdvForm.adresse_facturation_identique}
-                onChange={(e) => onNewRdvFormChange({ ...newRdvForm, adresse_facturation_identique: e.target.checked })}
-                className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                Adresse de facturation identique à l'adresse de prestation
-              </span>
-            </label>
-            {!newRdvForm.adresse_facturation_identique && (
-              <textarea
-                value={newRdvForm.adresse_facturation}
-                onChange={(e) => onNewRdvFormChange({ ...newRdvForm, adresse_facturation: e.target.value })}
-                rows={2}
-                placeholder="Adresse de facturation..."
-                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
-            )}
-          </div>
+          {/* === ADRESSE DE FACTURATION === (Salon/Service domicile uniquement) */}
+          {!isBusinessType('restaurant') && !isBusinessType('hotel') && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newRdvForm.adresse_facturation_identique}
+                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, adresse_facturation_identique: e.target.checked })}
+                  className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Adresse de facturation identique à l'adresse de prestation
+                </span>
+              </label>
+              {!newRdvForm.adresse_facturation_identique && (
+                <textarea
+                  value={newRdvForm.adresse_facturation}
+                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, adresse_facturation: e.target.value })}
+                  rows={2}
+                  placeholder="Adresse de facturation..."
+                  className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              )}
+            </div>
+          )}
 
           {/* Info disponibilités */}
           {loadingDisponibilites && (
@@ -726,8 +728,8 @@ export default function NewReservationModal({
             </div>
           )}
 
-          {/* Période de la prestation (Mode NON-Horaire) */}
-          {!isPricingMode('hourly') && (
+          {/* Période de la prestation (Mode NON-Horaire) — Salon/Service domicile uniquement */}
+          {!isPricingMode('hourly') && !isBusinessType('restaurant') && !isBusinessType('hotel') && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
                 Période de la prestation
