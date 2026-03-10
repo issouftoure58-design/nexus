@@ -48,23 +48,26 @@ async function loadTenantBusinessConfig(tenantId) {
       .from('tenants')
       .select(`
         id,
-        nom,
+        name,
         business_profile,
-        profile_config,
-        location_config,
-        contact_config,
-        urls_config,
-        assistant_config,
-        terminology_override,
-        features_config
+        template_id,
+        config,
+        travel_fees,
+        assistant_name,
+        telephone,
+        adresse,
+        email
       `)
       .eq('id', tenantId)
       .single();
 
     if (error || !data) {
-      console.warn(`[TenantBusiness] Tenant ${tenantId} not found in DB, using static config`);
+      console.warn(`[TenantBusiness] Tenant ${tenantId} not found in DB:`, error?.message);
       return null;
     }
+
+    // Map 'name' to 'nom' for backward compatibility
+    data.nom = data.name;
 
     // Cache the result
     tenantBusinessCache.set(tenantId, {
@@ -120,22 +123,15 @@ export async function getBusinessInfo(tenantId) {
   const businessType = dbConfig?.business_profile || staticConfig?.business_type || 'salon';
   const typeConfig = getBusinessType(businessType);
 
-  // Parser les configs JSON
-  const locationConfig = typeof dbConfig?.location_config === 'string'
-    ? JSON.parse(dbConfig.location_config)
-    : (dbConfig?.location_config || staticConfig?.location || {});
+  // Parser les configs depuis les colonnes DB existantes
+  const travelFeesConfig = typeof dbConfig?.travel_fees === 'string'
+    ? JSON.parse(dbConfig.travel_fees)
+    : (dbConfig?.travel_fees || {});
 
-  const contactConfig = typeof dbConfig?.contact_config === 'string'
-    ? JSON.parse(dbConfig.contact_config)
-    : (dbConfig?.contact_config || staticConfig?.contact || {});
-
-  const urlsConfig = typeof dbConfig?.urls_config === 'string'
-    ? JSON.parse(dbConfig.urls_config)
-    : (dbConfig?.urls_config || staticConfig?.urls || {});
-
-  const assistantConfig = typeof dbConfig?.assistant_config === 'string'
-    ? JSON.parse(dbConfig.assistant_config)
-    : (dbConfig?.assistant_config || staticConfig?.assistant || {});
+  // Fallback sur config statique pour les champs avancés
+  const locationConfig = staticConfig?.location || {};
+  const urlsConfig = staticConfig?.urls || {};
+  const assistantConfig = staticConfig?.assistant || {};
 
   return {
     // Identité
@@ -145,23 +141,23 @@ export async function getBusinessInfo(tenantId) {
     businessTypeLabel: typeConfig?.label || businessType,
 
     // Gérant/Responsable
-    gerant: staticConfig?.gerante || staticConfig?.manager || assistantConfig?.name || 'Nexus',
+    gerant: staticConfig?.gerante || staticConfig?.manager || dbConfig?.assistant_name || 'Nexus',
 
-    // Contact
-    telephone: contactConfig?.phone || staticConfig?.telephone || '',
-    whatsapp: contactConfig?.whatsapp || staticConfig?.whatsapp || '',
-    email: contactConfig?.email || staticConfig?.email || '',
+    // Contact (DB columns first, then static config)
+    telephone: dbConfig?.telephone || staticConfig?.telephone || '',
+    whatsapp: staticConfig?.whatsapp || '',
+    email: dbConfig?.email || staticConfig?.email || '',
 
     // Localisation
-    adresse: locationConfig?.base_address || locationConfig?.address || staticConfig?.adresse || '',
+    adresse: dbConfig?.adresse || locationConfig?.base_address || locationConfig?.address || staticConfig?.adresse || '',
     zone: locationConfig?.zone || '',
     locationMode: locationConfig?.mode || (typeConfig?.businessRules?.allowDomicile ? 'mobile' : 'fixed'),
 
     // Frais de déplacement
     travelFees: {
-      enabled: locationConfig?.travel_fees?.enabled ?? typeConfig?.features?.travelFees ?? false,
-      freeRadiusKm: locationConfig?.travel_fees?.free_radius_km ?? typeConfig?.businessRules?.travelFeesFreeRadiusKm ?? 5,
-      pricePerKm: locationConfig?.travel_fees?.price_per_km ?? typeConfig?.businessRules?.travelFeesPricePerKm ?? 50
+      enabled: travelFeesConfig?.enabled ?? typeConfig?.features?.travelFees ?? false,
+      freeRadiusKm: travelFeesConfig?.free_radius_km ?? typeConfig?.businessRules?.travelFeesFreeRadiusKm ?? 5,
+      pricePerKm: travelFeesConfig?.price_per_km ?? typeConfig?.businessRules?.travelFeesPricePerKm ?? 50
     },
 
     // URLs
@@ -174,11 +170,14 @@ export async function getBusinessInfo(tenantId) {
 
     // Assistant IA
     assistant: {
-      name: assistantConfig?.name || 'Nexus',
+      name: dbConfig?.assistant_name || assistantConfig?.name || 'Nexus',
       voiceId: assistantConfig?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
       personality: assistantConfig?.personality || 'friendly',
       language: assistantConfig?.language || 'fr'
     },
+
+    // Features du business type
+    features: typeConfig?.features || {},
 
     // Horaires
     horaires: staticConfig?.horaires || {}
@@ -224,27 +223,27 @@ export function getBusinessInfoSync(tenantId) {
   const businessType = dbConfig?.business_profile || staticConfig?.business_type || 'salon';
   const typeConfig = getBusinessType(businessType);
 
-  const locationConfig = dbConfig?.location_config || staticConfig?.location || {};
-  const contactConfig = dbConfig?.contact_config || staticConfig?.contact || {};
-  const urlsConfig = dbConfig?.urls_config || staticConfig?.urls || {};
-  const assistantConfig = dbConfig?.assistant_config || staticConfig?.assistant || {};
+  const travelFeesConfig = dbConfig?.travel_fees || {};
+  const locationConfig = staticConfig?.location || {};
+  const urlsConfig = staticConfig?.urls || {};
+  const assistantConfig = staticConfig?.assistant || {};
 
   return {
     id: tenantId,
-    nom: dbConfig?.nom || staticConfig?.name || tenantId,
+    nom: dbConfig?.nom || dbConfig?.name || staticConfig?.name || tenantId,
     businessType: businessType,
     businessTypeLabel: typeConfig?.label || businessType,
-    gerant: staticConfig?.gerante || staticConfig?.manager || assistantConfig?.name || 'Nexus',
-    telephone: contactConfig?.phone || staticConfig?.telephone || '',
-    whatsapp: contactConfig?.whatsapp || staticConfig?.whatsapp || '',
-    email: contactConfig?.email || staticConfig?.email || '',
-    adresse: locationConfig?.base_address || locationConfig?.address || staticConfig?.adresse || '',
+    gerant: staticConfig?.gerante || staticConfig?.manager || dbConfig?.assistant_name || 'Nexus',
+    telephone: dbConfig?.telephone || staticConfig?.telephone || '',
+    whatsapp: staticConfig?.whatsapp || '',
+    email: dbConfig?.email || staticConfig?.email || '',
+    adresse: dbConfig?.adresse || locationConfig?.base_address || staticConfig?.adresse || '',
     zone: locationConfig?.zone || '',
     locationMode: locationConfig?.mode || 'fixed',
     travelFees: {
-      enabled: locationConfig?.travel_fees?.enabled ?? false,
-      freeRadiusKm: locationConfig?.travel_fees?.free_radius_km ?? 5,
-      pricePerKm: locationConfig?.travel_fees?.price_per_km ?? 50
+      enabled: travelFeesConfig?.enabled ?? false,
+      freeRadiusKm: travelFeesConfig?.free_radius_km ?? 5,
+      pricePerKm: travelFeesConfig?.price_per_km ?? 50
     },
     urls: {
       frontend: urlsConfig?.frontend || staticConfig?.frontend_url || '',
@@ -253,11 +252,12 @@ export function getBusinessInfoSync(tenantId) {
       reviews: urlsConfig?.reviews || '/avis'
     },
     assistant: {
-      name: assistantConfig?.name || 'Nexus',
+      name: dbConfig?.assistant_name || assistantConfig?.name || 'Nexus',
       voiceId: assistantConfig?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
       personality: assistantConfig?.personality || 'friendly',
       language: assistantConfig?.language || 'fr'
     },
+    features: typeConfig?.features || {},
     horaires: staticConfig?.horaires || {}
   };
 }
