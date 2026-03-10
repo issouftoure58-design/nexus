@@ -47,7 +47,7 @@ const exportToCSV = (data: Record<string, unknown>[], filename: string, headers:
   URL.revokeObjectURL(objectUrl);
 };
 
-export default function Rapprochement() {
+export default function Rapprochement({ embedded }: { embedded?: boolean } = {}) {
   const queryClient = useQueryClient();
 
   // Filtres rapprochement (à rapprocher)
@@ -258,11 +258,13 @@ export default function Rapprochement() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Rapprochement Bancaire</h1>
-        <p className="text-sm text-gray-500">Pointage et réconciliation des écritures bancaires</p>
-      </div>
+    <div className={embedded ? '' : 'p-6'}>
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Rapprochement Bancaire</h1>
+          <p className="text-sm text-gray-500">Pointage et réconciliation des écritures bancaires</p>
+        </div>
+      )}
 
       {/* Notification */}
       {notification && (

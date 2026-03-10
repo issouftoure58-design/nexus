@@ -1,5 +1,6 @@
 import React, { useState, useMemo, Suspense, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { comptaApi, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
@@ -10,18 +11,35 @@ import {
   Loader2,
   BarChart3,
   Wallet,
+  Landmark,
+  Users,
+  UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AVAILABLE_YEARS } from '@/components/comptabilite/constants';
 
-// Lazy-load heavy recharts tabs
+// Lazy-load heavy tabs
 const ComptaResultat = React.lazy(() => import('@/components/comptabilite/ComptaResultat'));
 const ComptaBilan = React.lazy(() => import('@/components/comptabilite/ComptaBilan'));
+const Rapprochement = React.lazy(() => import('@/pages/Rapprochement'));
+const ComptesAuxiliaires = React.lazy(() => import('@/pages/ComptesAuxiliaires'));
+const ExpertComptable = React.lazy(() => import('@/pages/ExpertComptable'));
 
-type TabKey = 'resultat' | 'bilan';
+type TabKey = 'resultat' | 'bilan' | 'rapprochement' | 'auxiliaires' | 'expert';
 
 export default function Comptabilite() {
-  const [activeTab, setActiveTab] = useState<TabKey>('resultat');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as TabKey) || 'resultat';
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+
+  const handleTabChange = (tab: TabKey) => {
+    setActiveTab(tab);
+    if (tab === 'resultat') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
 
   // Période globale
   const [statsPeriod, setStatsPeriod] = useState<'jour' | 'mois' | 'annee'>('mois');
@@ -73,11 +91,11 @@ export default function Comptabilite() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Comptabilité</h1>
-          <p className="text-sm text-gray-500">Compte de résultat, bilan et analyses</p>
+          <p className="text-sm text-gray-500">Résultat, bilan, rapprochement, auxiliaires et exports</p>
         </div>
 
-        {/* Sélecteur de période */}
-        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
+        {/* Sélecteur de période (résultat/bilan uniquement) */}
+        {(activeTab === 'resultat' || activeTab === 'bilan') && <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
           <select
             value={statsPeriod}
             onChange={(e) => setStatsPeriod(e.target.value as 'jour' | 'mois' | 'annee')}
@@ -120,23 +138,28 @@ export default function Comptabilite() {
               ))}
             </select>
           )}
-        </div>
+        </div>}
       </div>
 
       <div className="space-y-6">
         {/* Tabs */}
         <div className="flex gap-1 border-b overflow-x-auto">
-          {(['resultat', 'bilan'] as const).map((tab) => (
+          {([
+            { key: 'resultat' as TabKey, icon: BarChart3, label: 'Compte de résultat' },
+            { key: 'bilan' as TabKey, icon: Wallet, label: 'Bilan' },
+            { key: 'rapprochement' as TabKey, icon: Landmark, label: 'Rapprochement' },
+            { key: 'auxiliaires' as TabKey, icon: Users, label: 'Comptes Auxiliaires' },
+            { key: 'expert' as TabKey, icon: UserCheck, label: 'Expert-comptable' },
+          ]).map(({ key, icon: Icon, label }) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={key}
+              onClick={() => handleTabChange(key)}
               className={cn(
                 'px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex items-center gap-1.5',
-                activeTab === tab ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                activeTab === key ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               )}
             >
-              {tab === 'resultat' && <><BarChart3 className="h-3.5 w-3.5" /> Compte de résultat</>}
-              {tab === 'bilan' && <><Wallet className="h-3.5 w-3.5" /> Bilan</>}
+              <Icon className="h-3.5 w-3.5" /> {label}
             </button>
           ))}
         </div>
@@ -189,6 +212,24 @@ export default function Comptabilite() {
               onStatsDayChange={setStatsDay}
               onNotify={notify}
             />
+          </Suspense>
+        )}
+
+        {activeTab === 'rapprochement' && (
+          <Suspense fallback={lazyFallback}>
+            <Rapprochement embedded />
+          </Suspense>
+        )}
+
+        {activeTab === 'auxiliaires' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptesAuxiliaires embedded />
+          </Suspense>
+        )}
+
+        {activeTab === 'expert' && (
+          <Suspense fallback={lazyFallback}>
+            <ExpertComptable embedded />
           </Suspense>
         )}
       </div>

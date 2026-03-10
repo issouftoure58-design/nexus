@@ -15,7 +15,7 @@ import { AuxiliaryLedgerModal } from '@/components/modals/AuxiliaryLedgerModal';
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
 
-export default function ComptesAuxiliaires() {
+export default function ComptesAuxiliaires({ embedded }: { embedded?: boolean } = {}) {
   const [selectedAuxiliary, setSelectedAuxiliary] = useState<{ type: 'client' | 'fournisseur' | 'personnel'; compte: string; nom: string } | null>(null);
   const [statsYear] = useState<number>(new Date().getFullYear());
 
@@ -38,11 +38,13 @@ export default function ComptesAuxiliaires() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Comptes Auxiliaires</h1>
-        <p className="text-sm text-gray-500">Balance clients, fournisseurs et personnel — Exercice {statsYear}</p>
-      </div>
+    <div className={embedded ? '' : 'p-6'}>
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Comptes Auxiliaires</h1>
+          <p className="text-sm text-gray-500">Balance clients, fournisseurs et personnel — Exercice {statsYear}</p>
+        </div>
+      )}
 
       <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

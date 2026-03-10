@@ -28,9 +28,7 @@ const Agenda = lazy(() => import('./pages/Agenda'));
 const Services = lazy(() => import('./pages/Services'));
 const Facturation = lazy(() => import('./pages/Facturation'));
 const Comptabilite = lazy(() => import('./pages/Comptabilite'));
-const Rapprochement = lazy(() => import('./pages/Rapprochement'));
-const ComptesAuxiliaires = lazy(() => import('./pages/ComptesAuxiliaires'));
-const ExpertComptable = lazy(() => import('./pages/ExpertComptable'));
+// Rapprochement, ComptesAuxiliaires, ExpertComptable → intégrés comme onglets dans Comptabilite
 const Stock = lazy(() => import('./pages/Stock'));
 const Parametres = lazy(() => import('./pages/Parametres'));
 const Subscription = lazy(() => import('./pages/Subscription'));
@@ -197,10 +195,11 @@ function App() {
             <Route path="/facturation" element={<ModuleRoute module="facturation" moduleTitle="Facturation" moduleDescription="Factures, dépenses et relances"><Facturation /></ModuleRoute>} />
 
             {/* Modules Business */}
-            <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Compte de résultat, bilan et analyses"><Comptabilite /></ModuleRoute>} />
-            <Route path="/rapprochement" element={<ModuleRoute module="comptabilite" moduleTitle="Rapprochement Bancaire" moduleDescription="Rapprochement des écritures bancaires"><Rapprochement /></ModuleRoute>} />
-            <Route path="/auxiliaires" element={<ModuleRoute module="comptabilite" moduleTitle="Comptes Auxiliaires" moduleDescription="Balance clients, fournisseurs et personnel"><ComptesAuxiliaires /></ModuleRoute>} />
-            <Route path="/expert-comptable" element={<ModuleRoute module="comptabilite" moduleTitle="Expert-Comptable" moduleDescription="Journaux, grand livre, balance et exports"><ExpertComptable /></ModuleRoute>} />
+            <Route path="/comptabilite" element={<ModuleRoute module="comptabilite" moduleTitle="Comptabilité" moduleDescription="Résultat, bilan, rapprochement, auxiliaires et exports"><Comptabilite /></ModuleRoute>} />
+            {/* Redirections anciennes routes comptabilité → onglets */}
+            <Route path="/rapprochement" element={<Navigate to="/comptabilite?tab=rapprochement" replace />} />
+            <Route path="/auxiliaires" element={<Navigate to="/comptabilite?tab=auxiliaires" replace />} />
+            <Route path="/expert-comptable" element={<Navigate to="/comptabilite?tab=expert" replace />} />
             <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
             <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
             <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />

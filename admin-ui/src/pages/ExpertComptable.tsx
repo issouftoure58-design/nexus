@@ -105,7 +105,7 @@ const exportToCSV = (data: Record<string, unknown>[], filename: string, headers:
   URL.revokeObjectURL(objectUrl);
 };
 
-export default function ExpertComptable() {
+export default function ExpertComptable({ embedded }: { embedded?: boolean } = {}) {
   // State
   const [selectedJournal, setSelectedJournal] = useState<string>('BQ');
   const [journalPeriode, setJournalPeriode] = useState<string>(() => {
@@ -529,12 +529,14 @@ export default function ExpertComptable() {
   };
 
   return (
-    <div className="p-6">
+    <div className={embedded ? '' : 'p-6'}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Expert-Comptable</h1>
-          <p className="text-sm text-gray-500">Journaux, grand livre, balance et exports</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Expert-Comptable</h1>
+            <p className="text-sm text-gray-500">Journaux, grand livre, balance et exports</p>
+          </div>
+        )}
 
         {/* Sélecteur d'année */}
         <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
