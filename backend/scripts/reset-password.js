@@ -9,7 +9,7 @@ const supabase = createClient(
 );
 
 const NEW_PASSWORD = 'Admin123';
-const EMAIL = process.argv[2] || 'fatou@fatshairafro.fr';
+const EMAIL = (process.argv[2] || 'fatou@fatshairafro.fr').trim().toLowerCase();
 
 async function main() {
   console.log(`Resetting password for: ${EMAIL}`);

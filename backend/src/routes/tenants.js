@@ -170,6 +170,10 @@ router.get('/me', authenticateAdmin, async (req, res) => {
         statut: tenant.statut || 'actif',
         essai_fin: tenant.essai_fin || null,
         onboarding_completed: tenant.onboarding_completed || false,
+        template_id: tenant.template_id || null,
+        business_profile: tenant.business_profile || null,
+        onboarding_step: tenant.onboarding_step || 0,
+        profession_id: tenant.profession_id || null,
       },
     };
 
@@ -180,6 +184,36 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       success: false,
       error: error.message || 'Erreur serveur',
     });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/tenants/me/complete-onboarding - Terminer l'onboarding
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.patch('/me/complete-onboarding', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: 'Tenant ID manquant' });
+    }
+
+    const { error } = await supabase
+      .from('tenants')
+      .update({
+        onboarding_completed: true,
+        onboarding_step: 5,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tenantId);
+
+    if (error) throw error;
+
+    console.log(`[TENANTS] Onboarding completed for tenant: ${tenantId}`);
+    res.json({ success: true, message: 'Onboarding terminé' });
+  } catch (error) {
+    console.error('[TENANTS] Erreur complete-onboarding:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 

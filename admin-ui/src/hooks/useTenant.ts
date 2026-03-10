@@ -78,6 +78,10 @@ export interface Tenant {
   statut: 'actif' | 'essai' | 'expire' | 'suspendu' | 'annule';
   essai_fin?: string;
   onboarding_completed?: boolean;
+  template_id?: string;
+  business_profile?: string;
+  onboarding_step?: number;
+  profession_id?: string;
 }
 
 interface TenantResponse {

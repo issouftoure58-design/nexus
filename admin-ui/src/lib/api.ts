@@ -519,12 +519,16 @@ export const disponibilitesApi = {
     heure_fin: string | null;
     is_active: boolean;
     id: number | null;
+    period_label?: string;
+    sort_order?: number;
   }> }>('/admin/disponibilites/horaires'),
   updateHoraires: (horaires: Array<{
     jour: number;
     heure_debut: string | null;
     heure_fin: string | null;
     is_active: boolean;
+    period_label?: string;
+    sort_order?: number;
   }>) => api.put('/admin/disponibilites/horaires', { horaires }),
   getConges: () => api.get<{ conges: Array<{
     id: number;

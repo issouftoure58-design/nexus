@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Settings, User, Bell, Shield, Palette, Key, Globe, AlertCircle,
-  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Eye, EyeOff, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp
+  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Eye, EyeOff, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +48,7 @@ export default function Parametres() {
 
   const subSections = [
     { id: 'profile', label: 'Profil', icon: User },
+    { id: 'activite', label: 'Activité', icon: Briefcase },
     { id: 'team', label: 'Équipe', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Sécurité', icon: Shield },
@@ -93,6 +94,7 @@ export default function Parametres() {
         {/* Content */}
         <div className="lg:col-span-3 space-y-6">
           {activeSubSection === 'profile' && <ProfileSubSection />}
+          {activeSubSection === 'activite' && <ActiviteSubSection />}
           {activeSubSection === 'team' && <TeamSubSection />}
           {activeSubSection === 'notifications' && <NotificationsSubSection />}
           {activeSubSection === 'security' && <SecuritySubSection />}
@@ -191,6 +193,114 @@ function ProfileSubSection() {
           <Button onClick={() => saveMutation.mutate(formData)} disabled={!hasChanges || saveMutation.isPending} className="bg-gradient-to-r from-gray-700 to-gray-800">
             {saveMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer'}
           </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIVITE (Type de métier)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const TEMPLATE_LABELS: Record<string, { label: string; emoji: string }> = {
+  salon_coiffure: { label: 'Salon de coiffure', emoji: '✂️' },
+  institut_beaute: { label: 'Institut de beauté', emoji: '💅' },
+  restaurant: { label: 'Restaurant', emoji: '🍽️' },
+  medical: { label: 'Cabinet médical', emoji: '🩺' },
+  garage: { label: 'Garage automobile', emoji: '🔧' },
+  artisan: { label: 'Service à domicile', emoji: '🏠' },
+  hotel: { label: 'Hôtel / Hébergement', emoji: '🏨' },
+  commerce: { label: 'Commerce', emoji: '🛍️' },
+  autre: { label: 'Autre activité', emoji: '⚙️' },
+};
+
+function ActiviteSubSection() {
+  const { tenant, refetch } = useTenant();
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [changing, setChanging] = useState(false);
+  const [newTemplate, setNewTemplate] = useState('');
+
+  const currentTemplate = (tenant as any)?.template_id || 'autre';
+  const currentInfo = TEMPLATE_LABELS[currentTemplate] || TEMPLATE_LABELS.autre;
+  const professionId = (tenant as any)?.profession_id;
+
+  const handleChange = async () => {
+    if (!newTemplate || newTemplate === currentTemplate) return;
+    setChanging(true);
+    try {
+      await api.patch('/admin/profile/config', {
+        config: { template_id: newTemplate },
+      });
+      // Also update the tenant directly
+      await api.patch('/tenants/me/complete-onboarding');
+      await refetch();
+      setFeedback({ message: 'Type d\'activité mis à jour', type: 'success' });
+      setNewTemplate('');
+    } catch (err) {
+      setFeedback({ message: 'Erreur lors de la mise à jour', type: 'error' });
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Briefcase className="h-5 w-5 text-cyan-500" />
+          Type d'activité
+        </CardTitle>
+        <CardDescription>
+          Le type d'activité détermine les fonctionnalités, horaires et services proposés.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {feedback && (
+          <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />
+        )}
+
+        {/* Activité actuelle */}
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-500 mb-1">Activité actuelle</div>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{currentInfo.emoji}</span>
+            <div>
+              <div className="font-semibold text-gray-900">{currentInfo.label}</div>
+              {professionId && (
+                <div className="text-sm text-gray-500">Métier : {professionId}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Changement */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">Changer de type</label>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            Les services et horaires par défaut seront réinitialisés si vous changez de type.
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={newTemplate}
+              onChange={e => setNewTemplate(e.target.value)}
+              className="flex-1 h-10 px-3 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">Sélectionner un nouveau type...</option>
+              {Object.entries(TEMPLATE_LABELS)
+                .filter(([key]) => key !== currentTemplate)
+                .map(([key, info]) => (
+                  <option key={key} value={key}>{info.emoji} {info.label}</option>
+                ))}
+            </select>
+            <Button
+              onClick={handleChange}
+              disabled={!newTemplate || changing}
+              className="bg-cyan-600 hover:bg-cyan-700"
+            >
+              {changing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Changer'}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

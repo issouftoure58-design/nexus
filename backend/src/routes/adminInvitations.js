@@ -93,11 +93,13 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const tenantId = req.admin.tenant_id;
     if (!tenantId) return res.status(403).json({ error: 'tenant_id requis' });
 
-    const { email, role = 'manager', permissions = null } = req.body;
+    const { email: rawEmail, role = 'manager', permissions = null } = req.body;
 
-    if (!email) {
+    if (!rawEmail) {
       return res.status(400).json({ error: 'Email requis' });
     }
+
+    const email = rawEmail.trim().toLowerCase();
 
     if (!VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: `Rôle invalide. Valeurs possibles: ${VALID_ROLES.join(', ')}` });
@@ -286,7 +288,7 @@ router.post('/accept', async (req, res) => {
     const { data: existingUser } = await supabase
       .from('admin_users')
       .select('id')
-      .eq('email', invitation.email)
+      .eq('email', invitation.email.toLowerCase())
       .eq('tenant_id', invitation.tenant_id)
       .single();
 
@@ -298,7 +300,7 @@ router.post('/accept', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const newUserData = {
-      email: invitation.email,
+      email: invitation.email.toLowerCase(),
       password_hash: hashedPassword,
       nom,
       role: invitation.role,

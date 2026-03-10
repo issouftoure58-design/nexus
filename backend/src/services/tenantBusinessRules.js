@@ -224,17 +224,31 @@ export async function getBusinessHoursForTenant(tenantId) {
   }
 
   // Try business_hours table first (even for frozen tenants — allows dynamic updates)
+  // Supports multi-period (period_label + sort_order)
   try {
     const { data: businessHours, error } = await rawSupabase
       .from('business_hours')
-      .select('day_of_week, open_time, close_time, is_closed')
-      .eq('tenant_id', tenantId);
+      .select('day_of_week, open_time, close_time, is_closed, period_label, sort_order')
+      .eq('tenant_id', tenantId)
+      .order('sort_order', { ascending: true });
 
     if (!error && businessHours && businessHours.length > 0) {
       const hours = {};
       for (let i = 0; i < 7; i++) {
-        const h = businessHours.find(x => x.day_of_week === i);
-        hours[i] = h && !h.is_closed ? { open: h.open_time, close: h.close_time } : null;
+        const dayRows = businessHours.filter(x => x.day_of_week === i && !x.is_closed);
+        if (dayRows.length === 0) {
+          hours[i] = null;
+        } else if (dayRows.length === 1) {
+          // Single period — backward compatible
+          hours[i] = { open: dayRows[0].open_time, close: dayRows[0].close_time };
+        } else {
+          // Multi-period: return array of { open, close, label }
+          hours[i] = dayRows.map(r => ({
+            open: r.open_time,
+            close: r.close_time,
+            label: r.period_label || 'journee',
+          }));
+        }
       }
       return normalizeBusinessHours({ SCHEDULE: hours });
     }
@@ -395,9 +409,25 @@ function normalizeBusinessHours(hours) {
       const h = schedule[day] || schedule[String(day)];
       return h !== null && h !== undefined;
     },
+    /**
+     * Returns hours for a day.
+     * Single period: { open, close }
+     * Multi-period: [{ open, close, label }, ...]
+     * Closed: null
+     */
     getHours: (day) => {
       const h = schedule[day] || schedule[String(day)];
       return h || null;
+    },
+    /**
+     * Returns flat list of all open periods for a day.
+     * Always returns an array (normalizes single-period to array).
+     */
+    getPeriods: (day) => {
+      const h = schedule[day] || schedule[String(day)];
+      if (!h) return [];
+      if (Array.isArray(h)) return h;
+      return [{ open: h.open, close: h.close, label: 'journee' }];
     },
     getOpenDays: () => {
       const days = [];

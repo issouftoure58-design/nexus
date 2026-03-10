@@ -63,6 +63,7 @@ const CGV = lazy(() => import('./pages/CGV'));
 const Fidelite = lazy(() => import('./pages/Fidelite'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Guide = lazy(() => import('./pages/Guide'));
+const Configuration = lazy(() => import('./pages/Configuration'));
 
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
@@ -115,10 +116,13 @@ function PrivateRoute({ children, skipOnboarding }: { children: React.ReactNode;
     return <Navigate to="/login" replace />;
   }
 
-  // Rediriger vers onboarding seulement si les données tenant sont chargées
-  // et confirment que l'onboarding n'est pas fait
+  // Rediriger vers configuration (nouveau flow) ou onboarding (ancien flow)
+  // seulement si les données tenant sont chargées et que l'onboarding n'est pas fait
   if (!skipOnboarding && tenant && !onboardingCompleted) {
-    return <Navigate to="/onboarding" replace />;
+    // Nouveau flow: tenants avec template_id → /configuration
+    // Ancien flow: tenants sans template_id → /onboarding (rétrocompatibilité)
+    const hasTemplate = !!(tenant as any).template_id;
+    return <Navigate to={hasTemplate ? '/configuration' : '/onboarding'} replace />;
   }
 
   return <>{children}</>;
@@ -162,6 +166,7 @@ function App() {
             <Route path="/cgv" element={<CGV />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<PrivateRoute skipOnboarding><Onboarding /></PrivateRoute>} />
+            <Route path="/configuration" element={<PrivateRoute skipOnboarding><Configuration /></PrivateRoute>} />
 
             {/* Routes de base - toujours accessibles */}
             <Route path="/" element={<ModuleRoute><Home /></ModuleRoute>} />

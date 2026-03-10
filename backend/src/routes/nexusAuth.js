@@ -57,7 +57,8 @@ router.post('/login', loginLimiter, async (req, res) => {
   res.setHeader('Pragma', 'no-cache');
 
   try {
-    const { email, password } = req.body;
+    const { email: rawEmail, password } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
 
     const rateCheck = checkRateLimit(clientIp);

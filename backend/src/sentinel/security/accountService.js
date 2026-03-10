@@ -141,10 +141,11 @@ export async function changePassword(userId, currentPassword, newPassword, tenan
 // Verifier le login avec politique de securite
 export async function verifyLogin(email, password, req) {
   try {
+    // Case-insensitive email lookup (email already lowercased in route, ilike for safety)
     const { data: user, error: fetchError } = await supabase
       .from('admin_users')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.toLowerCase())
       .eq('actif', true)
       .single();
 

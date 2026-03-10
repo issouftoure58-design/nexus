@@ -7,6 +7,7 @@ import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordP
 import { loginLimiter, signupLimiter } from '../middleware/rateLimiter.js';
 import logger from '../config/logger.js';
 import { totpService } from '../services/totpService.js';
+import { getBusinessTemplate, TEMPLATE_TO_PROFILE, generateIaConfig } from '../data/businessTemplates.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
 
 const router = express.Router();
@@ -68,7 +69,8 @@ router.post('/login', loginLimiter, async (req, res) => {
   res.setHeader('Expires', '0');
 
   try {
-    const { email, password } = req.body;
+    const { email: rawEmail, password } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
 
     // 🔒 G4: Vérifier rate limit (in-memory, garde pour compatibilité)
@@ -318,7 +320,13 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
 // POST /api/admin/auth/signup (créer un compte)
 router.post('/signup', signupLimiter, async (req, res) => {
   try {
-    const { entreprise, nom, email, telephone, password, plan = 'starter', accept_cgv } = req.body;
+    const {
+      entreprise, nom, email: rawEmail, telephone, password, plan = 'starter', accept_cgv,
+      template_type, profession_id, adresse,
+    } = req.body;
+
+    // Normaliser l'email en minuscules (évite les doublons par casse)
+    const email = rawEmail?.trim().toLowerCase();
 
     // Validation
     if (!entreprise || !nom || !email || !password) {
@@ -385,7 +393,11 @@ router.post('/signup', signupLimiter, async (req, res) => {
 
     const finalSlug = existingTenant ? `${slug}-${Date.now()}` : slug;
 
-    // Créer le tenant
+    // Déterminer le template et business_profile
+    const effectiveTemplate = template_type || 'autre';
+    const businessProfile = TEMPLATE_TO_PROFILE[effectiveTemplate] || 'salon';
+
+    // Créer le tenant avec template + business_profile
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -396,7 +408,12 @@ router.post('/signup', signupLimiter, async (req, res) => {
         status: 'active',
         statut: 'essai',
         essai_fin: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        template_id: effectiveTemplate,
+        business_profile: businessProfile,
+        onboarding_step: 0,
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
+        ...(adresse ? { adresse } : {}),
+        ...(profession_id ? { profession_id } : {}),
         settings: {
           timezone: 'Europe/Paris',
           currency: 'EUR',
@@ -435,11 +452,129 @@ router.post('/signup', signupLimiter, async (req, res) => {
       throw new Error('Erreur lors de la création du compte');
     }
 
-    logger.info(`[SIGNUP] Nouveau compte créé: ${email} (tenant: ${finalSlug}, plan: ${plan})`);
+    // ═══ Auto-provisionner depuis le template ═══
+    try {
+      const template = getBusinessTemplate(effectiveTemplate);
+
+      // 1. Créer les services par défaut
+      if (template.defaultServices?.length > 0) {
+        const servicesRows = template.defaultServices.map((s, i) => ({
+          tenant_id: finalSlug,
+          nom: s.name,
+          duree_minutes: s.duration,
+          prix: Math.round(s.price * 100), // centimes
+          categorie: s.category || 'general',
+          actif: true,
+          ordre: i,
+        }));
+        await supabase.from('services').insert(servicesRows);
+      }
+
+      // 2. Créer les business_hours (multi-period si restaurant/médical/garage)
+      const dayMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+      if (template.defaultHours) {
+        const hoursRows = [];
+        for (const [dayName, hours] of Object.entries(template.defaultHours)) {
+          const dayNum = dayMap[dayName];
+          if (dayNum === undefined) continue;
+
+          if (!hours) {
+            // Fermé
+            hoursRows.push({
+              tenant_id: finalSlug,
+              day_of_week: dayNum,
+              open_time: null,
+              close_time: null,
+              is_closed: true,
+              period_label: 'journee',
+              sort_order: 0,
+            });
+          } else if (Array.isArray(hours)) {
+            // Multi-period (restaurant midi/soir, médical matin/après-midi)
+            hours.forEach((period, idx) => {
+              hoursRows.push({
+                tenant_id: finalSlug,
+                day_of_week: dayNum,
+                open_time: period.open,
+                close_time: period.close,
+                is_closed: false,
+                period_label: period.label || (idx === 0 ? 'midi' : 'soir'),
+                sort_order: idx,
+              });
+            });
+          } else {
+            // Single period
+            hoursRows.push({
+              tenant_id: finalSlug,
+              day_of_week: dayNum,
+              open_time: hours.open,
+              close_time: hours.close,
+              is_closed: false,
+              period_label: 'journee',
+              sort_order: 0,
+            });
+          }
+        }
+        if (hoursRows.length > 0) {
+          await supabase.from('business_hours').insert(hoursRows);
+        }
+      }
+
+      // 3. Créer la config IA par canal
+      const iaConfigs = generateIaConfig(effectiveTemplate, entreprise, nom);
+      const iaConfigRows = Object.entries(iaConfigs).map(([channel, config]) => ({
+        tenant_id: finalSlug,
+        canal: channel.replace('channel_', ''),
+        config: config,
+      }));
+      if (iaConfigRows.length > 0) {
+        await supabase.from('tenant_ia_config').upsert(iaConfigRows, { onConflict: 'tenant_id,canal' }).catch(() => {
+          // Table peut ne pas exister, non-bloquant
+          logger.warn('[SIGNUP] tenant_ia_config insert skipped (table may not exist)');
+        });
+      }
+
+      logger.info(`[SIGNUP] Template provisionné: ${effectiveTemplate} → ${template.defaultServices?.length || 0} services, horaires, IA config`);
+    } catch (provisionError) {
+      // Non-bloquant: le compte est créé même si le provisioning partiel échoue
+      logger.warn('[SIGNUP] Provisioning partiel:', provisionError.message);
+    }
+
+    // ═══ Auto-login: générer JWT + créer session ═══
+    const tokenPayload = {
+      id: adminUser.id,
+      email: adminUser.email,
+      nom: adminUser.nom,
+      role: adminUser.role,
+      tenant_id: tenant.id,
+      tenant_slug: finalSlug,
+    };
+    const token = jwt.sign(tokenPayload, EFFECTIVE_JWT_SECRET, { expiresIn: '24h' });
+
+    // Créer session DB
+    try {
+      await createSession({
+        admin_id: adminUser.id,
+        tenant_id: tenant.id,
+        token_hash: hashToken(token),
+        ip_address: req.ip || req.connection?.remoteAddress || 'unknown',
+        user_agent: req.headers['user-agent'] || 'unknown',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      });
+    } catch (sessionError) {
+      logger.warn('[SIGNUP] Session creation failed (non-blocking):', sessionError.message);
+    }
+
+    logger.info(`[SIGNUP] Nouveau compte créé + auto-login: ${email} (tenant: ${finalSlug}, plan: ${plan}, template: ${effectiveTemplate})`);
 
     res.status(201).json({
       success: true,
       message: 'Compte créé avec succès',
+      token,
+      tenant_id: tenant.id,
+      template_type: effectiveTemplate,
+      admin: { id: adminUser.id, email: adminUser.email, nom: adminUser.nom },
+      plan: plan,
       tenant: {
         id: tenant.id,
         slug: finalSlug,

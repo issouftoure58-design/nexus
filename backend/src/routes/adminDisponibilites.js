@@ -17,6 +17,7 @@ const JOURS_SEMAINE = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendr
 
 // GET /api/admin/disponibilites/horaires
 // Retourne les horaires hebdomadaires (7 jours) depuis business_hours
+// Supporte multi-period (period_label + sort_order)
 router.get('/horaires', authenticateAdmin, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
@@ -26,19 +27,21 @@ router.get('/horaires', authenticateAdmin, async (req, res) => {
       .from('business_hours')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('day_of_week', { ascending: true });
+      .order('day_of_week', { ascending: true })
+      .order('sort_order', { ascending: true });
 
     if (error) throw error;
 
-    // Formater pour inclure le nom du jour
-    // Note: open_time/close_time sont en format TIME (HH:MM:SS), on tronque les secondes
+    // Formater pour inclure le nom du jour + period_label
     const horairesMapped = (horaires || []).map(h => ({
       jour: h.day_of_week,
       nom: JOURS_SEMAINE[h.day_of_week],
       heure_debut: h.open_time ? h.open_time.slice(0, 5) : null,
       heure_fin: h.close_time ? h.close_time.slice(0, 5) : null,
       is_active: !h.is_closed,
-      id: h.id
+      id: h.id,
+      period_label: h.period_label || 'journee',
+      sort_order: h.sort_order || 0,
     }));
 
     // Si pas de données en DB, retourner les 7 jours vides (dimanche fermé, reste 9-18)
@@ -51,7 +54,9 @@ router.get('/horaires', authenticateAdmin, async (req, res) => {
           heure_debut: i === 0 ? null : '09:00',
           heure_fin: i === 0 ? null : '18:00',
           is_active: i !== 0,
-          id: null
+          id: null,
+          period_label: 'journee',
+          sort_order: 0,
         });
       }
       return res.json({ horaires: defaults });
@@ -66,6 +71,7 @@ router.get('/horaires', authenticateAdmin, async (req, res) => {
 
 // PUT /api/admin/disponibilites/horaires
 // Met à jour tous les horaires hebdomadaires via UPSERT dans business_hours
+// Supporte multi-period: chaque entrée peut avoir period_label
 router.put('/horaires', authenticateAdmin, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
@@ -77,21 +83,31 @@ router.put('/horaires', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Format horaires invalide' });
     }
 
-    // UPSERT chaque jour dans business_hours (🔒 TENANT ISOLATION)
-    const upserts = horaires.map(async (h) => {
-      return supabase
-        .from('business_hours')
-        .upsert({
-          tenant_id: tenantId,
-          day_of_week: h.jour,
-          open_time: h.is_active ? h.heure_debut : null,
-          close_time: h.is_active ? h.heure_fin : null,
-          is_closed: !h.is_active,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'tenant_id,day_of_week' });
-    });
+    // Supprimer les anciens horaires pour ce tenant (pour gérer les suppressions de périodes)
+    await supabase
+      .from('business_hours')
+      .delete()
+      .eq('tenant_id', tenantId);
 
-    await Promise.all(upserts);
+    // Insérer les nouveaux horaires (🔒 TENANT ISOLATION)
+    const rows = horaires.map((h, idx) => ({
+      tenant_id: tenantId,
+      day_of_week: h.jour,
+      open_time: h.is_active ? h.heure_debut : null,
+      close_time: h.is_active ? h.heure_fin : null,
+      is_closed: !h.is_active,
+      period_label: h.period_label || 'journee',
+      sort_order: h.sort_order ?? idx,
+      updated_at: new Date().toISOString(),
+    }));
+
+    if (rows.length > 0) {
+      const { error: insertError } = await supabase
+        .from('business_hours')
+        .insert(rows);
+
+      if (insertError) throw insertError;
+    }
 
     // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
@@ -99,7 +115,7 @@ router.put('/horaires', authenticateAdmin, async (req, res) => {
       admin_id: req.admin.id,
       action: 'update_horaires',
       entite: 'business_hours',
-      details: { horaires }
+      details: { horaires_count: horaires.length }
     });
 
     res.json({ message: 'Horaires mis à jour avec succès' });

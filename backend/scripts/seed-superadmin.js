@@ -23,7 +23,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
 export async function seedSuperAdmin() {
-  const email = process.env.NEXUS_SUPERADMIN_EMAIL;
+  const email = process.env.NEXUS_SUPERADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.NEXUS_SUPERADMIN_PASSWORD;
 
   if (!email || !password) {
