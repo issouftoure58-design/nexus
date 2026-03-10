@@ -28,6 +28,7 @@ const menuItems = [
   { icon: Star, label: 'Fidélité', path: '/fidelite' },
   { icon: ListChecks, label: 'Liste d\'attente', path: '/waitlist' },
   { type: 'separator', label: 'Business' },
+  { icon: CreditCard, label: 'Facturation', path: '/facturation' },
   { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'pro' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'pro' },
   { icon: Landmark, label: 'Rapprochement', path: '/rapprochement', plan: 'pro' },
