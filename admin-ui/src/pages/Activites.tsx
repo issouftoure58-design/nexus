@@ -751,61 +751,112 @@ export default function Activites() {
         clientId = clientData.client?.id ?? clientData.id ?? 0;
       }
 
-      const totals = calculateTotals();
-
-      const membreIdsFromServices: number[] = [];
-      serviceLignes.forEach(sl => {
-        if (sl.membre_id) {
-          membreIdsFromServices.push(sl.membre_id);
-        }
-        sl.affectations.forEach(aff => {
-          if (aff.membre_id) {
-            membreIdsFromServices.push(aff.membre_id);
-          }
+      // Construire le payload selon le type de business
+      if (isBusinessType('restaurant')) {
+        // Restaurant: table + couverts + date/heure
+        const selectedTable = services.find(s => s.id === newRdvForm.table_id);
+        await api.post('/admin/reservations', {
+          client_id: clientId,
+          service: selectedTable?.nom || `Table #${newRdvForm.table_id}`,
+          date_rdv: newRdvForm.date_rdv,
+          heure_rdv: newRdvForm.heure_rdv,
+          notes: newRdvForm.notes,
+          services: [{
+            service_id: newRdvForm.table_id,
+            service_nom: selectedTable?.nom || `Table #${newRdvForm.table_id}`,
+            quantite: 1,
+            prix_unitaire: 0,
+            duree_minutes: 90,
+          }],
+          nb_couverts: newRdvForm.nb_couverts || 2,
+          remise_type: newRdvForm.remise_type || null,
+          remise_valeur: newRdvForm.remise_valeur || 0,
+          remise_motif: newRdvForm.remise_motif || null,
+          prix_total: 0,
         });
-      });
-      const uniqueMembreIds = [...new Set(membreIdsFromServices)];
+      } else if (isBusinessType('hotel')) {
+        // Hotel: chambre + check-in/check-out + extras
+        const selectedRoom = services.find(s => s.id === newRdvForm.chambre_id);
+        await api.post('/admin/reservations', {
+          client_id: clientId,
+          service: selectedRoom?.nom || `Chambre #${newRdvForm.chambre_id}`,
+          date_rdv: newRdvForm.date_rdv,
+          heure_rdv: newRdvForm.heure_checkin || '14:00',
+          date_fin: newRdvForm.date_checkout,
+          heure_fin: newRdvForm.heure_checkout || '11:00',
+          notes: newRdvForm.notes,
+          services: [{
+            service_id: newRdvForm.chambre_id,
+            service_nom: selectedRoom?.nom || `Chambre #${newRdvForm.chambre_id}`,
+            quantite: 1,
+            prix_unitaire: selectedRoom?.prix || 0,
+            duree_minutes: 0,
+          }],
+          nb_personnes: newRdvForm.nb_personnes || 2,
+          extras: newRdvForm.extras || [],
+          remise_type: newRdvForm.remise_type || null,
+          remise_valeur: newRdvForm.remise_valeur || 0,
+          remise_motif: newRdvForm.remise_motif || null,
+          prix_total: selectedRoom ? (selectedRoom.prix || 0) : 0,
+        });
+      } else {
+        // Salon / Service domicile: multi-services + multi-membres
+        const totals = calculateTotals();
 
-      await api.post('/admin/reservations', {
-        client_id: clientId,
-        service: serviceLignes[0]?.service_nom || '',
-        date_rdv: newRdvForm.date_rdv,
-        heure_rdv: newRdvForm.heure_rdv,
-        heure_fin: newRdvForm.heure_fin || null,
-        date_fin: newRdvForm.date_fin || null,
-        nb_agents: newRdvForm.nb_agents || 1,
-        pricing_mode: profile?.pricing?.mode || 'fixed',
-        lieu: newRdvForm.adresse_prestation ? 'custom' : 'salon',
-        adresse_client: newRdvForm.adresse_prestation,
-        adresse_facturation: newRdvForm.adresse_facturation_identique
-          ? newRdvForm.adresse_prestation
-          : newRdvForm.adresse_facturation,
-        notes: newRdvForm.notes,
-        services: serviceLignes.map(sl => ({
-          service_id: sl.service_id,
-          service_nom: sl.service_nom,
-          quantite: sl.quantite,
-          prix_unitaire: sl.prix_unitaire,
-          duree_minutes: sl.duree_minutes,
-          membre_id: sl.membre_id || null,
-          taux_horaire: sl.taux_horaire || null,
-          affectations: sl.affectations.map(aff => ({
-            membre_id: aff.membre_id,
-            heure_debut: aff.heure_debut,
-            heure_fin: aff.heure_fin
-          }))
-        })),
-        membre_ids: uniqueMembreIds,
-        membre_id: serviceLignes[0]?.membre_id || uniqueMembreIds[0] || null,
-        remise_type: newRdvForm.remise_type || null,
-        remise_valeur: newRdvForm.remise_valeur || 0,
-        remise_motif: newRdvForm.remise_motif || null,
-        montant_ht: totals.montantHT,
-        montant_tva: totals.tva,
-        prix_total: totals.totalTTC,
-        duree_totale_minutes: totals.dureeTotale,
-        frais_deplacement: totals.fraisDeplacement
-      });
+        const membreIdsFromServices: number[] = [];
+        serviceLignes.forEach(sl => {
+          if (sl.membre_id) {
+            membreIdsFromServices.push(sl.membre_id);
+          }
+          sl.affectations.forEach(aff => {
+            if (aff.membre_id) {
+              membreIdsFromServices.push(aff.membre_id);
+            }
+          });
+        });
+        const uniqueMembreIds = [...new Set(membreIdsFromServices)];
+
+        await api.post('/admin/reservations', {
+          client_id: clientId,
+          service: serviceLignes[0]?.service_nom || '',
+          date_rdv: newRdvForm.date_rdv,
+          heure_rdv: newRdvForm.heure_rdv,
+          heure_fin: newRdvForm.heure_fin || null,
+          date_fin: newRdvForm.date_fin || null,
+          nb_agents: newRdvForm.nb_agents || 1,
+          pricing_mode: profile?.pricing?.mode || 'fixed',
+          lieu: newRdvForm.adresse_prestation ? 'custom' : 'salon',
+          adresse_client: newRdvForm.adresse_prestation,
+          adresse_facturation: newRdvForm.adresse_facturation_identique
+            ? newRdvForm.adresse_prestation
+            : newRdvForm.adresse_facturation,
+          notes: newRdvForm.notes,
+          services: serviceLignes.map(sl => ({
+            service_id: sl.service_id,
+            service_nom: sl.service_nom,
+            quantite: sl.quantite,
+            prix_unitaire: sl.prix_unitaire,
+            duree_minutes: sl.duree_minutes,
+            membre_id: sl.membre_id || null,
+            taux_horaire: sl.taux_horaire || null,
+            affectations: sl.affectations.map(aff => ({
+              membre_id: aff.membre_id,
+              heure_debut: aff.heure_debut,
+              heure_fin: aff.heure_fin
+            }))
+          })),
+          membre_ids: uniqueMembreIds,
+          membre_id: serviceLignes[0]?.membre_id || uniqueMembreIds[0] || null,
+          remise_type: newRdvForm.remise_type || null,
+          remise_valeur: newRdvForm.remise_valeur || 0,
+          remise_motif: newRdvForm.remise_motif || null,
+          montant_ht: totals.montantHT,
+          montant_tva: totals.tva,
+          prix_total: totals.totalTTC,
+          duree_totale_minutes: totals.dureeTotale,
+          frais_deplacement: totals.fraisDeplacement
+        });
+      }
 
       setShowNewModal(false);
       resetNewRdvForm();
