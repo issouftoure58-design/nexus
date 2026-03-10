@@ -401,8 +401,16 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 - **`get_upcoming_days` enrichi** — pour restaurants, inclut capacite midi/soir par jour (tables libres, couverts dispo)
 - **Admin POST** — persiste `nb_couverts`, `table_id`, `service_type` en DB
 
+#### Outils IA information metier (restaurant + hotel)
+- **4 outils IA restaurant** : `get_restaurant_info` (champ libre), `get_menu` (carte structuree), `get_menu_du_jour` (formules), `check_allergenes` (restrictions alimentaires)
+- **3 outils IA hotel** : `get_hotel_info` (champ libre), `get_chambres_disponibles` (types/vue/equipements/tarifs saisonniers), `check_room_availability` (dispo par dates + prix total sejour)
+- **Section admin Parametres > Activite** : textarea "Informations restaurant/hotel" (profile_config.restaurant_info / hotel_info)
+- L'admin redige les infos (carte, politique, hygiene, check-in/out, parking, annulation...), l'IA les lit pour renseigner les clients
+- Pattern generalisable a d'autres metiers (cle `infoKey` dynamique)
+- **Total outils IA client** : 20 (12 generiques + 1 check_table + 4 restaurant + 3 hotel)
+
 **Fichiers crees (4):** restaurantAvailability.js, migration 076
-**Fichiers modifies (~20):** nexusCore.js, toolsRegistry.js, adminReservations.js, adminServices.js, profiles/index.js, adminProfile.js, Activites.tsx, NewReservationModal.tsx, Services.tsx, Comptabilite.tsx, Rapprochement.tsx, ComptesAuxiliaires.tsx, ExpertComptable.tsx, GlobalMenu.tsx, App.tsx, etc.
+**Fichiers modifies (~20):** nexusCore.js, toolsRegistry.js, adminReservations.js, adminServices.js, profiles/index.js, adminProfile.js, Activites.tsx, NewReservationModal.tsx, Services.tsx, Comptabilite.tsx, Rapprochement.tsx, ComptesAuxiliaires.tsx, ExpertComptable.tsx, GlobalMenu.tsx, App.tsx, Parametres.tsx, Guide.tsx, etc.
 
 ---
 

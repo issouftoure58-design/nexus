@@ -155,7 +155,7 @@ npm run shield         # Les deux
 
 Architecture: `src/tools/handlers/` (20 handlers + dispatcher O(1) dans index.js)
 Registry: `src/tools/toolsRegistry.js` (105 outils declares, 0 stub restant)
-Client tools: 13 outils (12 generiques + `check_table_availability` restaurant)
+Client tools: 20 outils (12 generiques + 1 check_table_availability + 4 restaurant info/menu + 3 hotel chambres/dispo)
 Note: `comptable_facturation` (creer/exporter) câblé sur `createFactureFromReservation` + liens PDF
 
 ---
