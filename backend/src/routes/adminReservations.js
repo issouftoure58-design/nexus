@@ -494,7 +494,10 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
       montant_tva,
       prix_total,
       duree_totale_minutes,
-      frais_deplacement
+      frais_deplacement,
+      // Restaurant
+      nb_couverts,
+      nb_personnes
     } = req.body;
 
     // Validation
@@ -560,7 +563,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
       lieu: lieu || getDefaultLocation(tenantId),
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
-      statut: 'confirme'
+      statut: 'confirme',
+      // Restaurant
+      nb_couverts: nb_couverts || nb_personnes || null
     }, 'admin', {
       sendSMS: false,
       // Skip validation horaires pour admin (surtout mode horaire = sécurité 24/7)
@@ -593,6 +598,10 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
     if (prix_total !== undefined) updateData.prix_total = prix_total;
     if (duree_totale_minutes !== undefined) updateData.duree_totale_minutes = duree_totale_minutes;
     if (frais_deplacement !== undefined) updateData.frais_deplacement = frais_deplacement;
+
+    // Restaurant: persister nb_couverts et table assignée
+    if (nb_couverts) updateData.nb_couverts = nb_couverts;
+    if (nb_personnes) updateData.nb_couverts = nb_personnes;
 
     // Ajouter les infos de remise
     if (remise_type) {

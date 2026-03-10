@@ -104,20 +104,35 @@ export const TOOLS_CLIENT = [
   },
   {
     name: "create_booking",
-    description: "Crée une réservation quand TOUTES les infos sont confirmées.",
+    description: "Crée une réservation quand TOUTES les infos sont confirmées. Pour un restaurant: nb_couverts est OBLIGATOIRE.",
     input_schema: {
       type: "object",
       properties: {
-        service_name: { type: "string" },
+        service_name: { type: "string", description: "Nom du service ou de la table (restaurant)" },
         date: { type: "string", description: "YYYY-MM-DD" },
         heure: { type: "string", description: "HH:MM" },
-        lieu: { type: "string", enum: ["domicile", "salon"] },
+        lieu: { type: "string", enum: ["domicile", "salon", "restaurant"] },
         adresse: { type: "string", description: "Adresse si domicile" },
         client_nom: { type: "string" },
         client_prenom: { type: "string" },
-        client_telephone: { type: "string" }
+        client_telephone: { type: "string" },
+        nb_couverts: { type: "integer", description: "Nombre de personnes (restaurant uniquement)" },
+        zone_preference: { type: "string", description: "Zone préférée (interieur, terrasse, salon_prive)" }
       },
       required: ["service_name", "date", "heure", "lieu", "client_nom", "client_telephone"]
+    }
+  },
+  {
+    name: "check_table_availability",
+    description: "Vérifie la disponibilité des tables du restaurant pour une date/heure et un nombre de personnes. OBLIGATOIRE avant create_booking pour les restaurants.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Date au format YYYY-MM-DD" },
+        heure: { type: "string", description: "Heure au format HH:MM" },
+        nb_couverts: { type: "integer", description: "Nombre de personnes" }
+      },
+      required: ["date", "heure", "nb_couverts"]
     }
   },
   {

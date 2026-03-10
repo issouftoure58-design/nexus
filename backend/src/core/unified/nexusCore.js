@@ -63,6 +63,10 @@ import {
   getBookingRulesForTenant,
 } from '../../services/tenantBusinessRules.js';
 
+// 🍽️ Restaurant availability
+import { findAvailableTable, getTableAvailability, isRestaurantFull, getServiceType, getRestaurantCapacityForDay } from '../../services/restaurantAvailability.js';
+import { getBusinessInfo } from '../../services/tenantBusinessService.js';
+
 // 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
 import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
 
@@ -349,6 +353,10 @@ async function executeTool(toolName, toolInput, channel, tenantId) {
         result = await getBusinessHoursUnified(toolInput.jour, tenantId);
         break;
 
+      case 'check_table_availability':
+        result = await checkTableAvailabilityTool(toolInput.date, toolInput.heure, toolInput.nb_couverts, tenantId);
+        break;
+
       case 'get_upcoming_days':
         result = await getUpcomingDays(toolInput.nb_jours, tenantId);
         break;
@@ -453,6 +461,45 @@ async function getUpcomingDays(nbJours = 14, tenantId) {
     jours.push(jour);
   }
 
+  // 🍽️ Restaurant: enrichir avec la capacité par service (midi/soir)
+  let isRestaurant = false;
+  try {
+    const bizInfo = await getBusinessInfo(tenantId);
+    isRestaurant = bizInfo.businessType === 'restaurant';
+  } catch (e) { /* pas grave */ }
+
+  if (isRestaurant) {
+    for (const jour of jours) {
+      if (jour.ouvert) {
+        try {
+          const capacity = await getRestaurantCapacityForDay(tenantId, jour.date);
+          jour.restaurant = capacity;
+          // Enrichir le résumé avec les infos restaurant
+          const midiInfo = capacity.midi;
+          const soirInfo = capacity.soir;
+          const parts = [];
+          if (midiInfo) {
+            parts.push(midiInfo.complet
+              ? 'Midi: COMPLET'
+              : `Midi: ${midiInfo.tables_libres}/${midiInfo.total_tables} tables (${midiInfo.couverts_disponibles} couverts dispo)`);
+          }
+          if (soirInfo) {
+            parts.push(soirInfo.complet
+              ? 'Soir: COMPLET'
+              : `Soir: ${soirInfo.tables_libres}/${soirInfo.total_tables} tables (${soirInfo.couverts_disponibles} couverts dispo)`);
+          }
+          if (parts.length > 0) {
+            jour.occupation = jour.occupation || {};
+            jour.occupation.restaurant_resume = parts.join(' | ');
+            jour.occupation.resume = parts.join(' | ');
+          }
+        } catch (e) {
+          // Tables pas configurées, pas grave
+        }
+      }
+    }
+  }
+
   return {
     success: true,
     aujourd_hui: today,
@@ -460,7 +507,10 @@ async function getUpcomingDays(nbJours = 14, tenantId) {
     date_actuelle_formatee: dateActuelleFormatee,
     nb_jours: limit,
     jours: jours,
-    instruction: "Utilise ces dates EXACTES. Ne calcule JAMAIS les dates toi-même. Utilise occupation.resume pour informer le client sur l'état de chaque jour."
+    is_restaurant: isRestaurant,
+    instruction: isRestaurant
+      ? "Utilise ces dates EXACTES. Pour chaque jour, vérifie la capacité midi/soir. Si un service est COMPLET, propose l'autre ou un autre jour. Utilise check_table_availability avant create_booking."
+      : "Utilise ces dates EXACTES. Ne calcule JAMAIS les dates toi-même. Utilise occupation.resume pour informer le client sur l'état de chaque jour."
   };
 }
 
@@ -558,6 +608,54 @@ function calculateOccupation(hours, reservations) {
   }
 
   return { statut, pourcentage, minutesLibres, plagesLibres, resume };
+}
+
+// --- CHECK TABLE AVAILABILITY (Restaurant) ---
+// 🔒 TENANT ISOLATION: Filtre par tenant_id
+async function checkTableAvailabilityTool(date, heure, nbCouverts, tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: checkTableAvailabilityTool requires explicit tenantId');
+  }
+
+  try {
+    const result = await findAvailableTable(tenantId, date, heure, nbCouverts);
+
+    if (!result.success) {
+      return {
+        success: false,
+        disponible: false,
+        message: result.error,
+        capacite: result.totals || null
+      };
+    }
+
+    const serviceType = getServiceType(heure);
+
+    return {
+      success: true,
+      disponible: true,
+      table_suggeree: {
+        nom: result.table.nom,
+        capacite: result.table.capacite,
+        zone: result.table.zone
+      },
+      alternatives: result.alternatives.map(t => ({
+        nom: t.nom,
+        capacite: t.capacite,
+        zone: t.zone
+      })),
+      service_type: serviceType,
+      capacite: {
+        tables_libres: result.totals.tables_libres,
+        total_tables: result.totals.total_tables,
+        couverts_disponibles: result.totals.couverts_disponibles
+      },
+      message: `Table ${result.table.nom} disponible (${result.table.capacite} places, ${result.table.zone}). ${result.totals.tables_libres}/${result.totals.total_tables} tables libres.`
+    };
+  } catch (err) {
+    console.error('[NEXUS CORE] checkTableAvailability error:', err.message);
+    return { success: false, error: err.message };
+  }
 }
 
 // --- PARSE DATE ---
@@ -1129,6 +1227,36 @@ export async function createReservationUnified(data, channel = 'web', options = 
     const fraisDeplacementCents = Math.round(fraisDeplacement * 100);
     const prixTotal = prixService + fraisDeplacementCents;
 
+    // 7b. RESTAURANT: Vérifier capacité et attribuer table
+    let assignedTableId = null;
+    let assignedTableNom = null;
+    let nbCouverts = data.nb_couverts ? parseInt(data.nb_couverts) : null;
+    let serviceType = data.heure ? getServiceType(data.heure) : null;
+
+    if (nbCouverts && data.tenant_id) {
+      try {
+        const tableResult = await findAvailableTable(
+          data.tenant_id,
+          data.date,
+          data.heure,
+          nbCouverts,
+          data.zone_preference || null
+        );
+
+        if (!tableResult.success) {
+          console.log(`[NEXUS CORE] 🍽️ Restaurant complet: ${tableResult.error}`);
+          return { success: false, error: tableResult.error };
+        }
+
+        assignedTableId = tableResult.table.id;
+        assignedTableNom = tableResult.table.nom;
+        console.log(`[NEXUS CORE] 🍽️ Table attribuée: ${assignedTableNom} (ID: ${assignedTableId}, ${tableResult.table.capacite} places, zone: ${tableResult.table.zone})`);
+      } catch (tableErr) {
+        // Si erreur de capacité (pas de tables configurées), continuer sans table
+        console.warn(`[NEXUS CORE] 🍽️ Pas de gestion de tables: ${tableErr.message}`);
+      }
+    }
+
     // 8. PRÉPARER LES RÉSERVATIONS (multi-jours si nécessaire)
     const nbJours = service.blocksDays || 1;
     let reservationDates = [data.date];
@@ -1169,7 +1297,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
         created_via: `nexus-${channel}`,
         notes: nbJours > 1
           ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]${multidayGroupId ? ` [Group: ${multidayGroupId}]` : ''}`
-          : baseNotes
+          : baseNotes,
+        // Restaurant fields (null si non-restaurant)
+        ...(nbCouverts ? { nb_couverts: nbCouverts } : {}),
+        ...(assignedTableId ? { table_id: assignedTableId, service_id: assignedTableId } : {}),
+        ...(serviceType ? { service_type: serviceType } : {})
       };
 
       console.log(`💾 Données réservation jour ${dayIndex + 1}:`, JSON.stringify(reservationData, null, 2));
