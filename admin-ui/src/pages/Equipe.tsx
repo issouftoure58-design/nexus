@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Membre {
   id: number;
