@@ -85,6 +85,214 @@ router.get('/', authenticateAdmin, paginate(), async (req, res) => {
   }
 });
 
+// ============================================
+// EQUIPE — Membres accessibles a tous les plans
+// IMPORTANT: Doit etre AVANT /:id pour ne pas etre capture par le wildcard
+// ============================================
+
+/**
+ * GET /api/admin/services/equipe
+ * Liste des membres actifs (tous plans)
+ */
+router.get('/equipe', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    const { data: membres, error } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url')
+      .eq('tenant_id', tenantId)
+      .order('nom');
+
+    if (error) throw error;
+
+    res.json({ data: membres || [] });
+  } catch (error) {
+    console.error('[SERVICES] Erreur liste equipe:', error);
+    res.status(500).json({ error: 'Erreur recuperation equipe' });
+  }
+});
+
+/**
+ * GET /api/admin/services/equipe/disponibles
+ * Membres disponibles pour un creneau (tous plans)
+ */
+router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { date, heure, duree = 60 } = req.query;
+
+    if (!date || !heure) {
+      return res.status(400).json({ error: 'Date et heure requis' });
+    }
+
+    const { data: membres, error: membresError } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, role, statut, jours_travailles')
+      .eq('tenant_id', tenantId)
+      .eq('statut', 'actif')
+      .order('nom');
+
+    if (membresError) throw membresError;
+
+    const dateObj = new Date(date);
+    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const jourSemaine = jours[dateObj.getDay()];
+
+    const [heureStart, minuteStart] = heure.split(':').map(Number);
+    const startMinutes = heureStart * 60 + minuteStart;
+    const endMinutes = startMinutes + parseInt(duree);
+
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('id, heure, duree_minutes, duree_totale_minutes, membre_id, statut')
+      .eq('tenant_id', tenantId)
+      .eq('date', date)
+      .not('membre_id', 'is', null)
+      .not('statut', 'in', '("annule","termine")');
+
+    const { data: reservationMembres } = await supabase
+      .from('reservation_membres')
+      .select('reservation_id, membre_id')
+      .eq('tenant_id', tenantId);
+
+    const reservationMembreMap = {};
+    (reservationMembres || []).forEach(rm => {
+      if (!reservationMembreMap[rm.reservation_id]) {
+        reservationMembreMap[rm.reservation_id] = [];
+      }
+      reservationMembreMap[rm.reservation_id].push(rm.membre_id);
+    });
+
+    const membresOccupes = new Set();
+    (reservations || []).forEach(resa => {
+      const [h, m] = (resa.heure || '09:00').split(':').map(Number);
+      const resaStart = h * 60 + m;
+      const resaDuree = resa.duree_totale_minutes || resa.duree_minutes || 60;
+      const resaEnd = resaStart + resaDuree;
+
+      if (!(endMinutes <= resaStart || startMinutes >= resaEnd)) {
+        if (resa.membre_id) membresOccupes.add(resa.membre_id);
+        (reservationMembreMap[resa.id] || []).forEach(mid => membresOccupes.add(mid));
+      }
+    });
+
+    const disponibles = (membres || []).filter(m => {
+      const joursTravail = m.jours_travailles || ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'];
+      return joursTravail.includes(jourSemaine) && !membresOccupes.has(m.id);
+    });
+
+    res.json({
+      disponibles,
+      occupes: membres?.filter(m => membresOccupes.has(m.id)).map(m => ({
+        id: m.id, nom: m.nom, prenom: m.prenom, role: m.role,
+        raison: 'Deja reserve sur ce creneau'
+      })) || [],
+      creneau: { date, heure, duree: parseInt(duree), jour: jourSemaine }
+    });
+  } catch (error) {
+    console.error('[SERVICES] Erreur equipe disponible:', error);
+    res.status(500).json({ error: 'Erreur verification disponibilites' });
+  }
+});
+
+/**
+ * POST /api/admin/services/equipe
+ * Ajouter un membre (CRUD basique, tous plans)
+ */
+router.post('/equipe', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { nom, prenom, email, telephone, role } = req.body;
+
+    if (!nom || !prenom) {
+      return res.status(400).json({ error: 'Nom et prenom requis' });
+    }
+
+    const { data: membre, error } = await supabase
+      .from('rh_membres')
+      .insert({
+        tenant_id: tenantId,
+        nom,
+        prenom,
+        email: email || null,
+        telephone: telephone || null,
+        role: role || 'employe',
+        statut: 'actif',
+        jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json(membre);
+  } catch (error) {
+    console.error('[SERVICES] Erreur ajout membre:', error);
+    res.status(500).json({ error: 'Erreur ajout membre' });
+  }
+});
+
+/**
+ * PUT /api/admin/services/equipe/:id
+ * Modifier un membre (CRUD basique, tous plans)
+ */
+router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+    const { nom, prenom, email, telephone, role, statut, jours_travailles } = req.body;
+
+    const updates = {};
+    if (nom !== undefined) updates.nom = nom;
+    if (prenom !== undefined) updates.prenom = prenom;
+    if (email !== undefined) updates.email = email || null;
+    if (telephone !== undefined) updates.telephone = telephone || null;
+    if (role !== undefined) updates.role = role;
+    if (statut !== undefined) updates.statut = statut;
+    if (jours_travailles !== undefined) updates.jours_travailles = jours_travailles;
+
+    const { data: membre, error } = await supabase
+      .from('rh_membres')
+      .update(updates)
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(membre);
+  } catch (error) {
+    console.error('[SERVICES] Erreur modif membre:', error);
+    res.status(500).json({ error: 'Erreur modification membre' });
+  }
+});
+
+/**
+ * DELETE /api/admin/services/equipe/:id
+ * Supprimer un membre (tous plans)
+ */
+router.delete('/equipe/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('rh_membres')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[SERVICES] Erreur suppression membre:', error);
+    res.status(500).json({ error: 'Erreur suppression membre' });
+  }
+});
+
 // GET /api/admin/services/:id - Un service avec stats
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
@@ -423,221 +631,6 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN SERVICES] Erreur toggle:', error);
     res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// ============================================
-// EQUIPE — Membres accessibles a tous les plans
-// (Necessaire pour assigner des prestations)
-// ============================================
-
-/**
- * GET /api/admin/services/equipe
- * Liste des membres actifs (tous plans)
- */
-router.get('/equipe', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin.tenant_id;
-
-    const { data: membres, error } = await supabase
-      .from('rh_membres')
-      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url')
-      .eq('tenant_id', tenantId)
-      .order('nom');
-
-    if (error) throw error;
-
-    res.json({ data: membres || [] });
-  } catch (error) {
-    console.error('[SERVICES] Erreur liste equipe:', error);
-    res.status(500).json({ error: 'Erreur recuperation equipe' });
-  }
-});
-
-/**
- * GET /api/admin/services/equipe/disponibles
- * Membres disponibles pour un creneau (tous plans)
- */
-router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin.tenant_id;
-    const { date, heure, duree = 60 } = req.query;
-
-    if (!date || !heure) {
-      return res.status(400).json({ error: 'Date et heure requis' });
-    }
-
-    // 1. Membres actifs
-    const { data: membres, error: membresError } = await supabase
-      .from('rh_membres')
-      .select('id, nom, prenom, role, statut, jours_travailles')
-      .eq('tenant_id', tenantId)
-      .eq('statut', 'actif')
-      .order('nom');
-
-    if (membresError) throw membresError;
-
-    // 2. Jour de la semaine
-    const dateObj = new Date(date);
-    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-    const jourSemaine = jours[dateObj.getDay()];
-
-    // 3. Plage horaire demandee
-    const [heureStart, minuteStart] = heure.split(':').map(Number);
-    const startMinutes = heureStart * 60 + minuteStart;
-    const endMinutes = startMinutes + parseInt(duree);
-
-    // 4. Reservations du jour
-    const { data: reservations } = await supabase
-      .from('reservations')
-      .select('id, heure, duree_minutes, duree_totale_minutes, membre_id, statut')
-      .eq('tenant_id', tenantId)
-      .eq('date', date)
-      .not('membre_id', 'is', null)
-      .not('statut', 'in', '("annule","termine")');
-
-    // 5. Multi-membres
-    const { data: reservationMembres } = await supabase
-      .from('reservation_membres')
-      .select('reservation_id, membre_id')
-      .eq('tenant_id', tenantId);
-
-    const reservationMembreMap = {};
-    (reservationMembres || []).forEach(rm => {
-      if (!reservationMembreMap[rm.reservation_id]) {
-        reservationMembreMap[rm.reservation_id] = [];
-      }
-      reservationMembreMap[rm.reservation_id].push(rm.membre_id);
-    });
-
-    // 6. Membres occupes
-    const membresOccupes = new Set();
-    (reservations || []).forEach(resa => {
-      const [h, m] = (resa.heure || '09:00').split(':').map(Number);
-      const resaStart = h * 60 + m;
-      const resaDuree = resa.duree_totale_minutes || resa.duree_minutes || 60;
-      const resaEnd = resaStart + resaDuree;
-
-      if (!(endMinutes <= resaStart || startMinutes >= resaEnd)) {
-        if (resa.membre_id) membresOccupes.add(resa.membre_id);
-        (reservationMembreMap[resa.id] || []).forEach(mid => membresOccupes.add(mid));
-      }
-    });
-
-    // 7. Filtrer
-    const disponibles = (membres || []).filter(m => {
-      const joursTravail = m.jours_travailles || ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'];
-      return joursTravail.includes(jourSemaine) && !membresOccupes.has(m.id);
-    });
-
-    res.json({
-      disponibles,
-      occupes: membres?.filter(m => membresOccupes.has(m.id)).map(m => ({
-        id: m.id, nom: m.nom, prenom: m.prenom, role: m.role,
-        raison: 'Deja reserve sur ce creneau'
-      })) || [],
-      creneau: { date, heure, duree: parseInt(duree), jour: jourSemaine }
-    });
-  } catch (error) {
-    console.error('[SERVICES] Erreur equipe disponible:', error);
-    res.status(500).json({ error: 'Erreur verification disponibilites' });
-  }
-});
-
-/**
- * POST /api/admin/services/equipe
- * Ajouter un membre (CRUD basique, tous plans)
- */
-router.post('/equipe', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin.tenant_id;
-    const { nom, prenom, email, telephone, role } = req.body;
-
-    if (!nom || !prenom) {
-      return res.status(400).json({ error: 'Nom et prenom requis' });
-    }
-
-    const { data: membre, error } = await supabase
-      .from('rh_membres')
-      .insert({
-        tenant_id: tenantId,
-        nom,
-        prenom,
-        email: email || null,
-        telephone: telephone || null,
-        role: role || 'employe',
-        statut: 'actif',
-        jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.status(201).json(membre);
-  } catch (error) {
-    console.error('[SERVICES] Erreur ajout membre:', error);
-    res.status(500).json({ error: 'Erreur ajout membre' });
-  }
-});
-
-/**
- * PUT /api/admin/services/equipe/:id
- * Modifier un membre (CRUD basique, tous plans)
- */
-router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin.tenant_id;
-    const { id } = req.params;
-    const { nom, prenom, email, telephone, role, statut, jours_travailles } = req.body;
-
-    const updates = {};
-    if (nom !== undefined) updates.nom = nom;
-    if (prenom !== undefined) updates.prenom = prenom;
-    if (email !== undefined) updates.email = email || null;
-    if (telephone !== undefined) updates.telephone = telephone || null;
-    if (role !== undefined) updates.role = role;
-    if (statut !== undefined) updates.statut = statut;
-    if (jours_travailles !== undefined) updates.jours_travailles = jours_travailles;
-
-    const { data: membre, error } = await supabase
-      .from('rh_membres')
-      .update(updates)
-      .eq('id', id)
-      .eq('tenant_id', tenantId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.json(membre);
-  } catch (error) {
-    console.error('[SERVICES] Erreur modif membre:', error);
-    res.status(500).json({ error: 'Erreur modification membre' });
-  }
-});
-
-/**
- * DELETE /api/admin/services/equipe/:id
- * Supprimer un membre (tous plans)
- */
-router.delete('/equipe/:id', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin.tenant_id;
-    const { id } = req.params;
-
-    const { error } = await supabase
-      .from('rh_membres')
-      .delete()
-      .eq('id', id)
-      .eq('tenant_id', tenantId);
-
-    if (error) throw error;
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('[SERVICES] Erreur suppression membre:', error);
-    res.status(500).json({ error: 'Erreur suppression membre' });
   }
 });
 
