@@ -1252,7 +1252,7 @@ router.post('/:id/paiement', async (req, res) => {
 /**
  * Génère les écritures comptables pour le règlement d'une facture (BQ ou CA)
  */
-async function genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement) {
+export async function genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement) {
   try {
     // Déterminer le journal et le compte selon le mode de paiement
     const journalCode = mode_paiement === 'especes' ? 'CA' : 'BQ';

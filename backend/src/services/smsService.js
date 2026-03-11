@@ -6,6 +6,7 @@
 
 import { supabase } from '../config/supabase.js';
 import { isDegraded } from '../sentinel/index.js';
+import { trackSMS } from './usageTrackingService.js';
 
 // Cache en mémoire pour éviter une requête DB à chaque SMS (TTL 5 min)
 const tenantTwilioCache = new Map();
@@ -124,6 +125,14 @@ export async function sendSMS(telephone, message, tenantId = null, options = {})
 
     const result = await client.messages.create(params);
     console.log(`[SMS] Envoyé à ${formattedPhone} (SID: ${result.sid}, tenant: ${tenantId})`);
+
+    // Tracker l'usage SMS contre le quota du tenant (non-bloquant)
+    if (tenantId) {
+      trackSMS(tenantId, result.sid, 'outbound').catch(e =>
+        console.error('[SMS] Erreur tracking usage:', e.message)
+      );
+    }
+
     return { success: true, sid: result.sid };
   } catch (error) {
     console.error(`[SMS] Erreur envoi à ${telephone}:`, error.message);

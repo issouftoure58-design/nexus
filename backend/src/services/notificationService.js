@@ -160,8 +160,11 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
     }
   }
 
-  // 3. Envoyer SMS via smsService (multi-tenant)
-  if (clientPhone) {
+  // 3. SMS en dernier recours (cascade: seulement si email ET WhatsApp ont echoue)
+  const emailDelivered = results.email?.success;
+  const whatsappDelivered = results.whatsapp?.success;
+
+  if (clientPhone && !emailDelivered && !whatsappDelivered) {
     try {
       const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
       const lieuText = rdv.adresse_client || t.adresse;
@@ -169,11 +172,14 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
       const smsMessage = `${t.salonName}\nVotre RDV est confirmé !\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.gerante} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS confirmation:`, results.sms.success ? 'OK' : results.sms.error);
+      console.log(`[Notification] SMS confirmation (fallback):`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi SMS:', error.message);
       results.sms = { success: false, error: error.message };
     }
+  } else if (clientPhone) {
+    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
+    console.log(`[Notification] SMS confirmation skipped (${emailDelivered ? 'email' : 'whatsapp'} already delivered)`);
   }
 
   return results;
@@ -248,19 +254,25 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
     }
   }
 
-  // 3. Envoyer SMS via smsService (multi-tenant)
-  if (clientPhone) {
+  // 3. SMS en dernier recours (cascade: seulement si email ET WhatsApp ont echoue)
+  const emailDelivered = results.email?.success;
+  const whatsappDelivered = results.whatsapp?.success;
+
+  if (clientPhone && !emailDelivered && !whatsappDelivered) {
     try {
       const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
 
       const smsMessage = `${t.salonName}\nRappel: RDV demain!\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.gerante} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS rappel J-1:`, results.sms.success ? 'OK' : results.sms.error);
+      console.log(`[Notification] SMS rappel J-1 (fallback):`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi SMS rappel:', error.message);
       results.sms = { success: false, error: error.message };
     }
+  } else if (clientPhone) {
+    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
+    console.log(`[Notification] SMS rappel J-1 skipped (${emailDelivered ? 'email' : 'whatsapp'} already delivered)`);
   }
 
   return results;

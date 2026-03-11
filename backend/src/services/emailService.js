@@ -26,8 +26,9 @@ const DEFAULT_FROM = process.env.EMAIL_FROM || 'NEXUS <onboarding@resend.dev>';
  * @param {string} options.replyTo - Reply-To (optionnel)
  * @param {Object} options.headers - Headers additionnels (optionnel)
  * @param {string[]} options.tags - Tags Resend pour analytics (optionnel)
+ * @param {Array} options.attachments - Pieces jointes [{ filename, content: Buffer }] (optionnel)
  */
-export async function sendEmail({ to, subject, html, from, replyTo, headers, tags }) {
+export async function sendEmail({ to, subject, html, from, replyTo, headers, tags, attachments }) {
   if (!resend) {
     console.log('[EMAIL] Resend non configure (RESEND_API_KEY manquante)');
     console.log(`[EMAIL] Email simule vers ${to}: ${subject}`);
@@ -35,7 +36,7 @@ export async function sendEmail({ to, subject, html, from, replyTo, headers, tag
   }
 
   try {
-    const result = await resend.emails.send({
+    const emailData = {
       from: from || DEFAULT_FROM,
       to,
       subject,
@@ -48,7 +49,10 @@ export async function sendEmail({ to, subject, html, from, replyTo, headers, tag
         ...headers,
       },
       tags: tags?.map(t => ({ name: t, value: 'true' })) || undefined,
-    });
+    };
+    if (attachments?.length) emailData.attachments = attachments;
+
+    const result = await resend.emails.send(emailData);
 
     console.log(`[EMAIL] Email envoye a ${to}: ${subject}`);
     return { success: true, id: result.id };

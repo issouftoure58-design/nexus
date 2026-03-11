@@ -2,6 +2,15 @@
  * Types et constantes partagés pour les composants Activités
  */
 
+// === Checkout Restaurant ===
+
+export interface CheckoutItem {
+  plat_id: number;
+  nom: string;
+  prix_unitaire: number; // en centimes
+  quantite: number;
+}
+
 // === Entités ===
 
 export interface Client {

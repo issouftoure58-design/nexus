@@ -19,6 +19,7 @@ import {
   NewReservationModal,
   PaymentModal,
   MembreModal,
+  CheckoutModal,
 } from '../components/activites';
 import type {
   Client,
@@ -35,6 +36,7 @@ import type {
   NewRdvForm,
   NewClientForm,
   Totals,
+  CheckoutItem,
   ReservationsResponse,
   ServicesResponse,
   MembresResponse,
@@ -105,6 +107,12 @@ export default function Activites() {
   const [pendingTermineRdv, setPendingTermineRdv] = useState<Reservation | null>(null);
   const [selectedMembreId, setSelectedMembreId] = useState<number>(0);
   const [membreLoading, setMembreLoading] = useState(false);
+
+  // Modal checkout restaurant
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [pendingCheckoutRdv, setPendingCheckoutRdv] = useState<Reservation | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [pendingCheckoutData, setPendingCheckoutData] = useState<{ items: CheckoutItem[]; total: number; mode_paiement: string } | null>(null);
 
   // === Création RDV ===
   const [clients, setClients] = useState<Client[]>([]);
@@ -578,6 +586,16 @@ export default function Activites() {
   };
 
   const handleChangeStatut = async (rdvId: number, newStatut: string, _modePaiement?: string, membreId?: number) => {
+    // Restaurant checkout: intercepter "termine" pour ouvrir le modal d'encaissement
+    if (newStatut === 'termine' && isBusinessType('restaurant')) {
+      const rdv = reservations.find(r => r.id === rdvId);
+      if (rdv) {
+        setPendingCheckoutRdv(rdv);
+        setShowCheckoutModal(true);
+      }
+      return;
+    }
+
     try {
       const body: { statut: string; membre_id?: number } = { statut: newStatut };
       if (membreId) {
@@ -605,14 +623,68 @@ export default function Activites() {
     if (!pendingTermineRdv || !selectedMembreId) return;
     setMembreLoading(true);
     try {
-      await handleChangeStatut(pendingTermineRdv.id, 'termine', undefined, selectedMembreId);
-      setShowMembreModal(false);
-      setPendingTermineRdv(null);
-      setSelectedMembreId(0);
+      // Si checkout restaurant en attente, envoyer les donnees checkout avec le membre
+      if (pendingCheckoutData && isBusinessType('restaurant')) {
+        await api.patch(`/admin/reservations/${pendingTermineRdv.id}/statut`, {
+          statut: 'termine',
+          membre_id: selectedMembreId,
+          checkout: {
+            items: pendingCheckoutData.items,
+            total: pendingCheckoutData.total,
+            mode_paiement: pendingCheckoutData.mode_paiement,
+          }
+        });
+        setPendingCheckoutData(null);
+        setPendingCheckoutRdv(null);
+        setShowMembreModal(false);
+        setPendingTermineRdv(null);
+        setSelectedMembreId(0);
+        fetchReservations();
+        fetchStats();
+      } else {
+        await handleChangeStatut(pendingTermineRdv.id, 'termine', undefined, selectedMembreId);
+        setShowMembreModal(false);
+        setPendingTermineRdv(null);
+        setSelectedMembreId(0);
+      }
     } catch {
       setError('Impossible de terminer la prestation avec ce membre');
     } finally {
       setMembreLoading(false);
+    }
+  };
+
+  const handleCheckoutConfirm = async (data: { items: CheckoutItem[]; total: number; mode_paiement: string }) => {
+    if (!pendingCheckoutRdv) return;
+    setCheckoutLoading(true);
+    try {
+      await api.patch(`/admin/reservations/${pendingCheckoutRdv.id}/statut`, {
+        statut: 'termine',
+        checkout: {
+          items: data.items,
+          total: data.total,           // en centimes
+          mode_paiement: data.mode_paiement,
+        }
+      });
+      setShowCheckoutModal(false);
+      setPendingCheckoutRdv(null);
+      setPendingCheckoutData(null);
+      fetchReservations();
+      fetchStats();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.toLowerCase().includes('membre')) {
+        // Membre requis: garder checkout data et ouvrir MembreModal
+        setPendingCheckoutData(data);
+        setPendingTermineRdv(pendingCheckoutRdv);
+        setSelectedMembreId(0);
+        setShowMembreModal(true);
+        setShowCheckoutModal(false);
+      } else {
+        setError(msg || 'Erreur lors de l\'encaissement');
+      }
+    } finally {
+      setCheckoutLoading(false);
     }
   };
 
@@ -1055,6 +1127,15 @@ export default function Activites() {
           onCalculateTotals={calculateTotals}
           onSubmit={handleCreateRdv}
           onClose={() => { setShowNewModal(false); resetNewRdvForm(); }}
+        />
+      )}
+
+      {/* Modal Checkout Restaurant */}
+      {showCheckoutModal && pendingCheckoutRdv && (
+        <CheckoutModal
+          reservation={pendingCheckoutRdv}
+          onConfirm={handleCheckoutConfirm}
+          onClose={() => { setShowCheckoutModal(false); setPendingCheckoutRdv(null); }}
         />
       )}
 

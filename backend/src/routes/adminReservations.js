@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
-import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire } from './factures.js';
+import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire, genererEcrituresPaiement } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
@@ -12,6 +12,9 @@ import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
 import { earnPoints } from '../services/loyaltyService.js';
 import { notifyNextInLine } from '../services/waitlistService.js';
+import { sendSMS } from '../services/smsService.js';
+import { sendEmail } from '../services/emailService.js';
+import { generateInvoicePDF } from '../services/pdfService.js';
 
 const createReservationSchema = z.object({
   client_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
@@ -1228,7 +1231,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { statut, mode_paiement, membre_id } = req.body;
+    const { statut, mode_paiement, membre_id, checkout } = req.body;
 
     if (!statut || !STATUTS_VALIDES.includes(statut)) {
       return res.status(400).json({
@@ -1267,6 +1270,33 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
           code: 'MEMBRE_REQUIS'
         });
       }
+    }
+
+    // Restaurant checkout: mettre a jour prix_total + stocker items
+    let checkoutModePaiement = null;
+    if (checkout) {
+      const { items: checkoutItems, total: checkoutTotal, mode_paiement: checkoutMode } = checkout;
+
+      if (checkoutTotal > 0) {
+        // Mettre a jour prix_total via RPC (bypass PostgREST cache)
+        const { error: rpcError } = await supabase.rpc('update_reservation_checkout', {
+          p_rdv_id: parseInt(req.params.id),
+          p_tenant_id: tenantId,
+          p_prix_total: checkoutTotal / 100,  // centimes → euros (colonne prix_total en euros)
+          p_items_consommes: JSON.stringify(checkoutItems)
+        });
+        if (rpcError) {
+          console.error('[ADMIN RESERVATIONS] Erreur RPC checkout:', rpcError.message);
+          // Fallback: update direct
+          await supabase
+            .from('reservations')
+            .update({ prix_total: checkoutTotal / 100, updated_at: new Date().toISOString() })
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId);
+        }
+      }
+
+      checkoutModePaiement = checkoutMode;
     }
 
     // Préparer les données de mise à jour
@@ -1334,6 +1364,93 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
 
           // Note: Les écritures VT (créance client) sont générées automatiquement par createFactureFromReservation
           // Les écritures BQ/CA seront générées lors de l'enregistrement du paiement
+
+          // Restaurant checkout: enregistrer le paiement immediatement (le client paie sur place)
+          if (facture && checkoutModePaiement) {
+            try {
+              const datePaiement = new Date().toISOString();
+              await supabase
+                .from('factures')
+                .update({
+                  statut: 'payee',
+                  mode_paiement: checkoutModePaiement,
+                  date_paiement: datePaiement,
+                  updated_at: datePaiement
+                })
+                .eq('id', facture.id)
+                .eq('tenant_id', tenantId);
+
+              // Generer les ecritures comptables de paiement
+              await genererEcrituresPaiement(tenantId, facture, checkoutModePaiement, datePaiement);
+
+              console.log(`[ADMIN RESERVATIONS] Restaurant checkout: facture ${facture.numero} payee (${checkoutModePaiement})`);
+
+              // Envoi ticket/recu au client (non-bloquant, cascade: email > SMS)
+              try {
+                const clientPhone = currentRdv.clients?.telephone;
+                const clientEmail = currentRdv.clients?.email;
+                const clientNom = currentRdv.clients?.prenom || currentRdv.clients?.nom || 'Client';
+                const montantFormate = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(facture.montant_ttc || 0);
+
+                let emailSent = false;
+
+                // 1. Email + PDF facture en piece jointe (prioritaire, quasi-gratuit)
+                if (clientEmail) {
+                  (async () => {
+                    try {
+                      const pdfResult = await generateInvoicePDF(tenantId, facture.id);
+                      const attachments = pdfResult?.success ? [{ filename: pdfResult.filename, content: pdfResult.buffer }] : [];
+
+                      const itemsHtml = (checkout.items || []).map(i =>
+                        `<tr><td>${i.quantite}x ${i.nom}</td><td style="text-align:right">${(i.prix_unitaire * i.quantite / 100).toFixed(2)} &euro;</td></tr>`
+                      ).join('');
+
+                      const modePaiementLabel = checkoutModePaiement === 'cb' ? 'Carte bancaire' : checkoutModePaiement === 'especes' ? 'Especes' : 'Cheque';
+
+                      const result = await sendEmail({
+                        to: clientEmail,
+                        subject: `Votre ticket — ${montantFormate}`,
+                        html: `
+                          <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+                            <h2>Merci ${clientNom} !</h2>
+                            <p>Voici le recapitulatif de votre visite :</p>
+                            <table style="width:100%;border-collapse:collapse">
+                              ${itemsHtml}
+                              <tr style="border-top:2px solid #333;font-weight:bold">
+                                <td>Total</td>
+                                <td style="text-align:right">${montantFormate}</td>
+                              </tr>
+                            </table>
+                            <p style="color:#666;margin-top:16px">Paiement : ${modePaiementLabel}</p>
+                            ${pdfResult?.success ? '<p style="color:#666">Votre facture est jointe a cet email.</p>' : ''}
+                            <p style="margin-top:24px">A bientot !</p>
+                          </div>`,
+                        attachments
+                      });
+                      if (result?.success) emailSent = true;
+                      console.log(`[ADMIN RESERVATIONS] Email ticket envoye a ${clientEmail}`);
+                    } catch (emailErr) {
+                      console.error('[ADMIN RESERVATIONS] Erreur envoi email ticket:', emailErr.message);
+                    }
+                  })();
+                }
+
+                // 2. SMS fallback (seulement si pas d'email disponible)
+                if (clientPhone && !clientEmail) {
+                  const smsMsg = `Merci ${clientNom} ! Votre addition de ${montantFormate} a ete reglee. A bientot !`;
+                  sendSMS(clientPhone, smsMsg, tenantId, { essential: true }).catch(e =>
+                    console.error('[ADMIN RESERVATIONS] Erreur envoi SMS ticket:', e.message)
+                  );
+                }
+
+                console.log(`[ADMIN RESERVATIONS] Ticket checkout lance (Email: ${!!clientEmail}, SMS fallback: ${!!clientPhone && !clientEmail})`);
+              } catch (ticketErr) {
+                console.error('[ADMIN RESERVATIONS] Erreur envoi ticket checkout (non bloquant):', ticketErr.message);
+              }
+            } catch (payErr) {
+              console.error('[ADMIN RESERVATIONS] Erreur paiement checkout:', payErr.message);
+            }
+          }
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur création facture:', factureErr.message);

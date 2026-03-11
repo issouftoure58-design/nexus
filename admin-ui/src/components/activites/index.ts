@@ -9,3 +9,4 @@ export { default as EditModal } from './EditModal';
 export { default as NewReservationModal } from './NewReservationModal';
 export { default as PaymentModal } from './PaymentModal';
 export { default as MembreModal } from './MembreModal';
+export { default as CheckoutModal } from './CheckoutModal';
