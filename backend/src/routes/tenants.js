@@ -14,6 +14,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import {
   BUSINESS_TEMPLATES,
   NEXUS_PLANS,
+  TEMPLATE_TO_PROFILE,
   getBusinessTemplate,
   getAllBusinessTemplates,
   generateIaConfig,
@@ -473,10 +474,9 @@ router.post('/setup-from-template', authenticateAdmin, async (req, res) => {
 
     const tenantUpdate = {
       name: businessName || null,
-      business_type: businessType,
+      business_profile: TEMPLATE_TO_PROFILE[businessType] || businessType || 'salon',
       adresse: address || null,
       telephone: phone || null,
-      updated_at: new Date().toISOString(),
     };
 
     const { error: tenantError } = await supabase
