@@ -349,7 +349,6 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (type_client !== undefined) updates.type_client = type_client;
     if (raison_sociale !== undefined) updates.raison_sociale = raison_sociale;
     if (siret !== undefined) updates.siret = siret;
-    updates.updated_at = new Date().toISOString();
 
     // 🔒 TENANT ISOLATION
     const { data: client, error } = await supabase
