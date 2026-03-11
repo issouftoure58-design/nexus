@@ -645,7 +645,7 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
     // Filtrer type='facture' pour exclure les avoirs liés à la même réservation
     const { data: existing } = await supabase
       .from('factures')
-      .select('id, statut, montant_ttc')
+      .select('id, numero, statut, montant_ttc, client_id, client_nom')
       .eq('reservation_id', reservationId)
       .eq('tenant_id', tenantId)
       .eq('type', 'facture')

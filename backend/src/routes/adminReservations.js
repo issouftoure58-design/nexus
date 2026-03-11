@@ -1367,7 +1367,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
           // Les écritures BQ/CA seront générées lors de l'enregistrement du paiement
 
           // Restaurant checkout: enregistrer le paiement immediatement (le client paie sur place)
-          if (facture && checkoutModePaiement) {
+          // Guard: ne pas re-payer une facture deja payee (protection contre retries)
+          if (facture && checkoutModePaiement && facture.statut !== 'payee') {
             try {
               const datePaiement = new Date().toISOString();
               await supabase
