@@ -96,7 +96,16 @@ export default function EditModal({
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Table</label>
                 <select
                   value={editForm.table_id || 0}
-                  onChange={(e) => onEditFormChange({ ...editForm, table_id: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const tableId = parseInt(e.target.value) || 0;
+                    const table = services.find(s => s.id === tableId);
+                    const cap = (table as any)?.capacite || 20;
+                    onEditFormChange({
+                      ...editForm,
+                      table_id: tableId,
+                      nb_couverts: Math.min(editForm.nb_couverts || 2, cap)
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
                   <option value={0}>-- Selectionner une table --</option>
@@ -111,18 +120,29 @@ export default function EditModal({
 
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nombre de couverts</label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={editForm.nb_couverts || 2}
-                  onChange={(e) => onEditFormChange({ ...editForm, nb_couverts: parseInt(e.target.value) || 1 })}
-                />
-                {editForm.table_id && editForm.table_id > 0 && services.find(s => s.id === editForm.table_id) && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    Capacite max: {(services.find(s => s.id === editForm.table_id) as any)?.capacite || 4} personnes
-                  </p>
-                )}
+                {(() => {
+                  const selectedTable = services.find(s => s.id === editForm.table_id);
+                  const maxCapacite = (selectedTable as any)?.capacite || 20;
+                  return (
+                    <>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={maxCapacite}
+                        value={Math.min(editForm.nb_couverts || 2, maxCapacite)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          onEditFormChange({ ...editForm, nb_couverts: Math.min(val, maxCapacite) });
+                        }}
+                      />
+                      {editForm.table_id && editForm.table_id > 0 && selectedTable && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Capacite max: {maxCapacite} personnes
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

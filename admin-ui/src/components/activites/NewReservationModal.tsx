@@ -284,14 +284,23 @@ export default function NewReservationModal({
                 </label>
                 <select
                   value={newRdvForm.table_id}
-                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, table_id: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const tableId = parseInt(e.target.value) || 0;
+                    const table = services.find(s => s.id === tableId);
+                    const cap = (table as any)?.capacite || 20;
+                    onNewRdvFormChange({
+                      ...newRdvForm,
+                      table_id: tableId,
+                      nb_couverts: Math.min(newRdvForm.nb_couverts, cap)
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value={0}>-- Sélectionner une table --</option>
+                  <option value={0}>-- Selectionner une table --</option>
                   {services.filter(s => s.actif !== false).map((table) => (
                     <option key={table.id} value={table.id}>
-                      {table.nom} ({table.capacite || 4} places)
-                      {table.zone && ` - ${table.zone}`}
+                      {table.nom} ({(table as any).capacite || 4} places)
+                      {(table as any).zone && ` - ${(table as any).zone}`}
                     </option>
                   ))}
                 </select>
@@ -301,19 +310,30 @@ export default function NewReservationModal({
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Nombre de couverts *
                 </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={newRdvForm.nb_couverts}
-                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, nb_couverts: parseInt(e.target.value) || 1 })}
-                  placeholder="2"
-                />
-                {newRdvForm.table_id > 0 && services.find(s => s.id === newRdvForm.table_id) && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    Capacité max: {services.find(s => s.id === newRdvForm.table_id)?.capacite || 4} personnes
-                  </p>
-                )}
+                {(() => {
+                  const selectedTable = services.find(s => s.id === newRdvForm.table_id);
+                  const maxCapacite = (selectedTable as any)?.capacite || 20;
+                  return (
+                    <>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={maxCapacite}
+                        value={Math.min(newRdvForm.nb_couverts, maxCapacite)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          onNewRdvFormChange({ ...newRdvForm, nb_couverts: Math.min(val, maxCapacite) });
+                        }}
+                        placeholder="2"
+                      />
+                      {newRdvForm.table_id > 0 && selectedTable && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Capacite max: {maxCapacite} personnes
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
