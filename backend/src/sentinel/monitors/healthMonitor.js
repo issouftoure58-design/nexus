@@ -134,17 +134,21 @@ class HealthMonitor {
       const fourHoursAgo = new Date(now - 4 * 3600000).toISOString();
       const twentyFourHoursAgo = new Date(now - 24 * 3600000).toISOString();
 
-      // Erreurs des 4 dernieres heures
+      // Erreurs des 4 dernieres heures (exclure les alertes SENTINEL pour eviter feedback loop)
       const { data: recentErrors } = await supabase
         .from('error_logs')
         .select('fingerprint, level, message, created_at')
-        .gte('created_at', fourHoursAgo);
+        .gte('created_at', fourHoursAgo)
+        .not('message', 'like', '%[SENTINEL]%')
+        .not('message', 'like', '%dynamically imported module%');
 
       // Baseline: erreurs des 24 dernieres heures (pour moyenne horaire)
       const { count: dayCount } = await supabase
         .from('error_logs')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', twentyFourHoursAgo);
+        .gte('created_at', twentyFourHoursAgo)
+        .not('message', 'like', '%[SENTINEL]%')
+        .not('message', 'like', '%dynamically imported module%');
 
       const recentCount = recentErrors?.length || 0;
       const avgPerHour = (dayCount || 0) / 24;

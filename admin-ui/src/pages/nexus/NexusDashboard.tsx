@@ -243,9 +243,10 @@ export default function NexusDashboard() {
   );
 }
 
-function AnimatedStatCard({ title, subtitle, value, color, suffix = '', decimals = 0 }: {
+function AnimatedStatCard({ title, subtitle, value: rawValue, color, suffix = '', decimals = 0 }: {
   title: string; subtitle?: string; value: number; color: string; suffix?: string; decimals?: number;
 }) {
+  const value = rawValue ?? 0;
   const [displayed, setDisplayed] = useState(0);
   const targetRef = useRef(value);
   targetRef.current = value;
