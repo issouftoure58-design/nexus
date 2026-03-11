@@ -340,7 +340,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (nom !== undefined) updates.nom = nom;
     if (prenom !== undefined) updates.prenom = prenom;
     if (telephone !== undefined) updates.telephone = telephone;
-    if (email !== undefined) updates.email = email;
+    if (email !== undefined) updates.email = email || null;
     if (adresse !== undefined) updates.adresse = adresse;
     if (code_postal !== undefined) updates.code_postal = code_postal;
     if (ville !== undefined) updates.ville = ville;

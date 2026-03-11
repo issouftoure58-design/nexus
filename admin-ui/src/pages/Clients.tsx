@@ -802,12 +802,12 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
     }
     setEditError('');
     updateMutation.mutate({
-      prenom: editData.prenom,
-      nom: editData.nom,
+      prenom: editData.prenom || null,
+      nom: editData.nom || null,
       telephone: editData.telephone,
-      email: editData.email || undefined,
-      adresse: editData.adresse || undefined,
-    });
+      email: editData.email || null,
+      adresse: editData.adresse || null,
+    } as Partial<Client>);
   };
 
   const handleCancel = () => {
