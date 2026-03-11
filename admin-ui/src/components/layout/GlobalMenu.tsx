@@ -7,10 +7,11 @@ import {
   X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
-  ClipboardList, Clock, Star, ListChecks, BookOpen, UserPlus
+  ClipboardList, Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface GlobalMenuProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ const menuItems = [
   { icon: CalendarCheck, label: 'Prestations', path: '/activites' },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
+  { icon: UtensilsCrossed, label: 'Menu / Carte', path: '/menu', businessType: 'restaurant' },
   { icon: UserPlus, label: 'Equipe', path: '/equipe' },
   { icon: Clock, label: 'Disponibilités', path: '/disponibilites' },
   { icon: Star, label: 'Fidélité', path: '/fidelite' },
@@ -53,6 +55,7 @@ const menuItems = [
 export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isBusinessType } = useProfile();
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -94,7 +97,7 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
 
         {/* Menu Items */}
         <nav className="p-2 overflow-y-auto h-[calc(100%-8rem)]">
-          {menuItems.map((item, index) => {
+          {menuItems.filter(item => !item.businessType || isBusinessType(item.businessType as 'restaurant' | 'hotel' | 'salon' | 'service_domicile')).map((item, index) => {
             if (item.type === 'separator') {
               return (
                 <div key={index} className="my-2">
