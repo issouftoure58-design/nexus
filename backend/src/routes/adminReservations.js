@@ -1280,10 +1280,11 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
 
       if (checkoutTotal > 0) {
         // Mettre a jour prix_total via RPC (bypass PostgREST cache)
+        // prix_total est en centimes dans la DB (coherent avec le reste du systeme)
         const { error: rpcError } = await supabase.rpc('update_reservation_checkout', {
           p_rdv_id: parseInt(req.params.id),
           p_tenant_id: tenantId,
-          p_prix_total: checkoutTotal / 100,  // centimes → euros (colonne prix_total en euros)
+          p_prix_total: checkoutTotal,  // deja en centimes (envoye par le frontend)
           p_items_consommes: JSON.stringify(checkoutItems)
         });
         if (rpcError) {
@@ -1291,7 +1292,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
           // Fallback: update direct
           await supabase
             .from('reservations')
-            .update({ prix_total: checkoutTotal / 100, updated_at: new Date().toISOString() })
+            .update({ prix_total: checkoutTotal, updated_at: new Date().toISOString() })
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId);
         }
