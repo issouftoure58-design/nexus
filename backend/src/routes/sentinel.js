@@ -613,8 +613,23 @@ router.get('/monthly-goals', authenticateAdmin, requireAdminPlan('business'), as
 // Convention: prix_total stocké en centimes dans la DB (standard Stripe/Supabase)
 // Le frontend divise par 100 via formatCurrency(amount / 100) pour affichage en EUR
 function calculateTrends(snapshots) {
-  if (!snapshots || snapshots.length < 2) {
-    return { insufficient_data: true };
+  if (!snapshots || snapshots.length === 0) {
+    return { insufficient_data: true, total_revenue: 0, total_reservations: 0, total_new_clients: 0, revenue_trend: 'up', revenue_change: 0, reservations_trend: 'up', reservations_change: 0 };
+  }
+
+  // Avec un seul snapshot, retourner les totaux sans tendance
+  if (snapshots.length === 1) {
+    const s = snapshots[0];
+    return {
+      total_revenue: Math.round(s.revenue_paid || 0),
+      total_reservations: s.total_reservations || 0,
+      total_new_clients: s.new_clients || 0,
+      avg_daily_revenue: Math.round(s.revenue_paid || 0),
+      revenue_trend: 'up',
+      revenue_change: 0,
+      reservations_trend: 'up',
+      reservations_change: 0,
+    };
   }
 
   const mid = Math.floor(snapshots.length / 2);
