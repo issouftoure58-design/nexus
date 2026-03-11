@@ -202,7 +202,7 @@ Retention M3+        → 45/mois (churn 10% M1, puis 2.5%/mois)
 | 2006 | BEP Comptabilite | | Obtenu |
 | 2008 | CQP APS (Agent de Prevention et de Securite) | | Obtenu |
 | 2009 | Comptabilite et Gestion Informatisee | IFOCOP | Formation completee |
-| 2010 | Bac Pro Comptabilite (alternance) | | Non obtenu |
+| 2010 | Bac Pro Comptabilite (alternance) | | Obtenu |
 | 2024 | SSIAP 1 (Service de Securite Incendie) | | Obtenu |
 | 2024-2026 | Developpement full-stack (autodidacte) | Autoformation | En cours |
 

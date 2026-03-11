@@ -26,6 +26,8 @@ function initTenant(tenantId) {
   if (!tenantUsage[tenantId]) {
     tenantUsage[tenantId] = {
       calls: 0,
+      callsHaiku: 0,
+      callsSonnet: 0,
       tokensIn: 0,
       tokensOut: 0,
       cost: 0,
@@ -44,6 +46,11 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
   const callCost = (tokensIn * PRICING[modelType].input) + (tokensOut * PRICING[modelType].output);
 
   tenantUsage[tenantId].calls++;
+  if (modelType === 'haiku') {
+    tenantUsage[tenantId].callsHaiku++;
+  } else {
+    tenantUsage[tenantId].callsSonnet++;
+  }
   tenantUsage[tenantId].tokensIn += tokensIn;
   tenantUsage[tenantId].tokensOut += tokensOut;
   tenantUsage[tenantId].cost += callCost;

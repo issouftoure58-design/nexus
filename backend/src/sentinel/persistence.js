@@ -21,6 +21,8 @@ export async function saveUsage(tenantId, usage) {
         tenant_id: tenantId,
         date: today,
         calls: usage.calls,
+        calls_haiku: usage.callsHaiku || 0,
+        calls_sonnet: usage.callsSonnet || 0,
         tokens_in: usage.tokensIn,
         tokens_out: usage.tokensOut,
         cost: usage.cost,
@@ -78,7 +80,7 @@ export async function loadTodayUsage() {
   try {
     const { data, error } = await supabase
       .from('sentinel_usage')
-      .select('tenant_id, calls, tokens_in, tokens_out, cost')
+      .select('tenant_id, calls, calls_haiku, calls_sonnet, tokens_in, tokens_out, cost')
       .eq('date', today);
 
     if (error) throw error;
@@ -87,6 +89,8 @@ export async function loadTodayUsage() {
     for (const row of (data || [])) {
       byTenant[row.tenant_id] = {
         calls: row.calls,
+        callsHaiku: row.calls_haiku || 0,
+        callsSonnet: row.calls_sonnet || 0,
         tokensIn: row.tokens_in,
         tokensOut: row.tokens_out,
         cost: parseFloat(row.cost),
