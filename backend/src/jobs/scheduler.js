@@ -423,33 +423,25 @@ async function markRelance24hEnvoyee(rdvId, telephone = '', tenantId = null) {
     return false;
   }
 
-  const now = new Date().toISOString();
-
-  // IMPORTANT: Update conditionnel - ne met à jour QUE si pas déjà envoyé
-  // Cela évite les doublons en cas de race condition
-  const { data, error } = await db
-    .from('reservations')
-    .update({
-      rappel_j1_envoye: true,
-      rappel_j1_date: now
-    })
-    .eq('id', rdvId)
-    .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
-    .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false')
-    .select('id');
+  // Utilise RPC pour bypasser le cache schema PostgREST
+  // Les .update() avec colonnes recentes echouent car PostgREST ne les detecte pas
+  const { data, error } = await db.rpc('mark_relance_24h', {
+    p_rdv_id: rdvId,
+    p_tenant_id: tenantId
+  });
 
   if (error) {
     console.error(`[Scheduler] ❌ Erreur mark relance 24h RDV ${rdvId}:`, error.message);
     return false;
   }
 
-  // Si aucune ligne mise à jour, c'est que la relance était déjà envoyée
-  if (!data || data.length === 0) {
-    console.log(`[Scheduler] ⏭️ RDV ${rdvId} déjà marqué (race condition évitée)`);
+  // RPC retourne true si une ligne a ete mise a jour, false si deja marquee
+  if (data === false) {
+    console.log(`[Scheduler] ⏭️ RDV ${rdvId}: deja traite (race condition), skip`);
     return false;
   }
 
-  console.log(`[Scheduler] ✅ RDV ${rdvId} marqué rappel_j1_envoye=true (tel: ...${telephone.slice(-4) || '****'})`);
+  console.log(`[Scheduler] ✅ RDV ${rdvId} marque relance envoyee (tel: ...${telephone.slice(-4) || '****'})`);
   return true;
 }
 
