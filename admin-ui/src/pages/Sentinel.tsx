@@ -78,7 +78,7 @@ type TabId = typeof TABS[number]['id'];
 // ============================================
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount / 100);
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
 const formatEuro = (amount: number) => {
