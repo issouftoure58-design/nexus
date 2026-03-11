@@ -53,6 +53,7 @@ const JOBS_SCHEDULE = {
   trialNurture: { hour: 10, minute: 30 },  // 10h30 - Emails nurturing trial (J3, J7, J10)
   sentinelSnapshot: { hour: 0, minute: 30 },  // 00h30 - SENTINEL snapshot quotidien (Business)
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
+  operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1344,6 +1345,17 @@ async function runScheduler() {
     }
   }
 
+  // Job: Rapport operateur hebdo lundi 08h00
+  if (shouldRunWeeklyJob('operatorReport', JOBS_SCHEDULE.operatorReport)) {
+    markJobExecuted('operatorReport');
+    try {
+      const { generateAndSendReport } = await import('../sentinel/reports/operatorReport.js');
+      await generateAndSendReport();
+    } catch (err) {
+      console.error('[Scheduler] Erreur operator report:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1381,6 +1393,7 @@ export function startScheduler() {
   console.log(`  ✅ Trial Nurture: tous les jours à ${JOBS_SCHEDULE.trialNurture.hour}h${String(JOBS_SCHEDULE.trialNurture.minute).padStart(2, '0')} (J3, J7, J10)`);
   console.log(`  ✅ SENTINEL Snapshot: tous les jours à ${JOBS_SCHEDULE.sentinelSnapshot.hour}h${String(JOBS_SCHEDULE.sentinelSnapshot.minute).padStart(2, '0')} (Business)`);
   console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
+  console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
   console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
@@ -1439,6 +1452,10 @@ export async function runJobManually(jobName) {
       return await sendTrialAlertsJob();
     case 'trialNurture':
       return await runTrialNurtureJob();
+    case 'operatorReport': {
+      const { generateAndSendReport } = await import('../sentinel/reports/operatorReport.js');
+      return await generateAndSendReport();
+    }
     default:
       throw new Error(`Job inconnu: ${jobName}`);
   }

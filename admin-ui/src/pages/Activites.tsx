@@ -253,7 +253,7 @@ export default function Activites() {
 
   const fetchMembres = useCallback(async () => {
     try {
-      const raw = await api.get<MembresResponse[] | { data: MembresResponse[] }>('/admin/rh/membres');
+      const raw = await api.get<MembresResponse[] | { data: MembresResponse[] }>('/admin/services/equipe');
       const list = Array.isArray(raw) ? raw : (raw as any).data || [];
       setMembres(list.filter((m: MembresResponse) => m.statut === 'actif'));
     } catch {
@@ -315,7 +315,7 @@ export default function Activites() {
     setLoadingDisponibilites(true);
     try {
       const data = await api.get<MembresDisponiblesResponse>(
-        `/admin/rh/membres/disponibles?date=${date}&heure=${heure}&duree=${duree}`
+        `/admin/services/equipe/disponibles?date=${date}&heure=${heure}&duree=${duree}`
       );
       setMembresDisponibles(data.disponibles || []);
       setMembresOccupes([...(data.occupes || []), ...(data.non_travail || [])]);

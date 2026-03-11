@@ -74,6 +74,7 @@ class Sentinel {
 
     // Process alerts based on results
     for (const [metric, data] of Object.entries(results)) {
+      if (metric === 'errorTrends') continue; // traite separement
       if (data.status === 'CRITICAL') {
         await alerter.send('CRITICAL', `Health check failed: ${metric}`, data);
         await autoHeal.attempt(metric, data);
@@ -81,6 +82,17 @@ class Sentinel {
         await alerter.send('WARNING', `Health warning: ${metric}`, data);
       }
     }
+
+    // Error trends: prediction bugs
+    if (results.errorTrends?.status === 'CRITICAL') {
+      await alerter.send('CRITICAL', 'Error spike detected', results.errorTrends);
+      await autoHeal.attempt('errorTrends', results.errorTrends);
+    } else if (results.errorTrends?.status === 'WARNING') {
+      await alerter.send('WARNING', 'Error trend rising', results.errorTrends);
+    }
+
+    // Nettoyage periodique threat scores
+    securityShield.cleanupThreatScores();
 
     return results;
   }

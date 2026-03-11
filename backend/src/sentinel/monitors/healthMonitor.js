@@ -20,7 +20,8 @@ class HealthMonitor {
       memory: await this.checkMemory(),
       database: await this.checkDatabase(),
       apis: await this.checkExternalAPIs(),
-      uptime: this.checkUptime()
+      uptime: this.checkUptime(),
+      errorTrends: await this.checkErrorTrends()
     };
 
     this.lastResults = results;
@@ -123,6 +124,58 @@ class HealthMonitor {
       hours: uptimeHours,
       started: new Date(Date.now() - uptimeSeconds * 1000).toISOString()
     };
+  }
+
+  async checkErrorTrends() {
+    if (!supabase) return { status: 'OK', message: 'No DB' };
+
+    try {
+      const now = new Date();
+      const fourHoursAgo = new Date(now - 4 * 3600000).toISOString();
+      const twentyFourHoursAgo = new Date(now - 24 * 3600000).toISOString();
+
+      // Erreurs des 4 dernieres heures
+      const { data: recentErrors } = await supabase
+        .from('error_logs')
+        .select('fingerprint, level, message, created_at')
+        .gte('created_at', fourHoursAgo);
+
+      // Baseline: erreurs des 24 dernieres heures (pour moyenne horaire)
+      const { count: dayCount } = await supabase
+        .from('error_logs')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', twentyFourHoursAgo);
+
+      const recentCount = recentErrors?.length || 0;
+      const avgPerHour = (dayCount || 0) / 24;
+      const recentPerHour = recentCount / 4;
+      const ratio = avgPerHour > 0 ? recentPerHour / avgPerHour : 0;
+
+      // Detecter erreurs recurrentes (meme fingerprint > 5x en 4h)
+      const fingerprints = {};
+      for (const err of (recentErrors || [])) {
+        const fp = err.fingerprint || err.message;
+        fingerprints[fp] = (fingerprints[fp] || 0) + 1;
+      }
+      const recurring = Object.entries(fingerprints)
+        .filter(([, count]) => count >= 5)
+        .map(([fp, count]) => ({ fingerprint: fp, count }));
+
+      let status = 'OK';
+      if (ratio >= 5 || recurring.length >= 3) status = 'CRITICAL';
+      else if (ratio >= 3 || recurring.length >= 1) status = 'WARNING';
+
+      return {
+        status,
+        recentCount,
+        avgPerHour: Math.round(avgPerHour * 10) / 10,
+        recentPerHour: Math.round(recentPerHour * 10) / 10,
+        spikeRatio: Math.round(ratio * 10) / 10,
+        recurring,
+      };
+    } catch (error) {
+      return { status: 'OK', message: error.message };
+    }
   }
 
   getLastResults() {

@@ -11,6 +11,8 @@ import { authenticateAdmin, requireSuperAdmin } from './adminAuth.js';
 import { sentinel } from '../sentinel/index.js';
 
 import { getRecentLogs, getSecurityStats, getRateLimitStats } from '../sentinel/security/index.js';
+import { securityShield } from '../sentinel/monitors/securityShield.js';
+import { generateWeeklyReport } from '../sentinel/reports/operatorReport.js';
 import { createBackup, listBackups, restoreBackup } from '../sentinel/backup/index.js';
 import { getStatus as getUptimeStatus } from '../sentinel/monitoring/index.js';
 import { PRICING as GLOBAL_PRICING, PLAN_BUDGETS, PLAN_PRICES } from '../config/pricing.js';
@@ -405,6 +407,43 @@ router.get('/sentinel/status', async (req, res) => {
     });
   } catch (error) {
     console.error('[NEXUS ADMIN] Sentinel status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// SENTINEL THREATS & WEEKLY REPORT
+// ============================================
+
+/**
+ * GET /api/nexus/sentinel/threats
+ * Rapport des menaces actives (threat scoring)
+ */
+router.get('/sentinel/threats', async (req, res) => {
+  try {
+    const threats = securityShield.getThreatReport();
+    res.json({
+      success: true,
+      threats,
+      blacklist: securityShield.getBlacklist(),
+      stats: securityShield.getStats(),
+    });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] Threats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/nexus/sentinel/weekly-report
+ * Rapport hebdomadaire consolide avec actions concretes
+ */
+router.get('/sentinel/weekly-report', async (req, res) => {
+  try {
+    const report = await generateWeeklyReport();
+    res.json({ success: true, ...report });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] Weekly report error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

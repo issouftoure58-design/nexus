@@ -78,6 +78,12 @@ export async function logSecurityEvent(event) {
 
   logBuffer.push(logEntry);
 
+  // Feed threat scoring
+  try {
+    const { securityShield } = await import('../monitors/securityShield.js');
+    securityShield.recordThreatEvent(logEntry.ip_address, event.type, logEntry.severity);
+  } catch { /* shield optional */ }
+
   if (logBuffer.length >= BUFFER_SIZE) {
     flushLogs();
   }

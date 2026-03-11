@@ -64,6 +64,9 @@ class AutoHeal {
         case 'costs':
           action.result = await this.handleCostOverrun(data);
           break;
+        case 'errorTrends':
+          action.result = await this.healErrorSpike(data);
+          break;
         default:
           action.result = { success: false, reason: 'unknown_metric' };
       }
@@ -83,20 +86,55 @@ class AutoHeal {
 
     const actions = [];
 
+    // 1. Force GC si disponible
     if (global.gc) {
       global.gc();
       actions.push('gc_forced');
       console.log('[SENTINEL] Garbage collection forced');
     }
 
-    const mem = process.memoryUsage();
-    console.log(`[SENTINEL] Memory: RSS ${Math.round(mem.rss/1024/1024)}MB`);
-
-    if (data.usagePercent > 90) {
-      console.log('[SENTINEL-ACTION] CRITICAL: System health critical!');
+    // 2. Vider le cache reponses IA (si > 75% memoire)
+    if (data.usagePercent > 75) {
+      try {
+        const { responseCache } = await import('../../services/responseCache.js');
+        if (responseCache?.clear) {
+          responseCache.clear();
+          actions.push('response_cache_cleared');
+        }
+      } catch { /* cache module optional */ }
     }
 
-    return { success: true, action: 'memory_logged', actions };
+    // 3. En critique (>90%), activer mode degrade
+    if (data.usagePercent > 90 && !this.degradedMode) {
+      await this.handleCostOverrun({ reason: 'memory_critical', ...data });
+      actions.push('degraded_mode_activated');
+    }
+
+    const memAfter = process.memoryUsage();
+    return {
+      success: true,
+      action: actions.length > 0 ? actions.join(', ') : 'memory_logged',
+      actions,
+      memoryAfterMB: Math.round(memAfter.rss / 1024 / 1024),
+    };
+  }
+
+  async healErrorSpike(data) {
+    console.log('[SENTINEL-ACTION] Error spike detected, taking action');
+    const actions = [];
+
+    // Si > 5x spike, activer mode degrade pour reduire la charge
+    if (data.spikeRatio >= 5 && !this.degradedMode) {
+      await this.handleCostOverrun({ reason: 'error_spike', spikeRatio: data.spikeRatio });
+      actions.push('degraded_mode_activated');
+    }
+
+    // Logger les erreurs recurrentes pour investigation
+    if (data.recurring?.length > 0) {
+      actions.push(`recurring_errors_flagged: ${data.recurring.length}`);
+    }
+
+    return { success: true, actions };
   }
 
   async healDatabase(data) {

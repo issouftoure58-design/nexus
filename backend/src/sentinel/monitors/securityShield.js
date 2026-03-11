@@ -19,6 +19,30 @@ class SecurityShield {
     this.requestCounts = new Map();
     this.blockedRequests = [];
 
+    // --- Threat Scoring ---
+    this.threatScores = new Map(); // ip -> { score, events, lastUpdate }
+
+    // Points par type d'event
+    this.THREAT_POINTS = {
+      rate_limit_exceeded: 5,
+      auth_failure: 8,
+      invalid_input: 10,
+      xss_attempt: 15,
+      path_traversal_attempt: 15,
+      sql_injection_attempt: 25,
+      csrf_failure: 10,
+      blocked_ip: 0,
+      suspicious_activity: 12,
+      account_locked: 20,
+    };
+
+    // Seuils d'escalation
+    this.THREAT_THRESHOLDS = {
+      warning: 30,
+      critical: 60,
+      blacklist: 100,
+    };
+
     // Prompt injection patterns
     this.dangerousPatterns = [
       /ignore previous instructions/i,
@@ -240,8 +264,91 @@ class SecurityShield {
     return {
       blacklistSize: this.blacklist.size,
       blockedTotal: this.blockedRequests.length,
-      activeTracking: this.requestCounts.size
+      activeTracking: this.requestCounts.size,
+      threatTracking: this.threatScores.size
     };
+  }
+
+  // --- Threat Scoring Methods ---
+
+  recordThreatEvent(ip, eventType, severity) {
+    if (!ip || ip === 'unknown') return;
+
+    const points = this.THREAT_POINTS[eventType] || 5;
+    const now = Date.now();
+
+    if (!this.threatScores.has(ip)) {
+      this.threatScores.set(ip, { score: 0, events: [], lastUpdate: now });
+    }
+
+    const entry = this.threatScores.get(ip);
+
+    // Decay : diviser par 2 toutes les 6 heures
+    const hoursSinceUpdate = (now - entry.lastUpdate) / 3600000;
+    if (hoursSinceUpdate >= 6) {
+      entry.score = entry.score / Math.pow(2, Math.floor(hoursSinceUpdate / 6));
+    }
+
+    entry.score += points;
+    entry.lastUpdate = now;
+    entry.events.push({ type: eventType, severity, time: new Date().toISOString() });
+
+    // Garder max 50 events par IP
+    if (entry.events.length > 50) entry.events = entry.events.slice(-50);
+
+    // Auto-escalation
+    if (entry.score >= this.THREAT_THRESHOLDS.blacklist && !this.blacklist.has(ip)) {
+      this.addToBlacklist(ip);
+      console.log(`[SENTINEL] THREAT: Auto-blacklisted ${ip} (score: ${entry.score})`);
+      return { action: 'blacklisted', score: entry.score };
+    }
+
+    return { score: entry.score, threshold: this.getNextThreshold(entry.score) };
+  }
+
+  getNextThreshold(score) {
+    if (score < this.THREAT_THRESHOLDS.warning) return 'normal';
+    if (score < this.THREAT_THRESHOLDS.critical) return 'warning';
+    if (score < this.THREAT_THRESHOLDS.blacklist) return 'critical';
+    return 'blacklisted';
+  }
+
+  getThreatReport() {
+    const threats = [];
+    const now = Date.now();
+
+    for (const [ip, entry] of this.threatScores.entries()) {
+      // Decay pour affichage
+      const hoursSince = (now - entry.lastUpdate) / 3600000;
+      const currentScore = hoursSince >= 6
+        ? entry.score / Math.pow(2, Math.floor(hoursSince / 6))
+        : entry.score;
+
+      if (currentScore >= 5) {
+        threats.push({
+          ip,
+          score: Math.round(currentScore),
+          level: this.getNextThreshold(currentScore),
+          recentEvents: entry.events.slice(-5),
+          lastSeen: entry.events[entry.events.length - 1]?.time,
+        });
+      }
+    }
+
+    return threats
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 50);
+  }
+
+  // Nettoyage periodique (appele dans le health check)
+  cleanupThreatScores() {
+    const now = Date.now();
+    const maxAge = 48 * 3600000; // 48h
+    for (const [ip, entry] of this.threatScores.entries()) {
+      if (now - entry.lastUpdate > maxAge) {
+        this.threatScores.delete(ip);
+      }
+    }
   }
 }
 

@@ -426,4 +426,122 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ============================================
+// EQUIPE — Membres accessibles a tous les plans
+// (Necessaire pour assigner des prestations)
+// ============================================
+
+/**
+ * GET /api/admin/services/equipe
+ * Liste des membres actifs (tous plans)
+ */
+router.get('/equipe', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    const { data: membres, error } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, role, statut, specialites, jours_travailles, photo_url')
+      .eq('tenant_id', tenantId)
+      .order('nom');
+
+    if (error) throw error;
+
+    res.json({ data: membres || [] });
+  } catch (error) {
+    console.error('[SERVICES] Erreur liste equipe:', error);
+    res.status(500).json({ error: 'Erreur recuperation equipe' });
+  }
+});
+
+/**
+ * GET /api/admin/services/equipe/disponibles
+ * Membres disponibles pour un creneau (tous plans)
+ */
+router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { date, heure, duree = 60 } = req.query;
+
+    if (!date || !heure) {
+      return res.status(400).json({ error: 'Date et heure requis' });
+    }
+
+    // 1. Membres actifs
+    const { data: membres, error: membresError } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, role, statut, jours_travailles')
+      .eq('tenant_id', tenantId)
+      .eq('statut', 'actif')
+      .order('nom');
+
+    if (membresError) throw membresError;
+
+    // 2. Jour de la semaine
+    const dateObj = new Date(date);
+    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const jourSemaine = jours[dateObj.getDay()];
+
+    // 3. Plage horaire demandee
+    const [heureStart, minuteStart] = heure.split(':').map(Number);
+    const startMinutes = heureStart * 60 + minuteStart;
+    const endMinutes = startMinutes + parseInt(duree);
+
+    // 4. Reservations du jour
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('id, heure, duree_minutes, duree_totale_minutes, membre_id, statut')
+      .eq('tenant_id', tenantId)
+      .eq('date', date)
+      .not('membre_id', 'is', null)
+      .not('statut', 'in', '("annule","termine")');
+
+    // 5. Multi-membres
+    const { data: reservationMembres } = await supabase
+      .from('reservation_membres')
+      .select('reservation_id, membre_id')
+      .eq('tenant_id', tenantId);
+
+    const reservationMembreMap = {};
+    (reservationMembres || []).forEach(rm => {
+      if (!reservationMembreMap[rm.reservation_id]) {
+        reservationMembreMap[rm.reservation_id] = [];
+      }
+      reservationMembreMap[rm.reservation_id].push(rm.membre_id);
+    });
+
+    // 6. Membres occupes
+    const membresOccupes = new Set();
+    (reservations || []).forEach(resa => {
+      const [h, m] = (resa.heure || '09:00').split(':').map(Number);
+      const resaStart = h * 60 + m;
+      const resaDuree = resa.duree_totale_minutes || resa.duree_minutes || 60;
+      const resaEnd = resaStart + resaDuree;
+
+      if (!(endMinutes <= resaStart || startMinutes >= resaEnd)) {
+        if (resa.membre_id) membresOccupes.add(resa.membre_id);
+        (reservationMembreMap[resa.id] || []).forEach(mid => membresOccupes.add(mid));
+      }
+    });
+
+    // 7. Filtrer
+    const disponibles = (membres || []).filter(m => {
+      const joursTravail = m.jours_travailles || ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'];
+      return joursTravail.includes(jourSemaine) && !membresOccupes.has(m.id);
+    });
+
+    res.json({
+      disponibles,
+      occupes: membres?.filter(m => membresOccupes.has(m.id)).map(m => ({
+        id: m.id, nom: m.nom, prenom: m.prenom, role: m.role,
+        raison: 'Deja reserve sur ce creneau'
+      })) || [],
+      creneau: { date, heure, duree: parseInt(duree), jour: jourSemaine }
+    });
+  } catch (error) {
+    console.error('[SERVICES] Erreur equipe disponible:', error);
+    res.status(500).json({ error: 'Erreur verification disponibilites' });
+  }
+});
+
 export default router;
