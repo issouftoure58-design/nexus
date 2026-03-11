@@ -78,14 +78,25 @@ class SentinelCollector {
       const pending = reservations?.filter(r => r.statut === 'en_attente' || r.statut === 'demande').length || 0;
       const noShows = reservations?.filter(r => r.statut === 'no_show').length || 0;
 
-      // 3. REVENUS (prix_total stocké en centimes dans la table reservations → convertir en euros)
-      const revenueTotalCts = reservations?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
-      const revenuePaidCts = reservations?.filter(r => r.statut === 'termine' || r.statut === 'confirme')
-        .reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+      // 3. REVENUS — source de verite: factures (pas reservations)
+      // Les factures ont date_facture = date du paiement (pas date de reservation)
+      const { data: factures } = await supabase
+        .from('factures')
+        .select('montant_ttc, statut')
+        .eq('tenant_id', tenantId)
+        .eq('date_facture', dateStr)
+        .eq('type', 'facture');
+
+      const facturesDuJour = factures || [];
+      const revenueTotalCts = facturesDuJour.reduce((sum, f) => sum + (f.montant_ttc || 0), 0);
+      const revenuePaidCts = facturesDuJour
+        .filter(f => f.statut === 'payee')
+        .reduce((sum, f) => sum + (f.montant_ttc || 0), 0);
       const revenueTotal = Math.round(revenueTotalCts) / 100; // centimes → euros
       const revenuePaid = Math.round(revenuePaidCts) / 100;
       const revenuePending = Math.round((revenueTotalCts - revenuePaidCts)) / 100;
-      const averageBasket = totalReservations > 0 ? Math.round(revenueTotalCts / totalReservations) / 100 : 0;
+      const nbFactures = facturesDuJour.length || totalReservations;
+      const averageBasket = nbFactures > 0 ? Math.round(revenueTotalCts / nbFactures) / 100 : 0;
 
       // 4. TAUX
       const noShowRate = totalReservations > 0 ? (noShows / totalReservations) * 100 : 0;
