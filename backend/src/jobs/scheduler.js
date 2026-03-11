@@ -170,11 +170,13 @@ async function getRdvDans24h() {
   let allData = [];
 
   // 🔒 TENANT ISOLATION: Get all tenants with upcoming RDVs
+  // Utilise rappel_j1_envoye (colonne historique fiable) au lieu de relance_24h_envoyee
+  // car PostgREST peut ne pas avoir la nouvelle colonne dans son cache schema
   const { data: tenantData } = await db
     .from('reservations')
     .select('tenant_id')
     .in('statut', ['demande', 'confirme'])
-    .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+    .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false');
 
   const tenantIds = [...new Set((tenantData || []).map(t => t.tenant_id).filter(Boolean))];
 
@@ -183,13 +185,13 @@ async function getRdvDans24h() {
       // Même jour : simple query
       const { data, error } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date24h)
         .gte('heure', heure24h)
         .lte('heure', heure30h)
         .in('statut', ['demande', 'confirme'])
-        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+        .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false');
 
       if (error) {
         console.error(`[Scheduler] ❌ Erreur query RDV 24h tenant ${tenantId}:`, error.message);
@@ -201,22 +203,22 @@ async function getRdvDans24h() {
       // Partie 1 : date24h de heure24h à 23:59
       const { data: data1, error: error1 } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date24h)
         .gte('heure', heure24h)
         .in('statut', ['demande', 'confirme'])
-        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+        .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false');
 
       // Partie 2 : date30h de 00:00 à heure30h
       const { data: data2, error: error2 } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, relance_24h_envoyee, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date30h)
         .lte('heure', heure30h)
         .in('statut', ['demande', 'confirme'])
-        .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false');
+        .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false');
 
       if (error1) console.error(`[Scheduler] ❌ Erreur query date1 tenant ${tenantId}:`, error1.message);
       if (error2) console.error(`[Scheduler] ❌ Erreur query date2 tenant ${tenantId}:`, error2.message);
@@ -428,15 +430,12 @@ async function markRelance24hEnvoyee(rdvId, telephone = '', tenantId = null) {
   const { data, error } = await db
     .from('reservations')
     .update({
-      relance_24h_envoyee: true,
-      relance_24h_date: now,
-      // Aussi mettre à jour l'ancien champ pour compatibilité
       rappel_j1_envoye: true,
       rappel_j1_date: now
     })
     .eq('id', rdvId)
     .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
-    .or('relance_24h_envoyee.is.null,relance_24h_envoyee.eq.false')
+    .or('rappel_j1_envoye.is.null,rappel_j1_envoye.eq.false')
     .select('id');
 
   if (error) {
@@ -450,7 +449,7 @@ async function markRelance24hEnvoyee(rdvId, telephone = '', tenantId = null) {
     return false;
   }
 
-  console.log(`[Scheduler] ✅ RDV ${rdvId} marqué relance_24h_envoyee=true (tel: ...${telephone.slice(-4) || '****'})`);
+  console.log(`[Scheduler] ✅ RDV ${rdvId} marqué rappel_j1_envoye=true (tel: ...${telephone.slice(-4) || '****'})`);
   return true;
 }
 
@@ -610,7 +609,7 @@ export async function sendRelance24hJob() {
     for (const rdv of rdvs) {
       try {
         // Vérification préliminaire (peut être déjà filtré par la query)
-        if (rdv.relance_24h_envoyee === true) {
+        if (rdv.rappel_j1_envoye === true) {
           console.log(`[Scheduler] ⏭️ RDV ${rdv.id}: relance déjà envoyée, skip`);
           skipped++;
           continue;
