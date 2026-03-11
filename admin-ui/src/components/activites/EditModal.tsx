@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Reservation, EditForm, EditLigne, Service, Membre } from './types';
+import type { BusinessType } from '@/contexts/ProfileContext';
 
 interface EditModalProps {
   reservation: Reservation;
@@ -16,8 +17,8 @@ interface EditModalProps {
   membres: Membre[];
   editLoading: boolean;
   editError: string;
-  businessType?: string;
-  isBusinessType?: (type: string) => boolean;
+  businessType?: BusinessType;
+  isBusinessType?: (type: BusinessType) => boolean;
   onEditFormChange: (form: EditForm) => void;
   onEditLignesChange: (lignes: EditLigne[]) => void;
   onSave: () => void;
