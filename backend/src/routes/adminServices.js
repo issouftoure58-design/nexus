@@ -441,7 +441,7 @@ router.get('/equipe', authenticateAdmin, async (req, res) => {
 
     const { data: membres, error } = await supabase
       .from('rh_membres')
-      .select('id, nom, prenom, role, statut, specialites, jours_travailles, photo_url')
+      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url')
       .eq('tenant_id', tenantId)
       .order('nom');
 
