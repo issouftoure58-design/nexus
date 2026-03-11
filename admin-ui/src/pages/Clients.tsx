@@ -766,10 +766,61 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
 
 // Client Detail Modal Component
 function ClientDetailModal({ client, onClose }: { client: Client; onClose: () => void }) {
+  const queryClient = useQueryClient();
   const { data: detail, isLoading } = useQuery({
     queryKey: ['client', client.id],
     queryFn: () => clientsApi.get(client.id),
   });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    prenom: client.prenom || '',
+    nom: client.nom || '',
+    telephone: client.telephone || '',
+    email: client.email || '',
+    adresse: client.adresse || '',
+  });
+  const [editError, setEditError] = useState('');
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Partial<Client>) => clientsApi.update(client.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['client', client.id] });
+      setIsEditing(false);
+      setEditError('');
+    },
+    onError: (err: Error) => {
+      setEditError(err.message);
+    }
+  });
+
+  const handleSave = () => {
+    if (!editData.telephone.trim()) {
+      setEditError('Le téléphone est obligatoire');
+      return;
+    }
+    setEditError('');
+    updateMutation.mutate({
+      prenom: editData.prenom,
+      nom: editData.nom,
+      telephone: editData.telephone,
+      email: editData.email || undefined,
+      adresse: editData.adresse || undefined,
+    });
+  };
+
+  const handleCancel = () => {
+    setEditData({
+      prenom: client.prenom || '',
+      nom: client.nom || '',
+      telephone: client.telephone || '',
+      email: client.email || '',
+      adresse: client.adresse || '',
+    });
+    setIsEditing(false);
+    setEditError('');
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -818,11 +869,56 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
               <p className="text-sm text-gray-500">{client.telephone}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {!isEditing && (
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="h-8 w-8 p-0" title="Modifier">
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto p-6">
+          {/* Mode edition */}
+          {isEditing && (
+            <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="font-medium text-gray-900">Modifier le client</h3>
+              {editError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{editError}</div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Prénom</label>
+                  <Input value={editData.prenom} onChange={(e) => setEditData(d => ({ ...d, prenom: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nom</label>
+                  <Input value={editData.nom} onChange={(e) => setEditData(d => ({ ...d, nom: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Téléphone *</label>
+                <Input value={editData.telephone} onChange={(e) => setEditData(d => ({ ...d, telephone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <Input type="email" value={editData.email} onChange={(e) => setEditData(d => ({ ...d, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Adresse</label>
+                <Input value={editData.adresse} onChange={(e) => setEditData(d => ({ ...d, adresse: e.target.value }))} />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={handleCancel} className="flex-1">Annuler</Button>
+                <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending} className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600">
+                  {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />

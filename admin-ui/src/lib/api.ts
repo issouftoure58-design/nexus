@@ -164,7 +164,10 @@ class ApiClient {
         console.error(`[API] Error ${response.status}:`, error);
       }
 
-      throw new Error(error.error || error.message || 'Erreur serveur');
+      const errorMsg = typeof error.error === 'string'
+        ? error.error
+        : error.error?.message || error.message || 'Erreur serveur';
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
@@ -249,7 +252,10 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
-      throw new Error(error.error || error.message || 'Erreur serveur');
+      const errorMsg = typeof error.error === 'string'
+        ? error.error
+        : error.error?.message || error.message || 'Erreur serveur';
+      throw new Error(errorMsg);
     }
 
     return response.json();

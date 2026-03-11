@@ -334,7 +334,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, prenom, telephone, email, adresse } = req.body;
+    const { nom, prenom, telephone, email, adresse, code_postal, ville, complement_adresse, type_client, raison_sociale, siret } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
@@ -342,6 +342,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (telephone !== undefined) updates.telephone = telephone;
     if (email !== undefined) updates.email = email;
     if (adresse !== undefined) updates.adresse = adresse;
+    if (code_postal !== undefined) updates.code_postal = code_postal;
+    if (ville !== undefined) updates.ville = ville;
+    if (complement_adresse !== undefined) updates.complement_adresse = complement_adresse;
+    if (type_client !== undefined) updates.type_client = type_client;
+    if (raison_sociale !== undefined) updates.raison_sociale = raison_sociale;
+    if (siret !== undefined) updates.siret = siret;
     updates.updated_at = new Date().toISOString();
 
     // 🔒 TENANT ISOLATION
