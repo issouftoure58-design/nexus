@@ -49,6 +49,7 @@ import {
   LayoutGrid,
   X,
   Zap,
+  UserPlus,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { authApi } from '@/lib/api';
@@ -149,6 +150,7 @@ const mainNav: NavItem[] = [
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
+  { icon: UserPlus, label: 'Equipe', path: '/equipe', alwaysShow: true },
   { icon: Clock, label: 'Disponibilites', path: '/disponibilites', requiredModule: 'reservations' },
   { icon: UtensilsCrossed, label: 'Menu', path: '/menu', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', requiredModule: 'reservations', businessTypes: ['restaurant'] },

@@ -544,4 +544,101 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/services/equipe
+ * Ajouter un membre (CRUD basique, tous plans)
+ */
+router.post('/equipe', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { nom, prenom, email, telephone, role } = req.body;
+
+    if (!nom || !prenom) {
+      return res.status(400).json({ error: 'Nom et prenom requis' });
+    }
+
+    const { data: membre, error } = await supabase
+      .from('rh_membres')
+      .insert({
+        tenant_id: tenantId,
+        nom,
+        prenom,
+        email: email || null,
+        telephone: telephone || null,
+        role: role || 'employe',
+        statut: 'actif',
+        jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json(membre);
+  } catch (error) {
+    console.error('[SERVICES] Erreur ajout membre:', error);
+    res.status(500).json({ error: 'Erreur ajout membre' });
+  }
+});
+
+/**
+ * PUT /api/admin/services/equipe/:id
+ * Modifier un membre (CRUD basique, tous plans)
+ */
+router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+    const { nom, prenom, email, telephone, role, statut, jours_travailles } = req.body;
+
+    const updates = {};
+    if (nom !== undefined) updates.nom = nom;
+    if (prenom !== undefined) updates.prenom = prenom;
+    if (email !== undefined) updates.email = email || null;
+    if (telephone !== undefined) updates.telephone = telephone || null;
+    if (role !== undefined) updates.role = role;
+    if (statut !== undefined) updates.statut = statut;
+    if (jours_travailles !== undefined) updates.jours_travailles = jours_travailles;
+
+    const { data: membre, error } = await supabase
+      .from('rh_membres')
+      .update(updates)
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(membre);
+  } catch (error) {
+    console.error('[SERVICES] Erreur modif membre:', error);
+    res.status(500).json({ error: 'Erreur modification membre' });
+  }
+});
+
+/**
+ * DELETE /api/admin/services/equipe/:id
+ * Supprimer un membre (tous plans)
+ */
+router.delete('/equipe/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('rh_membres')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[SERVICES] Erreur suppression membre:', error);
+    res.status(500).json({ error: 'Erreur suppression membre' });
+  }
+});
+
 export default router;

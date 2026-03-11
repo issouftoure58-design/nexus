@@ -63,6 +63,7 @@ const Fidelite = lazy(() => import('./pages/Fidelite'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Guide = lazy(() => import('./pages/Guide'));
 const Configuration = lazy(() => import('./pages/Configuration'));
+const Equipe = lazy(() => import('./pages/Equipe'));
 
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
@@ -172,6 +173,7 @@ function App() {
             <Route path="/dashboard-old" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/clients" element={<ModuleRoute><Clients /></ModuleRoute>} />
             <Route path="/services" element={<ModuleRoute><Services /></ModuleRoute>} />
+            <Route path="/equipe" element={<ModuleRoute moduleTitle="Equipe" moduleDescription="Gerez les membres de votre equipe"><Equipe /></ModuleRoute>} />
             <Route path="/disponibilites" element={<ModuleRoute module="reservations" moduleTitle="Disponibilites" moduleDescription="Horaires d'ouverture et periodes de fermeture"><Disponibilites /></ModuleRoute>} />
             <Route path="/menu" element={<ModuleRoute module="reservations" moduleTitle="Menu" moduleDescription="Gestion des plats et menus du jour"><Menu /></ModuleRoute>} />
             <Route path="/salle" element={<ModuleRoute module="reservations" moduleTitle="Plan de salle" moduleDescription="Vue des tables et réservations"><FloorPlan /></ModuleRoute>} />
