@@ -342,9 +342,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (telephone !== undefined) updates.telephone = telephone;
     if (email !== undefined) updates.email = email || null;
     if (adresse !== undefined) updates.adresse = adresse;
-    if (code_postal !== undefined) updates.code_postal = code_postal;
-    if (ville !== undefined) updates.ville = ville;
-    if (complement_adresse !== undefined) updates.complement_adresse = complement_adresse;
+    // Note: code_postal, ville, complement_adresse ne sont pas encore en DB (migration a creer)
+    // if (code_postal !== undefined) updates.code_postal = code_postal;
+    // if (ville !== undefined) updates.ville = ville;
+    // if (complement_adresse !== undefined) updates.complement_adresse = complement_adresse;
     if (type_client !== undefined) updates.type_client = type_client;
     if (raison_sociale !== undefined) updates.raison_sociale = raison_sociale;
     if (siret !== undefined) updates.siret = siret;
@@ -359,7 +360,14 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[ADMIN CLIENTS] Erreur Supabase update:', error.message, error.code);
+      return res.status(400).json({ error: error.message || 'Erreur modification client' });
+    }
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client introuvable' });
+    }
 
     // Logger l'action (🔒 TENANT ISOLATION)
     await supabase.from('historique_admin').insert({
@@ -373,8 +381,8 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     res.json({ client });
   } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur modification:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('[ADMIN CLIENTS] Erreur modification:', error.message || error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
   }
 });
 
