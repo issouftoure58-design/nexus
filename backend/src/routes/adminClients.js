@@ -334,21 +334,15 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const { nom, prenom, telephone, email, adresse, code_postal, ville, complement_adresse, type_client, raison_sociale, siret } = req.body;
+    const { nom, prenom, telephone, email, adresse } = req.body;
 
+    // Colonnes existantes sur la table clients: id, tenant_id, nom, prenom, telephone, email, adresse, tags, created_at, loyalty_points
     const updates = {};
-    if (nom !== undefined) updates.nom = nom;
-    if (prenom !== undefined) updates.prenom = prenom;
+    if (nom !== undefined) updates.nom = nom || null;
+    if (prenom !== undefined) updates.prenom = prenom || null;
     if (telephone !== undefined) updates.telephone = telephone;
     if (email !== undefined) updates.email = email || null;
-    if (adresse !== undefined) updates.adresse = adresse;
-    // Note: code_postal, ville, complement_adresse ne sont pas encore en DB (migration a creer)
-    // if (code_postal !== undefined) updates.code_postal = code_postal;
-    // if (ville !== undefined) updates.ville = ville;
-    // if (complement_adresse !== undefined) updates.complement_adresse = complement_adresse;
-    if (type_client !== undefined) updates.type_client = type_client;
-    if (raison_sociale !== undefined) updates.raison_sociale = raison_sociale;
-    if (siret !== undefined) updates.siret = siret;
+    if (adresse !== undefined) updates.adresse = adresse || null;
 
     // 🔒 TENANT ISOLATION
     const { data: client, error } = await supabase
