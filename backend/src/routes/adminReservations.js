@@ -1348,17 +1348,25 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         if (factureResult.success) {
           facture = factureResult.facture;
 
+          // Checkout restaurant: date_facture = aujourd'hui (date du paiement sur place)
+          // et non la date de reservation (qui peut etre dans le futur)
+          const today = new Date().toISOString().split('T')[0];
+          const dateFacture = checkoutModePaiement ? today : (facture.date_facture || today);
+
           // Calculer date_echeance = date_facture + 30 jours
-          const dateFacture = new Date(facture.date_facture || new Date());
           const dateEcheance = new Date(dateFacture);
           dateEcheance.setDate(dateEcheance.getDate() + 30);
 
-          // Mettre à jour la date d'échéance (pour le système de relance)
+          // Mettre à jour la date d'échéance (et date_facture si checkout)
+          const factureUpdate = {
+            date_echeance: dateEcheance.toISOString().split('T')[0]
+          };
+          if (checkoutModePaiement) {
+            factureUpdate.date_facture = today;
+          }
           await supabase
             .from('factures')
-            .update({
-              date_echeance: dateEcheance.toISOString().split('T')[0]
-            })
+            .update(factureUpdate)
             .eq('id', facture.id);
 
           console.log(`[ADMIN RESERVATIONS] Facture ${facture.numero} créée (en attente de paiement, échéance: ${dateEcheance.toISOString().split('T')[0]})`);
