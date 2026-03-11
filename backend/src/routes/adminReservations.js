@@ -1245,7 +1245,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // Récupérer la réservation actuelle (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
-      .select('*, clients(nom, prenom, telephone)')
+      .select('*, clients(nom, prenom, telephone, email)')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .single();
@@ -1391,7 +1391,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
                 const clientPhone = currentRdv.clients?.telephone;
                 const clientEmail = currentRdv.clients?.email;
                 const clientNom = currentRdv.clients?.prenom || currentRdv.clients?.nom || 'Client';
-                const montantFormate = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(facture.montant_ttc || 0);
+                const montantFormate = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format((facture.montant_ttc || 0) / 100);
 
                 let emailSent = false;
 
@@ -1438,7 +1438,11 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
 
                 // 2. SMS fallback (seulement si pas d'email disponible)
                 if (clientPhone && !clientEmail) {
-                  const smsMsg = `Merci ${clientNom} ! Votre addition de ${montantFormate} a ete reglee. A bientot !`;
+                  const itemsLines = (checkout.items || []).map(i =>
+                    `${i.quantite}x ${i.nom} ${((i.prix_unitaire * i.quantite) / 100).toFixed(2)}E`
+                  ).join('\n');
+                  const modePaiementLabel = checkoutModePaiement === 'cb' ? 'CB' : checkoutModePaiement === 'especes' ? 'Especes' : 'Cheque';
+                  const smsMsg = `Ticket ${clientNom}\n${itemsLines}\n---\nTotal: ${montantFormate}\nPaiement: ${modePaiementLabel}\nMerci et a bientot !`;
                   sendSMS(clientPhone, smsMsg, tenantId, { essential: true }).catch(e =>
                     console.error('[ADMIN RESERVATIONS] Erreur envoi SMS ticket:', e.message)
                   );
