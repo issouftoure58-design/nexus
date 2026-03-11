@@ -285,6 +285,26 @@ router.get('/', authenticateAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/reservations/:id/extra
+// Champs restaurant/hotel via RPC (bypass PostgREST schema cache)
+router.get('/:id/extra', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const rdvId = parseInt(req.params.id);
+
+    const { data, error } = await supabase.rpc('get_reservation_extra', {
+      p_rdv_id: rdvId,
+      p_tenant_id: tenantId
+    });
+
+    if (error) throw error;
+    res.json(data || {});
+  } catch (error) {
+    console.error('[RESERVATIONS] Erreur extra:', error.message);
+    res.json({});
+  }
+});
+
 // GET /api/admin/reservations/:id
 // Détail complet d'une réservation
 router.get('/:id', authenticateAdmin, async (req, res) => {

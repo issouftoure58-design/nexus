@@ -630,8 +630,17 @@ export default function Activites() {
     }
   };
 
-  const handleOpenEdit = (rdv: Reservation) => {
+  const handleOpenEdit = async (rdv: Reservation) => {
     setEditingRdv(rdv);
+
+    // Charger les champs restaurant/hotel via RPC (bypass PostgREST schema cache)
+    let extra: Record<string, any> = {};
+    if (isBusinessType('restaurant') || isBusinessType('hotel')) {
+      try {
+        extra = await api.get<Record<string, any>>(`/admin/reservations/${rdv.id}/extra`) || {};
+      } catch { /* fallback aux donnees rdv */ }
+    }
+
     setEditForm({
       service_nom: rdv.service_nom || (typeof rdv.service === 'object' ? rdv.service?.nom : rdv.service) || '',
       date: rdv.date || rdv.date_rdv || '',
@@ -639,14 +648,14 @@ export default function Activites() {
       statut: rdv.statut || '',
       notes: rdv.notes || '',
       membre_id: rdv.membre?.id || rdv.membre_id || 0,
-      // Restaurant: table_id peut etre dans table_id ou service_id
-      table_id: rdv.table_id || rdv.service_id || 0,
-      nb_couverts: rdv.nb_couverts || 2,
+      // Restaurant: extra (RPC) > rdv > service_id > 0
+      table_id: extra.table_id || rdv.table_id || extra.service_id || rdv.service_id || 0,
+      nb_couverts: extra.nb_couverts || rdv.nb_couverts || 2,
       // Hotel
-      chambre_id: rdv.chambre_id || rdv.service_id || 0,
-      nb_personnes: rdv.nb_personnes || 2,
-      date_checkout: rdv.date_depart || '',
-      heure_checkout: rdv.heure_arrivee || '',
+      chambre_id: extra.chambre_id || rdv.chambre_id || extra.service_id || rdv.service_id || 0,
+      nb_personnes: extra.nb_personnes || rdv.nb_personnes || 2,
+      date_checkout: extra.date_depart || rdv.date_depart || '',
+      heure_checkout: extra.heure_arrivee || rdv.heure_arrivee || '',
     });
 
     const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({
