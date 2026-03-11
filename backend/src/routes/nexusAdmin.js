@@ -1197,6 +1197,80 @@ optimizationRouter.get('/cache/stats', async (req, res) => {
 });
 
 /**
+ * GET /api/optimization/ai-stats
+ * Stats d'optimisation IA: ratio Haiku/Sonnet, economies, cache
+ */
+optimizationRouter.get('/ai-stats', async (req, res) => {
+  try {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    const monthStr = startOfMonth.toISOString().split('T')[0];
+
+    // Stats DB persistees (Haiku/Sonnet par tenant)
+    const { data: usageRows, error } = await supabase
+      .from('sentinel_usage')
+      .select('tenant_id, calls, calls_haiku, calls_sonnet, tokens_in, tokens_out, cost')
+      .gte('date', monthStr);
+
+    if (error) throw error;
+
+    const totals = (usageRows || []).reduce((acc, row) => ({
+      calls: acc.calls + (row.calls || 0),
+      callsHaiku: acc.callsHaiku + (row.calls_haiku || 0),
+      callsSonnet: acc.callsSonnet + (row.calls_sonnet || 0),
+      tokensIn: acc.tokensIn + (row.tokens_in || 0),
+      tokensOut: acc.tokensOut + (row.tokens_out || 0),
+      cost: acc.cost + parseFloat(row.cost || 0),
+    }), { calls: 0, callsHaiku: 0, callsSonnet: 0, tokensIn: 0, tokensOut: 0, cost: 0 });
+
+    // Cout moyen par appel
+    const avgCostPerCall = totals.calls > 0 ? totals.cost / totals.calls : 0;
+
+    // Economies estimees: si tout etait Sonnet vs mix actuel
+    const sonnetInputRate = GLOBAL_PRICING.anthropic.sonnet.input / 1_000_000;
+    const sonnetOutputRate = GLOBAL_PRICING.anthropic.sonnet.output / 1_000_000;
+    const costIfAllSonnet = (totals.tokensIn * sonnetInputRate) + (totals.tokensOut * sonnetOutputRate);
+    const savings = costIfAllSonnet - totals.cost;
+
+    // Stats en memoire (model router + cache)
+    const { default: modelRouter } = await import('../services/modelRouter.js');
+    const { default: responseCache } = await import('../services/responseCache.js');
+    const { default: promptOptimizer } = await import('../services/promptOptimizer.js');
+
+    const routerStats = modelRouter?.getStats ? modelRouter.getStats() : {};
+    const cacheStats = responseCache?.getStats ? responseCache.getStats() : {};
+    const promptStats = promptOptimizer?.getStats ? promptOptimizer.getStats() : {};
+
+    res.json({
+      data: {
+        month: {
+          calls: totals.calls,
+          callsHaiku: totals.callsHaiku,
+          callsSonnet: totals.callsSonnet,
+          haikuPercent: totals.calls > 0 ? parseFloat(((totals.callsHaiku / totals.calls) * 100).toFixed(1)) : 0,
+          tokensIn: totals.tokensIn,
+          tokensOut: totals.tokensOut,
+          tokensTotal: totals.tokensIn + totals.tokensOut,
+          cost: parseFloat(totals.cost.toFixed(4)),
+          avgCostPerCall: parseFloat(avgCostPerCall.toFixed(6)),
+          costIfAllSonnet: parseFloat(costIfAllSonnet.toFixed(4)),
+          savings: parseFloat(savings.toFixed(4)),
+          savingsPercent: costIfAllSonnet > 0 ? parseFloat(((savings / costIfAllSonnet) * 100).toFixed(1)) : 0,
+        },
+        session: {
+          router: routerStats,
+          cache: cacheStats,
+          prompt: promptStats,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[NEXUS] AI stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/optimization/pricing
  * Informations de pricing des APIs
  */
