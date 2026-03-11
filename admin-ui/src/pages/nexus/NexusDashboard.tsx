@@ -20,8 +20,9 @@ interface Alert {
 
 interface CostBreakdown {
   anthropic: number;
-  twilio: number;
-  elevenlabs: number;
+  twilio_sms: number;
+  twilio_voice: number;
+  email: number;
 }
 
 interface PlanDistribution {
@@ -162,13 +163,13 @@ export default function NexusDashboard() {
                 <h2 className="font-semibold text-white mb-1">Detail des couts par service</h2>
                 <div className="text-[10px] text-slate-600 mb-3">Chaque service externe a un prix different. Voici la repartition.</div>
                 <div className="space-y-3">
-                  <CostRow label="Anthropic Claude" desc="Conversations IA, outils, analyse" value={data.costBreakdown.anthropic} total={data.summary.totalCost} color="bg-purple-500" />
-                  <CostRow label="Twilio" desc="SMS de rappel, appels telephoniques" value={data.costBreakdown.twilio} total={data.summary.totalCost} color="bg-blue-500" />
-                  <CostRow label="ElevenLabs" desc="Voix synthetique (Halimah vocale)" value={data.costBreakdown.elevenlabs} total={data.summary.totalCost} color="bg-cyan-500" />
+                  <CostRow label="Anthropic Claude" desc="Conversations IA, outils, analyse" value={data.costBreakdown.anthropic ?? 0} total={data.summary.totalCost} color="bg-purple-500" />
+                  <CostRow label="Twilio SMS" desc="SMS de rappel et notifications" value={data.costBreakdown.twilio_sms ?? 0} total={data.summary.totalCost} color="bg-blue-500" />
+                  <CostRow label="Twilio Voice" desc="Appels telephoniques et WhatsApp" value={data.costBreakdown.twilio_voice ?? 0} total={data.summary.totalCost} color="bg-cyan-500" />
                 </div>
                 <div className="mt-3 pt-2 border-t border-slate-800 flex justify-between items-center">
                   <span className="text-sm text-slate-400">Total {data.periodLabel}</span>
-                  <span className="text-lg font-bold text-white font-mono">{data.summary.totalCost.toFixed(2)}€</span>
+                  <span className="text-lg font-bold text-white font-mono">{(data.summary.totalCost ?? 0).toFixed(2)}€</span>
                 </div>
               </div>
             )}
@@ -397,7 +398,7 @@ function CostRow({ label, desc, value, total, color }: { label: string; desc: st
           <span className="text-sm text-slate-300">{label}</span>
           <span className="text-[10px] text-slate-600 ml-2">{desc}</span>
         </div>
-        <span className="text-sm text-white font-mono font-bold">{value.toFixed(4)}€</span>
+        <span className="text-sm text-white font-mono font-bold">{(value ?? 0).toFixed(4)}€</span>
       </div>
       <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-1000 ease-out`} style={{ width: `${Math.max(width, value > 0 ? 2 : 0)}%` }} />
