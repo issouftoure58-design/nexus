@@ -212,6 +212,14 @@ export interface EditForm {
   statut: string;
   notes: string;
   membre_id: number;
+  // Restaurant
+  table_id?: number;
+  nb_couverts?: number;
+  // Hotel
+  chambre_id?: number;
+  nb_personnes?: number;
+  date_checkout?: string;
+  heure_checkout?: string;
 }
 
 export interface NewClientForm {

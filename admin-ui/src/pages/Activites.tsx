@@ -89,7 +89,7 @@ export default function Activites() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRdv, setSelectedRdv] = useState<Reservation | null>(null);
   const [editingRdv, setEditingRdv] = useState<Reservation | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ service_nom: '', date: '', heure: '', statut: '', notes: '', membre_id: 0 });
+  const [editForm, setEditForm] = useState<EditForm>({ service_nom: '', date: '', heure: '', statut: '', notes: '', membre_id: 0, table_id: 0, nb_couverts: 2, chambre_id: 0, nb_personnes: 2, date_checkout: '', heure_checkout: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [editLignes, setEditLignes] = useState<EditLigne[]>([]);
@@ -639,6 +639,14 @@ export default function Activites() {
       statut: rdv.statut || '',
       notes: rdv.notes || '',
       membre_id: rdv.membre?.id || rdv.membre_id || 0,
+      // Restaurant
+      table_id: (rdv as any).table_id || 0,
+      nb_couverts: (rdv as any).nb_couverts || 2,
+      // Hotel
+      chambre_id: (rdv as any).chambre_id || 0,
+      nb_personnes: (rdv as any).nb_personnes || 2,
+      date_checkout: (rdv as any).date_depart || '',
+      heure_checkout: (rdv as any).heure_checkout || '',
     });
 
     const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({
@@ -673,6 +681,17 @@ export default function Activites() {
           heure_debut: l.heure_debut,
           heure_fin: l.heure_fin,
         })) : undefined,
+        // Restaurant
+        ...(isBusinessType('restaurant') ? {
+          nb_couverts: editForm.nb_couverts || null,
+          table_id: editForm.table_id || null,
+        } : {}),
+        // Hotel
+        ...(isBusinessType('hotel') ? {
+          nb_personnes: editForm.nb_personnes || null,
+          chambre_id: editForm.chambre_id || null,
+          date_depart: editForm.date_checkout || null,
+        } : {}),
       });
       setShowEditModal(false);
       setEditingRdv(null);
@@ -980,6 +999,8 @@ export default function Activites() {
           membres={membres}
           editLoading={editLoading}
           editError={editError}
+          businessType={businessType}
+          isBusinessType={isBusinessType}
           onEditFormChange={setEditForm}
           onEditLignesChange={setEditLignes}
           onSave={handleSaveEdit}
