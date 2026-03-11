@@ -46,6 +46,14 @@ export default function EditModal({
   const isRestaurant = isBusinessType?.('restaurant') ?? false;
   const isHotel = isBusinessType?.('hotel') ?? false;
 
+  // Parse min capacite depuis le nom de la table (ex: "Table 5-6 couverts" → min=5)
+  const getTableMinCapacity = (tableId: number) => {
+    const table = services.find(s => s.id === tableId);
+    if (!table) return 1;
+    const match = table.nom.match(/(\d+)\s*-\s*(\d+)/);
+    return match ? parseInt(match[1]) : 1;
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
       <div
@@ -100,10 +108,11 @@ export default function EditModal({
                     const tableId = parseInt(e.target.value) || 0;
                     const table = services.find(s => s.id === tableId);
                     const cap = (table as any)?.capacite || 20;
+                    const minCap = getTableMinCapacity(tableId);
                     onEditFormChange({
                       ...editForm,
                       table_id: tableId,
-                      nb_couverts: Math.min(editForm.nb_couverts || 2, cap)
+                      nb_couverts: Math.max(Math.min(editForm.nb_couverts || minCap, cap), minCap)
                     });
                   }}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -123,21 +132,22 @@ export default function EditModal({
                 {(() => {
                   const selectedTable = services.find(s => s.id === editForm.table_id);
                   const maxCapacite = (selectedTable as any)?.capacite || 20;
+                  const minCapacite = getTableMinCapacity(editForm.table_id || 0);
                   return (
                     <>
                       <Input
                         type="number"
-                        min={1}
+                        min={minCapacite}
                         max={maxCapacite}
-                        value={Math.min(editForm.nb_couverts || 2, maxCapacite)}
+                        value={Math.max(Math.min(editForm.nb_couverts || minCapacite, maxCapacite), minCapacite)}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1;
-                          onEditFormChange({ ...editForm, nb_couverts: Math.min(val, maxCapacite) });
+                          const val = parseInt(e.target.value) || minCapacite;
+                          onEditFormChange({ ...editForm, nb_couverts: Math.max(Math.min(val, maxCapacite), minCapacite) });
                         }}
                       />
                       {editForm.table_id && editForm.table_id > 0 && selectedTable && (
                         <p className="text-xs text-amber-600 mt-1">
-                          Capacite max: {maxCapacite} personnes
+                          Capacite: {minCapacite}-{maxCapacite} personnes
                         </p>
                       )}
                     </>

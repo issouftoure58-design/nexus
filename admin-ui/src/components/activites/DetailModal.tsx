@@ -1,10 +1,13 @@
 /**
- * DetailModal - Modal de détail d'une prestation
+ * DetailModal - Modal de detail d'une prestation
+ * Adapte au type de business (restaurant/hotel/salon)
  */
 
-import { Clock, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, X, Users } from 'lucide-react';
 import { EntityLink } from '@/components/EntityLink';
 import { useProfile } from '@/contexts/ProfileContext';
+import { api } from '@/lib/api';
 import type { Reservation, ReservationMembre } from './types';
 import { STATUS_CONFIG, formatDate, formatCurrency } from './types';
 
@@ -14,7 +17,22 @@ interface DetailModalProps {
 }
 
 export default function DetailModal({ reservation, onClose }: DetailModalProps) {
-  const { t } = useProfile();
+  const { t, isBusinessType } = useProfile();
+  const [extra, setExtra] = useState<Record<string, any>>({});
+
+  // Charger les champs restaurant/hotel via RPC
+  useEffect(() => {
+    if (isBusinessType('restaurant') || isBusinessType('hotel')) {
+      api.get<Record<string, any>>(`/admin/reservations/${reservation.id}/extra`)
+        .then(data => setExtra(data || {}))
+        .catch(() => {});
+    }
+  }, [reservation.id, isBusinessType]);
+
+  const nbCouverts = extra.nb_couverts || reservation.nb_couverts;
+  const isRestaurant = isBusinessType('restaurant');
+  const isHotel = isBusinessType('hotel');
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
@@ -22,7 +40,9 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Détails prestation #{reservation.id}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Details {isRestaurant ? 'reservation' : isHotel ? 'sejour' : 'prestation'} #{reservation.id}
+          </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
             <X className="w-5 h-5 text-gray-500" />
           </button>
@@ -34,7 +54,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-cyan-600" />
               <span className="font-medium text-gray-900 dark:text-white">
-                {formatDate(reservation.date || reservation.date_rdv || '')} à {reservation.heure || reservation.heure_rdv}
+                {formatDate(reservation.date || reservation.date_rdv || '')} a {reservation.heure || reservation.heure_rdv}
               </span>
             </div>
             <span className={`text-xs font-medium px-2 py-1 rounded ${STATUS_CONFIG[reservation.statut]?.bgColor} ${STATUS_CONFIG[reservation.statut]?.color}`}>
@@ -85,7 +105,35 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
             );
           })()}
 
-          {/* Services avec salariés assignés */}
+          {/* Restaurant: Nombre de couverts */}
+          {isRestaurant && nbCouverts && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-600" />
+                <span className="font-medium text-amber-800 dark:text-amber-300">
+                  {nbCouverts} {nbCouverts > 1 ? 'couverts' : 'couvert'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Hotel: Sejour */}
+          {isHotel && (extra.date_depart || reservation.date_depart) && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-blue-800 dark:text-blue-300">
+                  Check-out: {formatDate(extra.date_depart || reservation.date_depart || '')}
+                </span>
+                {(extra.nb_personnes || reservation.nb_personnes) && (
+                  <span className="text-sm text-blue-600">
+                    ({extra.nb_personnes || reservation.nb_personnes} pers.)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Services avec salaries assignes */}
           <div className="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg space-y-2">
             <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">{t('service', true)} & {t('employee', true)}</p>
             {reservation.services && reservation.services.length > 0 ? (
@@ -106,7 +154,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
                 ))}
                 <div className="flex items-center justify-between pt-2 border-t border-cyan-200 dark:border-cyan-700">
                   <span className="text-sm text-gray-500">
-                    Durée totale: {reservation.duree_totale || reservation.duree || 60} min
+                    Duree totale: {reservation.duree_totale || reservation.duree || 60} min
                   </span>
                   <span className="text-xl font-bold text-green-600">
                     {formatCurrency(reservation.prix || reservation.prix_total || 0)}
@@ -124,7 +172,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
             )}
           </div>
 
-          {/* Tous les employés assignés */}
+          {/* Tous les employes assignes */}
           {reservation.membres && reservation.membres.length > 0 ? (
             <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
               <p className="text-xs text-purple-600 dark:text-purple-400 mb-2">{t('employee', true)} ({reservation.membres.length})</p>
@@ -144,7 +192,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
             </div>
           ) : reservation.membre && (
             <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Employé assigné</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Employe assigne</p>
               <EntityLink
                 type="employee"
                 entity={{
@@ -169,7 +217,7 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
           )}
 
           <p className="text-xs text-gray-400 text-center">
-            Créée via {reservation.created_via || 'admin'}
+            Creee via {reservation.created_via || 'admin'}
           </p>
         </div>
       </div>
