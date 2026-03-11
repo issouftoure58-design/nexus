@@ -639,14 +639,14 @@ export default function Activites() {
       statut: rdv.statut || '',
       notes: rdv.notes || '',
       membre_id: rdv.membre?.id || rdv.membre_id || 0,
-      // Restaurant
-      table_id: (rdv as any).table_id || 0,
-      nb_couverts: (rdv as any).nb_couverts || 2,
+      // Restaurant: table_id peut etre dans table_id ou service_id
+      table_id: rdv.table_id || rdv.service_id || 0,
+      nb_couverts: rdv.nb_couverts || 2,
       // Hotel
-      chambre_id: (rdv as any).chambre_id || 0,
-      nb_personnes: (rdv as any).nb_personnes || 2,
-      date_checkout: (rdv as any).date_depart || '',
-      heure_checkout: (rdv as any).heure_checkout || '',
+      chambre_id: rdv.chambre_id || rdv.service_id || 0,
+      nb_personnes: rdv.nb_personnes || 2,
+      date_checkout: rdv.date_depart || '',
+      heure_checkout: rdv.heure_arrivee || '',
     });
 
     const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({

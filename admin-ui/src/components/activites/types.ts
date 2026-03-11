@@ -165,6 +165,17 @@ export interface Reservation {
   service_id?: number;
   services?: ReservationService[];
   membres?: ReservationMembre[];
+  // Restaurant
+  table_id?: number;
+  nb_couverts?: number;
+  service_type?: string;
+  allergies?: string;
+  // Hotel
+  chambre_id?: number;
+  nb_personnes?: number;
+  date_arrivee?: string;
+  date_depart?: string;
+  heure_arrivee?: string;
 }
 
 // === Formulaires ===
