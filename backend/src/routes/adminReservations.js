@@ -1262,7 +1262,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     }
 
     // ⚠️ VALIDATION: Personnel obligatoire pour terminer une réservation
-    if (statut === 'termine') {
+    // Exception: checkout restaurant (encaissement de table) — pas de membre requis
+    if (statut === 'termine' && !checkout) {
       const membreAssigne = membre_id || currentRdv.membre_id;
       if (!membreAssigne) {
         return res.status(400).json({
