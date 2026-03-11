@@ -55,26 +55,31 @@ class HealthMonitor {
   }
 
   async checkDatabase() {
-    try {
-      if (!supabase) {
-        return { status: 'WARNING', message: 'Supabase not configured' };
+    if (!supabase) {
+      return { status: 'WARNING', message: 'Supabase not configured' };
+    }
+
+    // Retry 1 fois avant de declarer CRITICAL (evite faux positifs reseau)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const startTime = Date.now();
+        const { error } = await supabase.from('services').select('id').limit(1);
+        const latency = Date.now() - startTime;
+
+        if (error) {
+          if (attempt === 0) { await new Promise(r => setTimeout(r, 2000)); continue; }
+          return { status: 'CRITICAL', message: error.message, latency };
+        }
+
+        let status = 'OK';
+        if (latency > 2000) status = 'CRITICAL';
+        else if (latency > 1000) status = 'WARNING';
+
+        return { status, latency, message: 'Connected' };
+      } catch (error) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 2000)); continue; }
+        return { status: 'CRITICAL', message: error.message };
       }
-
-      const startTime = Date.now();
-      const { error } = await supabase.from('services').select('id').limit(1);
-      const latency = Date.now() - startTime;
-
-      if (error) {
-        return { status: 'CRITICAL', message: error.message, latency };
-      }
-
-      let status = 'OK';
-      if (latency > 2000) status = 'CRITICAL';
-      else if (latency > 1000) status = 'WARNING';
-
-      return { status, latency, message: 'Connected' };
-    } catch (error) {
-      return { status: 'CRITICAL', message: error.message };
     }
   }
 
