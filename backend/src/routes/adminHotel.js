@@ -6,6 +6,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { getBusinessInfo } from '../services/tenantBusinessService.js';
 
 const router = express.Router();
 
@@ -23,13 +24,9 @@ async function requireHotel(req, res, next) {
   }
 
   // Vérifier le type de business
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('business_type')
-    .eq('id', tenantId)
-    .single();
+  const businessInfo = await getBusinessInfo(tenantId);
 
-  if (tenant?.business_type !== 'hotel') {
+  if (businessInfo?.businessType !== 'hotel') {
     return res.status(403).json({
       error: 'Cette fonctionnalité est réservée aux hôtels'
     });

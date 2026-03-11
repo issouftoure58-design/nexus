@@ -6,15 +6,15 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
-import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+import { getBusinessInfo } from '../services/tenantBusinessService.js';
 
 const router = express.Router();
 
 // Middleware: Vérifier que c'est un restaurant
 async function requireRestaurant(req, res, next) {
   try {
-    const businessInfo = getBusinessInfoSync(req.admin.tenant_id);
-    if (businessInfo?.type !== 'restaurant') {
+    const businessInfo = await getBusinessInfo(req.admin.tenant_id);
+    if (businessInfo?.businessType !== 'restaurant') {
       return res.status(403).json({
         error: 'Cette fonctionnalité est réservée aux restaurants'
       });
