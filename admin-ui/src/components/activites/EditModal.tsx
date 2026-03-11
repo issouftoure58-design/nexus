@@ -46,12 +46,15 @@ export default function EditModal({
   const isRestaurant = isBusinessType?.('restaurant') ?? false;
   const isHotel = isBusinessType?.('hotel') ?? false;
 
-  // Parse min capacite depuis le nom de la table (ex: "Table 5-6 couverts" → min=5)
+  // Min couverts = capacite - 1 (petites tables) ou 75% (grandes)
+  // Evite de gaspiller une table de 4 pour 1 personne
   const getTableMinCapacity = (tableId: number) => {
     const table = services.find(s => s.id === tableId);
     if (!table) return 1;
-    const match = table.nom.match(/(\d+)\s*-\s*(\d+)/);
-    return match ? parseInt(match[1]) : 1;
+    const cap = (table as any).capacite || 4;
+    if (cap <= 2) return 1;
+    if (cap <= 4) return cap - 1;
+    return Math.ceil(cap * 0.75);
   };
 
   return (
