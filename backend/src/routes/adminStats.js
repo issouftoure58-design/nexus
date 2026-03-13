@@ -15,7 +15,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
     const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // CA du mois (🔒 TENANT ISOLATION)
+    // CA du mois — réservations + factures + commandes (🔒 TENANT ISOLATION)
     const { data: rdvMois } = await supabase
       .from('reservations')
       .select('prix_total')
@@ -23,9 +23,26 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .gte('date', startOfMonth)
       .in('statut', ['confirme', 'termine']);
 
-    const caMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    const { data: facturesMois } = await supabase
+      .from('factures')
+      .select('montant_ttc')
+      .eq('tenant_id', tenantId)
+      .eq('statut', 'payee')
+      .gte('date_paiement', `${startOfMonth}T00:00:00`);
 
-    // CA du jour (🔒 TENANT ISOLATION)
+    const { data: ordersMois } = await supabase
+      .from('orders')
+      .select('total')
+      .eq('tenant_id', tenantId)
+      .in('statut', ['completed', 'ready'])
+      .gte('created_at', `${startOfMonth}T00:00:00`);
+
+    const caRdvMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    const caFacturesMois = facturesMois?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100 || 0;
+    const caOrdersMois = ordersMois?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100 || 0;
+    const caMois = caRdvMois + caFacturesMois + caOrdersMois;
+
+    // CA du jour — réservations + factures + commandes (🔒 TENANT ISOLATION)
     const { data: rdvJour } = await supabase
       .from('reservations')
       .select('prix_total')
@@ -33,7 +50,26 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .eq('date', today)
       .in('statut', ['confirme', 'termine']);
 
-    const caJour = rdvJour?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    const { data: facturesJour } = await supabase
+      .from('factures')
+      .select('montant_ttc')
+      .eq('tenant_id', tenantId)
+      .eq('statut', 'payee')
+      .gte('date_paiement', `${today}T00:00:00`)
+      .lt('date_paiement', `${today}T23:59:59`);
+
+    const { data: ordersJour } = await supabase
+      .from('orders')
+      .select('total')
+      .eq('tenant_id', tenantId)
+      .in('statut', ['completed', 'ready'])
+      .gte('created_at', `${today}T00:00:00`)
+      .lt('created_at', `${today}T23:59:59`);
+
+    const caRdvJour = rdvJour?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    const caFacturesJour = facturesJour?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100 || 0;
+    const caOrdersJour = ordersJour?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100 || 0;
+    const caJour = caRdvJour + caFacturesJour + caOrdersJour;
 
     // Nombre de RDV par statut (🔒 TENANT ISOLATION)
     const { data: rdvStats } = await supabase
@@ -99,22 +135,32 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
     startDate.setHours(0, 0, 0, 0);
     const startDateStr = startDate.toISOString().split('T')[0];
 
-    // Une seule requête pour récupérer tous les RDV des 7 derniers jours
-    const { data: rdvWeek } = await supabase
-      .from('reservations')
-      .select('prix_total, date')
-      .eq('tenant_id', tenantId)
-      .gte('date', startDateStr)
-      .lte('date', today)
-      .in('statut', ['confirme', 'termine']);
+    // Requêtes parallèles pour les 7 derniers jours (réservations + factures + commandes)
+    const [{ data: rdvWeek }, { data: facturesWeek }, { data: ordersWeek }] = await Promise.all([
+      supabase.from('reservations').select('prix_total, date')
+        .eq('tenant_id', tenantId).gte('date', startDateStr).lte('date', today)
+        .in('statut', ['confirme', 'termine']),
+      supabase.from('factures').select('montant_ttc, date_paiement')
+        .eq('tenant_id', tenantId).eq('statut', 'payee')
+        .gte('date_paiement', `${startDateStr}T00:00:00`),
+      supabase.from('orders').select('total, created_at')
+        .eq('tenant_id', tenantId).in('statut', ['completed', 'ready'])
+        .gte('created_at', `${startDateStr}T00:00:00`),
+    ]);
 
-    // Grouper par date côté JS (beaucoup plus rapide que 7 requêtes DB)
+    // Grouper par date côté JS
     const caByDate = {};
     rdvWeek?.forEach(rdv => {
-      if (!caByDate[rdv.date]) {
-        caByDate[rdv.date] = 0;
-      }
-      caByDate[rdv.date] += (rdv.prix_total || 0);
+      if (!caByDate[rdv.date]) caByDate[rdv.date] = 0;
+      caByDate[rdv.date] += (rdv.prix_total || 0) / 100; // centimes → euros
+    });
+    facturesWeek?.forEach(f => {
+      const d = f.date_paiement?.split('T')[0];
+      if (d) { caByDate[d] = (caByDate[d] || 0) + (parseFloat(f.montant_ttc) || 0) / 100; }
+    });
+    ordersWeek?.forEach(o => {
+      const d = o.created_at?.split('T')[0];
+      if (d) { caByDate[d] = (caByDate[d] || 0) + (parseFloat(o.total) || 0) / 100; }
     });
 
     // Construire le tableau des 7 derniers jours
@@ -128,7 +174,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       last7Days.push({
         date: dateStr,
         jour: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
-        ca: (caByDate[dateStr] || 0) / 100
+        ca: caByDate[dateStr] || 0
       });
     }
 

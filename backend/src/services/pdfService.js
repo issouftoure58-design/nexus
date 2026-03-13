@@ -576,47 +576,97 @@ export async function generateInvoicePDF(tenantId, factureId) {
         const tableTop = doc.y;
         const tableLeft = 50;
 
-        // Table headers
-        doc.fontSize(10).fillColor('#666');
-        doc.text('Description', tableLeft, tableTop);
-        doc.text('Date', 300, tableTop);
-        doc.text('Montant HT', 420, tableTop, { width: 100, align: 'right' });
+        // Detect multi-line items (JSON in service_description)
+        let lignesDetail = null;
+        try {
+          if (facture.service_description) {
+            const parsed = JSON.parse(facture.service_description);
+            if (Array.isArray(parsed)) lignesDetail = parsed;
+          }
+        } catch (e) { /* not JSON — use default single-line */ }
 
-        doc.moveTo(tableLeft, tableTop + 15).lineTo(550, tableTop + 15).stroke('#0891b2');
-
-        let yPosition = tableTop + 25;
-        doc.fillColor('#333');
-
-        // Service line
-        doc.text(facture.service_nom || 'Prestation', tableLeft, yPosition, { width: 240 });
-        doc.text(formatDate(facture.date_prestation), 300, yPosition);
-        doc.text(formatMontant(facture.montant_ht - (facture.frais_deplacement || 0)), 420, yPosition, { width: 100, align: 'right' });
-        yPosition += 20;
-
-        // Travel fees if any
-        if (facture.frais_deplacement > 0) {
-          doc.text('Frais de deplacement', tableLeft, yPosition);
-          doc.text('-', 300, yPosition);
-          doc.text(formatMontant(facture.frais_deplacement), 420, yPosition, { width: 100, align: 'right' });
-          yPosition += 20;
+        // Fallback: single-line service → construct multi-line array
+        const wasJsonLines = !!lignesDetail;
+        const tauxTva = facture.taux_tva || 20;
+        if (!lignesDetail) {
+          const ttcMultiplier = (100 + tauxTva) / 100;
+          const prestationHT = facture.montant_ht - (facture.frais_deplacement || 0);
+          lignesDetail = [{
+            nom: facture.service_nom || 'Prestation',
+            quantite: 1,
+            prix_unitaire: prestationHT * ttcMultiplier,
+            total: prestationHT * ttcMultiplier
+          }];
+          if (facture.frais_deplacement > 0) {
+            lignesDetail.push({
+              nom: 'Frais de déplacement',
+              quantite: 1,
+              prix_unitaire: facture.frais_deplacement * ttcMultiplier,
+              total: facture.frais_deplacement * ttcMultiplier
+            });
+          }
         }
 
-        doc.moveTo(tableLeft, yPosition).lineTo(550, yPosition).stroke('#ccc');
-        yPosition += 15;
+        // Format unifié — tableau professionnel multi-lignes
+        const colDesignation = tableLeft;
+        const colQte = 310;
+        const colPU = 360;
+        const colMontant = 460;
+        const colEnd = 550;
 
-        // Totals section
-        doc.fontSize(10);
-        doc.text('Total HT:', 350, yPosition);
-        doc.text(formatMontant(facture.montant_ht), 420, yPosition, { width: 100, align: 'right' });
+        // En-têtes colonnes — fond cyan
+        doc.fontSize(9).fillColor('#fff');
+        doc.rect(tableLeft, tableTop - 2, colEnd - tableLeft, 18).fill('#0891b2');
+        doc.text('Désignation', colDesignation + 5, tableTop + 2, { width: 200 });
+        doc.text('Qté', colQte, tableTop + 2, { width: 40, align: 'center' });
+        doc.text('P.U. HT', colPU, tableTop + 2, { width: 90, align: 'right' });
+        doc.text('Montant HT', colMontant, tableTop + 2, { width: 85, align: 'right' });
+
+        let yPosition = tableTop + 22;
+        doc.fillColor('#333').fontSize(9);
+
+        // Lignes produits
+        for (let i = 0; i < lignesDetail.length; i++) {
+          const ligne = lignesDetail[i];
+          const qte = ligne.quantite || 1;
+          const ligneTotalTTC = ligne.total || (ligne.prix_unitaire * qte);
+          const ligneHT = Math.round(ligneTotalTTC * 100 / (100 + tauxTva));
+          const puHT = Math.round(ligne.prix_unitaire * 100 / (100 + tauxTva));
+
+          // Fond alterné pour lisibilité
+          if (i % 2 === 0) {
+            doc.rect(tableLeft, yPosition - 2, colEnd - tableLeft, 18).fill('#f8fafc');
+            doc.fillColor('#333');
+          }
+
+          doc.text(ligne.nom || 'Article', colDesignation + 5, yPosition + 2, { width: 250 });
+          doc.text(String(qte), colQte, yPosition + 2, { width: 40, align: 'center' });
+          doc.text(formatMontant(puHT), colPU, yPosition + 2, { width: 90, align: 'right' });
+          doc.text(formatMontant(ligneHT), colMontant, yPosition + 2, { width: 85, align: 'right' });
+          yPosition += 18;
+        }
+
+        // Ligne de séparation sous les items
+        doc.moveTo(tableLeft, yPosition).lineTo(colEnd, yPosition).strokeColor('#0891b2').lineWidth(1).stroke();
+        yPosition += 8;
+
+        // Totals section — aligné à droite
+        const totalsLeft = 360;
+        const totalsRight = 460;
+        doc.fontSize(10).fillColor('#333');
+        doc.text('Total HT :', totalsLeft, yPosition, { width: 90, align: 'right' });
+        doc.text(formatMontant(facture.montant_ht), totalsRight, yPosition, { width: 85, align: 'right' });
         yPosition += 18;
 
-        doc.text(`TVA (${facture.taux_tva || 20}%):`, 350, yPosition);
-        doc.text(formatMontant(facture.montant_tva), 420, yPosition, { width: 100, align: 'right' });
-        yPosition += 18;
+        doc.text(`TVA (${facture.taux_tva || 20}%) :`, totalsLeft, yPosition, { width: 90, align: 'right' });
+        doc.text(formatMontant(facture.montant_tva), totalsRight, yPosition, { width: 85, align: 'right' });
+        yPosition += 20;
 
-        doc.fontSize(12).fillColor('#0891b2');
-        doc.text('Total TTC:', 350, yPosition);
-        doc.text(formatMontant(facture.montant_ttc), 420, yPosition, { width: 100, align: 'right' });
+        // Total TTC mis en valeur
+        doc.rect(totalsLeft - 5, yPosition - 3, 195, 22).fill('#0891b2');
+        doc.fontSize(12).fillColor('#fff');
+        doc.text('Total TTC :', totalsLeft, yPosition + 1, { width: 90, align: 'right' });
+        doc.text(formatMontant(facture.montant_ttc), totalsRight, yPosition + 1, { width: 85, align: 'right' });
 
         // Payment status
         if (facture.statut === 'payee' && facture.date_paiement) {
@@ -628,8 +678,8 @@ export async function generateInvoicePDF(tenantId, factureId) {
           }
         }
 
-        // Service description
-        if (facture.service_description) {
+        // Service description (skip if JSON — already rendered as line items above)
+        if (facture.service_description && !wasJsonLines) {
           doc.moveDown(2);
           doc.fontSize(9).fillColor('#666').text('Notes:', { underline: true });
           doc.text(facture.service_description);
@@ -770,70 +820,101 @@ export async function generateQuotePDF(tenantId, devisId) {
         }
         doc.moveDown(2);
 
-        // Services table
+        // Services table — format professionnel unifié
         doc.fontSize(12).fillColor('#0891b2').text('PRESTATIONS PROPOSEES', { underline: true });
         doc.moveDown(0.5);
 
         const tableTop = doc.y;
         const tableLeft = 50;
+        const colDesignation = tableLeft;
+        const colQte = 310;
+        const colPU = 360;
+        const colMontant = 460;
+        const colEnd = 550;
 
-        // Table headers
-        doc.fontSize(10).fillColor('#666');
-        doc.text('Description', tableLeft, tableTop);
-        doc.text('Duree', 320, tableTop);
-        doc.text('Prix HT', 420, tableTop, { width: 100, align: 'right' });
+        // En-têtes colonnes — fond cyan
+        doc.fontSize(9).fillColor('#fff');
+        doc.rect(tableLeft, tableTop - 2, colEnd - tableLeft, 18).fill('#0891b2');
+        doc.text('Désignation', colDesignation + 5, tableTop + 2, { width: 200 });
+        doc.text('Qté', colQte, tableTop + 2, { width: 40, align: 'center' });
+        doc.text('P.U. HT', colPU, tableTop + 2, { width: 90, align: 'right' });
+        doc.text('Montant HT', colMontant, tableTop + 2, { width: 85, align: 'right' });
 
-        doc.moveTo(tableLeft, tableTop + 15).lineTo(550, tableTop + 15).stroke('#0891b2');
+        let yPosition = tableTop + 22;
+        doc.fillColor('#333').fontSize(9);
 
-        let yPosition = tableTop + 25;
-        doc.fillColor('#333');
-
-        // Service lines
+        // Construire les lignes du tableau
+        const tableLines = [];
         if (lignes && lignes.length > 0) {
           lignes.forEach(ligne => {
-            // Check if we need a new page
-            if (yPosition > 700) {
-              doc.addPage();
-              yPosition = 50;
-            }
-
-            doc.text(ligne.service_nom || 'Prestation', tableLeft, yPosition, { width: 260 });
-            doc.text(ligne.duree_minutes ? `${ligne.duree_minutes} min` : '-', 320, yPosition);
-            doc.text(formatMontant(ligne.prix_unitaire_ht || ligne.montant_ht), 420, yPosition, { width: 100, align: 'right' });
-            yPosition += 20;
+            const qte = ligne.quantite || 1;
+            const puHT = ligne.prix_unitaire_ht || ligne.montant_ht || 0;
+            const montantHT = ligne.montant_ht || (puHT * qte);
+            tableLines.push({ nom: ligne.service_nom || 'Prestation', qte, puHT, montantHT });
           });
         } else if (devis.service_nom) {
-          // Fallback to main service if no lines
-          doc.text(devis.service_nom, tableLeft, yPosition, { width: 260 });
-          doc.text(devis.duree_minutes ? `${devis.duree_minutes} min` : '-', 320, yPosition);
-          doc.text(formatMontant(devis.montant_ht), 420, yPosition, { width: 100, align: 'right' });
-          yPosition += 20;
+          const frais = devis.frais_deplacement || 0;
+          tableLines.push({
+            nom: devis.service_nom,
+            qte: 1,
+            puHT: devis.montant_ht - frais,
+            montantHT: devis.montant_ht - frais
+          });
         }
 
-        // Travel fees
+        // Frais de déplacement en ligne séparée
         if (devis.frais_deplacement > 0) {
-          doc.text('Frais de deplacement', tableLeft, yPosition);
-          doc.text('-', 320, yPosition);
-          doc.text(formatMontant(devis.frais_deplacement), 420, yPosition, { width: 100, align: 'right' });
-          yPosition += 20;
+          tableLines.push({
+            nom: 'Frais de déplacement',
+            qte: 1,
+            puHT: devis.frais_deplacement,
+            montantHT: devis.frais_deplacement
+          });
         }
 
-        doc.moveTo(tableLeft, yPosition).lineTo(550, yPosition).stroke('#ccc');
-        yPosition += 15;
+        // Rendu des lignes
+        for (let i = 0; i < tableLines.length; i++) {
+          if (yPosition > 700) {
+            doc.addPage();
+            yPosition = 50;
+          }
 
-        // Totals section
-        doc.fontSize(10);
-        doc.text('Total HT:', 350, yPosition);
-        doc.text(formatMontant(devis.montant_ht), 420, yPosition, { width: 100, align: 'right' });
+          const line = tableLines[i];
+
+          // Fond alterné pour lisibilité
+          if (i % 2 === 0) {
+            doc.rect(tableLeft, yPosition - 2, colEnd - tableLeft, 18).fill('#f8fafc');
+            doc.fillColor('#333');
+          }
+
+          doc.text(line.nom, colDesignation + 5, yPosition + 2, { width: 250 });
+          doc.text(String(line.qte), colQte, yPosition + 2, { width: 40, align: 'center' });
+          doc.text(formatMontant(line.puHT), colPU, yPosition + 2, { width: 90, align: 'right' });
+          doc.text(formatMontant(line.montantHT), colMontant, yPosition + 2, { width: 85, align: 'right' });
+          yPosition += 18;
+        }
+
+        // Ligne de séparation sous les items
+        doc.moveTo(tableLeft, yPosition).lineTo(colEnd, yPosition).strokeColor('#0891b2').lineWidth(1).stroke();
+        yPosition += 8;
+
+        // Totals section — aligné à droite
+        const totalsLeft = 360;
+        const totalsRight = 460;
+        doc.fontSize(10).fillColor('#333');
+        doc.text('Total HT :', totalsLeft, yPosition, { width: 90, align: 'right' });
+        doc.text(formatMontant(devis.montant_ht), totalsRight, yPosition, { width: 85, align: 'right' });
         yPosition += 18;
 
-        doc.text(`TVA (${devis.taux_tva || 20}%):`, 350, yPosition);
-        doc.text(formatMontant(devis.montant_tva), 420, yPosition, { width: 100, align: 'right' });
-        yPosition += 18;
+        doc.text(`TVA (${devis.taux_tva || 20}%) :`, totalsLeft, yPosition, { width: 90, align: 'right' });
+        doc.text(formatMontant(devis.montant_tva), totalsRight, yPosition, { width: 85, align: 'right' });
+        yPosition += 20;
 
-        doc.fontSize(12).fillColor('#0891b2');
-        doc.text('Total TTC:', 350, yPosition);
-        doc.text(formatMontant(devis.montant_ttc), 420, yPosition, { width: 100, align: 'right' });
+        // Total TTC mis en valeur
+        doc.rect(totalsLeft - 5, yPosition - 3, 195, 22).fill('#0891b2');
+        doc.fontSize(12).fillColor('#fff');
+        doc.text('Total TTC :', totalsLeft, yPosition + 1, { width: 90, align: 'right' });
+        doc.text(formatMontant(devis.montant_ttc), totalsRight, yPosition + 1, { width: 85, align: 'right' });
 
         // Notes
         if (devis.notes) {

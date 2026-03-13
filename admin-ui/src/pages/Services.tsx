@@ -65,6 +65,8 @@ export default function Services() {
     // Hotel specific
     floor: 'all', // all, rdc, 1, 2, etc.
     typeChambre: 'all', // all, simple, double, twin, suite, etc.
+    // Security specific
+    pricingMode: 'all', // all, hourly, daily, fixed
   });
 
   // Close suggestions when clicking outside
@@ -155,11 +157,12 @@ export default function Services() {
       serviceDispo: 'all',
       floor: 'all',
       typeChambre: 'all',
+      pricingMode: 'all',
     });
     setSearchInput('');
   };
 
-  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || filters.capacity !== 'all' || filters.zone !== 'all' || filters.serviceDispo !== 'all' || filters.floor !== 'all' || filters.typeChambre !== 'all' || searchInput;
+  const hasActiveFilters = filters.priceRange !== 'all' || filters.duration !== 'all' || filters.status !== 'all' || filters.capacity !== 'all' || filters.zone !== 'all' || filters.serviceDispo !== 'all' || filters.floor !== 'all' || filters.typeChambre !== 'all' || filters.pricingMode !== 'all' || searchInput;
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => servicesApi.delete(id),
@@ -355,6 +358,47 @@ export default function Services() {
               </>
             )}
 
+            {/* Commerce: Prix uniquement */}
+            {isBusinessType('commerce') && (
+              <select
+                value={filters.priceRange}
+                onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                <option value="all">Tous les prix</option>
+                <option value="cheap">&lt; 10€</option>
+                <option value="medium">10€ - 25€</option>
+                <option value="expensive">&gt; 25€</option>
+              </select>
+            )}
+
+            {/* Security: Prix + Mode tarification */}
+            {isBusinessType('security') && (
+              <>
+                <select
+                  value={filters.priceRange}
+                  onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous les prix</option>
+                  <option value="cheap">&lt; 25€</option>
+                  <option value="medium">25€ - 50€</option>
+                  <option value="expensive">&gt; 50€</option>
+                </select>
+
+                <select
+                  value={filters.pricingMode || 'all'}
+                  onChange={(e) => setFilters({ ...filters, pricingMode: e.target.value })}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">Tous les modes</option>
+                  <option value="hourly">Horaire</option>
+                  <option value="daily">Journalier</option>
+                  <option value="fixed">Forfait</option>
+                </select>
+              </>
+            )}
+
             {/* Status filter - pour tous */}
             <select
               value={filters.status}
@@ -521,6 +565,29 @@ export default function Services() {
                         </div>
                       </>
                     )}
+
+                    {/* Commerce: Prix uniquement */}
+                    {isBusinessType('commerce') && (
+                      <div className="flex items-center gap-2 text-gray-900">
+                        <Euro className="h-4 w-4 text-green-500" />
+                        <span className="text-lg font-bold">{formatCurrency(service.prix)}</span>
+                      </div>
+                    )}
+
+                    {/* Security: Prix + mode tarification */}
+                    {isBusinessType('security') && (
+                      <>
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <Euro className="h-4 w-4 text-green-500" />
+                          <span className="text-lg font-bold">{formatCurrency(service.prix)}</span>
+                        </div>
+                        {service.pricing_mode && service.pricing_mode !== 'fixed' && (
+                          <Badge variant="outline" className="text-xs">
+                            {service.pricing_mode === 'hourly' ? '/h' : service.pricing_mode === 'daily' ? '/jour' : ''}
+                          </Badge>
+                        )}
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -557,7 +624,11 @@ export default function Services() {
                       ? 'Aucune table configurée'
                       : isBusinessType('hotel')
                         ? 'Aucune chambre configurée'
-                        : `Aucune ${String(t('service')).toLowerCase()} configurée`
+                        : isBusinessType('commerce')
+                          ? 'Aucun produit configuré'
+                          : isBusinessType('security')
+                            ? 'Aucune prestation configurée'
+                            : `Aucune ${String(t('service')).toLowerCase()} configurée`
                     }
                   </p>
                   <Button
@@ -716,6 +787,26 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       data.categorie = formData.categorie || undefined;
     }
 
+    // Commerce: prix + TVA + catégorie (pas de durée)
+    if (isBusinessType('commerce')) {
+      data.prix = Math.round(formData.prix * 100);
+      data.taux_tva = formData.taux_tva;
+      data.categorie = formData.categorie || undefined;
+      data.duree = 0;
+    }
+
+    // Security: prix + mode tarification + TVA + CNAPS + catégorie
+    if (isBusinessType('security')) {
+      data.prix = Math.round(formData.prix * 100);
+      data.taux_horaire = formData.pricing_mode === 'hourly' ? Math.round(formData.taux_horaire * 100) : undefined;
+      data.pricing_mode = formData.pricing_mode;
+      data.taux_tva = formData.taux_tva;
+      data.taxe_cnaps = formData.taxe_cnaps;
+      data.taux_cnaps = formData.taux_cnaps;
+      data.categorie = formData.categorie || undefined;
+      data.duree = 0;
+    }
+
     if (isEditing) {
       updateMutation.mutate(data as Partial<Service>);
     } else {
@@ -743,11 +834,11 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nom de la {String(t('service')).toLowerCase()} *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom {isBusinessType('commerce') || isBusinessType('security') ? 'du' : 'de la'} {String(t('service')).toLowerCase()} *</label>
               <Input
                 value={formData.nom}
                 onChange={(e) => setFormData(d => ({ ...d, nom: e.target.value }))}
-                placeholder={isBusinessType('restaurant') ? "Ex: Table terrasse 4p" : isBusinessType('hotel') ? "Ex: Chambre double vue mer" : isBusinessType('salon') ? "Ex: Coupe femme" : "Ex: Consultation standard"}
+                placeholder={isBusinessType('restaurant') ? "Ex: Table terrasse 4p" : isBusinessType('hotel') ? "Ex: Chambre double vue mer" : isBusinessType('commerce') ? "Ex: Burger Classic, Coca-Cola" : isBusinessType('security') ? "Ex: Gardiennage nuit, Agent événementiel" : isBusinessType('salon') ? "Ex: Coupe femme" : "Ex: Consultation standard"}
                 required
               />
             </div>
@@ -757,7 +848,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData(d => ({ ...d, description: e.target.value }))}
-                placeholder={isBusinessType('restaurant') ? "Description de la table..." : isBusinessType('hotel') ? "Description de la chambre..." : "Description du service..."}
+                placeholder={isBusinessType('restaurant') ? "Description de la table..." : isBusinessType('hotel') ? "Description de la chambre..." : isBusinessType('commerce') ? "Description du produit..." : isBusinessType('security') ? "Description de la prestation..." : "Description du service..."}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 rows={3}
               />
@@ -1036,6 +1127,133 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
                     onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
                     placeholder="Ex: Premium, Économique, etc."
                   />
+                </div>
+              </>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                COMMERCE: Prix + TVA + Catégorie (pas de durée)
+            ═══════════════════════════════════════════════════════════════ */}
+            {isBusinessType('commerce') && (
+              <>
+                {/* Prix */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={formData.prix}
+                    onChange={(e) => setFormData(d => ({ ...d, prix: parseFloat(e.target.value) || 0 }))}
+                    required
+                  />
+                </div>
+
+                {/* TVA */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Taux de TVA</label>
+                  <select
+                    value={formData.taux_tva}
+                    onChange={(e) => setFormData(d => ({ ...d, taux_tva: parseFloat(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    {TAUX_TVA.map((taux) => (
+                      <option key={taux.value} value={taux.value}>{taux.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                  <Input
+                    value={formData.categorie}
+                    onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                    placeholder="Ex: Burgers, Boissons, Desserts"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                SECURITY: Prix/Taux horaire + TVA + CNAPS + Catégorie
+            ═══════════════════════════════════════════════════════════════ */}
+            {isBusinessType('security') && (
+              <>
+                {/* Tarification avec mode adaptatif */}
+                <PricingFields
+                  value={formData.prix}
+                  onChange={(prix) => setFormData(d => ({ ...d, prix }))}
+                  tauxHoraire={formData.taux_horaire}
+                  onTauxHoraireChange={(taux) => setFormData(d => ({ ...d, taux_horaire: taux }))}
+                  allowModeSwitch={pricingModes.length > 1}
+                  currentMode={formData.pricing_mode}
+                  onModeChange={(mode) => setFormData(d => ({ ...d, pricing_mode: mode }))}
+                />
+
+                {/* TVA */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Taux de TVA</label>
+                  <select
+                    value={formData.taux_tva}
+                    onChange={(e) => setFormData(d => ({ ...d, taux_tva: parseFloat(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    {TAUX_TVA.map((taux) => (
+                      <option key={taux.value} value={taux.value}>{taux.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                  <Input
+                    value={formData.categorie}
+                    onChange={(e) => setFormData(d => ({ ...d, categorie: e.target.value }))}
+                    placeholder="Ex: Gardiennage, Événementiel, Sûreté"
+                  />
+                </div>
+
+                {/* Taxe CNAPS (Sécurité privée) */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm text-amber-900">Taxe CNAPS</p>
+                      <p className="text-xs text-amber-700">Pour les activités de sécurité privée</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(d => ({ ...d, taxe_cnaps: !d.taxe_cnaps }))}
+                      className={cn(
+                        'w-12 h-6 rounded-full transition-colors relative',
+                        formData.taxe_cnaps ? 'bg-amber-500' : 'bg-gray-300'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow',
+                        formData.taxe_cnaps ? 'translate-x-6' : 'translate-x-0.5'
+                      )} />
+                    </button>
+                  </div>
+
+                  {formData.taxe_cnaps && (
+                    <div>
+                      <label className="block text-xs font-medium text-amber-800 mb-1">Taux CNAPS (%)</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={5}
+                        step={0.01}
+                        value={formData.taux_cnaps}
+                        onChange={(e) => setFormData(d => ({ ...d, taux_cnaps: parseFloat(e.target.value) || 0 }))}
+                        className="bg-white"
+                      />
+                      <p className="text-xs text-amber-600 mt-1">
+                        Taux historique : 0,40% à 0,50% (supprimée depuis 01/2020)
+                      </p>
+                    </div>
+                  )}
                 </div>
               </>
             )}

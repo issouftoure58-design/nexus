@@ -8,7 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { TOOLS_ADMIN, getToolsForPlan, getToolsForPlanAndBusiness } from '../tools/toolsRegistry.js';
-import { BUSINESS_CONTEXTS } from '../prompts/systemPrompt.js';
+import { BUSINESS_CONTEXTS } from '../templates/businessTypePrompts/index.js';
 import { BUSINESS_TYPES } from '../config/businessTypes.js';
 // Import du dispatcher d'outils (remplace le switch monolithique)
 import { executeTool } from '../tools/handlers/index.js';

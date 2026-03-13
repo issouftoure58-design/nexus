@@ -24,18 +24,33 @@ export async function predictCAnextMonth(tenant_id) {
       const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
 
+      // CA factures (tous business types)
       const { data: factures } = await supabase
         .from('factures')
-        .select('montant_total')
+        .select('montant_ttc')
         .eq('tenant_id', tenant_id)
         .eq('statut', 'payee')
         .gte('date_paiement', month.toISOString())
         .lt('date_paiement', nextMonth.toISOString());
 
-      const ca = (factures || []).reduce(
-        (sum, f) => sum + parseFloat(f.montant_total || 0), 0
+      const caFactures = (factures || []).reduce(
+        (sum, f) => sum + parseFloat(f.montant_ttc || 0), 0
       );
-      data.push({ month: 5 - i, ca });
+
+      // CA commandes (commerce — orders.total en euros)
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('total')
+        .eq('tenant_id', tenant_id)
+        .in('statut', ['completed', 'ready'])
+        .gte('created_at', month.toISOString())
+        .lt('created_at', nextMonth.toISOString());
+
+      const caOrders = (orders || []).reduce(
+        (sum, o) => sum + parseFloat(o.total || 0), 0
+      );
+
+      data.push({ month: 5 - i, ca: caFactures + caOrders });
     }
 
     // Regression lineaire simple : y = ax + b

@@ -4,8 +4,8 @@
 > Il doit être lu au début de chaque session et mis à jour après chaque modification significative.
 > C'est le SEUL fichier de documentation chronique - aucun autre ne sera créé.
 
-**Derniere mise a jour:** 2026-03-08
-**Version:** 3.18.0 (Permissions granulaires + Audit complet)
+**Derniere mise a jour:** 2026-03-12
+**Version:** 3.22.0 (6 business types + Commerce/Security UI)
 
 ---
 
@@ -82,11 +82,11 @@
 | ID | Nom | Type Business | Plan |
 |----|-----|---------------|------|
 | `fatshairafro` | Fat's Hair-Afro | service_domicile | Business |
-| `nexus-test` | Salon Elegance Paris | service_domicile | Business |
-| `test-security` | Atlas Securite | service_domicile | Business |
-| `test-consulting` | Clara Conseil | service_domicile | Business |
-| `test-events` | Emma Events | service_domicile | Business |
-| `test-hospitality` | Le Bistrot Parisien | restaurant | Business |
+| `nexus-test` | Salon Elegance Paris | salon | Business |
+| `test-security` | Atlas Securite | security | Business |
+| `test-consulting` | Clara Conseil | salon | Business |
+| `test-events` | Emma Events | salon | Business |
+| `test-hospitality` | Quick Burger Express | commerce | Business |
 
 > **Note historique:** Fat's Hair-Afro est le PREMIER tenant. Les noms internes (halimahAI.js, halimahWorker.js) sont historiques - chaque tenant peut nommer son IA.
 
@@ -177,7 +177,7 @@ nexus/
 │       ├── jobs/          # Taches planifiees
 │       ├── workers/       # Background workers
 │       ├── config/        # Configurations
-│       │   ├── businessTypes.js           # ✨ Config 4 types de business
+│       │   ├── businessTypes.js           # ✨ Config 6 types de business
 │       │   └── tenants/fatshairafro.js   # Config tenant specifique
 │       ├── templates/     # ✨ Templates par type de business
 │       │   ├── service_domicile.template.js
@@ -260,8 +260,8 @@ MODULES AVANCES
 
 **Multi-Tenant Multi-Business:** ✨ NOUVEAU
 - `tenantBusinessService.js` - **Service central** (getBusinessInfo, hasFeature, getTerminology)
-- `config/businessTypes.js` - Configuration des 4 types de business
-- `templates/*.template.js` - Templates par type (service_domicile, salon, restaurant, hotel)
+- `config/businessTypes.js` - Configuration des 6 types de business (v3.22)
+- `templates/*.template.js` - Templates par type (service_domicile, salon, restaurant, hotel, commerce, security)
 - `prompts/systemPrompt.js` - Generateur prompts IA dynamiques
 
 **IA et Automation:**
@@ -2299,8 +2299,8 @@ La plateforme supporte maintenant 4 types de business avec configuration dynamiq
 
 | Fichier | Description |
 |---------|-------------|
-| `config/businessTypes.js` | Configuration des 4 types de business |
-| `templates/*.template.js` | 4 templates pour chaque type |
+| `config/businessTypes.js` | Configuration des 6 types de business |
+| `templates/*.template.js` | 6 templates pour chaque type |
 | `services/tenantBusinessService.js` | Service central multi-tenant |
 | `prompts/systemPrompt.js` | Generateur prompts dynamiques |
 | `admin-ui/components/forms/*` | 4 composants adaptatifs |

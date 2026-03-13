@@ -109,8 +109,8 @@ export async function forecastRevenue(tenant_id, months = 3) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
 
-      // Utiliser les réservations terminées pour le CA
-      const { data } = await supabase
+      // CA réservations (salon, service, hotel, restaurant, security)
+      const { data: reservations } = await supabase
         .from('reservations')
         .select('prix_total')
         .eq('tenant_id', tenant_id)
@@ -118,8 +118,31 @@ export async function forecastRevenue(tenant_id, months = 3) {
         .gte('date', monthStart.toISOString().split('T')[0])
         .lte('date', monthEnd.toISOString().split('T')[0]);
 
-      // Convertir centimes en euros
-      const ca = data?.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100 || 0;
+      const caReservations = reservations?.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100 || 0;
+
+      // CA factures payées (centimes → euros)
+      const { data: factures } = await supabase
+        .from('factures')
+        .select('montant_ttc')
+        .eq('tenant_id', tenant_id)
+        .eq('statut', 'payee')
+        .gte('date_paiement', monthStart.toISOString())
+        .lt('date_paiement', monthEnd.toISOString());
+
+      const caFactures = factures?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100 || 0;
+
+      // CA commandes (commerce — orders.total en centimes)
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('total')
+        .eq('tenant_id', tenant_id)
+        .in('statut', ['completed', 'ready'])
+        .gte('created_at', monthStart.toISOString())
+        .lt('created_at', monthEnd.toISOString());
+
+      const caOrders = orders?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100 || 0;
+
+      const ca = caReservations + caFactures + caOrders;
 
       historique.push({
         month: monthStart.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }),
@@ -224,7 +247,9 @@ export async function analyzeClientTrends(tenant_id) {
         nom,
         email,
         created_at,
-        reservations(id, prix_total, date, statut)
+        reservations(id, prix_total, date, statut),
+        orders(id, total, created_at, statut),
+        factures(id, montant_ttc, date_paiement, statut)
       `)
       .eq('tenant_id', tenant_id);
 
@@ -242,14 +267,21 @@ export async function analyzeClientTrends(tenant_id) {
 
     clients?.forEach(client => {
       const rdvs = client.reservations || [];
-      const nbRdv = rdvs.length;
-      // Convertir centimes en euros
-      const caTotal = rdvs.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100;
+      const cmds = client.orders || [];
+      const facs = (client.factures || []).filter(f => f.statut === 'payee');
+      const nbRdv = rdvs.length + cmds.length + facs.length;
+      // CA réservations (centimes → euros) + CA commandes (centimes → euros) + CA factures (centimes → euros)
+      const caReservations = rdvs.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100;
+      const caOrders = cmds.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100;
+      const caFactures = facs.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100;
+      const caTotal = caReservations + caOrders + caFactures;
 
       const createdAt = new Date(client.created_at).getTime();
 
-      // Calculer jours depuis dernière visite à partir des RDV
-      const daysSinceLastVisit = calculateDaysSinceLastVisit(rdvs);
+      // Calculer jours depuis dernière visite (RDV + commandes + factures)
+      const ordersAsDates = cmds.map(o => ({ date: o.created_at?.split('T')[0] }));
+      const facturesAsDates = facs.map(f => ({ date: f.date_paiement?.split('T')[0] }));
+      const daysSinceLastVisit = calculateDaysSinceLastVisit([...rdvs, ...ordersAsDates, ...facturesAsDates]);
 
       // Nouveaux (< 30 jours)
       if (now - createdAt < day30) {
@@ -330,19 +362,28 @@ export async function clusterClients(tenant_id) {
         nom,
         email,
         telephone,
-        reservations(prix_total, date, statut)
+        reservations(prix_total, date, statut),
+        orders(total, created_at, statut),
+        factures(montant_ttc, date_paiement, statut)
       `)
       .eq('tenant_id', tenant_id);
 
     // Calculer features pour chaque client
     const features = clients?.map(c => {
       const rdvs = c.reservations || [];
-      const nbRdv = rdvs.length;
-      // Convertir centimes en euros
-      const caTotal = rdvs.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100;
+      const cmds = c.orders || [];
+      const facs = (c.factures || []).filter(f => f.statut === 'payee');
+      const nbRdv = rdvs.length + cmds.length + facs.length;
+      // CA réservations + commandes + factures (tout en centimes → euros)
+      const caReservations = rdvs.reduce((sum, r) => sum + (parseFloat(r.prix_total) || 0), 0) / 100;
+      const caOrders = cmds.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100;
+      const caFactures = facs.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100;
+      const caTotal = caReservations + caOrders + caFactures;
 
-      // Calculer récence à partir des RDV passés
-      const daysSinceLastVisit = calculateDaysSinceLastVisit(rdvs);
+      // Calculer récence à partir des RDV + commandes + factures
+      const ordersAsDates = cmds.map(o => ({ date: o.created_at?.split('T')[0] }));
+      const facturesAsDates = facs.map(f => ({ date: f.date_paiement?.split('T')[0] }));
+      const daysSinceLastVisit = calculateDaysSinceLastVisit([...rdvs, ...ordersAsDates, ...facturesAsDates]);
 
       return {
         id: c.id,

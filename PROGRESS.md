@@ -1,12 +1,12 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-10 UTC
+> Derniere mise a jour: 2026-03-13 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
-**Version: 3.21.0**
-**Phase en cours: Commercialisation — Multi-business restaurant/hotel**
+**Version: 3.23.0**
+**Phase en cours: Commercialisation — 6 types de business**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
 ---
@@ -367,6 +367,49 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-13 — Session 30 : IA Reservation — Noyau General + Couche Adaptative
+
+**14 fichiers (8 crees, 5 modifies, 1 supprime). Architecture IA 2 couches, prompt frozen supprime, 142/142 tests validation.**
+
+#### Architecture IA 2 couches
+- **Noyau general** (promptEngine.js) : 6 builders universels — buildCoreRules (#0-#4), buildDateRules, buildBookingProcessRules, buildCancellationRules, buildChannelRules (phone/whatsapp/web/sms), buildClientRecognitionContext
+- **Couche adaptative** (businessTypePrompts/) : 6 adapters metier — service_domicile, salon, restaurant, hotel, commerce, security. Chaque adapter exporte rules + bookingProcess + terminology + tools
+
+#### Client Recognition (NOUVEAU)
+- `services/clientRecognition.js` : lookup client par telephone (variantes +33/0x), charge historique recent (5 derniers RDV)
+- Injection dans prompt : client connu → accueil personnalise avec prenom + services habituels ; inconnu → accueil standard
+- Integre dans processMessage + processMessageStreaming
+
+#### Prompt frozen supprime (fatshairafro)
+- Suppression 240 lignes hardcodees dans nexusCore.js (getSystemPrompt)
+- fatshairafro utilise maintenant le moteur dynamique (30 services + 7 jours horaires en DB)
+- Avantage : modifications admin (prix, horaires, services) prises en compte immediatement par l'IA
+
+#### Fix bug tool loop (CRITIQUE)
+- Avant : tool_use loop appelait getSystemPrompt() (hardcode) → prompt incoherent avec le prompt initial
+- Apres : sessionSystemPrompt cache en debut de session, utilise dans toute la boucle tool_use + retry hallucination
+
+#### Tool filtering par business type
+- nexusCore.js utilise getToolsForPlanAndBusiness() au lieu de TOOLS_CLIENT brut
+- Salon ne recoit PAS check_table_availability ; Restaurant le recoit
+- Commerce/Security ajoutes dans BUSINESS_TOOLS_INCLUDE (vide pour l'instant)
+
+#### Nettoyage
+- `templateLoader.js` : FROZEN_TENANTS + isFrozenTenant() supprimes
+- `prompts/systemPrompt.js` supprime → BUSINESS_CONTEXTS fusionne dans businessTypePrompts/index.js
+- `adminChatService.js` : import BUSINESS_CONTEXTS mis a jour (6 types dont commerce + security)
+- `tenantBusinessRules.js` : isFrozenTenant remplace par isLegacyFrozenTenant (local, backward compat)
+
+#### Validation
+- Script `scripts/validate-ia-prompts.mjs` : 142/142 tests (6 business types, tool filtering, client recognition, regression fatshairafro, canaux phone/whatsapp, BUSINESS_CONTEXTS admin)
+- lint:tenant : 0 nouvelle erreur (1 pre-existante orderTracking.js)
+
+**Fichiers crees (8):** clientRecognition.js, businessTypePrompts/index.js, serviceDomicile.js, salon.js, restaurant.js, hotel.js, commerce.js, security.js
+**Fichiers modifies (5):** promptEngine.js, nexusCore.js, templateLoader.js, toolsRegistry.js, adminChatService.js, tenantBusinessRules.js
+**Fichiers supprimes (1):** prompts/systemPrompt.js
+
+---
 
 ### 2026-03-10 — Session 29 : Isolation plans + Business Plan enrichi
 
@@ -1466,3 +1509,113 @@ MOYENNE             7.4    8.0        8.2       8.3     8.5
 - Import CSV: import 3 clients, dedup reimport (3 skipped), error handling
 - Upload: create, signed URL, delete, quota, size limit (400), type rejection (400)
 - Stripe webhook: endpoint exists (400 = signature required)
+
+---
+
+## SESSION 28 — Commerce + Security business types (12 mars 2026)
+
+**Objectif:** Ajouter 2 nouveaux types de business (commerce + security) pour couvrir fast-food, boulangeries, epiceries, societes de securite, interim, etc.
+
+### Commerce (5e type de business)
+- [x] `businessTypes.js` — Ajout type `commerce` (terminology: Commande/Produit/Employe, features: clickAndCollect, delivery, stockManagement, productCatalog, orderManagement)
+- [x] `businessTemplates.js` — Fix TEMPLATE_TO_PROFILE (commerce→commerce au lieu de salon), remap fast_food/food_truck/traiteur vers template commerce
+- [x] `adminCommerceOrders.js` — **NOUVEAU** route admin (GET list/stats/detail, PATCH status, DELETE cancel) wrappant orderService existant
+- [x] `index.js` — Montage route `/api/admin/commerce/orders`
+- [x] `Commandes.tsx` — **NOUVEAU** page admin (vue Kanban 5 colonnes + vue Liste, auto-refresh 30s, stats CA/panier moyen, filtres statut/type/recherche, transitions de statut)
+- [x] `App.tsx` — Route `/commandes` avec ModuleRoute ecommerce
+- [x] `GlobalMenu.tsx` + `Sidebar.tsx` — Item "Commandes" (icone ShoppingBag, businessType: commerce)
+- [x] `ProfileContext.tsx` — Ajout `'commerce'` au type union BusinessType + `isCommerce` dans useBusinessTypeChecks()
+- [x] Tenant `test-hospitality` renomme "Quick Burger Express" avec business_profile=commerce
+
+### Security (6e type de business)
+- [x] `businessTypes.js` — Ajout type `security` (terminology: Mission/Agent/Site client, features: devis, planning, multiSite, staffAllocation, deposits)
+- [x] `businessTemplates.js` — Ajout TEMPLATE_TO_PROFILE security→security, 6 professions (securite_privee, interim, gardiennage, nettoyage_industriel, protection_rapprochee, securite_evenementielle), categorie 'securite'
+- [x] `ProfileContext.tsx` — Ajout `'security'` au type union + `isSecurity` dans useBusinessTypeChecks()
+- [x] `GlobalMenu.tsx` — Ajout 'security' au cast BusinessType du filtre
+
+### Verification
+- [x] `npm run lint:tenant` — 0 violation
+- [x] `npx tsc --noEmit` — 0 erreur TypeScript
+
+### Fichiers crees (2)
+- `backend/src/routes/adminCommerceOrders.js`
+- `admin-ui/src/pages/Commandes.tsx`
+
+### Fichiers modifies (8)
+- `backend/src/config/businessTypes.js`
+- `backend/src/data/businessTemplates.js`
+- `backend/src/index.js`
+- `admin-ui/src/contexts/ProfileContext.tsx`
+- `admin-ui/src/App.tsx`
+- `admin-ui/src/components/layout/GlobalMenu.tsx`
+- `admin-ui/src/components/layout/Sidebar.tsx`
+
+### Business Types NEXUS (6)
+| # | ID | Label | Exemples |
+|---|-----|-------|----------|
+| 1 | service_domicile | Service a domicile | Coiffeur a domicile, plombier, coach |
+| 2 | salon | Salon / Institut | Coiffure, barbier, spa, onglerie |
+| 3 | restaurant | Restaurant / Bar | Restaurant, brasserie, pizzeria |
+| 4 | hotel | Hotel / Hebergement | Hotel, gite, chambre d'hotes |
+| 5 | commerce | Commerce / Restauration rapide | Fast-food, boulangerie, epicerie, food truck |
+| 6 | security | Securite / Mise a disposition | Securite privee, interim, gardiennage, nettoyage industriel |
+
+---
+
+## SESSION 29 — Modals Commerce + Security UI adaptes (12 mars 2026)
+
+### Probleme resolu
+Les modals Services et Activites ne geraient que 4 business types (salon, service_domicile, restaurant, hotel). Commerce et security tombaient dans le fallthrough et affichaient des champs inappropries.
+
+### Modifications frontend (admin-ui)
+
+**Services.tsx** — ServiceModal adapte par business type:
+- Commerce: Prix + TVA + Categorie (pas de Duree, pas de CNAPS)
+- Security: PricingFields (hourly/daily/fixed) + TVA + CNAPS + Categorie
+- Filtres liste et cartes service adaptes pour commerce + security
+- handleSubmit avec blocs commerce + security dedies
+
+**Activites.tsx** — Comportement adapte:
+- Commerce: bouton "Gerer les commandes" → redirige vers /commandes (pas de modal prestation)
+- Security: bouton "Nouvelle mission" + validation adaptee dans handleCreateRdv
+
+**NewReservationModal.tsx**:
+- Type isBusinessType etendu avec 'commerce' | 'security'
+- Security inclus dans la selection de services (fix bug bloquant)
+
+### Modifications contexte/API
+
+**ProfileContext.tsx** — Fix critique:
+- Remplace `fetch('/api/admin/profile')` brut par `api.request('/admin/profile')`
+- Garantit coherence token/tenant avec le module api
+- Ecoute event `nexus-auth-change` pour recharger apres login
+
+**api.ts**:
+- `setToken()` dispatche `nexus-auth-change` event
+
+**App.tsx**:
+- `/onboarding` redirige vers `/configuration` (ancien onboarding supprime)
+
+### Modifications backend
+
+**tenants.js**:
+- Module `ecommerce: true` ajoute aux plans starter/pro/business par defaut
+- Route `complete-onboarding` dedupliquee (supprime premiere version incomplete)
+
+### Bug root cause
+Le backend (port 5000) tournait depuis jeudi avec des caches en memoire perimes. Toutes les modifications de code et de DB etaient correctes mais le serveur ne les voyait pas. Redemarrage du backend = fix immediat.
+
+### Fichiers modifies (7)
+1. `admin-ui/src/pages/Services.tsx` — Sections commerce + security dans ServiceModal
+2. `admin-ui/src/pages/Activites.tsx` — Commerce redirect + security label
+3. `admin-ui/src/components/activites/NewReservationModal.tsx` — Type fix + security service selection
+4. `admin-ui/src/contexts/ProfileContext.tsx` — api.request + nexus-auth-change listener
+5. `admin-ui/src/lib/api.ts` — nexus-auth-change event dispatch
+6. `admin-ui/src/App.tsx` — Onboarding redirect
+7. `backend/src/routes/tenants.js` — ecommerce module + deduplique complete-onboarding
+
+### Statut
+- [x] Commerce modals testes et valides (test-hospitality)
+- [ ] Security modals a tester (test-security)
+- [ ] Regression nexus-test (salon) a verifier
+- [ ] Commit a faire apres validation complete

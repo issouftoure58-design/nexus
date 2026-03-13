@@ -1910,7 +1910,9 @@ const BUSINESS_TOOLS_INCLUDE = {
   restaurant: RESTAURANT_ONLY_TOOLS,
   hotel: HOTEL_ONLY_TOOLS,
   service_domicile: DOMICILE_ONLY_TOOLS,
-  salon: []
+  salon: [],
+  commerce: [],    // future: order management tools
+  security: [],    // future: devis/mission tools
 };
 
 const ALL_BUSINESS_SPECIFIC = [

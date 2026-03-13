@@ -438,8 +438,8 @@ router.post('/generer/facture', async (req, res) => {
       exercice
     });
 
-    // Crédit 44571 TVA collectée
-    if (montantTVA > 0) {
+    // Crédit 44571 TVA collectée (négatif pour avoirs)
+    if (montantTVA !== 0) {
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: 'VT',
@@ -772,15 +772,21 @@ router.post('/generer/tout', async (req, res) => {
     const tenantId = req.admin.tenant_id;
     console.log(`[JOURNAUX] Début régénération complète pour tenant ${tenantId}`);
 
-    // Supprimer les anciennes écritures
-    const { error: deleteError } = await supabase
-      .from('ecritures_comptables')
-      .delete()
-      .eq('tenant_id', tenantId);
+    // Supprimer uniquement les écritures de ventes (VT), achats (AC) et banque (BQ)
+    // PRÉSERVER les journaux AN (à nouveaux) et PA (paie) qui ne sont pas régénérés ici
+    const journauxARegenerer = ['VT', 'AC', 'BQ'];
+    for (const code of journauxARegenerer) {
+      const { error: deleteError } = await supabase
+        .from('ecritures_comptables')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('journal_code', code);
 
-    if (deleteError) {
-      console.error('[JOURNAUX] Erreur suppression anciennes écritures:', deleteError);
+      if (deleteError) {
+        console.error(`[JOURNAUX] Erreur suppression journal ${code}:`, deleteError);
+      }
     }
+    console.log(`[JOURNAUX] Écritures VT/HA supprimées (AN et PA préservés)`);
 
     // Récupérer toutes les factures (sauf annulées)
     const { data: factures, error: factError } = await supabase
@@ -907,7 +913,7 @@ async function generateFactureEcritures(tenantId, factureId) {
     }
   ];
 
-  if (montantTVA > 0) {
+  if (montantTVA !== 0) {
     ecritures.push({
       tenant_id: tenantId,
       journal_code: 'VT',

@@ -23,7 +23,7 @@ export const ORDER_TYPES = {
   DELIVERY: 'delivery',
 };
 
-function generateOrderNumber() {
+export function generateOrderNumber() {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `CMD-${dateStr}-${random}`;

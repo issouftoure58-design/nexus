@@ -33,7 +33,7 @@ const Stock = lazy(() => import('./pages/Stock'));
 const Parametres = lazy(() => import('./pages/Parametres'));
 const Subscription = lazy(() => import('./pages/Subscription'));
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
-const Onboarding = lazy(() => import('./pages/Onboarding'));
+// Ancien onboarding supprimé — redirigé vers /configuration
 const SegmentsPage = lazy(() => import('./pages/Segments'));
 const WorkflowsPage = lazy(() => import('./pages/Workflows'));
 const PipelinePage = lazy(() => import('./pages/Pipeline'));
@@ -61,6 +61,8 @@ const Disponibilites = lazy(() => import('./pages/Disponibilites'));
 const CGV = lazy(() => import('./pages/CGV'));
 const Fidelite = lazy(() => import('./pages/Fidelite'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
+const Commandes = lazy(() => import('./pages/Commandes'));
+const OrderTracking = lazy(() => import('./pages/OrderTracking'));
 const Guide = lazy(() => import('./pages/Guide'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
@@ -165,7 +167,8 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/cgv" element={<CGV />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
-            <Route path="/onboarding" element={<PrivateRoute skipOnboarding><Onboarding /></PrivateRoute>} />
+            <Route path="/suivi/:token" element={<OrderTracking />} />
+            <Route path="/onboarding" element={<Navigate to="/configuration" replace />} />
             <Route path="/configuration" element={<PrivateRoute skipOnboarding><Configuration /></PrivateRoute>} />
 
             {/* Routes de base - toujours accessibles */}
@@ -202,6 +205,7 @@ function App() {
             <Route path="/rapprochement" element={<Navigate to="/comptabilite?tab=rapprochement" replace />} />
             <Route path="/auxiliaires" element={<Navigate to="/comptabilite?tab=auxiliaires" replace />} />
             <Route path="/expert-comptable" element={<Navigate to="/comptabilite?tab=expert" replace />} />
+            <Route path="/commandes" element={<ModuleRoute module="ecommerce" moduleTitle="Commandes" moduleDescription="Gestion des commandes"><Commandes /></ModuleRoute>} />
             <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
             <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
             <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />

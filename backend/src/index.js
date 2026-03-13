@@ -82,6 +82,8 @@ import modulesRoutes from './routes/modules.js';
 import adminIARoutes from './routes/adminIA.js';
 import adminMenuRoutes from './routes/adminMenu.js';
 import adminHotelRoutes from './routes/adminHotel.js';
+import adminCommerceOrdersRoutes from './routes/adminCommerceOrders.js';
+import orderTrackingRoutes from './routes/orderTracking.js';
 import billingRoutes from './routes/billing.js';
 import stripeWebhookRoutes from './routes/stripeWebhook.js';
 import signupRoutes from './routes/signup.js';
@@ -513,6 +515,8 @@ app.use('/api/admin/onboarding', onboardingRoutes);
 app.use('/api/admin/ia', adminIARoutes);
 app.use('/api/admin/menu', adminMenuRoutes);
 app.use('/api/admin/hotel', adminHotelRoutes);
+app.use('/api/admin/commerce/orders', adminCommerceOrdersRoutes);
+app.use('/api/orders', orderTrackingRoutes);
 
 // Routes Billing (Stripe subscriptions)
 app.use('/api/billing', billingRoutes);

@@ -214,29 +214,41 @@ function determineSegment(r, f, m) {
 
 /**
  * Calcule le score RFM complet pour un client
+ * Prend en compte réservations + commandes + factures (multi-business)
  */
-function calculateClientRFM(client, reservations) {
+function calculateClientRFM(client, reservations, orders, factures) {
   // Filtrer les réservations terminées/confirmées
   const validReservations = reservations.filter(r =>
     ['termine', 'confirme'].includes(r.statut)
   );
+  const validOrders = (orders || []).filter(o =>
+    ['completed', 'ready'].includes(o.statut)
+  );
+  const validFactures = (factures || []).filter(f => f.statut === 'payee');
 
-  // Trouver la dernière visite
-  const lastVisit = validReservations
-    .map(r => new Date(r.date))
-    .sort((a, b) => b - a)[0];
+  // Trouver la dernière visite (toutes sources)
+  const allDates = [
+    ...validReservations.map(r => new Date(r.date)),
+    ...validOrders.map(o => new Date(o.created_at)),
+    ...validFactures.map(f => new Date(f.date_paiement))
+  ].filter(d => !isNaN(d.getTime()));
 
-  // Compter les visites (12 derniers mois)
+  const lastVisit = allDates.sort((a, b) => b - a)[0];
+
+  // Compter les visites (12 derniers mois, toutes sources)
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const visitsLastYear = validReservations.filter(r =>
-    new Date(r.date) >= oneYearAgo
-  ).length;
+  const visitsLastYear =
+    validReservations.filter(r => new Date(r.date) >= oneYearAgo).length +
+    validOrders.filter(o => new Date(o.created_at) >= oneYearAgo).length +
+    validFactures.filter(f => new Date(f.date_paiement) >= oneYearAgo).length;
 
-  // CA total
-  const totalSpent = validReservations.reduce((sum, r) =>
-    sum + (r.prix_total || 0), 0
-  ) / 100; // Convertir centimes en euros
+  // CA total (tout en centimes → euros)
+  const totalSpent = (
+    validReservations.reduce((sum, r) => sum + (r.prix_total || 0), 0) +
+    validOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) +
+    validFactures.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0)
+  ) / 100;
 
   // Calculer les scores
   const recency = calculateRecencyScore(lastVisit);
@@ -296,19 +308,30 @@ export async function analyzeRFM(tenantId) {
       return { success: true, segments: {}, clients: [], stats: { total: 0 } };
     }
 
-    // 2. Récupérer toutes les réservations du tenant
-    const { data: reservations, error: resError } = await supabase
-      .from('reservations')
-      .select('id, client_id, date, statut, prix_total')
-      .eq('tenant_id', tenantId)
-      .in('statut', ['termine', 'confirme']);
+    // 2. Récupérer réservations + commandes + factures du tenant
+    const [{ data: reservations, error: resError }, { data: orders }, { data: factures }] = await Promise.all([
+      supabase.from('reservations')
+        .select('id, client_id, date, statut, prix_total')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['termine', 'confirme']),
+      supabase.from('orders')
+        .select('id, client_id, created_at, statut, total')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['completed', 'ready']),
+      supabase.from('factures')
+        .select('id, client_id, date_paiement, statut, montant_ttc')
+        .eq('tenant_id', tenantId)
+        .eq('statut', 'payee')
+    ]);
 
     if (resError) throw resError;
 
-    // 3. Calculer RFM pour chaque client
+    // 3. Calculer RFM pour chaque client (multi-source)
     const clientsRFM = clients.map(client => {
       const clientReservations = (reservations || []).filter(r => r.client_id === client.id);
-      return calculateClientRFM(client, clientReservations);
+      const clientOrders = (orders || []).filter(o => o.client_id === client.id);
+      const clientFactures = (factures || []).filter(f => f.client_id === client.id);
+      return calculateClientRFM(client, clientReservations, clientOrders, clientFactures);
     });
 
     // 4. Grouper par segment

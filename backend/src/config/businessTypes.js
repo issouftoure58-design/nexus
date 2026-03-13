@@ -256,6 +256,138 @@ export const BUSINESS_TYPES = {
     pricingModesAllowed: ['daily', 'package'],
     durationMode: 'range',
     allowMultiDay: true
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // COMMERCE / RESTAURATION RAPIDE (Fast-food, boulangerie, épicerie, food truck)
+  // ═══════════════════════════════════════════════════════════════
+  commerce: {
+    id: 'commerce',
+    label: 'Commerce / Restauration rapide',
+    description: 'Boutiques, fast-food, boulangeries, épiceries',
+    icon: 'Store',
+
+    terminology: {
+      reservation: { singular: 'Commande', plural: 'Commandes' },
+      service: { singular: 'Produit', plural: 'Produits' },
+      client: { singular: 'Client', plural: 'Clients' },
+      employee: { singular: 'Employé', plural: 'Employés' },
+      location: 'Boutique',
+      duration: 'Préparation',
+      quantity: 'Quantité'
+    },
+
+    features: {
+      travelFees: false,
+      clientAddress: false,
+      multiStaff: true,
+      onlineBooking: false,
+      deposits: false,
+      tableManagement: false,
+      roomInventory: false,
+      checkinCheckout: false,
+      clickAndCollect: true,
+      delivery: true,
+      stockManagement: true,
+      productCatalog: true,
+      orderManagement: true
+    },
+
+    fieldConfig: {
+      service: {
+        required: ['nom', 'prix'],
+        optional: ['description', 'categorie_id', 'stock'],
+        forbidden: ['duree_minutes', 'taux_horaire', 'capacite_max']
+      },
+      reservation: {
+        required: ['client_id'],
+        optional: ['notes', 'mode_retrait'],
+        forbidden: ['heure', 'date_fin', 'membre_id', 'table_id', 'chambre_id']
+      }
+    },
+
+    businessRules: {
+      allowDomicile: false,
+      requireClientAddress: false,
+      bookingOptional: true,
+      hasClickAndCollect: true,
+      hasDelivery: true,
+      hasProductCatalog: true,
+      requireEmployeeAssignment: false,
+      defaultLocation: 'boutique'
+    },
+
+    pricingMode: 'fixed',
+    pricingModesAllowed: ['fixed'],
+    durationMode: 'none',
+    allowMultiDay: false
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // SÉCURITÉ / STAFFING (Sociétés de sécurité, intérim, gardiennage, nettoyage industriel)
+  // ═══════════════════════════════════════════════════════════════
+  security: {
+    id: 'security',
+    label: 'Sécurité / Mise à disposition',
+    description: 'Sociétés de sécurité, intérim, gardiennage, nettoyage industriel',
+    icon: 'ShieldCheck',
+
+    terminology: {
+      reservation: { singular: 'Mission', plural: 'Missions' },
+      service: { singular: 'Prestation', plural: 'Prestations' },
+      client: { singular: 'Client', plural: 'Clients' },
+      employee: { singular: 'Agent', plural: 'Agents' },
+      location: 'Site',
+      duration: 'Durée',
+      quantity: 'Effectif',
+      devis: 'Devis',
+      site: 'Site client'
+    },
+
+    features: {
+      travelFees: false,
+      clientAddress: true,
+      multiStaff: true,
+      onlineBooking: false,
+      deposits: true,
+      tableManagement: false,
+      roomInventory: false,
+      checkinCheckout: false,
+      devis: true,
+      planning: true,
+      multiSite: true,
+      staffAllocation: true
+    },
+
+    fieldConfig: {
+      service: {
+        required: ['nom', 'prix'],
+        optional: ['description', 'categorie_id', 'taux_horaire', 'nb_agents_min'],
+        forbidden: ['duree_minutes', 'capacite_max', 'table_id', 'chambre_id']
+      },
+      reservation: {
+        required: ['date', 'client_id', 'site_client'],
+        optional: ['date_fin', 'nb_agents', 'notes', 'devis_id', 'heure'],
+        forbidden: ['table_id', 'chambre_id', 'nb_couverts']
+      }
+    },
+
+    businessRules: {
+      allowDomicile: false,
+      requireClientAddress: true,
+      requireDevis: true,
+      hasPlanning: true,
+      hasMultiSite: true,
+      hasStaffAllocation: true,
+      requireEmployeeAssignment: true,
+      defaultLocation: 'site_client',
+      allowMultipleAgentsPerMission: true
+    },
+
+    pricingMode: 'hourly',
+    pricingModesAllowed: ['hourly', 'daily', 'fixed', 'package'],
+    durationMode: 'range',
+    allowMultiDay: true
   }
 };
 

@@ -18,7 +18,7 @@ class Alerter {
   constructor() {
     this.alertHistory = [];
     this.lastAlertTime = {};
-    this.cooldownMinutes = 5; // Minimum time between same alerts
+    this.cooldownMinutes = 30; // Minimum time between same alerts (was 5 — too spammy)
   }
 
   /**

@@ -84,6 +84,9 @@ class ApiClient {
 
     // Garder aussi l'ancien système pour compatibilité
     localStorage.setItem('nexus_admin_token', token);
+
+    // Notifier les contextes (ProfileContext écoute cet événement)
+    window.dispatchEvent(new Event('nexus-auth-change'));
   }
 
   clearToken() {

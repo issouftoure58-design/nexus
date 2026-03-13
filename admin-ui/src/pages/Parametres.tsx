@@ -223,6 +223,9 @@ function ActiviteSubSection() {
   const [businessInfo, setBusinessInfo] = useState('');
   const [businessInfoLoaded, setBusinessInfoLoaded] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
+  const [commercePrepTime, setCommercePrepTime] = useState(30);
+  const [commercePrepTimeLoaded, setCommercePrepTimeLoaded] = useState(false);
+  const [savingPrepTime, setSavingPrepTime] = useState(false);
 
   const currentTemplate = (tenant as any)?.template_id || 'autre';
   const currentInfo = TEMPLATE_LABELS[currentTemplate] || TEMPLATE_LABELS.autre;
@@ -244,6 +247,33 @@ function ActiviteSubSection() {
         .catch(() => setBusinessInfoLoaded(true));
     }
   }, [showInfoSection, businessInfoLoaded, infoKey]);
+
+  // Charger le temps de préparation commerce
+  useEffect(() => {
+    if (currentTemplate === 'commerce' && !commercePrepTimeLoaded) {
+      api.get<{ config: Record<string, unknown> }>('/admin/profile/config')
+        .then((res) => {
+          const val = (res?.config as any)?.commerce_prep_time;
+          if (typeof val === 'number') setCommercePrepTime(val);
+          setCommercePrepTimeLoaded(true);
+        })
+        .catch(() => setCommercePrepTimeLoaded(true));
+    }
+  }, [currentTemplate, commercePrepTimeLoaded]);
+
+  const handleSavePrepTime = async () => {
+    setSavingPrepTime(true);
+    try {
+      await api.patch('/admin/profile/config', {
+        config: { commerce_prep_time: commercePrepTime },
+      });
+      setFeedback({ message: 'Temps de préparation enregistré', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSavingPrepTime(false);
+    }
+  };
 
   const handleSaveBusinessInfo = async () => {
     setSavingInfo(true);
@@ -366,6 +396,39 @@ function ActiviteSubSection() {
                 className="bg-cyan-600 hover:bg-cyan-700"
               >
                 {savingInfo ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer les informations'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Temps de préparation — commerce uniquement */}
+        {currentTemplate === 'commerce' && (
+          <div className="space-y-3 pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700">
+              Temps de préparation par défaut (minutes)
+            </label>
+            <p className="text-xs text-gray-500">
+              Utilisé pour estimer l'heure de retrait/livraison lors de la création d'une commande.
+            </p>
+            <div className="flex items-center gap-3">
+              <Input
+                type="number"
+                min={5}
+                max={120}
+                step={5}
+                value={commercePrepTime}
+                onChange={e => setCommercePrepTime(Number(e.target.value))}
+                className="w-28"
+              />
+              <span className="text-sm text-gray-500">minutes</span>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSavePrepTime}
+                disabled={savingPrepTime}
+                className="bg-cyan-600 hover:bg-cyan-700"
+              >
+                {savingPrepTime ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer'}
               </Button>
             </div>
           </div>

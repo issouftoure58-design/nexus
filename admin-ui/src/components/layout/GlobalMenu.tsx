@@ -7,7 +7,8 @@ import {
   X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
-  ClipboardList, Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed
+  ClipboardList, Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
+  ShoppingBag
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -22,10 +23,11 @@ const menuItems = [
   { icon: Home, label: 'Home', path: '/' },
   { type: 'separator', label: 'Principal' },
   { icon: Calendar, label: 'Agenda', path: '/agenda' },
-  { icon: CalendarCheck, label: 'Prestations', path: '/activites' },
+  { icon: CalendarCheck, label: 'Prestations', path: '/activites', hideFor: ['commerce'] },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
   { icon: UtensilsCrossed, label: 'Menu / Carte', path: '/menu', businessType: 'restaurant' },
+  { icon: ShoppingBag, label: 'Commandes', path: '/commandes', businessType: 'commerce' },
   { icon: UserPlus, label: 'Equipe', path: '/equipe' },
   { icon: Clock, label: 'Disponibilités', path: '/disponibilites' },
   { icon: Star, label: 'Fidélité', path: '/fidelite' },
@@ -97,7 +99,11 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
 
         {/* Menu Items */}
         <nav className="p-2 overflow-y-auto h-[calc(100%-8rem)]">
-          {menuItems.filter(item => !item.businessType || isBusinessType(item.businessType as 'restaurant' | 'hotel' | 'salon' | 'service_domicile')).map((item, index) => {
+          {menuItems.filter(item => {
+            if (item.businessType && !isBusinessType(item.businessType as any)) return false;
+            if (item.hideFor && item.hideFor.some((t: string) => isBusinessType(t as any))) return false;
+            return true;
+          }).map((item, index) => {
             if (item.type === 'separator') {
               return (
                 <div key={index} className="my-2">

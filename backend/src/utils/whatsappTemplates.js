@@ -16,6 +16,7 @@ function getTenantInfo(tenantId = 'fatshairafro') {
     return {
       nom: info.nom || "Fat's Hair-Afro",
       gerant: info.gerant || 'Fatou',
+      businessProfile: info.businessType || 'beauty',
       urlCompte: info.urls?.frontend ? `${info.urls.frontend}/compte` : 'https://fatshairafro.fr/compte',
       urlAvis: info.urls?.frontend ? `${info.urls.frontend}/avis` : 'https://fatshairafro.fr/avis',
     };
@@ -23,6 +24,7 @@ function getTenantInfo(tenantId = 'fatshairafro') {
     return {
       nom: "Fat's Hair-Afro",
       gerant: 'Fatou',
+      businessProfile: 'beauty',
       urlCompte: 'https://fatshairafro.fr/compte',
       urlAvis: 'https://fatshairafro.fr/avis',
     };
@@ -210,6 +212,16 @@ export function remerciement(rdv, tenantId = 'fatshairafro') {
   const prenom = getPrenom(rdv);
   const tenant = getTenantInfo(tenantId);
 
+  // Adapter les actions selon le type de business
+  const bp = tenant.businessProfile || 'beauty';
+  const actionsMap = {
+    restaurant: '• Réserver à nouveau 📅\n• Laisser un avis en ligne ⭐\n• Recommander à vos proches 💕',
+    commerce: '• Passer une nouvelle commande 📦\n• Laisser un avis en ligne ⭐\n• Recommander à vos proches 💕',
+    hotel: '• Réserver à nouveau 📅\n• Partager votre expérience ⭐\n• Recommander à vos proches 💕',
+    security: '• Nous recontacter pour une mission 📋\n• Laisser un avis en ligne ⭐\n• Recommander à vos partenaires 🤝',
+  };
+  const defaultActions = '• Reprendre RDV 📅\n• Laisser un avis en ligne ⭐\n• Recommander à vos proches 💕';
+
   return `Bonjour ${prenom} ! 💜
 
 Merci d'avoir fait confiance à ${tenant.nom} !
@@ -217,9 +229,7 @@ Merci d'avoir fait confiance à ${tenant.nom} !
 J'espère que vous êtes ravi(e). ✨
 
 N'hésitez pas à :
-• Reprendre RDV 📅
-• Partager une photo 📸
-• Recommander à vos proches 💕
+${actionsMap[bp] || defaultActions}
 
 À bientôt !
 ${tenant.gerant}`;

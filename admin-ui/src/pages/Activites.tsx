@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Calendar, Plus, RefreshCw, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { ServiceLayout } from '../components/layout/ServiceLayout';
@@ -65,6 +65,7 @@ const tabs = [
 
 export default function Activites() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { profile, t, isPricingMode, isFieldVisible, hasFeature, businessType, isBusinessType } = useProfile();
 
   // Déterminer l'onglet actif
@@ -818,8 +819,11 @@ export default function Activites() {
       if (!newRdvForm.chambre_id) missing.push('Chambre');
       if (!newRdvForm.date_rdv) missing.push('Date d\'arrivée');
       if (!newRdvForm.date_checkout) missing.push('Date de départ');
+    } else if (isBusinessType('commerce')) {
+      // Commerce ne devrait pas arriver ici (bouton masqué)
+      missing.push('Utilisez la page Commandes pour créer une commande');
     } else {
-      // Salon / Service domicile
+      // Salon / Service domicile / Security
       if (serviceLignes.length === 0) missing.push(`Au moins un ${String(t('service', false)).toLowerCase()}`);
       if (!newRdvForm.date_rdv) missing.push('Date');
 
@@ -1022,10 +1026,16 @@ export default function Activites() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={() => setShowNewModal(true)} size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            {profile?.id === 'security' ? 'Nouvelle mission' : `Nouveau ${t('reservation', false).toLowerCase()}`}
-          </Button>
+          {isBusinessType('commerce') ? (
+            <Button onClick={() => navigate('/commandes')} size="sm" variant="outline">
+              Gérer les commandes
+            </Button>
+          ) : (
+            <Button onClick={() => setShowNewModal(true)} size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              {isBusinessType('security') ? 'Nouvelle mission' : `Nouveau ${t('reservation', false).toLowerCase()}`}
+            </Button>
+          )}
         </div>
       }
     >

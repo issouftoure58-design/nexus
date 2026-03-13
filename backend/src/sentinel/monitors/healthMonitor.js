@@ -165,9 +165,10 @@ class HealthMonitor {
         .filter(([, count]) => count >= 5)
         .map(([fp, count]) => ({ fingerprint: fp, count }));
 
+      // Minimum absolu: pas d'alerte spike si < 10 erreurs en 4h (évite faux positifs avec baseline faible)
       let status = 'OK';
-      if (ratio >= 5 || recurring.length >= 3) status = 'CRITICAL';
-      else if (ratio >= 3 || recurring.length >= 1) status = 'WARNING';
+      if (recentCount >= 10 && (ratio >= 5 || recurring.length >= 3)) status = 'CRITICAL';
+      else if (recentCount >= 5 && (ratio >= 3 || recurring.length >= 1)) status = 'WARNING';
 
       return {
         status,

@@ -37,26 +37,33 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
     const startOfLastMonth = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}-01`;
     const endOfLastMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}-01`;
 
-    // CA ce mois
-    const { data: rdvMois } = await supabase
-      .from('reservations')
-      .select('prix_total')
-      .eq('tenant_id', tenantId)
-      .gte('date', startOfMonth)
-      .in('statut', ['confirme', 'termine']);
+    // CA ce mois — réservations + factures + commandes
+    const [{ data: rdvMois }, { data: facMois }, { data: ordMois }] = await Promise.all([
+      supabase.from('reservations').select('prix_total')
+        .eq('tenant_id', tenantId).gte('date', startOfMonth).in('statut', ['confirme', 'termine']),
+      supabase.from('factures').select('montant_ttc')
+        .eq('tenant_id', tenantId).eq('statut', 'payee').gte('date_paiement', `${startOfMonth}T00:00:00`),
+      supabase.from('orders').select('total')
+        .eq('tenant_id', tenantId).in('statut', ['completed', 'ready']).gte('created_at', `${startOfMonth}T00:00:00`),
+    ]);
 
-    const caMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+    const caMois = (rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0)
+      + (facMois?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) || 0)
+      + (ordMois?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) || 0);
 
-    // CA mois précédent
-    const { data: rdvLastMois } = await supabase
-      .from('reservations')
-      .select('prix_total')
-      .eq('tenant_id', tenantId)
-      .gte('date', startOfLastMonth)
-      .lt('date', endOfLastMonth)
-      .in('statut', ['confirme', 'termine']);
+    // CA mois précédent — réservations + factures + commandes
+    const [{ data: rdvLastMois }, { data: facLastMois }, { data: ordLastMois }] = await Promise.all([
+      supabase.from('reservations').select('prix_total')
+        .eq('tenant_id', tenantId).gte('date', startOfLastMonth).lt('date', endOfLastMonth).in('statut', ['confirme', 'termine']),
+      supabase.from('factures').select('montant_ttc')
+        .eq('tenant_id', tenantId).eq('statut', 'payee').gte('date_paiement', `${startOfLastMonth}T00:00:00`).lt('date_paiement', `${endOfLastMonth}T00:00:00`),
+      supabase.from('orders').select('total')
+        .eq('tenant_id', tenantId).in('statut', ['completed', 'ready']).gte('created_at', `${startOfLastMonth}T00:00:00`).lt('created_at', `${endOfLastMonth}T00:00:00`),
+    ]);
 
-    const caLastMois = rdvLastMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0;
+    const caLastMois = (rdvLastMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) || 0)
+      + (facLastMois?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) || 0)
+      + (ordLastMois?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) || 0);
 
     // Calcul variation CA
     const caVariation = caLastMois > 0

@@ -32,7 +32,7 @@ function getCompteAuxiliaireClient(clientId) {
 /**
  * Génère les écritures comptables pour une facture (VT + BQ si payée)
  */
-async function genererEcrituresFacture(tenantId, factureId) {
+export async function genererEcrituresFacture(tenantId, factureId) {
   try {
     // Récupérer la facture
     const { data: facture, error: errFact } = await supabase
@@ -601,7 +601,7 @@ export async function createFactureComplementaire(tenantId, factureOrigineId, mo
  * Génère un numéro de facture unique
  * Format: {PREFIX}-{YEAR}-{SEQUENCE:5}
  */
-async function generateNumeroFacture(tenantId) {
+export async function generateNumeroFacture(tenantId) {
   const year = new Date().getFullYear();
 
   // Récupérer le préfixe du tenant (3 premières lettres)

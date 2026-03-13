@@ -42,7 +42,7 @@ interface NewReservationModalProps {
   // Terminologie
   t: (key: string, plural?: boolean) => string;
   isPricingMode: (mode: string) => boolean;
-  isBusinessType: (type: 'service_domicile' | 'salon' | 'restaurant' | 'hotel') => boolean;
+  isBusinessType: (type: 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security') => boolean;
   // Callbacks
   onNewRdvFormChange: (form: NewRdvForm) => void;
   onNewClientFormChange: (form: NewClientForm) => void;
@@ -498,8 +498,8 @@ export default function NewReservationModal({
             </div>
           )}
 
-          {/* === MULTI-SERVICES === (Salon/Service domicile uniquement) */}
-          {(isBusinessType('salon') || isBusinessType('service_domicile')) && (
+          {/* === MULTI-SERVICES === (Salon/Service domicile/Security) */}
+          {(isBusinessType('salon') || isBusinessType('service_domicile') || isBusinessType('security')) && (
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
                 {t('service', true)} * <span className="text-gray-400 font-normal">(multi-sélection)</span>
@@ -711,7 +711,7 @@ export default function NewReservationModal({
           <FeatureField feature="clientAddress">
             <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                Adresse de prestation
+                {businessType === 'security' ? 'Site client / Adresse de la mission' : 'Adresse de prestation'}
               </label>
               <textarea
                 value={newRdvForm.adresse_prestation}
@@ -719,19 +719,23 @@ export default function NewReservationModal({
                 rows={2}
                 placeholder={businessType === 'service_domicile'
                   ? "Adresse du client..."
-                  : "Ex: 123 Rue de Paris, 75001 Paris"}
+                  : businessType === 'security'
+                    ? "Ex: 45 Avenue des Champs-Élysées, 75008 Paris"
+                    : "Ex: 123 Rue de Paris, 75001 Paris"}
                 className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
               <p className="text-xs text-gray-500">
                 {businessType === 'service_domicile'
                   ? "Indiquez l'adresse complète du client pour le déplacement"
-                  : "Indiquez l'adresse où aura lieu la prestation"}
+                  : businessType === 'security'
+                    ? "Adresse du site où aura lieu la mission de sécurité"
+                    : "Indiquez l'adresse où aura lieu la prestation"}
               </p>
             </div>
           </FeatureField>
 
-          {/* === ADRESSE DE FACTURATION === (Salon/Service domicile uniquement) */}
-          {!isBusinessType('restaurant') && !isBusinessType('hotel') && (
+          {/* === ADRESSE DE FACTURATION === (Service domicile/Security uniquement) */}
+          {(isBusinessType('service_domicile') || isBusinessType('security')) && (
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -773,11 +777,25 @@ export default function NewReservationModal({
             </div>
           )}
 
-          {/* Période de la prestation (Mode NON-Horaire) — Salon/Service domicile uniquement */}
-          {!isPricingMode('hourly') && !isBusinessType('restaurant') && !isBusinessType('hotel') && (
+          {/* Date du RDV — Salon/Service domicile: juste la date (heure déjà dans les affectations) */}
+          {!isPricingMode('hourly') && (isBusinessType('salon') || isBusinessType('service_domicile')) && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                Période de la prestation
+                Date du rendez-vous *
+              </label>
+              <Input
+                type="date"
+                value={newRdvForm.date_rdv}
+                onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Période complète — Security/Commerce: date début/fin + heures (missions multi-jours) */}
+          {!isPricingMode('hourly') && (isBusinessType('security') || isBusinessType('commerce')) && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+                Période de la {isBusinessType('security') ? 'mission' : 'prestation'}
               </label>
 
               {isPricingMode('daily') ? (

@@ -489,7 +489,36 @@ function InvoiceDetailModal({
           <div className="border rounded-lg p-4 bg-gray-50">
             <h3 className="text-sm font-semibold text-gray-500 mb-2">Prestation</h3>
             <p className="font-medium">{invoice.service_nom || '-'}</p>
-            {invoice.service_description && <p className="text-sm text-gray-600 mt-1">{invoice.service_description}</p>}
+            {invoice.service_description && (() => {
+              try {
+                const items = JSON.parse(invoice.service_description);
+                if (Array.isArray(items)) {
+                  return (
+                    <table className="w-full mt-2 text-sm">
+                      <thead>
+                        <tr className="border-b text-gray-500">
+                          <th className="text-left py-1">Désignation</th>
+                          <th className="text-center py-1 w-12">Qté</th>
+                          <th className="text-right py-1 w-24">P.U.</th>
+                          <th className="text-right py-1 w-24">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item: { nom: string; quantite: number; prix_unitaire: number; total: number }, idx: number) => (
+                          <tr key={idx} className="border-b border-gray-200 last:border-0">
+                            <td className="py-1 text-gray-700">{item.nom}</td>
+                            <td className="py-1 text-center text-gray-600">{item.quantite}</td>
+                            <td className="py-1 text-right text-gray-600">{formatCurrency(item.prix_unitaire / 100)}</td>
+                            <td className="py-1 text-right font-medium">{formatCurrency(item.total / 100)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                }
+              } catch { /* not JSON */ }
+              return <p className="text-sm text-gray-600 mt-1">{invoice.service_description}</p>;
+            })()}
           </div>
 
           <div className="border rounded-lg overflow-hidden">

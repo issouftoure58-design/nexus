@@ -20,6 +20,7 @@ import {
   generateIaConfig,
   getPlan,
 } from '../data/businessTemplates.js';
+import { getFeaturesForPlan } from '../config/planFeatures.js';
 
 const router = express.Router();
 
@@ -152,35 +153,33 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       ? modulesRaw.reduce((acc, mod) => ({ ...acc, [mod]: true }), {})
       : modulesRaw; // Si c'est déjà un objet, le garder
 
-    // Fallback: si modules vides, auto-peupler selon le plan
-    if (!modulesObject || Object.keys(modulesObject).length === 0) {
-      const PLAN_DEFAULT_MODULES = {
-        starter: {
-          reservations: true, clients: true, services: true,
-          facturation: true, agent_ia_web: true, ia_reservation: true,
-        },
-        pro: {
-          reservations: true, clients: true, services: true,
-          facturation: true, agent_ia_web: true, ia_reservation: true,
-          comptabilite: true, analytics: true, marketing: true,
-          whatsapp: true, stock: true, crm_avance: true,
-        },
-        business: {
-          reservations: true, clients: true, services: true,
-          facturation: true, agent_ia_web: true, ia_reservation: true,
-          comptabilite: true, analytics: true, marketing: true,
-          whatsapp: true, telephone: true, stock: true,
-          crm_avance: true, seo: true, rh: true, sentinel: true,
-        },
-      };
-      modulesObject = PLAN_DEFAULT_MODULES[plan] || PLAN_DEFAULT_MODULES.starter;
+    // Merge: garantir que tous les modules inclus dans le plan sont actifs
+    // Source unique de vérité: config/planFeatures.js
+    const planDefaults = getFeaturesForPlan(plan);
 
-      // Persister en DB pour ne pas recalculer à chaque requête
+    if (!modulesObject || Object.keys(modulesObject).length === 0) {
+      modulesObject = { ...planDefaults };
+    } else {
+      // Merge: ajouter les modules du plan manquants (sans écraser ceux désactivés explicitement)
+      let needsUpdate = false;
+      for (const [mod, val] of Object.entries(planDefaults)) {
+        if (!(mod in modulesObject)) {
+          modulesObject[mod] = val;
+          needsUpdate = true;
+        }
+      }
+      if (!needsUpdate) planDefaults; // skip persist below
+    }
+
+    // Persister en DB si modules ont changé
+    const currentKeys = Object.keys(tenant.modules_actifs || {});
+    const mergedKeys = Object.keys(modulesObject);
+    if (mergedKeys.length !== currentKeys.length || mergedKeys.some(k => !(k in (tenant.modules_actifs || {})))) {
       supabase.from('tenants')
         .update({ modules_actifs: modulesObject })
         .eq('id', tenantId)
-        .then(() => {})
-        .catch(err => console.error('[TENANTS] Error backfilling modules:', err.message));
+        .then(() => console.log(`[TENANTS] Modules synced for ${tenantId}: ${mergedKeys.length} modules`))
+        .catch(err => console.error('[TENANTS] Error syncing modules:', err.message));
     }
 
     // Construire la réponse
@@ -219,35 +218,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PATCH /api/tenants/me/complete-onboarding - Terminer l'onboarding
-// ══════════════════════════════════════════════════════════════════════════════
-
-router.patch('/me/complete-onboarding', authenticateAdmin, async (req, res) => {
-  try {
-    const tenantId = req.admin?.tenant_id;
-    if (!tenantId) {
-      return res.status(400).json({ success: false, error: 'Tenant ID manquant' });
-    }
-
-    const { error } = await supabase
-      .from('tenants')
-      .update({
-        onboarding_completed: true,
-        onboarding_step: 5,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', tenantId);
-
-    if (error) throw error;
-
-    console.log(`[TENANTS] Onboarding completed for tenant: ${tenantId}`);
-    res.json({ success: true, message: 'Onboarding terminé' });
-  } catch (error) {
-    console.error('[TENANTS] Erreur complete-onboarding:', error);
-    res.status(500).json({ success: false, error: 'Erreur serveur' });
-  }
-});
+// Note: PATCH /me/complete-onboarding défini plus bas (ligne ~745) avec onboarding_completed_at
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/tenants/me/branding - Modifier branding

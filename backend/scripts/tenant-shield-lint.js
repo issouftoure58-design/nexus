@@ -103,6 +103,7 @@ const IGNORE_FILES = [
   'provisioning.js',    // provisioning système
   'nexusAdmin.js',      // super-admin cross-tenant (requireSuperAdmin)
   'nexusAuth.js',       // super-admin auth (cross-tenant, no tenant_id needed)
+  'orderTracking.js',   // public order tracking (token unique, pas de tenant context)
 ];
 
 // Dossiers à ignorer (tests, scripts CLI, migrations)

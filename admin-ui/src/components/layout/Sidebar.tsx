@@ -50,6 +50,7 @@ import {
   X,
   Zap,
   UserPlus,
+  ShoppingBag,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { authApi } from '@/lib/api';
@@ -67,6 +68,7 @@ interface NavItem {
   requiredModule?: string;  // Module requis pour afficher cet item
   alwaysShow?: boolean;     // Toujours afficher (dashboard, paramètres)
   businessTypes?: string[]; // Types de business requis (ex: ['restaurant'])
+  hideForBusinessTypes?: string[]; // Masquer pour ces types (ex: ['commerce'])
 }
 
 interface UpgradeModalData {
@@ -147,7 +149,7 @@ const MODULE_TO_RBAC: Record<string, string> = {
 const mainNav: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
   { icon: Calendar, label: 'Agenda', path: '/agenda', alwaysShow: true }, // RDV business entrepreneur
-  { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations' },
+  { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations', hideForBusinessTypes: ['commerce'] },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
   { icon: UserPlus, label: 'Equipe', path: '/equipe', alwaysShow: true },
@@ -156,6 +158,7 @@ const mainNav: NavItem[] = [
   { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: Bed, label: 'Chambres', path: '/chambres', requiredModule: 'reservations', businessTypes: ['hotel'] },
   { icon: Banknote, label: 'Tarifs Saisons', path: '/tarifs', requiredModule: 'reservations', businessTypes: ['hotel'] },
+  { icon: ShoppingBag, label: 'Commandes', path: '/commandes', requiredModule: 'ecommerce', businessTypes: ['commerce'] },
 ];
 
 // IA & Automatisation
@@ -228,6 +231,9 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
       if (!businessType || !item.businessTypes.includes(businessType)) {
         return false;
       }
+    }
+    if (item.hideForBusinessTypes && businessType && item.hideForBusinessTypes.includes(businessType)) {
+      return false;
     }
     // Filtrer par permissions utilisateur
     if (userPermissions && item.requiredModule) {

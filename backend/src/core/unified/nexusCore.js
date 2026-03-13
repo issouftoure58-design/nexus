@@ -52,8 +52,11 @@ import {
 } from '../TenantAwareValidator.js';
 
 // 🆕 TEMPLATE ENGINE: Prompts et règles dynamiques par tenant
-import { isFrozenTenant, getEffectiveConfig, getFullAgentConfig } from '../../templates/templateLoader.js';
+import { getEffectiveConfig, getFullAgentConfig } from '../../templates/templateLoader.js';
 import { generateSystemPrompt as dynamicSystemPrompt } from '../../templates/promptEngine.js';
+
+// 🤝 Reconnaissance client (accueil personnalisé)
+import { recognizeClient } from '../../services/clientRecognition.js';
 import {
   getServicesForTenant,
   findServiceByNameForTenant,
@@ -84,8 +87,8 @@ async function sendConfirmationSMS(tenantId, phone, details) {
   return _realSendSMS(tenantId, phone, details);
 }
 
-// 🔧 TOOLS REGISTRY - Source unique des outils
-import { TOOLS_CLIENT } from '../../tools/toolsRegistry.js';
+// 🔧 TOOLS REGISTRY - Source unique des outils + filtrage par business type
+import { TOOLS_CLIENT, getToolsForPlanAndBusiness } from '../../tools/toolsRegistry.js';
 
 // 🏢 MULTI-TENANT - Loader de configuration par tenant
 import { getTenantConfig, identifyTenant } from '../../config/tenants/index.js';
@@ -2335,256 +2338,13 @@ async function enrichTenantWithAgent(tenantId, tenantConfig) {
 // SYSTEM PROMPT UNIFIÉ
 // ============================================
 
-function getSystemPrompt(channel, tenantConfig) {
-  if (!tenantConfig) {
-    throw new Error('TENANT_CONFIG_REQUIRED: getSystemPrompt requires explicit tenantConfig');
-  }
-  const tc = tenantConfig;
-
-  const now = new Date();
-  const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-  const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-
-  const dateFormatee = `${jours[now.getDay()]} ${now.getDate()} ${mois[now.getMonth()]} ${now.getFullYear()}`;
-  const dateISO = now.toISOString().split('T')[0];
-
-  const isVoice = channel === 'phone';
-
-  // ============================================
-  // OPTIMISATION : Infos statiques pré-injectées
-  // Évite les appels get_services et get_business_hours
-  // ============================================
-
-  return `Tu es ${tc.assistantName || 'Halimah'}, l'assistante virtuelle de ${tc.name || SALON_INFO.nom}, coiffeuse afro professionnelle à ${tc.ville || 'Franconville'}.
-
-=== DATE DU JOUR ===
-Nous sommes le ${dateFormatee}.
-Date ISO pour les outils : ${dateISO}
-
-=== INFORMATIONS ${(tc.name || SALON_INFO.nom).toUpperCase()} ===
-• Nom : ${tc.name || SALON_INFO.nom}
-• Gérant(e) : ${tc.gerante || SALON_INFO.gerante}
-• Adresse : ${tc.adresse || SALON_INFO.adresse}
-• Téléphone : ${tc.telephone || SALON_INFO.telephone}
-• Concept : ${(tc.serviceOptions || SERVICE_OPTIONS).DOMICILE_ENABLED ? (tc.concept || 'Coiffure afro à domicile ou chez Fatou') : `${tc.concept || 'Coiffure afro'} chez ${tc.gerante || 'Fatou'} à ${tc.ville || 'Franconville'}`}
-
-=== HORAIRES DE FATOU (référence générale) ===
-• Lundi : 9h - 18h
-• Mardi : 9h - 18h
-• Mercredi : 9h - 18h
-• Jeudi : 9h - 13h (demi-journée)
-• Vendredi : 13h - 18h (après-midi)
-• Samedi : 9h - 18h
-• Dimanche : Fatou ne travaille pas
-
-⚠️ RÈGLE HORAIRES : Un service PEUT finir pile à l'heure de fermeture. Exemple : un service de 4h le jeudi (9h-13h) commençant à 9h est VALIDE car il finit à 13h pile. Ne refuse JAMAIS un créneau qui finit exactement à l'heure de fermeture. En cas de doute, utilise TOUJOURS l'outil check_availability pour vérifier au lieu de décider toi-même.
-
-⚠️ RÈGLE CRITIQUE POUR LES DATES ⚠️
-Tu ne dois JAMAIS calculer les dates toi-même.
-TOUJOURS utiliser l'outil get_upcoming_days AVANT de parler des disponibilités.
-Cet outil te donne les dates EXACTES (ex: "Lundi 2 février", "Mardi 3 février").
-
-=== RÈGLE CRITIQUE DATES ===
-- Tu connais la date d'aujourd'hui (indiquée ci-dessus)
-- Pour TOUTE question sur "demain", "après-demain", "la semaine prochaine", un jour précis → TOUJOURS utiliser get_upcoming_days AVANT de répondre
-- Ne dis JAMAIS "demain c'est [jour]" ou "lundi prochain c'est le [date]" sans avoir appelé get_upcoming_days
-- INTERDIT de calculer les dates toi-même, même si ça semble simple
-- En cas de doute sur une date → appelle get_upcoming_days
-Chaque jour inclut un champ "occupation" avec le statut du jour (libre, partiel, presque_complet, complet).
-Utilise occupation.resume pour informer précisément le client. Exemples :
-- Si statut="complet" → "Le mardi 3 février est complet, il n'y a plus de créneaux disponibles."
-- Si statut="presque_complet" → "Le mardi 3 février est presque complet. [occupation.resume]"
-- Si statut="partiel" → Propose les créneaux libres indiqués dans occupation.plagesLibres.
-- Si statut="libre" → "Le [date] est disponible toute la journée."
-Ne propose JAMAIS un créneau sur un jour complet.
-
-=== TARIFS COMPLETS (utilise ces infos, pas besoin d'appeler get_services) ===
-
-🔒 LOCKS :
-• Création crochet locks - 200€ (journée entière, 9h)
-• Création microlocks crochet - à partir de 300€ (2 JOURS CONSÉCUTIFS, 9h)
-• Création microlocks twist - à partir de 150€ (journée entière, 9h)
-• Reprise racines locks - 50€ (2h)
-• Reprise racines micro-locks - 100€ (4h)
-• Décapage locks - 35€ (1h)
-
-💆 SOINS :
-• Soin complet - 50€ (1h)
-• Soin hydratant - 40€ (1h)
-• Shampoing - 10€ (30min)
-
-🎀 TRESSES & BRAIDS :
-• Nattes collées cornrow - à partir de 20€ (1h)
-• Nattes collées stitch braid - 50€ (2h)
-• Box Braids - à partir de 50€ (5h)
-• Braids simples - 40€ (2h)
-• Chignon - 50€ (1h)
-• Crochet Braids Naturelles - à partir de 60€ (3h)
-• Fulani Braids - à partir de 70€ (5h)
-• Bohemian Fulani - 60€ (5h)
-• Senegalese Twists - 80€ (5h)
-• Passion Twist - 80€ (5h)
-• Boho Braids - à partir de 70€ (5h)
-• Départ Locks Vanille - à partir de 80€ (4h)
-• Vanille sans rajout - 50€ (3h)
-• Réparation Locks - 10€/lock (30min/lock) ⚠️ Demander le nombre de locks
-
-🎨 COLORATION & FINITION :
-• Teinture sans ammoniaque - 40€ (40min)
-• Décoloration - 20€ (10min)
-• Brushing cheveux afro - 20€ (1h)
-
-${SERVICE_OPTIONS.DOMICILE_ENABLED ? `=== FRAIS DE DÉPLACEMENT ===
-• Forfait de base : ${TRAVEL_FEES.BASE_FEE}€ (jusqu'à ${TRAVEL_FEES.BASE_DISTANCE_KM}km)
-• Au-delà : +${TRAVEL_FEES.PER_KM_BEYOND}€/km supplémentaire
-
-=== CONCEPT IMPORTANT ===
-- ${SALON_INFO.nom} est une coiffeuse afro indépendante (pas un commerce avec vitrine)
-- Fatou propose 2 options :
-  1. Se déplacer chez le client (service à domicile avec frais de déplacement)
-  2. Recevoir le client chez elle à Franconville (${SALON_INFO.adresse})
-- Tu ne dois JAMAIS utiliser le mot "salon" - dis "chez Fatou" ou "à domicile"
-- Quand Fatou ne travaille pas, dis "Fatou ne travaille pas ce jour-là" (jamais "fermé")` : `=== LIEU DES PRESTATIONS ===
-⚠️ IMPORTANT : Actuellement, les prestations se font UNIQUEMENT chez Fatou à Franconville.
-- Adresse : ${SALON_INFO.adresse}
-- Les déplacements à domicile sont temporairement indisponibles.
-- Si un client demande un service à domicile, lui indiquer poliment que ce n'est pas possible actuellement et lui proposer de venir chez Fatou.
-- Tu ne dois JAMAIS utiliser le mot "salon" - dis "chez Fatou"
-- Quand Fatou ne travaille pas, dis "Fatou ne travaille pas ce jour-là" (jamais "fermé")`}
-
-=== PERSONNALITÉ ===
-- Chaleureuse, professionnelle, efficace
-- Tu vouvoies toujours les clients
-- Tu es concise mais pas froide
-${isVoice ? `- Tu parles naturellement, sans emojis, avec des phrases courtes
-
-=== RÈGLES SPÉCIFIQUES TÉLÉPHONE ===
-- Sois TRÈS concise (max 2-3 phrases par réponse)
-- Ne liste JAMAIS tous les services spontanément
-- Dis "Nous proposons coiffure afro : tresses, locks, soins... Quel type vous intéresse ?"
-- Attends que le client précise avant de donner les détails
-- Évite les longues énumérations, ça fatigue à l'oral
-- Une information à la fois, puis attends la réponse
-- Pour les dates, TOUJOURS appeler get_upcoming_days avant de répondre, même pour une question simple comme "c'est quand demain ?"` : '- Tu peux utiliser des emojis avec modération'}
-
-╔═══════════════════════════════════════════════════════════╗
-║  RÈGLE ABSOLUE #0 - JAMAIS CONFIRMER SANS CRÉER EN BASE  ║
-╚═══════════════════════════════════════════════════════════╝
-Tu NE PEUX JAMAIS dire "rendez-vous confirmé/créé/enregistré" ou "vous recevrez un SMS" SANS avoir EFFECTIVEMENT appelé create_booking et reçu success=true.
-PROCESSUS OBLIGATOIRE :
-1. Collecter TOUTES les infos (nom complet prénom+nom, téléphone 10 chiffres, service, date, heure)
-2. APPELER create_booking
-3. ATTENDRE le résultat
-4. SI success=true → confirmer au client
-5. SI success=false → expliquer le problème, proposer alternative
-Si tu n'as pas appelé create_booking → tu n'as PAS le droit de dire que c'est confirmé.
-Si tu confirmes sans créer, le client viendra pour rien.
-
-=== RÈGLES ABSOLUES ===
-1. Pour les PRIX et SERVICES → Utilise les tarifs ci-dessus (pas besoin d'outil)
-2. Pour les DISPONIBILITÉS → Utilise TOUJOURS get_upcoming_days pour obtenir les dates EXACTES
-3. Tu ne dois JAMAIS calculer les dates toi-même (ex: "Lundi prochain = ?") → get_upcoming_days te les donne
-4. Tu ne dois JAMAIS inventer une disponibilité → Utilise check_availability
-5. Tu ne dois JAMAIS confirmer un RDV sans utiliser create_booking ET avoir reçu success=true
-6. Utilise parse_date pour convertir les dates relatives ("samedi prochain" → date ISO)
-7. Tu dois TOUJOURS vérifier la disponibilité AVANT de proposer un créneau
-
-=== SERVICES JOURNÉE ENTIÈRE ===
-IMPORTANT : Ces services bloquent la JOURNÉE ENTIÈRE et commencent TOUJOURS à 9h00 :
-- Création crochet locks (200€) - 1 jour
-- Création microlocks crochet (à partir de 300€) - 2 JOURS CONSÉCUTIFS
-- Création microlocks twist (à partir de 150€) - 1 jour
-
-Si le client demande ces services, propose UNIQUEMENT le créneau de 9h00.
-
-=== SERVICE SPÉCIAL : RÉPARATION LOCKS ===
-⚠️ Ce service est facturé PAR LOCK (10€/lock, 30min/lock).
-
-PROCESSUS OBLIGATOIRE :
-1. Quand le client demande "réparation locks" → TOUJOURS demander : "Combien de locks avez-vous à réparer ?"
-2. ATTENDRE la réponse du client (un nombre)
-3. Calculer et CONFIRMER au client :
-   - Prix total : nombre × 10€
-   - Durée estimée : nombre × 30 min
-4. IMPORTANT : Utiliser la durée TOTALE calculée pour vérifier les créneaux (pas 30 min)
-5. Dans les notes de réservation, ajouter : "X locks à réparer - prix sous réserve du nombre exact"
-
-Exemple de conversation :
-- Client : "Je voudrais faire réparer 5 locks"
-- Toi : "Pour 5 locks, cela représente 50€ (5 × 10€) et environ 2h30 de travail. Quel jour vous conviendrait ?"
-
-=== PROCESSUS DE RÉSERVATION ===
-1. Identifier le service demandé (utilise les tarifs ci-dessus)
-2. Si le client demande "les disponibilités" ou "quand" → Utilise get_upcoming_days pour obtenir les dates EXACTES
-3. Convertir la date avec parse_date si le client donne une date relative ("samedi prochain")
-4. Vérifier la disponibilité avec check_availability
-5. Demander le lieu (domicile ou chez Fatou)
-6. Collecter nom + prénom + téléphone (10 chiffres)
-7. Si domicile : collecter l'adresse complète du client
-8. RÉCAPITULER toutes les infos et demander confirmation AVANT de créer
-9. Créer avec create_booking UNIQUEMENT après confirmation du client
-
-⚠️⚠️ RÈGLE CRITIQUE ANTI-PLACEHOLDER ⚠️⚠️
-- Tu ne dois JAMAIS appeler create_appointment ou create_booking avec des données fictives, manquantes ou placeholder (ex: "-", "inconnu", "test", "N/A")
-- CHAQUE champ obligatoire (nom, prénom, téléphone, adresse, service, date, heure) doit être une VRAIE information fournie par le client
-- Si le client refuse de donner son nom ou téléphone → ne crée PAS le RDV, explique que c'est nécessaire
-- Si tu n'as pas TOUTES les infos → DEMANDE-les, ne remplis JAMAIS avec des valeurs par défaut
-- Le téléphone DOIT être 10 chiffres commençant par 0 (ex: 0612345678)
-
-=== GESTION DES CONFIRMATIONS ===
-"oui", "ok", "d'accord", "parfait", "ça marche" = OUI
-"non", "pas vraiment", "plutôt" = NON
-
-=== GESTION ANNULATION / MODIFICATION RDV ===
-Tu peux aider les clients à annuler ou modifier leurs rendez-vous.
-
-PROCESSUS ANNULATION :
-1. Client dit "annuler", "je ne peux plus venir", "empêchement", "contretemps"
-2. Demande son numéro de téléphone pour retrouver le RDV
-3. Appelle find_appointment avec le téléphone
-4. Affiche les RDV trouvés : "Vous avez rendez-vous le [date] à [heure] pour [service]"
-5. Demande confirmation : "Souhaitez-vous annuler ce rendez-vous ?"
-6. Si oui → Appelle cancel_appointment avec l'ID
-7. Confirme : "Votre rendez-vous est annulé. Vous recevrez un SMS. N'hésitez pas à reprendre RDV."
-
-PROCESSUS MODIFICATION :
-1. Client dit "déplacer", "changer l'heure", "repousser", "avancer"
-2. Retrouve le RDV (même process que annulation)
-3. Demande la nouvelle date/heure souhaitée
-4. Vérifie la disponibilité du nouveau créneau
-5. Annule l'ancien RDV avec cancel_appointment
-6. Crée le nouveau avec create_booking
-7. Confirme le changement
-
-RÈGLES :
-- TOUJOURS demander le téléphone pour identifier le client
-- TOUJOURS confirmer avant d'annuler (ne jamais annuler sans accord explicite)
-- Si plusieurs RDV trouvés, demander lequel annuler
-- Être empathique : "Je comprends, pas de problème"
-
-=== IMPORTANT ===
-- GARDE LE CONTEXTE : Si le client a dit "locks", ne propose pas "tresses"
-- RESPECTE L'HEURE DEMANDÉE : Si le client dit "10h", vérifie 10h
-- Réponses courtes et claires${isVoice ? ', phrases de 1-2 secondes maximum' : ''}${tc.agentTone ? `
-
-=== STYLE CONFIGURÉ ===
-Ton : ${tc.agentTone}` : ''}${tc.greetingMessage ? `
-Message d'accueil personnalisé : "${tc.greetingMessage}"` : ''}${tc.servicesDescription ? `
-
-=== DESCRIPTION SUPPLÉMENTAIRE DES SERVICES ===
-${tc.servicesDescription}` : ''}${tc.bookingEnabled === false ? `
-
-⚠️ La prise de RDV est DÉSACTIVÉE. Oriente les clients vers le téléphone.` : ''}`;
-}
-
 /**
- * 🆕 Wrapper unifié pour getSystemPrompt
- * - Tenants frozen (fatshairafro) → utilise le prompt hardcodé ci-dessus
- * - Autres tenants → utilise le moteur dynamique (promptEngine.js)
+ * Génère le system prompt pour TOUS les tenants via le moteur dynamique.
+ * Plus de prompt frozen — tous les tenants utilisent promptEngine.js.
  *
  * @param {string} channel - Canal ('phone', 'chat', 'whatsapp', etc.)
  * @param {Object} tenantConfig - Configuration du tenant
- * @returns {Promise<string>|string} - System prompt
+ * @returns {Promise<string>} - System prompt
  */
 async function getSystemPromptUnified(channel, tenantConfig) {
   if (!tenantConfig) {
@@ -2592,23 +2352,8 @@ async function getSystemPromptUnified(channel, tenantConfig) {
   }
 
   const tenantId = tenantConfig.id || tenantConfig.tenant_id || tenantConfig.slug;
-
-  // 🔒 Tenants frozen = prompt hardcodé (backward compatibility)
-  if (isFrozenTenant(tenantId)) {
-    console.log(`[NEXUS CORE] Using frozen prompt for ${tenantId}`);
-    return getSystemPrompt(channel, tenantConfig);
-  }
-
-  // 🆕 Autres tenants = prompt dynamique
-  try {
-    console.log(`[NEXUS CORE] Generating dynamic prompt for ${tenantId}`);
-    const dynamicPrompt = await dynamicSystemPrompt(channel, tenantConfig);
-    return dynamicPrompt;
-  } catch (err) {
-    console.error(`[NEXUS CORE] Error generating dynamic prompt, falling back to frozen:`, err.message);
-    // Fallback to hardcoded prompt if dynamic fails
-    return getSystemPrompt(channel, tenantConfig);
-  }
+  console.log(`[NEXUS CORE] Generating dynamic prompt for ${tenantId}`);
+  return dynamicSystemPrompt(channel, tenantConfig);
 }
 
 // ============================================
@@ -2681,6 +2426,19 @@ export async function processMessage(message, channel, context = {}) {
   // Charger config IA admin pour ce channel
   applyIAConfig(tenantConfig, await loadIAConfig(tenantId, channel));
 
+  // 🤝 Reconnaissance client : lookup par téléphone pour accueil personnalisé
+  if (context.phone) {
+    try {
+      const clientContext = await recognizeClient(tenantId, context.phone);
+      tenantConfig.clientContext = clientContext;
+      if (clientContext.known) {
+        console.log(`[NEXUS CORE] 🤝 Client reconnu: ${clientContext.displayName} (${clientContext.visitCount} visites)`);
+      }
+    } catch (err) {
+      console.warn(`[NEXUS CORE] Client recognition failed:`, err.message);
+    }
+  }
+
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 
   console.log(`\n[NEXUS CORE] ══════════════════════════════════════`);
@@ -2744,16 +2502,23 @@ export async function processMessage(message, channel, context = {}) {
     const modelReason = routerResult.reason;
     const modelEmoji = selectedModel.includes('haiku') ? '⚡' : '🧠';
 
-    // 💰 OPTIMISATION 3: Optimiser le prompt système
-    // 🆕 Utilise le prompt dynamique pour tenants non-frozen
+    // 💰 OPTIMISATION 3: Optimiser le prompt système (moteur dynamique pour TOUS les tenants)
     const rawSystemPrompt = await getSystemPromptUnified(channel, tenantConfig);
     const optimizedSystemPrompt = promptOptimizer.optimize(rawSystemPrompt, {
       isSimple: routerResult.complexity < 3
     });
+    // 🔒 Cache le prompt pour toute la session (tool loop cohérent)
+    const sessionSystemPrompt = optimizedSystemPrompt;
+
     const promptSavings = promptOptimizer.calculateSavings(rawSystemPrompt, optimizedSystemPrompt);
     if (promptSavings.saved > 0) {
       console.log(`[NEXUS CORE] 💰 Prompt optimisé: -${promptSavings.saved} tokens (${promptSavings.percentage}%)`);
     }
+
+    // 🔧 Filtrage outils par business type + plan
+    const businessType = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
+    const tenantPlan = tenantConfig.plan || 'starter';
+    const filteredTools = getToolsForPlanAndBusiness(tenantPlan, businessType);
 
     // 🫀 PULSE: Événement sélection modèle
     liveEventStream.optimization({
@@ -2777,14 +2542,14 @@ export async function processMessage(message, channel, context = {}) {
       });
     }
 
-    // Appeler Claude avec les outils unifiés
+    // Appeler Claude avec les outils filtrés par business type
     console.log(`[NEXUS CORE] ${modelEmoji} Modèle: ${selectedModel.includes('haiku') ? 'HAIKU' : 'SONNET'} (${modelReason})`);
-    console.log(`[NEXUS CORE] 📊 Historique: ${history.length} messages, Outils: ${TOOLS_CLIENT.length}`);
+    console.log(`[NEXUS CORE] 📊 Historique: ${history.length} messages, Outils: ${filteredTools.length} (${businessType})`);
     let response = await anthropic.messages.create({
       model: selectedModel,
       max_tokens: MAX_TOKENS,
-      system: optimizedSystemPrompt,
-      tools: TOOLS_CLIENT,
+      system: sessionSystemPrompt,
+      tools: filteredTools,
       messages: history
     });
     console.log(`[NEXUS CORE] ✅ Réponse Claude reçue - stop_reason: ${response.stop_reason}`);
@@ -2819,11 +2584,12 @@ export async function processMessage(message, channel, context = {}) {
       history.push({ role: 'user', content: toolResults });
 
       // Continuer la conversation (toujours Sonnet pour tool_use)
+      // 🔒 Utilise sessionSystemPrompt (prompt caché en début de session, pas re-généré)
       response = await anthropic.messages.create({
         model: CLAUDE_SONNET,
         max_tokens: MAX_TOKENS,
-        system: getSystemPrompt(channel, tenantConfig),
-        tools: TOOLS_CLIENT,
+        system: sessionSystemPrompt,
+        tools: filteredTools,
         messages: history
       });
     }
@@ -2871,8 +2637,8 @@ export async function processMessage(message, channel, context = {}) {
       const retryResponse = await anthropic.messages.create({
         model: CLAUDE_SONNET,
         max_tokens: MAX_TOKENS,
-        system: getSystemPrompt(channel, tenantConfig),
-        tools: TOOLS_CLIENT,
+        system: sessionSystemPrompt,
+        tools: filteredTools,
         messages: history
       });
 
@@ -2893,8 +2659,8 @@ export async function processMessage(message, channel, context = {}) {
         history.push({ role: 'user', content: retryResults });
         retryFinal = await anthropic.messages.create({
           model: CLAUDE_SONNET, max_tokens: MAX_TOKENS,
-          system: getSystemPrompt(channel, tenantConfig),
-          tools: TOOLS_CLIENT, messages: history
+          system: sessionSystemPrompt,
+          tools: filteredTools, messages: history
         });
       }
 
@@ -3202,6 +2968,19 @@ export async function* processMessageStreaming(message, channel, context = {}) {
   // Charger config IA admin pour ce channel
   applyIAConfig(tenantConfig, await loadIAConfig(tenantId, channel));
 
+  // 🤝 Reconnaissance client
+  if (context.phone) {
+    try {
+      const clientContext = await recognizeClient(tenantId, context.phone);
+      tenantConfig.clientContext = clientContext;
+      if (clientContext.known) {
+        console.log(`[NEXUS CORE] 🤝 Client reconnu (stream): ${clientContext.displayName}`);
+      }
+    } catch (err) {
+      console.warn(`[NEXUS CORE] Client recognition failed:`, err.message);
+    }
+  }
+
   console.log(`[NEXUS CORE] 🏢 Tenant: ${tenantId} (${tenantConfig.name}) Agent: ${tenantConfig.assistantName}`);
 
   console.log(`\n[NEXUS CORE] ══════════════════════════════════════`);
@@ -3228,6 +3007,17 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     const modelEmoji = selectedModel.includes('haiku') ? '⚡' : '🧠';
     console.log(`[NEXUS CORE] ${modelEmoji} Modèle: ${selectedModel.includes('haiku') ? 'HAIKU' : 'SONNET'} (${modelReason})`);
 
+    // 🔒 Générer et cacher le prompt pour toute la session streaming
+    const rawStreamPrompt = await getSystemPromptUnified(channel, tenantConfig);
+    const sessionStreamPrompt = promptOptimizer.optimize(rawStreamPrompt, {
+      isSimple: routerResultStream.complexity < 3
+    });
+
+    // 🔧 Filtrage outils par business type + plan
+    const businessTypeStream = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
+    const tenantPlanStream = tenantConfig.plan || 'starter';
+    const filteredToolsStream = getToolsForPlanAndBusiness(tenantPlanStream, businessTypeStream);
+
     let currentModel = selectedModel;
     let continueLoop = true;
     let fullResponseText = '';
@@ -3236,12 +3026,12 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     while (continueLoop) {
       console.log(`[NEXUS CORE] 🤖 Appel Claude API (streaming, ${currentModel === CLAUDE_HAIKU ? 'HAIKU' : 'SONNET'})...`);
 
-      // Utiliser le streaming
+      // Utiliser le streaming avec prompt caché et outils filtrés
       const stream = await anthropic.messages.stream({
         model: currentModel,
         max_tokens: MAX_TOKENS,
-        system: getSystemPrompt(channel, tenantConfig),
-        tools: TOOLS_CLIENT,
+        system: sessionStreamPrompt,
+        tools: filteredToolsStream,
         messages: history
       });
 
@@ -3385,7 +3175,6 @@ export {
   getTravelFeesForTenant,
   calculateTravelFeeForTenant,
   getBusinessHoursForTenant,
-  isFrozenTenant,
 };
 
 // ============================================

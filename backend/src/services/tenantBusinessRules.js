@@ -9,7 +9,13 @@
  */
 
 import { rawSupabase } from '../config/supabase.js';
-import { isFrozenTenant, getEffectiveConfig } from '../templates/templateLoader.js';
+import { getEffectiveConfig } from '../templates/templateLoader.js';
+
+// Legacy fallback: fatshairafro uses hardcoded rules if not in DB
+const LEGACY_FROZEN_TENANTS = ['fatshairafro'];
+function isLegacyFrozenTenant(tenantId) {
+  return LEGACY_FROZEN_TENANTS.includes(tenantId);
+}
 import logger from '../config/logger.js';
 
 // Import frozen rules for backward compatibility
@@ -36,7 +42,7 @@ export async function getServicesForTenant(tenantId) {
   }
 
   // Frozen tenant = use hardcoded rules
-  if (isFrozenTenant(tenantId)) {
+  if (isLegacyFrozenTenant(tenantId)) {
     logger.info(`BUSINESS_RULES Using frozen services for ${tenantId}`);
     return Object.values(FROZEN_SERVICES).map(normalizeService);
   }
@@ -156,7 +162,7 @@ export async function getTravelFeesForTenant(tenantId) {
   }
 
   // Frozen tenant
-  if (isFrozenTenant(tenantId)) {
+  if (isLegacyFrozenTenant(tenantId)) {
     return normalizeTravelFees(FROZEN_TRAVEL_FEES);
   }
 
@@ -257,7 +263,7 @@ export async function getBusinessHoursForTenant(tenantId) {
   }
 
   // Frozen tenant fallback: use hardcoded rules if no DB data
-  if (isFrozenTenant(tenantId)) {
+  if (isLegacyFrozenTenant(tenantId)) {
     return normalizeBusinessHours(FROZEN_HOURS);
   }
 
@@ -322,7 +328,7 @@ export async function getBookingRulesForTenant(tenantId) {
   }
 
   // Frozen tenant
-  if (isFrozenTenant(tenantId)) {
+  if (isLegacyFrozenTenant(tenantId)) {
     return normalizeBookingRules(FROZEN_BOOKING_RULES);
   }
 

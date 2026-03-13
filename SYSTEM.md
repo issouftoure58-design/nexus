@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-10
-> **Version:** 3.21.0
+> **Derniere mise a jour:** 2026-03-13
+> **Version:** 3.23.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~9.0/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -69,9 +69,29 @@ nexus/
 
 | Tenant ID | Nom | Type | Plan | Status |
 |-----------|-----|------|------|--------|
-| `fatshairafro` | Fat's Hair-Afro | service_domicile | Pro | Production |
-| `decoevent` | DecoEvent | service_domicile | Starter | Production |
-| `nexus-test` | Nexus Test | service_domicile | Business (test) | Test |
+| `fatshairafro` | Fat's Hair-Afro | service_domicile | Business | Production |
+| `nexus-test` | Salon Elegance Paris | salon | Business | Test |
+| `test-security` | Atlas Securite | security | Business | Test |
+| `test-consulting` | Clara Conseil | salon | Business | Test |
+| `test-events` | Emma Events | salon | Business | Test |
+| `test-hospitality` | Quick Burger Express | commerce | Business | Test |
+
+### Business Types (6)
+| # | ID | Label | Exemples |
+|---|-----|-------|----------|
+| 1 | `service_domicile` | Service a domicile | Coiffeur a domicile, plombier, coach |
+| 2 | `salon` | Salon / Institut | Coiffure, barbier, spa, onglerie |
+| 3 | `restaurant` | Restaurant / Bar | Restaurant, brasserie, pizzeria |
+| 4 | `hotel` | Hotel / Hebergement | Hotel, gite, chambre d'hotes |
+| 5 | `commerce` | Commerce / Restauration rapide | Fast-food, boulangerie, epicerie, food truck |
+| 6 | `security` | Securite / Mise a disposition | Securite privee, interim, gardiennage |
+
+### UI par Business Type (admin-ui)
+- **ProfileContext.tsx** utilise `api.request('/admin/profile')` pour charger le profil metier
+- `isBusinessType('commerce')` / `isBusinessType('security')` conditionnent les modals
+- **Services.tsx**: Commerce = Prix+TVA+Categorie | Security = PricingFields+TVA+CNAPS | Salon = Duree+Prix+CNAPS
+- **Activites.tsx**: Commerce → redirige vers /commandes | Security → "Nouvelle mission" | Autres → "Nouveau rdv"
+- Config backend: `backend/src/config/businessTypes.js` + `backend/src/services/tenantBusinessService.js`
 
 > **REGLE:** Ne JAMAIS tester sur fatshairafro. Utiliser nexus-test.
 
@@ -137,6 +157,7 @@ npm run shield         # Les deux
 | `/api/admin/stats/*` | Statistiques dashboard |
 | `/api/admin/analytics/*` | Analytics (overview, revenue, clients, analytique) |
 | `/api/admin/quotas` | Quotas et limites |
+| `/api/admin/commerce/orders/*` | Gestion commandes commerce (CRUD, statuts) |
 | `/api/admin/ia/*` | Config IA par canal (telephone, whatsapp) |
 | `/api/admin/agents/*` | Gestion agents IA (ai_agents) |
 | `/api/admin/chat/*` | Chat IA admin (105 outils, streaming SSE, differencie par plan) |
@@ -166,7 +187,35 @@ npm run shield         # Les deux
 | Domicile | calculate_travel_fee | Salon, Restaurant, Hotel |
 | Salon | aucun exclusif | — |
 
-**System prompt adapte** : terminologie metier (`BUSINESS_TYPES`), actions principales (`BUSINESS_CONTEXTS`), instructions comportementales specifiques, fonctionnalites du plan (incluses/verouillees).
+### IA Client (Reservation) — Architecture 2 Couches (v3.23.0)
+
+**Moteur dynamique** : `templates/promptEngine.js` genere le system prompt pour TOUS les tenants (plus de prompt hardcode).
+
+| Couche | Fichier(s) | Contenu |
+|--------|-----------|---------|
+| **Noyau general** | `promptEngine.js` (builders) | 5 regles universelles (anti-hallucination, dates, booking process, annulation, canal) |
+| **Adaptateur metier** | `templates/businessTypePrompts/*.js` (6 fichiers) | Regles specifiques par business type (terminologie, outils, processus) |
+| **Reconnaissance client** | `services/clientRecognition.js` | Lookup telephone → client existant + historique RDV → accueil personnalise |
+
+**Regles noyau** (presentes dans TOUS les prompts) :
+- REGLE #0 : JAMAIS confirmer sans create_booking + success=true
+- REGLE #1 : Anti-placeholder (jamais de donnees fictives)
+- REGLE #2 : Collecter TOUTES les infos avant reservation
+- REGLE #3 : Garder le contexte (service demande)
+- REGLE #4 : Gestion confirmations (oui/non)
+
+**Filtrage outils IA client** (v3.23.0) : `getToolsForPlanAndBusiness(plan, businessType)` filtre les outils par metier dans nexusCore.js (plus de tools irrelevants envoyes a l'API).
+
+| Metier | Outils exclusifs client |
+|--------|------------------------|
+| Restaurant | check_table_availability, get_restaurant_info, get_menu, get_menu_du_jour, check_allergenes |
+| Hotel | get_hotel_info, get_chambres_disponibles, check_room_availability |
+| Domicile | calculate_travel_fee |
+| Salon / Commerce / Security | outils generiques uniquement |
+
+**Validation** : `scripts/validate-ia-prompts.mjs` — 142 assertions (6 business types, tool filtering, client recognition, regression fatshairafro, canaux phone/whatsapp).
+
+**System prompt admin adapte** : terminologie metier (`BUSINESS_TYPES`), actions principales (`BUSINESS_CONTEXTS` dans `businessTypePrompts/index.js`), instructions comportementales specifiques, fonctionnalites du plan (incluses/verouillees).
 
 ## PLAN D'ESSAI (TRIAL)
 
@@ -347,7 +396,7 @@ Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Squ
 1. Multi-tenant natif (9.0) — architecture des le depart
 2. IA integree (105 outils admin) — pas de plugin externe
 3. SENTINEL monitoring (8.5) — auto-degrade, cost-aware
-4. Multi-metier (salon/restaurant/hotel/services) — une plateforme
+4. Multi-metier (6 types: salon/restaurant/hotel/commerce/security/domicile) — une plateforme
 5. Prix agressif (99/249/499€) — vs 200-1000€+ concurrents
 
 ### Risque critique a corriger
@@ -357,4 +406,4 @@ Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Squ
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-10 (v3.20.0 — Multi-business restaurant/hotel + capacite IA)*
+*Derniere synchronisation: 2026-03-13 (v3.23.0 — IA 2 couches: noyau general + adaptatif, client recognition)*

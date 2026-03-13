@@ -806,7 +806,8 @@ export const TEMPLATE_TO_PROFILE = {
   garage: 'salon',
   artisan: 'service_domicile',
   hotel: 'hotel',
-  commerce: 'salon',
+  commerce: 'commerce',
+  security: 'security',
   autre: 'salon',
 };
 
@@ -846,11 +847,11 @@ export const PROFESSIONS = [
   { id: 'restaurant', label: 'Restaurant', emoji: '🍽️', description: 'Restaurant traditionnel, gastronomique', template: 'restaurant', category: 'restauration' },
   { id: 'pizzeria', label: 'Pizzeria', emoji: '🍕', description: 'Pizza, cuisine italienne', template: 'restaurant', category: 'restauration' },
   { id: 'brasserie', label: 'Brasserie / Bistrot', emoji: '🍺', description: 'Cuisine de brasserie, plats du jour', template: 'restaurant', category: 'restauration' },
-  { id: 'fast_food', label: 'Fast-food / Snack', emoji: '🍔', description: 'Restauration rapide', template: 'restaurant', category: 'restauration' },
-  { id: 'food_truck', label: 'Food truck', emoji: '🚚', description: 'Cuisine ambulante, street food', template: 'restaurant', category: 'restauration' },
+  { id: 'fast_food', label: 'Fast-food / Snack', emoji: '🍔', description: 'Restauration rapide', template: 'commerce', category: 'restauration' },
+  { id: 'food_truck', label: 'Food truck', emoji: '🚚', description: 'Cuisine ambulante, street food', template: 'commerce', category: 'restauration' },
   { id: 'bar', label: 'Bar / Lounge', emoji: '🍸', description: 'Cocktails, soirées, tapas', template: 'restaurant', category: 'restauration' },
   { id: 'cafe', label: 'Café / Salon de thé', emoji: '☕', description: 'Boissons chaudes, pâtisseries', template: 'restaurant', category: 'restauration' },
-  { id: 'traiteur', label: 'Traiteur', emoji: '🥘', description: 'Événements, buffets, plateaux-repas', template: 'artisan', category: 'restauration' },
+  { id: 'traiteur', label: 'Traiteur', emoji: '🥘', description: 'Événements, buffets, plateaux-repas', template: 'commerce', category: 'restauration' },
   { id: 'boulangerie', label: 'Boulangerie / Pâtisserie', emoji: '🥐', description: 'Pain, viennoiseries, gâteaux', template: 'commerce', category: 'restauration' },
   { id: 'sushi', label: 'Restaurant japonais / Sushi', emoji: '🍣', description: 'Sushi, ramen, cuisine japonaise', template: 'restaurant', category: 'restauration' },
 
@@ -919,6 +920,14 @@ export const PROFESSIONS = [
   { id: 'formation', label: 'Organisme de formation', emoji: '🎓', description: 'Formations professionnelles, CPF', template: 'autre', category: 'conseil' },
   { id: 'evenementiel', label: 'Événementiel / Wedding planner', emoji: '🎉', description: 'Organisation d\'événements, mariages', template: 'autre', category: 'conseil' },
 
+  // --- Sécurité & Mise à disposition ---
+  { id: 'securite_privee', label: 'Sécurité privée', emoji: '🛡️', description: 'Gardiennage, surveillance, agents de sécurité', template: 'security', category: 'securite' },
+  { id: 'interim', label: 'Agence d\'intérim', emoji: '👥', description: 'Mise à disposition de personnel temporaire', template: 'security', category: 'securite' },
+  { id: 'gardiennage', label: 'Gardiennage / Vigile', emoji: '🔒', description: 'Surveillance de sites, rondes, accueil', template: 'security', category: 'securite' },
+  { id: 'nettoyage_industriel', label: 'Nettoyage industriel', emoji: '🏭', description: 'Nettoyage de locaux professionnels, chantiers', template: 'security', category: 'securite' },
+  { id: 'protection_rapprochee', label: 'Protection rapprochée', emoji: '🕶️', description: 'Bodyguard, escorte, protection VIP', template: 'security', category: 'securite' },
+  { id: 'securite_evenementielle', label: 'Sécurité événementielle', emoji: '🎪', description: 'Concerts, festivals, événements sportifs', template: 'security', category: 'securite' },
+
   // --- Autre ---
   { id: 'autre', label: 'Autre activité', emoji: '🏪', description: 'Mon activité n\'est pas listée', template: 'autre', category: 'autre' },
 ];
@@ -934,6 +943,7 @@ export const PROFESSION_CATEGORIES = {
   services: { label: 'Services & Artisanat', emoji: '🔧' },
   sport: { label: 'Sport & Loisirs', emoji: '⚽' },
   conseil: { label: 'Conseil & Services pro', emoji: '💼' },
+  securite: { label: 'Sécurité & Mise à disposition', emoji: '🛡️' },
   autre: { label: 'Autre', emoji: '🏪' },
 };
 

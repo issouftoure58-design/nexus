@@ -35,6 +35,7 @@ function resolveTenant(tenantId) {
     adresse: tc.adresse,
     telephone: tc.telephone,
     domain: tc.domain,
+    businessProfile: tc.business_profile || null,
   };
 }
 
@@ -445,18 +446,55 @@ export async function sendRemerciement(rdv, tenantId = null) {
   // 1. Envoyer Email
   if (clientEmail) {
     try {
+      // Adapter le message selon le business type
+      const bp = t.businessProfile || 'beauty';
+      const thankMsg = {
+        restaurant: `J'espère que vous avez passé un excellent moment.`,
+        commerce: `J'espère que votre commande vous a donné satisfaction.`,
+        hotel: `J'espère que votre séjour s'est bien passé.`,
+        security: `Nous espérons que notre prestation a été à la hauteur de vos attentes.`,
+      };
+      const actions = {
+        restaurant: [
+          'Réserver à nouveau',
+          'Laisser un avis en ligne',
+          'Recommander à vos proches',
+        ],
+        commerce: [
+          'Passer une nouvelle commande',
+          'Laisser un avis en ligne',
+          'Recommander à vos proches',
+        ],
+        hotel: [
+          'Réserver à nouveau',
+          'Partager votre expérience en ligne',
+          'Recommander à vos proches',
+        ],
+        security: [
+          'Nous recontacter pour une future mission',
+          'Laisser un avis en ligne',
+          'Recommander à vos partenaires',
+        ],
+      };
+      const defaultActions = [
+        'Reprendre rendez-vous',
+        'Laisser un avis en ligne',
+        'Recommander à vos proches',
+      ];
+      const msgBody = thankMsg[bp] || `J'espère que vous êtes satisfait(e) de votre visite.`;
+      const actionList = actions[bp] || defaultActions;
+      const signataire = t.gerante || 'L\'équipe';
+
       const emailHtml = `
         <h2>Merci pour votre visite ! 💜</h2>
         <p>Bonjour ${clientNom},</p>
         <p>Merci d'avoir fait confiance à ${t.salonName} !</p>
-        <p>J'espère que vous êtes ravie de votre coiffure.</p>
+        <p>${msgBody}</p>
         <p>N'hésitez pas à :</p>
         <ul>
-          <li>Reprendre rendez-vous</li>
-          <li>Partager une photo de votre coiffure</li>
-          <li>Recommander à vos proches</li>
+          ${actionList.map(a => `<li>${a}</li>`).join('\n          ')}
         </ul>
-        <p>À très bientôt !<br>${t.gerante} - ${t.salonName}</p>
+        <p>À très bientôt !<br>${signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(

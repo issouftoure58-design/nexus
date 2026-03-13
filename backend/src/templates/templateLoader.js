@@ -19,21 +19,6 @@ const templateCache = new Map();
 const TEMPLATE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // ============================================
-// FROZEN TENANTS (backward compatibility)
-// ============================================
-
-const FROZEN_TENANTS = ['fatshairafro'];
-
-/**
- * Vérifie si un tenant est frozen (utilise config hardcodée)
- * @param {string} tenantId - ID du tenant
- * @returns {boolean}
- */
-export function isFrozenTenant(tenantId) {
-  return FROZEN_TENANTS.includes(tenantId);
-}
-
-// ============================================
 // TEMPLATE LOADING
 // ============================================
 
@@ -469,9 +454,7 @@ export default {
   getFullAgentConfig,
 
   // Utilities
-  isFrozenTenant,
   clearTemplateCache,
   clearRoleCache,
   clearAllCaches,
-  FROZEN_TENANTS,
 };

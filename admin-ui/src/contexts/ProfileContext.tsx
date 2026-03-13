@@ -7,6 +7,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { api } from '../lib/api';
 
 // Types
 interface Terminology {
@@ -59,7 +60,7 @@ interface Features {
 }
 
 // V2 - Business types
-export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel';
+export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security';
 
 export interface BusinessProfile {
   id: string;
@@ -174,34 +175,23 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const getToken = () => localStorage.getItem('nexus_admin_token');
-
-  // Charger le profil depuis l'API
+  // Charger le profil depuis l'API (utilise le module api pour cohérence token/tenant)
   const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = getToken();
+      const token = api.getToken();
       if (!token) {
         setProfile(defaultProfile);
         return;
       }
 
-      const response = await fetch('/api/admin/profile', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        // Si erreur, utiliser le profil par défaut
-        console.warn('[ProfileContext] API non disponible, utilisation du profil par défaut');
-        setProfile(defaultProfile);
-        return;
-      }
-
-      const data = await response.json();
+      const data = await api.request<{ profile: BusinessProfile }>('/admin/profile');
       setProfile(data.profile || defaultProfile);
-    } catch (err) {
+    } catch (err: any) {
+      // Session expirée → pas d'erreur affichée, le redirect est géré par api module
+      if (err?.message === 'Session expirée') return;
       console.error('[ProfileContext] Erreur chargement profil:', err);
       setProfile(defaultProfile);
       setError('Erreur de chargement du profil');
@@ -210,8 +200,17 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Charger au mount + recharger après login
   useEffect(() => {
     loadProfile();
+
+    // Recharger quand le token change (après login via api.setToken)
+    const onAuthChange = () => loadProfile();
+    window.addEventListener('nexus-auth-change', onAuthChange);
+
+    return () => {
+      window.removeEventListener('nexus-auth-change', onAuthChange);
+    };
   }, [loadProfile]);
 
   // Helper: Traduction terminologie
@@ -360,6 +359,8 @@ export function useBusinessTypeChecks() {
     isSalon: isBusinessType('salon'),
     isRestaurant: isBusinessType('restaurant'),
     isHotel: isBusinessType('hotel'),
+    isCommerce: isBusinessType('commerce'),
+    isSecurity: isBusinessType('security'),
   };
 }
 
