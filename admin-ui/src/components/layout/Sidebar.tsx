@@ -173,6 +173,7 @@ const marketingNav: NavItem[] = [
   { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'pipeline' },
   { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'devis' },
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
+  { icon: FileText, label: 'Articles SEO', path: '/seo/articles', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
 ];
 

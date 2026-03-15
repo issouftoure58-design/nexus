@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +21,9 @@ import {
   RefreshCw,
   CheckCircle,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Loader2,
+  Crosshair
 } from 'lucide-react';
 
 interface SEOStats {
@@ -33,11 +36,12 @@ interface SEOStats {
 }
 
 interface Keyword {
-  id: number;
+  id: string;
   mot_cle: string;
   position_actuelle: number | null;
   url_cible: string;
   variation?: number;
+  last_checked?: string;
 }
 
 interface Recommendation {
@@ -52,11 +56,13 @@ interface Recommendation {
 }
 
 export default function SEODashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<SEOStats | null>(null);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [checkingPositions, setCheckingPositions] = useState<Set<string>>(new Set());
 
   // Filters for keywords
   const [keywordFilters, setKeywordFilters] = useState({
@@ -116,10 +122,31 @@ export default function SEODashboard() {
     }
   };
 
+  const handleCheckPosition = async (keywordId: string) => {
+    setCheckingPositions(prev => new Set(prev).add(keywordId));
+    try {
+      await api.post(`/admin/seo/keywords/${keywordId}/check-position`);
+      await fetchDashboardData();
+    } catch (err) {
+      setError('Erreur lors de la vérification de position');
+    } finally {
+      setCheckingPositions(prev => {
+        const next = new Set(prev);
+        next.delete(keywordId);
+        return next;
+      });
+    }
+  };
+
+  const handleCheckAllPositions = async () => {
+    for (const kw of keywords) {
+      await handleCheckPosition(kw.id);
+    }
+  };
+
   // Filtered keywords
   const filteredKeywords = useMemo(() => {
     return keywords
-      .filter(k => k.position_actuelle !== null)
       .filter(k => {
         // Search filter
         if (keywordFilters.search && !k.mot_cle.toLowerCase().includes(keywordFilters.search.toLowerCase())) {
@@ -227,10 +254,16 @@ export default function SEODashboard() {
             Suivez vos performances de referencement
           </p>
         </div>
-        <Button variant="outline" onClick={fetchDashboardData}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Actualiser
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/seo/articles')}>
+            <FileText className="w-4 h-4 mr-2" />
+            Articles SEO
+          </Button>
+          <Button variant="outline" onClick={fetchDashboardData}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Actualiser
+          </Button>
+        </div>
       </div>
 
       {/* Error banner */}
@@ -411,10 +444,28 @@ export default function SEODashboard() {
 
         {/* Top Keywords */}
         <Card className="p-4">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <Search className="w-5 h-5 text-blue-500" />
-            Positions mots-cles
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Search className="w-5 h-5 text-blue-500" />
+              Positions mots-cles
+            </h3>
+            {keywords.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={checkingPositions.size > 0}
+                onClick={handleCheckAllPositions}
+              >
+                {checkingPositions.size > 0 ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Crosshair className="w-3 h-3 mr-1" />
+                )}
+                Verifier tout
+              </Button>
+            )}
+          </div>
 
           {/* Keyword Filters */}
           <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b">
@@ -483,6 +534,7 @@ export default function SEODashboard() {
                     <th className="pb-2">Mot-cle</th>
                     <th className="pb-2 text-center">Position</th>
                     <th className="pb-2 text-center">Tendance</th>
+                    <th className="pb-2 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -497,18 +549,38 @@ export default function SEODashboard() {
                           )}
                         </td>
                         <td className="py-2 text-center">
-                          <span className={`font-bold ${
-                            (keyword.position_actuelle || 100) <= 10
-                              ? 'text-green-600'
-                              : (keyword.position_actuelle || 100) <= 30
-                              ? 'text-yellow-600'
-                              : 'text-gray-600'
-                          }`}>
-                            {keyword.position_actuelle || '-'}
-                          </span>
+                          {keyword.position_actuelle ? (
+                            <span className={`font-bold ${
+                              keyword.position_actuelle <= 10
+                                ? 'text-green-600'
+                                : keyword.position_actuelle <= 30
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                            }`}>
+                              #{keyword.position_actuelle}
+                            </span>
+                          ) : keyword.last_checked ? (
+                            <span className="text-xs text-gray-400">Non classe</span>
+                          ) : (
+                            <span className="text-xs text-gray-300">-</span>
+                          )}
                         </td>
                         <td className="py-2 text-center">
                           {getPositionTrend(keyword)}
+                        </td>
+                        <td className="py-2 text-center">
+                          <button
+                            onClick={() => handleCheckPosition(keyword.id)}
+                            disabled={checkingPositions.has(keyword.id)}
+                            className="p-1 text-gray-400 hover:text-blue-600 transition-colors disabled:opacity-50"
+                            aria-label="Verifier la position"
+                          >
+                            {checkingPositions.has(keyword.id) ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Crosshair className="w-4 h-4" />
+                            )}
+                          </button>
                         </td>
                       </tr>
                     ))}

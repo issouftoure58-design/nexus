@@ -15,6 +15,8 @@ const anthropic = new Anthropic();
 export async function generateArticle({
   tenant_id,
   secteur,
+  description = '',
+  businessName = '',
   mot_cle_principal,
   mots_cles_secondaires = [],
   longueur = 'moyen'
@@ -33,10 +35,14 @@ export async function generateArticle({
 
     const targetWords = longueurs[longueur] || 1000;
 
+    const contextLines = [`- Secteur d'activité: ${secteur}`];
+    if (description) contextLines.push(`- Spécialité: ${description}`);
+    if (businessName) contextLines.push(`- Nom de l'entreprise: ${businessName}`);
+
     const prompt = `Tu es un rédacteur SEO expert. Génère un article de blog optimisé pour le référencement.
 
 CONTEXTE:
-- Secteur d'activité: ${secteur}
+${contextLines.join('\n')}
 - Mot-clé principal: "${mot_cle_principal}"
 - Mots-clés secondaires: ${mots_cles_secondaires.length > 0 ? mots_cles_secondaires.join(', ') : 'aucun'}
 - Longueur cible: ${targetWords} mots
@@ -114,15 +120,35 @@ Le contenu doit être en Markdown avec headers ## et ###.`;
 }
 
 /**
- * Génère idées d'articles basées sur secteur
+ * Génère idées d'articles basées sur le métier du tenant
+ * @param {string|object} contextOrSecteur - Contexte SEO riche ou string secteur (backward compat)
+ * @param {number} nb - Nombre d'idées
  */
-export async function generateArticleIdeas(secteur, nb = 5) {
+export async function generateArticleIdeas(contextOrSecteur, nb = 5) {
+  // Backward compatibility: accepte string ou objet
+  const context = typeof contextOrSecteur === 'string'
+    ? { secteur: contextOrSecteur, description: '', category: '' }
+    : contextOrSecteur;
+
+  const { secteur, description, category, businessName } = context;
+
   try {
-    const prompt = `Tu es un expert SEO. Propose ${nb} idées d'articles de blog pour une entreprise du secteur "${secteur}".
+    const contextLines = [`- Métier: ${secteur}`];
+    if (description) contextLines.push(`- Spécialité: ${description}`);
+    if (category) contextLines.push(`- Catégorie: ${category}`);
+    if (businessName) contextLines.push(`- Nom: ${businessName}`);
+
+    const prompt = `Tu es un expert SEO français. Propose ${nb} idées d'articles de blog spécifiquement adaptées à ce type d'entreprise.
+
+ENTREPRISE:
+${contextLines.join('\n')}
+- Marché: France
+
+IMPORTANT: Les idées doivent être très spécifiques au métier "${secteur}". Pas d'idées génériques.
 
 Pour chaque idée, fournis:
-- titre: Titre accrocheur
-- mot_cle: Mot-clé principal à cibler
+- titre: Titre accrocheur et spécifique au métier
+- mot_cle: Mot-clé principal à cibler (longue traîne recommandée)
 - angle: Angle d'attaque de l'article
 - public: Public cible
 

@@ -10,6 +10,7 @@ import {
   Moon, Zap, Ghost, Skull, X, Send, Loader2
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface RFMSegment {
   key: string;
@@ -61,6 +62,7 @@ const segmentIcons: Record<string, typeof Users> = {
 };
 
 export function CRMSegments() {
+  const { t } = useProfile();
   const [expandedSegment, setExpandedSegment] = useState<string | null>(null);
   const [campaignModal, setCampaignModal] = useState<{ segment: RFMSegment; type: 'whatsapp' | 'email' } | null>(null);
   const [campaignMessage, setCampaignMessage] = useState('');
@@ -276,7 +278,7 @@ export function CRMSegments() {
             <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Aucun segment trouvé</h3>
             <p className="text-gray-600">
-              L'analyse RFM nécessite des clients avec un historique de rendez-vous.
+              L'analyse RFM nécessite des clients avec un historique de {t('reservation', true).toLowerCase()}.
             </p>
           </CardContent>
         </Card>

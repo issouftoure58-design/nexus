@@ -219,6 +219,19 @@ class ApiClient {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
 
+  /**
+   * GET paginé — normalise la réponse du helper backend paginated()
+   * Backend retourne: { success, data: T[], pagination }
+   * Cette méthode retourne: { items: T[], pagination }
+   */
+  async getPaginated<T>(endpoint: string, options?: ApiOptions): Promise<{ items: T[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+    const raw = await this.request<{ success: boolean; data: T[]; pagination: { page: number; limit: number; total: number; pages: number } }>(endpoint, { ...options, method: 'GET' });
+    return {
+      items: raw.data || [],
+      pagination: raw.pagination || { page: 1, limit: 20, total: 0, pages: 0 },
+    };
+  }
+
   // Upload FormData (file upload) - ne set pas Content-Type pour laisser le browser gérer le boundary
   async upload<T>(endpoint: string, formData: FormData, options: ApiOptions = {}): Promise<T> {
     const { skipAuth, skipTenant, ...fetchOptions } = options;

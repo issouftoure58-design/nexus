@@ -334,7 +334,7 @@ export default function Clients() {
                     <tr className="border-b bg-gray-50/50">
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Client</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Contact</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Prestations</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">{t('reservation', true)}</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Dernière</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Inscrit le</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>

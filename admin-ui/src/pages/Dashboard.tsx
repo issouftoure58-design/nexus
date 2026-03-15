@@ -16,13 +16,25 @@ import {
   Loader2,
   RefreshCw,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  ShoppingBag
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useBusinessTypeChecks, useProfile } from '@/contexts/ProfileContext';
 
 export default function Dashboard() {
+  const { t } = useProfile();
+  const { isRestaurant, isHotel, isCommerce, isSecurity } = useBusinessTypeChecks();
+
+  // Terminologie adaptée au business type
+  const reservationLabel = t('reservation', true);  // "RDV" / "Réservations" / "Commandes" / "Missions"
+  const serviceLabel = t('service', true);           // "Prestations" / "Tables" / "Produits"
+  const nextLabel = isCommerce ? 'Prochaine commande' : isSecurity ? 'Prochaine mission' : isRestaurant ? 'Prochaine réservation' : isHotel ? 'Prochain check-in' : 'Prochaine prestation';
+  const newReservationLabel = isCommerce ? 'Nouvelle commande' : isSecurity ? 'Nouvelle mission' : 'Nouvelle prestation';
+  const reservationPath = isCommerce ? '/commandes' : '/reservations';
+
   const { data: stats, isLoading, error, refetch } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],
     queryFn: statsApi.getDashboard,
@@ -102,7 +114,7 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Réservations</p>
+                  <p className="text-sm font-medium text-gray-500">{reservationLabel}</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{totalRdv}</p>
                 </div>
                 <div className="p-3 bg-blue-100 rounded-xl">
@@ -146,7 +158,7 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Prochaine prestation</p>
+                  <p className="text-sm font-medium text-gray-500">{nextLabel}</p>
                   {stats?.prochainRdv ? (
                     <p className="text-xl font-bold text-gray-900 mt-1">
                       {formatTime(stats.prochainRdv.heure)}
@@ -236,7 +248,7 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-yellow-500" />
-                Services populaires
+                {serviceLabel} populaires
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -279,7 +291,7 @@ export default function Dashboard() {
           {/* Statut des prestations */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Statut des réservations</CardTitle>
+              <CardTitle className="text-lg font-semibold">Statut des {reservationLabel.toLowerCase()}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -344,7 +356,7 @@ export default function Dashboard() {
                       color="cyan"
                     />
                     <QuotaBar
-                      label="Réservations"
+                      label={reservationLabel}
                       used={quotas.quotas.reservations.used}
                       limit={quotas.quotas.reservations.limit}
                       color="blue"
@@ -364,10 +376,10 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
-                <Link to="/reservations">
+                <Link to={reservationPath}>
                   <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-                    <Calendar className="h-5 w-5 text-blue-600" />
-                    <span className="text-xs">Nouvelle prestation</span>
+                    {isCommerce ? <ShoppingBag className="h-5 w-5 text-blue-600" /> : <Calendar className="h-5 w-5 text-blue-600" />}
+                    <span className="text-xs">{newReservationLabel}</span>
                   </Button>
                 </Link>
                 <Link to="/clients">

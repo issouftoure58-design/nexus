@@ -11,8 +11,51 @@ import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { generateArticle, generateArticleIdeas, improveArticle } from '../ai/seoArticleGenerator.js';
 import { analyzeKeywords, generateSEORecommendations, analyzeCompetition } from '../ai/keywordAnalyzer.js';
+import { checkKeywordPosition } from '../modules/seo/seoService.js';
+import { BUSINESS_TEMPLATES, PROFESSIONS } from '../data/businessTemplates.js';
 
 const router = express.Router();
+
+// Labels lisibles quand profession_id est absent
+const BUSINESS_PROFILE_LABELS = {
+  salon: 'Salon de coiffure / Institut de beauté',
+  restaurant: 'Restaurant / Restauration',
+  hotel: 'Hôtel / Hébergement',
+  commerce: 'Commerce / Boutique',
+  security: 'Sécurité / Mise à disposition',
+  service_domicile: 'Services à domicile / Artisan',
+};
+
+/**
+ * Récupère le contexte SEO du tenant (business type + profession)
+ * pour adapter les suggestions IA au métier exact
+ */
+async function getTenantSEOContext(tenantId) {
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('business_profile, template_id, name')
+    .eq('id', tenantId)
+    .single();
+
+  if (error) console.error('[SEO] Error fetching tenant:', error.message);
+  if (!tenant) return { secteur: 'services', description: '', businessType: 'salon', businessName: '' };
+
+  // Lookup template for detailed info (e.g. salon_coiffure → "Salon de coiffure")
+  const template = BUSINESS_TEMPLATES[tenant.template_id];
+  // Also check if template_id matches a profession (e.g. "coiffeur", "pizzeria")
+  const profession = PROFESSIONS.find(p => p.id === tenant.template_id);
+
+  const secteur = profession?.label || template?.name || BUSINESS_PROFILE_LABELS[tenant.business_profile] || tenant.business_profile || 'services';
+  const description = profession?.description || template?.description || '';
+
+  return {
+    secteur,
+    description,
+    category: profession?.category || '',
+    businessType: tenant.business_profile || 'salon',
+    businessName: tenant.name || '',
+  };
+}
 
 // Appliquer auth + vérification module SEO (Business) globalement
 router.use(authenticateAdmin, requireModule('seo'));
@@ -31,16 +74,13 @@ router.post('/articles/generate', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Mot-clé principal requis' });
     }
 
-    // Récupérer info tenant
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('secteur')
-      .eq('id', req.admin.tenant_id)
-      .single();
+    const seoContext = await getTenantSEOContext(req.admin.tenant_id);
 
     const result = await generateArticle({
       tenant_id: req.admin.tenant_id,
-      secteur: tenant?.secteur || 'services',
+      secteur: seoContext.secteur,
+      description: seoContext.description,
+      businessName: seoContext.businessName,
       mot_cle_principal,
       mots_cles_secondaires: mots_cles_secondaires || [],
       longueur: longueur || 'moyen'
@@ -59,13 +99,9 @@ router.post('/articles/generate', authenticateAdmin, async (req, res) => {
  */
 router.get('/articles/ideas', authenticateAdmin, async (req, res) => {
   try {
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('secteur')
-      .eq('id', req.admin.tenant_id)
-      .single();
+    const seoContext = await getTenantSEOContext(req.admin.tenant_id);
 
-    const ideas = await generateArticleIdeas(tenant?.secteur || 'services', 5);
+    const ideas = await generateArticleIdeas(seoContext, 5);
 
     res.json({ ideas });
   } catch (error) {
@@ -259,13 +295,9 @@ router.post('/keywords/analyze', authenticateAdmin, async (req, res) => {
   try {
     const { niche } = req.body;
 
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('secteur')
-      .eq('id', req.admin.tenant_id)
-      .single();
+    const seoContext = await getTenantSEOContext(req.admin.tenant_id);
 
-    const keywords = await analyzeKeywords(tenant?.secteur || 'services', niche || '');
+    const keywords = await analyzeKeywords(seoContext, niche || '');
 
     res.json({ keywords });
   } catch (error) {
@@ -286,13 +318,9 @@ router.post('/keywords/competition', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Mot-clé requis' });
     }
 
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('secteur')
-      .eq('id', req.admin.tenant_id)
-      .single();
+    const seoContext = await getTenantSEOContext(req.admin.tenant_id);
 
-    const analysis = await analyzeCompetition(mot_cle, tenant?.secteur || 'services');
+    const analysis = await analyzeCompetition(mot_cle, seoContext.secteur);
 
     res.json(analysis);
   } catch (error) {
@@ -402,6 +430,23 @@ router.delete('/keywords/:id', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[SEO] Erreur delete keyword:', error);
     res.status(500).json({ error: 'Erreur suppression mot-clé' });
+  }
+});
+
+/**
+ * POST /api/admin/seo/keywords/:id/check-position
+ * Vérifier la position Google d'un mot-clé (via SerpAPI)
+ */
+router.post('/keywords/:id/check-position', authenticateAdmin, async (req, res) => {
+  try {
+    const result = await checkKeywordPosition(req.admin.tenant_id, req.params.id);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || result.message });
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('[SEO] Erreur check position:', error);
+    res.status(500).json({ error: 'Erreur vérification position' });
   }
 });
 

@@ -14,6 +14,7 @@ import {
   Loader2, Trash2
 } from 'lucide-react';
 import { waitlistApi } from '@/lib/api';
+import { useProfile, useBusinessTypeChecks } from '@/contexts/ProfileContext';
 
 interface WaitlistEntry {
   id: number;
@@ -49,6 +50,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function WaitlistPage() {
+  const { t } = useProfile();
+  const { isCommerce, isSecurity, isHotel } = useBusinessTypeChecks();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -110,7 +113,12 @@ export default function WaitlistPage() {
             <ListChecks className="w-6 h-6 text-cyan-500" />
             Liste d'attente
           </h1>
-          <p className="text-gray-500 mt-1">Gestion des clients en attente d'un créneau</p>
+          <p className="text-gray-500 mt-1">
+            {isCommerce ? "Gestion des clients en attente d'un produit"
+              : isSecurity ? "Gestion des clients en attente d'une mission"
+              : isHotel ? "Gestion des clients en attente d'une chambre"
+              : "Gestion des clients en attente d'un créneau"}
+          </p>
         </div>
         <Button onClick={() => setShowAddModal(true)} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -181,8 +189,8 @@ export default function WaitlistPage() {
                   <tr className="border-b bg-gray-50 text-left">
                     <th className="py-3 px-4">Client</th>
                     <th className="py-3 px-4">Date souhaitée</th>
-                    <th className="py-3 px-4">Créneau</th>
-                    <th className="py-3 px-4">Service</th>
+                    <th className="py-3 px-4">{isCommerce ? 'Horaire' : 'Créneau'}</th>
+                    <th className="py-3 px-4">{t('service')}</th>
                     <th className="py-3 px-4">Priorité</th>
                     <th className="py-3 px-4">Statut</th>
                     <th className="py-3 px-4">Ajouté le</th>

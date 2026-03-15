@@ -37,7 +37,6 @@ import type {
   NewClientForm,
   Totals,
   CheckoutItem,
-  ReservationsResponse,
   MembresResponse,
   MembresDisponiblesResponse,
   ClientsResponse,
@@ -192,9 +191,9 @@ export default function Activites() {
         }
       }
 
-      const data = await api.get<ReservationsResponse>(`/admin/reservations?${params}`);
+      const { items: rawReservations, pagination } = await api.getPaginated<Reservation>(`/admin/reservations?${params}`);
 
-      const normalized = (data.reservations || []).map((r: Reservation) => {
+      const normalized = rawReservations.map((r: Reservation) => {
         let serviceName = 'Service';
         let serviceDuree = 60;
         if (typeof r.service === 'object' && r.service !== null) {
@@ -218,7 +217,7 @@ export default function Activites() {
       });
 
       setReservations(normalized);
-      setTotalPages(data.pagination?.pages || 1);
+      setTotalPages(pagination.pages || 1);
     } catch {
       setError('Impossible de charger les prestations');
     } finally {
@@ -229,20 +228,20 @@ export default function Activites() {
   const fetchStats = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const todayData = await api.get<ReservationsResponse>(`/admin/reservations?date_debut=${today}&date_fin=${today}`);
+      const todayData = await api.getPaginated<Reservation>(`/admin/reservations?date_debut=${today}&date_fin=${today}`);
 
       const startOfWeek = new Date();
       startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-      const weekData = await api.get<ReservationsResponse>(`/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`);
+      const weekData = await api.getPaginated<Reservation>(`/admin/reservations?date_debut=${startOfWeek.toISOString().split('T')[0]}&date_fin=${endOfWeek.toISOString().split('T')[0]}`);
 
-      const waitingData = await api.get<ReservationsResponse>(`/admin/reservations?statut=en_attente`);
+      const waitingData = await api.getPaginated<Reservation>(`/admin/reservations?statut=en_attente`);
 
       setStats({
-        aujourd_hui: todayData.pagination?.total || (todayData.reservations || []).length || 0,
-        semaine: weekData.pagination?.total || (weekData.reservations || []).length || 0,
-        en_attente: waitingData.pagination?.total || (waitingData.reservations || []).length || 0
+        aujourd_hui: todayData.pagination.total || todayData.items.length,
+        semaine: weekData.pagination.total || weekData.items.length,
+        en_attente: waitingData.pagination.total || waitingData.items.length
       });
     } catch {
       setError('Impossible de charger les statistiques');
@@ -251,9 +250,8 @@ export default function Activites() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await api.get<any>('/admin/services');
-      const services = data.services || (Array.isArray(data.data) ? data.data : []);
-      setServices(services);
+      const { items } = await api.getPaginated<Service>('/admin/services');
+      setServices(items);
     } catch {
       setError('Impossible de charger les services');
     }

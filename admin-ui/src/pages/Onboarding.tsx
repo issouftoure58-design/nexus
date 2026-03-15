@@ -211,6 +211,7 @@ function ServiceCard({
       <button
         onClick={onRemove}
         className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+        aria-label="Supprimer le service"
       >
         <Trash2 className="w-4 h-4" />
       </button>

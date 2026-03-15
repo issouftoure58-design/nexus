@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface Membre {
   id: number;
@@ -33,6 +34,7 @@ const ROLES = [
 ];
 
 export default function Equipe() {
+  const { t } = useProfile();
   const [membres, setMembres] = useState<Membre[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -100,7 +102,7 @@ export default function Equipe() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Equipe</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gerez les membres de votre equipe pour les assigner aux prestations
+            Gerez les membres de votre equipe pour les assigner aux {t('reservation', true).toLowerCase()}
           </p>
         </div>
         <Button onClick={openNew} className="gap-2">

@@ -10,6 +10,7 @@ import {
   Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle, X
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useBusinessTypeChecks } from '@/contexts/ProfileContext';
 
 interface Workflow {
   id: number;
@@ -41,15 +42,19 @@ interface WorkflowStats {
   success_rate: number;
 }
 
-const TRIGGER_LABELS: Record<string, string> = {
-  new_client: 'Nouveau client',
-  rdv_completed: 'Prestation terminée',
-  rdv_cancelled: 'Prestation annulée',
-  facture_payee: 'Facture payee',
-  facture_en_retard: 'Facture en retard',
-  client_inactive: 'Client inactif',
-  anniversaire: 'Anniversaire',
-};
+function getTriggerLabels(isCommerce: boolean, isSecurity: boolean, isHotel: boolean, isRestaurant: boolean): Record<string, string> {
+  const completedLabel = isCommerce ? 'Commande complétée' : isSecurity ? 'Mission terminée' : isHotel ? 'Check-out effectué' : isRestaurant ? 'Service terminé' : 'Prestation terminée';
+  const cancelledLabel = isCommerce ? 'Commande annulée' : isSecurity ? 'Mission annulée' : 'Prestation annulée';
+  return {
+    new_client: 'Nouveau client',
+    rdv_completed: completedLabel,
+    rdv_cancelled: cancelledLabel,
+    facture_payee: 'Facture payee',
+    facture_en_retard: 'Facture en retard',
+    client_inactive: 'Client inactif',
+    anniversaire: 'Anniversaire',
+  };
+}
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
   send_email: <Mail className="h-4 w-4" />,
@@ -78,6 +83,8 @@ interface WorkflowDetail {
 export default function WorkflowsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { isCommerce, isSecurity, isHotel, isRestaurant } = useBusinessTypeChecks();
+  const TRIGGER_LABELS = getTriggerLabels(isCommerce, isSecurity, isHotel, isRestaurant);
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);

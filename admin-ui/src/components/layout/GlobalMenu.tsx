@@ -48,6 +48,7 @@ const menuItems = [
   { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'business' },
   { icon: FileText, label: 'Devis', path: '/devis', plan: 'pro' },
   { icon: Search, label: 'SEO', path: '/seo', plan: 'business' },
+  { icon: FileText, label: 'Articles SEO', path: '/seo/articles', plan: 'business' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'business' },
   { type: 'separator', label: 'Système' },
   { icon: Bot, label: 'Agent IA Web', path: '/ia-admin' },

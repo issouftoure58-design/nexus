@@ -11,15 +11,29 @@ const anthropic = new Anthropic();
 
 /**
  * Analyse mots-clés pour un secteur
+ * @param {string|object} contextOrSecteur - Contexte SEO riche ou string secteur (backward compat)
+ * @param {string} niche - Niche spécifique optionnelle
  */
-export async function analyzeKeywords(secteur, niche = '') {
+export async function analyzeKeywords(contextOrSecteur, niche = '') {
+  // Backward compatibility: accepte string ou objet
+  const context = typeof contextOrSecteur === 'string'
+    ? { secteur: contextOrSecteur, description: '' }
+    : contextOrSecteur;
+
+  const { secteur, description } = context;
+
   try {
+    const contextLines = [`- Métier: ${secteur}`];
+    if (description) contextLines.push(`- Spécialité: ${description}`);
+    if (niche) contextLines.push(`- Niche: ${niche}`);
+
     const prompt = `Tu es un expert SEO français. Analyse les mots-clés pertinents pour une entreprise.
 
 CONTEXTE:
-- Secteur: ${secteur}
-- Niche spécifique: ${niche || 'généraliste'}
+${contextLines.join('\n')}
 - Marché: France
+
+IMPORTANT: Les mots-clés doivent être spécifiques au métier "${secteur}". Inclus des termes locaux (ville, près de moi) et des longues traînes.
 
 Fournis 10 mots-clés pertinents avec:
 - mot_cle: le terme exact à cibler

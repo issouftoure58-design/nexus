@@ -24,6 +24,37 @@ import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
 import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
+import { BUSINESS_TEMPLATES, PROFESSIONS } from '../data/businessTemplates.js';
+
+// Map business_profile → PROMPTS_SECTEUR key
+const PROFILE_TO_SECTEUR = {
+  salon: 'salon',
+  restaurant: 'restaurant',
+  hotel: 'hotel',
+  commerce: 'ecommerce',
+  security: 'services',
+  service_domicile: 'services',
+};
+
+/**
+ * Récupère le contexte social media du tenant
+ */
+async function getSocialContext(tenantId) {
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('business_profile, template_id, name')
+    .eq('id', tenantId)
+    .single();
+
+  if (!tenant) return { secteur: 'autre', label: 'services', nomEntreprise: '' };
+
+  const template = BUSINESS_TEMPLATES[tenant.template_id];
+  const profession = PROFESSIONS.find(p => p.id === tenant.template_id);
+  const secteurKey = PROFILE_TO_SECTEUR[tenant.business_profile] || 'autre';
+  const label = profession?.label || template?.name || tenant.business_profile || 'services';
+
+  return { secteur: secteurKey, label, nomEntreprise: tenant.name || '' };
+}
 
 const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -131,6 +162,13 @@ const PROMPTS_SECTEUR = {
     twitter: "Tu es expert services B2B. Crée un tweet impactant sur : {sujet}. Max 280 caractères.",
     tiktok: "Tu es créateur TikTok business. Crée une description sur : {sujet}. Max 150 caractères.",
   },
+  hotel: {
+    linkedin: "Tu es expert marketing hôtelier. Crée un post LinkedIn sur : {sujet}. Ton : luxe accessible. Longueur : 150-200 mots. Focus expérience client et services.",
+    facebook: "Tu es community manager d'un hôtel. Crée un post Facebook accueillant sur : {sujet}. Ton : chaleureux et invitant. Longueur : 100-150 mots. Inclus call-to-action réservation.",
+    instagram: "Tu es influenceur voyage/lifestyle. Crée une caption Instagram sur : {sujet}. Ton : inspirant et visuel. Longueur : 80-120 mots. Inclus hashtags travel.",
+    twitter: "Tu es community manager hôtelier. Crée un tweet accueillant sur : {sujet}. Max 280 caractères.",
+    tiktok: "Tu es créateur TikTok travel. Crée une description vidéo sur : {sujet}. Max 150 caractères.",
+  },
   ecommerce: {
     linkedin: "Tu es expert e-commerce. Crée un post LinkedIn sur : {sujet}. Ton : expert digital. Longueur : 150-200 mots. Focus innovation et tendances.",
     facebook: "Tu es community manager e-commerce. Crée un post Facebook engageant sur : {sujet}. Ton : dynamique et commercial. Longueur : 100-150 mots. Inclus promo/offre.",
@@ -173,25 +211,20 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
       });
     }
 
-    // Récupérer secteur du tenant
-    const { data: tenantData } = await supabase
-      .from('tenants')
-      .select('secteur, nom')
-      .eq('id', tenantId)
-      .single();
-
-    const secteur = tenantData?.secteur || 'autre';
-    const nomEntreprise = tenantData?.nom || '';
+    // Récupérer contexte métier du tenant
+    const { secteur, label, nomEntreprise } = await getSocialContext(tenantId);
 
     // Sélectionner prompt selon secteur et plateforme
     const promptTemplate = PROMPTS_SECTEUR[secteur]?.[plateforme] || PROMPTS_SECTEUR.autre[plateforme];
     let prompt = promptTemplate.replace('{sujet}', sujet);
 
+    // Enrichir avec le métier exact et le nom
+    prompt += `\n\nMétier exact : ${label}`;
     if (nomEntreprise) {
-      prompt += `\n\nNom de l'entreprise : ${nomEntreprise}`;
+      prompt += `\nNom de l'entreprise : ${nomEntreprise}`;
     }
 
-    console.log(`[SOCIAL] Génération post: tenant=${tenantId}, secteur=${secteur}, plateforme=${plateforme}`);
+    console.log(`[SOCIAL] Génération post: tenant=${tenantId}, secteur=${secteur} (${label}), plateforme=${plateforme}`);
 
     // Appel Claude API
     const message = await anthropic.messages.create({
@@ -234,20 +267,14 @@ router.post('/generate-ideas', async (req, res) => {
     const { theme, count = 5 } = req.body;
     const tenantId = req.admin.tenant_id;
 
-    // Récupérer contexte tenant
-    const { data: tenantData } = await supabase
-      .from('tenants')
-      .select('secteur, nom')
-      .eq('id', tenantId)
-      .single();
-
-    const secteur = tenantData?.secteur || 'autre';
+    // Récupérer contexte métier du tenant
+    const { label, nomEntreprise } = await getSocialContext(tenantId);
 
     const prompt = `Tu es expert en social media marketing.
 
 CONTEXTE:
-- Type d'entreprise: ${secteur}
-- Nom: ${tenantData?.nom || 'Non spécifié'}
+- Type d'entreprise: ${label}
+- Nom: ${nomEntreprise || 'Non spécifié'}
 ${theme ? `- Thème demandé: ${theme}` : ''}
 
 Génère ${count} idées de posts pour les réseaux sociaux.
