@@ -1,6 +1,6 @@
 /**
- * Scheduler de jobs - Fat's Hair-Afro
- * Tâches planifiées automatiques
+ * Scheduler de jobs - NEXUS Multi-tenant
+ * Taches planifiees automatiques
  */
 
 import { sendRemerciement, sendRappelJ1, sendDemandeAvis } from '../services/notificationService.js';
@@ -16,9 +16,11 @@ import { sendTrialAlert } from '../services/tenantEmailService.js';
 import { runTrialNurtureJob } from './trialNurtureJob.js';
 import { sentinelCollector } from '../services/sentinelCollector.js';
 import { sentinelInsights } from '../services/sentinelInsights.js';
+import { runRgpdDeletionJob } from './rgpdDeletionJob.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
+import { registerInterval } from '../utils/intervalRegistry.js';
 
 // Supabase client for scheduler queries
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -54,6 +56,7 @@ const JOBS_SCHEDULE = {
   sentinelSnapshot: { hour: 0, minute: 30 },  // 00h30 - SENTINEL snapshot quotidien (Business)
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
   operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
+  rgpdDeletion: { hour: 3, minute: 0 }, // 03h00 - Suppressions RGPD planifiees
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -66,8 +69,11 @@ const OPTIONAL_JOBS = {
 // Note: Sera surchargé par tenant dans les jobs multi-tenant
 const BASE_URL = process.env.BASE_URL || null;
 
-// Secret pour générer les tokens (à définir dans .env)
-const AVIS_TOKEN_SECRET = process.env.AVIS_TOKEN_SECRET || 'default-secret-change-in-production';
+// Secret pour générer les tokens (DOIT être défini dans .env)
+const AVIS_TOKEN_SECRET = process.env.AVIS_TOKEN_SECRET;
+if (!AVIS_TOKEN_SECRET && OPTIONAL_JOBS.demandesAvis) {
+  throw new Error('ERREUR CRITIQUE: AVIS_TOKEN_SECRET non défini dans .env — requis quand ENABLE_AVIS_JOB=true');
+}
 
 // Tracking des jobs exécutés aujourd'hui
 const executedToday = new Map();
@@ -1347,6 +1353,16 @@ async function runScheduler() {
     }
   }
 
+  // Job: Suppressions RGPD planifiees (tous les jours a 3h)
+  if (shouldRunJob('rgpdDeletion', JOBS_SCHEDULE.rgpdDeletion)) {
+    markJobExecuted('rgpdDeletion');
+    try {
+      await runRgpdDeletionJob();
+    } catch (err) {
+      console.error('[Scheduler] Erreur RGPD deletion:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1398,6 +1414,7 @@ export function startScheduler() {
   // Exécuter immédiatement puis toutes les minutes
   runScheduler();
   schedulerInterval = setInterval(runScheduler, CHECK_INTERVAL_MS);
+  registerInterval('scheduler:main', schedulerInterval);
 }
 
 /**

@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  Star, Trophy, Settings, Users, TrendingUp, TrendingDown,
-  Award, Gift, Loader2, Save, ArrowUpDown, Search
+  Star, Trophy, Settings, Users, TrendingUp,
+  Award, Gift, Loader2, Save, ArrowUpDown
 } from 'lucide-react';
 import { loyaltyApi } from '@/lib/api';
 
@@ -57,7 +57,7 @@ export default function Fidelite() {
     queryFn: () => loyaltyApi.getLeaderboard(),
   });
 
-  const { data: clientDetail } = useQuery({
+  const { data: _clientDetail } = useQuery({
     queryKey: ['loyalty-client', selectedClient],
     queryFn: () => loyaltyApi.getClientDetail(selectedClient!),
     enabled: !!selectedClient,

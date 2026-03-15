@@ -1,4 +1,5 @@
 import { socialMediaConfig, isPlatformConfigured, getAvailablePlatforms, getPlatformStatus } from '../config/socialMedia.js';
+import { getBusinessInfoSync } from './tenantBusinessService.js';
 
 // === FACEBOOK ===
 async function postToFacebook(content, imageUrl = null) {
@@ -452,29 +453,110 @@ export async function cancelScheduledPost(tenantId, postId) {
   }
 }
 
+// === HASHTAGS PAR TYPE DE BUSINESS ===
+const BUSINESS_HASHTAGS = {
+  salon: {
+    base: ['#coiffure', '#beaute', '#salon', '#soincheveux', '#hairstyle'],
+    promo: ['#promo', '#offrespeciale', '#beaute'],
+    conseil: ['#conseilbeaute', '#haircare', '#astuce'],
+    avant_apres: ['#avantapres', '#transformation', '#beforeandafter'],
+    inspiration: ['#inspiration', '#ideecoiffure', '#tendance'],
+    coulisses: ['#behindthescenes', '#coulisses', '#passionmetier'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  service_domicile: {
+    base: ['#serviceadomicile', '#confort', '#qualite', '#surplace'],
+    promo: ['#promo', '#offrespeciale', '#adomicile'],
+    conseil: ['#conseil', '#astuce', '#expertise'],
+    avant_apres: ['#avantapres', '#transformation', '#resultat'],
+    inspiration: ['#inspiration', '#idee', '#tendance'],
+    coulisses: ['#behindthescenes', '#coulisses', '#monquotidien'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  restaurant: {
+    base: ['#restaurant', '#gastronomie', '#foodie', '#bonneadresse'],
+    promo: ['#promo', '#offrespeciale', '#bonplan'],
+    conseil: ['#conseilculinaire', '#recette', '#astuce'],
+    avant_apres: ['#avantapres', '#transformation', '#deco'],
+    inspiration: ['#inspiration', '#food', '#cuisine'],
+    coulisses: ['#behindthescenes', '#encuisine', '#coulisses'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  hotel: {
+    base: ['#hotel', '#hebergement', '#voyage', '#sejour'],
+    promo: ['#promo', '#offrespeciale', '#bonplan'],
+    conseil: ['#conseilhbergement', '#voyage', '#astuce'],
+    avant_apres: ['#avantapres', '#renovation', '#transformation'],
+    inspiration: ['#inspiration', '#destination', '#weekend'],
+    coulisses: ['#behindthescenes', '#coulisses', '#hotellerie'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  commerce: {
+    base: ['#commerce', '#shopping', '#bonplan', '#nouveaute'],
+    promo: ['#promo', '#offrespeciale', '#soldes'],
+    conseil: ['#conseil', '#astuce', '#recommandation'],
+    avant_apres: ['#avantapres', '#transformation', '#resultat'],
+    inspiration: ['#inspiration', '#tendance', '#decouverte'],
+    coulisses: ['#behindthescenes', '#coulisses', '#moncommerce'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  security: {
+    base: ['#securite', '#protection', '#gardiennage', '#surveillance'],
+    promo: ['#promo', '#offrespeciale', '#securiteprivee'],
+    conseil: ['#conseil', '#securite', '#prevention'],
+    avant_apres: ['#avantapres', '#transformation', '#resultat'],
+    inspiration: ['#inspiration', '#securiteprivee', '#innovation'],
+    coulisses: ['#behindthescenes', '#coulisses', '#metier'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  }
+};
+
+/**
+ * Retourne les hashtags pour un business type et un type de contenu.
+ */
+function getHashtags(businessType, contentType) {
+  const tags = BUSINESS_HASHTAGS[businessType] || BUSINESS_HASHTAGS.salon;
+  const baseTags = tags.base || [];
+  const typeTags = tags[contentType] || tags.promo || [];
+  return [...typeTags, ...baseTags].slice(0, 8).join(' ');
+}
+
 // === GÉNÉRATION DE CONTENU OPTIMISÉ ===
-export function generateSocialContent(sujet, type, platforms = ['instagram', 'facebook', 'twitter']) {
+export function generateSocialContent(sujet, type, platforms = ['instagram', 'facebook', 'twitter'], tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis pour generateSocialContent');
+
+  const info = getBusinessInfoSync(tenantId);
+  const nom = info.nom || tenantId;
+  const gerant = info.gerant || 'Nexus';
+  const telephone = info.telephone || '';
+  const adresse = info.adresse || '';
+  const businessType = info.businessType || 'salon';
+
+  // Build contact lines dynamically (only show if data exists)
+  const phoneLine = telephone ? `📞 ${telephone}` : '';
+  const addressLine = adresse ? `📍 ${adresse}` : '';
+
   const templates = {
     instagram: {
       promo: `✨ ${sujet} ✨
 
-🎁 Offre spéciale chez Fat's Hair-Afro !
+🎁 Offre spéciale chez ${nom} !
 
-📍 Service à domicile - Franconville & Île-de-France
-📞 Réserve au 09 39 24 02 69
+${addressLine}
+${phoneLine}
 🌐 Lien en bio
 
-#coiffureafro #tresses #nattes #locks #franconville #coiffeuseadomicile #cheveuxafro #beauteafro #promo`,
+${getHashtags(businessType, 'promo')}`.trim(),
 
-      conseil: `💡 CONSEIL CAPILLAIRE 💡
+      conseil: `💡 CONSEIL PRO 💡
 
 ${sujet}
 
-Prendre soin de ses cheveux, c'est essentiel ! 💜
+Un conseil de ${gerant} pour vous ! 💜
 
-Tu as des questions ? Demande-moi en commentaire !
+Tu as des questions ? Demande en commentaire !
 
-#conseilcheveux #cheveuxafro #cheveuxcrepus #haircare #naturalhairtips #coiffureafro`,
+${getHashtags(businessType, 'conseil')}`.trim(),
 
       avant_apres: `✨ TRANSFORMATION ✨
 
@@ -482,40 +564,40 @@ Avant ➡️ Après
 
 ${sujet}
 
-Tu veux la même ?
-📞 09 39 24 02 69
-📍 À domicile - Franconville & IDF
+Tu veux le même résultat ?
+${phoneLine}
+${addressLine}
 
-#avantapres #transformation #coiffureafro #tresses #beforeandafter`,
+${getHashtags(businessType, 'avant_apres')}`.trim(),
 
       inspiration: `✨ INSPIRATION DU JOUR ✨
 
 ${sujet}
 
-Quelle coiffure te fait rêver ? Dis-moi en commentaire ! 💜
+Qu'est-ce qui vous inspire ? Dites-le en commentaire ! 💜
 
-📞 09 39 24 02 69
+${phoneLine}
 
-#inspiration #coiffureafro #ideecoiffure #tresses #locks #nattes`,
+${getHashtags(businessType, 'inspiration')}`.trim(),
 
       coulisses: `🎬 BEHIND THE SCENES 🎬
 
 ${sujet}
 
-Petit aperçu de mon quotidien de coiffeuse passionnée 💜
+Un aperçu du quotidien chez ${nom} 💜
 
-#behindthescenes #coulisses #coiffeuse #passioncoiffure #coiffureafro`,
+${getHashtags(businessType, 'coulisses')}`.trim(),
 
       temoignage: `⭐ AVIS CLIENT ⭐
 
 "${sujet}"
 
-Merci pour ta confiance ! 💜
+Merci pour votre confiance ! 💜
 
-Toi aussi, fais-toi chouchouter à domicile !
-📞 09 39 24 02 69
+Vous aussi, faites-nous confiance !
+${phoneLine}
 
-#avis #temoignage #clientesatisfaite #coiffureafro`
+${getHashtags(businessType, 'temoignage')}`.trim()
     },
 
     facebook: {
@@ -523,156 +605,156 @@ Toi aussi, fais-toi chouchouter à domicile !
 
 ${sujet}
 
-Fat's Hair-Afro - Votre coiffeuse afro à domicile depuis 25 ans
+${nom} — à votre service !
 
-📍 Franconville et toute l'Île-de-France
-📞 09 39 24 02 69
+${addressLine}
+${phoneLine}
 💻 Réservation en ligne disponible
 
-N'hésitez pas à partager avec vos amies ! 💜`,
+N'hésitez pas à partager ! 💜`.trim(),
 
-      conseil: `💡 Le conseil de Fatou 💡
+      conseil: `💡 Le conseil de ${gerant} 💡
 
 ${sujet}
 
-25 ans d'expérience au service de vos cheveux !
+Notre expertise à votre service !
 
-Des questions ? Posez-les en commentaire, je réponds à toutes ! 😊`,
+Des questions ? Posez-les en commentaire, on répond à toutes ! 😊`.trim(),
 
       avant_apres: `✨ AVANT / APRÈS ✨
 
 ${sujet}
 
-Vous aussi, offrez-vous une transformation !
+Vous aussi, profitez de notre savoir-faire !
 
-📞 09 39 24 02 69
-📍 Service à domicile - Franconville et IDF`,
+${phoneLine}
+${addressLine}`.trim(),
 
       temoignage: `⭐⭐⭐⭐⭐
 
 "${sujet}"
 
-Merci à mes clientes pour leur confiance ! 💜
+Merci à nos clients pour leur confiance ! 💜
 
-Vous aussi, faites-vous chouchouter à domicile !
-📞 09 39 24 02 69`,
+Vous aussi, faites-nous confiance !
+${phoneLine}`.trim(),
 
       inspiration: `💜 INSPIRATION 💜
 
 ${sujet}
 
-Envie de changement ? Je me déplace chez vous !
+Envie de découvrir ${nom} ?
 
-📞 09 39 24 02 69
-📍 Franconville et Île-de-France`,
+${phoneLine}
+${addressLine}`.trim(),
 
       coulisses: `🎬 Dans les coulisses...
 
 ${sujet}
 
-La passion du métier, c'est ça qui fait la différence ! 💜`
+La passion du métier, c'est ça qui fait la différence ! 💜`.trim()
     },
 
     twitter: {
       promo: `✨ ${sujet}
 
-📍 Coiffeuse afro à domicile - Franconville & IDF
-📞 09 39 24 02 69
+${addressLine}
+${phoneLine}
 
-#coiffureafro #tresses #franconville`,
+${getHashtags(businessType, 'promo')}`.trim(),
 
-      conseil: `💡 Conseil cheveux afro :
+      conseil: `💡 Conseil pro :
 
 ${sujet}
 
-#cheveuxafro #haircare #naturalhairtips`,
+${getHashtags(businessType, 'conseil')}`.trim(),
 
       avant_apres: `✨ Avant ➡️ Après
 
 ${sujet}
 
-📞 09 39 24 02 69
+${phoneLine}
 
-#transformation #coiffureafro`,
+${getHashtags(businessType, 'avant_apres')}`.trim(),
 
       inspiration: `✨ ${sujet}
 
-Envie de changement ? Je me déplace chez vous ! 💜
+Découvrez ${nom} ! 💜
 
-#coiffureafro #inspiration`,
+${getHashtags(businessType, 'inspiration')}`.trim(),
 
       temoignage: `⭐ "${sujet}"
 
 Merci pour la confiance !
 
-#avis #coiffureafro`,
+${getHashtags(businessType, 'temoignage')}`.trim(),
 
       coulisses: `🎬 ${sujet}
 
-#behindthescenes #coiffureafro`
+${getHashtags(businessType, 'coulisses')}`.trim()
     },
 
     linkedin: {
-      promo: `🚀 Offre spéciale - Fat's Hair-Afro
+      promo: `🚀 Offre spéciale — ${nom}
 
 ${sujet}
 
-Depuis 25 ans, j'accompagne mes clientes dans leur parcours capillaire. Le service à domicile, c'est mon engagement pour vous offrir confort et qualité.
+Notre engagement : vous offrir un service de qualité. Découvrez notre offre !
 
-Fat's Hair-Afro - Franconville & Île-de-France
-📞 09 39 24 02 69
+${nom} — ${adresse || 'Contactez-nous'}
+${phoneLine}
 
-#entrepreneuriat #beaute #coiffure #serviceclient`,
+#entrepreneuriat #business #serviceclient ${getHashtags(businessType, 'promo')}`.trim(),
 
-      conseil: `💡 Conseil d'experte
-
-${sujet}
-
-25 ans d'expérience en coiffure afro m'ont appris une chose : chaque chevelure est unique et mérite une attention particulière.
-
-#cheveux #beaute #expertise #conseil`,
-
-      avant_apres: `✨ Transformation capillaire
+      conseil: `💡 Conseil d'expert
 
 ${sujet}
 
-Le pouvoir d'une belle coiffure sur la confiance en soi est immense.
+L'expertise de ${gerant} au service de la qualité.
 
-Fat's Hair-Afro - Service à domicile
-#transformation #confiance #beaute`,
+#expertise #conseil ${getHashtags(businessType, 'conseil')}`.trim(),
 
-      coulisses: `📸 Un jour dans ma vie de coiffeuse à domicile
+      avant_apres: `✨ Transformation
+
+${sujet}
+
+La qualité fait la différence.
+
+${nom}
+#transformation #qualite ${getHashtags(businessType, 'avant_apres')}`.trim(),
+
+      coulisses: `📸 Un jour dans la vie de ${nom}
 
 ${sujet}
 
 La passion du métier, c'est ce qui fait la différence.
 
-#entrepreneuriat #passionmetier #coiffure #artisanat`,
+#entrepreneuriat #passionmetier ${getHashtags(businessType, 'coulisses')}`.trim(),
 
       temoignage: `⭐ Témoignage client
 
 "${sujet}"
 
-Ces retours me motivent chaque jour à donner le meilleur de moi-même.
+Ces retours nous motivent chaque jour à donner le meilleur.
 
-#satisfaction #client #qualite`,
+#satisfaction #qualite ${getHashtags(businessType, 'temoignage')}`.trim(),
 
       inspiration: `💜 Inspiration
 
 ${sujet}
 
-L'art de la coiffure afro, c'est valoriser la beauté naturelle.
+Découvrez l'univers de ${nom}.
 
-#inspiration #beaute #diversite`
+#inspiration ${getHashtags(businessType, 'inspiration')}`.trim()
     },
 
     tiktok: {
-      promo: `${sujet} ✨ #coiffureafro #tresses #fyp #pourtoi`,
-      conseil: `Conseil cheveux afro 💡 ${sujet} #haircare #cheveuxafro #fyp`,
-      avant_apres: `Transformation incroyable ✨ ${sujet} #avantapres #transformation #fyp`,
-      coulisses: `POV: Tu es coiffeuse afro 🎬 ${sujet} #behindthescenes #fyp`,
-      inspiration: `Inspo coiffure 💜 ${sujet} #inspiration #coiffure #fyp`,
-      temoignage: `Ma cliente est trop contente 🥹 ${sujet} #avis #fyp`
+      promo: `${sujet} ✨ ${getHashtags(businessType, 'promo')} #fyp #pourtoi`,
+      conseil: `Conseil pro 💡 ${sujet} ${getHashtags(businessType, 'conseil')} #fyp`,
+      avant_apres: `Transformation incroyable ✨ ${sujet} ${getHashtags(businessType, 'avant_apres')} #fyp`,
+      coulisses: `POV: Coulisses de ${nom} 🎬 ${sujet} ${getHashtags(businessType, 'coulisses')} #fyp`,
+      inspiration: `Inspo du jour 💜 ${sujet} ${getHashtags(businessType, 'inspiration')} #fyp`,
+      temoignage: `Client satisfait 🥹 ${sujet} ${getHashtags(businessType, 'temoignage')} #fyp`
     }
   };
 
@@ -681,9 +763,11 @@ L'art de la coiffure afro, c'est valoriser la beauté naturelle.
   for (const platform of platforms) {
     const platformLower = platform.toLowerCase();
     const platformTemplates = templates[platformLower] || templates.instagram;
+    // Clean up any double newlines from empty contact fields
+    const content = (platformTemplates[type] || platformTemplates.promo).replace(/\n{3,}/g, '\n\n').trim();
     results[platform] = {
-      contenu: platformTemplates[type] || platformTemplates.promo,
-      caracteres: (platformTemplates[type] || platformTemplates.promo).length,
+      contenu: content,
+      caracteres: content.length,
       limite: platformLower === 'twitter' ? 280 : platformLower === 'tiktok' ? 150 : 2200
     };
   }

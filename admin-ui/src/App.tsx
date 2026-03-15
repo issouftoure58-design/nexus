@@ -64,6 +64,7 @@ const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Commandes = lazy(() => import('./pages/Commandes'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
 const Guide = lazy(() => import('./pages/Guide'));
+const SSOCallback = lazy(() => import('./pages/SSOCallback'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
 
@@ -81,12 +82,7 @@ function PageLoader() {
 
 // Helper pour récupérer le token du tenant actuel
 function getCurrentToken(): string | null {
-  const currentTenant = localStorage.getItem('nexus_current_tenant');
-  if (currentTenant) {
-    return localStorage.getItem(`nexus_admin_token_${currentTenant}`);
-  }
-  // Fallback ancien système
-  return localStorage.getItem('nexus_admin_token');
+  return api.getToken();
 }
 
 // Auth guard component
@@ -167,6 +163,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/cgv" element={<CGV />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/sso/callback" element={<SSOCallback />} />
             <Route path="/suivi/:token" element={<OrderTracking />} />
             <Route path="/onboarding" element={<Navigate to="/configuration" replace />} />
             <Route path="/configuration" element={<PrivateRoute skipOnboarding><Configuration /></PrivateRoute>} />
@@ -213,8 +210,8 @@ function App() {
             {/* Modules Marketing */}
             <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
             <Route path="/workflows" element={<ModuleRoute module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
-            <Route path="/pipeline" element={<ModuleRoute module="marketing" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
-            <Route path="/devis" element={<ModuleRoute module="marketing" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
+            <Route path="/pipeline" element={<ModuleRoute module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
+            <Route path="/devis" element={<ModuleRoute module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
             <Route path="/campagnes" element={<ModuleRoute module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
             <Route path="/email-templates" element={<ModuleRoute module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
@@ -251,24 +248,6 @@ function App() {
         </ProfileProvider>
       </TenantProvider>
     </ErrorBoundary>
-  );
-}
-
-// Coming soon placeholder
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
-          <span className="text-white font-bold text-3xl">N</span>
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">{title}</h1>
-        <p className="text-gray-500">Cette fonctionnalité arrive bientôt</p>
-        <a href="/" className="inline-block mt-4 text-cyan-600 hover:text-cyan-700 font-medium">
-          ← Retour au tableau de bord
-        </a>
-      </div>
-    </div>
   );
 }
 

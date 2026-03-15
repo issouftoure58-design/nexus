@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, AlertCircle, RefreshCw } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface ForecastData {
   forecasts: { month: string; predicted_ca: string; confidence: number }[];
@@ -26,11 +27,7 @@ export default function QuickAnalyticsWidget() {
     setLoading(true);
     setError(false);
     try {
-      const response = await fetch('/api/admin/analytics/forecast?months=1', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      });
-      if (!response.ok) throw new Error('Erreur fetch');
-      const data = await response.json();
+      const data = await api.get<ForecastData>('/admin/analytics/forecast?months=1');
       setForecast(data);
     } catch (err) {
       console.error('Erreur forecast widget:', err);

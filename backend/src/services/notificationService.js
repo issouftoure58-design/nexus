@@ -29,20 +29,41 @@ function resolveTenant(tenantId) {
   if (!tc) {
     throw new Error(`TENANT_NOT_FOUND: ${tenantId}`);
   }
+
+  const rawGerante = tc.gerante;
+  const signataire = (rawGerante && rawGerante !== 'undefined') ? rawGerante : 'L\'équipe';
+
   return {
     salonName: tc.name,
-    gerante: tc.gerante,
+    signataire,
     adresse: tc.adresse,
     telephone: tc.telephone,
     domain: tc.domain,
     businessProfile: tc.business_profile || null,
+    concept: tc.concept || null,
   };
+}
+
+/**
+ * Labels adaptes au business type du tenant
+ */
+function getBusinessLabels(businessProfile) {
+  const bp = businessProfile || 'generic';
+  const labels = {
+    salon: { rdv: 'rendez-vous', lieu: 'chez', accueil: 'Nous avons hate de vous accueillir !' },
+    service_domicile: { rdv: 'rendez-vous', lieu: 'chez vous', accueil: 'Nous avons hate de vous retrouver !' },
+    restaurant: { rdv: 'reservation', lieu: 'au restaurant', accueil: 'Nous avons hate de vous accueillir !' },
+    hotel: { rdv: 'reservation', lieu: 'dans notre etablissement', accueil: 'Nous avons hate de vous accueillir !' },
+    commerce: { rdv: 'commande', lieu: 'chez', accueil: 'Votre commande sera prete a temps !' },
+    security: { rdv: 'mission', lieu: 'sur site', accueil: 'Notre equipe sera prete.' },
+  };
+  return labels[bp] || { rdv: 'rendez-vous', lieu: 'chez', accueil: 'A bientot !' };
 }
 
 // ============= CONFIGURATION EMAIL AVEC RESEND =============
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Fat\'s Hair-Afro <onboarding@resend.dev>';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'NEXUS <noreply@nexus-ai-saas.com>';
 const EMAIL_CONFIGURED = !!RESEND_API_KEY;
 
 let resend = null;
@@ -132,7 +153,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
           <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">🔗 Créer votre compte client</a><br>
           <a href="https://${t.domain}/avis" style="color: #8B5CF6; text-decoration: none;">⭐ Laissez un avis après votre RDV</a>
         </p>
-        <p>À bientôt !<br>${t.gerante} - ${t.salonName}</p>
+        <p>À bientôt !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -170,7 +191,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
       const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
       const lieuText = rdv.adresse_client || t.adresse;
 
-      const smsMessage = `${t.salonName}\nVotre RDV est confirmé !\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.gerante} - ${t.telephone}`;
+      const smsMessage = `${t.salonName}\nVotre RDV est confirmé !\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
       console.log(`[Notification] SMS confirmation (fallback):`, results.sms.success ? 'OK' : results.sms.error);
@@ -222,11 +243,10 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
         </ul>
         <p><strong>Conseils :</strong></p>
         <ul>
-          <li>Cheveux propres et démêlés si possible</li>
-          <li>Prévoir environ ${Math.floor(rdv.duree_minutes / 60)}h${rdv.duree_minutes % 60 || ''}</li>
+          <li>Prevoir environ ${Math.floor(rdv.duree_minutes / 60)}h${rdv.duree_minutes % 60 || ''}</li>
         </ul>
         <p>Si vous devez annuler, prévenez-nous rapidement.</p>
-        <p>À demain !<br>${t.gerante} - ${t.salonName}</p>
+        <p>À demain !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -263,7 +283,7 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
     try {
       const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
 
-      const smsMessage = `${t.salonName}\nRappel: RDV demain!\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.gerante} - ${t.telephone}`;
+      const smsMessage = `${t.salonName}\nRappel: RDV demain!\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
       console.log(`[Notification] SMS rappel J-1 (fallback):`, results.sms.success ? 'OK' : results.sms.error);
@@ -319,7 +339,7 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
         <p>Votre rendez-vous du ${rdv.date} à ${rdv.heure} a été annulé.</p>
         ${remboursementHtml}
         <p>N'hésitez pas à reprendre rendez-vous quand vous le souhaitez !</p>
-        <p>À bientôt,<br>${t.gerante} - ${t.salonName}</p>
+        <p>À bientôt,<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -394,7 +414,7 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
           <li><strong>Adresse :</strong> ${nouveauRdv.adresse_client || nouveauRdv.adresse_formatee}</li>
           <li><strong>Total :</strong> ${total}€</li>
         </ul>
-        <p>À bientôt !<br>${t.gerante} - ${t.salonName}</p>
+        <p>À bientôt !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -447,43 +467,54 @@ export async function sendRemerciement(rdv, tenantId = null) {
   if (clientEmail) {
     try {
       // Adapter le message selon le business type
-      const bp = t.businessProfile || 'beauty';
+      const bp = t.businessProfile || 'generic';
       const thankMsg = {
-        restaurant: `J'espère que vous avez passé un excellent moment.`,
-        commerce: `J'espère que votre commande vous a donné satisfaction.`,
-        hotel: `J'espère que votre séjour s'est bien passé.`,
-        security: `Nous espérons que notre prestation a été à la hauteur de vos attentes.`,
+        salon: `Nous esperons que vous etes satisfait(e) de votre prestation.`,
+        service_domicile: `Nous esperons que vous etes satisfait(e) de votre prestation.`,
+        restaurant: `Nous esperons que vous avez passe un excellent moment.`,
+        commerce: `Nous esperons que votre commande vous a donne satisfaction.`,
+        hotel: `Nous esperons que votre sejour s'est bien passe.`,
+        security: `Nous esperons que notre prestation a ete a la hauteur de vos attentes.`,
       };
       const actions = {
-        restaurant: [
-          'Réserver à nouveau',
+        salon: [
+          'Reprendre rendez-vous',
           'Laisser un avis en ligne',
-          'Recommander à vos proches',
+          'Recommander a vos proches',
+        ],
+        service_domicile: [
+          'Reprendre rendez-vous',
+          'Laisser un avis en ligne',
+          'Recommander a vos proches',
+        ],
+        restaurant: [
+          'Reserver a nouveau',
+          'Laisser un avis en ligne',
+          'Recommander a vos proches',
         ],
         commerce: [
           'Passer une nouvelle commande',
           'Laisser un avis en ligne',
-          'Recommander à vos proches',
+          'Recommander a vos proches',
         ],
         hotel: [
-          'Réserver à nouveau',
-          'Partager votre expérience en ligne',
-          'Recommander à vos proches',
+          'Reserver a nouveau',
+          'Partager votre experience en ligne',
+          'Recommander a vos proches',
         ],
         security: [
           'Nous recontacter pour une future mission',
           'Laisser un avis en ligne',
-          'Recommander à vos partenaires',
+          'Recommander a vos partenaires',
         ],
       };
       const defaultActions = [
         'Reprendre rendez-vous',
         'Laisser un avis en ligne',
-        'Recommander à vos proches',
+        'Recommander a vos proches',
       ];
-      const msgBody = thankMsg[bp] || `J'espère que vous êtes satisfait(e) de votre visite.`;
+      const msgBody = thankMsg[bp] || `Nous esperons que vous etes satisfait(e) de votre visite.`;
       const actionList = actions[bp] || defaultActions;
-      const signataire = t.gerante || 'L\'équipe';
 
       const emailHtml = `
         <h2>Merci pour votre visite ! 💜</h2>
@@ -494,7 +525,7 @@ export async function sendRemerciement(rdv, tenantId = null) {
         <ul>
           ${actionList.map(a => `<li>${a}</li>`).join('\n          ')}
         </ul>
-        <p>À très bientôt !<br>${signataire} - ${t.salonName}</p>
+        <p>A tres bientot !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -552,13 +583,13 @@ export async function sendDemandeAvis(rdv, lienAvis = null, tenantId = null) {
         <h2>Votre avis compte ! 🌟</h2>
         <p>Bonjour ${clientNom},</p>
         <p>Comment s'est passé votre rendez-vous chez ${t.salonName} ?</p>
-        <p>Votre avis nous aide à nous améliorer et aide d'autres clientes à nous découvrir.</p>
+        <p>Votre avis nous aide à nous améliorer et aide d'autres clients a nous decouvrir.</p>
         <p style="text-align: center; margin: 30px 0;">
           <a href="${finalLienAvis}" style="background: #8B5CF6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">
             Donner mon avis
           </a>
         </p>
-        <p>Merci beaucoup !<br>${t.gerante} - ${t.salonName}</p>
+        <p>Merci beaucoup !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -624,7 +655,7 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: linear-gradient(135deg, #8B5CF6, #7C3AED); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
             <h1 style="margin: 0; font-size: 24px;">${t.salonName}</h1>
-            <p style="margin: 5px 0 0 0; opacity: 0.9;">Coiffure Afro à Domicile</p>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">${t.concept || ''}</p>
           </div>
           <div style="padding: 30px; background: #ffffff;">
             <h2 style="color: #1a1a1a;">Rendez-vous ${statutLabel}</h2>
@@ -640,7 +671,7 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
             ${action === 'annuler' ? "<p>N'hésitez pas à reprendre rendez-vous quand vous le souhaitez !</p>" : ''}
             ${action === 'confirmer' ? '<p>Nous avons hâte de vous accueillir !</p>' : ''}
             ${action === 'deplacer' ? `<p>Nouvelle date : <strong>${rdv.date} à ${rdv.heure}</strong></p>` : ''}
-            <p>À bientôt !<br>${t.gerante} - ${t.salonName}</p>
+            <p>À bientôt !<br>${t.signataire} - ${t.salonName}</p>
           </div>
           <div style="padding: 15px; background: #f3f0ff; text-align: center; font-size: 12px; color: #666; border-radius: 0 0 12px 12px;">
             <p style="margin: 0;">${t.salonName} - ${t.adresse}</p>
@@ -665,7 +696,7 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
   // 2. WhatsApp
   if (clientPhone) {
     try {
-      const message = `Bonjour ${clientNom},\n\nVotre rendez-vous du ${rdv.date} à ${rdv.heure} a été ${statutLabel}.\n\nÀ bientôt !\n${t.gerante} - ${t.salonName}`;
+      const message = `Bonjour ${clientNom},\n\nVotre rendez-vous du ${rdv.date} à ${rdv.heure} a été ${statutLabel}.\n\nÀ bientôt !\n${t.signataire} - ${t.salonName}`;
       results.whatsapp = await sendWhatsAppNotification(clientPhone, message, tenantId);
 
       console.log(`[Notification] WhatsApp changement statut (${action}) envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);

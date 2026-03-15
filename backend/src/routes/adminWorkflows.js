@@ -6,37 +6,12 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/checkPlan.js';
 
 const router = express.Router();
 
-// Middleware: Vérifier que le tenant a le plan PRO ou BUSINESS
-async function requireProPlan(req, res, next) {
-  try {
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('plan, tier')
-      .eq('id', req.admin.tenant_id)
-      .single();
-
-    const plan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
-
-    if (plan === 'starter') {
-      return res.status(403).json({
-        error: 'Fonctionnalité réservée aux plans Pro et Business',
-        required_plan: 'pro',
-        current_plan: plan
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error('[WORKFLOWS] Erreur vérification plan:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-}
-
-// Appliquer middleware Pro sur toutes les routes
-router.use(authenticateAdmin, requireProPlan);
+// Appliquer middleware auth + module marketing (Business) sur toutes les routes
+router.use(authenticateAdmin, requireModule('marketing'));
 
 // Types de triggers disponibles
 const TRIGGER_TYPES = [

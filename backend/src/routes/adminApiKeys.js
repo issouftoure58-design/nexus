@@ -7,10 +7,14 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/checkPlan.js';
 import { generateApiKey, hashApiKey, API_SCOPES } from '../middleware/apiAuth.js';
 import logger from '../config/logger.js';
 
 const router = express.Router();
+
+// API keys = module Business uniquement
+router.use(authenticateAdmin, requireModule('api'));
 
 // ════════════════════════════════════════════════════════════════════
 // API KEYS
@@ -20,7 +24,7 @@ const router = express.Router();
  * GET /api/admin/api-keys
  * Liste les cles API du tenant
  */
-router.get('/api-keys', authenticateAdmin, async (req, res) => {
+router.get('/api-keys', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
@@ -44,7 +48,7 @@ router.get('/api-keys', authenticateAdmin, async (req, res) => {
  * Creer une nouvelle cle API
  * Body: { name, scopes?: string[], rate_limit_per_hour?: number, expires_at?: string }
  */
-router.post('/api-keys', authenticateAdmin, async (req, res) => {
+router.post('/api-keys', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { name, scopes = ['admin'], rate_limit_per_hour = 1000, expires_at } = req.body;
@@ -101,7 +105,7 @@ router.post('/api-keys', authenticateAdmin, async (req, res) => {
  * DELETE /api/admin/api-keys/:id
  * Revoquer une cle API
  */
-router.delete('/api-keys/:id', authenticateAdmin, async (req, res) => {
+router.delete('/api-keys/:id', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -137,7 +141,7 @@ router.delete('/api-keys/:id', authenticateAdmin, async (req, res) => {
  * GET /api/admin/webhooks
  * Liste les webhooks du tenant
  */
-router.get('/webhooks', authenticateAdmin, async (req, res) => {
+router.get('/webhooks', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
@@ -161,7 +165,7 @@ router.get('/webhooks', authenticateAdmin, async (req, res) => {
  * Creer un webhook
  * Body: { name, url, events: string[] }
  */
-router.post('/webhooks', authenticateAdmin, async (req, res) => {
+router.post('/webhooks', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { name, url, events } = req.body;
@@ -212,7 +216,7 @@ router.post('/webhooks', authenticateAdmin, async (req, res) => {
  * DELETE /api/admin/webhooks/:id
  * Supprimer un webhook
  */
-router.delete('/webhooks/:id', authenticateAdmin, async (req, res) => {
+router.delete('/webhooks/:id', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;

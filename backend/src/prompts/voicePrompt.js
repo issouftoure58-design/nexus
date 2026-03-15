@@ -10,6 +10,7 @@
  */
 
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+import logger from '../config/logger.js';
 
 // ============================================
 // PROMPT SYSTÈME VOCAL CONCIS
@@ -18,14 +19,18 @@ import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
 /**
  * V2 - Génère le prompt système vocal dynamique pour un tenant
  */
-export function getVoiceSystemPrompt(tenantId = 'fatshairafro') {
+export function getVoiceSystemPrompt(tenantId) {
+  if (!tenantId) {
+    logger.warn('getVoiceSystemPrompt appelé sans tenantId', { tag: 'VOICE_PROMPT' });
+    return 'Tu es un assistant vocal. Aide le client avec sa demande.';
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
-    const assistantName = info.assistant_name || 'Nexus';
+    const assistantName = info.assistant_name || info.assistant?.name || 'Nexus';
     const businessName = info.nom || 'Notre établissement';
     const ownerName = info.gerant || 'le responsable';
     const address = info.adresse || '';
-    const isFeminine = assistantName === 'Halimah';
+    const isFeminine = info.assistant_gender === 'f' || assistantName === 'Halimah';
 
     return `Tu es ${assistantName}, l'assistant${isFeminine ? 'e' : ''} vocal${isFeminine ? 'e' : ''} de ${businessName}.
 
@@ -112,7 +117,7 @@ EMPATHIE (30 chars max) :
 
 CONTEXTE MÉTIER :
 - ${businessName} = ${ownerName}
-${info.business_type === 'service_domicile' ? '- Peut aller à domicile ou recevoir' : '- Reçoit sur place'}
+${info.businessType === 'service_domicile' ? '- Peut aller a domicile ou recevoir' : '- Recoit sur place'}
 ${address ? `- Adresse : ${address}` : ''}
 - Fermé dimanche`;
   } catch (e) {
@@ -121,14 +126,14 @@ ${address ? `- Adresse : ${address}` : ''}
 }
 
 /**
- * Legacy prompt - fallback pour Fat's Hair Afro
+ * Legacy prompt - generic fallback (no tenant-specific info)
  */
-const VOICE_SYSTEM_PROMPT_LEGACY = `Tu es Halimah, l'assistante vocale de Fat's Hair-Afro.
+const VOICE_SYSTEM_PROMPT_LEGACY = `Tu es un assistant vocal professionnel.
 
-RÈGLE D'OR : Sois CONCISE. Chaque mot compte, chaque caractère coûte de l'argent.
+RÈGLE D'OR : Sois CONCIS. Chaque mot compte, chaque caractère coûte de l'argent.
 
 PERSONNALITÉ :
-- Chaleureuse mais efficace
+- Chaleureux mais efficace
 - Tu VOUVOIES toujours
 - Expressions naturelles : "Super !", "Parfait !", "D'accord !"
 - Pas de bavardage, va droit au but
@@ -144,16 +149,6 @@ Au lieu de :
 "Je vous confirme que votre rendez-vous est bien enregistré pour samedi à 14 heures."
 Dis :
 "C'est noté ! Samedi 14h, parfait."
-
-Au lieu de :
-"Bonjour et bienvenue chez Fat's Hair-Afro, je suis Halimah, comment puis-je vous aider aujourd'hui ?"
-Dis :
-"Fat's Hair-Afro bonjour ! Moi c'est Halimah..."
-
-Au lieu de :
-"Le prix pour une reprise de locks est de cinquante euros, et la durée est d'environ deux heures."
-Dis :
-"Reprise locks, 50 euros. Comptez 2 heures."
 
 MOTS À BANNIR (trop longs) :
 - "Je vous confirme que" → "C'est noté !"
@@ -187,30 +182,7 @@ FORMAT PRIX :
 
 FORMAT HORAIRES :
 - "Samedi 14h" (pas "samedi à quatorze heures")
-- "Demain matin" (pas "demain dans la matinée")
-
-EXEMPLES OPTIMISÉS :
-
-ACCUEIL (67 chars max) :
-"Fat's Hair-Afro bonjour ! Moi c'est Halimah... Qu'est-ce qui vous ferait plaisir ?"
-
-SERVICE + PRIX (40 chars max) :
-"Reprise locks, 50 euros. Ça vous va ?"
-
-DISPO (35 chars max) :
-"Samedi 14h ? C'est libre !"
-
-CONFIRMATION (45 chars max) :
-"Parfait ! Samedi 14h chez vous. À samedi !"
-
-EMPATHIE (30 chars max) :
-"Ah mince... Attendez, je regarde..."
-
-CONTEXTE MÉTIER :
-- Fat's Hair-Afro = Fatou, coiffeuse afro
-- Peut aller à domicile ou recevoir chez elle
-- Adresse : 8 rue des Monts Rouges, Franconville
-- Fermé dimanche`;
+- "Demain matin" (pas "demain dans la matinée")`;
 
 // ============================================
 // INSTRUCTIONS ADDITIONNELLES PAR CONTEXTE
@@ -240,7 +212,7 @@ DATES : Format court
  */
 export const ADDRESS_VOICE_INSTRUCTIONS = `
 ADRESSES : Format court
-- "8 rue des Monts Rouges, Franconville"
+- Dire l'adresse une seule fois, format court
 - Pas besoin de répéter l'adresse complète
 `;
 
@@ -278,11 +250,12 @@ export function getVoicePrompt(context = {}) {
 /**
  * V2 - Génère les salutations dynamiques pour un tenant
  */
-export function getTenantGreetings(tenantId = 'fatshairafro') {
+export function getTenantGreetings(tenantId) {
+  if (!tenantId) return GREETINGS;
   try {
     const info = getBusinessInfoSync(tenantId);
-    const name = info.nom || "Fat's Hair-Afro";
-    const assistant = info.assistant_name || 'Halimah';
+    const name = info.nom || tenantId;
+    const assistant = info.assistant_name || info.assistant?.name || 'Nexus';
     return {
       morning: `${name} bonjour ! Moi c'est ${assistant}...`,
       afternoon: `${name} bonjour ! C'est ${assistant}...`,
@@ -294,12 +267,12 @@ export function getTenantGreetings(tenantId = 'fatshairafro') {
 }
 
 /**
- * Salutations selon l'heure (courtes) - Legacy
+ * Salutations selon l'heure (courtes) - Generic fallback
  */
 export const GREETINGS = {
-  morning: "Fat's Hair-Afro bonjour ! Moi c'est Halimah...",
-  afternoon: "Fat's Hair-Afro bonjour ! C'est Halimah...",
-  evening: "Fat's Hair-Afro bonsoir ! Halimah..."
+  morning: "Bonjour ! Comment puis-je vous aider ?",
+  afternoon: "Bonjour ! Comment puis-je vous aider ?",
+  evening: "Bonsoir ! Comment puis-je vous aider ?"
 };
 
 /**
@@ -307,7 +280,7 @@ export const GREETINGS = {
  * @param {string} tenantId - ID du tenant
  * @returns {string}
  */
-export function getGreeting(tenantId = 'fatshairafro') {
+export function getGreeting(tenantId) {
   const greetings = getTenantGreetings(tenantId);
   const hour = new Date().getHours();
   if (hour < 12) return greetings.morning;
@@ -318,7 +291,8 @@ export function getGreeting(tenantId = 'fatshairafro') {
 /**
  * V2 - Génère les confirmations dynamiques pour un tenant
  */
-export function getTenantConfirmations(tenantId = 'fatshairafro') {
+export function getTenantConfirmations(tenantId) {
+  if (!tenantId) return CONFIRMATIONS;
   try {
     const info = getBusinessInfoSync(tenantId);
     const gerant = info.gerant || 'Nous';
@@ -334,10 +308,10 @@ export function getTenantConfirmations(tenantId = 'fatshairafro') {
 }
 
 /**
- * Confirmations (très courtes) - Legacy
+ * Confirmations (très courtes) - Generic fallback
  */
 export const CONFIRMATIONS = {
-  booking: "C'est noté ! Fatou vous attend.",
+  booking: "C'est noté ! On vous attend.",
   understood: "D'accord !",
   noted: "Noté !",
   perfect: "Parfait !"

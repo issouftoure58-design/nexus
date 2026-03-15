@@ -12,7 +12,7 @@
  * - alloy: neutre, polyvalent
  * - echo: masculin, chaleureux
  * - fable: narratif, expressif
- * - nova: féminin, chaleureux (recommandé pour Halimah)
+ * - nova: feminin, chaleureux (recommande pour voix feminine)
  * - onyx: masculin, grave
  * - shimmer: féminin, clair
  *
@@ -70,9 +70,9 @@ const PREGENERATED_PHRASES = {
   'bonjour': "Bonjour ! Comment allez-vous ?",
   'bonsoir': "Bonsoir ! Comment allez-vous ?",
 
-  // Présentations
-  'je_suis_halimah': "Moi c'est Halimah, enchantée !",
-  'bienvenue': "Bienvenue chez Fat's Hair-Afro !",
+  // Presentations
+  'je_suis_assistant': "Enchante !",
+  'bienvenue': "Bienvenue !",
 
   // Confirmations
   'ok': "D'accord !",

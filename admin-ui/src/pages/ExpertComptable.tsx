@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { api, comptaApi, type Invoice, type Expense, type EcritureComptable, type Journal, type BalanceGeneraleResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
+import { api, comptaApi, type Invoice, type Expense, type EcritureComptable, type BalanceGeneraleResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
 import {
   Euro,
   FileText,

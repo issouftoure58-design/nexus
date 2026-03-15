@@ -626,6 +626,74 @@ export const BUSINESS_TEMPLATES = {
   },
 
   // ============================================
+  // SÉCURITÉ / MISE À DISPOSITION
+  // ============================================
+  security: {
+    id: 'security',
+    name: 'Sécurité / Mise à disposition',
+    icon: 'shield',
+    emoji: '🛡️',
+    description: 'Sécurité privée, gardiennage, intérim, nettoyage industriel',
+
+    defaultServices: [
+      { name: 'Agent de sécurité (journée)', duration: 480, price: 250, category: 'gardiennage' },
+      { name: 'Agent de sécurité (nuit)', duration: 600, price: 320, category: 'gardiennage' },
+      { name: 'Ronde de surveillance', duration: 120, price: 80, category: 'ronde' },
+      { name: 'Sécurité événementielle (agent/jour)', duration: 600, price: 280, category: 'evenement' },
+      { name: 'Protection rapprochée (VIP)', duration: 480, price: 500, category: 'protection' },
+      { name: 'Audit de sécurité / Diagnostic', duration: 120, price: 0, category: 'devis' },
+    ],
+
+    defaultHours: {
+      monday: { open: '08:00', close: '18:00' },
+      tuesday: { open: '08:00', close: '18:00' },
+      wednesday: { open: '08:00', close: '18:00' },
+      thursday: { open: '08:00', close: '18:00' },
+      friday: { open: '08:00', close: '18:00' },
+      saturday: { open: '09:00', close: '13:00' },
+      sunday: null,
+    },
+
+    sectorConfig: {
+      multiSite: true,
+      staffAllocation: true,
+      devisRequired: true,
+      planningMultiDay: true,
+      cnapsRequired: true,
+    },
+
+    iaConfig: {
+      channel_telephone: {
+        greeting: "{business_name}, bonjour ! Comment puis-je vous aider ?",
+        personality: "Vous êtes l'assistant de {business_name}, société de sécurité privée. Soyez professionnel et rassurant. Qualifiez le besoin du client : type de prestation (gardiennage, événementiel, protection, ronde), lieu(x), durée, nombre d'agents requis. Proposez un devis ou un rendez-vous avec un commercial. Pour les demandes urgentes (sécurisation immédiate d'un site), proposez une intervention rapide.",
+        tone: 'professional_reassuring',
+        canBook: true,
+        canQuote: true,
+        canTransfer: true,
+        transferKeywords: ['urgence', 'devis complexe', 'contrat', 'parler au responsable'],
+      },
+      channel_whatsapp: {
+        greeting: "Bonjour ! {business_name} à votre service. Quel est votre besoin en sécurité ?",
+        personality: "Assistant WhatsApp de la société de sécurité. Qualifiez rapidement le besoin (gardiennage, événement, protection). Collectez les informations clés (site, dates, nombre d'agents). Proposez devis ou RDV commercial.",
+        tone: 'professional_reassuring',
+        canBook: true,
+        canQuote: true,
+        quickReplies: ['Demander un devis', 'Gardiennage', 'Événementiel', 'Nous contacter'],
+      },
+      channel_web: {
+        greeting: "Bienvenue chez {business_name} ! Décrivez votre besoin en sécurité.",
+        personality: "Assistant web de la société de sécurité. Qualifiez les demandes et orientez vers un devis ou un rendez-vous commercial.",
+        tone: 'professional_reassuring',
+        canBook: true,
+        canQuote: true,
+      },
+    },
+
+    recommendedModules: ['telephone', 'whatsapp', 'marketing'],
+    suggestedPlan: 'business',
+  },
+
+  // ============================================
   // AUTRE / GÉNÉRIQUE
   // ============================================
   autre: {
@@ -690,8 +758,7 @@ export const NEXUS_PLANS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    price: 79,
-    originalPrice: 99,
+    price: 99,
     description: 'Pour démarrer avec l\'IA',
     includes: [
       'Dashboard & Réservations',
@@ -705,8 +772,7 @@ export const NEXUS_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 199,
-    originalPrice: 249,
+    price: 249,
     description: 'Pour les professionnels actifs',
     popular: true,
     includes: [
@@ -722,8 +788,7 @@ export const NEXUS_PLANS = {
   business: {
     id: 'business',
     name: 'Business',
-    price: 399,
-    originalPrice: 499,
+    price: 499,
     description: 'Pour les entreprises exigeantes',
     includes: [
       'Tout Pro +',

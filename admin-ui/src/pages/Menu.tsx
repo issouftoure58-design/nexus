@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus, Edit, Trash2, X, Loader2, Search, UtensilsCrossed,
-  Sun, Moon, Star, AlertCircle, Filter, RotateCcw,
-  ChefHat, Leaf, Fish, Wheat, Euro
+  Sun, Moon, Star, Filter, RotateCcw,
+  ChefHat, Leaf, Fish, Wheat
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '../lib/api';
@@ -62,9 +62,6 @@ const REGIMES = [
   { value: 'casher', label: 'Casher', icon: null, color: 'bg-blue-100 text-blue-700' },
   { value: 'sans_gluten', label: 'Sans gluten', icon: Wheat, color: 'bg-amber-100 text-amber-700' },
 ];
-
-// Catégories par défaut
-const CATEGORIES_DEFAUT = ['Entrées', 'Plats', 'Desserts', 'Boissons'];
 
 export default function MenuPage() {
   const queryClient = useQueryClient();
@@ -387,6 +384,7 @@ export default function MenuPage() {
                                 'flex-1',
                                 plat.plat_du_jour && 'bg-amber-500 hover:bg-amber-600'
                               )}
+                              aria-label={plat.plat_du_jour ? 'Retirer du menu du jour' : 'Ajouter au menu du jour'}
                               onClick={() => togglePlatDuJourMutation.mutate({ id: plat.id, value: !plat.plat_du_jour })}
                             >
                               <Star className={cn('h-4 w-4', plat.plat_du_jour && 'fill-white')} />
@@ -394,6 +392,7 @@ export default function MenuPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              aria-label="Modifier"
                               onClick={() => { setEditingPlat(plat); setShowPlatModal(true); }}
                             >
                               <Edit className="h-4 w-4" />
@@ -402,6 +401,7 @@ export default function MenuPage() {
                               size="sm"
                               variant="outline"
                               className="text-red-600 hover:bg-red-50"
+                              aria-label="Supprimer"
                               onClick={() => {
                                 if (confirm(`Supprimer "${plat.nom}" ?`)) {
                                   deletePlatMutation.mutate(plat.id);
@@ -524,6 +524,7 @@ function CategoriesTab({ categories, onEdit, onAdd }: {
                   size="sm"
                   variant="outline"
                   className="text-red-600 hover:bg-red-50"
+                  aria-label="Supprimer"
                   onClick={() => {
                     if (confirm(`Supprimer "${cat.nom}" ?`)) deleteMutation.mutate(cat.id);
                   }}
@@ -549,7 +550,7 @@ function CategoriesTab({ categories, onEdit, onAdd }: {
   );
 }
 
-function MenuDuJourTab({ plats, categories }: { plats: Plat[]; categories: Categorie[] }) {
+function MenuDuJourTab({ plats, categories: _categories }: { plats: Plat[]; categories: Categorie[] }) {
   const platsDuJour = plats.filter(p => p.plat_du_jour && p.actif);
 
   // Grouper par catégorie
@@ -687,7 +688,7 @@ function PlatModal({ plat, categories, onClose }: {
       <Card className="w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{isEditing ? 'Modifier le plat' : 'Nouveau plat'}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -890,7 +891,7 @@ function CategorieModal({ categorie, onClose }: {
       <Card className="w-full max-w-md">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{isEditing ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>

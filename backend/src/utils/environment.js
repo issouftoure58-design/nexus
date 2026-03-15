@@ -23,7 +23,7 @@ export const getConfig = () => {
     isDevelopment: isDevelopment(),
     databaseUrl: process.env.DATABASE_URL,
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-    defaultTenantId: process.env.DEFAULT_TENANT_ID || 'nexus-test'
+    defaultTenantId: process.env.DEFAULT_TENANT_ID || null
   };
 };
 

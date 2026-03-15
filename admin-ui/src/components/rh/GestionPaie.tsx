@@ -3,11 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Clock,
-  Calendar,
-  Euro,
   FileText,
   Calculator,
   CheckCircle,
@@ -23,8 +20,7 @@ import {
   FileEdit
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+import { api } from '@/lib/api';
 
 // Types
 interface Pointage {
@@ -87,51 +83,23 @@ interface Membre {
 }
 
 // API Functions
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-};
-
-const fetchPointageResume = async (periode: string) => {
-  const res = await fetch(`${API_BASE}/admin/rh/pointage/resume?periode=${periode}`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement résumé');
-  return res.json();
-};
+const fetchPointageResume = async (periode: string) =>
+  api.get<any>(`/admin/rh/pointage/resume?periode=${periode}`);
 
 const fetchPointages = async (params: { membre_id?: number; date_debut?: string; date_fin?: string }) => {
   const query = new URLSearchParams();
   if (params.membre_id) query.set('membre_id', String(params.membre_id));
   if (params.date_debut) query.set('date_debut', params.date_debut);
   if (params.date_fin) query.set('date_fin', params.date_fin);
-
-  const res = await fetch(`${API_BASE}/admin/rh/pointage?${query}`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement pointages');
-  return res.json();
+  return api.get<any>(`/admin/rh/pointage?${query}`);
 };
 
 const fetchBulletins = async (periode?: string) => {
   const query = periode ? `?periode=${periode}` : '';
-  const res = await fetch(`${API_BASE}/admin/rh/bulletins${query}`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement bulletins');
-  return res.json();
+  return api.get<any>(`/admin/rh/bulletins${query}`);
 };
 
-const fetchMembres = async () => {
-  const res = await fetch(`${API_BASE}/admin/rh/membres`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement membres');
-  return res.json();
-};
+const fetchMembres = async () => api.get<any>('/admin/rh/membres');
 
 export function GestionPaie() {
   const queryClient = useQueryClient();
@@ -198,14 +166,7 @@ export function GestionPaie() {
       const [year, month] = periode.split('-');
       const dateDebut = `${year}-${month}-01`;
       const dateFin = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
-
-      const res = await fetch(`${API_BASE}/admin/rh/pointage/generer-depuis-planning`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ date_debut: dateDebut, date_fin: dateFin })
-      });
-      if (!res.ok) throw new Error('Erreur génération');
-      return res.json();
+      return api.post<any>('/admin/rh/pointage/generer-depuis-planning', { date_debut: dateDebut, date_fin: dateFin });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pointage-resume'] });
@@ -213,7 +174,7 @@ export function GestionPaie() {
       setMessage({ type: 'success', text: `${data.count || 0} pointages générés depuis le planning` });
       setTimeout(() => setMessage(null), 5000);
     },
-    onError: (err) => {
+    onError: (_err) => {
       setMessage({ type: 'error', text: 'Erreur lors de la génération des pointages' });
       setTimeout(() => setMessage(null), 5000);
     }
@@ -221,13 +182,7 @@ export function GestionPaie() {
 
   const calculerHeureSuppMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API_BASE}/admin/rh/heures-supp/calculer`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ periode })
-      });
-      if (!res.ok) throw new Error('Erreur calcul');
-      return res.json();
+      return api.post('/admin/rh/heures-supp/calculer', { periode });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['heures-supp'] });
@@ -236,13 +191,7 @@ export function GestionPaie() {
 
   const genererBulletinMutation = useMutation({
     mutationFn: async (membreId: number) => {
-      const res = await fetch(`${API_BASE}/admin/rh/bulletins/generer`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ membre_id: membreId, periode })
-      });
-      if (!res.ok) throw new Error('Erreur génération');
-      return res.json();
+      return api.post('/admin/rh/bulletins/generer', { membre_id: membreId, periode });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bulletins'] });
@@ -261,13 +210,11 @@ export function GestionPaie() {
       const membresActifs = membres.filter((m: Membre) => m.statut === 'actif');
       const results = [];
       for (const m of membresActifs) {
-        const res = await fetch(`${API_BASE}/admin/rh/bulletins/generer`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ membre_id: m.id, periode })
-        });
-        if (res.ok) {
-          results.push(await res.json());
+        try {
+          const data = await api.post<any>('/admin/rh/bulletins/generer', { membre_id: m.id, periode });
+          results.push(data);
+        } catch {
+          // Continue with other bulletins on failure
         }
       }
       return results;
@@ -285,13 +232,7 @@ export function GestionPaie() {
 
   const validerPointageMutation = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch(`${API_BASE}/admin/rh/pointage/valider-lot`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ ids })
-      });
-      if (!res.ok) throw new Error('Erreur validation');
-      return res.json();
+      return api.post('/admin/rh/pointage/valider-lot', { ids });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pointages'] });
@@ -302,13 +243,7 @@ export function GestionPaie() {
   // Changer le statut d'un bulletin
   const changerStatutBulletinMutation = useMutation({
     mutationFn: async ({ id, statut }: { id: number; statut: string }) => {
-      const res = await fetch(`${API_BASE}/admin/rh/bulletins/${id}/statut`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ statut })
-      });
-      if (!res.ok) throw new Error('Erreur changement statut');
-      return res.json();
+      return api.put(`/admin/rh/bulletins/${id}/statut`, { statut });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bulletins'] });
@@ -331,7 +266,7 @@ export function GestionPaie() {
     return m > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${h}h`;
   };
 
-  const membres = Array.isArray(membresData) ? membresData : (membresData?.membres || []);
+  const membres: Membre[] = Array.isArray(membresData) ? membresData : (membresData?.data || membresData?.membres || []);
   const resume: ResumePointage[] = resumeData?.resume || [];
   const pointages: Pointage[] = pointagesData?.pointages || (Array.isArray((pointagesData as any)?.data) ? (pointagesData as any).data : []);
   const bulletins: Bulletin[] = bulletinsData?.bulletins || (Array.isArray((bulletinsData as any)?.data) ? (bulletinsData as any).data : []);
@@ -836,8 +771,8 @@ export function GestionPaie() {
                               variant="ghost"
                               onClick={() => {
                                 // Télécharger le PDF
-                                const token = localStorage.getItem('nexus_admin_token');
-                                const url = `${API_BASE}/admin/rh/bulletins/${b.id}/pdf`;
+                                const token = api.getToken();
+                                const url = `/api/admin/rh/bulletins/${b.id}/pdf`;
                                 fetch(url, {
                                   headers: { 'Authorization': `Bearer ${token}` }
                                 })

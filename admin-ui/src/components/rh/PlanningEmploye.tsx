@@ -16,15 +16,13 @@ import {
   AlertTriangle,
   CheckCircle,
   RefreshCw,
-  Filter,
   Users,
   Briefcase,
   Printer,
   Download,
   Mail
 } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+import { api } from '@/lib/api';
 
 interface Membre {
   id: number;
@@ -108,14 +106,6 @@ interface PlanningData {
   };
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
-
 // Obtenir les jours de la semaine à partir d'une date
 function getWeekDays(date: Date): Date[] {
   const day = date.getDay();
@@ -165,15 +155,11 @@ export default function PlanningEmploye() {
   useEffect(() => {
     const fetchMembres = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/rh/membres`, {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setMembres(data.filter((m: Membre) => m.statut === 'actif'));
-          if (data.length > 0 && !selectedMembre) {
-            setSelectedMembre(data[0].id);
-          }
+        const raw = await api.get<any>('/admin/rh/membres');
+        const data: Membre[] = Array.isArray(raw) ? raw : (raw?.data || []);
+        setMembres(data.filter((m: Membre) => m.statut === 'actif'));
+        if (data.length > 0 && !selectedMembre) {
+          setSelectedMembre(data[0].id);
         }
       } catch (error) {
         console.error('Erreur chargement membres:', error);
@@ -196,9 +182,8 @@ export default function PlanningEmploye() {
     const fetchPlanning = async () => {
       setLoading(true);
       try {
-        const res = await fetch(
-          `${API_BASE}/admin/rh/membres/${selectedMembre}/planning?date_debut=${dateDebut}&date_fin=${dateFin}`,
-          { headers: getAuthHeaders() }
+        const data = await api.get<PlanningData>(
+          `/admin/rh/membres/${selectedMembre}/planning?date_debut=${dateDebut}&date_fin=${dateFin}`
         );
 
         // Ignorer si une nouvelle requête a été lancée entre-temps
@@ -207,11 +192,8 @@ export default function PlanningEmploye() {
           return;
         }
 
-        if (res.ok) {
-          const data = await res.json();
-          console.log(`[Planning] Setting data from #${currentRequestId}: ${dateDebut} -> ${dateFin}`);
-          setPlanning(data);
-        }
+        console.log(`[Planning] Setting data from #${currentRequestId}: ${dateDebut} -> ${dateFin}`);
+        setPlanning(data);
       } catch (error) {
         console.error('Erreur chargement planning:', error);
       } finally {
@@ -229,15 +211,11 @@ export default function PlanningEmploye() {
     const fetchResumeHebdo = async () => {
       try {
         const dateDebut = formatDate(weekDays[0]);
-        const res = await fetch(
-          `${API_BASE}/admin/rh/planning/resume-hebdo?semaine=${dateDebut}`,
-          { headers: getAuthHeaders() }
+        const data = await api.get<any>(
+          `/admin/rh/planning/resume-hebdo?semaine=${dateDebut}`
         );
-        if (res.ok) {
-          const data = await res.json();
-          // S'assurer que c'est un tableau
-          setResumeHebdo(Array.isArray(data) ? data : []);
-        }
+        // S'assurer que c'est un tableau
+        setResumeHebdo(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Erreur chargement résumé hebdo:', error);
         setResumeHebdo([]);
@@ -293,8 +271,8 @@ export default function PlanningEmploye() {
       const semaineParam = `${year}-W${weekNumber.toString().padStart(2, '0')}`;
 
       const res = await fetch(
-        `${API_BASE}/admin/rh/planning/${selectedMembre}/pdf?semaine=${semaineParam}`,
-        { headers: getAuthHeaders() }
+        `/api/admin/rh/planning/${selectedMembre}/pdf?semaine=${semaineParam}`,
+        { headers: { 'Authorization': `Bearer ${api.getToken()}` } }
       );
 
       if (res.ok) {
@@ -324,22 +302,14 @@ export default function PlanningEmploye() {
       const year = weekDays[0].getFullYear();
       const semaineParam = `${year}-W${weekNumber.toString().padStart(2, '0')}`;
 
-      const res = await fetch(
-        `${API_BASE}/admin/rh/planning/${selectedMembre}/envoyer`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ semaine: semaineParam })
-        }
+      await api.post(
+        `/admin/rh/planning/${selectedMembre}/envoyer`,
+        { semaine: semaineParam }
       );
-
-      if (res.ok) {
-        alert(`Planning envoyé à ${selectedMembreInfo.prenom} ${selectedMembreInfo.nom}`);
-      } else {
-        alert('Erreur lors de l\'envoi');
-      }
+      alert(`Planning envoyé à ${selectedMembreInfo.prenom} ${selectedMembreInfo.nom}`);
     } catch (error) {
       console.error('Erreur envoi email:', error);
+      alert('Erreur lors de l\'envoi');
     }
   };
 

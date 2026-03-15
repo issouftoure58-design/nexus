@@ -11,8 +11,6 @@ import {
   Plus,
   Phone,
   Mail,
-  Calendar,
-  MoreVertical,
   Loader2,
   AlertCircle,
   ChevronLeft,
@@ -29,7 +27,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
-import { FeatureField, ClientLabel } from '@/components/forms';
 
 export default function Clients() {
   const queryClient = useQueryClient();
@@ -257,7 +254,7 @@ export default function Clients() {
                 </p>
               )}
             </div>
-            <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600" aria-label="Fermer">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -430,6 +427,7 @@ export default function Clients() {
                               size="sm"
                               onClick={() => setSelectedClient(client)}
                               className="h-8 w-8 p-0"
+                              aria-label="Voir"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -437,6 +435,7 @@ export default function Clients() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              aria-label="Supprimer"
                               onClick={() => {
                                 if (confirm('Supprimer ce client ?')) {
                                   deleteMutation.mutate(client.id);
@@ -582,7 +581,7 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
       <Card className="w-full max-w-xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Nouveau {t('client').toLowerCase()}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -871,11 +870,11 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
           </div>
           <div className="flex items-center gap-1">
             {!isEditing && (
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="h-8 w-8 p-0" title="Modifier">
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="h-8 w-8 p-0" title="Modifier" aria-label="Modifier">
                 <Edit className="h-4 w-4" />
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
               <X className="h-4 w-4" />
             </Button>
           </div>

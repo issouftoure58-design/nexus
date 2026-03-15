@@ -11,9 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   ListChecks, Clock, Bell, CheckCircle2, XCircle, Plus,
-  Loader2, Trash2, ArrowRight, Calendar, User
+  Loader2, Trash2
 } from 'lucide-react';
-import { waitlistApi, clientsApi } from '@/lib/api';
+import { waitlistApi } from '@/lib/api';
 
 interface WaitlistEntry {
   id: number;
@@ -99,7 +99,7 @@ export default function WaitlistPage() {
   });
 
   const stats: WaitlistStats = statsData?.stats || { waiting: 0, notified: 0, converted: 0, expired: 0, cancelled: 0, total: 0 };
-  const entries: WaitlistEntry[] = listData?.waitlist || [];
+  const entries: WaitlistEntry[] = (listData?.waitlist || []) as unknown as WaitlistEntry[];
 
   return (
     <div className="space-y-6">

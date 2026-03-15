@@ -1,6 +1,5 @@
 /**
- * Service WhatsApp avec intégration IA Halimah
- * Fat's Hair-Afro - Coiffure à domicile en Île-de-France
+ * Service WhatsApp avec intégration IA — Multi-tenant
  *
  * MIGRÉ VERS NEXUS CORE - Janvier 2026
  * Utilise nexusCore.processMessage() comme source unique de logique
@@ -97,9 +96,9 @@ import { getBusinessInfoSync, getAIContext, getTerminology } from './tenantBusin
 function getFrontendUrl(tenantId) {
   try {
     const info = getBusinessInfoSync(tenantId);
-    return info.urls?.frontend || process.env.FRONTEND_URL || 'https://fatshairafro.fr';
+    return info.urls?.frontend || process.env.FRONTEND_URL || '';
   } catch (e) {
-    return process.env.FRONTEND_URL || 'https://fatshairafro.fr';
+    return process.env.FRONTEND_URL || '';
   }
 }
 
@@ -107,11 +106,15 @@ function getFrontendUrl(tenantId) {
  * V2 - Récupère l'adresse de départ pour un tenant
  */
 function getAdresseDepart(tenantId) {
+  if (!tenantId) {
+    logger.error('whatsappService: getAdresseDepart appelé sans tenantId');
+    return '';
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
-    return info.adresse || '8 rue des Monts Rouges, 95130 Franconville';
+    return info.adresse || '';
   } catch (e) {
-    return '8 rue des Monts Rouges, 95130 Franconville';
+    return '';
   }
 }
 
@@ -119,11 +122,15 @@ function getAdresseDepart(tenantId) {
  * V2 - Génère la signature de message pour un tenant
  */
 function getSignature(tenantId) {
+  if (!tenantId) {
+    logger.error('whatsappService: getSignature appelé sans tenantId');
+    return '';
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
-    return `${info.nom}\n📞 ${info.telephone}`;
+    return `${info.nom}${info.telephone ? `\n📞 ${info.telephone}` : ''}`;
   } catch (e) {
-    return `Fat's Hair-Afro\n📞 07 82 23 50 20`;
+    return '';
   }
 }
 
@@ -131,13 +138,17 @@ function getSignature(tenantId) {
  * V2 - Génère le message d'accueil WhatsApp
  */
 function getWhatsAppGreeting(tenantId, clientName = '') {
+  if (!tenantId) {
+    logger.error('whatsappService: getWhatsAppGreeting appelé sans tenantId');
+    return `Bonjour${clientName ? ` ${clientName}` : ''} !`;
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
-    const assistant = info.assistant_name || 'Nexus';
+    const assistant = info.assistant?.name || 'Nexus';
     const gerant = info.gerant || 'notre équipe';
-    return `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.`;
+    return `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis ${assistant}, l'assistant de ${gerant}.`;
   } catch (e) {
-    return `Bonjour${clientName ? ` ${clientName}` : ''} ! ✨ Je suis Halimah, l'assistante de Fatou.`;
+    return `Bonjour${clientName ? ` ${clientName}` : ''} !`;
   }
 }
 
@@ -148,8 +159,8 @@ const nexusContexts = new Map();
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://fatshairafro.fr';
+const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || '';
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
 const PAYMENT_TIMEOUT_MINUTES = 30;
 const PAYMENT_REMINDER_MINUTES = 15;
 
@@ -161,7 +172,7 @@ const PAYMENT_REMINDER_MINUTES = 15;
  * @param {string|null} tenantId - ID du tenant (optionnel)
  * @returns {string} Numéro au format 'whatsapp:+33...'
  */
-function getWhatsAppFromNumber(tenantId = null) {
+function getWhatsAppFromNumber(tenantId) {
   if (tenantId) {
     try {
       const config = getCachedConfig(tenantId);
@@ -176,8 +187,8 @@ function getWhatsAppFromNumber(tenantId = null) {
   return TWILIO_WHATSAPP_NUMBER;
 }
 
-// Adresse de départ de Fatou
-const ADRESSE_DEPART = '8 rue des Monts Rouges, 95130 Franconville';
+// @deprecated - Utiliser getAdresseDepart(tenantId) pour l'adresse dynamique par tenant
+const ADRESSE_DEPART = '';
 
 // Limites de distance
 const DISTANCE_MAX_KM = 50;        // Distance maximale acceptée
@@ -272,7 +283,7 @@ function classifyGoogleMapsError(error) {
  */
 const DISTANCE_ESTIMATIONS = {
   // Val d'Oise (95) - proche
-  '95130': 0,    // Franconville (point de départ)
+  '95130': 0,    // Franconville
   '95100': 5,    // Argenteuil
   '95120': 3,    // Ermont
   '95110': 4,    // Sannois
@@ -371,8 +382,8 @@ const conversationContexts = new Map();
 // ============= PROMPT SYSTÈME HALIMAH =============
 
 /**
- * Prompt système pour l'IA Halimah - CENTRALISÉ depuis bookingService.js
- * Utilise les vrais tarifs Fatou et la même personnalité sur tous les canaux
+ * Prompt système pour l'IA - CENTRALISÉ depuis bookingService.js
+ * Utilise les tarifs du tenant et la même personnalité sur tous les canaux
  */
 export const HALIMAH_SYSTEM_PROMPT = getHalimahPrompt('whatsapp', true);
 
@@ -384,7 +395,7 @@ export const HALIMAH_SYSTEM_PROMPT = getHalimahPrompt('whatsapp', true);
 export const HALIMAH_TOOLS = [
   {
     name: 'calculer_distance',
-    description: "Calcule la distance et le temps de trajet entre le point de départ (Franconville) et l'adresse du client",
+    description: "Calcule la distance et le temps de trajet entre le point de départ du professionnel et l'adresse du client",
     input_schema: {
       type: 'object',
       properties: {
@@ -519,7 +530,11 @@ export const HALIMAH_TOOLS = [
  * @param {string} tenantId - ID du tenant (OBLIGATOIRE pour opérations DB)
  * @returns {Promise<Object>} Résultat de l'outil
  */
-export async function executeHalimahTool(toolName, toolInput, tenantId = null) {
+export async function executeHalimahTool(toolName, toolInput, tenantId) {
+  if (!tenantId) {
+    logger.error('whatsappService: executeHalimahTool appelé sans tenantId');
+    return { success: false, error: 'tenant_id requis' };
+  }
   console.log(`[Halimah] Exécution outil: ${toolName} (tenant: ${tenantId})`, toolInput);
 
   try {
@@ -669,7 +684,7 @@ function getHorairesJour(dateStr) {
  * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
  * @returns {Promise<Array>} Liste des prochaines dates avec créneaux
  */
-async function findNextAvailableDates(startDate, duree_minutes, adresse_client, maxDays = 14, maxResults = 3, tenantId = null) {
+async function findNextAvailableDates(startDate, duree_minutes, adresse_client, maxDays = 14, maxResults = 3, tenantId) {
   const results = [];
   const currentDate = new Date(startDate);
 
@@ -728,7 +743,7 @@ export function getConversationContext(clientPhone) {
   if (!conversationContexts.has(clientPhone)) {
     conversationContexts.set(clientPhone, {
       // V2 - Tenant ID pour multi-tenant
-      tenantId: 'fatshairafro', // default, sera mis à jour par la route
+      tenantId: null, // sera mis à jour par la route
 
       // État de la conversation
       etape: 'accueil', // accueil, service_choisi, attente_adresse, adresse_recue, attente_date, date_recue, confirmation, paiement
@@ -787,7 +802,7 @@ export function resetConversationContext(clientPhone) {
 
 /**
  * Liste des services disponibles - CENTRALISÉE depuis bookingService.js
- * Utilise les vrais tarifs Fatou
+ * @deprecated - devrait utiliser les services dynamiques par tenant
  */
 const SERVICES_DISPONIBLES = Object.entries(SERVICES).reduce((acc, [nom, data]) => {
   const key = nom.toLowerCase().replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -817,7 +832,7 @@ export async function handleIncomingMessage(clientPhone, message, clientName = n
 
   // Si le client envoie "annuler" ou "stop", réinitialiser la conversation
   if (['annuler', 'stop', 'reset', 'recommencer'].includes(messageLower)) {
-    const tenantIdForReset = context.tenantId || 'fatshairafro';
+    const tenantIdForReset = context.tenantId;
     resetConversationContext(clientPhone);
     return {
       success: true,
@@ -874,8 +889,15 @@ ${getSignature(tenantIdForReset)}`,
   } catch (error) {
     console.error('[WhatsApp] Erreur handleIncomingMessage:', error);
 
+    let errorPhone = '';
+    try {
+      if (context.tenantId) {
+        const info = getBusinessInfoSync(context.tenantId);
+        errorPhone = info.telephone || '';
+      }
+    } catch (_) { /* ignore */ }
     const errorResponse = `Oups, petit souci technique ! 😅
-Réessayez ou appelez le 09 39 24 02 69`;
+Réessayez${errorPhone ? ` ou appelez le ${errorPhone}` : ''}`;
 
     await sendWhatsAppMessage(clientPhone, errorResponse, context.tenantId);
 
@@ -969,9 +991,13 @@ ${getSignature(tenantId)}`,
   } catch (error) {
     console.error('[WhatsApp-Nexus] Erreur:', error);
 
-    const info = getBusinessInfoSync(tenantId);
+    let errorPhone = '';
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      errorPhone = info.telephone || '';
+    } catch (_) { /* ignore */ }
     const errorResponse = `Oups, petit souci technique ! 😅
-Réessayez ou appelez le ${info.telephone || '07 82 23 50 20'}`;
+Réessayez${errorPhone ? ` ou appelez le ${errorPhone}` : ''}`;
 
     await sendWhatsAppMessage(clientPhone, errorResponse, tenantId);
 
@@ -1018,7 +1044,7 @@ Ex: 15 rue de la Paix, 75002 Paris`,
     updateConversationContext(clientPhone, { client_nom: clientName });
   }
 
-  const tenantIdGreeting = context.tenantId || 'fatshairafro';
+  const tenantIdGreeting = context.tenantId;
   return {
     success: true,
     response: `${getWhatsAppGreeting(tenantIdGreeting, clientName)}
@@ -1134,11 +1160,17 @@ Ex: 15 rue de la Paix, 75002 Paris`,
         frais_estimes: fraisEstimes,
       });
 
+      let contactPhone = '';
+      try {
+        if (context.tenantId) {
+          const tenantInfo = getBusinessInfoSync(context.tenantId);
+          contactPhone = tenantInfo.telephone || '';
+        }
+      } catch (_) { /* ignore */ }
       return {
         success: true,
         response: `${distanceResult.distance_km.toFixed(0)} km, c'est hors zone 😔
-Déplacement : ${fraisEstimes.toFixed(0)}€
-📞 Appelez le 09 39 24 02 69 pour voir`,
+Déplacement : ${fraisEstimes.toFixed(0)}€${contactPhone ? `\n📞 Appelez le ${contactPhone} pour voir` : ''}`,
       };
     }
 
@@ -1369,10 +1401,16 @@ ${alternativesText}`,
       }
 
       // Pas d'alternatives trouvées
+      let noSlotPhone = '';
+      try {
+        if (context.tenantId) {
+          const tenantInfo = getBusinessInfoSync(context.tenantId);
+          noSlotPhone = tenantInfo.telephone || '';
+        }
+      } catch (_) { /* ignore */ }
       return {
         success: true,
-        response: `Complet en ce moment 😔
-📞 Appelez le 09 39 24 02 69`,
+        response: `Complet en ce moment 😔${noSlotPhone ? `\n📞 Appelez le ${noSlotPhone}` : ''}`,
       };
     }
 
@@ -1641,13 +1679,17 @@ async function handleEtapePaiement(clientPhone, message, context) {
 
   // Le client a peut-être des questions
   if (messageLower.includes('question') || messageLower.includes('?')) {
-    const tenantIdPaiement = context.tenantId || 'fatshairafro';
-    const infoPaiement = getBusinessInfoSync(tenantIdPaiement);
+    let paiementPhone = '';
+    try {
+      if (context.tenantId) {
+        const infoPaiement = getBusinessInfoSync(context.tenantId);
+        paiementPhone = infoPaiement.telephone || '';
+      }
+    } catch (_) { /* ignore */ }
     return {
       success: true,
       response: `💳 CB/PayPal sécurisé
-💰 Acompte 10€ min
-📞 ${infoPaiement.telephone || '07 82 23 50 20'}`,
+💰 Acompte 10€ min${paiementPhone ? `\n📞 ${paiementPhone}` : ''}`,
     };
   }
 
@@ -1863,7 +1905,7 @@ function formatDateFr(dateStr) {
 /**
  * Envoie un message WhatsApp via Twilio
  */
-async function sendWhatsAppMessage(to, message, tenantId = null) {
+async function sendWhatsAppMessage(to, message, tenantId) {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
     console.log('[WhatsApp] Mode simulation - Message:', message);
     return { success: true, simulated: true };
@@ -1903,8 +1945,8 @@ async function sendWhatsAppMessage(to, message, tenantId = null) {
 
 /**
  * Formate un numéro de téléphone au format WhatsApp
- * Accepte : 0782235020, +33782235020, 33782235020
- * Retourne : whatsapp:+33782235020
+ * Accepte : 06XXXXXXXX, +336XXXXXXXX, 336XXXXXXXX
+ * Retourne : whatsapp:+336XXXXXXXX
  * @param {string} phoneNumber - Numéro à formater
  * @returns {{ valid: boolean, formatted: string|null, error: string|null }}
  */
@@ -1922,15 +1964,15 @@ export function formatPhoneForWhatsApp(phoneNumber) {
   }
 
   // Gestion des différents formats
-  // Format 0782235020 -> +33782235020
+  // Format 06XXXXXXXX -> +336XXXXXXXX
   if (cleaned.match(/^0[67]\d{8}$/)) {
     cleaned = '+33' + cleaned.substring(1);
   }
-  // Format 33782235020 -> +33782235020
+  // Format 336XXXXXXXX -> +336XXXXXXXX
   else if (cleaned.match(/^33[67]\d{8}$/)) {
     cleaned = '+' + cleaned;
   }
-  // Format +33782235020 -> déjà bon
+  // Format +336XXXXXXXX -> déjà bon
   else if (cleaned.match(/^\+33[67]\d{8}$/)) {
     // OK
   }
@@ -1998,19 +2040,19 @@ function classifyTwilioError(statusCode, errorData) {
 /**
  * Envoie une notification WhatsApp via Twilio
  *
- * @param {string} phoneNumber - Numéro de téléphone (formats acceptés: 0782235020, +33782235020, 33782235020)
+ * @param {string} phoneNumber - Numéro de téléphone (formats acceptés: 06XXXXXXXX, +336XXXXXXXX, 336XXXXXXXX)
  * @param {string} message - Message à envoyer
  * @returns {Promise<{ success: boolean, messageId?: string, error?: string, errorType?: string }>}
  *
  * @example
- * const result = await sendWhatsAppNotification('0782235020', 'Votre RDV est confirmé !');
+ * const result = await sendWhatsAppNotification('0612345678', 'Votre RDV est confirmé !', 'nexus-test');
  * if (result.success) {
  *   console.log('Message envoyé:', result.messageId);
  * } else {
  *   console.error('Erreur:', result.error);
  * }
  */
-export async function sendWhatsAppNotification(phoneNumber, message, tenantId = null) {
+export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
   // 1. Vérifier la configuration Twilio
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
     logEvent('WARN', ERROR_TYPES.TWILIO_NOT_CONFIGURED, 'Twilio non configuré - mode simulation', {
@@ -2162,7 +2204,7 @@ function generatePaymentUrl(rdvId, service, duree, prix, adresse) {
  *
  * @example
  * generatePaymentLink('rdv_123', 'Tresses africaines', '15 rue de Paris, 75001 Paris', 85, 12.50, 97.50)
- * // => https://fatshairafro.fr/payment?rdv_id=rdv_123&service=Tresses%20africaines&adresse=15%20rue%20de%20Paris%2C%2075001%20Paris&prix=85&frais=12.5&total=97.5
+ * // => https://<FRONTEND_URL>/payment?rdv_id=rdv_123&service=Tresses%20africaines&adresse=15%20rue%20de%20Paris%2C%2075001%20Paris&prix=85&frais=12.5&total=97.5
  */
 export function generatePaymentLink(rdv_id, service, adresse_client, prix_service, frais_depl, total) {
   // Validation des paramètres requis
@@ -2191,7 +2233,10 @@ export function generatePaymentLink(rdv_id, service, adresse_client, prix_servic
   params.append('total', (total || 0).toString());
 
   // Construire l'URL complète
-  const baseUrl = FRONTEND_URL || 'https://fatshairafro.fr';
+  const baseUrl = FRONTEND_URL;
+  if (!baseUrl) {
+    logger.error('whatsappService: FRONTEND_URL non configuré pour generatePaymentLink');
+  }
   const paymentUrl = `${baseUrl}/payment?${params.toString()}`;
 
   console.log(`[WhatsApp] Lien de paiement généré: ${paymentUrl}`);
@@ -2270,7 +2315,7 @@ async function createRdvInDb(data) {
  * Met à jour le statut d'un RDV
  * 🔒 TENANT ISOLATION: tenantId optionnel mais recommandé pour sécurité
  */
-async function updateRdvStatus(rdvId, statut, additionalData = {}, tenantId = null) {
+async function updateRdvStatus(rdvId, statut, additionalData = {}, tenantId) {
   console.log('[WhatsApp] Mise à jour RDV:', rdvId, statut, tenantId ? `(tenant: ${tenantId})` : '');
 
   const db = getSupabase();
@@ -2315,7 +2360,7 @@ async function updateRdvStatus(rdvId, statut, additionalData = {}, tenantId = nu
  * Récupère un RDV par ID
  * 🔒 TENANT ISOLATION: tenantId optionnel mais recommandé pour sécurité
  */
-async function getRdvById(rdvId, tenantId = null) {
+async function getRdvById(rdvId, tenantId) {
   console.log('[WhatsApp] Récupération RDV:', rdvId, tenantId ? `(tenant: ${tenantId})` : '');
 
   const db = getSupabase();
@@ -2423,7 +2468,7 @@ export async function handleCreneauConfirmation({
   prixService,
   adresseClient,
   fraisDeplacement,
-  tenantId = null,
+  tenantId,
 }) {
   try {
     console.log('[WhatsApp] Confirmation créneau reçue:', {
@@ -2495,7 +2540,7 @@ export async function handleCreneauConfirmation({
  * Appelée quand un paiement est confirmé
  * 🔒 TENANT ISOLATION: Utilise tenant_id du RDV pour updateRdvStatus
  */
-export async function handlePaymentConfirmed(rdvId, tenantId = null) {
+export async function handlePaymentConfirmed(rdvId, tenantId) {
   try {
     console.log(`[WhatsApp] Paiement confirmé pour RDV ${rdvId}${tenantId ? ` (tenant: ${tenantId})` : ''}`);
 
@@ -2664,25 +2709,30 @@ function formatDate(dateStr) {
 // V2 - Templates dynamiques avec tenantId
 export const MESSAGE_TEMPLATES = {
   // V2 - Converti en fonction
-  ACCUEIL: (tenantId = 'fatshairafro') => {
+  ACCUEIL: (tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.ACCUEIL appelé sans tenantId');
+      return `Bonjour ! Comment puis-je vous aider ?`;
+    }
     try {
       const info = getBusinessInfoSync(tenantId);
-      const assistant = info.assistant_name || 'Nexus';
+      const assistant = info.assistant?.name || 'Nexus';
       const gerant = info.gerant || 'notre équipe';
-      return `Bonjour ! ✨ Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.
+      return `Bonjour ! ✨ Je suis ${assistant}, l'assistant de ${gerant}.
 
 Comment puis-je vous aider ?`;
     } catch (e) {
-      return `Bonjour ! ✨ Je suis Halimah, l'assistante de Fatou.
-
-Comment puis-je vous aider ?`;
+      return `Bonjour ! Comment puis-je vous aider ?`;
     }
   },
 
   // V2 - Converti en fonction
-  DEMANDE_ADRESSE: (service, tenantId = 'fatshairafro') => {
+  DEMANDE_ADRESSE: (service, tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.DEMANDE_ADRESSE appelé sans tenantId');
+    }
     try {
-      const info = getBusinessInfoSync(tenantId);
+      const info = tenantId ? getBusinessInfoSync(tenantId) : {};
       const gerant = info.gerant || 'Notre équipe';
       return `Parfait pour ${service} ! ✨
 
@@ -2692,7 +2742,7 @@ Format : numéro, rue, code postal, ville 📍`;
     } catch (e) {
       return `Parfait pour ${service} ! ✨
 
-Fatou se déplace directement chez vous. Pourriez-vous me donner votre adresse complète pour que je calcule les frais de déplacement ?
+Pourriez-vous me donner votre adresse complète pour que je calcule les frais de déplacement ?
 
 Format : numéro, rue, code postal, ville 📍`;
     }
@@ -2729,24 +2779,30 @@ Pourriez-vous me la reformuler avec :
 Exemple : 15 rue de la Paix, 75002 Paris`,
 
   // V2 - Converti en fonction
-  ZONE_TROP_LOIN: (distanceKm, tenantId = 'fatshairafro') => {
+  ZONE_TROP_LOIN: (distanceKm, tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.ZONE_TROP_LOIN appelé sans tenantId');
+    }
     try {
-      const info = getBusinessInfoSync(tenantId);
+      const info = tenantId ? getBusinessInfoSync(tenantId) : {};
       const gerant = info.gerant || 'notre équipe';
-      return `Je suis désolé${info.assistant_name === 'Halimah' ? 'e' : ''}, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle (Île-de-France).
+      return `Je suis désolé, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle.
 
 Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je peux demander à ${gerant}. 🤔`;
     } catch (e) {
-      return `Je suis désolée, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle (Île-de-France).
+      return `Je suis désolé, cette adresse se trouve à ${distanceKm.toFixed(0)} km, ce qui est en dehors de notre zone de déplacement habituelle.
 
-Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je peux demander à Fatou. 🤔`;
+Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? 🤔`;
     }
   },
 
   // V2 - Converti en fonction
-  PAYMENT_CONFIRMED: (date, heure, service, adresse, tenantId = 'fatshairafro') => {
+  PAYMENT_CONFIRMED: (date, heure, service, adresse, tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.PAYMENT_CONFIRMED appelé sans tenantId');
+    }
     try {
-      const info = getBusinessInfoSync(tenantId);
+      const info = tenantId ? getBusinessInfoSync(tenantId) : {};
       const gerant = info.gerant || 'Notre équipe';
       return `🎉 Votre RDV est confirmé !
 
@@ -2757,8 +2813,7 @@ Souhaitez-vous que je vérifie si un déplacement exceptionnel est possible ? Je
 ${gerant} viendra directement chez vous ! 🏠
 
 À très bientôt,
-${info.nom} 💖
-📞 ${info.telephone}`;
+${info.nom || ''} 💖${info.telephone ? `\n📞 ${info.telephone}` : ''}`;
     } catch (e) {
       return `🎉 Votre RDV est confirmé !
 
@@ -2766,53 +2821,47 @@ ${info.nom} 💖
 💇 ${service}
 📍 ${adresse}
 
-Fatou viendra directement chez vous ! 🏠
-
-À très bientôt,
-Fat's Hair-Afro 💖
-📞 07 82 23 50 20`;
+À très bientôt ! 💖`;
     }
   },
 
   // V2 - Converti en fonction
-  PAYMENT_TIMEOUT: (tenantId = 'fatshairafro') => {
+  PAYMENT_TIMEOUT: (tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.PAYMENT_TIMEOUT appelé sans tenantId');
+    }
     try {
-      const info = getBusinessInfoSync(tenantId);
+      const info = tenantId ? getBusinessInfoSync(tenantId) : {};
       return `⏰ Votre demande de RDV a expiré.
 
 Le délai de 30 minutes pour effectuer le paiement est dépassé.
 
 Si vous souhaitez toujours prendre rendez-vous, n'hésitez pas à nous recontacter ! 😊
 
-${info.nom}
-📞 ${info.telephone}`;
+${info.nom || ''}${info.telephone ? `\n📞 ${info.telephone}` : ''}`;
     } catch (e) {
       return `⏰ Votre demande de RDV a expiré.
 
 Le délai de 30 minutes pour effectuer le paiement est dépassé.
 
-Si vous souhaitez toujours prendre rendez-vous, n'hésitez pas à nous recontacter ! 😊
-
-Fat's Hair-Afro
-📞 07 82 23 50 20`;
+Si vous souhaitez toujours prendre rendez-vous, n'hésitez pas à nous recontacter ! 😊`;
     }
   },
 
   // V2 - Converti en fonction
-  PAYMENT_REMINDER: (tenantId = 'fatshairafro') => {
+  PAYMENT_REMINDER: (tenantId) => {
+    if (!tenantId) {
+      logger.error('whatsappService: MESSAGE_TEMPLATES.PAYMENT_REMINDER appelé sans tenantId');
+    }
     try {
-      const info = getBusinessInfoSync(tenantId);
+      const info = tenantId ? getBusinessInfoSync(tenantId) : {};
       return `⏰ Rappel : votre lien de paiement expire dans 15 minutes !
 
-N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.
-
-Si vous avez des questions, appelez-nous au ${info.telephone} 📞`;
+N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.${info.telephone ? `\n\nSi vous avez des questions, appelez-nous au ${info.telephone} 📞` : ''}`;
     } catch (e) {
       return `⏰ Rappel : votre lien de paiement expire dans 15 minutes !
 
-N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.
-
-Si vous avez des questions, appelez-nous au 07 82 23 50 20 📞`;
+N'oubliez pas de finaliser votre réservation pour confirmer votre RDV.`;
     }
   },
 };

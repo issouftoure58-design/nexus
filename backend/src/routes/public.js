@@ -23,7 +23,7 @@ function getGreetingMessage(tenantId, salutation = 'Bonjour') {
     const gerant = info.gerant || 'notre équipe';
     return `${salutation} ! Je suis ${assistant}, l'assistant${assistant === 'Halimah' ? 'e' : ''} de ${gerant}.\n`;
   } catch (e) {
-    return `${salutation} ! Je suis Halimah, l'assistante de Fatou.\n`;
+    return `${salutation} ! Comment puis-je vous aider ?\n`;
   }
 }
 

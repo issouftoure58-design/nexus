@@ -15,8 +15,6 @@ import {
   X,
   Loader2,
   AlertCircle,
-  Check,
-  Power,
   Search,
   Eye,
   Users,
@@ -25,12 +23,11 @@ import {
   Filter,
   RotateCcw,
   UtensilsCrossed,
-  Bed,
-  MapPin
+  Bed
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
-import { PricingFields, PriceDisplay, ServiceLabel, BusinessTypeField, FeatureField } from '@/components/forms';
+import { PricingFields } from '@/components/forms';
 
 interface ServiceExtended extends Service {
   zone?: string;
@@ -45,7 +42,7 @@ interface ServiceExtended extends Service {
 
 export default function Services() {
   const queryClient = useQueryClient();
-  const { t, isPricingMode, getPricingModes, isBusinessType } = useProfile();
+  const { t, isPricingMode: _isPricingMode, getPricingModes: _getPricingModes, isBusinessType } = useProfile();
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -473,6 +470,7 @@ export default function Services() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
+                        aria-label="Voir"
                         onClick={() => setSelectedService(service)}
                       >
                         <Eye className="h-4 w-4" />
@@ -481,6 +479,7 @@ export default function Services() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
+                        aria-label="Modifier"
                         onClick={() => setEditingService(service)}
                       >
                         <Edit className="h-4 w-4" />
@@ -489,6 +488,7 @@ export default function Services() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        aria-label="Supprimer"
                         onClick={() => {
                           if (confirm('Supprimer ce service ?')) {
                             deleteMutation.mutate(service.id);
@@ -688,7 +688,7 @@ const TAUX_TVA = [
 // Service Modal Component
 function ServiceModal({ service, onClose }: { service: Service | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { t, isPricingMode, getPricingModes, hasFeature, isBusinessType } = useProfile();
+  const { t, isPricingMode, getPricingModes, hasFeature: _hasFeature, isBusinessType } = useProfile();
   const isEditing = !!service;
 
   // Mode de pricing actuel
@@ -821,7 +821,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       <Card className="w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
           <CardTitle>{isEditing ? `Modifier la ${String(t('service')).toLowerCase()}` : `Nouvelle ${String(t('service')).toLowerCase()}`}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -1378,7 +1378,7 @@ function ServiceDetailModal({
               <Edit className="h-4 w-4 mr-1" />
               Modifier
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1428,7 +1428,7 @@ function ServiceDetailModal({
                     Clients les plus fidèles
                   </h3>
                   <div className="space-y-2">
-                    {data.top_clients.map((client, index) => (
+                    {data.top_clients.map((client) => (
                       <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">

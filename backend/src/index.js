@@ -1,5 +1,5 @@
 /**
- * Backend API - Fat's Hair-Afro
+ * Backend API - NEXUS Multi-tenant Platform
  * Point d'entrée principal
  */
 
@@ -124,10 +124,13 @@ import { rbacMiddleware } from './middleware/rbac.js';
 import { startScheduler } from './jobs/scheduler.js';
 
 // Import du worker de notifications (BullMQ)
-import { startNotificationWorker } from './queues/notificationWorker.js';
+import { startNotificationWorker, stopNotificationWorker } from './queues/notificationWorker.js';
 
 // Import SENTINEL guardian system
 import { sentinel } from './sentinel/index.js';
+
+// Central interval registry for graceful shutdown
+import { shutdownAllIntervals } from './utils/intervalRegistry.js';
 
 // Création de l'application Express
 const app = express();
@@ -342,6 +345,9 @@ app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
 app.use('/api/sentinel/autopilot', sentinelAutopilotRouter);
 app.use('/api/sentinel/live', sentinelLiveRouter);
 app.use('/api/optimization', optimizationRouter);
+
+// 🔑 SSO public routes (avant tenant resolution — pas d'auth/tenant requise)
+app.use('/api/sso', adminSSORoutes);
 
 // 🔒 TENANT RESOLUTION: Appliqué globalement pour toutes les routes /api
 // Résout le tenant via X-Tenant-ID header, domaine custom, ou sous-domaine
@@ -580,7 +586,7 @@ loadAllTenants()
 
 const PORT = process.env.BACKEND_PORT || process.env.PORT || 3001;
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log(`🚀 Backend API démarré sur le port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
@@ -796,6 +802,58 @@ app.listen(PORT, '0.0.0.0', () => {
       console.error('[SENTINEL] Initialization failed:', result.error);
     }
   }).catch(err => console.error('[SENTINEL] Init error:', err.message));
+});
+
+// ============= GRACEFUL SHUTDOWN =============
+
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info(`[SHUTDOWN] ${signal} recu, arret en cours...`);
+
+  // 1. Arreter d'accepter de nouvelles connexions
+  server.close(() => {
+    logger.info('[SHUTDOWN] Serveur HTTP ferme');
+  });
+
+  // 2. Arreter tous les setInterval enregistres
+  shutdownAllIntervals();
+
+  // 3. Arreter le worker BullMQ
+  try {
+    await stopNotificationWorker();
+    logger.info('[SHUTDOWN] Worker notifications arrete');
+  } catch (err) {
+    logger.error('[SHUTDOWN] Erreur arret worker:', { error: err.message });
+  }
+
+  // 4. Forcer la sortie apres 10s si le cleanup prend trop longtemps
+  setTimeout(() => {
+    logger.warn('[SHUTDOWN] Force exit apres timeout 10s');
+    process.exit(1);
+  }, 10000).unref();
+
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// ============= UNCAUGHT ERRORS =============
+
+process.on('uncaughtException', (err) => {
+  logger.error('[FATAL] uncaughtException:', { error: err.message, stack: err.stack });
+  captureException(err, { context: 'uncaughtException' });
+  // Laisser le temps au logger de flush puis exit
+  setTimeout(() => process.exit(1), 1000).unref();
+});
+
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error('[FATAL] unhandledRejection:', { error: err.message, stack: err.stack });
+  captureException(err, { context: 'unhandledRejection' });
 });
 
 export default app;

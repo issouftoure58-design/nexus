@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { MODEL_FAST } from '../../services/modelRouter.js';
+import { getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
 // Initialisation paresseuse du client Anthropic
 let anthropicClient = null;
@@ -19,7 +20,7 @@ function getAnthropicClient() {
  * @param {string} platform - Plateforme cible (instagram, facebook, tiktok, linkedin)
  * @param {object} data - Données spécifiques au post
  */
-export async function generateCaption({ type, platform, data = {} }) {
+export async function generateCaption({ type, platform, data = {}, tenantId = null }) {
   const anthropic = getAnthropicClient();
 
   if (!anthropic) {
@@ -81,23 +82,31 @@ export async function generateCaption({ type, platform, data = {} }) {
 
   const spec = platformSpecs[platform] || platformSpecs.instagram;
 
+  // Charger les infos du tenant dynamiquement
+  let tenantInfo = { nom: 'Notre établissement', gerant: '', telephone: '', businessType: 'service' };
+  try {
+    if (tenantId) {
+      const info = getBusinessInfoSync(tenantId);
+      tenantInfo = { nom: info.nom || tenantInfo.nom, gerant: info.gerant || '', telephone: info.telephone || '', businessType: info.businessType || 'service' };
+    }
+  } catch (e) { /* fallback */ }
+
   const prompt = `
-Tu es la community manager de Fat's Hair-Afro, salon de coiffure afro à domicile en Île-de-France avec 25 ans d'expérience.
-Ton ton est : chaleureux, professionnel, fier de la beauté afro, accessible.
+Tu es le community manager de ${tenantInfo.nom}.
+Ton ton est : chaleureux, professionnel, accessible.
 
 Génère une légende pour ${platform} :
 - Maximum ${spec.maxLength} caractères
 - Style : ${spec.style}
-- Maximum ${spec.hashtags} hashtags pertinents (coiffure afro, beauté, domicile, Val d'Oise, Île-de-France)
+- Maximum ${spec.hashtags} hashtags pertinents
 
 ${templates[type] || templates['avant-apres']}
 
 IMPORTANT :
-- Toujours mentionner "à domicile" ou "je me déplace"
-- CTA vers Halimah (IA de réservation) ou lien en bio
+- CTA vers la réservation ou lien en bio
 - Hashtags en français ET anglais pour plus de reach
 - Émojis adaptés (pas trop, pas trop peu)
-- Le numéro de contact est 09 39 24 02 69
+${tenantInfo.telephone ? `- Le numéro de contact est ${tenantInfo.telephone}` : ''}
 
 Format de réponse EXACT (respecte ce format) :
 LEGENDE:

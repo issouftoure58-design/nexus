@@ -14,13 +14,11 @@ import {
   Clock,
   PenTool,
   RefreshCw,
-  Filter,
   Search,
   AlertTriangle,
   X
 } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+import { api } from '@/lib/api';
 
 // Types
 interface DocumentType {
@@ -75,51 +73,23 @@ interface DPAE {
   membre?: Membre;
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-};
-
 // Fetchers
-const fetchDocumentTypes = async (): Promise<DocumentType[]> => {
-  const res = await fetch(`${API_BASE}/admin/rh/documents/types`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement types');
-  return res.json();
-};
+const fetchDocumentTypes = async (): Promise<DocumentType[]> =>
+  api.get('/admin/rh/documents/types');
 
 const fetchDocuments = async (filters: { type?: string; statut?: string; membre_id?: number }): Promise<Document[]> => {
   const params = new URLSearchParams();
   if (filters.type) params.append('type', filters.type);
   if (filters.statut) params.append('statut', filters.statut);
   if (filters.membre_id) params.append('membre_id', String(filters.membre_id));
-
-  const res = await fetch(`${API_BASE}/admin/rh/documents?${params}`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement documents');
-  return res.json();
+  return api.get(`/admin/rh/documents?${params}`);
 };
 
-const fetchMembres = async (): Promise<Membre[]> => {
-  const res = await fetch(`${API_BASE}/admin/rh/membres`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement membres');
-  return res.json();
-};
+const fetchMembres = async (): Promise<Membre[]> =>
+  api.get('/admin/rh/membres');
 
-const fetchDPAE = async (): Promise<DPAE[]> => {
-  const res = await fetch(`${API_BASE}/admin/rh/dpae`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement DPAE');
-  return res.json();
-};
+const fetchDPAE = async (): Promise<DPAE[]> =>
+  api.get('/admin/rh/dpae');
 
 // Helpers
 const getStatutBadge = (statut: string) => {
@@ -179,7 +149,7 @@ export function DocumentsRH() {
   });
 
   // Queries
-  const { data: documentTypes = [], isError: typesError, error: typesErrorMsg } = useQuery({
+  const { data: documentTypes = [], isError: _typesError, error: _typesErrorMsg } = useQuery({
     queryKey: ['document-types'],
     queryFn: fetchDocumentTypes
   });
@@ -202,16 +172,7 @@ export function DocumentsRH() {
   // Mutations
   const genererMutation = useMutation({
     mutationFn: async (data: { membre_id: number; type: string; donnees_supplementaires?: Record<string, unknown> }) => {
-      const res = await fetch(`${API_BASE}/admin/rh/documents/generer`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur génération');
-      }
-      return res.json();
+      return api.post('/admin/rh/documents/generer', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rh-documents'] });
@@ -225,9 +186,9 @@ export function DocumentsRH() {
 
   const downloadPDF = async (documentId: number, filename: string) => {
     try {
-      const fetchUrl = `${API_BASE}/admin/rh/documents/${documentId}/pdf`;
+      const fetchUrl = `/api/admin/rh/documents/${documentId}/pdf`;
       const res = await fetch(fetchUrl, {
-        headers: getAuthHeaders()
+        headers: { 'Authorization': `Bearer ${api.getToken()}` }
       });
       if (!res.ok) {
         throw new Error('Erreur téléchargement');
@@ -249,15 +210,7 @@ export function DocumentsRH() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE}/admin/rh/documents/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur suppression');
-      }
-      return res.json();
+      return api.delete(`/admin/rh/documents/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rh-documents'] });
@@ -266,16 +219,7 @@ export function DocumentsRH() {
 
   const updateStatutMutation = useMutation({
     mutationFn: async ({ id, statut }: { id: number; statut: string }) => {
-      const res = await fetch(`${API_BASE}/admin/rh/documents/${id}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ statut })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur mise à jour');
-      }
-      return res.json();
+      return api.patch(`/admin/rh/documents/${id}`, { statut });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rh-documents'] });

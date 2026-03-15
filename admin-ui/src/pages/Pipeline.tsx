@@ -8,10 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import {
   Plus, TrendingUp, User, Search, Trash2, MapPin, Percent, Euro,
   Calendar, GripVertical, X, Check, AlertCircle, Target, FileText,
-  Edit2, MoreVertical
+  Edit2
 } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
-import { FeatureField, ServiceLabel, ClientLabel } from '@/components/forms';
 import { api } from '../lib/api';
 
 interface Client {
@@ -88,7 +87,7 @@ const FRAIS_DEPLACEMENT_DEFAUT = 2000; // 20€ en centimes
 export default function PipelinePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { t, hasFeature } = useProfile();
+  const { t: _t, hasFeature: _hasFeature } = useProfile();
   const [draggedItem, setDraggedItem] = useState<Opportunite | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Opportunite | null>(null);
@@ -214,7 +213,7 @@ export default function PipelinePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
     },
-    onError: (err: Error) => {
+    onError: (_err: Error) => {
       queryClient.invalidateQueries({ queryKey: ['pipeline'] });
     }
   });

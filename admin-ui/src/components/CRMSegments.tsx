@@ -9,6 +9,7 @@ import {
   Crown, Heart, Sparkles, AlertTriangle,
   Moon, Zap, Ghost, Skull, X, Send, Loader2
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface RFMSegment {
   key: string;
@@ -73,31 +74,20 @@ export function CRMSegments() {
   }>({
     queryKey: ['rfm-segments'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/rfm/segments', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) {
-        if (res.status === 403) throw new Error('Plan Pro requis');
-        throw new Error('Erreur chargement');
-      }
-      return res.json();
+      return api.get('/admin/rfm/segments');
     },
   });
 
   // Fetch segment clients when expanded
-  const { data: segmentClientsData, isLoading: isLoadingClients } = useQuery<{
-    success: boolean;
-    segment: RFMSegment;
-    clients: RFMClient[];
-  }>({
+  const { data: segmentClientsData, isLoading: isLoadingClients } = useQuery({
     queryKey: ['rfm-segment-clients', expandedSegment],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ success: boolean; segment: RFMSegment | null; clients: RFMClient[] }> => {
       if (!expandedSegment) return { success: false, segment: null, clients: [] };
-      const res = await fetch(`/api/admin/rfm/segments/${expandedSegment}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}` }
-      });
-      if (!res.ok) return { success: false, segment: null, clients: [] };
-      return res.json();
+      try {
+        return await api.get(`/admin/rfm/segments/${expandedSegment}`);
+      } catch {
+        return { success: false, segment: null, clients: [] };
+      }
     },
     enabled: !!expandedSegment,
   });
@@ -132,19 +122,11 @@ export function CRMSegments() {
 
     setIsSending(true);
     try {
-      const res = await fetch(`/api/admin/rfm/segments/${campaignModal.segment.key}/campaign`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_admin_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: campaignModal.type,
-          message: campaignMessage
-        })
+      const data = await api.post<any>(`/admin/rfm/segments/${campaignModal.segment.key}/campaign`, {
+        type: campaignModal.type,
+        message: campaignMessage
       });
 
-      const data = await res.json();
       if (data.success) {
         alert(`Campagne envoyée !\n✓ ${data.results.sent} messages envoyés\n✗ ${data.results.failed} échecs`);
         setCampaignModal(null);

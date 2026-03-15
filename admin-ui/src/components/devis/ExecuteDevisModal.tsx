@@ -24,7 +24,7 @@ export interface ExecuteDevisModalProps {
 
 export default function ExecuteDevisModal({ devis, onClose, onExecute, isLoading }: ExecuteDevisModalProps) {
   // Profile pour adapter le texte
-  const { profile, t, isPricingMode, isBusinessType } = useProfile();
+  const { isPricingMode, isBusinessType } = useProfile();
 
   // Affectation membre uniquement pour salon/service_domicile (pas restaurant/hotel)
   const showMemberAssignment = !isBusinessType('restaurant') && !isBusinessType('hotel');
@@ -36,10 +36,10 @@ export default function ExecuteDevisModal({ devis, onClose, onExecute, isLoading
   const [dateInitialisee, setDateInitialisee] = useState(!!devisData.date_prestation);
   // Affectations enrichies avec heures
   const [affectations, setAffectations] = useState<Record<number, AffectationExec>>({});
-  const [serviceEnCours, setServiceEnCours] = useState<number | null>(null);
+  const [_serviceEnCours, setServiceEnCours] = useState<number | null>(null);
 
   // Fetch lignes du devis (avec vraies durees)
-  const { data: devisDetailData, error: devisDetailError } = useQuery<{ devis: Devis & { date_prestation?: string; heure_prestation?: string }; lignes: DevisLigneDetail[] }>({
+  const { data: devisDetailData } = useQuery<{ devis: Devis & { date_prestation?: string; heure_prestation?: string }; lignes: DevisLigneDetail[] }>({
     queryKey: ['devis-detail-exec', devis.id],
     queryFn: () => api.get<{ devis: Devis & { date_prestation?: string; heure_prestation?: string }; lignes: DevisLigneDetail[] }>(`/admin/devis/${devis.id}`),
     retry: 1
@@ -89,9 +89,6 @@ export default function ExecuteDevisModal({ devis, onClose, onExecute, isLoading
       }
     }
   }, [lignesDevis, heureRdv]);
-
-  // Calcul duree totale
-  const dureeTotale = lignesDevis.reduce((sum, l) => sum + (l.duree_minutes || 60) * (l.quantite || 1), 0) || devis.duree_minutes || 60;
 
   // Fetch membres RH pour affectation
   const { data: membresData, isLoading: dispoLoading } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({

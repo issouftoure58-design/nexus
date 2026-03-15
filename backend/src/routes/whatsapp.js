@@ -1,6 +1,6 @@
 /**
  * Routes WhatsApp - Webhook Twilio
- * Fat's Hair-Afro
+ * Multi-tenant
  *
  * MIGRÉ VERS NEXUS CORE - Janvier 2026
  * Variable USE_NEXUS_WHATSAPP=true pour activer le nouveau handler

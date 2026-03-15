@@ -119,7 +119,8 @@ export async function changePassword(userId, currentPassword, newPassword, tenan
         failed_login_attempts: 0,
         locked_until: null,
       })
-      .eq('id', userId);
+      .eq('id', userId)
+      .eq('tenant_id', user.tenant_id);
 
     if (updateError) throw updateError;
 

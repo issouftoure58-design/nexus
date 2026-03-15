@@ -4,13 +4,13 @@
  */
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   BookOpen, Search, Calendar, Users, Scissors, CreditCard, BarChart3,
   Bot, Shield, Star, ListChecks, FileText, Package, UserCog,
-  Target, Megaphone, GitBranch, Clock, Settings, ChevronDown, ChevronRight
+  Megaphone, Settings, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 interface GuideSection {

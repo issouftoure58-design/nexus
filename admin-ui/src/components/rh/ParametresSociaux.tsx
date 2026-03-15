@@ -4,23 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import {
   Calculator,
   Euro,
-  Percent,
   Clock,
   ExternalLink,
   Info,
   Building2,
   Users
 } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-};
+import { api } from '@/lib/api';
 
 interface ParametresSociauxData {
   source: string;
@@ -42,13 +32,8 @@ interface ParametresSociauxData {
   sources?: string[];
 }
 
-const fetchParametresSociaux = async (): Promise<ParametresSociauxData> => {
-  const res = await fetch(`${API_BASE}/admin/rh/parametres-sociaux`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement paramètres');
-  return res.json();
-};
+const fetchParametresSociaux = async (): Promise<ParametresSociauxData> =>
+  api.get('/admin/rh/parametres-sociaux');
 
 const formatTaux = (taux: number) => {
   return taux.toFixed(2).replace('.', ',') + ' %';
@@ -284,9 +269,6 @@ export function ParametresSociaux() {
         <CardContent>
           {(() => {
             const smic = parametres.smic_mensuel_brut;
-            const plafond = parametres.plafond_ss_mensuel;
-            const baseSS = Math.min(smic, plafond);
-
             // Calcul cotisations salariales
             const cotSal = Object.values(parametres.cotisations_salariales)
               .reduce((sum, c) => sum + c.taux, 0);

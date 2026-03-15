@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '../lib/api';
 import {
   MapPin, Users, Sun, Moon, RefreshCw, Eye, EyeOff,
-  Maximize2, Grid3X3, List, Clock, CheckCircle, XCircle,
+  Grid3X3, List, Clock, CheckCircle, XCircle,
   AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -266,6 +266,7 @@ export default function FloorPlanPage() {
                 size="sm"
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 onClick={() => setViewMode('grid')}
+                aria-label="Vue grille"
               >
                 <Grid3X3 className="h-4 w-4" />
               </Button>
@@ -273,6 +274,7 @@ export default function FloorPlanPage() {
                 size="sm"
                 variant={viewMode === 'list' ? 'default' : 'ghost'}
                 onClick={() => setViewMode('list')}
+                aria-label="Vue liste"
               >
                 <List className="h-4 w-4" />
               </Button>

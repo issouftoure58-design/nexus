@@ -191,7 +191,7 @@ export default function Configuration() {
       // 2. Save hours
       if (isMultiPeriod) {
         // For multi-period, we need to build the flat array
-        const horaires: any[] = [];
+        const horaires: { jour: number; heure_debut: string | null; heure_fin: string | null; is_active: boolean; period_label?: string }[] = [];
         multiHours.forEach((day, i) => {
           if (!day.is_active || day.periods.length === 0) {
             horaires.push({

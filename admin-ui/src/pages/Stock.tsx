@@ -15,7 +15,6 @@ import {
   Loader2,
   AlertCircle,
   AlertTriangle,
-  TrendingDown,
   Euro,
   Filter,
   RotateCcw,
@@ -347,6 +346,7 @@ export default function Stock() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0"
+                                aria-label="Modifier"
                                 onClick={() => setEditingProduct(product)}
                               >
                                 <Edit className="h-4 w-4" />
@@ -355,6 +355,7 @@ export default function Stock() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                aria-label="Supprimer"
                                 onClick={() => {
                                   if (confirm('Supprimer ce produit ?')) {
                                     deleteMutation.mutate(product.id);
@@ -487,7 +488,7 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
       <Card className="w-full max-w-md">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{isEditing ? 'Modifier le produit' : 'Nouveau produit'}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -616,7 +617,7 @@ function AdjustQuantityModal({ product, onClose }: { product: Product; onClose: 
       <Card className="w-full max-w-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Ajuster le stock</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" aria-label="Fermer">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>

@@ -5,8 +5,8 @@ import { requireModule } from '../middleware/moduleProtection.js';
 
 const router = express.Router();
 
-// 🔒 MODULE PROTECTION: Toutes les routes commandes nécessitent le module 'ecommerce'
-router.use(requireModule('ecommerce'));
+// 🔒 MODULE PROTECTION: Auth d'abord, puis vérification module
+router.use(authenticateAdmin, requireModule('ecommerce'));
 
 // Statuts possibles pour une commande
 const STATUTS_VALIDES = ['en_attente', 'confirme', 'paye', 'termine', 'annule'];

@@ -5,7 +5,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
 import { paginate } from '../middleware/paginate.js';
-import { paginated } from '../utils/response.js';
+import { success, error as apiError, paginated } from '../utils/response.js';
 
 const updateServiceSchema = z.object({
   nom: z.string().min(1).max(200).optional(),
@@ -79,9 +79,9 @@ router.get('/', authenticateAdmin, paginate(), async (req, res) => {
     });
 
     paginated(res, { data: mappedServices, page, limit, total: total || 0 });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur liste:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur liste:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -106,10 +106,10 @@ router.get('/equipe', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ data: membres || [] });
-  } catch (error) {
-    console.error('[SERVICES] Erreur liste equipe:', error);
-    res.status(500).json({ error: 'Erreur recuperation equipe' });
+    success(res, { data: membres || [] });
+  } catch (err) {
+    console.error('[SERVICES] Erreur liste equipe:', err);
+    apiError(res, 'Erreur recuperation equipe');
   }
 });
 
@@ -123,7 +123,7 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
     const { date, heure, duree = 60 } = req.query;
 
     if (!date || !heure) {
-      return res.status(400).json({ error: 'Date et heure requis' });
+      return apiError(res, 'Date et heure requis', 'BAD_REQUEST', 400);
     }
 
     const { data: membres, error: membresError } = await supabase
@@ -182,7 +182,7 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
       return joursTravail.includes(jourSemaine) && !membresOccupes.has(m.id);
     });
 
-    res.json({
+    success(res, {
       disponibles,
       occupes: membres?.filter(m => membresOccupes.has(m.id)).map(m => ({
         id: m.id, nom: m.nom, prenom: m.prenom, role: m.role,
@@ -190,9 +190,9 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
       })) || [],
       creneau: { date, heure, duree: parseInt(duree), jour: jourSemaine }
     });
-  } catch (error) {
-    console.error('[SERVICES] Erreur equipe disponible:', error);
-    res.status(500).json({ error: 'Erreur verification disponibilites' });
+  } catch (err) {
+    console.error('[SERVICES] Erreur equipe disponible:', err);
+    apiError(res, 'Erreur verification disponibilites');
   }
 });
 
@@ -206,7 +206,7 @@ router.post('/equipe', authenticateAdmin, async (req, res) => {
     const { nom, prenom, email, telephone, role } = req.body;
 
     if (!nom || !prenom) {
-      return res.status(400).json({ error: 'Nom et prenom requis' });
+      return apiError(res, 'Nom et prenom requis', 'BAD_REQUEST', 400);
     }
 
     const { data: membre, error } = await supabase
@@ -226,10 +226,10 @@ router.post('/equipe', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.status(201).json(membre);
-  } catch (error) {
-    console.error('[SERVICES] Erreur ajout membre:', error);
-    res.status(500).json({ error: 'Erreur ajout membre' });
+    success(res, { membre }, 201);
+  } catch (err) {
+    console.error('[SERVICES] Erreur ajout membre:', err);
+    apiError(res, 'Erreur ajout membre');
   }
 });
 
@@ -262,10 +262,10 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json(membre);
-  } catch (error) {
-    console.error('[SERVICES] Erreur modif membre:', error);
-    res.status(500).json({ error: 'Erreur modification membre' });
+    success(res, { membre });
+  } catch (err) {
+    console.error('[SERVICES] Erreur modif membre:', err);
+    apiError(res, 'Erreur modification membre');
   }
 });
 
@@ -286,10 +286,10 @@ router.delete('/equipe/:id', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ success: true });
-  } catch (error) {
-    console.error('[SERVICES] Erreur suppression membre:', error);
-    res.status(500).json({ error: 'Erreur suppression membre' });
+    success(res, { message: 'Membre supprimé' });
+  } catch (err) {
+    console.error('[SERVICES] Erreur suppression membre:', err);
+    apiError(res, 'Erreur suppression membre');
   }
 });
 
@@ -310,7 +310,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     if (!service) {
-      return res.status(404).json({ error: 'Service introuvable' });
+      return apiError(res, 'Service introuvable', 'NOT_FOUND', 404);
     }
 
     // Récupérer toutes les réservations de ce service
@@ -355,6 +355,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       const { data: clients } = await supabase
         .from('clients')
         .select('id, prenom, nom')
+        .eq('tenant_id', tenantId)
         .in('id', topClientIds);
 
       topClients = topClientIds.map(id => {
@@ -375,7 +376,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       .order('date', { ascending: false })
       .limit(10);
 
-    res.json({
+    success(res, {
       service: {
         ...service,
         duree_minutes: service.duree
@@ -394,9 +395,9 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         client_nom: rdv.clients ? `${rdv.clients.prenom} ${rdv.clients.nom}` : 'Client inconnu'
       }))
     });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur détail:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur détail:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -419,7 +420,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const serviceDuree = duree_minutes || duree || 0;
 
     if (!nom) {
-      return res.status(400).json({ error: 'Nom requis' });
+      return apiError(res, 'Nom requis', 'BAD_REQUEST', 400);
     }
 
     // Récupérer le prochain ordre (🔒 TENANT ISOLATION)
@@ -478,10 +479,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
       details: { nom: service.nom, prix: service.prix }
     });
 
-    res.json({ service });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur création:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { service });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur création:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -546,10 +547,10 @@ router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req,
       details: { updates }
     });
 
-    res.json({ service });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur modification:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { service });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur modification:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -567,9 +568,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       .eq('tenant_id', tenantId);
 
     if (count > 0) {
-      return res.status(400).json({
-        error: `Impossible de supprimer: ${count} réservation(s) utilisent ce service`
-      });
+      return apiError(res, `Impossible de supprimer: ${count} réservation(s) utilisent ce service`, 'BAD_REQUEST', 400);
     }
 
     // 🔒 TENANT ISOLATION
@@ -590,10 +589,10 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       entite_id: req.params.id
     });
 
-    res.json({ message: 'Service supprimé' });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur suppression:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { message: 'Service supprimé' });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur suppression:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -611,7 +610,7 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
       .single();
 
     if (fetchError || !current) {
-      return res.status(404).json({ error: 'Service introuvable' });
+      return apiError(res, 'Service introuvable', 'NOT_FOUND', 404);
     }
 
     // Inverser le statut
@@ -627,10 +626,10 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ service, actif: newActif });
-  } catch (error) {
-    console.error('[ADMIN SERVICES] Erreur toggle:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { service, actif: newActif });
+  } catch (err) {
+    console.error('[ADMIN SERVICES] Erreur toggle:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 

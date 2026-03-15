@@ -117,12 +117,6 @@ const MODULE_GROUPS = [
   },
 ];
 
-const PERMISSION_LABELS: Record<string, string> = {
-  read: 'Voir',
-  write: 'Editer',
-  delete: 'Supprimer',
-};
-
 interface PermissionSelectorProps {
   value: Record<string, string[]>;
   onChange: (permissions: Record<string, string[]>) => void;

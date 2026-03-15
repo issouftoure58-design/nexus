@@ -4,12 +4,12 @@
  * Vue Kanban (defaut) + Vue Liste
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import {
   ShoppingBag, RefreshCw, List, LayoutGrid, ChevronRight,
-  Clock, CheckCircle, Package, Truck, XCircle, Search, Filter,
+  Clock, CheckCircle, Package, Truck, XCircle, Search,
   Plus, X, MinusCircle, PlusCircle, User, Phone, Mail,
   CreditCard, Banknote, FileText
 } from 'lucide-react';
@@ -162,7 +162,7 @@ export default function Commandes() {
   });
 
   // Fetch stats
-  const { data: stats } = useQuery({
+  const { data: _stats } = useQuery({
     queryKey: ['commerce-orders-stats'],
     queryFn: commerceApi.getOrderStats,
     refetchInterval: 30000,
@@ -793,8 +793,8 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         customerNotes: customerNotes.trim() || undefined,
       });
       onCreated();
-    } catch (err: any) {
-      setError(err?.message || 'Erreur lors de la création');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la création');
     } finally {
       setSubmitting(false);
     }

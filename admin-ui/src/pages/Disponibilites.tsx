@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,10 +41,26 @@ interface HoraireRow {
   periods: HorairePeriod[];
 }
 
+interface HoraireEntry {
+  jour: number;
+  heure_debut: string | null;
+  heure_fin: string | null;
+  is_active: boolean;
+  period_label?: string;
+  sort_order?: number;
+}
+
+interface CongeEntry {
+  id: number;
+  date_debut: string;
+  date_fin: string;
+  motif?: string;
+}
+
 export default function Disponibilites() {
   const queryClient = useQueryClient();
   const { tenant } = useTenantContext();
-  const templateId = (tenant as any)?.template_id || 'autre';
+  const templateId = (tenant as { template_id?: string })?.template_id || 'autre';
   const isMultiPeriod = MULTI_PERIOD_TEMPLATES.has(templateId);
   const defaultLabels = PERIOD_LABELS[templateId] || ['Journée'];
 
@@ -60,8 +76,8 @@ export default function Disponibilites() {
       const data = await disponibilitesApi.getHoraires();
       if (!horairesLoaded) {
         // Group by day
-        const byDay: Record<number, any[]> = {};
-        (data.horaires || []).forEach((h: any) => {
+        const byDay: Record<number, HoraireEntry[]> = {};
+        (data.horaires || []).forEach((h: HoraireEntry) => {
           if (!byDay[h.jour]) byDay[h.jour] = [];
           byDay[h.jour].push(h);
         });
@@ -79,14 +95,14 @@ export default function Disponibilites() {
                 : [],
             });
           } else {
-            const anyActive = dayEntries.some((e: any) => e.is_active);
+            const anyActive = dayEntries.some((e) => e.is_active);
             rows.push({
               jour: i,
               nom: JOURS[i],
               is_active: anyActive,
               periods: dayEntries
-                .filter((e: any) => e.is_active)
-                .map((e: any) => ({
+                .filter((e) => e.is_active)
+                .map((e) => ({
                   label: formatPeriodLabel(e.period_label || 'journee'),
                   heure_debut: e.heure_debut || '09:00',
                   heure_fin: e.heure_fin || '18:00',
@@ -114,7 +130,7 @@ export default function Disponibilites() {
   // Sauvegarder: flatten multi-period to array
   const saveMutation = useMutation({
     mutationFn: (data: HoraireRow[]) => {
-      const flat: any[] = [];
+      const flat: HoraireEntry[] = [];
       data.forEach(day => {
         if (!day.is_active || day.periods.length === 0) {
           flat.push({
@@ -396,7 +412,7 @@ export default function Disponibilites() {
             </p>
           ) : (
             <div className="space-y-2">
-              {conges.map((c: any) => (
+              {conges.map((c: CongeEntry) => (
                 <div
                   key={c.id}
                   className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"

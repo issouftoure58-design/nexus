@@ -7,6 +7,7 @@ import { checkConflicts } from '../utils/conflictChecker.js';
 import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire, genererEcrituresPaiement } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { enforceTrialLimit } from '../services/trialService.js';
+import { requireReservationsQuota } from '../middleware/quotas.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
 import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
@@ -15,6 +16,7 @@ import { notifyNextInLine } from '../services/waitlistService.js';
 import { sendSMS } from '../services/smsService.js';
 import { sendEmail } from '../services/emailService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
+import { success, error as apiError, paginated } from '../utils/response.js';
 
 const createReservationSchema = z.object({
   client_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
@@ -273,18 +275,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
       };
     });
 
-    res.json({
-      reservations: formattedReservations,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: count,
-        pages: Math.ceil(count / limitNum)
-      }
-    });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur liste:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    paginated(res, { data: formattedReservations, page: pageNum, limit: limitNum, total: count });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur liste:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -301,10 +295,10 @@ router.get('/:id/extra', authenticateAdmin, async (req, res) => {
     });
 
     if (error) throw error;
-    res.json(data || {});
-  } catch (error) {
-    console.error('[RESERVATIONS] Erreur extra:', error.message);
-    res.json({});
+    success(res, { data: data || {} });
+  } catch (err) {
+    console.error('[RESERVATIONS] Erreur extra:', err.message);
+    success(res, { data: {} });
   }
 });
 
@@ -375,7 +369,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     if (error) throw error;
 
     if (!reservation) {
-      return res.status(404).json({ error: 'Réservation introuvable' });
+      return apiError(res, 'Réservation introuvable', 'NOT_FOUND', 404);
     }
 
     // Récupérer les informations du service depuis la table services (🔒 TENANT ISOLATION)
@@ -473,10 +467,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       } : null
     };
 
-    res.json({ reservation: formattedReservation });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur détail:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { reservation: formattedReservation });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur détail:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -486,7 +480,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/reservations
 // Créer une réservation/prestation avec multi-services et multi-membres
-router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(createReservationSchema), async (req, res) => {
+router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireReservationsQuota, validate(createReservationSchema), async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
@@ -529,16 +523,12 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
 
     // En mode horaire, les heures sont définies par affectation (agent), pas globalement
     if (!client_id || (!service && !hasServices) || !date_rdv) {
-      return res.status(400).json({
-        error: 'Champs requis : client_id, service(s), date_rdv'
-      });
+      return apiError(res, 'Champs requis : client_id, service(s), date_rdv', 'BAD_REQUEST', 400);
     }
 
     // Heure requise sauf en mode horaire (où les heures sont par agent)
     if (!isHourlyMode && !heure_rdv) {
-      return res.status(400).json({
-        error: 'Champs requis : heure_rdv'
-      });
+      return apiError(res, 'Champs requis : heure_rdv', 'BAD_REQUEST', 400);
     }
 
     // Vérifier que le client existe et récupérer ses infos (🔒 TENANT ISOLATION)
@@ -550,7 +540,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
       .single();
 
     if (clientError || !client) {
-      return res.status(404).json({ error: 'Client introuvable' });
+      return apiError(res, 'Client introuvable', 'NOT_FOUND', 404);
     }
 
     // Nom du premier service (rétro-compatibilité)
@@ -598,12 +588,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
     if (!result.success) {
       // Conflit horaire
       if (result.error && result.error.includes('Conflit')) {
-        return res.status(409).json({
-          error: result.error,
-          suggestions: result.suggestions || []
-        });
+        return apiError(res, result.error, 'CONFLICT', 409);
       }
-      return res.status(400).json({ error: result.error || 'Erreur création' });
+      return apiError(res, result.error || 'Erreur création', 'BAD_REQUEST', 400);
     }
 
     const reservationId = result.reservationId;
@@ -801,15 +788,15 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), validate(
       console.error('[ADMIN RESERVATIONS] Workflow trigger non bloquant:', e.message);
     }
 
-    res.json({
+    success(res, {
       reservation,
       facture: null,
       lignes_count: hasServices ? services.length : 1,
       membres_count: membre_ids ? membre_ids.length : (membre_id ? 1 : 0)
     });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur création:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur création:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -843,14 +830,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       .single();
 
     if (fetchError || !currentRdv) {
-      return res.status(404).json({ error: 'Réservation introuvable' });
+      return apiError(res, 'Réservation introuvable', 'NOT_FOUND', 404);
     }
 
     // Si RDV annulé/terminé, on autorise seulement le changement de statut
     if ((currentRdv.statut === 'annule' || currentRdv.statut === 'termine') && !statut) {
-      return res.status(400).json({
-        error: `Impossible de modifier une réservation ${currentRdv.statut}. Changez d'abord le statut.`
-      });
+      return apiError(res, `Impossible de modifier une réservation ${currentRdv.statut}. Changez d'abord le statut.`, 'BAD_REQUEST', 400);
     }
 
     const updates = {
@@ -866,10 +851,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       const conflictResult = await checkConflicts(supabase, newDate, newHeure, duree, req.params.id, tenantId);
       if (conflictResult.conflict) {
         const c = conflictResult.rdv;
-        return res.status(409).json({
-          error: `Conflit : ${c.client} (${c.service}) jusqu'à ${c.fin}`,
-          suggestions: conflictResult.suggestions
-        });
+        return apiError(res, `Conflit : ${c.client} (${c.service}) jusqu'à ${c.fin}`, 'CONFLICT', 409);
       }
 
       if (date_rdv) updates.date = date_rdv;
@@ -886,7 +868,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         .single();
 
       if (serviceError || !serviceInfo) {
-        return res.status(404).json({ error: `Service introuvable: ${service}` });
+        return apiError(res, `Service introuvable: ${service}`, 'NOT_FOUND', 404);
       }
 
       updates.service_nom = serviceInfo.nom;
@@ -1087,6 +1069,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           .select('*')
           .eq('id', ligne.id)
           .eq('reservation_id', req.params.id)
+          .eq('tenant_id', tenantId)
           .single();
 
         if (ligneErr || !currentLigne) {
@@ -1217,10 +1200,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       }
     }
 
-    res.json({ reservation, changes: updates, facture, lignes: updatedLignes });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur modification:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { reservation, changes: updates, facture, lignes: updatedLignes });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur modification:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -1234,9 +1217,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     const { statut, mode_paiement, membre_id, checkout } = req.body;
 
     if (!statut || !STATUTS_VALIDES.includes(statut)) {
-      return res.status(400).json({
-        error: `Statut invalide. Valeurs acceptées : ${STATUTS_VALIDES.join(', ')}`
-      });
+      return apiError(res, `Statut invalide. Valeurs acceptées : ${STATUTS_VALIDES.join(', ')}`, 'BAD_REQUEST', 400);
     }
 
     // Note: mode_paiement n'est plus requis ici
@@ -1251,14 +1232,12 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       .single();
 
     if (fetchError || !currentRdv) {
-      return res.status(404).json({ error: 'Réservation introuvable' });
+      return apiError(res, 'Réservation introuvable', 'NOT_FOUND', 404);
     }
 
     // Empêcher certaines transitions
     if (currentRdv.statut === 'termine' && statut === 'en_attente') {
-      return res.status(400).json({
-        error: 'Impossible de repasser une réservation terminée en attente'
-      });
+      return apiError(res, 'Impossible de repasser une réservation terminée en attente', 'BAD_REQUEST', 400);
     }
 
     // ⚠️ VALIDATION: Personnel obligatoire pour terminer une réservation
@@ -1266,10 +1245,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     if (statut === 'termine' && !checkout) {
       const membreAssigne = membre_id || currentRdv.membre_id;
       if (!membreAssigne) {
-        return res.status(400).json({
-          error: 'Affectation du personnel obligatoire pour terminer la prestation',
-          code: 'MEMBRE_REQUIS'
-        });
+        return apiError(res, 'Affectation du personnel obligatoire pour terminer la prestation', 'MEMBRE_REQUIS', 400);
       }
     }
 
@@ -1570,10 +1546,10 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       }
     }
 
-    res.json({ reservation, facture });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur changement statut:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { reservation, facture });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur changement statut:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -1593,7 +1569,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       .single();
 
     if (fetchError || !reservation) {
-      return res.status(404).json({ error: 'Réservation introuvable' });
+      return apiError(res, 'Réservation introuvable', 'NOT_FOUND', 404);
     }
 
     // 📄 Supprimer ou annuler la facture associée AVANT de supprimer la réservation
@@ -1633,10 +1609,10 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       }
     });
 
-    res.json({ message: 'Réservation supprimée', facture: factureInfo });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur suppression:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { message: 'Réservation supprimée', facture: factureInfo });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur suppression:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -1728,7 +1704,7 @@ router.get('/stats/periode', authenticateAdmin, async (req, res) => {
       ? Math.round(((parStatut.annule + parStatut.no_show) / total) * 100)
       : 0;
 
-    res.json({
+    success(res, {
       periode,
       date_debut: dateDebutStr,
       date_fin: now.toISOString().split('T')[0],
@@ -1742,9 +1718,9 @@ router.get('/stats/periode', authenticateAdmin, async (req, res) => {
         domicile: nbDomicile
       }
     });
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur stats:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur stats:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -1810,9 +1786,9 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send('\ufeff' + csv); // BOM UTF-8 pour Excel
-  } catch (error) {
-    console.error('[ADMIN RESERVATIONS] Erreur export:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur export:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 

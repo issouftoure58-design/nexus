@@ -1,6 +1,6 @@
 /**
  * Service de gestion des disponibilités avec intégration des temps de trajet
- * Fat's Hair-Afro - Franconville
+ * Multi-tenant
  */
 
 import { getDistanceFromSalon } from './googleMapsService.js';
@@ -50,7 +50,7 @@ export function validerHorairesJour(date, heure, duree_minutes = 0) {
   if (horaires === null) {
     return {
       valide: false,
-      raison: `Dimanche : FERMÉ. Fatou ne travaille pas le dimanche.`,
+      raison: `Dimanche : FERMÉ.`,
       jourSemaine: jourNom,
     };
   }
@@ -172,7 +172,7 @@ function blocsSeChevauche(debut1, fin1, debut2, fin2) {
  *
  * @returns {Promise<Object>} Résultat de la vérification
  */
-export async function checkDisponibilite(date, heure, duree_service_minutes, adresse_client, rdv_existants = []) {
+export async function checkDisponibilite(date, heure, duree_service_minutes, adresse_client, rdv_existants = [], tenantId = null) {
   try {
     // 0. Valider les horaires du jour AVANT tout calcul
     const validationHoraires = validerHorairesJour(date, heure, duree_service_minutes);
@@ -195,7 +195,7 @@ export async function checkDisponibilite(date, heure, duree_service_minutes, adr
 
     if (adresse_client) {
       try {
-        const distanceResult = await getDistanceFromSalon(adresse_client);
+        const distanceResult = await getDistanceFromSalon(adresse_client, tenantId);
         temps_trajet_minutes = distanceResult.duree_minutes;
 
         // calculerFraisDepl retourne directement un nombre (euros)
@@ -301,7 +301,8 @@ export async function getCreneauxDisponibles(
   adresse_client,
   rdv_existants = [],
   horairesParam = null, // Si null, utilise les horaires du jour
-  intervalle = 30
+  intervalle = 30,
+  tenantId = null
 ) {
   // Obtenir les horaires du jour (priorité sur le paramètre)
   const horairesJour = getHorairesJour(date);
@@ -322,7 +323,7 @@ export async function getCreneauxDisponibles(
 
   if (adresse_client) {
     try {
-      const distanceResult = await getDistanceFromSalon(adresse_client);
+      const distanceResult = await getDistanceFromSalon(adresse_client, tenantId);
       temps_trajet_minutes = distanceResult.duree_minutes;
       const frais = calculerFraisDepl(distanceResult.distance_km);
 

@@ -197,26 +197,26 @@ function hasPlanAccess(currentPlan: PlanType, requiredPlan: PlanType): boolean {
 
 const DEFAULT_QUOTAS: Record<PlanType, TenantQuotas> = {
   starter: {
-    clients_max: 1000,
+    clients_max: 200,
     storage_gb: 2,
-    posts_ia_month: 100,
+    posts_ia_month: 0,
     images_ia_month: 100,
     reservations_month: 500,
     messages_ia_month: 1000,
   },
   pro: {
-    clients_max: 3000,
+    clients_max: 2000,
     storage_gb: 10,
-    posts_ia_month: 500,
+    posts_ia_month: 0,
     images_ia_month: 500,
-    reservations_month: 2000,
+    reservations_month: 5000,
     messages_ia_month: 5000,
   },
   business: {
     clients_max: -1, // Illimité
-    storage_gb: 50,
-    posts_ia_month: 2000,
-    images_ia_month: 2000,
+    storage_gb: -1, // Illimité
+    posts_ia_month: 1000,
+    images_ia_month: 1000,
     reservations_month: -1, // Illimité
     messages_ia_month: -1, // Illimité
   },

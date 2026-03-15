@@ -17,6 +17,8 @@ import { alerter } from './actions/alerter.js';
 import { autoHeal } from './actions/autoHeal.js';
 import { THRESHOLDS } from './config/thresholds.js';
 import { supabase } from '../config/supabase.js';
+import { registerInterval } from '../utils/intervalRegistry.js';
+import { retryWithBackoff, isTransientError } from '../utils/retryWithBackoff.js';
 
 // Multi-tenant cost tracking
 import { trackTenantCall, getTenantUsage, getAllTenantUsage, resetTenantUsage, initTenantUsageFromDB } from './monitors/tenantCostTracker.js';
@@ -60,9 +62,10 @@ class Sentinel {
 
   startHealthChecks() {
     // Check every 5 minutes
-    setInterval(async () => {
+    const id = setInterval(async () => {
       await this.runHealthCheck();
     }, 5 * 60 * 1000);
+    registerInterval('sentinel:healthCheck', id);
 
     // Initial check
     this.runHealthCheck();
@@ -100,10 +103,10 @@ class Sentinel {
   async checkCosts() {
     // Lire les coûts réels du jour depuis sentinel_daily_costs
     const todayStr = new Date().toISOString().split('T')[0];
-    const { data: todayCosts } = await supabase
-      .from('sentinel_daily_costs')
-      .select('total_cost_eur')
-      .eq('date', todayStr);
+    const { data: todayCosts } = await retryWithBackoff(
+      () => supabase.from('sentinel_daily_costs').select('total_cost_eur').eq('date', todayStr),
+      { maxRetries: 2, label: 'sentinel:checkCosts', shouldRetry: isTransientError }
+    );
 
     const total = (todayCosts || []).reduce((s, c) => s + (c.total_cost_eur || 0), 0);
     const costs = { total, date: todayStr };

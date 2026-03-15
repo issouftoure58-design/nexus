@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 // Import du générateur IA dynamique (remplace les templates hardcodés)
 import * as aiGenerator from './aiGeneratorService.js';
 import { sendStatusChange } from './notificationService.js';
+import { getTenantConfig } from '../config/tenants/index.js';
 
 // Client Resend pour l'envoi d'emails
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -285,11 +286,14 @@ export async function sendMessage(tenantId, clientId, canal, type, contenu) {
 
     const clientNom = `${client.prenom || ''} ${client.nom}`.trim();
 
-    // Templates de messages
+    // Templates de messages adaptes au tenant
+    const tc = getTenantConfig(tenantId);
+    const tenantName = tc?.name || tenantId;
+    const assistantName = tc?.assistantName || 'L\'equipe';
     const templates = {
-      rappel: `Bonjour ${client.prenom || client.nom}, c'est Fatou de Fat's Hair-Afro ! Je vous rappelle votre RDV demain. À bientôt ! 💇🏾‍♀️`,
-      remerciement: `Merci ${client.prenom || client.nom} pour votre visite ! J'espère que vous êtes ravie du résultat. À très bientôt chez Fat's Hair-Afro ! ✨`,
-      info: `Bonjour ${client.prenom || client.nom}, voici une info importante concernant votre réservation...`
+      rappel: `Bonjour ${client.prenom || client.nom}, c'est ${assistantName} de ${tenantName} ! Nous vous rappelons votre RDV demain. A bientot !`,
+      remerciement: `Merci ${client.prenom || client.nom} pour votre visite ! Nous esperons que vous etes satisfait(e). A tres bientot chez ${tenantName} !`,
+      info: `Bonjour ${client.prenom || client.nom}, voici une info importante concernant votre reservation...`
     };
 
     const message = contenu || templates[type] || templates.info;
@@ -302,25 +306,26 @@ export async function sendMessage(tenantId, clientId, canal, type, contenu) {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: #8B5CF6; color: white; padding: 20px; text-align: center;">
-              <h1 style="margin: 0;">Fat's Hair-Afro</h1>
-              <p style="margin: 5px 0 0 0;">Coiffure Afro à Domicile</p>
+              <h1 style="margin: 0;">${tenantName}</h1>
+              <p style="margin: 5px 0 0 0;">${tc?.concept || ''}</p>
             </div>
             <div style="padding: 20px; background: #f9f9f9;">
               <p>${message.replace(/\n/g, '<br>')}</p>
             </div>
             <div style="padding: 15px; background: #eee; text-align: center; font-size: 12px; color: #666;">
-              <p>Fat's Hair-Afro - Franconville & Île-de-France</p>
-              <p>📞 07 82 23 50 20</p>
+              <p>${tenantName}${tc?.adresse ? ' - ' + tc.adresse : ''}</p>
+              ${tc?.telephone ? `<p>${tc.telephone}</p>` : ''}
             </div>
           </div>
         `;
 
+        const emailFrom = process.env.EMAIL_FROM || `${tenantName} <noreply@nexus-ai-saas.com>`;
         const { data, error: emailError } = await resend.emails.send({
-          from: "Fat's Hair-Afro <onboarding@resend.dev>",
+          from: emailFrom,
           to: [client.email],
-          subject: type === 'rappel' ? 'Rappel de votre RDV - Fat\'s Hair-Afro' :
-                   type === 'remerciement' ? 'Merci pour votre visite ! - Fat\'s Hair-Afro' :
-                   'Message de Fat\'s Hair-Afro',
+          subject: type === 'rappel' ? `Rappel de votre RDV - ${tenantName}` :
+                   type === 'remerciement' ? `Merci pour votre visite ! - ${tenantName}` :
+                   `Message de ${tenantName}`,
           html: emailHtml
         });
 
@@ -534,7 +539,7 @@ export async function seoAnalyze(aspect = 'global') {
 /**
  * Génère des mots-clés SEO - GÉNÉRATION DYNAMIQUE avec Claude
  */
-export async function seoKeywords(service, localisation = 'Franconville') {
+export async function seoKeywords(service, localisation = null) {
   try {
     console.log('[SEO] Génération mots-clés dynamique...');
     const result = await aiGenerator.generateSeoKeywords(service, localisation);
@@ -566,10 +571,10 @@ export async function seoMetaGenerate(page) {
     console.error('[SEO] Erreur génération meta:', error.message);
     // Fallback avec valeurs de base
     return {
-      title: 'Fat\'s Hair-Afro | Coiffure Afro à Domicile',
-      description: 'Coiffeuse afro à domicile à Franconville. Tresses, locks, soins.',
-      h1: 'Coiffure afro à domicile',
-      error: 'Génération en cours'
+      title: page || 'Page',
+      description: '',
+      h1: page || '',
+      error: 'Generation en cours'
     };
   }
 }

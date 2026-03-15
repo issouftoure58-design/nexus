@@ -29,17 +29,13 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Lock,
   Crown,
   Calculator,
   GitBranch,
   AlertTriangle,
   Banknote,
   FileText,
-  Share2,
-  Sparkles,
   Phone,
-  Headphones,
   CalendarCheck,
   Clock,
   Bot,
@@ -52,7 +48,7 @@ import {
   UserPlus,
   ShoppingBag,
 } from 'lucide-react';
-import { useState, useMemo, useCallback, useEffect, memo } from 'react';
+import { useState, useCallback, useEffect, memo } from 'react';
 import { authApi } from '@/lib/api';
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -96,25 +92,21 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   'agent_ia_web': 'starter',
   'reservations': 'starter',
   'facturation': 'starter',
+  'ecommerce': 'starter',
   // Pro
   'whatsapp': 'pro',
   'telephone': 'pro',
-  'standard_ia': 'pro',
-  'ia_reservation': 'pro',
-  'marketing': 'pro',
   'comptabilite': 'pro',
-  'analytics': 'pro',
-  'ecommerce': 'pro',
   'stock': 'pro',
+  'devis': 'pro',
+  'crm_avance': 'pro',
   // Business
-  'rh_avance': 'business',
+  'pipeline': 'business',
+  'marketing': 'business',
+  'analytics': 'business',
   'rh': 'business',
-  'paie': 'business',
   'seo': 'business',
-  'sentinel_pro': 'business',
   'sentinel': 'business',
-  'social_media': 'pro',
-  'assistant_ia': 'pro',
 };
 
 // Mapping requiredModule → module RBAC pour filtrer par permissions utilisateur
@@ -124,21 +116,15 @@ const MODULE_TO_RBAC: Record<string, string> = {
   agent_ia_web: 'ia',
   whatsapp: 'ia',
   telephone: 'ia',
-  standard_ia: 'ia',
-  ia_reservation: 'ia',
-  assistant_ia: 'ia',
   analytics: 'stats',
   comptabilite: 'comptabilite',
   stock: 'stock',
   rh: 'rh',
-  rh_avance: 'rh',
-  paie: 'rh',
   marketing: 'marketing',
-  social_media: 'marketing',
   seo: 'seo',
   sentinel: 'modules',
-  sentinel_pro: 'modules',
   ecommerce: 'services',
+  devis: 'services',
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -166,9 +152,6 @@ const iaNav: NavItem[] = [
   { icon: Bot, label: 'Agent IA Web', path: '/ia-admin', requiredModule: 'agent_ia_web' },
   { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', requiredModule: 'whatsapp' },
   { icon: Phone, label: 'Téléphone IA', path: '/ia-telephone', requiredModule: 'telephone' },
-  { icon: Headphones, label: 'Standard IA', path: '/ia-standard', requiredModule: 'standard_ia' },
-  { icon: CalendarCheck, label: 'Résa IA Omnicanal', path: '/ia-reservation', requiredModule: 'ia_reservation' },
-  { icon: Sparkles, label: 'Assistant Personnel', path: '/assistant', requiredModule: 'assistant_ia' },
 ];
 
 // Business - Modules avancés
@@ -178,7 +161,6 @@ const businessNav: NavItem[] = [
   { icon: Calculator, label: 'Comptabilité', path: '/comptabilite', requiredModule: 'comptabilite' },
   { icon: Package, label: 'Stock', path: '/stock', requiredModule: 'stock' },
   { icon: UserCog, label: 'Équipe RH', path: '/rh', requiredModule: 'rh' },
-  { icon: Banknote, label: 'Paie', path: '/paie', requiredModule: 'paie' },
 ];
 
 // Marketing - Modules marketing
@@ -186,11 +168,10 @@ const marketingNav: NavItem[] = [
   { icon: Megaphone, label: 'Campagnes', path: '/campagnes', requiredModule: 'marketing' },
   { icon: FileText, label: 'Templates Email', path: '/email-templates', requiredModule: 'marketing' },
   { icon: Target, label: 'Analytics Mktg', path: '/marketing-analytics', requiredModule: 'marketing' },
-  { icon: Share2, label: 'Réseaux Sociaux', path: '/social', requiredModule: 'social_media' },
   { icon: ClipboardList, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredModule: 'marketing' },
-  { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'marketing' },
-  { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'marketing' },
+  { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'pipeline' },
+  { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'devis' },
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
 ];
@@ -217,7 +198,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { name, plan, hasPlan, hasModule, isLoading } = useTenant();
-  const { t, businessType, businessInfo } = useProfile();
+  const { t: _t, businessType, businessInfo: _businessInfo } = useProfile();
 
   // Charger les permissions effectives de l'utilisateur
   useEffect(() => {

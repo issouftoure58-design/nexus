@@ -27,8 +27,12 @@
 import { createClient } from '@supabase/supabase-js';
 import dateService from './dateService.js';
 import logger from '../config/logger.js';
-// *** IMPORT DEPUIS NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***
+// *** IMPORT DEPUIS NEXUS CORE - SOURCE UNIQUE DE VERITE ***
 import { TRAVEL_FEES, BUSINESS_HOURS } from '../config/businessRules.js';
+// Multi-tenant: business info dynamique
+import { getBusinessInfoSync, getBusinessInfo } from './tenantBusinessService.js';
+// Multi-tenant: services, horaires, regles metier dynamiques
+import { getServicesForTenant, findServiceByNameForTenant, getBusinessHoursForTenant } from './tenantBusinessRules.js';
 // 🔒 FONCTION UNIQUE DE CRÉATION RDV (import différé pour éviter cycle)
 let createReservationUnifiedFn = null;
 async function getCreateReservationUnified() {
@@ -68,141 +72,35 @@ function getSupabase() {
   return supabase;
 }
 
-// Adresse de base de Fatou
-// ⚠️ DEPRECATED: Utiliser getBaseAddress(tenantId) à la place
-const FATOU_ADDRESS = '8 rue des Monts Rouges, 95130 Franconville, France';
-
 /**
  * Récupère l'adresse de base d'un tenant (pour calcul distance)
- * @param {string} tenantId - ID du tenant
- * @returns {string} Adresse de base
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @returns {string|null} Adresse de base ou null si non trouvée
  */
-export function getBaseAddress(tenantId = 'fatshairafro') {
+export function getBaseAddress(tenantId) {
+  if (!tenantId) {
+    logger.warn('getBaseAddress appele sans tenantId', { tag: 'BOOKING' });
+    return null;
+  }
   try {
-    const { getBusinessInfoSync } = require('./tenantBusinessService.js');
     const info = getBusinessInfoSync(tenantId);
-    return info.adresse || FATOU_ADDRESS;
+    return info.adresse || null;
   } catch (e) {
-    return FATOU_ADDRESS;
+    logger.warn('getBaseAddress: impossible de charger adresse', { tag: 'BOOKING', tenantId, error: e.message });
+    return null;
   }
 }
 
 // ============================================
-// SERVICES ET TARIFS OFFICIELS FAT'S HAIR-AFRO
-// ⚠️ RÈGLES MÉTIER INVIOLABLES
+// SERVICES ET TARIFS (CHARGEMENT DYNAMIQUE PAR TENANT)
+// Les services sont chargés depuis la DB via tenantBusinessRules.js
 // ============================================
 
-export const SERVICES = {
-  // === LOCKS - CRÉATIONS (JOURNÉE ENTIÈRE) ===
-  'création crochet locks': {
-    nom: 'Création crochet locks',
-    prix: 200,
-    duree: 480,
-    categorie: 'locks',
-    blocksFullDay: true,  // JOURNÉE ENTIÈRE
-    blocksDays: 1
-  },
-  'crochet locks': {
-    nom: 'Création crochet locks',
-    prix: 200,
-    duree: 480,
-    categorie: 'locks',
-    blocksFullDay: true,
-    blocksDays: 1
-  },
-  'création microlocks crochet': {
-    nom: 'Création microlocks crochet',
-    prix: 300,
-    duree: 960,
-    categorie: 'locks',
-    prixVariable: true,
-    blocksFullDay: true,  // 2 JOURS CONSÉCUTIFS
-    blocksDays: 2
-  },
-  'microlocks crochet': {
-    nom: 'Création microlocks crochet',
-    prix: 300,
-    duree: 960,
-    categorie: 'locks',
-    prixVariable: true,
-    blocksFullDay: true,
-    blocksDays: 2
-  },
-  'création microlocks twist': {
-    nom: 'Création microlocks twist',
-    prix: 150,
-    duree: 480,
-    categorie: 'locks',
-    prixVariable: true,
-    blocksFullDay: true,  // JOURNÉE ENTIÈRE
-    blocksDays: 1
-  },
-  'microlocks twist': {
-    nom: 'Création microlocks twist',
-    prix: 150,
-    duree: 480,
-    categorie: 'locks',
-    prixVariable: true,
-    blocksFullDay: true,
-    blocksDays: 1
-  },
-  'microlocks': {
-    nom: 'Création microlocks twist',
-    prix: 150,
-    duree: 480,
-    categorie: 'locks',
-    prixVariable: true,
-    blocksFullDay: true,
-    blocksDays: 1
-  },
+// @deprecated - Ne plus utiliser directement. Utiliser getServicesForTenant(tenantId) de tenantBusinessRules.js
+export const SERVICES = {};
 
-  // === LOCKS - ENTRETIEN (CRÉNEAUX NORMAUX) ===
-  'décapage locks': { nom: 'Décapage locks', prix: 35, duree: 60, categorie: 'locks' },
-  'décapage': { nom: 'Décapage locks', prix: 35, duree: 60, categorie: 'locks' },
-  'decapage locks': { nom: 'Décapage locks', prix: 35, duree: 60, categorie: 'locks' },
-  'reprise racines locks': { nom: 'Reprise racines locks', prix: 50, duree: 120, categorie: 'locks' },
-  'reprise racines': { nom: 'Reprise racines locks', prix: 50, duree: 120, categorie: 'locks' },
-  'entretien locks': { nom: 'Reprise racines locks', prix: 50, duree: 120, categorie: 'locks' },
-  'reprise racines micro-locks': { nom: 'Reprise racines micro-locks', prix: 100, duree: 240, categorie: 'locks' },
-  'reprise micro-locks': { nom: 'Reprise racines micro-locks', prix: 100, duree: 240, categorie: 'locks' },
-
-  // === SOINS ===
-  'soin complet': { nom: 'Soin complet', prix: 50, duree: 60, categorie: 'soins' },
-  'soin hydratant': { nom: 'Soin hydratant', prix: 40, duree: 60, categorie: 'soins' },
-  'soin': { nom: 'Soin hydratant', prix: 40, duree: 60, categorie: 'soins' },
-  'soins': { nom: 'Soin hydratant', prix: 40, duree: 60, categorie: 'soins' },
-  'shampoing': { nom: 'Shampoing', prix: 10, duree: 30, categorie: 'soins' },
-
-  // === COIFFURES ===
-  'braids': { nom: 'Braids', prix: 60, duree: 300, categorie: 'coiffures', prixVariable: true },
-  'tresses': { nom: 'Braids', prix: 60, duree: 300, categorie: 'coiffures', prixVariable: true },
-  'nattes collées sans rajout': { nom: 'Nattes collées sans rajout', prix: 20, duree: 60, categorie: 'coiffures', prixVariable: true },
-  'nattes sans rajout': { nom: 'Nattes collées sans rajout', prix: 20, duree: 60, categorie: 'coiffures', prixVariable: true },
-  'nattes collées avec rajout': { nom: 'Nattes collées avec rajout', prix: 40, duree: 120, categorie: 'coiffures', prixVariable: true },
-  'nattes avec rajout': { nom: 'Nattes collées avec rajout', prix: 40, duree: 120, categorie: 'coiffures', prixVariable: true },
-  'nattes collées': { nom: 'Nattes collées avec rajout', prix: 40, duree: 120, categorie: 'coiffures', prixVariable: true },
-  'nattes collees': { nom: 'Nattes collées avec rajout', prix: 40, duree: 120, categorie: 'coiffures', prixVariable: true },
-  'nattes': { nom: 'Nattes collées sans rajout', prix: 20, duree: 60, categorie: 'coiffures', prixVariable: true },
-
-  // === COULEUR & BRUSHING ===
-  'teinture sans ammoniaque': { nom: 'Teinture sans ammoniaque', prix: 40, duree: 40, categorie: 'couleur' },
-  'teinture': { nom: 'Teinture sans ammoniaque', prix: 40, duree: 40, categorie: 'couleur' },
-  'coloration': { nom: 'Teinture sans ammoniaque', prix: 40, duree: 40, categorie: 'couleur' },
-  'décoloration': { nom: 'Décoloration', prix: 20, duree: 10, categorie: 'couleur' },
-  'decoloration': { nom: 'Décoloration', prix: 20, duree: 10, categorie: 'couleur' },
-  'brushing cheveux afro': { nom: 'Brushing cheveux afro', prix: 20, duree: 60, categorie: 'couleur' },
-  'brushing afro': { nom: 'Brushing cheveux afro', prix: 20, duree: 60, categorie: 'couleur' },
-  'brushing': { nom: 'Brushing cheveux afro', prix: 20, duree: 60, categorie: 'couleur' }
-};
-
-// ⚠️ MAPPING SPÉCIAL : "locks" seul = DEMANDER PRÉCISION
-// Ne pas mapper directement vers un service
-export const SERVICES_AMBIGUS = {
-  'locks': {
-    message: "Pour les locks, vous souhaitez :\n• Une création de locks (200€, journée entière)\n• Une reprise de racines (50€, 2h)\n• Un décapage (35€, 1h) ?",
-    options: ['création crochet locks', 'reprise racines locks', 'décapage locks']
-  }
-};
+// @deprecated - Les ambiguités doivent être gérées dynamiquement par tenant
+export const SERVICES_AMBIGUS = {};
 
 // ============================================
 // BARÈME FRAIS DE DÉPLACEMENT
@@ -218,14 +116,14 @@ export const FRAIS_DEPLACEMENT = {
 };
 
 // ============================================
-// HORAIRES DE FATOU
-// *** DÉRIVÉS DE BUSINESS_HOURS (businessRules.js) ***
+// HORAIRES (CHARGEMENT DYNAMIQUE PAR TENANT)
+// Utiliser getBusinessHoursForTenant(tenantId) de tenantBusinessRules.js
 // ============================================
 
 const JOURS_SEMAINE = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 function formatHoraireBooking(schedule) {
-  if (!schedule) return { ouvert: false, debut: 0, fin: 0, description: 'Fermé' };
+  if (!schedule) return { ouvert: false, debut: 0, fin: 0, description: 'Ferme' };
   const debut = parseInt(schedule.open.split(':')[0]);
   const fin = parseInt(schedule.close.split(':')[0]);
   return {
@@ -236,204 +134,120 @@ function formatHoraireBooking(schedule) {
   };
 }
 
+// @deprecated - Utiliser getHorairesForTenant(tenantId) a la place
 export const HORAIRES = Object.fromEntries(
   JOURS_SEMAINE.map((jour, index) => [jour, formatHoraireBooking(BUSINESS_HOURS.SCHEDULE[index])])
 );
 
+/**
+ * Charge les horaires dynamiques pour un tenant
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @returns {Promise<Object>} Horaires formates par jour de semaine
+ */
+export async function getHorairesForTenant(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  try {
+    const businessHours = await getBusinessHoursForTenant(tenantId);
+    return Object.fromEntries(
+      JOURS_SEMAINE.map((jour, index) => {
+        const dayHours = businessHours.getHours(index);
+        return [jour, dayHours
+          ? { ouvert: true, debut: parseInt(dayHours.open.split(':')[0]), fin: parseInt(dayHours.close.split(':')[0]), description: `${parseInt(dayHours.open.split(':')[0])}h - ${parseInt(dayHours.close.split(':')[0])}h` }
+          : { ouvert: false, debut: 0, fin: 0, description: 'Ferme' }
+        ];
+      })
+    );
+  } catch (e) {
+    logger.warn('getHorairesForTenant fallback sur HORAIRES statiques', { tag: 'BOOKING', tenantId, error: e.message });
+    return HORAIRES;
+  }
+}
+
 // ============================================
-// INFORMATIONS DU SERVICE (à domicile)
+// INFORMATIONS DU SERVICE (DYNAMIQUE PAR TENANT)
 // ============================================
 
-// ⚠️ DEPRECATED: Utiliser getSalonInfo(tenantId) à la place
-// Gardé pour rétrocompatibilité avec le code existant
-export const SALON_INFO = {
-  nom: "Fat's Hair-Afro",
-  description: "Coiffure afro à domicile - Fatou se déplace chez vous (ou vous recevez chez elle sur demande)",
-  gerante: "Fatou",
-  adresseFatou: "Franconville (sur demande)",  // Pas d'adresse fixe publique
-  adresse: "8 rue des Monts Rouges, 95130 Franconville",
-  telephone: "09 39 24 02 69",
-  whatsapp: "07 82 23 50 20",
-  zone: "Franconville et Île-de-France"
-};
-
-// ============================================
-// SALON INFO DYNAMIQUE (V2 - Multi-tenant)
-// ============================================
-
-import { getBusinessInfoSync } from './tenantBusinessService.js';
+// @deprecated - Ne plus utiliser directement. Utiliser getSalonInfo(tenantId).
+export const SALON_INFO = Object.freeze({
+  nom: '[DEPRECATED - use getSalonInfo(tenantId)]',
+  description: '',
+  gerante: '',
+  adresseBase: '',
+  adresse: '',
+  telephone: '',
+  whatsapp: '',
+  zone: ''
+});
 
 /**
- * Récupère les infos business d'un tenant.
- * REMPLACE l'ancien SALON_INFO hardcodé.
+ * Recupere les infos business d'un tenant.
+ * REMPLACE l'ancien SALON_INFO hardcode.
  *
- * @param {string} tenantId - ID du tenant (default: 'fatshairafro')
- * @returns {Object} Infos business formatées comme SALON_INFO
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @returns {Object} Infos business formatees
  */
-export function getSalonInfo(tenantId = 'fatshairafro') {
+export function getSalonInfo(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis pour getSalonInfo');
   try {
     const info = getBusinessInfoSync(tenantId);
     return {
       nom: info.nom,
       description: `${info.businessTypeLabel} - ${info.gerant}`,
       gerante: info.gerant,
-      adresseFatou: info.adresse || 'Sur demande',
+      adresseBase: info.adresse || 'Sur demande',
       adresse: info.adresse,
       telephone: info.telephone,
       whatsapp: info.whatsapp,
       zone: info.zone || ''
     };
   } catch (e) {
-    // Fallback sur SALON_INFO hardcodé en cas d'erreur
-    logger.warn('getSalonInfo fallback', { tag: 'bookingService', tenantId, error: e.message });
-    return SALON_INFO;
+    logger.warn('getSalonInfo erreur', { tag: 'bookingService', tenantId, error: e.message });
+    throw new Error(`Impossible de charger les infos business pour le tenant ${tenantId}: ${e.message}`);
   }
 }
 
 // ============================================
-// LISTE DES SERVICES (format affichage)
-// ⚠️ AVEC RÈGLES DE RÉSERVATION
+// LISTE DES SERVICES (CHARGEMENT DYNAMIQUE PAR TENANT)
+// Utiliser getServicesListForTenant(tenantId) a la place
 // ============================================
 
-export const SERVICES_LIST = [
-  // === LOCKS - CRÉATIONS (JOURNÉE ENTIÈRE) ===
-  {
-    nom: 'Création crochet locks',
-    prix: 200,
-    duree: 480,
-    dureeTexte: 'Journée entière (8h)',
-    prixTexte: '200€',
-    categorie: 'locks',
-    blocksFullDay: true,
-    blocksDays: 1,
-    regle: 'JOURNÉE ENTIÈRE - RDV à 9h uniquement'
-  },
-  {
-    nom: 'Création microlocks crochet',
-    prix: 300,
-    duree: 960,
-    dureeTexte: '2 jours consécutifs',
-    prixTexte: 'À partir de 300€',
-    categorie: 'locks',
-    blocksFullDay: true,
-    blocksDays: 2,
-    regle: '2 JOURS CONSÉCUTIFS - RDV à 9h les deux jours'
-  },
-  {
-    nom: 'Création microlocks twist',
-    prix: 150,
-    duree: 480,
-    dureeTexte: 'Journée entière (8h)',
-    prixTexte: 'À partir de 150€',
-    categorie: 'locks',
-    blocksFullDay: true,
-    blocksDays: 1,
-    regle: 'JOURNÉE ENTIÈRE - RDV à 9h uniquement'
-  },
-  // === LOCKS - ENTRETIEN (CRÉNEAUX NORMAUX) ===
-  {
-    nom: 'Décapage locks',
-    prix: 35,
-    duree: 60,
-    dureeTexte: '1h',
-    prixTexte: '35€',
-    categorie: 'locks'
-  },
-  {
-    nom: 'Reprise racines locks',
-    prix: 50,
-    duree: 120,
-    dureeTexte: '2h',
-    prixTexte: '50€',
-    categorie: 'locks'
-  },
-  {
-    nom: 'Reprise racines micro-locks',
-    prix: 100,
-    duree: 240,
-    dureeTexte: '4h',
-    prixTexte: '100€',
-    categorie: 'locks'
-  },
-  // === SOINS ===
-  {
-    nom: 'Soin complet',
-    prix: 50,
-    duree: 60,
-    dureeTexte: '1h',
-    prixTexte: '50€',
-    categorie: 'soins'
-  },
-  {
-    nom: 'Soin hydratant',
-    prix: 40,
-    duree: 60,
-    dureeTexte: '1h',
-    prixTexte: '40€',
-    categorie: 'soins'
-  },
-  {
-    nom: 'Shampoing',
-    prix: 10,
-    duree: 30,
-    dureeTexte: '30min',
-    prixTexte: '10€',
-    categorie: 'soins'
-  },
-  // === TRESSES ===
-  {
-    nom: 'Braids',
-    prix: 60,
-    duree: 300,
-    dureeTexte: 'À partir de 5h',
-    prixTexte: 'À partir de 60€',
-    categorie: 'tresses',
-    prixVariable: true
-  },
-  {
-    nom: 'Nattes collées sans rajout',
-    prix: 20,
-    duree: 60,
-    dureeTexte: 'À partir de 1h',
-    prixTexte: 'À partir de 20€',
-    categorie: 'tresses',
-    prixVariable: true
-  },
-  {
-    nom: 'Nattes collées avec rajout',
-    prix: 40,
-    duree: 120,
-    dureeTexte: 'À partir de 2h',
-    prixTexte: 'À partir de 40€',
-    categorie: 'tresses',
-    prixVariable: true
-  },
-  // === COLORATION & BRUSHING ===
-  {
-    nom: 'Teinture sans ammoniaque',
-    prix: 40,
-    duree: 40,
-    dureeTexte: '40min',
-    prixTexte: '40€',
-    categorie: 'coloration'
-  },
-  {
-    nom: 'Décoloration',
-    prix: 20,
-    duree: 10,
-    dureeTexte: '10min+',
-    prixTexte: '20€',
-    categorie: 'coloration'
-  },
-  {
-    nom: 'Brushing cheveux afro',
-    prix: 20,
-    duree: 60,
-    dureeTexte: '1h',
-    prixTexte: '20€',
-    categorie: 'coloration'
+// @deprecated - Ne plus utiliser. Utiliser getServicesListForTenant(tenantId).
+export const SERVICES_LIST = [];
+
+/**
+ * Charge la liste des services pour un tenant depuis la DB
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @returns {Promise<Array>} Liste des services formatee
+ */
+export async function getServicesListForTenant(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  const services = await getServicesForTenant(tenantId);
+  return services.map(s => ({
+    nom: s.name || s.nom,
+    prix: s.price ?? s.prix ?? 0,
+    duree: s.duration ?? s.duree ?? 60,
+    dureeTexte: formatDureeTexte(s.duration ?? s.duree ?? 60),
+    prixTexte: s.variable_price || s.prixVariable ? `A partir de ${s.price ?? s.prix ?? 0}EUR` : `${s.price ?? s.prix ?? 0}EUR`,
+    categorie: s.category || s.categorie || 'general',
+    prixVariable: s.variable_price || s.prixVariable || false,
+    blocksFullDay: s.blocksFullDay || s.blocks_full_day || false,
+    blocksDays: s.blocksDays || s.blocks_days || 1
+  }));
+}
+
+/**
+ * Formate une duree en minutes vers un texte lisible
+ */
+function formatDureeTexte(minutes) {
+  if (!minutes) return '';
+  if (minutes >= 480) return 'Journee entiere';
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}h${m}min` : `${h}h`;
   }
-];
+  return `${minutes}min`;
+}
 
 // ============================================
 // FRAIS DE DÉPLACEMENT (format affichage)
@@ -589,11 +403,12 @@ export function getJourFromDate(dateStr) {
 // ============================================
 
 /**
- * Calculer la distance entre Fatou et l'adresse client
+ * Calculer la distance entre le tenant et l'adresse client
  * @param {string} clientAddress - Adresse complète du client
+ * @param {string} tenantId - ID du tenant (obligatoire pour résoudre l'adresse d'origine)
  * @returns {Object} { distance, distanceText, duree, dureeText, error }
  */
-export async function calculateDistance(clientAddress) {
+export async function calculateDistance(clientAddress, tenantId) {
   console.log('[BOOKING] Calcul distance vers:', clientAddress);
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -616,9 +431,18 @@ export async function calculateDistance(clientAddress) {
     };
   }
 
+  const originAddress = getBaseAddress(tenantId);
+  if (!originAddress) {
+    logger.warn('Adresse tenant non configurée', { tag: 'BOOKING', tenantId });
+    return {
+      distance: null,
+      error: 'Adresse du professionnel non configurée'
+    };
+  }
+
   try {
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
-      `origins=${encodeURIComponent(FATOU_ADDRESS)}` +
+      `origins=${encodeURIComponent(originAddress)}` +
       `&destinations=${encodeURIComponent(clientAddress)}` +
       `&mode=driving&language=fr&key=${apiKey}`;
 
@@ -714,75 +538,56 @@ export function calculateTravelFee(distanceKm) {
 // ============================================
 
 /**
- * Vérifier si un terme de service est ambigu (nécessite précision)
+ * Verifier si un terme de service est ambigu (necessite precision)
  * @param {string} serviceName - Nom du service
  * @returns {Object|null} - Message de clarification ou null
+ * @deprecated - Les ambiguites sont gerees dynamiquement par le moteur IA
  */
 export function checkServiceAmbiguity(serviceName) {
   if (!serviceName) return null;
-
-  const serviceKey = serviceName.toLowerCase().trim();
-
-  // Vérifier si c'est un terme ambigu
-  if (SERVICES_AMBIGUS[serviceKey]) {
-    return SERVICES_AMBIGUS[serviceKey];
-  }
-
+  // Les ambiguites sont desormais gerees par le moteur IA du tenant
   return null;
 }
 
 /**
- * Obtenir les informations complètes d'un service
- * @param {string} serviceName - Nom du service
- * @returns {Object|null} { nom, prix, duree, blocksFullDay, blocksDays, prixVariable } ou null
+ * @deprecated - Utiliser getServiceInfoForTenant(tenantId, serviceName) pour le multi-tenant
+ * Version synchrone conservee pour retrocompatibilite interne (calcul de creneaux).
+ * Retourne null car les services hardcodes ont ete supprimes.
+ * Les appelants internes utilisent deja un fallback (|| 120 minutes).
  */
 export function getServiceInfo(serviceName) {
   if (!serviceName) return null;
-
-  const serviceKey = serviceName.toLowerCase().trim();
-
-  // Vérifier si c'est un terme ambigu (comme "locks" seul)
-  const ambiguity = checkServiceAmbiguity(serviceKey);
-  if (ambiguity) {
-    console.log(`[BOOKING] Service ambigu "${serviceName}": demande de précision`);
-    return {
-      ambigu: true,
-      message: ambiguity.message,
-      options: ambiguity.options
-    };
-  }
-
-  // Correspondance exacte
-  if (SERVICES[serviceKey]) {
-    const service = SERVICES[serviceKey];
-    return {
-      nom: service.nom,
-      prix: service.prix,
-      duree: service.duree,
-      categorie: service.categorie,
-      prixVariable: service.prixVariable || false,
-      blocksFullDay: service.blocksFullDay || false,
-      blocksDays: service.blocksDays || 1
-    };
-  }
-
-  // Correspondance partielle
-  for (const [key, value] of Object.entries(SERVICES)) {
-    if (serviceKey.includes(key) || key.includes(serviceKey)) {
-      return {
-        nom: value.nom,
-        prix: value.prix,
-        duree: value.duree,
-        categorie: value.categorie,
-        prixVariable: value.prixVariable || false,
-        blocksFullDay: value.blocksFullDay || false,
-        blocksDays: value.blocksDays || 1
-      };
-    }
-  }
-
-  logger.warn('Service non reconnu', { tag: 'BOOKING', serviceName });
+  // Les services hardcodes ont ete supprimes. Cette fonction synchrone
+  // ne peut plus resoudre les services. Les appelants internes doivent
+  // utiliser duree_minutes stockee en DB ou getServiceInfoForTenant().
   return null;
+}
+
+/**
+ * Obtenir les informations completes d'un service pour un tenant (async)
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @param {string} serviceName - Nom du service
+ * @returns {Promise<Object|null>} { nom, prix, duree, categorie, prixVariable, blocksFullDay, blocksDays }
+ */
+export async function getServiceInfoForTenant(tenantId, serviceName) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  if (!serviceName) return null;
+
+  const service = await findServiceByNameForTenant(tenantId, serviceName);
+  if (!service) {
+    logger.warn('Service non reconnu pour tenant', { tag: 'BOOKING', tenantId, serviceName });
+    return null;
+  }
+
+  return {
+    nom: service.name || service.nom,
+    prix: service.price ?? service.prix ?? 0,
+    duree: service.duration ?? service.duree ?? 60,
+    categorie: service.category || service.categorie || 'general',
+    prixVariable: service.variable_price || service.prixVariable || false,
+    blocksFullDay: service.blocksFullDay || service.blocks_full_day || false,
+    blocksDays: service.blocksDays || service.blocks_days || 1
+  };
 }
 
 // ============================================
@@ -823,27 +628,16 @@ function formatDateFr(dateISO) {
 export async function checkStrictAvailability(tenantId, dateISO, serviceNom, existingBookings = null) {
   if (!tenantId) throw new Error('tenant_id requis');
 
-  console.log(`[BOOKING] === VÉRIFICATION STRICTE: ${serviceNom} le ${dateISO} ===`);
+  console.log(`[BOOKING] === VERIFICATION STRICTE: ${serviceNom} le ${dateISO} ===`);
 
-  // 1. Obtenir les infos du service
-  const service = getServiceInfo(serviceNom);
+  // 1. Obtenir les infos du service (dynamique par tenant)
+  const service = await getServiceInfoForTenant(tenantId, serviceNom);
 
   if (!service) {
     return {
       available: false,
       slots: [],
       message: `Service "${serviceNom}" non reconnu.`
-    };
-  }
-
-  // Si le service est ambigu, demander précision
-  if (service.ambigu) {
-    return {
-      available: false,
-      slots: [],
-      needsClarification: true,
-      message: service.message,
-      options: service.options
     };
   }
 
@@ -879,11 +673,11 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
       };
     }
 
-    // 4. Si microlocks crochet (2 jours), vérifier le lendemain
+    // 4. Si service multi-jours (ex: 2 jours consecutifs), verifier le lendemain
     if (service.blocksDays === 2) {
       const nextDay = addDaysToDate(dateISO, 1);
 
-      // Vérifier que le lendemain n'est pas un dimanche
+      // Verifier que le lendemain n'est pas un dimanche
       const nextDayObj = new Date(nextDay);
       if (nextDayObj.getDay() === 0) {
         return {
@@ -891,11 +685,11 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
           slots: [],
           blocksFullDay: true,
           blocksDays: 2,
-          message: `❌ Les microlocks crochet nécessitent 2 jours consécutifs. Le ${formatDateFr(dateISO)} + lendemain tombe sur un dimanche (fermé). Choisissez un autre jour.`
+          message: `${service.nom} necessite ${service.blocksDays} jours consecutifs. Le ${formatDateFr(dateISO)} + lendemain tombe sur un dimanche (ferme). Choisissez un autre jour.`
         };
       }
 
-      // Récupérer les RDV du lendemain
+      // Recuperer les RDV du lendemain
       const db = getSupabase();
       let nextDayBookings = [];
       if (db) {
@@ -914,19 +708,19 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
           slots: [],
           blocksFullDay: true,
           blocksDays: 2,
-          message: `❌ Les microlocks crochet nécessitent 2 jours consécutifs. Le lendemain (${formatDateFr(nextDay)}) est déjà pris. Veuillez choisir d'autres dates.`
+          message: `${service.nom} necessite ${service.blocksDays} jours consecutifs. Le lendemain (${formatDateFr(nextDay)}) est deja pris. Veuillez choisir d'autres dates.`
         };
       }
 
       // Les 2 jours sont libres !
-      const prixTexte = service.prixVariable ? `à partir de ${service.prix}€` : `${service.prix}€`;
+      const prixTexte = service.prixVariable ? `a partir de ${service.prix}EUR` : `${service.prix}EUR`;
       return {
         available: true,
         slots: ["09:00"],
         blocksFullDay: true,
         blocksDays: 2,
         dates: [dateISO, nextDay],
-        message: `✅ Disponible ! Les microlocks crochet prennent 2 jours consécutifs.\n📅 ${formatDateFr(dateISO)} et ${formatDateFr(nextDay)}, RDV à 9h les deux jours.\n💰 ${prixTexte}`
+        message: `Disponible ! ${service.nom} prend ${service.blocksDays} jours consecutifs.\n${formatDateFr(dateISO)} et ${formatDateFr(nextDay)}, RDV a 9h les deux jours.\n${prixTexte}`
       };
     }
 
@@ -941,17 +735,19 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
     };
   }
 
-  // 5. SERVICE NORMAL : calculer les créneaux disponibles
+  // 5. SERVICE NORMAL : calculer les creneaux disponibles
   const jourSemaine = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const dayOfWeek = new Date(dateISO + 'T12:00:00').getDay();
   const jourNom = jourSemaine[dayOfWeek];
-  const horaire = HORAIRES[jourNom];
+  // Charger les horaires dynamiques du tenant
+  const horaires = await getHorairesForTenant(tenantId);
+  const horaire = horaires[jourNom];
 
   if (!horaire || !horaire.ouvert) {
     return {
       available: false,
       slots: [],
-      message: `❌ Fatou ne travaille pas le ${jourNom}. Veuillez choisir un autre jour.`
+      message: `Ferme le ${jourNom}. Veuillez choisir un autre jour.`
     };
   }
 
@@ -961,7 +757,7 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
   // Convertir les RDV existants en plages occupées
   const plagesOccupees = existingBookings.map(rdv => {
     const heureNum = parseInt(String(rdv.heure).replace(/[^0-9]/g, ''));
-    const dureeRdv = rdv.duree_minutes || getServiceInfo(rdv.service_nom)?.duree || 120;
+    const dureeRdv = rdv.duree_minutes || 120; // duree_minutes stockee en DB, fallback 2h
     return {
       debut: heureNum * 60,
       fin: heureNum * 60 + dureeRdv
@@ -1015,19 +811,20 @@ export async function checkStrictAvailability(tenantId, dateISO, serviceNom, exi
 // ============================================
 
 /**
- * Vérifier si un créneau est dans les horaires de Fatou
+ * Verifier si un creneau est dans les horaires du tenant
  * @param {string} jour - Jour de la semaine (lundi, mardi...)
  * @param {string|number} heure - Heure (14, "14h", "14:00")
+ * @param {string} tenantId - ID du tenant (optionnel pour retrocompatibilite, utilise HORAIRES statiques si absent)
  * @returns {Object} { ok, message }
  */
-export function checkHoraires(jour, heure) {
+export function checkHoraires(jour, heure, tenantId) {
   if (!jour) {
-    return { ok: false, message: 'Jour non spécifié' };
+    return { ok: false, message: 'Jour non specifie' };
   }
 
   const jourLower = jour.toLowerCase().trim();
 
-  // Trouver le jour dans HORAIRES
+  // Trouver le jour dans HORAIRES (statiques en sync, dynamiques via checkHorairesAsync)
   let horaire = null;
   let jourTrouve = null;
   for (const [nomJour, h] of Object.entries(HORAIRES)) {
@@ -1045,11 +842,11 @@ export function checkHoraires(jour, heure) {
   if (!horaire.ouvert) {
     return {
       ok: false,
-      message: 'Fatou ne travaille pas le dimanche. Quel autre jour vous conviendrait ?'
+      message: `Ferme le ${jourTrouve || 'dimanche'}. Quel autre jour vous conviendrait ?`
     };
   }
 
-  // Extraire l'heure numérique
+  // Extraire l'heure numerique
   let heureNum = parseInt(String(heure).replace(/[^0-9]/g, ''));
 
   if (isNaN(heureNum) || heureNum < 0 || heureNum > 23) {
@@ -1059,14 +856,14 @@ export function checkHoraires(jour, heure) {
   if (heureNum < horaire.debut) {
     return {
       ok: false,
-      message: `Le ${jourTrouve}, Fatou commence à ${horaire.debut}h. Vous préférez ${horaire.debut}h ou plus tard ?`
+      message: `Le ${jourTrouve}, ouverture a ${horaire.debut}h. Vous preferez ${horaire.debut}h ou plus tard ?`
     };
   }
 
   if (heureNum >= horaire.fin) {
     return {
       ok: false,
-      message: `Le ${jourTrouve}, Fatou termine à ${horaire.fin}h. Vous préférez une heure plus tôt ?`
+      message: `Le ${jourTrouve}, fermeture a ${horaire.fin}h. Vous preferez une heure plus tot ?`
     };
   }
 
@@ -1078,17 +875,17 @@ export function checkHoraires(jour, heure) {
 // ============================================
 
 /**
- * Vérifier si un RDV peut FINIR avant la fermeture
- * Prend en compte : durée de la prestation + temps de trajet aller/retour + marge
+ * Verifier si un RDV peut FINIR avant la fermeture
+ * Prend en compte : duree de la prestation + temps de trajet aller/retour + marge
  * @param {string} jour - Jour de la semaine
  * @param {number} heureRdv - Heure du RDV
- * @param {number} dureeMinutes - Durée de la prestation
+ * @param {number} dureeMinutes - Duree de la prestation
  * @param {number} tempsTrajetMinutes - Temps de trajet (aller simple)
  * @returns {Object} { ok, message, heureFinReelle }
  */
 export function checkHorairesComplet(jour, heureRdv, dureeMinutes, tempsTrajetMinutes = 0) {
   if (!jour) {
-    return { ok: false, message: 'Jour non spécifié' };
+    return { ok: false, message: 'Jour non specifie' };
   }
 
   const jourLower = jour.toLowerCase().trim();
@@ -1111,46 +908,45 @@ export function checkHorairesComplet(jour, heureRdv, dureeMinutes, tempsTrajetMi
   if (!horaire.ouvert) {
     return {
       ok: false,
-      message: 'Fatou ne travaille pas le dimanche. Quel autre jour vous conviendrait ?'
+      message: `Ferme le ${jourTrouve || 'dimanche'}. Quel autre jour vous conviendrait ?`
     };
   }
 
   const heureNum = parseInt(String(heureRdv).replace(/[^0-9]/g, ''));
 
-  // Calculer le créneau réel
+  // Calculer le creneau reel
   const slot = calculateRealSlot(heureNum, dureeMinutes, tempsTrajetMinutes);
 
-  console.log(`[BOOKING] Vérification horaires complète:`);
+  console.log(`[BOOKING] Verification horaires complete:`);
   console.log(`[BOOKING]   Jour: ${jourTrouve}, Heure RDV: ${heureNum}h`);
-  console.log(`[BOOKING]   Durée: ${dureeMinutes}min, Trajet: ${tempsTrajetMinutes}min`);
-  console.log(`[BOOKING]   Créneau réel: ${slot.heureDebutReelle} → ${slot.heureFinReelle}`);
+  console.log(`[BOOKING]   Duree: ${dureeMinutes}min, Trajet: ${tempsTrajetMinutes}min`);
+  console.log(`[BOOKING]   Creneau reel: ${slot.heureDebutReelle} -> ${slot.heureFinReelle}`);
 
-  // Vérifier que Fatou peut PARTIR à temps (heure début réelle >= ouverture)
+  // Verifier le depart a temps (heure debut reelle >= ouverture)
   const ouvertureMinutes = horaire.debut * 60;
   if (slot.heureDebutMinutes < ouvertureMinutes) {
     const heureMinPossible = Math.ceil((ouvertureMinutes + tempsTrajetMinutes) / 60);
     return {
       ok: false,
-      message: `Le ${jourTrouve}, Fatou commence à ${horaire.debut}h. Avec le trajet, le plus tôt possible serait ${heureMinPossible}h.`
+      message: `Le ${jourTrouve}, ouverture a ${horaire.debut}h. Avec le trajet, le plus tot possible serait ${heureMinPossible}h.`
     };
   }
 
-  // Vérifier que Fatou peut RENTRER avant la fermeture (heure fin réelle <= fermeture)
+  // Verifier le retour avant la fermeture (heure fin reelle <= fermeture)
   const fermetureMinutes = horaire.fin * 60;
   if (slot.heureFinMinutes > fermetureMinutes) {
-    // Calculer l'heure max possible pour ce RDV
     const heureMaxPossible = Math.floor((fermetureMinutes - dureeMinutes - tempsTrajetMinutes - MARGE_SECURITE_MINUTES) / 60);
 
     const dureeHeures = Math.round(dureeMinutes / 60 * 10) / 10;
     return {
       ok: false,
-      message: `Le ${jourTrouve}, Fatou termine à ${horaire.fin}h. Avec la durée de ${dureeHeures}h et le trajet, il faudrait commencer au plus tard à ${heureMaxPossible}h.`
+      message: `Le ${jourTrouve}, fermeture a ${horaire.fin}h. Avec la duree de ${dureeHeures}h et le trajet, il faudrait commencer au plus tard a ${heureMaxPossible}h.`
     };
   }
 
   return {
     ok: true,
-    message: 'Créneau valide',
+    message: 'Creneau valide',
     slot
   };
 }
@@ -1186,13 +982,13 @@ export async function checkAvailability(tenantId, dateRdv, heureRdv, dureeMinute
     // Récupérer les RDV du jour (table reservations)
     const { data: rdvsJour, error } = await db
       .from('reservations')
-      .select('id, heure, service_nom, notes')
+      .select('id, heure, service_nom, duree_minutes, notes')
       .eq('tenant_id', tenantId)
       .eq('date', dateRdv)
       .in('statut', ['demande', 'confirme']);
 
     if (error) {
-      console.error('[BOOKING] Erreur requête disponibilité:', error);
+      console.error('[BOOKING] Erreur requete disponibilite:', error);
       return { available: true, conflits: [], message: 'Erreur vérification' };
     }
 
@@ -1213,9 +1009,8 @@ export async function checkAvailability(tenantId, dateRdv, heureRdv, dureeMinute
     for (const rdv of rdvsJour) {
       const heureRdvNum = parseInt(String(rdv.heure).replace(/[^0-9]/g, ''));
 
-      // Estimer la durée du RDV existant (2h par défaut)
-      const serviceInfo = getServiceInfo(rdv.service_nom);
-      const dureeExistant = serviceInfo ? Math.ceil(serviceInfo.duree / 60) : 2;
+      // Duree du RDV existant (stockee en DB, fallback 2h)
+      const dureeExistant = rdv.duree_minutes ? Math.ceil(rdv.duree_minutes / 60) : 2;
       const finExistant = heureRdvNum + dureeExistant;
 
       // Vérifier chevauchement
@@ -1256,11 +1051,10 @@ export async function checkAvailability(tenantId, dateRdv, heureRdv, dureeMinute
  * Trouver le prochain créneau disponible
  */
 function findNextAvailableSlot(rdvsJour, heureVoulue, dureeMinutes) {
-  // Créer une liste des heures occupées
+  // Creer une liste des heures occupees
   const heuresOccupees = rdvsJour.map(rdv => {
     const h = parseInt(String(rdv.heure).replace(/[^0-9]/g, ''));
-    const serviceInfo = getServiceInfo(rdv.service_nom);
-    const duree = serviceInfo ? Math.ceil(serviceInfo.duree / 60) : 2;
+    const duree = rdv.duree_minutes ? Math.ceil(rdv.duree_minutes / 60) : 2;
     return { debut: h, fin: h + duree };
   }).sort((a, b) => a.debut - b.debut);
 
@@ -1326,13 +1120,13 @@ export async function checkAvailabilityComplete(tenantId, dateRdv, heureRdv, dur
     // Récupérer les RDV du jour avec leurs infos complètes
     const { data: rdvsJour, error } = await db
       .from('reservations')
-      .select('id, heure, service_nom, notes, distance_km')
+      .select('id, heure, service_nom, duree_minutes, notes, distance_km')
       .eq('tenant_id', tenantId)
       .eq('date', dateRdv)
       .in('statut', ['demande', 'confirme']);
 
     if (error) {
-      console.error('[BOOKING] Erreur requête disponibilité:', error);
+      console.error('[BOOKING] Erreur requete disponibilite:', error);
       return { available: true, conflits: [], message: 'Erreur vérification' };
     }
 
@@ -1350,9 +1144,8 @@ export async function checkAvailabilityComplete(tenantId, dateRdv, heureRdv, dur
       // Récupérer les infos du RDV existant
       const heureRdvExistant = parseInt(String(rdv.heure).replace(/[^0-9]/g, ''));
 
-      // Durée du RDV existant
-      const serviceInfo = getServiceInfo(rdv.service_nom);
-      const dureeExistant = serviceInfo?.duree || 120;
+      // Duree du RDV existant (duree_minutes stockee en DB, fallback 2h)
+      const dureeExistant = rdv.duree_minutes || 120;
 
       // Temps de trajet du RDV existant (estimer depuis la distance)
       let trajetExistant = 0;
@@ -1416,11 +1209,10 @@ function findNextAvailableSlotComplete(rdvsJour, heureVoulue, dureeMinutes, temp
     return 'Ce jour n\'est pas disponible.';
   }
 
-  // Créer une liste des créneaux occupés (avec leurs vrais horaires)
+  // Creer une liste des creneaux occupes (avec leurs vrais horaires)
   const creneauxOccupes = rdvsJour.map(rdv => {
     const h = parseInt(String(rdv.heure).replace(/[^0-9]/g, ''));
-    const serviceInfo = getServiceInfo(rdv.service_nom);
-    const duree = serviceInfo?.duree || 120;
+    const duree = rdv.duree_minutes || 120; // duree_minutes stockee en DB
     let trajet = 0;
     if (rdv.distance_km) {
       trajet = Math.round(rdv.distance_km * 2);
@@ -1703,21 +1495,24 @@ export async function sendConfirmationSMS(tenantId, phoneNumber, bookingDetails)
 
     const { service, date, heure, prixTotal, fraisDeplacement, adresse } = bookingDetails;
 
+    // Charger les infos business du tenant dynamiquement
+    const businessInfo = getSalonInfo(tenantId);
+
     const fraisText = fraisDeplacement > 0
-      ? `(dont ${fraisDeplacement}€ déplacement)`
+      ? `(dont ${fraisDeplacement}EUR deplacement)`
       : '';
 
-    const message = `Fat's Hair-Afro
-Votre RDV est confirmé !
+    const message = `${businessInfo.nom}
+Votre RDV est confirme !
 
-${date} à ${heure}
+${date} a ${heure}
 ${service}
-${prixTotal}€${fraisText ? ' ' + fraisText : ''}
+${prixTotal}EUR${fraisText ? ' ' + fraisText : ''}
 
-${adresse ? 'Adresse : ' + adresse : 'Chez Fatou à Franconville'}
+${adresse ? 'Adresse : ' + adresse : (businessInfo.adresse ? `Adresse : ${businessInfo.adresse}` : '')}
 
-À bientôt !
-Fatou - 07 82 23 50 20`;
+A bientot !
+${businessInfo.gerante}${businessInfo.telephone ? ' - ' + businessInfo.telephone : ''}`;
 
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
@@ -1759,13 +1554,28 @@ Fatou - 07 82 23 50 20`;
 // ============================================
 
 /**
- * Générer le prompt système pour Halimah
- * Version enrichie avec personnalité fluide + outil dates
+ * Generer le prompt systeme pour l'assistant IA du tenant
  * @param {string} canal - 'telephone', 'chat', ou 'whatsapp'
  * @param {boolean} vouvoiement - true pour vouvoiement, false pour tutoiement possible
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @param {Object} options - Options supplementaires { services, horaires }
+ *   services: Array de services (pre-charges). Si absent, prompt sans tarifs detailles.
+ *   horaires: Object horaires par jour. Si absent, utilise HORAIRES statiques.
  */
-export function getHalimahPrompt(canal = 'chat', vouvoiement = true) {
+export function getHalimahPrompt(canal = 'chat', vouvoiement = true, tenantId = null, options = {}) {
   const today = getTodayInfo();
+
+  // Charger les infos business du tenant
+  let businessInfo;
+  if (tenantId) {
+    businessInfo = getSalonInfo(tenantId);
+  } else {
+    logger.warn('getHalimahPrompt appele sans tenantId', { tag: 'BOOKING' });
+    businessInfo = { nom: 'Notre etablissement', gerante: 'Notre equipe', telephone: '', whatsapp: '', adresse: '', zone: '' };
+  }
+
+  const { services: servicesList = [], horaires: horairesData = null } = options;
+  const horaires = horairesData || HORAIRES;
 
   const tutoiementInstruction = vouvoiement
     ? "Tu VOUVOIES TOUJOURS les clients. Utilise 'vous', 'votre', 'vos'."
@@ -1794,19 +1604,34 @@ SPECIFICITES WHATSAPP :
 - Reponds rapidement aux questions simples`
   };
 
+  // Construire la section services dynamiquement
+  const servicesSection = servicesList.length > 0
+    ? servicesList.map(s => `- ${s.nom || s.name} : ${s.prixTexte || s.prix + 'EUR'}`).join('\n')
+    : '(Utilise les outils pour obtenir les tarifs exacts)';
+
+  // Construire la section horaires dynamiquement
+  const horairesSection = Object.entries(horaires)
+    .map(([jour, h]) => `- ${jour.charAt(0).toUpperCase() + jour.slice(1)} : ${h.description}`)
+    .join('\n');
+
+  // Section deplacement (si le tenant a des frais de deplacement)
+  const deplacementSection = DEPLACEMENT.calculate
+    ? `DEPLACEMENT :\n- ${DEPLACEMENT.description}`
+    : '';
+
   return `
 ===============================================================
 AUJOURD'HUI : ${today.date}
 HEURE : ${today.heure}
 ===============================================================
 
-Tu es Halimah, l'assistante virtuelle de ${SALON_INFO.nom}.
+Tu es l'assistante virtuelle de ${businessInfo.nom}.
 
 TA PERSONNALITE :
 
 Tu es comme une amie professionnelle - chaleureuse mais respectueuse.
 
-- AUTHENTIQUE : Tu parles comme une vraie personne. "Ah super !" ou "Je comprends totalement !"
+- AUTHENTIQUE : Tu parles comme une vraie personne.
 - ATTENTIVE : Tu reformules pour montrer que tu as compris.
 - RASSURANTE : Tu anticipes les questions et inquietudes.
 - EQUILIBREE : Ni trop bavarde, ni trop breve. Le juste milieu.
@@ -1819,28 +1644,11 @@ STYLE CONVERSATIONNEL
 ===============================================================
 
 1. ECOUTE ACTIVE
-   NON : "Quel jour voulez-vous ?"
-   OUI : "Des tresses classiques, excellent choix ! Quel jour vous arrangerait ?"
-
 2. REFORMULATION
-   NON : "OK. Adresse ?"
-   OUI : "Samedi a 14h, c'est note ! Pour les frais de deplacement, quelle est votre adresse ?"
-
 3. EMPATHIE
-   NON : "Le creneau est pris."
-   OUI : "Ah, ce creneau est deja reserve. Mais 15h est disponible ! Ca vous irait ?"
-
 4. TRANSITIONS DOUCES
-   NON : "80 euros. Jour ?"
-   OUI : "Les tresses, c'est 80 euros pour environ 3h. Quel jour vous conviendrait ?"
-
 5. ANTICIPATION
-   NON : "Il y a des frais."
-   OUI : "Fatou se deplace chez vous ! ${DEPLACEMENT.description}. Je calcule des que j'ai votre adresse."
-
 6. HUMANITE
-   NON : "Rendez-vous confirme."
-   OUI : "Et voila, c'est confirme ! Vous recevrez un SMS. Fatou a hate !"
 
 ===============================================================
 GESTION DES DATES - REGLE ABSOLUE
@@ -1853,104 +1661,35 @@ Quand un client mentionne une date ("jeudi prochain", "le 15", "dans 2 semaines"
 2. NE DEVINE JAMAIS une date toi-meme
 3. Si l'outil dit que c'est ferme, propose une alternative
 
-EXEMPLE :
-Client : "Je voudrais un RDV le 30"
-Toi : [appelle getDateInfo("le 30")] -> Jeudi 30 janvier, ouvert 9h-13h
-Toi : "Le 30, c'est un jeudi ! Nous sommes ouverts de 9h a 13h. Quelle heure ?"
-
 SI TU TE TROMPES : "Vous avez raison, je me suis trompee. Merci de m'avoir corrigee !"
 
 ===============================================================
 INFORMATIONS DU SERVICE
 ===============================================================
 
-- Service : ${SALON_INFO.nom}
-- Concept : Coiffure afro À DOMICILE (pas de salon fixe)
-- Coiffeuse : ${SALON_INFO.gerante} (25 ans d'expérience)
-- Téléphone : ${SALON_INFO.telephone}
-- WhatsApp : ${SALON_INFO.whatsapp}
-- Zone : Franconville et toute l'Île-de-France
-
-DEUX OPTIONS POUR LES CLIENTES :
-1. FATOU SE DÉPLACE chez la cliente (option principale) → Frais de déplacement (${DEPLACEMENT.description})
-2. LA CLIENTE VIENT chez Fatou à Franconville (sur demande) → GRATUIT (pas de frais)
-
-Par DÉFAUT, propose le service à domicile. Mentionne l'option "chez Fatou" si la cliente demande ou si ça l'arrange.
+- Etablissement : ${businessInfo.nom}
+- Responsable : ${businessInfo.gerante}
+${businessInfo.telephone ? `- Telephone : ${businessInfo.telephone}` : ''}
+${businessInfo.whatsapp ? `- WhatsApp : ${businessInfo.whatsapp}` : ''}
+${businessInfo.adresse ? `- Adresse : ${businessInfo.adresse}` : ''}
+${businessInfo.zone ? `- Zone : ${businessInfo.zone}` : ''}
 
 HORAIRES :
-${Object.entries(HORAIRES).map(([jour, h]) => `- ${jour.charAt(0).toUpperCase() + jour.slice(1)} : ${h.description}`).join('\n')}
+${horairesSection}
 
 SERVICES & TARIFS :
-${SERVICES_LIST.map(s => `- ${s.nom} : ${s.prixTexte}`).join('\n')}
+${servicesSection}
 
-DEPLACEMENT :
-- ${DEPLACEMENT.description}
-- Exemple : 20km = 10 euros + (12 x 1,10 euros) = 23,20 euros
+${deplacementSection}
 
 ===============================================================
-⚠️ RÈGLES MÉTIER INVIOLABLES ⚠️
+REGLES METIER
 ===============================================================
 
-🔒 RÈGLE 1 : CRÉATION DE LOCKS = JOURNÉE ENTIÈRE
-Quand le client demande une CRÉATION de locks (crochet ou twist) :
-- Seul créneau possible : 9h
-- JAMAIS proposer plusieurs créneaux
-- Message type : "La création de locks prend la journée entière (8h). Je vous propose le [DATE] à 9h."
-
-🔒 RÈGLE 2 : MICROLOCKS CROCHET = 2 JOURS CONSÉCUTIFS
-Quand le client demande des microlocks au crochet :
-- Vérifier que les 2 jours sont LIBRES
-- Message type : "Les microlocks crochet nécessitent 2 jours consécutifs. Je vous propose les [DATE1] et [DATE2], RDV à 9h les deux jours."
-
-🔒 RÈGLE 3 : "LOCKS" SEUL = DEMANDER PRÉCISION
-Si le client dit juste "locks" sans préciser :
-- TOUJOURS demander : "Vous souhaitez une création de locks (200€, journée), une reprise de racines (50€, 2h) ou un décapage (35€, 1h) ?"
-- Ne JAMAIS deviner ce qu'il veut
-
-🔒 RÈGLE 4 : FRAIS DE DÉPLACEMENT
-Formule : 10€ forfait (0-8km), puis +1,10€/km au-delà
-- 5km → 10€
-- 12km → 10€ + 4×1,10€ = 14,40€
-- 20km → 10€ + 12×1,10€ = 23,20€
-
-🔒 RÈGLE 5 : JAMAIS DE CHEVAUCHEMENT
-- Toujours vérifier que créneau + durée ne chevauche pas un autre RDV
-- Si journée déjà prise → ne PAS proposer de création locks ce jour-là
-
-===============================================================
-TARIFS OFFICIELS (NE JAMAIS INVENTER)
-===============================================================
-
-LOCKS :
-- Création crochet locks : 200€ (journée entière)
-- Création microlocks crochet : à partir de 300€ (2 jours)
-- Création microlocks twist : à partir de 150€ (journée entière)
-- Reprise racines locks : 50€ (2h)
-- Reprise racines micro-locks : 100€ (4h)
-- Décapage locks : 35€ (1h)
-
-SOINS :
-- Soin complet : 50€ (1h)
-- Soin hydratant : 40€ (1h)
-- Shampoing : 10€ (30min)
-
-TRESSES :
-- Braids : à partir de 60€ (5h)
-- Nattes collées sans rajout : à partir de 20€ (1h)
-- Nattes collées avec rajout : à partir de 40€ (2h)
-
-COLORATION :
-- Teinture sans ammoniaque : 40€ (40min)
-- Décoloration : 20€ (10min)
-- Brushing cheveux afro : 20€ (1h)
-
-===============================================================
-LIEU DU RDV
-===============================================================
-
-- TOUJOURS demander : "Préférez-vous que Fatou vienne chez vous, ou souhaitez-vous venir chez elle à Franconville ?"
-- Si domicile client → demander l'adresse et calculer les frais de déplacement
-- Si chez Fatou → confirmer que c'est GRATUIT (pas de frais de déplacement), adresse : ${SALON_INFO.adresse}
+- JAMAIS de chevauchement de creneaux
+- Toujours verifier la disponibilite avant de confirmer
+- NE JAMAIS inventer de tarifs ou de dates
+- Utiliser les outils pour obtenir les prix et disponibilites exacts
 
 PAIEMENT : A la fin, especes ou carte, pas d'acompte.
 
@@ -1975,9 +1714,7 @@ INTERDITS
 - Oublier l'adresse pour un deplacement
 - Ignorer une inquietude du client
 
-===============================================================
-
-Maintenant, sois Halimah !`;
+===============================================================`;
 }
 
 // ============================================
@@ -1985,42 +1722,35 @@ Maintenant, sois Halimah !`;
 // ============================================
 
 /**
- * Outil pour obtenir le prix EXACT d'un service
- * Halimah DOIT utiliser cet outil pour tout prix
+ * Outil pour obtenir le prix EXACT d'un service (async, multi-tenant)
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @param {string} serviceName - Nom du service
  */
-export function toolGetPrice(serviceName) {
-  const serviceNormalized = serviceName.toLowerCase().trim();
+export async function toolGetPrice(tenantId, serviceName) {
+  if (!tenantId) throw new Error('tenant_id requis');
 
-  // Recherche exacte ou partielle
-  for (const [key, data] of Object.entries(SERVICES)) {
-    const nomLower = key.toLowerCase();
-    const nomService = (data.nom || key).toLowerCase();
-
-    if (nomLower.includes(serviceNormalized) ||
-        serviceNormalized.includes(nomLower.split(' ')[0]) ||
-        nomService.includes(serviceNormalized)) {
-      return {
-        found: true,
-        service: data.nom || key,
-        prix: data.prix,
-        prixTexte: `${data.prix}€`,
-        duree: data.duree,
-        prixVariable: data.prixVariable || false
-      };
-    }
+  const service = await getServiceInfoForTenant(tenantId, serviceName);
+  if (service) {
+    return {
+      found: true,
+      service: service.nom,
+      prix: service.prix,
+      prixTexte: `${service.prix}EUR`,
+      duree: service.duree,
+      prixVariable: service.prixVariable || false
+    };
   }
 
-  // Service non trouvé - retourner la liste
-  const allServices = SERVICES_LIST.map(s => ({
-    nom: s.nom,
-    prix: s.prix,
-    prixTexte: s.prixTexte
-  }));
-
+  // Service non trouve - retourner la liste
+  const allServices = await getServicesListForTenant(tenantId);
   return {
     found: false,
-    message: "Service non trouvé. Voici tous les services disponibles :",
-    services: allServices
+    message: 'Service non trouve. Voici tous les services disponibles :',
+    services: allServices.map(s => ({
+      nom: s.nom,
+      prix: s.prix,
+      prixTexte: s.prixTexte
+    }))
   };
 }
 
@@ -2068,25 +1798,34 @@ export function toolGetDate(jourDemande) {
 }
 
 /**
- * Outil pour lister TOUS les services avec prix EXACTS
+ * Outil pour lister TOUS les services avec prix EXACTS (async, multi-tenant)
+ * @param {string} tenantId - ID du tenant (obligatoire)
  */
-export function toolGetAllServices() {
+export async function toolGetAllServices(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  const servicesList = await getServicesListForTenant(tenantId);
   return {
-    services: SERVICES_LIST.map(s => ({
+    services: servicesList.map(s => ({
       nom: s.nom,
       prix: s.prix,
       prixTexte: s.prixTexte,
       categorie: s.categorie
     })),
-    totalServices: SERVICES_LIST.length
+    totalServices: servicesList.length
   };
 }
 
 /**
- * Outil pour vérifier disponibilité
+ * Outil pour verifier disponibilite (multi-tenant)
+ * @param {string} tenantId - ID du tenant (obligatoire)
+ * @param {string} dateRdv - Date au format YYYY-MM-DD
+ * @param {string|number} heure - Heure de debut
+ * @param {number} dureeMinutes - Duree du service
  */
-export async function toolCheckAvailability(jour, heure, dureeMinutes = 120) {
-  const result = await checkAvailabilityComplete(jour, heure, dureeMinutes);
+export async function toolCheckAvailability(tenantId, dateRdv, heure, dureeMinutes = 120) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  const result = await checkAvailabilityComplete(tenantId, dateRdv, heure, dureeMinutes);
   return result;
 }
 
@@ -2095,16 +1834,20 @@ export async function toolCheckAvailability(jour, heure, dureeMinutes = 120) {
 // ============================================
 
 export default {
-  // Constantes
+  // @deprecated constants (vides, utiliser les fonctions dynamiques)
   SERVICES,
   SERVICES_LIST,
   FRAIS_DEPLACEMENT,
   HORAIRES,
   SALON_INFO,
   DEPLACEMENT,
-  // V2 - Multi-tenant
+  SERVICES_AMBIGUS,
+  // Multi-tenant (recommande)
   getSalonInfo,
   getBaseAddress,
+  getServicesListForTenant,
+  getServiceInfoForTenant,
+  getHorairesForTenant,
   // Fonctions dates
   getTodayInfo,
   getDateInfo,
@@ -2119,26 +1862,23 @@ export default {
   getServiceInfo,
   checkHoraires,
   checkAvailability,
-  // Fonctions avec créneaux réels
+  // Fonctions avec creneaux reels
   calculateRealSlot,
   checkHorairesComplet,
   checkAvailabilityComplete,
-  // Prompt unifié
+  // Prompt unifie
   getHalimahPrompt,
   // Autres
   createAppointment,
   sendConfirmationSMS,
-  // Outils Halimah (obligatoires)
+  // Outils IA (multi-tenant)
   toolGetPrice,
   toolGetDate,
   toolGetAllServices,
   toolCheckAvailability,
-  // Nouvelles fonctions strictes
-  SERVICES_AMBIGUS,
+  // Fonctions strictes
   checkServiceAmbiguity,
   checkStrictAvailability,
-  // Création unifiée (via nexusCore)
+  // Creation unifiee (via nexusCore)
   createReservationUnified
 };
-// test auto-deploy
-// test auto-deploy

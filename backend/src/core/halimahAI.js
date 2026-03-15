@@ -32,6 +32,10 @@ import { SERVICES as BUSINESS_SERVICES, TRAVEL_FEES, BUSINESS_HOURS } from '../c
 import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
 import { matchStaticResponse } from '../services/optimization/cacheService.js';
 import logger from '../config/logger.js';
+// Multi-tenant: chargement dynamique des infos business
+import { getBusinessInfo, getBusinessInfoSync } from '../services/tenantBusinessService.js';
+import { getBusinessHoursForTenant } from '../services/tenantBusinessRules.js';
+import { getTenantConfig } from '../config/tenants/index.js';
 
 // ============================================
 // CONFIGURATION
@@ -66,22 +70,80 @@ const SERVICES = Object.fromEntries(
   ])
 );
 
-const HORAIRES = {
+// HORAIRES par defaut (fallback si horaires dynamiques non disponibles)
+const HORAIRES_DEFAULT = {
   1: { jour: 'Lundi', ouvert: true, debut: 9, fin: 18 },
   2: { jour: 'Mardi', ouvert: true, debut: 9, fin: 18 },
   3: { jour: 'Mercredi', ouvert: true, debut: 9, fin: 18 },
-  4: { jour: 'Jeudi', ouvert: true, debut: 9, fin: 13 },
-  5: { jour: 'Vendredi', ouvert: true, debut: 13, fin: 18 },
+  4: { jour: 'Jeudi', ouvert: true, debut: 9, fin: 18 },
+  5: { jour: 'Vendredi', ouvert: true, debut: 9, fin: 18 },
   6: { jour: 'Samedi', ouvert: true, debut: 9, fin: 18 },
   0: { jour: 'Dimanche', ouvert: false }
 };
 
-const SALON_INFO = {
-  nom: "Fat's Hair-Afro",
-  adresse: "8 rue des Monts Rouges, 95130 Franconville",
-  telephone: "07 82 23 50 20",
-  coiffeuse: "Fatou"
-};
+// Alias pour compatibilite (read-only)
+const HORAIRES = HORAIRES_DEFAULT;
+
+/**
+ * Charge les infos business d'un tenant (async).
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @returns {Promise<Object>} { nom, adresse, telephone, gerant }
+ */
+async function getSalonInfo(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getSalonInfo requires explicit tenantId');
+  }
+  try {
+    const info = await getBusinessInfo(tenantId);
+    return {
+      nom: info.nom || tenantId,
+      adresse: info.adresse || '',
+      telephone: info.telephone || '',
+      coiffeuse: info.gerant || '',
+      gerant: info.gerant || '',
+      businessType: info.businessType || 'salon',
+    };
+  } catch (err) {
+    logger.warn(`[HALIMAH AI] getSalonInfo fallback for ${tenantId}: ${err.message}`);
+    // Fallback sur config statique
+    const staticConfig = getTenantConfig(tenantId);
+    return {
+      nom: staticConfig?.name || tenantId,
+      adresse: staticConfig?.adresse || '',
+      telephone: staticConfig?.telephone || '',
+      coiffeuse: staticConfig?.gerante || '',
+      gerant: staticConfig?.gerante || '',
+      businessType: staticConfig?.business_type || 'salon',
+    };
+  }
+}
+
+/**
+ * Version synchrone (cache uniquement, pas d'appel DB).
+ */
+function getSalonInfoSync(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getSalonInfoSync requires explicit tenantId');
+  }
+  const info = getBusinessInfoSync(tenantId);
+  return {
+    nom: info.nom || tenantId,
+    adresse: info.adresse || '',
+    telephone: info.telephone || '',
+    coiffeuse: info.gerant || '',
+    gerant: info.gerant || '',
+    businessType: info.businessType || 'salon',
+  };
+}
+
+// @deprecated - SALON_INFO maintenu pour compatibilite import.
+// Les appelants DOIVENT migrer vers getSalonInfo(tenantId).
+const SALON_INFO = Object.freeze({
+  nom: '[DEPRECATED - use getSalonInfo(tenantId)]',
+  adresse: '',
+  telephone: '',
+  coiffeuse: ''
+});
 
 // ============================================
 // OUTILS DÉTERMINISTES (Claude appelle ces fonctions)
@@ -114,8 +176,7 @@ const tools = [
       properties: {
         categorie: {
           type: "string",
-          description: "Filtrer par catégorie: 'locks', 'soins', 'tresses', 'coloration', ou 'all' pour tout",
-          enum: ["locks", "soins", "tresses", "coloration", "all"]
+          description: "Filtrer par categorie de service, ou 'all' pour tout afficher"
         }
       },
       required: []
@@ -129,7 +190,7 @@ const tools = [
       properties: {
         service_id: {
           type: "string",
-          description: "ID du service (ex: 'creation_locks', 'shampoing', 'braids')"
+          description: "ID du service"
         }
       },
       required: ["service_id"]
@@ -162,7 +223,7 @@ const tools = [
   },
   {
     name: "calculate_travel_fee",
-    description: "Calcule les frais de déplacement pour une adresse. 10€ de base + 1.10€/km après 8km.",
+    description: "Calcule les frais de deplacement pour une adresse client.",
     input_schema: {
       type: "object",
       properties: {
@@ -180,7 +241,7 @@ const tools = [
         service_id: { type: "string" },
         date: { type: "string", description: "YYYY-MM-DD" },
         heure: { type: "integer" },
-        lieu: { type: "string", enum: ["domicile", "fatou"] },
+        lieu: { type: "string", enum: ["domicile", "salon"], description: "domicile = chez le client, salon = sur place" },
         adresse: { type: "string", description: "Adresse si domicile" },
         client_nom: { type: "string" },
         client_telephone: { type: "string" }
@@ -537,7 +598,7 @@ async function executeTool(toolName, toolInput, tenantId) {
       // Extraire prénom et nom du client
       const nameParts = toolInput.client_nom.trim().split(' ');
       const prenom = nameParts[0] || 'Client';
-      const nom = nameParts.slice(1).join(' ') || 'Halimah';
+      const nom = nameParts.slice(1).join(' ') || 'Client';
 
       // Normaliser le téléphone
       const telephone = toolInput.client_telephone.replace(/\s/g, '');
@@ -583,12 +644,21 @@ async function executeTool(toolName, toolInput, tenantId) {
         telephone: telephone,
         statut: 'demande',
         created_via: 'halimah-ai',
-        notes: toolInput.lieu === 'domicile' ? `Domicile: ${toolInput.adresse}` : 'Salon Franconville'
+        notes: toolInput.lieu === 'domicile' ? `Domicile: ${toolInput.adresse}` : 'Sur place'
       });
 
       if (error) {
         logger.error('[HALIMAH AI] Erreur création RDV:', { error });
         return { success: false, error: error.message };
+      }
+
+      // Charger l'adresse du tenant pour le recap
+      let tenantAdresse = '';
+      try {
+        const info = await getSalonInfo(tenantId);
+        tenantAdresse = info.adresse;
+      } catch (e) {
+        logger.warn('[HALIMAH AI] Could not load tenant address for recap');
       }
 
       return {
@@ -599,18 +669,23 @@ async function executeTool(toolName, toolInput, tenantId) {
           prix: service.prix,
           date: toolInput.date,
           heure: `${toolInput.heure}h`,
-          lieu: toolInput.lieu === 'fatou' ? SALON_INFO.adresse : toolInput.adresse,
+          lieu: toolInput.lieu === 'domicile' ? toolInput.adresse : tenantAdresse,
           client: toolInput.client_nom
         }
       };
     }
 
     case 'get_salon_info': {
+      // Charger dynamiquement les infos business du tenant
+      const salonInfo = await getSalonInfo(tenantId);
       return {
         success: true,
-        ...SALON_INFO,
+        nom: salonInfo.nom,
+        adresse: salonInfo.adresse,
+        telephone: salonInfo.telephone,
+        coiffeuse: salonInfo.gerant,
         horaires: Object.values(HORAIRES).map(h =>
-          h.ouvert ? `${h.jour}: ${h.debut}h-${h.fin}h` : `${h.jour}: Fermé`
+          h.ouvert ? `${h.jour}: ${h.debut}h-${h.fin}h` : `${h.jour}: Ferme`
         )
       };
     }
@@ -621,14 +696,30 @@ async function executeTool(toolName, toolInput, tenantId) {
 }
 
 // ============================================
-// SYSTÈME PROMPT
+// SYSTÈME PROMPT - DYNAMIQUE PAR TENANT
 // ============================================
 
-// Fonction pour obtenir le prompt système avec la date du jour
-function getSystemPrompt() {
+/**
+ * Genere le prompt systeme dynamique pour un tenant.
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @returns {Promise<string>} Le system prompt
+ */
+async function getSystemPrompt(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getSystemPrompt requires explicit tenantId');
+  }
+
+  // Charger les infos business du tenant
+  const info = await getSalonInfo(tenantId);
+  const nom = info.nom || tenantId;
+  const gerant = info.gerant || '';
+  const adresse = info.adresse || '';
+  const telephone = info.telephone || '';
+  const businessType = info.businessType || 'salon';
+
   const now = new Date();
   const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-  const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const mois = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
 
   const jourSemaine = jours[now.getDay()];
   const jour = now.getDate();
@@ -637,7 +728,12 @@ function getSystemPrompt() {
   const dateFormatee = `${jourSemaine} ${jour} ${moisNom} ${annee}`;
   const dateISO = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}-${String(jour).padStart(2,'0')}`;
 
-  return `Tu es Halimah, l'assistante virtuelle de Fat's Hair-Afro, coiffeuse afro professionnelle à Franconville.
+  // Determiner le terme pour le lieu (adapte au business type)
+  const lieuTerme = businessType === 'service_domicile'
+    ? (gerant ? `chez ${gerant}` : 'sur place')
+    : 'sur place';
+
+  return `Tu es l'assistante virtuelle de ${nom}.
 
 === DATE DU JOUR ===
 Nous sommes le ${dateFormatee}.
@@ -645,68 +741,68 @@ Date ISO pour les outils : ${dateISO}
 
 CALCUL DES DATES RELATIVES :
 - "demain" = ${calculerDateRelative(1)}
-- "après-demain" = ${calculerDateRelative(2)}
+- "apres-demain" = ${calculerDateRelative(2)}
 - "samedi prochain" = ${calculerProchainJour(6)}
 - "lundi prochain" = ${calculerProchainJour(1)}
 Utilise TOUJOURS l'outil parse_date pour convertir les dates relatives en format YYYY-MM-DD.
 
-=== CONCEPT IMPORTANT ===
-- Fat's Hair-Afro n'est PAS un salon de coiffure traditionnel
-- Fatou est une coiffeuse indépendante qui propose 2 options :
-  1. Se déplacer chez le client (service à domicile avec frais de déplacement)
-  2. Recevoir le client chez elle à Franconville (8 rue des Monts Rouges)
-- Tu ne dois JAMAIS parler de "salon" mais plutôt de "chez Fatou" ou "à domicile"
+=== INFORMATIONS BUSINESS ===
+- Nom : ${nom}
+- Responsable : ${gerant || 'non renseigne'}
+- Adresse : ${adresse || 'non renseignee'}
+- Telephone : ${telephone || 'non renseigne'}
+- Type : ${businessType}
 
-=== PERSONNALITÉ ===
+=== PERSONNALITE ===
 - Chaleureuse, professionnelle, efficace
 - Tu vouvoies toujours les clients
 - Tu es concise mais pas froide
-- Tu peux utiliser des emojis avec modération (sauf au téléphone)
+- Tu peux utiliser des emojis avec moderation (sauf au telephone)
 
-=== RÈGLES ABSOLUES ===
+=== REGLES ABSOLUES ===
 1. Tu ne dois JAMAIS inventer un prix → Utilise l'outil get_price ou get_services
-2. Tu ne dois JAMAIS inventer une disponibilité → Utilise check_availability
+2. Tu ne dois JAMAIS inventer une disponibilite → Utilise check_availability
 3. Tu ne dois JAMAIS confirmer un RDV sans utiliser create_booking
 4. Tu dois TOUJOURS utiliser parse_date pour convertir les dates relatives
-5. Tu dois TOUJOURS vérifier la disponibilité AVANT de proposer un créneau
+5. Tu dois TOUJOURS verifier la disponibilite AVANT de proposer un creneau
 
-=== PROCESSUS DE RÉSERVATION (SUIVRE EXACTEMENT) ===
+=== PROCESSUS DE RESERVATION (SUIVRE EXACTEMENT) ===
 
-ÉTAPE 1 - COMPRENDRE LA DEMANDE :
+ETAPE 1 - COMPRENDRE LA DEMANDE :
 - Le client demande un service → Note le service
 - Le client donne une date/heure → Utilise parse_date puis check_availability
-- Si pas de date donnée → Demande "Vous préférez quel jour ?"
+- Si pas de date donnee → Demande "Vous preferez quel jour ?"
 
-ÉTAPE 2 - VÉRIFIER LA DISPONIBILITÉ :
-- Utilise d'ABORD check_availability avec la date/heure demandée
-- Si disponible → Propose ce créneau
+ETAPE 2 - VERIFIER LA DISPONIBILITE :
+- Utilise d'ABORD check_availability avec la date/heure demandee
+- Si disponible → Propose ce creneau
 - Si non disponible → Utilise get_next_available_slot puis propose une alternative
 
-ÉTAPE 3 - CONFIRMER LE CRÉNEAU :
-- Quand le client dit "oui", "ok", "d'accord", "parfait", "ça marche" → C'est une CONFIRMATION
-- Après confirmation du créneau → Demande le lieu (domicile ou chez Fatou)
+ETAPE 3 - CONFIRMER LE CRENEAU :
+- Quand le client dit "oui", "ok", "d'accord", "parfait", "ca marche" → C'est une CONFIRMATION
+- Apres confirmation du creneau → Demande le lieu (domicile ou ${lieuTerme})
 
-ÉTAPE 4 - COLLECTER LES INFOS :
+ETAPE 4 - COLLECTER LES INFOS :
 - Si domicile → Demande l'adresse
-- Demande : "Pour finaliser, j'ai besoin de votre nom et téléphone"
+- Demande : "Pour finaliser, j'ai besoin de votre nom et telephone"
 
-ÉTAPE 5 - CRÉER LA RÉSERVATION :
-- Récapitule TOUT (service, date, heure, lieu, prix)
+ETAPE 5 - CREER LA RESERVATION :
+- Recapitule TOUT (service, date, heure, lieu, prix)
 - Demande confirmation finale
 - Quand le client confirme → Utilise create_booking
 
 === GESTION DES CONFIRMATIONS ===
 Ces mots/phrases signifient OUI :
-- "oui", "ok", "d'accord", "parfait", "ça marche", "super", "très bien", "nickel", "impec", "c'est bon", "je confirme", "on fait comme ça"
+- "oui", "ok", "d'accord", "parfait", "ca marche", "super", "tres bien", "nickel", "impec", "c'est bon", "je confirme", "on fait comme ca"
 
 Ces mots signifient NON :
-- "non", "pas vraiment", "autre chose", "plutôt", "je préfère"
+- "non", "pas vraiment", "autre chose", "plutot", "je prefere"
 
 === IMPORTANT ===
-- GARDE LE CONTEXTE : Si le client a dit "locks", ne propose pas "tresses"
-- RESPECTE L'HEURE DEMANDÉE : Si le client dit "10h", vérifie 10h, pas 16h
-- ÉCOUTE LE CLIENT : Ne change pas arbitrairement ses choix
-- Réponses courtes et claires, pas de bavardage`;
+- GARDE LE CONTEXTE : Si le client a mentionne un service, ne propose pas autre chose
+- RESPECTE L'HEURE DEMANDEE : Si le client dit "10h", verifie 10h, pas 16h
+- ECOUTE LE CLIENT : Ne change pas arbitrairement ses choix
+- Reponses courtes et claires, pas de bavardage`;
 }
 
 // Fonctions utilitaires pour les dates
@@ -753,10 +849,10 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
   // Ajouter le message utilisateur
   messages.push({ role: 'user', content: userMessage });
 
-  // Adapter le système prompt selon le canal
-  let systemPrompt = getSystemPrompt(); // Générer dynamiquement avec la date du jour
+  // Adapter le systeme prompt selon le canal (dynamique par tenant)
+  let systemPrompt = await getSystemPrompt(tenantId);
   if (canal === 'phone') {
-    // Utiliser le prompt vocal naturel optimisé pour la synthèse vocale
+    // Utiliser le prompt vocal naturel optimise pour la synthese vocale
     systemPrompt = getVoicePrompt({
       includePrice: true,
       includeDate: true,
@@ -851,4 +947,4 @@ export function clearSession(sessionId) {
   conversations.delete(sessionId);
 }
 
-export { SERVICES, HORAIRES, SALON_INFO };
+export { SERVICES, HORAIRES, SALON_INFO, getSalonInfo, getSalonInfoSync };

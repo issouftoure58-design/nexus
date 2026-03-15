@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -22,7 +23,7 @@ const supabase = createClient(
 
 const TENANT_ID = 'nexus-test';
 const ADMIN_EMAIL = 'admin@nexus-test.com';
-const ADMIN_PASSWORD = 'Test123!';
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url');
 
 async function main() {
   console.log('🚀 Création du tenant test NEXUS...\n');

@@ -197,7 +197,7 @@ function AnimatedStatCard({ label, value, color, desc, icon, index }: {
   );
 }
 
-function TypeCard({ type, count, label, index }: { type: string; count: number; label: string; index: number }) {
+function TypeCard({ type: _type, count, label, index }: { type: string; count: number; label: string; index: number }) {
   const animated = useAnimatedNumber(count, 600);
   const [visible, setVisible] = useState(false);
   useEffect(() => { const t = setTimeout(() => setVisible(true), index * 60); return () => clearTimeout(t); }, [index]);
@@ -241,7 +241,7 @@ function EventRow({ evt, index, sevText, sevColors, typeLabels }: {
   );
 }
 
-function LiveDot({ lastUpdate }: { lastUpdate: Date | null }) {
+function LiveDot({ lastUpdate: _lastUpdate }: { lastUpdate: Date | null }) {
   const [pulse, setPulse] = useState(true);
   useEffect(() => { const id = setInterval(() => setPulse(v => !v), 1500); return () => clearInterval(id); }, []);
 

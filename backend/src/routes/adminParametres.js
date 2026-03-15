@@ -61,28 +61,28 @@ const PARAMETRES_DEFAUT = [
     description: 'Rembourser si annulation tardive'
   },
 
-  // Salon
+  // Entreprise (rempli dynamiquement depuis la config tenant)
   {
     cle: 'nom_salon',
-    valeur: "Fat's Hair-Afro",
+    valeur: '',
     categorie: 'salon',
-    description: 'Nom du salon'
+    description: 'Nom de l\'entreprise'
   },
   {
     cle: 'adresse_salon',
-    valeur: '8 rue des Monts Rouges, 95130 Franconville',
+    valeur: '',
     categorie: 'salon',
-    description: 'Adresse du salon'
+    description: 'Adresse'
   },
   {
     cle: 'telephone_salon',
-    valeur: '07 82 23 50 20',
+    valeur: '',
     categorie: 'salon',
-    description: 'Téléphone de contact'
+    description: 'Telephone de contact'
   },
   {
     cle: 'email_salon',
-    valeur: 'fatou@fatshairafro.fr',
+    valeur: '',
     categorie: 'salon',
     description: 'Email de contact'
   },
@@ -90,25 +90,25 @@ const PARAMETRES_DEFAUT = [
   // Messages templates
   {
     cle: 'msg_confirmation',
-    valeur: 'Votre RDV est confirmé pour le {date} à {heure}. À bientôt !',
+    valeur: 'Votre RDV est confirme pour le {date} a {heure}. A bientot !',
     categorie: 'messages',
     description: 'Message confirmation RDV'
   },
   {
     cle: 'msg_rappel_j1',
-    valeur: 'Rappel : RDV demain à {heure}. À très vite !',
+    valeur: 'Rappel : RDV demain a {heure}. A tres vite !',
     categorie: 'messages',
     description: 'Message rappel J-1'
   },
   {
     cle: 'msg_annulation',
-    valeur: 'Votre RDV du {date} a été annulé.',
+    valeur: 'Votre RDV du {date} a ete annule.',
     categorie: 'messages',
     description: 'Message annulation'
   },
   {
     cle: 'msg_remerciement',
-    valeur: 'Merci pour votre visite ! À bientôt chez Fat\'s Hair-Afro 💜',
+    valeur: 'Merci pour votre visite ! A bientot !',
     categorie: 'messages',
     description: 'Message remerciement J+1'
   }

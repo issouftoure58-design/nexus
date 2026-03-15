@@ -16,22 +16,14 @@ import { cn } from '@/lib/utils';
 import { api } from '../lib/api';
 import { useTenantContext } from '../contexts/TenantContext';
 import {
-  Scissors,
-  UtensilsCrossed,
-  Stethoscope,
   Building2,
   Sparkles,
-  Car,
-  Wrench,
-  Store,
-  Hotel,
   Check,
   ArrowRight,
   ArrowLeft,
   Loader2,
   MapPin,
   Phone,
-  Clock,
   Plus,
   Trash2,
   MessageCircle,
@@ -81,18 +73,6 @@ interface Service {
 // CONFIGURATION
 // ══════════════════════════════════════════════════════════════════════════════
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  scissors: Scissors,
-  sparkles: Sparkles,
-  utensils: UtensilsCrossed,
-  stethoscope: Stethoscope,
-  car: Car,
-  wrench: Wrench,
-  store: Store,
-  hotel: Hotel,
-  building: Building2,
-};
-
 const DAY_LABELS: Record<string, string> = {
   monday: 'Lundi',
   tuesday: 'Mardi',
@@ -103,27 +83,25 @@ const DAY_LABELS: Record<string, string> = {
   sunday: 'Dimanche',
 };
 
-const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number; originalPrice: number }> = {
+// Prix conformes à config/pricing.js (source de vérité)
+const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number }> = {
   starter: {
     name: 'Starter',
     description: 'Pour démarrer votre activité',
     color: 'from-blue-500 to-cyan-500',
-    price: 79,
-    originalPrice: 99,
+    price: 99,
   },
   pro: {
     name: 'Pro',
     description: 'Pour les équipes en croissance',
     color: 'from-cyan-500 to-emerald-500',
-    price: 199,
-    originalPrice: 249,
+    price: 249,
   },
   business: {
     name: 'Business',
     description: 'Solution complète',
     color: 'from-purple-500 to-pink-500',
-    price: 399,
-    originalPrice: 499,
+    price: 499,
   },
 };
 
@@ -161,7 +139,7 @@ async function completeOnboarding(): Promise<void> {
 // COMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-function StepIndicator({ currentStep, totalSteps, labels }: {
+function StepIndicator({ currentStep, totalSteps, labels: _labels }: {
   currentStep: number;
   totalSteps: number;
   labels: string[];
@@ -456,7 +434,6 @@ export default function Onboarding() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {templates.map((template) => {
-                  const Icon = ICON_MAP[template.icon] || Building2;
                   const isSelected = selectedType === template.id;
 
                   return (
@@ -747,8 +724,7 @@ export default function Onboarding() {
                     <p className="text-white/80 text-sm mt-1">{planInfo.description}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg line-through text-white/50">{planInfo.originalPrice}€</span>
-                    <span className="text-3xl font-bold ml-1">{planInfo.price}€</span>
+                    <span className="text-3xl font-bold">{planInfo.price}€</span>
                     <span className="text-white/70">/mois</span>
                   </div>
                 </div>

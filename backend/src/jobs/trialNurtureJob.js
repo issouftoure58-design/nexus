@@ -169,10 +169,10 @@ function generateNurtureContent(day, tenant, stats) {
             cta: 'Ajouter un service'
           },
           {
-            title: 'Testez Halimah',
-            description: 'Notre agent IA peut repondre a vos clients 24/7. Essayez-la dans le chat !',
+            title: 'Testez votre assistant IA',
+            description: 'Votre agent IA peut repondre a vos clients 24/7. Essayez-le dans le chat !',
             link: '/admin/chat',
-            cta: 'Parler a Halimah'
+            cta: 'Tester le chat IA'
           },
           {
             title: 'Invitez votre equipe',

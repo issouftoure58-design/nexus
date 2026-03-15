@@ -1,8 +1,8 @@
 /**
- * Configuration des environnements pour Halimah
+ * Configuration des environnements NEXUS
  *
  * Permet de basculer entre Dev, Staging et Production
- * avec des configurations séparées pour chaque environnement
+ * avec des configurations separees pour chaque environnement
  */
 
 import dotenv from 'dotenv';
@@ -40,9 +40,9 @@ const environmentConfigs = {
       enabled: false,  // Désactivé en dev
       mockResponses: true,
       accounts: {
-        instagram: { username: 'test_fatshairafro', mock: true },
+        instagram: { username: 'test_nexus', mock: true },
         facebook: { pageId: 'test_page', mock: true },
-        tiktok: { username: 'test_fatshairafro', mock: true }
+        tiktok: { username: 'test_nexus', mock: true }
       }
     },
 
@@ -97,7 +97,7 @@ const environmentConfigs = {
       enabled: true,
       mockResponses: false,
       accounts: {
-        instagram: { username: process.env.STAGING_INSTAGRAM_USER || 'staging_fatshairafro', mock: false },
+        instagram: { username: process.env.STAGING_INSTAGRAM_USER || 'staging_nexus', mock: false },
         facebook: { pageId: process.env.STAGING_FACEBOOK_PAGE, mock: false },
         tiktok: { username: process.env.STAGING_TIKTOK_USER, mock: false }
       }
@@ -353,7 +353,7 @@ export function canPerformAction(action) {
     'send_email': config.notifications.email,
     'send_sms': config.notifications.sms,
     'charge_payment': !config.payments.stripe.testMode,
-    'delete_data': !isProduction(),  // Jamais de delete en prod via Halimah
+    'delete_data': !isProduction(),  // Jamais de delete en prod via l'assistant IA
     'modify_production_db': isProduction(),
     'generate_image': config.apis.dalleEnabled,
     'web_search': config.apis.tavilyEnabled
@@ -386,7 +386,7 @@ export function confirmProductionAction(action) {
   console.warn(`[ENV]    Cette action affectera les vraies données !`);
 
   // En mode non-interactif, on bloque
-  // L'approbation doit venir de Halimah Pro via un outil dédié
+  // L'approbation doit venir d'un admin via un outil dedie
   return false;
 }
 

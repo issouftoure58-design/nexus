@@ -247,8 +247,9 @@ router.post('/setup-intent', async (req, res) => {
  */
 router.delete('/payment-methods/:id', async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    await billingService.deletePaymentMethod(id);
+    await billingService.deletePaymentMethod(tenantId, id);
 
     res.json({
       success: true,

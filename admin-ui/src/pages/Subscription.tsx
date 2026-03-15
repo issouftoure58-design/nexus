@@ -111,11 +111,9 @@ const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 79,
-    originalPrice: 99,
-    yearlyPrice: 790,
+    price: 99,
+    yearlyPrice: 950,
     description: 'Pour démarrer votre activité',
-    launchOffer: 'Offre de lancement — 100 premiers clients',
     color: 'from-gray-500 to-gray-600',
     features: [
       { text: '1 utilisateur', icon: Users },
@@ -131,11 +129,9 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 199,
-    originalPrice: 249,
-    yearlyPrice: 1990,
+    price: 249,
+    yearlyPrice: 2390,
     description: 'Pour les équipes en croissance',
-    launchOffer: 'Offre de lancement — 100 premiers clients',
     popular: true,
     color: 'from-purple-500 to-indigo-600',
     features: [
@@ -155,11 +151,9 @@ const PLANS = [
   {
     id: 'business',
     name: 'Business',
-    price: 399,
-    originalPrice: 499,
-    yearlyPrice: 3990,
+    price: 499,
+    yearlyPrice: 4790,
     description: 'Pour les entreprises structurées',
-    launchOffer: 'Offre de lancement — 100 premiers clients',
     color: 'from-cyan-500 to-blue-600',
     features: [
       { text: '20 utilisateurs inclus', icon: Users },
@@ -490,14 +484,8 @@ export default function Subscription() {
                     <div className="flex items-baseline gap-1 mb-1">
                       <span className="text-3xl font-bold text-gray-900">{displayPrice}€</span>
                       <span className="text-gray-500">{priceSuffix}</span>
-                      {(plan as any).originalPrice && billingCycle === 'monthly' && (
-                        <span className="text-sm text-gray-400 line-through ml-1">{(plan as any).originalPrice}€</span>
-                      )}
                     </div>
-                    {(plan as any).launchOffer && (
-                      <p className="text-xs text-orange-600 font-medium mb-3">{(plan as any).launchOffer}</p>
-                    )}
-                    {!(plan as any).launchOffer && <div className="mb-3" />}
+                    <div className="mb-3" />
 
                     <ul className="space-y-2 mb-6">
                       {plan.features.slice(0, 5).map((feature, idx) => {

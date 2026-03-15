@@ -2,13 +2,10 @@
  * Service de cache universel NEXUS
  *
  * Gère le cache pour tous les services externes :
- * - Claude (réponses statiques)
+ * - Claude (réponses dynamiques)
  * - ElevenLabs (audio)
  * - DALL-E (images)
  * - Tavily (recherches)
- *
- * ⚠️ NOTE: Les réponses statiques dans STATIC_RESPONSES contiennent des prix
- * qui doivent être synchronisés manuellement avec businessRules.js
  *
  * @module cacheService
  */
@@ -16,8 +13,6 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-// TODO: Importer TRAVEL_FEES pour générer les textes dynamiquement
-// import { TRAVEL_FEES } from '../../config/businessRules.js';
 
 // Utiliser process.cwd() pour compatibilité ESM/CJS
 const PROJECT_ROOT = process.cwd();
@@ -58,62 +53,12 @@ export const CACHE_CONFIG = {
 };
 
 // === RÉPONSES STATIQUES CLAUDE ===
-
-export const STATIC_RESPONSES = {
-  // Informations générales
-  'horaires': {
-    response: "Fatou est disponible du lundi au samedi, de 9h à 20h. Elle peut s'adapter à vos horaires, n'hésitez pas à proposer un créneau !",
-    keywords: ['horaire', 'heure', 'disponible', 'ouvert', 'quand']
-  },
-  'adresse': {
-    response: "Fat's Hair-Afro est un service à domicile. Fatou se déplace chez vous partout en Île-de-France. Elle peut aussi vous recevoir chez elle à Franconville (8 rue des Monts Rouges) sur demande.",
-    keywords: ['adresse', 'où', 'localisation', 'lieu', 'domicile']
-  },
-  'paiement': {
-    response: "Fatou accepte les paiements par carte bancaire, espèces, PayPal et virement. Le règlement se fait à la fin de la prestation.",
-    keywords: ['paiement', 'payer', 'carte', 'espèce', 'paypal', 'virement']
-  },
-  'contact': {
-    response: "Vous pouvez contacter Fat's Hair-Afro au 07 82 23 50 20 ou au 09 39 24 02 69. Vous pouvez aussi nous écrire sur WhatsApp !",
-    keywords: ['contact', 'téléphone', 'appeler', 'joindre', 'numéro']
-  },
-  'deplacement': {
-    response: "Fatou se déplace partout en Île-de-France. Les 8 premiers kilomètres sont inclus, puis 1.10€/km au-delà. Le calcul se fait automatiquement selon votre adresse.",
-    keywords: ['déplacement', 'frais', 'kilomètre', 'distance', 'trajet']
-  },
-
-  // Services
-  'services_liste': {
-    response: "Fat's Hair-Afro propose : tresses (plusieurs styles), locks (création et entretien), soins hydratants, brushing afro et shampoing. Note : nous ne faisons pas de lissage.",
-    keywords: ['service', 'proposer', 'faire', 'coiffure', 'prestation']
-  },
-  'tresses': {
-    response: "Nous proposons plusieurs styles de tresses : braids classiques (60€), twists (50€), fulani braids (80€), et bien d'autres. La durée varie de 2 à 6 heures selon le style.",
-    keywords: ['tresse', 'braid', 'twist', 'fulani', 'nattes']
-  },
-  'locks': {
-    response: "Pour les locks : création complète à partir de 200€, reprise/entretien à partir de 50€. La durée dépend de la longueur et de l'état de vos locks.",
-    keywords: ['lock', 'dread', 'création', 'reprise', 'entretien']
-  },
-  'soins': {
-    response: "Le soin hydratant complet est à 50€. Il comprend un diagnostic capillaire, un shampoing doux, un masque hydratant et un coiffage. Parfait pour revitaliser vos cheveux !",
-    keywords: ['soin', 'hydratant', 'masque', 'traitement', 'cheveux secs']
-  },
-
-  // Questions fréquentes
-  'duree': {
-    response: "La durée dépend du service : shampoing (30 min), soin complet (1h30), tresses (2-6h selon le style), locks (2-8h selon création ou entretien).",
-    keywords: ['durée', 'temps', 'long', 'combien de temps', 'heure']
-  },
-  'annulation': {
-    response: "Vous pouvez annuler ou reporter gratuitement jusqu'à 24h avant le rendez-vous. Au-delà, un acompte de 30% pourra être demandé.",
-    keywords: ['annuler', 'reporter', 'modifier', 'changer', 'décaler']
-  },
-  'produits': {
-    response: "Fatou utilise uniquement des produits professionnels adaptés aux cheveux afro et crépus. Elle privilégie les marques naturelles sans sulfates ni parabènes.",
-    keywords: ['produit', 'marque', 'utiliser', 'naturel', 'chimique']
-  }
-};
+// REMOVED (v3.23.0): Static responses were hardcoded for a single tenant (Fat's Hair-Afro)
+// and returned incorrect information for all other tenants. The AI generates correct
+// per-tenant responses dynamically using tenant config, business rules, and services DB.
+// The matchStaticResponse() function still works -- it simply returns null for all queries,
+// letting the AI handle every request with tenant-aware context.
+export const STATIC_RESPONSES = {};
 
 // === FONCTIONS UTILITAIRES ===
 

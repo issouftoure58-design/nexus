@@ -20,13 +20,24 @@ export function apiUrl(path: string): string {
  * Used for multi-tenant routing
  */
 export function getTenantFromHostname(): string {
-  if (typeof window === 'undefined') return 'fatshairafro';
+  if (typeof window === 'undefined') return 'nexus-test'; // SSR fallback sûr
 
   const hostname = window.location.hostname;
-  if (hostname.includes('decoevent')) return 'decoevent';
-  if (hostname.includes('nexus-test')) return 'nexus-test';
-  // Default to fatshairafro for Fat's Hair Afro
-  return 'fatshairafro';
+
+  // Extraire le sous-domaine comme tenant ID
+  // ex: fatshairafro.nexus-ai-saas.com → fatshairafro
+  const parts = hostname.split('.');
+  if (parts.length >= 3) {
+    return parts[0]; // Sous-domaine = tenant slug
+  }
+
+  // Localhost / dev
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'nexus-test';
+  }
+
+  // Fallback: chercher dans le path ou retourner un défaut sûr
+  return parts[0] || 'nexus-test';
 }
 
 // Wrapper fetch qui ajoute automatiquement l'URL de base et le tenant header

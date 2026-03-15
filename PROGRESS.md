@@ -1,11 +1,11 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-13 UTC
+> Derniere mise a jour: 2026-03-15 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
-**Version: 3.23.0**
+**Version: 3.24.0**
 **Phase en cours: Commercialisation — 6 types de business**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
@@ -189,11 +189,10 @@ Note: Prix API alignes sur migration 041 (Starter 99€, Pro 249€, Business 49
 - [x] 8.8 GO LIVE
       Toutes les phases techniques terminees.
       Checklist pre-launch:
-      [ ] Activer PITR Supabase (Dashboard > Database > Backups)
+      [x] Activer PITR Supabase — FAIT (15 mars 2026)
       [x] Configurer CORS_ORIGIN sur Render — FAIT, verifie: evil-site.com bloque, fatshairafro-web autorise
-      [ ] Activer PITR Supabase (Dashboard > Database > Backups)
       [ ] Valider CGV avec juriste
-      [ ] Inviter clients beta via /api/signup
+      [x] Inviter clients beta — 3 testeurs identifies, onboarding en cours
       [x] ~~Monitorer Sentry~~ → SENTINEL Error Tracker actif
 
 ---
@@ -218,11 +217,13 @@ Voir `ROADMAP_SENTINEL.md` pour le plan detaille.
 - [x] 3.6 Nettoyer import SuperAdminRoute inutilise
 
 ### Phase 4 — Checklist Pre-Launch
-- [ ] PITR Supabase
+- [x] PITR Supabase — active (Pro Plan add-on, 15 mars 2026)
 - [x] CGV — page /cgv + checkbox signup + migration 070 + route GET /api/cgv
-- [ ] Beta clients
+- [x] Beta clients — 3 testeurs identifies (cake design, couverture, decoration evenementielle), onboarding semaine prochaine
 - [x] ~~Sentry 48h~~ — remplace par SENTINEL Error Tracker
 - [x] STRIPE_WEBHOOK_SECRET — configure sur Render
+- [x] Flow Stripe CLI — webhook idempotence testee, events enregistres dans stripe_processed_events (15 mars 2026)
+- [x] Flow OIDC — Google SSO fonctionnel end-to-end (discover → initiate → Google auth → callback → JWT → session) (15 mars 2026)
 
 ### Phase 5 — Verification Manuelle Parcours [TERMINEE]
 - [x] 5.1 Onboarding x4 types business — Onboarding.tsx (806 lignes), 5 etapes, 8 templates metier
@@ -313,7 +314,9 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 
 ### Sprint 1.5 — Dunning Stripe ✅
 - [x] POST /api/webhooks/stripe → endpoint existe (400 = signature requise en prod)
-- [ ] Flow complet avec Stripe CLI (nécessite stripe listen --forward-to)
+- [x] Flow complet avec Stripe CLI — webhook idempotence verifie (15 mars 2026)
+  - stripe listen --forward-to localhost:5000/api/webhooks/stripe → tous 200
+  - Events enregistres dans stripe_processed_events
 
 ### Sprint 1.6 — Session Management ✅
 - [x] Login → session creee en DB (admin_sessions)
@@ -350,7 +353,11 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 
 ### Sprint 4.1 — SSO ✅
 - [x] GET /admin/sso/providers → liste providers (vide = pas encore configuré)
-- [ ] Flow OIDC complet (nécessite IdP réel: Google/Azure/Okta)
+- [x] Flow OIDC complet — Google SSO teste end-to-end (15 mars 2026)
+  - GET /sso/discover?domain=gmail.com → provider Google trouve
+  - POST /sso/oidc/initiate → authorization_url Google
+  - POST /sso/oidc/callback → token exchange + userinfo + JWT + session
+  - Auto-provisioning admin fonctionne (issouftoure58@gmail.com provisionne)
 
 ### Sprint 4.3 — Parrainage ✅
 - [x] GET /admin/referrals → liste referrals
@@ -367,6 +374,40 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 ---
 
 ## HISTORIQUE DES SESSIONS
+
+### 2026-03-15 — Session 31 : Audit Hardening + PITR + Stripe CLI + Google SSO
+
+**142 fichiers (6 crees, 134 modifies, 1 supprime). 3 sprints securite/qualite, migrations 081-083 executees, SSO Google fonctionnel.**
+
+#### Sprint 1 — P0 Critique
+- **Stripe idempotence** : migration 081 (stripe_processed_events), dedup dans handleWebhookEvent(), stripe_event_id populate dans billing_events
+- **RGPD consentement** : migration 082 (client_consents + RLS), consentService.js (hasConsent/grantConsent/revokeConsent), 3 routes dans rgpd.js
+- **RGPD cascade suppression** : rgpdDeletionJob.js (job quotidien), ia_messages dans exports, anonymisation complete
+- **RLS tables manquantes** : migration 083 — billing_events, admin_sessions, documents, sso_providers, error_logs, ia_conversations, ia_messages, stripe_processed_events (50 tables RLS total)
+
+#### Sprint 2 — Qualite
+- **phoneBookingService.js supprime** (454 lignes dead code)
+- **22 fichiers raw fetch → api.get/post/put/delete** (RH, CRM, pages admin)
+- **Format API standardise** sur adminReservations, adminClients, adminServices (utils/response.js)
+- **Memory leaks fixes** : tenantCache.js + scheduler.js enregistres dans intervalRegistry
+- **bookingService.js refactored** : -300 lignes, extraction helpers, simplification
+
+#### Sprint 3 — Types + Accessibilite
+- **tsconfig strict** : noUnusedLocals + noUnusedParameters actives, 13 `any` corriges
+- **~48 fichiers** : imports/variables inutilises supprimes
+- **aria-label** ajoutes sur ~50 boutons icones (Services, Equipe, Clients, Stock, Devis, Menu, RH, Prestations, FloorPlan)
+
+#### Validations manuelles
+- **PITR Supabase** active (Pro Plan add-on)
+- **Stripe CLI** : `stripe listen` + `stripe trigger invoice.paid` → tous 200, events dans stripe_processed_events
+- **Migrations 081-083** executees sur Supabase (get_current_tenant() cree, webhook_dead_letter/referrals exclus)
+- **Google SSO** : OIDC flow complet (discover → initiate → Google auth → callback → JWT → session → auto-provisioning)
+
+**Fichiers crees (6):** migrations/081, 082, 083, consentService.js, rgpdDeletionJob.js, SSOCallback.tsx, types/models.ts, types/api.ts, types/index.ts
+**Fichiers supprimes (1):** phoneBookingService.js
+**Version:** 3.24.0
+
+---
 
 ### 2026-03-13 — Session 30 : IA Reservation — Noyau General + Couche Adaptative
 

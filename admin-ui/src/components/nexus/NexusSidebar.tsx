@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CreditCard, Settings, LogOut,
   Hexagon, ChevronDown, ChevronRight, PanelLeftClose,
-  Shield, BarChart3, Activity, Bot, DollarSign,
+  Shield, BarChart3, Bot, DollarSign,
   ShieldCheck, Brain, HardDrive, AlertTriangle,
 } from 'lucide-react';
 import type { SidebarState } from './NexusLayout';

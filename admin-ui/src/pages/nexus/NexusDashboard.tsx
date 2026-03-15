@@ -335,7 +335,7 @@ function LiveStatusRow({ label, status, latency }: { label: string; status: stri
   );
 }
 
-function PlanChart({ distribution, tenants }: { distribution?: PlanDistribution; tenants: number }) {
+function PlanChart({ distribution, tenants: _tenants }: { distribution?: PlanDistribution; tenants: number }) {
   const [animated, setAnimated] = useState(false);
   useEffect(() => { setTimeout(() => setAnimated(true), 100); }, []);
 

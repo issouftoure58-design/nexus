@@ -1,8 +1,6 @@
 /**
- * Routes Twilio pour Halimah Voice AI
+ * Routes Twilio Voice AI — Multi-tenant
  * Conversation naturelle au téléphone avec Claude IA
- *
- * Numéro Twilio : +33 9 39 24 02 69
  *
  * 🔒 UTILISE NEXUS CORE UNIFIÉ - Source unique de vérité
  */
@@ -19,11 +17,10 @@ import {
 } from '../services/voiceAIService.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
 import { authenticateAdmin } from './adminAuth.js';
-// 🔒 NEXUS CORE UNIFIÉ - Remplace halimahAI
+// 🔒 NEXUS CORE UNIFIÉ
 import {
   processMessage,
-  clearConversation,
-  SALON_INFO
+  clearConversation
 } from '../core/unified/nexusCore.js';
 import voiceService from '../services/voiceService.js';
 import { logCallStart, logCallEnd, logSMS, logSMSStatus } from '../modules/twilio/callLogService.js';
@@ -36,12 +33,16 @@ import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
 /**
  * V2 - Génère les messages dynamiques pour les appels vocaux
  */
-function getVoiceMessages(tenantId = 'fatshairafro') {
+function getVoiceMessages(tenantId) {
+  if (!tenantId) {
+    logger.warn('getVoiceMessages appelé sans tenantId', { tag: 'TWILIO' });
+    return { transferMessage: 'Transfert en cours.', unavailable: () => 'Indisponible.', confirmation: () => 'Confirmé.' };
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
     const gerant = info.gerant || 'le responsable';
     const nom = info.nom || 'notre établissement';
-    const tel = info.telephone || '09 39 24 02 69';
+    const tel = info.telephone || '';
 
     return {
       transferMessage: `Je vous transfère vers ${gerant}. Un instant s'il vous plaît.`,
@@ -49,20 +50,21 @@ function getVoiceMessages(tenantId = 'fatshairafro') {
         `Désolé${clientName ? ` ${clientName}` : ''}, ${gerant} n'est pas disponible pour le moment. ` +
         `Vous pouvez laisser un message après le bip.`,
       goodbye: `Merci d'avoir appelé ${nom}. À bientôt !`,
-      voicemail: `${gerant} n'est pas disponible pour le moment. Vous pouvez laisser un message vocal après le bip, ou envoyer un SMS au ${tel}.`,
+      voicemail: `${gerant} n'est pas disponible pour le moment. Vous pouvez laisser un message vocal après le bip${tel ? `, ou envoyer un SMS au ${tel}` : ''}.`,
       messageRecorded: `Votre message a bien été enregistré. ${gerant} vous rappellera dès que possible. Merci et à bientôt !`,
       unavailableAlt: `${gerant} n'est pas disponible actuellement. Souhaitez-vous laisser un message ou que je prenne votre rendez-vous ?`,
     };
   } catch (e) {
+    logger.warn(`getVoiceMessages fallback for tenant ${tenantId}: ${e.message}`, { tag: 'TWILIO' });
     return {
-      transferMessage: "Je vous transfère vers Fatou. Un instant s'il vous plaît.",
+      transferMessage: "Je vous transfère vers le responsable. Un instant s'il vous plaît.",
       unavailable: (clientName) =>
-        `Désolée ${clientName || ''}, Fatou n'est pas disponible pour le moment. ` +
+        `Désolé${clientName ? ` ${clientName}` : ''}, le responsable n'est pas disponible pour le moment. ` +
         `Vous pouvez laisser un message après le bip.`,
-      goodbye: "Merci d'avoir appelé Fat's Hair-Afro. À bientôt !",
-      voicemail: "Fatou n'est pas disponible pour le moment. Vous pouvez laisser un message vocal après le bip, ou envoyer un SMS au 09 39 24 02 69.",
-      messageRecorded: "Votre message a bien été enregistré. Fatou vous rappellera dès que possible. Merci et à bientôt !",
-      unavailableAlt: "Fatou n'est pas disponible actuellement. Souhaitez-vous laisser un message ou que je prenne votre rendez-vous ?",
+      goodbye: "Merci de votre appel. À bientôt !",
+      voicemail: "Le responsable n'est pas disponible pour le moment. Vous pouvez laisser un message vocal après le bip.",
+      messageRecorded: "Votre message a bien été enregistré. On vous rappellera dès que possible. Merci et à bientôt !",
+      unavailableAlt: "Le responsable n'est pas disponible actuellement. Souhaitez-vous laisser un message ou que je prenne votre rendez-vous ?",
     };
   }
 }
@@ -106,19 +108,10 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
     tenantConfig = session?.tenantConfig;
   }
 
-  // Nom du salon pour les réponses
-  const salonName = tenantConfig?.name || SALON_INFO.nom;
+  // Nom de l'établissement pour les réponses
+  const businessName = tenantConfig?.name || 'notre établissement';
 
-  console.log(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
-  logger.info(`TWILIO NEXUS HANDLE VOICE - DEBUG COMPLET`);
-  logger.info(`TWILIO NEXUS CallSid: ${callSid}`);
-  logger.info(`TWILIO NEXUS ConversationId: ${conversationId}`);
-  logger.info(`TWILIO NEXUS isFirst: ${isFirst}`);
-  logger.info(`TWILIO NEXUS Message brut: "${message}"`);
-  logger.info(`TWILIO NEXUS Message length: ${message?.length || 0}`);
-  logger.info(`TWILIO NEXUS ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'presente' : 'MANQUANTE'}`);
-  logger.info(`TWILIO NEXUS SUPABASE_URL: ${process.env.SUPABASE_URL ? 'OK' : 'MANQUANTE'}`);
-  logger.info(`TWILIO NEXUS Timestamp: ${new Date().toISOString()}`);
+  logger.info(`VOICE handleVoice CallSid: ${callSid}, isFirst: ${isFirst}, message: "${message?.substring(0, 80) || ''}"`);
 
   // Récupérer le tenantId depuis la session
   // 🔒 TENANT ISOLATION: tenantId obligatoire
@@ -175,7 +168,7 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
       voiceSessions.delete(callSid);
 
       return {
-        response: `Merci d'avoir appelé ${salonName}. À très bientôt !`,
+        response: `Merci d'avoir appelé ${businessName}. À très bientôt !`,
         shouldEndCall: true,
         shouldTransfer: false
       };
@@ -193,12 +186,7 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
       tenantId
     });
 
-    logger.info(`TWILIO NEXUS RESULTAT processMessage()`);
-    logger.info(`TWILIO NEXUS success: ${result.success}`);
-    logger.info(`TWILIO NEXUS duration: ${result.duration}ms`);
-    logger.info(`TWILIO NEXUS error: ${result.error || 'aucune'}`);
-    logger.info(`TWILIO NEXUS response (100 chars): "${result.response?.substring(0, 100) || 'VIDE'}"`);
-    logger.info(`TWILIO NEXUS response complete: "${result.response}"`);
+    logger.info(`VOICE processMessage result: success=${result.success}, duration=${result.duration}ms, response="${result.response?.substring(0, 100) || 'VIDE'}"`);
 
     // Détecter si la réservation est confirmée (fin de conversation naturelle)
     const isBookingConfirmed = result.response.toLowerCase().includes('confirmé') &&
@@ -211,16 +199,8 @@ async function handleVoice(callSid, message, isFirst, tenantConfig = null) {
     };
 
   } catch (error) {
-    console.error(`\n[TWILIO NEXUS] ╔════════════════════════════════════════════════════════╗`);
-    logger.error(`TWILIO NEXUS ERREUR DANS handleVoice`);
-    logger.error(`TWILIO NEXUS ${error.message}`);
-    console.error('[TWILIO NEXUS] ❌ Type:', error.constructor?.name);
-    console.error('[TWILIO NEXUS] ❌ Message:', error.message);
-    console.error('[TWILIO NEXUS] ❌ CallSid:', callSid);
-    console.error('[TWILIO NEXUS] ❌ Message reçu:', message);
-    console.error('[TWILIO NEXUS] ❌ Stack complète:', error.stack);
-    console.error('[TWILIO NEXUS] ════════════════════════════════════════════════════════\n');
-    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { callSid, message } });
+    logger.error(`VOICE handleVoice error for tenant ${tenantId}: ${error.message}`, { stack: error.stack });
+    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { callSid, tenantId, message } });
     return {
       response: "Excusez-moi, j'ai un petit problème. Pouvez-vous répéter ?",
       shouldEndCall: false,
@@ -240,20 +220,37 @@ function cleanupVoiceSession(callSid) {
 const VoiceResponse = twilio.twiml.VoiceResponse;
 const MessagingResponse = twilio.twiml.MessagingResponse;
 
-// Numéros de téléphone
-const FATOU_PHONE = process.env.FATOU_PHONE_NUMBER || '+33782235020'; // Legacy - utiliser getTransferPhone()
-const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER || '+33939240269';
+// Numéro Twilio sortant (callerId pour les transferts)
+const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
 
 /**
  * V2 - Récupère le numéro de transfert pour un tenant
+ * Charge depuis la config tenant (DB ou statique) — aucun fallback hardcodé
  */
-function getTransferPhone(tenantId = 'fatshairafro') {
+function getTransferPhone(tenantId) {
+  if (!tenantId) {
+    logger.error('getTransferPhone appelé sans tenantId', { tag: 'TWILIO' });
+    return null;
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
-    return info.telephone_transfert || info.telephone || FATOU_PHONE;
+    return info.telephone_transfert || info.telephone || null;
   } catch (e) {
-    return FATOU_PHONE;
+    logger.warn(`getTransferPhone failed for ${tenantId}: ${e.message}`, { tag: 'TWILIO' });
+    return null;
   }
+}
+
+/**
+ * Récupère le callerId Twilio pour un tenant
+ * Utilise le numéro Twilio du tenant (from config) ou le numéro global
+ */
+function getCallerId(tenantId) {
+  if (tenantId) {
+    const config = getTenantConfig(tenantId);
+    if (config?.twilio_number) return config.twilio_number;
+  }
+  return TWILIO_PHONE || null;
 }
 
 // Configuration voix naturelle française (Amazon Polly via Twilio)
@@ -262,14 +259,8 @@ const VOICE_CONFIG = {
   language: 'fr-FR'
 };
 
-// Hints pour améliorer la reconnaissance vocale Twilio
-// Ces mots-clés aident l'IA de transcription à mieux comprendre le contexte
-const SPEECH_HINTS = [
-  // Services Fatou
-  'locks', 'microlocks', 'crochet', 'twist', 'décapage', 'reprise', 'racines',
-  'braids', 'tresses', 'nattes', 'collées', 'rajout', 'rajouts',
-  'soin', 'soins', 'shampoing', 'brushing', 'hydratant',
-  'teinture', 'décoloration', 'coloration',
+// Hints génériques pour la reconnaissance vocale Twilio (multi-tenant)
+const BASE_SPEECH_HINTS = [
   // Jours
   'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche',
   'demain', 'après-demain', 'semaine prochaine', 'prochain', 'prochaine',
@@ -279,9 +270,37 @@ const SPEECH_HINTS = [
   'oui', 'non', 'parfait', 'ok', "d'accord", 'bien sûr', 'absolument',
   // Réservation
   'rendez-vous', 'réservation', 'disponibilité', 'créneau',
+  // Services génériques
+  'prestation', 'service', 'tarif', 'prix', 'durée',
   // Adresses
-  'rue', 'avenue', 'boulevard', 'place', 'Franconville', 'Cergy', 'Paris'
-].join(', ');
+  'rue', 'avenue', 'boulevard', 'place',
+  // Actions
+  'annuler', 'modifier', 'confirmer', 'reporter', 'transférer'
+];
+
+/**
+ * Génère les hints de reconnaissance vocale pour un tenant
+ * Combine les hints génériques + hints spécifiques au tenant (depuis config)
+ */
+function getSpeechHints(tenantId) {
+  const hints = [...BASE_SPEECH_HINTS];
+  if (tenantId) {
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      // Ajouter le nom de l'établissement et du gérant comme hints
+      if (info.nom) hints.push(info.nom);
+      if (info.gerant) hints.push(info.gerant);
+      // Ajouter les hints personnalisés depuis la config tenant
+      const config = getTenantConfig(tenantId);
+      if (config?.speech_hints && Array.isArray(config.speech_hints)) {
+        hints.push(...config.speech_hints);
+      }
+    } catch (e) {
+      // Utiliser les hints de base seuls
+    }
+  }
+  return hints.join(', ');
+}
 
 // Alternatives de voix disponibles :
 // 'Polly.Lea' - Française, naturelle, féminine (recommandée)
@@ -319,7 +338,7 @@ async function sayWithElevenLabs(parent, text) {
     logger.info(`VOICE ElevenLabs ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
     parent.play(publicUrl);
   } catch (error) {
-    console.error('[VOICE] ElevenLabs failed, fallback Polly:', error.message);
+    logger.warn(`VOICE ElevenLabs failed, fallback Polly: ${error.message}`);
     parent.say(VOICE_CONFIG, text);
   }
 }
@@ -329,12 +348,13 @@ async function sayWithElevenLabs(parent, text) {
  * L'audio est joué À L'INTÉRIEUR du gather pour permettre l'interruption
  */
 async function gatherWithBargeIn(twiml, text, options = {}) {
+  const hints = getSpeechHints(options.tenantId || null);
   const gather = twiml.gather({
     input: 'speech',
     language: 'fr-FR',
     speechTimeout: 'auto',
     speechModel: 'phone_call',
-    hints: SPEECH_HINTS,
+    hints,
     action: options.action || '/api/twilio/voice/conversation',
     method: 'POST',
     timeout: options.timeout || 5,
@@ -348,7 +368,7 @@ async function gatherWithBargeIn(twiml, text, options = {}) {
 }
 
 // ============================================================
-// === WEBHOOK APPEL ENTRANT - ACCUEIL HALIMAH IA ===
+// === WEBHOOK APPEL ENTRANT - ACCUEIL IA ===
 // ============================================================
 
 // Accepte GET et POST (Twilio peut envoyer l'un ou l'autre selon la config)
@@ -361,12 +381,21 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
   // MULTI-TENANT: Identifier le tenant par le numéro appelé
   const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
 
-  console.log(`[TWILIO VOICE] Appel reçu - Method: ${req.method} - From: ${From}`);
   logger.info(`VOICE === NOUVEL APPEL ===`);
   logger.info(`VOICE De: ${From} vers ${To}`);
   logger.info(`VOICE Tenant: ${tenantId} (${tenantConfig?.name || 'inconnu'})`);
   logger.info(`VOICE CallSid: ${CallSid}`);
   if (CallerCity) logger.info(`VOICE Localisation: ${CallerCity}, ${CallerCountry}`);
+
+  // 🔒 TENANT ISOLATION: Rejeter si tenant inconnu
+  if (!tenantId) {
+    logger.error(`VOICE TENANT_NOT_FOUND: Rejecting call from ${From} to unknown number ${To}`);
+    const twiml = new VoiceResponse();
+    twiml.say(VOICE_CONFIG, "Désolé, ce numéro n'est plus en service. Au revoir.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
 
   // 🔒 IMPORTANT: Nettoyer toute conversation précédente avec ce CallSid
   // pour éviter que des données d'appels précédents polluent le nouvel appel
@@ -389,20 +418,20 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
   const twiml = new VoiceResponse();
 
   try {
-    // Message d'accueil avec Halimah IA
+    // Message d'accueil via NEXUS CORE
     const { response } = await handleVoice(CallSid, '', true);
 
     // Accueil + écoute avec barge-in (client peut interrompre)
-    await gatherWithBargeIn(twiml, response, { timeout: 5 });
+    await gatherWithBargeIn(twiml, response, { timeout: 5, tenantId });
 
     // Si pas de réponse après le timeout
-    await gatherWithBargeIn(twiml, "Vous êtes toujours là ? Je vous écoute.", { timeout: 3 });
+    await gatherWithBargeIn(twiml, "Vous êtes toujours là ? Je vous écoute.", { timeout: 3, tenantId });
 
     // Si toujours pas de réponse
     await sayWithElevenLabs(twiml, "Je n'entends rien. N'hésitez pas à rappeler ou à nous contacter par WhatsApp. Au revoir !");
 
   } catch (error) {
-    console.error('[HALIMAH VOICE] Erreur accueil:', error);
+    logger.error(`VOICE Erreur accueil pour tenant ${tenantId}: ${error.message}`);
     captureException(error, { tags: { service: 'twilio', type: 'voice_greeting' } });
     twiml.say(VOICE_CONFIG, "Excusez-moi, j'ai un petit problème technique. Veuillez rappeler dans quelques instants. Au revoir !");
   }
@@ -419,24 +448,30 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
 router.post('/voice/conversation', validateTwilioSignature, async (req, res) => {
   const { CallSid, SpeechResult, Confidence } = req.body;
 
-  console.log(`\n════════════════════════════════════════════════════════════`);
-  console.log(`📞 APPEL TÉLÉPHONE - CONVERSATION REÇUE`);
-  console.log(`════════════════════════════════════════════════════════════`);
-  console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
-  console.log(`📱 CallSid: ${CallSid}`);
-  console.log(`💬 SpeechResult: "${SpeechResult}"`);
-  console.log(`📊 Confidence: ${Confidence}`);
-  console.log(`📏 SpeechResult length: ${SpeechResult?.length || 0}`);
-  console.log(`════════════════════════════════════════════════════════════`);
+  // Récupérer le tenantId depuis la session
+  const session = voiceSessions.get(CallSid);
+  const tenantId = session?.tenantId;
+
+  logger.info(`VOICE CONVERSATION CallSid: ${CallSid}, Tenant: ${tenantId}`);
+  logger.info(`VOICE SpeechResult: "${SpeechResult}" (confidence: ${Confidence})`);
 
   const twiml = new VoiceResponse();
 
+  // 🔒 TENANT ISOLATION: Rejeter si pas de tenant en session
+  if (!tenantId) {
+    logger.error(`VOICE No tenantId in session for CallSid: ${CallSid}`);
+    await sayWithElevenLabs(twiml, "Excusez-moi, une erreur technique s'est produite. Veuillez rappeler.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
+
   // Vérifier si on a bien compris
   if (!SpeechResult || SpeechResult.trim() === '') {
-    console.log('[HALIMAH VOICE] Pas de speech détecté');
+    logger.info(`VOICE Pas de speech détecté pour ${CallSid}`);
 
     // Demander de répéter avec barge-in
-    await gatherWithBargeIn(twiml, "Excusez-moi, je n'ai pas bien entendu. Pouvez-vous répéter ?", { timeout: 5 });
+    await gatherWithBargeIn(twiml, "Excusez-moi, je n'ai pas bien entendu. Pouvez-vous répéter ?", { timeout: 5, tenantId });
 
     // Après timeout sans réponse
     await sayWithElevenLabs(twiml, "Je n'entends plus rien. Si vous avez des questions, n'hésitez pas à rappeler. Au revoir !");
@@ -446,72 +481,70 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
   }
 
   try {
-    // Obtenir la réponse de Halimah IA (nexusCore ou legacy)
+    // Obtenir la réponse IA via NEXUS CORE
     const { response, shouldEndCall, shouldTransfer, clientName } = await handleVoice(CallSid, SpeechResult, false);
 
-    // V2 - Récupérer le tenantId depuis la session
-    const session = voiceSessions.get(CallSid);
-    const tenantId = session?.tenantId;
-    if (!tenantId) {
-      logger.error(`VOICE No tenantId in session for CallSid: ${CallSid}`);
-      const twimlErr = new VoiceResponse();
-      await sayWithElevenLabs(twimlErr, "Excusez-moi, une erreur technique s'est produite. Veuillez rappeler.");
-      twimlErr.hangup();
-      res.type('text/xml');
-      return res.send(twimlErr.toString());
-    }
     const messages = getVoiceMessages(tenantId);
 
-    console.log(`[HALIMAH VOICE] Halimah répond: "${response}"`);
-    console.log(`[HALIMAH VOICE] Fin: ${shouldEndCall}, Transfert: ${shouldTransfer}`);
+    logger.info(`VOICE Réponse IA: "${response?.substring(0, 100)}..." Fin: ${shouldEndCall}, Transfert: ${shouldTransfer}`);
 
     // === TRANSFERT VERS LE RESPONSABLE ===
     if (shouldTransfer) {
-      console.log(`[HALIMAH VOICE] Transfert vers responsable pour ${clientName} (tenant: ${tenantId})`);
+      logger.info(`VOICE Transfert vers responsable pour ${clientName} (tenant: ${tenantId})`);
 
       // Dire qu'on transfère (sans gather car on va dial après)
       await sayWithElevenLabs(twiml, response);
 
-      // Appeler le responsable
-      const dial = twiml.dial({
-        timeout: 20,
-        callerId: TWILIO_PHONE,
-        action: '/api/twilio/voice/transfer-result',
-        method: 'POST'
-      });
-      dial.number(getTransferPhone(tenantId));
+      // Récupérer le numéro de transfert pour ce tenant
+      const transferPhone = getTransferPhone(tenantId);
+      if (!transferPhone) {
+        logger.error(`VOICE No transfer phone for tenant ${tenantId}`);
+        await gatherWithBargeIn(twiml,
+          messages.unavailable(clientName) + ' Puis-je prendre un message ou préférez-vous rappeler plus tard ?',
+          { timeout: 8, tenantId }
+        );
+      } else {
+        // Appeler le responsable
+        const callerId = getCallerId(tenantId);
+        const dial = twiml.dial({
+          timeout: 20,
+          ...(callerId ? { callerId } : {}),
+          action: '/api/twilio/voice/transfer-result',
+          method: 'POST'
+        });
+        dial.number(transferPhone);
 
-      // Si le responsable ne répond pas (après le dial) - avec barge-in
-      await gatherWithBargeIn(twiml,
-        messages.unavailable(clientName) + ' Puis-je prendre un message ou préférez-vous rappeler plus tard ?',
-        { timeout: 8 }
-      );
+        // Si le responsable ne répond pas (après le dial) - avec barge-in
+        await gatherWithBargeIn(twiml,
+          messages.unavailable(clientName) + ' Puis-je prendre un message ou préférez-vous rappeler plus tard ?',
+          { timeout: 8, tenantId }
+        );
+      }
 
     } else if (shouldEndCall) {
       // Terminer l'appel proprement - dire au revoir puis raccrocher
       await sayWithElevenLabs(twiml, response);
-      console.log(`[HALIMAH VOICE] Fin de conversation pour ${CallSid}`);
+      logger.info(`VOICE Fin de conversation pour ${CallSid}`);
       cleanupVoiceService(CallSid);
       cleanupVoiceSession(CallSid);
       twiml.hangup();
     } else {
       // Continuer la conversation - répondre avec barge-in pour que le client puisse interrompre
-      await gatherWithBargeIn(twiml, response, { timeout: 8 });
+      await gatherWithBargeIn(twiml, response, { timeout: 8, tenantId });
 
       // Timeout - relancer avec barge-in
-      await gatherWithBargeIn(twiml, "Vous êtes toujours là ?", { timeout: 3 });
+      await gatherWithBargeIn(twiml, "Vous êtes toujours là ?", { timeout: 3, tenantId });
 
       // Fin après double timeout
       await sayWithElevenLabs(twiml, messages.goodbye);
     }
 
   } catch (error) {
-    console.error('[HALIMAH VOICE] Erreur conversation:', error);
-    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { CallSid } });
-    const session = voiceSessions.get(CallSid);
-    const tenantId = session?.tenantId;
+    logger.error(`VOICE Erreur conversation tenant ${tenantId}: ${error.message}`);
+    captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { CallSid, tenantId } });
     const info = tenantId ? getBusinessInfoSync(tenantId) : {};
-    await sayWithElevenLabs(twiml, `Excusez-moi, j'ai eu un petit souci. Pouvez-vous rappeler ou envoyer un SMS au ${info.telephone || '09 39 24 02 69'} ? Au revoir !`);
+    const phoneMsg = info.telephone ? ` ou envoyer un SMS au ${info.telephone}` : '';
+    await sayWithElevenLabs(twiml, `Excusez-moi, j'ai eu un petit souci. Pouvez-vous rappeler${phoneMsg} ? Au revoir !`);
     // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
   }
 
@@ -527,10 +560,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
 router.post('/voice/status', validateTwilioSignatureLoose, async (req, res) => {
   const { CallSid, CallStatus, CallDuration, From, To } = req.body;
 
-  console.log(`[HALIMAH VOICE] === STATUT APPEL ===`);
-  console.log(`[HALIMAH VOICE] CallSid: ${CallSid}`);
-  console.log(`[HALIMAH VOICE] Statut: ${CallStatus}`);
-  if (CallDuration) console.log(`[HALIMAH VOICE] Durée: ${CallDuration}s`);
+  logger.info(`VOICE === STATUT APPEL === CallSid: ${CallSid}, Statut: ${CallStatus}${CallDuration ? `, Durée: ${CallDuration}s` : ''}`);
 
   // Persister fin d'appel
   logCallEnd({ CallSid, CallStatus, CallDuration }).catch(() => {});
@@ -573,18 +603,31 @@ router.post('/voice/transfer', validateTwilioSignature, async (req, res) => {
   }
   const messages = getVoiceMessages(tenantId);
 
-  console.log(`[HALIMAH VOICE] Transfert vers responsable pour ${CallSid} (tenant: ${tenantId})`);
+  logger.info(`VOICE Transfert vers responsable pour ${CallSid} (tenant: ${tenantId})`);
 
   const twiml = new VoiceResponse();
 
   await sayWithElevenLabs(twiml, messages.transferMessage);
 
-  twiml.dial({
-    timeout: 30,
-    callerId: TWILIO_PHONE,
-    action: '/api/twilio/voice/transfer-status',
-    method: 'POST'
-  }, getTransferPhone(tenantId));
+  const transferPhone = getTransferPhone(tenantId);
+  if (!transferPhone) {
+    logger.error(`VOICE No transfer phone configured for tenant ${tenantId}`);
+    await sayWithElevenLabs(twiml, messages.voicemail);
+    twiml.record({
+      maxLength: 120,
+      playBeep: true,
+      action: '/api/twilio/voice/recording',
+      method: 'POST'
+    });
+  } else {
+    const callerId = getCallerId(tenantId);
+    twiml.dial({
+      timeout: 30,
+      ...(callerId ? { callerId } : {}),
+      action: '/api/twilio/voice/transfer-status',
+      method: 'POST'
+    }, transferPhone);
+  }
 
   res.type('text/xml');
   res.send(twiml.toString());
@@ -604,7 +647,7 @@ router.post('/voice/transfer-status', validateTwilioSignature, async (req, res) 
   }
   const messages = getVoiceMessages(tenantId);
 
-  console.log(`[HALIMAH VOICE] Statut transfert: ${DialCallStatus} (tenant: ${tenantId})`);
+  logger.info(`VOICE Statut transfert: ${DialCallStatus} (tenant: ${tenantId})`);
 
   const twiml = new VoiceResponse();
 
@@ -643,30 +686,29 @@ router.post('/voice/transfer-result', validateTwilioSignature, async (req, res) 
   }
   const messages = getVoiceMessages(tenantId);
 
-  console.log(`[HALIMAH VOICE] === RÉSULTAT TRANSFERT ===`);
-  console.log(`[HALIMAH VOICE] Status: ${DialCallStatus}, Durée: ${DialCallDuration}s (tenant: ${tenantId})`);
+  logger.info(`VOICE Résultat transfert: ${DialCallStatus}, Durée: ${DialCallDuration}s (tenant: ${tenantId})`);
 
   const twiml = new VoiceResponse();
 
   if (DialCallStatus === 'completed') {
     // Le responsable a pris l'appel et la conversation est terminée
-    console.log(`[HALIMAH VOICE] Transfert réussi pour ${CallSid}`);
+    logger.info(`VOICE Transfert réussi pour ${CallSid}`);
     await sayWithElevenLabs(twiml, messages.goodbye);
     cleanupVoiceService(CallSid);
     cleanupVoiceSession(CallSid);
   } else {
     // Le responsable n'a pas répondu ou a refusé
-    console.log(`[HALIMAH VOICE] Transfert échoué: ${DialCallStatus}`);
+    logger.info(`VOICE Transfert échoué: ${DialCallStatus} (tenant: ${tenantId})`);
 
-    // 🔧 FIX: Utiliser gatherWithBargeIn pour que l'audio soit DANS le gather
+    // Utiliser gatherWithBargeIn pour que l'audio soit DANS le gather
     // Cela permet au client d'interrompre l'assistant
     await gatherWithBargeIn(twiml,
       messages.unavailableAlt,
-      { timeout: 8 }
+      { timeout: 8, tenantId }
     );
 
     // Timeout - si pas de réponse
-    await sayWithElevenLabs(twiml, "Je n'entends rien. Merci d'avoir appelé. Au revoir !");
+    await sayWithElevenLabs(twiml, messages.goodbye);
   }
 
   res.type('text/xml');
@@ -718,19 +760,22 @@ router.post('/voice/recording', validateTwilioSignature, async (req, res) => {
 
 // ⚠️ SECURED: Validates Twilio signature
 router.post('/voice/transcription', validateTwilioSignature, async (req, res) => {
-  const { TranscriptionText, RecordingSid, From } = req.body;
+  const { TranscriptionText, RecordingSid, From, CallSid } = req.body;
 
-  console.log(`[HALIMAH VOICE] === TRANSCRIPTION ===`);
-  console.log(`[HALIMAH VOICE] De: ${From}`);
-  console.log(`[HALIMAH VOICE] Texte: ${TranscriptionText}`);
+  // Récupérer le tenantId depuis la session
+  const session = voiceSessions.get(CallSid);
+  const tenantId = session?.tenantId;
 
-  // TODO: Envoyer la transcription à Fatou par SMS ou email
+  const tenantLabel = tenantId ? tenantId : 'inconnu';
+  logger.info(`VOICE Transcription reçue pour tenant ${tenantLabel}: ${TranscriptionText?.substring(0, 100)}`);
+
+  // TODO: Envoyer la transcription au responsable par SMS ou email (tenant-specific)
 
   res.sendStatus(200);
 });
 
 // ============================================================
-// === WEBHOOK SMS AVEC IA ===
+// === WEBHOOK SMS AVEC IA (MULTI-TENANT) ===
 // ============================================================
 
 // ⚠️ SECURED: Validates Twilio signature
@@ -739,12 +784,18 @@ router.post('/sms', validateTwilioSignature, async (req, res) => {
 
   // MULTI-TENANT: Identifier le tenant par le numéro appelé
   const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
-  const salonName = tenantConfig?.name || SALON_INFO.nom;
 
-  console.log(`[SMS] === NOUVEAU SMS ===`);
-  console.log(`[SMS] De: ${From} vers ${To}`);
-  console.log(`[SMS] Tenant: ${tenantId}`);
-  console.log(`[SMS] Message: ${Body}`);
+  logger.info(`SMS De: ${From} vers ${To}, Tenant: ${tenantId}`);
+  logger.info(`SMS Message: ${Body?.substring(0, 100)}`);
+
+  // 🔒 TENANT ISOLATION: Rejeter si tenant inconnu
+  if (!tenantId) {
+    logger.error(`SMS TENANT_NOT_FOUND: Rejecting SMS from ${From} to unknown number ${To}`);
+    const twiml = new MessagingResponse();
+    twiml.message("Désolé, ce numéro n'est plus en service.");
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
 
   // Persister SMS en base
   logSMS(tenantId, { MessageSid, From, Body }).catch(() => {});
@@ -762,7 +813,7 @@ router.post('/sms', validateTwilioSignature, async (req, res) => {
       tenantId
     });
 
-    console.log(`[SMS] Réponse: ${result.response}`);
+    logger.info(`SMS Réponse envoyée pour tenant ${tenantId}`);
 
     twiml.message(result.response);
 
@@ -770,8 +821,10 @@ router.post('/sms', validateTwilioSignature, async (req, res) => {
     clearConversation(conversationId);
 
   } catch (error) {
-    console.error('[SMS] Erreur:', error);
-    twiml.message(`Merci pour votre message ! ${salonName} vous répond bientôt.`);
+    logger.error(`SMS Erreur pour tenant ${tenantId}: ${error.message}`);
+    // Réponse générique dynamique — pas de nom hardcodé
+    const businessName = tenantConfig?.name || 'Nous';
+    twiml.message(`Merci pour votre message ! ${businessName} vous répond bientôt.`);
   }
 
   res.type('text/xml');
@@ -782,8 +835,8 @@ router.post('/sms', validateTwilioSignature, async (req, res) => {
 router.post('/sms/status', validateTwilioSignatureLoose, (req, res) => {
   const { MessageSid, MessageStatus, To, ErrorCode } = req.body;
 
-  console.log(`[HALIMAH SMS] Statut ${MessageSid}: ${MessageStatus}`);
-  if (ErrorCode) console.error(`[HALIMAH SMS] Erreur: ${ErrorCode}`);
+  logger.info(`SMS Statut ${MessageSid}: ${MessageStatus}`);
+  if (ErrorCode) logger.error(`SMS Erreur ${MessageSid}: ${ErrorCode}`);
 
   logSMSStatus({ MessageSid, MessageStatus }).catch(() => {});
 
@@ -808,7 +861,7 @@ router.get('/sms', (req, res) => {
 router.get('/status', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'Halimah Voice AI',
+    service: 'NEXUS Voice AI',
     // ⚠️ SECURITY: Ne pas exposer les numéros de téléphone
     features: [
       'conversation_ia',

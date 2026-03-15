@@ -604,8 +604,13 @@ async function sendOrderConfirmation(order, items, telephone, email, tenantId = 
       month: 'long',
     });
 
-    const lieuText = order.lieu === 'chez_fatou'
-      ? '8 rue des Monts Rouges, Franconville'
+    let defaultAddress = 'Sur place';
+    try {
+      const info = getDefaultLocation(tenantId);
+      defaultAddress = info || defaultAddress;
+    } catch (e) { /* fallback */ }
+    const lieuText = order.lieu === 'sur_place'
+      ? defaultAddress
       : order.adresse_client;
 
     const totalEuros = (order.total / 100).toFixed(0);

@@ -9,8 +9,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  TrendingUp, Plus, X, Loader2, Star, Target, Users,
-  Calendar, Euro, BarChart3, CheckCircle, XCircle
+  Plus, X, Loader2, Star, Target, Users,
+  Euro, BarChart3, CheckCircle, XCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

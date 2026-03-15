@@ -146,10 +146,10 @@ export default function Equipe() {
                 }`}>
                   {m.statut}
                 </span>
-                <button onClick={() => openEdit(m)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                <button onClick={() => openEdit(m)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" aria-label="Modifier">
                   <Edit className="w-4 h-4 text-gray-500" />
                 </button>
-                <button onClick={() => handleDelete(m.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                <button onClick={() => handleDelete(m.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" aria-label="Supprimer">
                   <Trash2 className="w-4 h-4 text-red-500" />
                 </button>
               </div>
@@ -169,7 +169,7 @@ export default function Equipe() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editMembre ? 'Modifier le membre' : 'Nouveau membre'}
               </h2>
-              <button onClick={() => setShowForm(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+              <button onClick={() => setShowForm(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded" aria-label="Fermer">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>

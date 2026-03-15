@@ -1,5 +1,6 @@
 import { TaskTypes } from '../../services/taskQueue.js';
 import { supabase } from '../../config/supabase.js';
+import { getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
 /**
  * Handler pour les tâches liées aux clients
@@ -55,7 +56,7 @@ async function sendReminder(data, tenantId) {
     }
 
     const client = booking.clients;
-    const message = customMessage || formatReminderMessage(booking, client);
+    const message = customMessage || formatReminderMessage(booking, client, tenantId);
 
     // TODO: Envoyer via WhatsApp, SMS ou Email selon le canal
     console.log(`[CLIENT] 📩 Message préparé pour ${client.prenom} ${client.nom}:`);
@@ -91,9 +92,15 @@ async function sendReminder(data, tenantId) {
 /**
  * Formate le message de rappel
  */
-function formatReminderMessage(booking, client) {
+function formatReminderMessage(booking, client, tenantId) {
+  let nom = 'notre équipe';
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    nom = info.nom || nom;
+  } catch (e) { /* fallback */ }
+
   return `Bonjour ${client.prenom},\n\n` +
-    `C'est Halimah de Fat's Hair-Afro ! 💇🏾‍♀️\n\n` +
+    `Rappel de ${nom} !\n\n` +
     `Je vous rappelle votre rendez-vous :\n` +
     `📅 ${formatDate(booking.date)} à ${booking.heure}\n` +
     `💇 ${booking.service_nom}\n\n` +
@@ -137,7 +144,7 @@ async function followupClient(data, tenantId) {
       .limit(1)
       .single();
 
-    const message = customMessage || formatFollowupMessage(client, lastBooking);
+    const message = customMessage || formatFollowupMessage(client, lastBooking, tenantId);
 
     console.log(`[CLIENT] 📩 Message de relance pour ${client.prenom}:`);
     console.log(`[CLIENT]    Dernier RDV: ${lastBooking?.date || 'Inconnu'}`);
@@ -164,13 +171,19 @@ async function followupClient(data, tenantId) {
 /**
  * Formate le message de relance
  */
-function formatFollowupMessage(client, lastBooking) {
-  const service = lastBooking?.service_nom || 'votre dernière coiffure';
+function formatFollowupMessage(client, lastBooking, tenantId) {
+  let nom = 'notre établissement';
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    nom = info.nom || nom;
+  } catch (e) { /* fallback */ }
+
+  const service = lastBooking?.service_nom || 'votre dernière prestation';
   return `Bonjour ${client.prenom},\n\n` +
-    `Comment allez-vous ? C'est Halimah de Fat's Hair-Afro 💕\n\n` +
+    `Comment allez-vous ? C'est ${nom} 💕\n\n` +
     `Cela fait un moment depuis ${service}. ` +
-    `Vos cheveux ont peut-être besoin d'un petit entretien ?\n\n` +
-    `N'hésitez pas à me contacter pour prendre rendez-vous ! 📱\n\n` +
+    `Un petit entretien serait peut-être le bienvenu ?\n\n` +
+    `N'hésitez pas à nous contacter pour prendre rendez-vous ! 📱\n\n` +
     `À bientôt ! ✨`;
 }
 
@@ -218,8 +231,14 @@ async function sendBirthdayWish(data, tenantId) {
       return { wished: false, error: 'Client non trouvé' };
     }
 
+    let nomBusiness = 'notre établissement';
+    try {
+      const info = getBusinessInfoSync(tenantId);
+      nomBusiness = info.nom || nomBusiness;
+    } catch (e) { /* fallback */ }
+
     const message = `Joyeux anniversaire ${client.prenom} ! 🎂🎉\n\n` +
-      `Toute l'équipe de Fat's Hair-Afro vous souhaite une merveilleuse journée !\n\n` +
+      `Toute l'équipe de ${nomBusiness} vous souhaite une merveilleuse journée !\n\n` +
       `Pour l'occasion, profitez de -10% sur votre prochaine prestation 💝\n\n` +
       `À très bientôt ! ✨`;
 

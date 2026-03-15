@@ -11,8 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Settings, User, Bell, Shield, Palette, Key, Globe, AlertCircle,
-  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Eye, EyeOff, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase
+  User, Bell, Shield, Palette, Key, Globe, AlertCircle,
+  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -475,7 +475,7 @@ function TeamSubSection() {
     enabled: isAdmin,
   });
 
-  const { data: invitationsData, isLoading: invLoading } = useQuery({
+  const { data: invitationsData, isLoading: _invLoading } = useQuery({
     queryKey: ['invitations'],
     queryFn: () => invitationsApi.list(),
   });
@@ -1029,7 +1029,7 @@ function SecuritySubSection() {
 
 function SessionsSection() {
   const queryClient = useQueryClient();
-  const [revoking, setRevoking] = useState<string | null>(null);
+  const [, setRevoking] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions'],

@@ -36,17 +36,10 @@ import {
   Timer,
   FileText,
   Download,
-  Building2,
-  AlertTriangle,
-  Info,
   Search,
   Plus,
   Mail,
   Phone,
-  FileUp,
-  Printer,
-  Eye,
-  UserCheck,
   ClipboardList,
   Filter,
   RotateCcw
@@ -108,44 +101,6 @@ interface EntrepriseInfo {
   ville: string;
   urssaf: string;
 }
-
-// Taux de cotisation 2026 (valeurs officielles)
-const TAUX_COTISATIONS_2026 = {
-  // Sécurité sociale
-  maladie_employeur: 13.00,
-  maladie_salarie: 0,
-  vieillesse_plafonnee_employeur: 8.55,
-  vieillesse_plafonnee_salarie: 6.90,
-  vieillesse_deplafonnee_employeur: 2.02,
-  vieillesse_deplafonnee_salarie: 0.40,
-  allocations_familiales: 5.25, // taux réduit si salaire < 3.5 SMIC
-  accidents_travail: 2.00, // variable selon activité
-
-  // Chômage
-  chomage_employeur: 4.05,
-  chomage_salarie: 0,
-  ags: 0.15,
-
-  // Retraite complémentaire AGIRC-ARRCO
-  retraite_t1_employeur: 4.72,
-  retraite_t1_salarie: 3.15,
-  retraite_t2_employeur: 12.95,
-  retraite_t2_salarie: 8.64,
-  ceg_t1_employeur: 1.29,
-  ceg_t1_salarie: 0.86,
-
-  // CSG/CRDS
-  csg_deductible: 6.80,
-  csg_non_deductible: 2.40,
-  crds: 0.50,
-
-  // SMIC 2026 (estimé +2% vs 2025)
-  smic_horaire: 12.12,
-  smic_mensuel: 1837.84,
-  plafond_ss_mensuel: 3941,
-};
-
-type TauxCotisations = typeof TAUX_COTISATIONS_2026;
 
 interface Absence {
   id: number;
@@ -219,12 +174,12 @@ export default function RH() {
   const [tab, setTab] = useState<TabType>('equipe');
   const [dashboard, setDashboard] = useState<DashboardRH | null>(null);
   const [membres, setMembres] = useState<Membre[]>([]);
-  const [absences, setAbsences] = useState<Absence[]>([]);
+  const [_absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editMembre, setEditMembre] = useState<Membre | null>(null);
-  const [formData, setFormData] = useState({
+  const [_formData, _setFormData] = useState({
     nom: '',
     prenom: '',
     email: '',
@@ -238,7 +193,7 @@ export default function RH() {
   });
 
   // DSN State
-  const [entrepriseInfo, setEntrepriseInfo] = useState<EntrepriseInfo>({
+  const [_entrepriseInfo, _setEntrepriseInfo] = useState<EntrepriseInfo>({
     raison_sociale: '',
     siret: '',
     code_naf: '',
@@ -247,13 +202,12 @@ export default function RH() {
     ville: '',
     urssaf: ''
   });
-  const [dsnPeriode, setDsnPeriode] = useState(() => {
+  const [_dsnPeriode, _setDsnPeriode] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [generatingDsn, setGeneratingDsn] = useState(false);
-  const [tauxCotisations, setTauxCotisations] = useState<TauxCotisations>(TAUX_COTISATIONS_2026);
-  const [showTauxSettings, setShowTauxSettings] = useState(false);
+  const [_generatingDsn, _setGeneratingDsn] = useState(false);
+  const [_showTauxSettings, _setShowTauxSettings] = useState(false);
   const [heuresSupp, setHeuresSupp] = useState<HeuresSupp[]>([]);
 
   // Recrutement
@@ -352,15 +306,19 @@ export default function RH() {
 
       const { diplomes, ...membreData } = data;
 
-      const membre = editMembre
-        ? await api.put<Membre>(endpoint, membreData)
-        : await api.post<Membre>(endpoint, membreData);
+      const response = editMembre
+        ? await api.put<any>(endpoint, membreData)
+        : await api.post<any>(endpoint, membreData);
+
+      // Backend retourne { membre: {...} } — extraire l'objet
+      const membre = response?.membre || response;
 
       // If diplomas provided, save them
-      if (diplomes && diplomes.length > 0) {
+      const membreId = editMembre?.id || membre?.id;
+      if (membreId && diplomes && diplomes.length > 0) {
         for (const diplome of diplomes) {
           if (diplome.intitule) {
-            await api.post(`/admin/rh/membres/${editMembre?.id || membre.id}/diplomes`, diplome);
+            await api.post(`/admin/rh/membres/${membreId}/diplomes`, diplome);
           }
         }
       }
@@ -374,50 +332,6 @@ export default function RH() {
     }
   };
 
-  // Legacy form submit handler for simple form
-  const handleSubmitMembreSimple = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await handleSubmitMembre({
-      ...formData,
-      salaire_mensuel: formData.salaire_mensuel ? Math.round(parseFloat(formData.salaire_mensuel) * 100) : 0,
-      nir: formData.nir || '',
-      date_naissance: formData.date_naissance || '',
-      diplomes: [],
-      // Required EmployeSubmitData fields with defaults
-      sexe: '',
-      lieu_naissance: '',
-      nationalite: 'Française',
-      adresse_rue: '',
-      adresse_cp: '',
-      adresse_ville: '',
-      adresse_pays: 'France',
-      piece_identite_type: '',
-      piece_identite_numero: '',
-      piece_identite_expiration: '',
-      poste: '',
-      type_contrat: 'cdi',
-      date_fin_contrat: '',
-      temps_travail: 'temps_plein',
-      heures_hebdo: 35,
-      heures_mensuelles: 151.67,
-      jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
-      convention_collective: '',
-      classification_niveau: '',
-      classification_echelon: '',
-      classification_coefficient: null,
-      categorie_sociopro: '',
-      regime_ss: 'general',
-      mutuelle_obligatoire: true,
-      mutuelle_dispense: false,
-      prevoyance: false,
-      iban: '',
-      bic: '',
-      contact_urgence_nom: '',
-      contact_urgence_tel: '',
-      contact_urgence_lien: '',
-    });
-  };
-
   const handleDeleteMembre = async (id: number) => {
     if (!confirm('Desactiver ce membre ?')) return;
     try {
@@ -429,155 +343,9 @@ export default function RH() {
     }
   };
 
-  const handleAbsenceAction = async (id: number, action: 'approve' | 'refuse') => {
-    try {
-      await api.put(`/admin/rh/absences/${id}/${action}`);
-      setError(null);
-      fetchAll();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du traitement de l\'absence');
-    }
-  };
-
   const openEditForm = (membre: Membre) => {
     setEditMembre(membre);
     setShowForm(true);
-  };
-
-  // Calcul des cotisations pour un salaire brut
-  const calculerCotisations = (salaireBrut: number) => {
-    const plafondSS = tauxCotisations.plafond_ss_mensuel * 100; // en centimes
-    const tranche1 = Math.min(salaireBrut, plafondSS);
-    const tranche2 = Math.max(0, salaireBrut - plafondSS);
-
-    // Cotisations patronales
-    const patronales = {
-      maladie: salaireBrut * tauxCotisations.maladie_employeur / 100,
-      vieillesse_plafonnee: tranche1 * tauxCotisations.vieillesse_plafonnee_employeur / 100,
-      vieillesse_deplafonnee: salaireBrut * tauxCotisations.vieillesse_deplafonnee_employeur / 100,
-      allocations_familiales: salaireBrut * tauxCotisations.allocations_familiales / 100,
-      accidents_travail: salaireBrut * tauxCotisations.accidents_travail / 100,
-      chomage: salaireBrut * tauxCotisations.chomage_employeur / 100,
-      ags: salaireBrut * tauxCotisations.ags / 100,
-      retraite_t1: tranche1 * tauxCotisations.retraite_t1_employeur / 100,
-      retraite_t2: tranche2 * tauxCotisations.retraite_t2_employeur / 100,
-      ceg: tranche1 * tauxCotisations.ceg_t1_employeur / 100,
-    };
-
-    // Cotisations salariales
-    const salariales = {
-      vieillesse_plafonnee: tranche1 * tauxCotisations.vieillesse_plafonnee_salarie / 100,
-      vieillesse_deplafonnee: salaireBrut * tauxCotisations.vieillesse_deplafonnee_salarie / 100,
-      retraite_t1: tranche1 * tauxCotisations.retraite_t1_salarie / 100,
-      retraite_t2: tranche2 * tauxCotisations.retraite_t2_salarie / 100,
-      ceg: tranche1 * tauxCotisations.ceg_t1_salarie / 100,
-      csg_deductible: salaireBrut * 0.9825 * tauxCotisations.csg_deductible / 100, // Assiette CSG = 98.25% du brut
-      csg_non_deductible: salaireBrut * 0.9825 * tauxCotisations.csg_non_deductible / 100,
-      crds: salaireBrut * 0.9825 * tauxCotisations.crds / 100,
-    };
-
-    const totalPatronales = Object.values(patronales).reduce((a, b) => a + b, 0);
-    const totalSalariales = Object.values(salariales).reduce((a, b) => a + b, 0);
-    const salaireNet = salaireBrut - totalSalariales;
-
-    return { patronales, salariales, totalPatronales, totalSalariales, salaireNet };
-  };
-
-  // Génération du fichier DSN
-  const generateDSN = () => {
-    if (!entrepriseInfo.siret || !entrepriseInfo.raison_sociale) {
-      alert('Veuillez renseigner les informations de l\'entreprise');
-      return;
-    }
-
-    const membresActifs = membres.filter(m => m.statut === 'actif');
-    if (membresActifs.length === 0) {
-      alert('Aucun employé actif à déclarer');
-      return;
-    }
-
-    setGeneratingDsn(true);
-
-    try {
-      const [year, month] = dsnPeriode.split('-');
-      const dateGeneration = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-      const siren = entrepriseInfo.siret.slice(0, 9);
-      const nic = entrepriseInfo.siret.slice(9, 14);
-
-      // Structure DSN simplifiée (format réel beaucoup plus complexe)
-      let dsn = '';
-
-      // S10 - Envoi
-      dsn += `S10.G00.00.001,'${dateGeneration}'\n`;
-      dsn += `S10.G00.00.002,'01'\n`; // Nature de la déclaration
-      dsn += `S10.G00.00.003,'11'\n`; // Type d'envoi (11 = mensuel normal)
-      dsn += `S10.G00.00.005,'${entrepriseInfo.raison_sociale}'\n`;
-      dsn += `S10.G00.00.006,'${siren}'\n`;
-      dsn += `S10.G00.00.007,'${nic}'\n`;
-
-      // S20 - Entreprise
-      dsn += `S20.G00.05.001,'${siren}'\n`;
-      dsn += `S20.G00.05.002,'${nic}'\n`;
-      dsn += `S20.G00.05.003,'${entrepriseInfo.code_naf}'\n`;
-      dsn += `S20.G00.05.004,'${entrepriseInfo.adresse}'\n`;
-      dsn += `S20.G00.05.006,'${entrepriseInfo.code_postal}'\n`;
-      dsn += `S20.G00.05.007,'${entrepriseInfo.ville}'\n`;
-
-      // S21 - Pour chaque salarié
-      membresActifs.forEach((membre, index) => {
-        const numLigne = String(index + 1).padStart(3, '0');
-        const cotisations = calculerCotisations(membre.salaire_mensuel || 0);
-
-        // Individu
-        dsn += `S21.G00.06.001,'${membre.nir || ''}'\n`;
-        dsn += `S21.G00.06.002,'${membre.nom}'\n`;
-        dsn += `S21.G00.06.003,'${membre.prenom}'\n`;
-        dsn += `S21.G00.06.004,'${membre.date_naissance || ''}'\n`;
-
-        // Contrat
-        dsn += `S21.G00.40.001,'${numLigne}'\n`;
-        dsn += `S21.G00.40.002,'${membre.date_embauche || ''}'\n`;
-        dsn += `S21.G00.40.007,'01'\n`; // CDI
-
-        // Rémunération
-        const brutCentimes = membre.salaire_mensuel || 0;
-        dsn += `S21.G00.51.001,'${year}${month}'\n`; // Période
-        dsn += `S21.G00.51.010,'001'\n`; // Type = salaire brut
-        dsn += `S21.G00.51.011,'${(brutCentimes / 100).toFixed(2)}'\n`;
-        dsn += `S21.G00.51.012,'151.67'\n`; // Heures
-
-        // Cotisations individuelles
-        dsn += `S21.G00.78.001,'016'\n`; // Code CSG
-        dsn += `S21.G00.78.002,'${(cotisations.salariales.csg_deductible / 100).toFixed(2)}'\n`;
-        dsn += `S21.G00.78.001,'018'\n`; // Code CRDS
-        dsn += `S21.G00.78.002,'${(cotisations.salariales.crds / 100).toFixed(2)}'\n`;
-      });
-
-      // S80 - Totaux
-      const totalBrut = membresActifs.reduce((sum, m) => sum + (m.salaire_mensuel || 0), 0);
-      const totauxCotis = calculerCotisations(totalBrut);
-      dsn += `S80.G01.00.001,'${(totalBrut / 100).toFixed(2)}'\n`; // Assiette brute
-      dsn += `S80.G01.00.002,'${(totauxCotis.totalPatronales / 100).toFixed(2)}'\n`;
-      dsn += `S80.G01.00.003,'${(totauxCotis.totalSalariales / 100).toFixed(2)}'\n`;
-
-      // Téléchargement
-      const blob = new Blob([dsn], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `DSN_${entrepriseInfo.siret}_${dsnPeriode}.dsn`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      alert(`DSN générée pour ${membresActifs.length} salarié(s)\nPériode: ${month}/${year}\nMasse salariale: ${(totalBrut / 100).toLocaleString('fr-FR')} €`);
-    } catch (_err) {
-      setError('Erreur lors de la generation de la DSN');
-      alert('Erreur lors de la generation de la DSN');
-    } finally {
-      setGeneratingDsn(false);
-    }
   };
 
   const getRoleLabel = (role: string) => {
@@ -597,16 +365,6 @@ export default function RH() {
       case 'conge': return 'bg-blue-100 text-blue-700';
       default: return 'bg-gray-100 text-gray-700';
     }
-  };
-
-  const getAbsenceTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      conge: 'Conge',
-      maladie: 'Maladie',
-      formation: 'Formation',
-      autre: 'Autre'
-    };
-    return labels[type] || type;
   };
 
   // Gestion recrutement

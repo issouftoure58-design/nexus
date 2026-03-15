@@ -39,6 +39,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Backups
+backend/backups/
+
 # Misc
 .cache/
 *.tgz

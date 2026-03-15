@@ -86,8 +86,8 @@ router.post('/', async (req, res) => {
         categorie: 'produits_vente',
         stock_actuel: parseInt(quantite) || 0,
         stock_minimum: parseInt(seuil_alerte) || 5,
-        prix_achat_unitaire: Math.round((parseFloat(prix_achat) || 0) * 100),
-        prix_vente_unitaire: Math.round((parseFloat(prix_vente) || 0) * 100),
+        prix_achat_unitaire: parseInt(prix_achat) || 0,
+        prix_vente_unitaire: parseInt(prix_vente) || 0,
         unite: 'piece',
       })
       .select()
@@ -130,8 +130,8 @@ router.put('/:id', async (req, res) => {
     if (description !== undefined) updates.description = description;
     if (quantite !== undefined) updates.stock_actuel = parseInt(quantite);
     if (seuil_alerte !== undefined) updates.stock_minimum = parseInt(seuil_alerte);
-    if (prix_achat !== undefined) updates.prix_achat_unitaire = Math.round(parseFloat(prix_achat) * 100);
-    if (prix_vente !== undefined) updates.prix_vente_unitaire = Math.round(parseFloat(prix_vente) * 100);
+    if (prix_achat !== undefined) updates.prix_achat_unitaire = parseInt(prix_achat) || 0;
+    if (prix_vente !== undefined) updates.prix_vente_unitaire = parseInt(prix_vente) || 0;
 
     const { data: produit, error } = await supabase
       .from('produits')

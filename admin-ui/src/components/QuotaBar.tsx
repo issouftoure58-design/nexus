@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Bot, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '@/lib/api';
 
 interface QuotaBarProps {
   className?: string;
@@ -29,22 +30,16 @@ export function QuotaBar({ className = '' }: QuotaBarProps) {
   useEffect(() => {
     const fetchQuotas = async () => {
       try {
-        const token = localStorage.getItem('nexus_admin_token');
-        const response = await fetch('/api/admin/quotas', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const data = await api.get<any>('/admin/quotas');
+        // Aggregate all quotas
+        const totalUsed = (data.web?.used || 0) + (data.whatsapp?.used || 0) + (data.telephone?.used || 0);
+        const totalLimit = (data.web?.limit || 1000) + (data.whatsapp?.limit || 500) + (data.telephone?.limit || 100);
+        setQuotaData({
+          used: totalUsed,
+          limit: totalLimit,
+          plan: data.plan || 'Starter',
+          nextReset: data.nextReset || 'Fin du mois'
         });
-        if (response.ok) {
-          const data = await response.json();
-          // Aggregate all quotas
-          const totalUsed = (data.web?.used || 0) + (data.whatsapp?.used || 0) + (data.telephone?.used || 0);
-          const totalLimit = (data.web?.limit || 1000) + (data.whatsapp?.limit || 500) + (data.telephone?.limit || 100);
-          setQuotaData({
-            used: totalUsed,
-            limit: totalLimit,
-            plan: data.plan || 'Starter',
-            nextReset: data.nextReset || 'Fin du mois'
-          });
-        }
       } catch (err) {
         console.error('Erreur fetch quotas:', err);
       }

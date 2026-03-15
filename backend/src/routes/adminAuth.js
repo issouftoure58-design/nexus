@@ -13,19 +13,12 @@ import { getFeaturesForPlan } from '../config/planFeatures.js';
 
 const router = express.Router();
 
-// 🔒 C2: JWT Secret - DOIT être défini dans .env (pas de fallback)
+// 🔒 C2: JWT Secret - DOIT être défini dans .env (AUCUN fallback)
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  logger.error('ERREUR CRITIQUE: JWT_SECRET non défini dans .env');
-  // En dev, utiliser un secret temporaire mais loguer un warning
-  if (process.env.NODE_ENV === 'development') {
-    logger.warn('Mode dev: utilisation d\'un secret temporaire (NE PAS UTILISER EN PROD)');
-  }
+  throw new Error('ERREUR CRITIQUE: JWT_SECRET non défini dans .env — Ajoutez JWT_SECRET à vos variables d\'environnement');
 }
-const EFFECTIVE_JWT_SECRET = JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'dev-only-secret-change-in-prod' : null);
-if (!EFFECTIVE_JWT_SECRET) {
-  throw new Error('JWT_SECRET must be defined in .env for production');
-}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET;
 
 // 🔒 G4: Rate limiting pour login (protection brute force)
 const loginAttempts = new Map(); // IP -> { count, lastAttempt }
@@ -184,6 +177,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     try {
       await supabase.from('historique_admin').insert({
         admin_id: loginResult.user.id,
+        tenant_id: loginResult.user.tenant_id,
         action: 'login',
         entite: 'admin',
         details: { ip: req.ip }
@@ -226,9 +220,34 @@ router.post('/logout', async (req, res) => {
   res.setHeader('Expires', '0');
 
   try {
-    // En JWT, logout côté client (supprimer token)
+    // Révoquer la session serveur si token présent
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
+        if (decoded.id && decoded.tenant_id) {
+          const tokenHash = hashToken(token);
+          // Chercher et révoquer la session par hash du token
+          const { data: sessions } = await supabase
+            .from('admin_sessions')
+            .select('id')
+            .eq('admin_id', decoded.id)
+            .eq('tenant_id', decoded.tenant_id)
+            .eq('token_hash', tokenHash)
+            .eq('revoked', false)
+            .limit(1);
+
+          if (sessions?.length > 0) {
+            await revokeSession(sessions[0].id, decoded.id, decoded.tenant_id);
+          }
+        }
+      } catch (_) { /* Token invalide/expiré — ignorer */ }
+    }
+
     res.json({ message: 'Déconnecté avec succès' });
   } catch (error) {
+    logger.error('[AUTH] Erreur logout:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -283,11 +302,12 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Email requis' });
     }
 
-    // Vérifier que l'admin a les droits (même tenant ou super_admin)
+    // Vérifier que l'admin a les droits (même tenant)
     const { data: targetUser } = await supabase
       .from('admin_users')
       .select('id, tenant_id, locked_until')
       .eq('email', email)
+      .eq('tenant_id', req.admin.tenant_id)
       .single();
 
     if (!targetUser) {
@@ -306,7 +326,8 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
         failed_login_attempts: 0,
         locked_until: null,
       })
-      .eq('id', targetUser.id);
+      .eq('id', targetUser.id)
+      .eq('tenant_id', targetUser.tenant_id);
 
     if (error) throw error;
 
@@ -671,7 +692,7 @@ router.post('/2fa/verify', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/auth/2fa/validate — Valider code TOTP au login (utilise temp_token)
-router.post('/2fa/validate', async (req, res) => {
+router.post('/2fa/validate', loginLimiter, async (req, res) => {
   try {
     const { temp_token, code } = req.body;
     if (!temp_token || !code) {
@@ -755,6 +776,7 @@ router.post('/2fa/validate', async (req, res) => {
     try {
       await supabase.from('historique_admin').insert({
         admin_id: adminUser.id,
+        tenant_id: adminUser.tenant_id,
         action: 'login_2fa',
         entite: 'admin',
         details: { ip: req.ip, backup_code_used: backupCodeUsed },

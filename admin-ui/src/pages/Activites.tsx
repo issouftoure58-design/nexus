@@ -38,7 +38,6 @@ import type {
   Totals,
   CheckoutItem,
   ReservationsResponse,
-  ServicesResponse,
   MembresResponse,
   MembresDisponiblesResponse,
   ClientsResponse,
@@ -66,7 +65,7 @@ const tabs = [
 export default function Activites() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, t, isPricingMode, isFieldVisible, hasFeature, businessType, isBusinessType } = useProfile();
+  const { profile, t, isPricingMode, isFieldVisible: _isFieldVisible, hasFeature: _hasFeature, businessType, isBusinessType } = useProfile();
 
   // Déterminer l'onglet actif
   const currentTab = location.pathname.includes('/historique')
@@ -112,7 +111,7 @@ export default function Activites() {
   // Modal checkout restaurant
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [pendingCheckoutRdv, setPendingCheckoutRdv] = useState<Reservation | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [_checkoutLoading, setCheckoutLoading] = useState(false);
   const [pendingCheckoutData, setPendingCheckoutData] = useState<{ items: CheckoutItem[]; total: number; mode_paiement: string } | null>(null);
 
   // === Création RDV ===

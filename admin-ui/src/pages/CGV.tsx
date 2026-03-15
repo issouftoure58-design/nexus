@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { api } from '../lib/api';
 
 interface Article {
   numero: number;
@@ -24,8 +25,7 @@ export default function CGV() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/cgv')
-      .then(r => r.json())
+    api.get<CGVData>('/api/cgv')
       .then(data => setCgv(data))
       .catch(() => setCgv(null))
       .finally(() => setLoading(false));

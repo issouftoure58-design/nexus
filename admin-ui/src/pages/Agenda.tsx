@@ -6,13 +6,11 @@
 import { useState, useEffect } from 'react';
 import {
   Calendar, Plus, ChevronLeft, ChevronRight, Clock, User,
-  X, Edit, Trash2, Check, Bell, MapPin, Video, Phone,
-  MoreHorizontal, RefreshCw
+  X, Edit, Trash2, Check, Bell, MapPin, Phone
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { api } from '../lib/api';
 
 // Types
@@ -43,7 +41,7 @@ export default function Agenda() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -106,10 +104,6 @@ export default function Agenda() {
 
   const goToToday = () => {
     setCurrentDate(new Date());
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
   };
 
   const formatMonthYear = (date: Date) => {

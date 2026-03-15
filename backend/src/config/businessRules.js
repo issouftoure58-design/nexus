@@ -1,31 +1,14 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║                                                                               ║
- * ║   ████████╗ FICHIER VERROUILLE ████████╗                                      ║
- * ║                                                                               ║
- * ║   ⛔ NE JAMAIS MODIFIER SANS AUTORISATION ECRITE DU PROPRIETAIRE ⛔           ║
- * ║                                                                               ║
- * ║   Ce fichier est la SOURCE UNIQUE DE VERITE pour :                            ║
- * ║   • Les tarifs des services (SERVICES)                                        ║
- * ║   • Les frais de deplacement (TRAVEL_FEES)                                    ║
- * ║   • Les horaires d'ouverture (BUSINESS_HOURS)                                 ║
- * ║   • Les regles de reservation (BOOKING_RULES)                                 ║
- * ║                                                                               ║
- * ║   TOUS les autres fichiers DOIVENT importer depuis ce fichier.                ║
- * ║   Aucune valeur ne doit etre hardcodee ailleurs.                              ║
- * ║                                                                               ║
- * ║   Derniere mise a jour : 25 janvier 2025                                      ║
- * ║   Valide par : Issouf                                                         ║
- * ║   Checksum : NEXUS-LOCK-2025-01-25                                            ║
- * ║                                                                               ║
- * ║   Voir : backend/NEXUS_LOCK.md pour la procedure de modification              ║
- * ║                                                                               ║
- * ╚═══════════════════════════════════════════════════════════════════════════════╝
+ * Business Rules - NEXUS Default Catalog
  *
- * @fileoverview Source unique de verite - Fat's Hair-Afro
+ * Ce fichier contient le catalogue de services par defaut et les regles metier.
+ * Utilise comme fallback quand les services ne sont pas configures en DB pour un tenant.
+ *
+ * Pour les tenants multi-business, les services sont charges depuis la table `services` en DB.
+ * Ce fichier reste la source de verite pour les regles de reservation et les termes ambigus.
+ *
+ * @fileoverview Catalogue de services par defaut et regles metier
  * @author NEXUS Core System
- * @version 1.0.0-LOCKED
- * @license PROPRIETARY - Ne pas redistribuer
  */
 
 // NE PAS MODIFIER - TARIFS OFFICIELS
@@ -461,8 +444,8 @@ export const SERVICE_OPTIONS = Object.freeze({
   // Désactiver temporairement les déplacements à domicile
   DOMICILE_ENABLED: false,
 
-  // Message à afficher quand domicile désactivé
-  DOMICILE_DISABLED_MESSAGE: "Actuellement, je ne me déplace pas à domicile. Les prestations se font uniquement chez moi à Franconville. Souhaitez-vous réserver chez moi ?",
+  // Message a afficher quand domicile desactive
+  DOMICILE_DISABLED_MESSAGE: "Actuellement, les deplacements a domicile ne sont pas disponibles. Les prestations se font uniquement sur place. Souhaitez-vous reserver sur place ?",
 });
 
 // 🔒 C3: STATUTS QUI BLOQUENT UN CRÉNEAU - SOURCE UNIQUE DE VÉRITÉ
@@ -518,7 +501,7 @@ export function validateBooking(booking, service) {
   const dayOfWeek = bookingDate.getDay();
 
   if (!BUSINESS_HOURS.isOpen(dayOfWeek)) {
-    errors.push("Fatou ne travaille pas ce jour-là (dimanche)");
+    errors.push("Ferme ce jour-la (dimanche)");
     return { valid: false, errors };
   }
 
@@ -549,7 +532,7 @@ export function validateBooking(booking, service) {
   const endMinutes = startMinutes + service.durationMinutes;
 
   if (startMinutes < openMinutes) {
-    errors.push(`Fatou commence à ${hours.open} ce jour-là`);
+    errors.push(`Ouverture a ${hours.open} ce jour-la`);
   }
 
   if (endMinutes > closeMinutes) {

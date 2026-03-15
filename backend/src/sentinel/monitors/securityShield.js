@@ -12,6 +12,7 @@
 
 import { THRESHOLDS } from '../config/thresholds.js';
 import { supabase } from '../../config/supabase.js';
+import { retryWithBackoff, isTransientError } from '../../utils/retryWithBackoff.js';
 
 class SecurityShield {
   constructor() {
@@ -21,6 +22,7 @@ class SecurityShield {
 
     // --- Threat Scoring ---
     this.threatScores = new Map(); // ip -> { score, events, lastUpdate }
+    this._threatPersistTimer = null; // Debounce timer pour persistence
 
     // Points par type d'event
     this.THREAT_POINTS = {
@@ -80,8 +82,22 @@ class SecurityShield {
         }
         console.log(`[SENTINEL] IP blacklist RESTORED: ${this.blacklist.size} IPs`);
       }
+
+      // Charger les threatScores persistes
+      const { data: threatData } = await supabase
+        .from('sentinel_state')
+        .select('value')
+        .eq('key', 'threat_scores')
+        .single();
+
+      if (threatData?.value?.scores) {
+        for (const [ip, entry] of Object.entries(threatData.value.scores)) {
+          this.threatScores.set(ip, entry);
+        }
+        console.log(`[SENTINEL] Threat scores RESTORED: ${this.threatScores.size} IPs`);
+      }
     } catch (err) {
-      console.error('[SENTINEL] Failed to load blacklist:', err.message);
+      console.error('[SENTINEL] Failed to load state:', err.message);
     }
   }
 
@@ -90,15 +106,38 @@ class SecurityShield {
    */
   async _persistBlacklist() {
     try {
-      await supabase
-        .from('sentinel_state')
-        .upsert({
+      await retryWithBackoff(
+        () => supabase.from('sentinel_state').upsert({
           key: 'ip_blacklist',
           value: { ips: Array.from(this.blacklist) },
           updated_at: new Date().toISOString()
-        });
+        }),
+        { maxRetries: 2, label: 'persistBlacklist', shouldRetry: isTransientError }
+      );
     } catch (err) {
       console.error('[SENTINEL] Failed to persist blacklist:', err.message);
+    }
+  }
+
+  async _persistThreatScores() {
+    try {
+      const scores = {};
+      for (const [ip, entry] of this.threatScores.entries()) {
+        // Persister seulement les scores significatifs (>= 5 points)
+        if (entry.score >= 5) {
+          scores[ip] = { score: entry.score, events: entry.events.slice(-10), lastUpdate: entry.lastUpdate };
+        }
+      }
+      await retryWithBackoff(
+        () => supabase.from('sentinel_state').upsert({
+          key: 'threat_scores',
+          value: { scores },
+          updated_at: new Date().toISOString()
+        }),
+        { maxRetries: 2, label: 'persistThreatScores', shouldRetry: isTransientError }
+      );
+    } catch (err) {
+      console.error('[SENTINEL] Failed to persist threat scores:', err.message);
     }
   }
 
@@ -301,6 +340,14 @@ class SecurityShield {
       this.addToBlacklist(ip);
       console.log(`[SENTINEL] THREAT: Auto-blacklisted ${ip} (score: ${entry.score})`);
       return { action: 'blacklisted', score: entry.score };
+    }
+
+    // Debounce la persistence (max 1 ecriture DB toutes les 30s)
+    if (!this._threatPersistTimer) {
+      this._threatPersistTimer = setTimeout(() => {
+        this._persistThreatScores();
+        this._threatPersistTimer = null;
+      }, 30000);
     }
 
     return { score: entry.score, threshold: this.getNextThreshold(entry.score) };

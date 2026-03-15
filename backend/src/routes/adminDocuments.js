@@ -22,7 +22,7 @@ const router = express.Router();
 
 // Configuration multer
 const ALLOWED_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'application/pdf',
   'text/csv', 'text/plain',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx

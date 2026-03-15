@@ -1,10 +1,36 @@
 /**
  * Rate Limiting Middleware
  * Protection contre les attaques brute-force et DDoS
+ *
+ * Utilise Redis comme store si disponible (scale horizontal),
+ * fallback sur MemoryStore sinon.
  */
 
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { getRedis, isAvailable } from '../config/redis.js';
 import logger from '../config/logger.js';
+
+/**
+ * Create a Redis-backed store for express-rate-limit if Redis is available.
+ * Falls back to default MemoryStore otherwise.
+ */
+function createStore(prefix) {
+  if (!isAvailable()) return undefined; // MemoryStore fallback
+
+  const redis = getRedis();
+  if (!redis) return undefined;
+
+  try {
+    return new RedisStore({
+      sendCommand: (...args) => redis.call(...args),
+      prefix: `rl:${prefix}:`,
+    });
+  } catch (err) {
+    logger.info(`Redis store failed for ${prefix}, using MemoryStore`, { tag: 'RATE LIMIT' });
+    return undefined;
+  }
+}
 
 /**
  * Rate limiter pour les tentatives de connexion
@@ -19,6 +45,7 @@ export const loginLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('login'),
   // Désactive la validation IPv6 car on utilise IP+email comme clé composite
   validate: { xForwardedForHeader: false, default: false },
   keyGenerator: (req) => {
@@ -54,6 +81,7 @@ export const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('api'),
   skip: (req) => {
     // Skip les webhooks et health checks
     if (req.path === '/health') return true;
@@ -75,6 +103,7 @@ export const paymentLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('payment'),
   handler: (req, res) => {
     logger.info('Payment bloqué', { tag: 'RATE LIMIT', ip: req.ip });
     res.status(429).json({
@@ -97,7 +126,8 @@ export const notificationLimiter = rateLimit({
     error: 'Trop de notifications envoyées.'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  store: createStore('notification'),
 });
 
 /**
@@ -113,6 +143,7 @@ export const signupLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('signup'),
   handler: (req, res) => {
     logger.info('Signup bloqué', { tag: 'RATE LIMIT', ip: req.ip });
     res.status(429).json({
@@ -140,9 +171,21 @@ export const checkLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('check'),
   skip: (req) => {
     return process.env.SKIP_RATE_LIMIT === 'true';
   }
+});
+
+export const publicChatLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10,
+  message: {
+    error: 'Trop de messages. Veuillez patienter avant de réessayer.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createStore('publicChat'),
 });
 
 export default {
@@ -151,5 +194,6 @@ export default {
   paymentLimiter,
   notificationLimiter,
   signupLimiter,
-  checkLimiter
+  checkLimiter,
+  publicChatLimiter
 };

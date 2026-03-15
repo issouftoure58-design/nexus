@@ -75,6 +75,9 @@ const SYSTEM_TABLES = [
   'depenses',           // comptabilité, la query par ID est OK
   'admin_sessions',     // validées par token_hash unique (SHA-256)
   'referrals',          // cross-tenant par design (parrainage: referrer_tenant_id ≠ referred_tenant_id)
+  'stripe_processed_events', // idempotence check par event_id (Stripe events globaux)
+  'rgpd_requests',      // job système cross-tenant (traite les demandes de tous les tenants)
+  'client_consents',    // liées à clients par client_id
 ];
 
 // Fichiers à ignorer
@@ -104,6 +107,10 @@ const IGNORE_FILES = [
   'nexusAdmin.js',      // super-admin cross-tenant (requireSuperAdmin)
   'nexusAuth.js',       // super-admin auth (cross-tenant, no tenant_id needed)
   'orderTracking.js',   // public order tracking (token unique, pas de tenant context)
+  'adminSSO.js',        // SSO discover/callback publics (lookup par domain, pre-auth)
+  'retryWithBackoff.js', // utilitaire generique, exemple dans JSDoc
+  'branding.js',        // résout tenant_id depuis custom_domain (comme resolveTenant)
+  'reviews.js',         // résout tenant_id depuis custom_domain (comme resolveTenant)
 ];
 
 // Dossiers à ignorer (tests, scripts CLI, migrations)
@@ -127,6 +134,7 @@ const MULTI_TENANT_ITERATOR_FILES = [
   'intelligenceMonitor.js',
   'suggestions.js',
   'predictions.js',
+  'rgpdDeletionJob.js', // job système cross-tenant (traite toutes les demandes RGPD)
 ];
 
 // Patterns de violation

@@ -4,7 +4,7 @@ import { ClientDetailModal } from '@/components/modals/ClientDetailModal';
 import { ServiceDetailModal } from '@/components/modals/ServiceDetailModal';
 import { EmployeeDetailModal } from '@/components/modals/EmployeeDetailModal';
 import { AuxiliaryLedgerModal } from '@/components/modals/AuxiliaryLedgerModal';
-import type { Client, Service, TeamMember } from '@/lib/api';
+import type { Client, Service } from '@/lib/api';
 
 // Entity types supported by EntityLink
 type EntityType = 'client' | 'service' | 'categorie' | 'employee' | 'auxiliary';

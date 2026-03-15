@@ -22,8 +22,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+import { api } from '@/lib/api';
 
 interface DSNParametres {
   id?: number;
@@ -81,32 +80,15 @@ interface ValidationResult {
   rapport: string;
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('nexus_admin_token');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-};
-
 const fetchParametres = async (): Promise<DSNParametres | null> => {
-  const res = await fetch(`${API_BASE}/admin/rh/dsn/parametres`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement paramètres');
-  const data = await res.json();
+  const data = await api.get<any>('/admin/rh/dsn/parametres');
   // L'API retourne les données directement, pas enveloppées
   // Vérifier si l'objet a des données (pas juste un objet vide {})
   return data && data.siren ? data : null;
 };
 
-const fetchHistorique = async (): Promise<DSNHistorique[]> => {
-  const res = await fetch(`${API_BASE}/admin/rh/dsn/historique`, {
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error('Erreur chargement historique');
-  return res.json();
-};
+const fetchHistorique = async (): Promise<DSNHistorique[]> =>
+  api.get('/admin/rh/dsn/historique');
 
 export function GenerateurDSN() {
   const queryClient = useQueryClient();
@@ -141,7 +123,7 @@ export function GenerateurDSN() {
   });
 
   // Queries
-  const { data: parametres, isLoading: loadingParams } = useQuery({
+  const { data: parametres, isLoading: _loadingParams } = useQuery({
     queryKey: ['dsn-parametres'],
     queryFn: fetchParametres
   });
@@ -161,13 +143,7 @@ export function GenerateurDSN() {
   // Mutations
   const saveParamsMutation = useMutation({
     mutationFn: async (params: Partial<DSNParametres>) => {
-      const res = await fetch(`${API_BASE}/admin/rh/dsn/parametres`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(params)
-      });
-      if (!res.ok) throw new Error('Erreur sauvegarde');
-      return res.json();
+      return api.put('/admin/rh/dsn/parametres', params);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dsn-parametres'] });
@@ -176,16 +152,7 @@ export function GenerateurDSN() {
 
   const genererDSNMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API_BASE}/admin/rh/dsn/generer`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ periode })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erreur génération');
-      }
-      return res.json();
+      return api.post('/admin/rh/dsn/generer', { periode });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dsn-historique'] });
@@ -195,12 +162,7 @@ export function GenerateurDSN() {
 
   const supprimerDSNMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE}/admin/rh/dsn/historique/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) throw new Error('Erreur suppression');
-      return res.json();
+      return api.delete(`/admin/rh/dsn/historique/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dsn-historique'] });
@@ -214,11 +176,7 @@ export function GenerateurDSN() {
   const validerDSNMutation = useMutation({
     mutationFn: async (dsnId: number) => {
       setValidatingId(dsnId);
-      const res = await fetch(`${API_BASE}/admin/rh/dsn/${dsnId}/valider`, {
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) throw new Error('Erreur validation');
-      return res.json();
+      return api.get<ValidationResult>(`/admin/rh/dsn/${dsnId}/valider`);
     },
     onSuccess: (data) => {
       setValidationResult(data);

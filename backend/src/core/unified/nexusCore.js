@@ -68,7 +68,7 @@ import {
 
 // 🍽️ Restaurant availability
 import { findAvailableTable, getTableAvailability, isRestaurantFull, getServiceType, getRestaurantCapacityForDay } from '../../services/restaurantAvailability.js';
-import { getBusinessInfo } from '../../services/tenantBusinessService.js';
+import { getBusinessInfo, getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
 // 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
 import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
@@ -107,6 +107,7 @@ import responseCache from '../../services/responseCache.js';
 
 // 🫀 NEXUS PULSE - Événements temps réel
 import liveEventStream from '../../services/liveEventStream.js';
+import { registerInterval } from '../../utils/intervalRegistry.js';
 
 // ============================================
 // CONFIGURATION
@@ -159,17 +160,70 @@ function getAnthropic() {
 }
 
 // ============================================
-// INFORMATIONS SALON (seul endroit non-verrouillé)
+// INFORMATIONS BUSINESS - DYNAMIQUES PAR TENANT
 // ============================================
 
+/**
+ * Charge les informations business d'un tenant depuis la config/DB.
+ * REMPLACE l'ancien SALON_INFO hardcode.
+ *
+ * @param {string} tenantId - ID du tenant (OBLIGATOIRE)
+ * @returns {Promise<Object>} Infos business du tenant
+ */
+async function getBusinessInfoForTenant(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getBusinessInfoForTenant requires explicit tenantId');
+  }
+
+  const info = await getBusinessInfo(tenantId);
+  return {
+    nom: info.nom || tenantId,
+    concept: info.businessTypeLabel || '',
+    gerante: info.gerant || '',
+    adresse: info.adresse || '',
+    telephone: info.telephone || '',
+    whatsapp: info.whatsapp || '',
+    email: info.email || '',
+    businessType: info.businessType || 'salon',
+    locationMode: info.locationMode || 'fixed',
+    travelFeesEnabled: info.travelFees?.enabled || false,
+  };
+}
+
+/**
+ * Version synchrone (cache only, pas d'appel DB).
+ * Pour les contextes ou async n'est pas possible.
+ */
+function getBusinessInfoForTenantSync(tenantId) {
+  if (!tenantId) {
+    throw new Error('TENANT_ID_REQUIRED: getBusinessInfoForTenantSync requires explicit tenantId');
+  }
+
+  const info = getBusinessInfoSync(tenantId);
+  return {
+    nom: info.nom || tenantId,
+    concept: info.businessTypeLabel || '',
+    gerante: info.gerant || '',
+    adresse: info.adresse || '',
+    telephone: info.telephone || '',
+    whatsapp: info.whatsapp || '',
+    email: info.email || '',
+    businessType: info.businessType || 'salon',
+    locationMode: info.locationMode || 'fixed',
+    travelFeesEnabled: info.travelFees?.enabled || false,
+  };
+}
+
+// @deprecated - SALON_INFO est maintenu pour compatibilite avec les imports existants.
+// Les appelants DOIVENT migrer vers getBusinessInfoForTenant(tenantId).
 export const SALON_INFO = Object.freeze({
-  nom: "Fat's Hair-Afro",
-  concept: "Coiffure afro à domicile ou chez Fatou",
-  gerante: "Fatou",
-  adresse: "8 rue des Monts Rouges, 95130 Franconville",
-  telephone: "07 82 23 50 20",
-  telephoneTwilio: "09 39 24 02 69",
-  peutRecevoirChezElle: true
+  nom: '[DEPRECATED - use getBusinessInfoForTenant(tenantId)]',
+  concept: '',
+  gerante: '',
+  adresse: '',
+  telephone: '',
+  telephoneTwilio: '',
+  peutRecevoirChezElle: false
 });
 
 // ============================================
@@ -479,7 +533,7 @@ async function getUpcomingDays(nbJours = 14, tenantId) {
       mois: moisNom,
       dateFormatee: `${jourNom} ${jourNum} ${moisNom}`,
       ouvert: estOuvert,
-      horaires: estOuvert ? `${hours.open} - ${hours.close}` : 'Fermé (Fatou ne travaille pas)',
+      horaires: estOuvert ? `${hours.open} - ${hours.close}` : 'Fermé',
       heureOuverture: estOuvert ? hours.open : null,
       heureFermeture: estOuvert ? hours.close : null
     };
@@ -1872,7 +1926,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
     console.log(`💾 STEP BOOKING 4.5: Insertion réservation(s)...`);
     console.log(`💾 Nombre de jours à réserver: ${reservationDates.length}`);
     const createdReservations = [];
-    const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Chez Fatou');
+    const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Sur place');
 
     for (let dayIndex = 0; dayIndex < reservationDates.length; dayIndex++) {
       const reservationDate = reservationDates[dayIndex];
@@ -1977,6 +2031,15 @@ export async function createReservationUnified(data, channel = 'web', options = 
     const pricing = calculateTotalPrice(service, distanceKm);
     const primaryReservation = createdReservations[0];
 
+    // Charger l'adresse du tenant pour le recap (dynamique, pas hardcode)
+    let tenantAddress = '';
+    try {
+      const bizInfo = await getBusinessInfo(data.tenant_id);
+      tenantAddress = bizInfo.adresse || '';
+    } catch (e) {
+      console.warn('[NEXUS CORE] Could not load tenant address for recap:', e.message);
+    }
+
     return {
       success: true,
       message: nbJours > 1
@@ -1993,7 +2056,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         dates: reservationDates,
         nbJours: nbJours,
         heure: data.heure,
-        lieu: data.lieu === 'salon' ? SALON_INFO.adresse : data.adresse,
+        lieu: data.lieu === 'domicile' ? data.adresse : tenantAddress,
         lieuType: data.lieu || 'salon',
         client: data.client_nom,
         telephone: data.client_telephone,
@@ -2138,8 +2201,8 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
 
     // Cancel - 🔒 Filtrer par tenant_id pour éviter annulation cross-tenant
     const noteAnnulation = reason
-      ? `Annulé via Halimah: ${reason}`
-      : 'Annulé via Halimah (demande client)';
+      ? `Annulé via assistant IA: ${reason}`
+      : 'Annulé via assistant IA (demande client)';
     const existingNotes = rdv.notes ? rdv.notes + ' | ' : '';
 
     const { error: updateErr } = await db
@@ -2365,7 +2428,7 @@ const conversationLastActivity = new Map();
 
 // Nettoyage automatique des conversations > 30min d'inactivité
 const CONVERSATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
-setInterval(() => {
+const _convCleanupId = setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
   for (const [sessionId, lastActivity] of conversationLastActivity) {
@@ -2376,9 +2439,10 @@ setInterval(() => {
     }
   }
   if (cleaned > 0) {
-    console.log(`[NEXUS CORE] 🧹 ${cleaned} session(s) expirée(s) (30min inactivité)`);
+    console.log(`[NEXUS CORE] ${cleaned} session(s) expiree(s) (30min inactivite)`);
   }
-}, 5 * 60 * 1000); // Vérifier toutes les 5 minutes
+}, 5 * 60 * 1000); // Verifier toutes les 5 minutes
+registerInterval('nexusCore:conversationCleanup', _convCleanupId);
 
 function getConversationHistory(conversationId) {
   if (!conversationHistories.has(conversationId)) {
@@ -3175,6 +3239,10 @@ export {
   getTravelFeesForTenant,
   calculateTravelFeeForTenant,
   getBusinessHoursForTenant,
+
+  // 🆕 Remplace SALON_INFO hardcode
+  getBusinessInfoForTenant,
+  getBusinessInfoForTenantSync,
 };
 
 // ============================================
@@ -3227,7 +3295,9 @@ export default {
   BUSINESS_HOURS,
   BOOKING_RULES,
   SERVICE_OPTIONS,  // 🚦 Flag domicile activé/désactivé
-  SALON_INFO,
+  SALON_INFO,  // @deprecated - utiliser getBusinessInfoForTenant(tenantId)
+  getBusinessInfoForTenant,  // Remplace SALON_INFO
+  getBusinessInfoForTenantSync,  // Version synchrone
   clearConversation,
   findServiceByName,
   getAllServices,

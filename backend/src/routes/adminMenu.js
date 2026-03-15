@@ -378,6 +378,7 @@ router.get('/du-jour', async (req, res) => {
         const { data: platsData } = await supabase
           .from('plats')
           .select('id, nom, description, prix, categorie_id')
+          .eq('tenant_id', req.admin.tenant_id)
           .in('id', allPlatIds);
 
         menu.plats_details = platsData || [];

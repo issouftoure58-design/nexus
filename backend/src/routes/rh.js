@@ -77,6 +77,7 @@ router.get('/employes/:id', async (req, res) => {
     const { data: compteur } = await supabase
       .from('compteurs_conges')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('employe_id', id)
       .eq('annee', anneeActuelle)
       .single();
@@ -508,6 +509,7 @@ router.patch('/conges/:id/approuver', async (req, res) => {
       const { data: compteur, error: cptError } = await supabase
         .from('compteurs_conges')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('employe_id', conge.employe_id)
         .eq('annee', annee)
         .single();
@@ -527,6 +529,7 @@ router.patch('/conges/:id/approuver', async (req, res) => {
           .from('compteurs_conges')
           .update(updates)
           .eq('id', compteur.id)
+          .eq('tenant_id', tenantId)
           .select()
           .single();
 
@@ -607,6 +610,7 @@ router.delete('/conges/:id', async (req, res) => {
         .select('*')
         .eq('employe_id', conge.employe_id)
         .eq('annee', annee)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (compteur) {
@@ -623,7 +627,8 @@ router.delete('/conges/:id', async (req, res) => {
         await supabase
           .from('compteurs_conges')
           .update(updates)
-          .eq('id', compteur.id);
+          .eq('id', compteur.id)
+          .eq('tenant_id', tenantId);
       }
     }
 
@@ -664,6 +669,7 @@ router.get('/compteurs/:employeId', async (req, res) => {
       .select('*')
       .eq('employe_id', employeId)
       .eq('annee', targetAnnee)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
@@ -697,6 +703,7 @@ router.put('/compteurs/:employeId', async (req, res) => {
       .select('*')
       .eq('employe_id', employeId)
       .eq('annee', targetAnnee)
+      .eq('tenant_id', tenantId)
       .single();
 
     let result;
@@ -718,6 +725,7 @@ router.put('/compteurs/:employeId', async (req, res) => {
         .from('compteurs_conges')
         .update(updates)
         .eq('id', existing.id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
 

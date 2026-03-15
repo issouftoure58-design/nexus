@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Clock, User, MapPin, Phone, Mail, Euro, CheckCircle, XCircle, Play, FileText, Users } from 'lucide-react';
+import { Calendar, User, MapPin, Phone, Mail, Euro, CheckCircle, XCircle, Play, FileText, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useProfile } from '@/contexts/ProfileContext';
 
@@ -303,6 +303,7 @@ export default function PrestationsPage() {
                           onClick={() => setShowDetailModal(prestation)}
                           className="text-gray-600 hover:text-gray-800"
                           title="Voir détails"
+                          aria-label="Voir"
                         >
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -386,7 +387,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
               Créée le {new Date(prestation.created_at).toLocaleDateString('fr-FR')}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded" aria-label="Fermer">
             <XCircle className="w-6 h-6 text-gray-400" />
           </button>
         </div>

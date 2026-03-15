@@ -5,6 +5,8 @@
  */
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -54,11 +56,12 @@ async function main() {
 
   // Create admin user for the tenant
   const adminEmail = `admin@${domain || tenantId + '.nexus.dev'}`;
-  const defaultPassword = 'changeme2026';
+  const generatedPassword = crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(generatedPassword, 10);
 
   const { error: adminError } = await supabase.from('admin_users').insert({
     email: adminEmail,
-    password_hash: defaultPassword, // Should be hashed in production
+    password_hash: passwordHash,
     role: 'admin',
     tenant_id: tenantId,
   });
@@ -73,8 +76,9 @@ async function main() {
   console.log(`  Domain:   ${data.domain || '(none)'}`);
   console.log(`  Plan:     ${data.plan}`);
   console.log(`  Admin:    ${adminEmail}`);
-  console.log(`  Password: ${defaultPassword}`);
-  console.log(`\n  To use: add header X-Tenant-ID: ${tenantId}\n`);
+  console.log(`  Password: ${generatedPassword}`);
+  console.log(`\n  ⚠️  Changez ce mot de passe à la première connexion !`);
+  console.log(`  To use: add header X-Tenant-ID: ${tenantId}\n`);
 }
 
 main().catch(err => {

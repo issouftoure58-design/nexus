@@ -12,6 +12,7 @@
 
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import {
   getSSOConfig,
@@ -86,6 +87,37 @@ router.delete('/providers/:id', authenticateAdmin, async (req, res) => {
 // =============================================
 
 /**
+ * GET /discover?domain=example.com — Decouvre les providers SSO pour un domaine email
+ * Pas besoin d'auth (utilise pendant le flow de login)
+ */
+router.get('/discover', async (req, res) => {
+  try {
+    const { domain } = req.query;
+    if (!domain) {
+      return res.status(400).json({ providers: [] });
+    }
+
+    const { data: providers } = await supabase
+      .from('sso_providers')
+      .select('id, name, provider_type, tenant_id')
+      .eq('enabled', true)
+      .eq('domain_restriction', `@${domain}`);
+
+    if (!providers || providers.length === 0) {
+      return res.json({ providers: [] });
+    }
+
+    res.json({
+      providers: providers.map(p => ({ id: p.id, name: p.name, provider_type: p.provider_type })),
+      tenant_id: providers[0].tenant_id
+    });
+  } catch (error) {
+    logger.error('Erreur SSO discover', { error: error.message });
+    res.json({ providers: [] });
+  }
+});
+
+/**
  * POST /oidc/initiate — Initier login OIDC
  * Body: { tenant_id, provider_id }
  * Pas besoin d'auth (c'est le flow de login)
@@ -98,7 +130,7 @@ router.post('/oidc/initiate', async (req, res) => {
       return res.status(400).json({ error: 'tenant_id et provider_id requis' });
     }
 
-    const callbackUrl = `${process.env.ADMIN_UI_URL || 'http://localhost:5173'}/sso/callback`;
+    const callbackUrl = `${process.env.ADMIN_UI_URL || 'http://localhost:3001'}/sso/callback`;
     const result = await initiateOIDCLogin(tenant_id, provider_id, callbackUrl);
 
     res.json(result);
@@ -121,7 +153,7 @@ router.post('/oidc/callback', async (req, res) => {
       return res.status(400).json({ error: 'Paramètres manquants' });
     }
 
-    const callbackUrl = `${process.env.ADMIN_UI_URL || 'http://localhost:5173'}/sso/callback`;
+    const callbackUrl = `${process.env.ADMIN_UI_URL || 'http://localhost:3001'}/sso/callback`;
 
     // Echange code → user info
     const ssoUserInfo = await handleOIDCCallback(tenant_id, provider_id, code, callbackUrl);
@@ -146,9 +178,17 @@ router.post('/oidc/callback', async (req, res) => {
 
     // Creer session
     try {
-      await createSession(admin.id, admin.tenant_id, token, req);
+      await createSession({
+        adminId: admin.id,
+        tenantId: admin.tenant_id,
+        token,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
+      logger.info('SSO session created', { adminId: admin.id, tenantId: admin.tenant_id });
     } catch (e) {
-      // Non bloquant
+      logger.error('SSO session creation failed', { error: e.message, adminId: admin.id });
     }
 
     res.json({

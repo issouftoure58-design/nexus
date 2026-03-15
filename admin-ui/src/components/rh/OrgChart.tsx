@@ -149,7 +149,7 @@ export default function OrgChart({ membres }: OrgChartProps) {
 
               {/* Members at this level */}
               <div className="flex items-start gap-6 justify-center">
-                {level.membres.map((membre, i) => (
+                {level.membres.map((membre, _i) => (
                   <div key={membre.id} className="flex flex-col items-center">
                     {/* Individual connector */}
                     {levelIndex > 0 && level.membres.length > 1 && (

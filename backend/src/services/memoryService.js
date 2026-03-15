@@ -360,7 +360,7 @@ export async function extractAndSaveFacts(tenantId, userMessage, assistantRespon
     if (match) {
       factsToSave.push({
         category: 'preference',
-        fact: `Fatou ${match[0]}`,
+        fact: `Admin ${match[0]}`,
         confidence: 0.9
       });
     }
@@ -456,7 +456,7 @@ export async function generateMemoryContext(tenantId, currentQuery) {
     // Prendre les 5 derniers échanges
     const recentExchanges = recentHistory.slice(0, 10);
     recentExchanges.forEach(msg => {
-      const role = msg.role === 'user' ? 'Fatou' : 'Halimah';
+      const role = msg.role === 'user' ? 'Admin' : 'Assistant';
       const shortContent = msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '');
       context += `- ${role}: ${shortContent}\n`;
     });

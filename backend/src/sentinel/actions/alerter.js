@@ -115,8 +115,8 @@ class Alerter {
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
-      if (!accountSid || !authToken || !fromNumber) {
-        console.log('[SENTINEL] SMS not configured, logging only');
+      if (!accountSid || !authToken || !fromNumber || !ALERT_PHONE) {
+        console.log('[SENTINEL] SMS not configured (missing Twilio creds or SENTINEL_ALERT_PHONE), logging only');
         return { sent: false, reason: 'not_configured' };
       }
 
@@ -170,7 +170,7 @@ class Alerter {
       ].join('\n');
 
       await resend.emails.send({
-        from: 'NEXUS Sentinel <sentinel@nexus-app.fr>',
+        from: 'NEXUS Sentinel <noreply@nexus-ai-saas.com>',
         to: alertEmail,
         subject,
         html: body

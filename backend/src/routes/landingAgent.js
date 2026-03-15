@@ -11,6 +11,7 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { publicChatLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -210,7 +211,7 @@ function getAnthropicClient() {
  * POST /api/landing/chat
  * Chat avec l'agent commercial Nexus (streaming)
  */
-router.post('/chat', async (req, res) => {
+router.post('/chat', publicChatLimiter, async (req, res) => {
   try {
     const { messages, stream = true } = req.body;
 

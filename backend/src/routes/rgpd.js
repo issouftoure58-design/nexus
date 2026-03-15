@@ -1,15 +1,19 @@
 /**
  * Routes RGPD - Export et suppression des données personnelles
  *
- * GET    /api/rgpd/export           - Exporter toutes les données du tenant
- * POST   /api/rgpd/delete-request   - Demander la suppression des données
- * GET    /api/rgpd/delete-status    - Statut de la demande de suppression
- * POST   /api/rgpd/anonymize-client - Anonymiser un client spécifique
+ * GET    /api/rgpd/export                    - Exporter toutes les données du tenant
+ * POST   /api/rgpd/delete-request            - Demander la suppression des données
+ * GET    /api/rgpd/delete-status             - Statut de la demande de suppression
+ * POST   /api/rgpd/anonymize-client          - Anonymiser un client spécifique
+ * POST   /api/rgpd/consent                   - Enregistrer un consentement
+ * GET    /api/rgpd/consent/:clientId          - Consulter les consentements d'un client
+ * DELETE /api/rgpd/consent/:clientId/:channel - Révoquer un consentement
  */
 
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { grantConsent, revokeConsent, getClientConsents } from '../services/consentService.js';
 
 const router = express.Router();
 
@@ -36,7 +40,8 @@ router.get('/export', async (req, res) => {
       { data: factures },
       { data: services },
       { data: admins },
-      { data: conversations }
+      { data: conversations },
+      { data: consents }
     ] = await Promise.all([
       supabase.from('tenants').select('*').eq('id', tenantId).single(),
       supabase.from('clients').select('*').eq('tenant_id', tenantId),
@@ -44,8 +49,20 @@ router.get('/export', async (req, res) => {
       supabase.from('factures').select('*').eq('tenant_id', tenantId),
       supabase.from('services').select('*').eq('tenant_id', tenantId),
       supabase.from('admin_users').select('id, nom, prenom, email, created_at').eq('tenant_id', tenantId),
-      supabase.from('ia_conversations').select('*').eq('tenant_id', tenantId)
+      supabase.from('ia_conversations').select('*').eq('tenant_id', tenantId),
+      supabase.from('client_consents').select('*').eq('tenant_id', tenantId)
     ]);
+
+    // Charger les messages IA lies aux conversations
+    const conversationIds = (conversations || []).map(c => c.id);
+    let iaMessages = [];
+    if (conversationIds.length > 0) {
+      const { data } = await supabase
+        .from('ia_messages')
+        .select('*')
+        .in('conversation_id', conversationIds);
+      iaMessages = data || [];
+    }
 
     const exportData = {
       export_date: new Date().toISOString(),
@@ -73,13 +90,17 @@ router.get('/export', async (req, res) => {
           started_at: c.started_at,
           ended_at: c.ended_at,
           status: c.status
-        }))
+        })),
+        messages: iaMessages,
+        consents: consents || []
       },
       metadata: {
         total_clients: clients?.length || 0,
         total_reservations: reservations?.length || 0,
         total_invoices: factures?.length || 0,
-        total_conversations: conversations?.length || 0
+        total_conversations: conversations?.length || 0,
+        total_messages: iaMessages.length,
+        total_consents: consents?.length || 0
       }
     };
 
@@ -312,6 +333,28 @@ router.post('/anonymize-client/:clientId', async (req, res) => {
       .eq('id', clientId)
       .eq('tenant_id', tenantId);
 
+    // Anonymiser les messages IA du client
+    const { data: clientConvs } = await supabase
+      .from('ia_conversations')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId);
+
+    if (clientConvs?.length > 0) {
+      const convIds = clientConvs.map(c => c.id);
+      await supabase
+        .from('ia_messages')
+        .update({ content: '[Contenu anonymise - RGPD]' })
+        .in('conversation_id', convIds);
+    }
+
+    // Revoquer tous les consentements
+    await supabase
+      .from('client_consents')
+      .update({ consented: false, revoked_at: new Date().toISOString() })
+      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId);
+
     // Logger l'action
     await supabase.from('historique_admin').insert({
       tenant_id: tenantId,
@@ -351,12 +394,14 @@ router.get('/client/:clientId/export', async (req, res) => {
       { data: client },
       { data: reservations },
       { data: factures },
-      { data: conversations }
+      { data: conversations },
+      { data: clientConsents }
     ] = await Promise.all([
       supabase.from('clients').select('*').eq('id', clientId).eq('tenant_id', tenantId).single(),
       supabase.from('reservations').select('*').eq('client_id', clientId).eq('tenant_id', tenantId),
       supabase.from('factures').select('*').eq('client_id', clientId).eq('tenant_id', tenantId),
-      supabase.from('ia_conversations').select('id, channel, started_at, ended_at, status').eq('client_id', clientId).eq('tenant_id', tenantId)
+      supabase.from('ia_conversations').select('id, channel, started_at, ended_at, status').eq('client_id', clientId).eq('tenant_id', tenantId),
+      supabase.from('client_consents').select('*').eq('client_id', clientId).eq('tenant_id', tenantId)
     ]);
 
     if (!client) {
@@ -364,6 +409,17 @@ router.get('/client/:clientId/export', async (req, res) => {
         success: false,
         error: 'Client non trouvé'
       });
+    }
+
+    // Charger les messages IA du client
+    const convIds = (conversations || []).map(c => c.id);
+    let clientMessages = [];
+    if (convIds.length > 0) {
+      const { data } = await supabase
+        .from('ia_messages')
+        .select('*')
+        .in('conversation_id', convIds);
+      clientMessages = data || [];
     }
 
     const exportData = {
@@ -381,7 +437,9 @@ router.get('/client/:clientId/export', async (req, res) => {
         },
         reservations: reservations || [],
         invoices: factures || [],
-        conversations: conversations || []
+        conversations: conversations || [],
+        messages: clientMessages,
+        consents: clientConsents || []
       }
     };
 
@@ -392,6 +450,68 @@ router.get('/client/:clientId/export', async (req, res) => {
   } catch (error) {
     console.error('[RGPD] Erreur export client:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// CONSENTEMENT MARKETING (RGPD Article 7)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/rgpd/consent
+ * Enregistre le consentement d'un client pour un canal marketing
+ */
+router.post('/consent', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { client_id, channel, source } = req.body;
+
+    if (!client_id || !channel) {
+      return res.status(400).json({ success: false, error: 'client_id et channel requis' });
+    }
+
+    const consent = await grantConsent(tenantId, client_id, channel, source || 'manual');
+    res.json({ success: true, consent });
+
+  } catch (error) {
+    console.error('[RGPD] Erreur consentement:', error);
+    res.status(error.message?.includes('invalide') ? 400 : 500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/rgpd/consent/:clientId
+ * Consulte les consentements d'un client
+ */
+router.get('/consent/:clientId', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { clientId } = req.params;
+
+    const consents = await getClientConsents(tenantId, clientId);
+    res.json({ success: true, consents });
+
+  } catch (error) {
+    console.error('[RGPD] Erreur lecture consentements:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/rgpd/consent/:clientId/:channel
+ * Révoque le consentement d'un client pour un canal
+ */
+router.delete('/consent/:clientId/:channel', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { clientId, channel } = req.params;
+
+    const consent = await revokeConsent(tenantId, clientId, channel);
+    res.json({ success: true, consent });
+
+  } catch (error) {
+    console.error('[RGPD] Erreur revocation:', error);
+    res.status(error.message?.includes('invalide') ? 400 : 500).json({ success: false, error: error.message });
   }
 });
 

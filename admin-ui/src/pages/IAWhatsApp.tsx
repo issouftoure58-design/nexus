@@ -14,7 +14,6 @@ import {
   AlertCircle,
   Clock,
   User,
-  Image,
   Send
 } from 'lucide-react';
 

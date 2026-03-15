@@ -491,6 +491,14 @@ router.post('/', signupLimiter, async (req, res) => {
       })
       .eq('id', tenant_id);
 
+    // Tracker les étapes d'onboarding
+    const onboardingSteps = {
+      services: { status: 'pending', count: 0 },
+      hours: { status: 'pending', count: 0 },
+      agent_config: { status: 'pending' },
+      ia_config: { status: 'pending', count: 0 },
+    };
+
     // 7a. CRÉER LES SERVICES PAR DÉFAUT
     if (template.defaultServices && template.defaultServices.length > 0) {
       const servicesToInsert = template.defaultServices.map((svc, index) => ({
@@ -510,8 +518,10 @@ router.post('/', signupLimiter, async (req, res) => {
 
       if (servicesError) {
         console.warn('[SIGNUP] Erreur création services:', servicesError.message);
+        onboardingSteps.services = { status: 'error', error: servicesError.message };
       } else {
         console.log(`[SIGNUP] ${servicesToInsert.length} services créés pour ${tenant_id}`);
+        onboardingSteps.services = { status: 'ok', count: servicesToInsert.length };
       }
     }
 
@@ -549,8 +559,10 @@ router.post('/', signupLimiter, async (req, res) => {
 
         if (hoursError) {
           console.warn('[SIGNUP] Erreur création horaires:', hoursError.message);
+          onboardingSteps.hours = { status: 'error', error: hoursError.message };
         } else {
           console.log(`[SIGNUP] ${hoursToInsert.length} horaires créés pour ${tenant_id}`);
+          onboardingSteps.hours = { status: 'ok', count: hoursToInsert.length };
         }
       }
     }
@@ -592,8 +604,10 @@ router.post('/', signupLimiter, async (req, res) => {
 
     if (agentConfigError) {
       console.warn('[SIGNUP] Erreur création agent config:', agentConfigError.message);
+      onboardingSteps.agent_config = { status: 'error', error: agentConfigError.message };
     } else {
       console.log(`[SIGNUP] Agent config créé pour ${tenant_id}`);
+      onboardingSteps.agent_config = { status: 'ok' };
     }
 
     // 7d. CRÉER TENANT_IA_CONFIG (configuration IA des canaux)
@@ -626,13 +640,34 @@ router.post('/', signupLimiter, async (req, res) => {
 
         if (iaError) {
           console.warn('[SIGNUP] Erreur création IA config:', iaError.message);
+          onboardingSteps.ia_config = { status: 'error', error: iaError.message };
         } else {
           console.log(`[SIGNUP] ${iaConfigToInsert.length} configs IA créées pour ${tenant_id}`);
+          onboardingSteps.ia_config = { status: 'ok', count: iaConfigToInsert.length };
         }
       }
     }
 
-    console.log(`[SIGNUP] ✅ Auto-onboarding terminé pour ${tenant_id}`);
+    // Calculer si l'onboarding est complet
+    const allStepsOk = Object.values(onboardingSteps).every(s => s.status === 'ok');
+    const failedSteps = Object.entries(onboardingSteps)
+      .filter(([, s]) => s.status === 'error')
+      .map(([key]) => key);
+
+    // Sauvegarder l'état d'onboarding sur le tenant
+    await supabase
+      .from('tenants')
+      .update({
+        onboarding_completed: allStepsOk,
+        onboarding_steps: onboardingSteps,
+      })
+      .eq('id', tenant_id);
+
+    if (failedSteps.length > 0) {
+      console.warn(`[SIGNUP] ⚠️ Onboarding partiel pour ${tenant_id} — étapes en erreur: ${failedSteps.join(', ')}`);
+    } else {
+      console.log(`[SIGNUP] ✅ Auto-onboarding terminé pour ${tenant_id}`);
+    }
 
     // ═══════════════════════════════════════════════════
     // 8. RETOURNER RESULTAT
@@ -659,7 +694,12 @@ router.post('/', signupLimiter, async (req, res) => {
       },
       essai_fin: essai_fin.toISOString(),
       checkout_url: checkoutUrl,
-      dashboard_url: `https://${tenant_id}.nexus.app/admin`
+      dashboard_url: `https://${tenant_id}.nexus.app/admin`,
+      onboarding: {
+        completed: allStepsOk,
+        steps: onboardingSteps,
+        failed_steps: failedSteps,
+      }
     });
 
   } catch (err) {

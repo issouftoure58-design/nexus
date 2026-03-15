@@ -175,14 +175,28 @@ export async function initiateOIDCLogin(tenantId, providerId, callbackUrl) {
   // Nonce pour id_token
   const nonce = crypto.randomBytes(32).toString('hex');
 
+  // Decouvrir les endpoints via OIDC discovery
+  let authEndpoint = provider.oidc_issuer + '/authorize';
+  try {
+    const discoveryUrl = provider.oidc_discovery_url || (provider.oidc_issuer + '/.well-known/openid-configuration');
+    const discoveryResp = await fetch(discoveryUrl);
+    if (discoveryResp.ok) {
+      const config = await discoveryResp.json();
+      authEndpoint = config.authorization_endpoint || authEndpoint;
+    }
+  } catch (e) {
+    logger.warn('OIDC discovery failed, using fallback', { error: e.message });
+  }
+
   // Construire l'URL d'autorisation
-  const authUrl = new URL(provider.oidc_issuer + '/authorize');
+  const authUrl = new URL(authEndpoint);
   authUrl.searchParams.set('client_id', provider.oidc_client_id);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('redirect_uri', callbackUrl);
   authUrl.searchParams.set('scope', provider.oidc_scopes || 'openid email profile');
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('nonce', nonce);
+  authUrl.searchParams.set('prompt', 'select_account');
 
   return {
     authorization_url: authUrl.toString(),
@@ -208,8 +222,23 @@ export async function handleOIDCCallback(tenantId, providerId, code, callbackUrl
     throw new Error('Provider OIDC non trouvé');
   }
 
+  // Decouvrir les endpoints via OIDC discovery
+  let tokenUrl = provider.oidc_issuer + '/token';
+  let userinfoEndpoint = provider.oidc_issuer + '/userinfo';
+  try {
+    const discoveryUrl = provider.oidc_discovery_url || (provider.oidc_issuer + '/.well-known/openid-configuration');
+    const discoveryResp = await fetch(discoveryUrl);
+    if (discoveryResp.ok) {
+      const config = await discoveryResp.json();
+      tokenUrl = config.token_endpoint || tokenUrl;
+      userinfoEndpoint = config.userinfo_endpoint || userinfoEndpoint;
+    }
+  } catch (e) {
+    logger.warn('OIDC discovery failed in callback', { error: e.message });
+  }
+
   // Token exchange
-  const tokenUrl = provider.oidc_issuer + '/token';
+  logger.info('OIDC token exchange', { tokenUrl, callbackUrl, client_id: provider.oidc_client_id, code: code?.substring(0, 10) + '...' });
   const tokenResp = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -229,14 +258,16 @@ export async function handleOIDCCallback(tenantId, providerId, code, callbackUrl
   }
 
   const tokens = await tokenResp.json();
+  logger.info('OIDC tokens received', { has_access_token: !!tokens.access_token, has_id_token: !!tokens.id_token });
 
   // Userinfo
-  const userinfoUrl = provider.oidc_issuer + '/userinfo';
-  const userinfoResp = await fetch(userinfoUrl, {
+  const userinfoResp = await fetch(userinfoEndpoint, {
     headers: { Authorization: `Bearer ${tokens.access_token}` }
   });
 
   if (!userinfoResp.ok) {
+    const uiErr = await userinfoResp.text();
+    logger.error('OIDC userinfo failed', { status: userinfoResp.status, error: uiErr });
     throw new Error('Impossible de récupérer les informations utilisateur');
   }
 

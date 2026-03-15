@@ -4,15 +4,16 @@
  */
 
 import {
-  X, Home, Calendar, CalendarCheck, Users, Scissors, Package, TrendingUp,
+  X, Home, Calendar, CalendarCheck, Users, Scissors, Package,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
-  ClipboardList, Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
-  ShoppingBag
+  Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
+  ShoppingBag, LayoutGrid, Bed, Banknote, Phone, MessageSquare
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useTenant } from '@/hooks/useTenant';
 
 interface GlobalMenuProps {
   isOpen: boolean;
@@ -28,25 +29,30 @@ const menuItems = [
   { icon: Scissors, label: 'Services', path: '/services' },
   { icon: UtensilsCrossed, label: 'Menu / Carte', path: '/menu', businessType: 'restaurant' },
   { icon: ShoppingBag, label: 'Commandes', path: '/commandes', businessType: 'commerce' },
+  { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', businessType: 'restaurant' },
+  { icon: Bed, label: 'Chambres', path: '/chambres', businessType: 'hotel' },
+  { icon: Banknote, label: 'Tarifs Saisons', path: '/tarifs', businessType: 'hotel' },
   { icon: UserPlus, label: 'Equipe', path: '/equipe' },
   { icon: Clock, label: 'Disponibilités', path: '/disponibilites' },
   { icon: Star, label: 'Fidélité', path: '/fidelite' },
   { icon: ListChecks, label: 'Liste d\'attente', path: '/waitlist' },
   { type: 'separator', label: 'Business' },
   { icon: CreditCard, label: 'Facturation', path: '/facturation' },
-  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'pro' },
+  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'business' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'pro' },
   { icon: Package, label: 'Stock', path: '/stock', plan: 'pro' },
-  { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'pro' },
+  { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'business' },
   { type: 'separator', label: 'Marketing' },
-  { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'pro' },
-  { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'pro' },
-  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'pro' },
+  { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'business' },
+  { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'business' },
+  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'business' },
   { icon: FileText, label: 'Devis', path: '/devis', plan: 'pro' },
   { icon: Search, label: 'SEO', path: '/seo', plan: 'business' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'business' },
   { type: 'separator', label: 'Système' },
-  { icon: Bot, label: 'IA Admin', path: '/ia-admin', plan: 'pro' },
+  { icon: Bot, label: 'Agent IA Web', path: '/ia-admin' },
+  { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', plan: 'pro' },
+  { icon: Phone, label: 'Téléphone IA', path: '/ia-telephone', plan: 'pro' },
   { icon: Shield, label: 'Sentinel', path: '/sentinel', plan: 'business' },
   { type: 'separator' },
   { icon: CreditCard, label: 'Mon abonnement', path: '/subscription' },
@@ -58,6 +64,7 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isBusinessType } = useProfile();
+  const { hasPlan } = useTenant();
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -102,6 +109,7 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
           {menuItems.filter(item => {
             if (item.businessType && !isBusinessType(item.businessType as any)) return false;
             if (item.hideFor && item.hideFor.some((t: string) => isBusinessType(t as any))) return false;
+            if (item.plan && !hasPlan(item.plan as any)) return false;
             return true;
           }).map((item, index) => {
             if (item.type === 'separator') {

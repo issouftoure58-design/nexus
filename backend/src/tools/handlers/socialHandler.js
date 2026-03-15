@@ -147,7 +147,8 @@ async function social_generate_content(toolInput, tenantId, adminId) {
     const result = await generateSocialContent(
       toolInput.sujet,
       toolInput.type,
-      toolInput.platforms || ['instagram', 'facebook', 'twitter']
+      toolInput.platforms || ['instagram', 'facebook', 'twitter'],
+      tenantId
     );
 
     return {

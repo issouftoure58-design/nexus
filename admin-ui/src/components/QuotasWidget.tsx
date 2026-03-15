@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -36,11 +37,7 @@ const PLAN_COLORS = {
 export function QuotasWidget() {
   const { data: quotas, isLoading, error } = useQuery<QuotaData>({
     queryKey: ['quotas'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/quotas');
-      if (!res.ok) throw new Error('Erreur lors du chargement des quotas');
-      return res.json();
-    },
+    queryFn: () => api.get<QuotaData>('/admin/quotas'),
   });
 
   if (isLoading) {

@@ -4,7 +4,6 @@
  */
 import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
   CheckCircle, Circle, User, ChevronDown, ChevronUp,
   ClipboardList, Calendar, Shield, Book, Monitor, Users
@@ -200,7 +199,6 @@ export default function OnboardingChecklist({ membres }: OnboardingChecklistProp
                           {CHECKLIST_ITEMS.filter(i => i.category === category).map(item => {
                             const checked = isChecked(membre, item);
                             const isAuto = item.autoCheck?.(membre);
-                            const Icon = item.icon;
                             return (
                               <button
                                 key={item.id}

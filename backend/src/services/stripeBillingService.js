@@ -506,9 +506,29 @@ export async function getPaymentMethods(tenantId) {
 
 /**
  * Supprime une methode de paiement
+ * @param {string} tenantId - ID du tenant (obligatoire pour vérification propriétaire)
+ * @param {string} paymentMethodId - ID Stripe du moyen de paiement
  */
-export async function deletePaymentMethod(paymentMethodId) {
+export async function deletePaymentMethod(tenantId, paymentMethodId) {
   if (!stripe) throw new Error('Stripe not configured');
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  // Vérifier que le PM appartient au customer Stripe du tenant
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('stripe_customer_id')
+    .eq('id', tenantId)
+    .single();
+
+  if (error || !tenant?.stripe_customer_id) {
+    throw new Error('Tenant ou customer Stripe non trouvé');
+  }
+
+  // Récupérer le PM depuis Stripe et vérifier le propriétaire
+  const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+  if (pm.customer !== tenant.stripe_customer_id) {
+    throw new Error('Ce moyen de paiement ne vous appartient pas');
+  }
 
   await stripe.paymentMethods.detach(paymentMethodId);
   return { success: true };
@@ -690,10 +710,30 @@ export async function createOneTimeCheckout(tenantId, priceId, quantity, success
 // ════════════════════════════════════════════════════════════════════
 
 /**
- * Traite un evenement webhook Stripe
+ * Traite un evenement webhook Stripe (avec deduplication idempotente)
  */
 export async function handleWebhookEvent(event) {
-  console.log(`[Stripe Webhook] ${event.type}`);
+  console.log(`[Stripe Webhook] ${event.type} (${event.id})`);
+
+  // Idempotence check: skip if already processed
+  const { data: existing } = await supabase
+    .from('stripe_processed_events')
+    .select('event_id')
+    .eq('event_id', event.id)
+    .single();
+
+  if (existing) {
+    console.log(`[Stripe Webhook] Event ${event.id} deja traite, skip`);
+    return;
+  }
+
+  // Register event BEFORE processing (prevents concurrent duplicates)
+  const tenantId = event.data?.object?.metadata?.tenant_id || null;
+  await supabase.from('stripe_processed_events').insert({
+    event_id: event.id,
+    event_type: event.type,
+    tenant_id: tenantId
+  });
 
   switch (event.type) {
     case 'customer.subscription.created':
@@ -706,11 +746,11 @@ export async function handleWebhookEvent(event) {
       break;
 
     case 'invoice.paid':
-      await handleInvoicePaid(event.data.object);
+      await handleInvoicePaid(event.data.object, event.id);
       break;
 
     case 'invoice.payment_failed':
-      await handleInvoicePaymentFailed(event.data.object);
+      await handleInvoicePaymentFailed(event.data.object, event.id);
       break;
 
     case 'customer.subscription.trial_will_end':
@@ -889,7 +929,7 @@ async function handleSubscriptionDeleted(subscription) {
   console.log(`[Stripe Webhook] Subscription annulee pour ${tenantId}, modules desactives`);
 }
 
-async function handleInvoicePaid(invoice) {
+async function handleInvoicePaid(invoice, stripeEventId = null) {
   const customerId = invoice.customer;
 
   // Trouver le tenant
@@ -901,13 +941,14 @@ async function handleInvoicePaid(invoice) {
 
   if (!tenant) return;
 
-  // Logger le paiement
+  // Logger le paiement avec stripe_event_id pour tracabilite
   await supabase.from('billing_events').insert({
     tenant_id: tenant.id,
     event_type: 'invoice_paid',
     amount: invoice.amount_paid,
     currency: invoice.currency,
     invoice_id: invoice.id,
+    stripe_event_id: stripeEventId,
     created_at: new Date().toISOString()
   });
 
@@ -937,7 +978,7 @@ async function handleInvoicePaid(invoice) {
   console.log(`[Stripe Webhook] Facture payee: ${invoice.id} - ${invoice.amount_paid/100}${invoice.currency.toUpperCase()}`);
 }
 
-async function handleInvoicePaymentFailed(invoice) {
+async function handleInvoicePaymentFailed(invoice, stripeEventId = null) {
   const customerId = invoice.customer;
   const MAX_FAILURES = 3; // Suspendre après 3 échecs
 
@@ -954,13 +995,14 @@ async function handleInvoicePaymentFailed(invoice) {
     ? new Date(invoice.next_payment_attempt * 1000).toISOString()
     : null;
 
-  // Logger l'échec
+  // Logger l'échec avec stripe_event_id
   await supabase.from('billing_events').insert({
     tenant_id: tenant.id,
     event_type: 'payment_failed',
     amount: invoice.amount_due,
     currency: invoice.currency,
     invoice_id: invoice.id,
+    stripe_event_id: stripeEventId,
     metadata: { failure_number: failureCount },
     created_at: new Date().toISOString()
   });

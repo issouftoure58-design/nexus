@@ -17,35 +17,12 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/checkPlan.js';
 
 const router = express.Router();
 
-// Middleware pour vérifier plan Pro/Business
-async function requireProPlan(req, res, next) {
-  try {
-    const tenantId = req.admin.tenant_id;
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('plan, tier')
-      .eq('id', tenantId)
-      .single();
-
-    const plan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
-    if (plan === 'starter') {
-      return res.status(403).json({
-        error: 'Fonctionnalité Pro requise',
-        message: 'La segmentation CRM nécessite un plan Pro ou Business.',
-        upgrade_url: '/admin/billing/upgrade'
-      });
-    }
-
-    req.tenantPlan = plan;
-    next();
-  } catch (error) {
-    console.error('[SEGMENTS] Erreur vérification plan:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-}
+// Middleware auth + module marketing (Business) sur toutes les routes
+router.use(authenticateAdmin, requireModule('marketing'));
 
 // ════════════════════════════════════════════════════════════════════
 // SEGMENTS - LISTE ET CRUD
@@ -55,7 +32,7 @@ async function requireProPlan(req, res, next) {
  * GET /api/admin/segments
  * Liste tous les segments du tenant
  */
-router.get('/', authenticateAdmin, requireProPlan, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { actif, type } = req.query;
@@ -92,7 +69,7 @@ router.get('/', authenticateAdmin, requireProPlan, async (req, res) => {
  * POST /api/admin/segments
  * Créer un nouveau segment
  */
-router.post('/', authenticateAdmin, requireProPlan, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const adminId = req.admin.id;
@@ -173,7 +150,7 @@ router.post('/', authenticateAdmin, requireProPlan, async (req, res) => {
  * GET /api/admin/segments/:id
  * Détails d'un segment avec statistiques
  */
-router.get('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -232,7 +209,7 @@ router.get('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
  * PUT /api/admin/segments/:id
  * Modifier un segment
  */
-router.put('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -301,7 +278,7 @@ router.put('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
  * DELETE /api/admin/segments/:id
  * Supprimer un segment
  */
-router.delete('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -332,7 +309,7 @@ router.delete('/:id', authenticateAdmin, requireProPlan, async (req, res) => {
  * GET /api/admin/segments/:id/clients
  * Liste les clients d'un segment
  */
-router.get('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) => {
+router.get('/:id/clients', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -419,7 +396,7 @@ router.get('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) =
  * POST /api/admin/segments/:id/clients
  * Ajouter des clients à un segment
  */
-router.post('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) => {
+router.post('/:id/clients', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const adminId = req.admin.id;
@@ -474,7 +451,7 @@ router.post('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) 
  * DELETE /api/admin/segments/:id/clients
  * Retirer des clients d'un segment
  */
-router.delete('/:id/clients', authenticateAdmin, requireProPlan, async (req, res) => {
+router.delete('/:id/clients', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -507,7 +484,7 @@ router.delete('/:id/clients', authenticateAdmin, requireProPlan, async (req, res
  * POST /api/admin/segments/:id/refresh
  * Recalculer un segment dynamique
  */
-router.post('/:id/refresh', authenticateAdmin, requireProPlan, async (req, res) => {
+router.post('/:id/refresh', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;

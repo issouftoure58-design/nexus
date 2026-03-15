@@ -10,6 +10,7 @@
 
 import { rawSupabase } from '../supabase.js';
 import logger from '../logger.js';
+import { registerInterval } from '../../utils/intervalRegistry.js';
 
 // Static fallback imports
 import fatshairafroStatic from './fatshairafro.js';
@@ -133,6 +134,7 @@ export function startPeriodicRefresh() {
       logger.error('Periodic refresh failed', { tag: 'TenantCache', error: err.message })
     );
   }, REFRESH_INTERVAL_MS);
+  registerInterval('tenantCache:refresh', refreshTimer);
   // Allow process to exit even if timer is running
   if (refreshTimer.unref) refreshTimer.unref();
 }
@@ -190,11 +192,21 @@ async function loadPhoneNumbers() {
 
 /**
  * Get cached config for a tenant (sync).
- * Returns template if tenant unknown.
+ * Returns cached config, or template-based degraded config if DB was unavailable.
  */
 export function getCachedConfig(tenantId) {
   if (!tenantId) return null;
-  return tenantMap.get(tenantId) || null;
+  const cached = tenantMap.get(tenantId);
+  if (cached) return cached;
+
+  // En mode fallback (DB down), retourner un config dégradé basé sur le template
+  // pour permettre un fonctionnement minimal au lieu de crasher
+  if (!loadedFromDb && initialized) {
+    logger.warn('Tenant non trouvé en mode dégradé, utilisation du template', { tag: 'TenantCache', tenantId });
+    return { ...templateStatic, id: tenantId, _degraded: true };
+  }
+
+  return null;
 }
 
 /**

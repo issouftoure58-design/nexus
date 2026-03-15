@@ -13,6 +13,7 @@ import bookingService from './bookingService.js';
 import nexusCore from '../core/unified/nexusCore.js';
 // 🔒 TENANT ISOLATION: Résolution du tenant depuis le numéro appelé
 import { getTenantByPhone } from '../config/tenants/index.js';
+import { registerInterval } from '../utils/intervalRegistry.js';
 import { MODEL_FAST } from './modelRouter.js';
 
 /**
@@ -75,7 +76,7 @@ function getGreeting(tenantId, salutation = 'bonjour') {
     const info = getBusinessInfoSync(tenantId);
     return `${info.nom} ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`;
   } catch (e) {
-    return `Fat's Hair-Afro ${salutation} ! Qu'est-ce qui vous ferait plaisir ?`;
+    return `Bonjour ${salutation} ! Comment puis-je vous aider ?`;
   }
 }
 
@@ -91,8 +92,8 @@ function getTransferMessage(tenantId, prenom = '') {
       : `Je vous passe ${gerant}. Ne quittez pas !`;
   } catch (e) {
     return prenom
-      ? `Merci ${prenom} ! Je vous passe Fatou. Ne quittez pas !`
-      : `Je vous passe Fatou. Ne quittez pas !`;
+      ? `Merci ${prenom} ! Je vous passe le responsable. Ne quittez pas !`
+      : `Je vous passe le responsable. Ne quittez pas !`;
   }
 }
 
@@ -105,7 +106,7 @@ function getConfirmationMessage(tenantId, prenom = '') {
     const gerant = info.gerant || 'nous';
     return `Merci ${prenom} ! Je transmets votre demande à ${gerant} qui vous rappellera pour confirmer. À bientôt !`;
   } catch (e) {
-    return `Merci ${prenom} ! Je transmets votre demande à Fatou qui vous rappellera pour confirmer. À bientôt !`;
+    return `Merci ${prenom} ! Je transmets votre demande, on vous rappellera pour confirmer. À bientôt !`;
   }
 }
 
@@ -168,8 +169,8 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
     const msg = userMessage.toLowerCase().trim();
     conv.history.push({ role: 'user', content: userMessage });
 
-    // === TRANSFERT VERS FATOU ===
-    if (wantsToTalkToFatou(msg)) {
+    // === TRANSFERT VERS GÉRANT ===
+    if (wantsToTalkToManager(msg)) {
       if (!conv.data.prenom) {
         conv.wantsTransfer = true;
         return saveAndRespond(conv, "Bien sûr ! C'est de la part de qui ?", false);
@@ -248,7 +249,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
 
       case STATES.ATTENTE_ADRESSE:
         if (conv.data.adresse) {
-          const distResult = await calculateDistance(conv.data.adresse);
+          const distResult = await calculateDistance(conv.data.adresse, conv.tenantId);
 
           if (distResult.distance) {
             conv.data.distance = distResult.distance;
@@ -408,7 +409,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
     console.error('[HALIMAH TEL] Stack:', error.stack?.substring(0, 300));
 
     return response(
-      "Excusez-moi, petit souci technique ! Vous pouvez rappeler ou envoyer un SMS au 07 82 23 50 20.",
+      "Excusez-moi, petit souci technique ! Vous pouvez rappeler dans quelques instants.",
       true
     );
   }
@@ -455,8 +456,8 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
 
     const msg = userMessage.toLowerCase().trim();
 
-    // === TRANSFERT VERS FATOU ===
-    if (wantsToTalkToFatou(msg)) {
+    // === TRANSFERT VERS GÉRANT ===
+    if (wantsToTalkToManager(msg)) {
       if (!ctx.data.prenom) {
         ctx.wantsTransfer = true;
         nexusPhoneContexts.set(callSid, ctx);
@@ -535,7 +536,7 @@ export async function getVoiceResponseNexus(callSid, userMessage, isFirstMessage
     console.error('[HALIMAH TEL-NEXUS] Stack:', error.stack?.substring(0, 300));
 
     return {
-      response: "Excusez-moi, petit souci technique ! Vous pouvez rappeler ou envoyer un SMS au 07 82 23 50 20.",
+      response: "Excusez-moi, petit souci technique ! Vous pouvez rappeler dans quelques instants.",
       shouldEndCall: true
     };
   }
@@ -659,8 +660,8 @@ function isAddress(msg) {
   return false;
 }
 
-function wantsToTalkToFatou(msg) {
-  return (msg.includes('fatou') && (msg.includes('parler') || msg.includes('passer')));
+function wantsToTalkToManager(msg) {
+  return ((msg.includes('responsable') || msg.includes('gérant') || msg.includes('patron') || msg.includes('manager')) && (msg.includes('parler') || msg.includes('passer')));
 }
 
 function isYes(msg) {
@@ -723,7 +724,7 @@ export function trackConversation(callSid) {
 }
 
 // Nettoyage périodique des vieilles conversations (plus de 30 min)
-setInterval(() => {
+const _voiceCleanupId = setInterval(() => {
   const now = Date.now();
   const maxAge = 30 * 60 * 1000;
 
@@ -734,6 +735,7 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+registerInterval('voice:conversationCleanup', _voiceCleanupId);
 
 export default {
   getVoiceResponse,

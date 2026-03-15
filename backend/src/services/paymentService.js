@@ -1,10 +1,32 @@
 /**
  * Service de paiement - Stripe & PayPal
- * Fat's Hair-Afro - Franconville
+ * Multi-tenant
  */
 
 import Stripe from 'stripe';
 import { captureException, captureMessage } from '../config/sentry.js';
+import { getBusinessInfoSync } from './tenantBusinessService.js';
+
+// ============= HELPERS TENANT =============
+
+function getBrandName(tenantId) {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    return info.nom || 'NEXUS';
+  } catch (e) {
+    return 'NEXUS';
+  }
+}
+
+function getFrontendUrl(tenantId, path = '') {
+  try {
+    const info = getBusinessInfoSync(tenantId);
+    const baseUrl = info.urls?.frontend || process.env.APP_URL || '';
+    return `${baseUrl}${path}`;
+  } catch (e) {
+    return `${process.env.APP_URL || ''}${path}`;
+  }
+}
 
 // ============= CONFIGURATION STRIPE =============
 
@@ -257,18 +279,18 @@ export async function createPayPalOrder(tenantId, amount, metadata = {}) {
           currency_code: 'EUR',
           value: amount.toFixed(2),
         },
-        description: metadata.description || 'Réservation Fat\'s Hair-Afro',
+        description: metadata.description || `Réservation ${getBrandName(tenantId)}`,
         custom_id: `${tenantId}:${metadata.rdv_id || ''}`,
         reference_id: tenantId,
-        soft_descriptor: 'FATS HAIR AFRO',
+        soft_descriptor: getBrandName(tenantId).substring(0, 22).toUpperCase(),
       }],
       application_context: {
-        brand_name: 'Fat\'s Hair-Afro',
+        brand_name: getBrandName(tenantId),
         locale: 'fr-FR',
         landing_page: 'NO_PREFERENCE',
         user_action: 'PAY_NOW',
-        return_url: metadata.return_url || process.env.PAYPAL_RETURN_URL || 'https://fatshairafro.fr/paiement/success',
-        cancel_url: metadata.cancel_url || process.env.PAYPAL_CANCEL_URL || 'https://fatshairafro.fr/paiement/cancel',
+        return_url: metadata.return_url || process.env.PAYPAL_RETURN_URL || getFrontendUrl(tenantId, '/paiement/success'),
+        cancel_url: metadata.cancel_url || process.env.PAYPAL_CANCEL_URL || getFrontendUrl(tenantId, '/paiement/cancel'),
       },
     };
 

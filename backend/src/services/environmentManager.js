@@ -197,7 +197,7 @@ export const EnvironmentManager = {
         },
         login: {
           success: true,
-          username: 'test_fatshairafro',
+          username: 'test_nexus',
           message: '[MOCK] Connexion Instagram simulée'
         },
         stats: {

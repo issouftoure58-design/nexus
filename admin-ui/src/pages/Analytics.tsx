@@ -8,9 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { analyticsApi } from '@/lib/api';
-import type { AnalytiqueData, AnalytiqueService, AnalytiqueCollaborateur } from '@/lib/api';
+import type { AnalytiqueData } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
 import {
@@ -207,8 +206,6 @@ function OngletVueEnsemble({ data, businessType }: { data: AnalytiqueData; busin
     const totalRdv = data.par_collaborateur.reduce((sum, c) => sum + c.nb_rdv, 0);
     const nbCollabs = data.par_collaborateur.filter(c => c.nom !== 'Non assigné').length;
     const caParCollab = nbCollabs > 0 ? s.ca_ht / nbCollabs : 0;
-    const coutPersonnel = s.charges_personnel;
-
     switch (businessType) {
       case 'restaurant': {
         // Food cost ratio = fournitures / CA (objectif < 30%)

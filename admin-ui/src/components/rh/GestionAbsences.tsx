@@ -18,7 +18,6 @@ import {
   X,
   Clock,
   AlertTriangle,
-  Filter,
   ChevronLeft,
   ChevronRight,
   User,

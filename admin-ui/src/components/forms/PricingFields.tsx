@@ -75,7 +75,7 @@ export function PricingFields({
   label,
   showLabel = true,
 }: PricingFieldsProps) {
-  const { profile, isPricingMode, getPricingModes } = useProfile();
+  const { profile, getPricingModes } = useProfile();
 
   // Déterminer le mode actif
   const activeMode = forceMode || currentMode || profile?.pricing?.mode || 'fixed';

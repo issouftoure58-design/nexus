@@ -45,10 +45,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Récupérer les infos user du token
   const getUserInfo = () => {
-    // Utiliser le token du tenant actuel
-    const currentTenant = localStorage.getItem('nexus_current_tenant');
-    const tokenKey = currentTenant ? `nexus_admin_token_${currentTenant}` : 'nexus_admin_token';
-    const token = localStorage.getItem(tokenKey) || localStorage.getItem('nexus_admin_token');
+    const token = api.getToken();
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));

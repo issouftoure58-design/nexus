@@ -13,7 +13,7 @@ import {
   hashApiKey,
   API_SCOPES
 } from '../middleware/apiAuth.js';
-import { requireClientsQuota } from '../middleware/quotas.js';
+import { requireClientsQuota, requireReservationsQuota } from '../middleware/quotas.js';
 
 const router = express.Router();
 
@@ -410,7 +410,7 @@ router.get('/reservations/:id', requireScope('read:reservations'), async (req, r
  * POST /api/v1/reservations
  * Creer une reservation
  */
-router.post('/reservations', requireScope('write:reservations'), async (req, res) => {
+router.post('/reservations', requireScope('write:reservations'), requireReservationsQuota, async (req, res) => {
   try {
     const {
       client_id,

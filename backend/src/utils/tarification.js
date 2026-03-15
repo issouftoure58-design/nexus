@@ -1,20 +1,10 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║   UTILITAIRES DE TARIFICATION                                 [LOCKED]        ║
- * ╠═══════════════════════════════════════════════════════════════════════════════╣
- * ║                                                                               ║
- * ║   ⛔ FICHIER VERROUILLE - Ne pas modifier sans autorisation                   ║
- * ║                                                                               ║
- * ║   Fat's Hair-Afro - Franconville                                              ║
- * ║                                                                               ║
- * ║   *** NEXUS CORE COMPLIANT ***                                                ║
- * ║   - TRAVEL_FEES : importe depuis businessRules.js                             ║
- * ║   - calculerFraisDepl() : utilise TRAVEL_FEES.calculate()                     ║
- * ║   - Aucune valeur hardcodee                                                   ║
- * ║                                                                               ║
- * ║   Voir : backend/NEXUS_LOCK.md                                                ║
- * ║                                                                               ║
- * ╚═══════════════════════════════════════════════════════════════════════════════╝
+ * Utilitaires de tarification - NEXUS
+ *
+ * NEXUS CORE COMPLIANT:
+ * - TRAVEL_FEES : importe depuis businessRules.js
+ * - calculerFraisDepl() : utilise TRAVEL_FEES.calculate()
+ * - Aucune valeur hardcodee
  */
 
 // *** IMPORT DEPUIS NEXUS CORE - SOURCE UNIQUE DE VÉRITÉ ***

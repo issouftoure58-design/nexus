@@ -189,9 +189,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       const data = await api.request<{ profile: BusinessProfile }>('/admin/profile');
       setProfile(data.profile || defaultProfile);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Session expirée → pas d'erreur affichée, le redirect est géré par api module
-      if (err?.message === 'Session expirée') return;
+      if (err instanceof Error && err.message === 'Session expirée') return;
       console.error('[ProfileContext] Erreur chargement profil:', err);
       setProfile(defaultProfile);
       setError('Erreur de chargement du profil');

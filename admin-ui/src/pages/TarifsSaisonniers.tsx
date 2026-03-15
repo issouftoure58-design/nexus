@@ -15,7 +15,6 @@ import {
   Snowflake,
   Palmtree,
   Leaf,
-  AlertCircle,
   X,
   Check,
   Bed,

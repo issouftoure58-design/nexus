@@ -1,21 +1,12 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║   AI GENERATOR SERVICE - Halimah Pro                          [LOCKED]        ║
- * ╠═══════════════════════════════════════════════════════════════════════════════╣
- * ║                                                                               ║
- * ║   ⛔ FICHIER VERROUILLE - Ne pas modifier sans autorisation                   ║
- * ║                                                                               ║
- * ║   Genere du contenu dynamique avec Claude pour les outils pro :               ║
- * ║   SEO, Marketing, Strategie, RH                                               ║
- * ║                                                                               ║
- * ║   *** NEXUS CORE COMPLIANT ***                                                ║
- * ║   - SERVICES, TRAVEL_FEES, BUSINESS_HOURS : depuis businessRules.js           ║
- * ║   - BUSINESS_CONTEXT : genere dynamiquement                                   ║
- * ║   - Aucune valeur hardcodee                                                   ║
- * ║                                                                               ║
- * ║   Voir : backend/NEXUS_LOCK.md                                                ║
- * ║                                                                               ║
- * ╚═══════════════════════════════════════════════════════════════════════════════╝
+ * AI GENERATOR SERVICE - NEXUS
+ *
+ * Genere du contenu dynamique avec Claude pour les outils pro :
+ * SEO, Marketing, Strategie, RH
+ *
+ * Multi-tenant: utilise getBusinessInfoSync pour le contexte dynamique.
+ * Legacy: generateBusinessContext() genere un contexte generique depuis businessRules.js
+ * pour les appels sans tenantId.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -72,13 +63,14 @@ function buildCachedSystemPrompt(role) {
   ];
 }
 
-// *** CONTEXTE BUSINESS GÉNÉRÉ DYNAMIQUEMENT DEPUIS NEXUS CORE ***
+// Contexte business generique (fallback quand pas de tenantId)
+// Pour le contexte tenant-specifique, utiliser getBusinessInfoSync(tenantId)
 function generateBusinessContext() {
   const services = getAllServices();
-  const minPrice = Math.min(...services.map(s => s.price));
-  const maxPrice = Math.max(...services.map(s => s.price));
+  const minPrice = services.length ? Math.min(...services.map(s => s.price)) : 0;
+  const maxPrice = services.length ? Math.max(...services.map(s => s.price)) : 0;
 
-  // Grouper les services par catégorie
+  // Grouper les services par categorie
   const categories = {};
   services.forEach(s => {
     if (!categories[s.category]) categories[s.category] = [];
@@ -90,19 +82,13 @@ function generateBusinessContext() {
     .join('; ');
 
   return `
-Fat's Hair-Afro est un salon de coiffure afro à domicile à Franconville (95130), Île-de-France.
-Coiffeuse: Fatou
-Services: ${servicesText}
-Prix: De ${minPrice}€ (shampoing) à ${maxPrice}€ (microlocks crochet)
-Frais de déplacement: ${TRAVEL_FEES.BASE_FEE}€ jusqu'à ${TRAVEL_FEES.BASE_DISTANCE_KM}km, puis ${TRAVEL_FEES.PER_KM_BEYOND}€/km
-Zone: Franconville + toute l'Île-de-France
-Téléphone: 07 82 23 50 20 / 09 39 24 02 69
-Site: https://halimah-api.onrender.com
-Spécialité: Coiffure afro, cheveux texturés, soins naturels
+Plateforme NEXUS - SaaS multi-tenant pour PME (salons, restaurants, hotels, services a domicile).
+Services disponibles dans le catalogue: ${servicesText || 'Variable selon le tenant'}
+Gamme de prix: De ${minPrice}EUR a ${maxPrice}EUR
 `;
 }
 
-// Contexte business généré dynamiquement
+// Contexte business generique (fallback)
 const BUSINESS_CONTEXT = generateBusinessContext();
 
 /**
@@ -149,8 +135,8 @@ export function getRoutingStats() {
 export async function generateSeoAnalysis(siteUrl) {
   const prompt = `${BUSINESS_CONTEXT}
 
-Tu es un expert SEO. Analyse le référencement d'un salon de coiffure afro à domicile.
-URL: ${siteUrl || 'https://halimah-api.onrender.com'}
+Tu es un expert SEO. Analyse le referencement de cette entreprise.
+URL: ${siteUrl || 'non fournie'}
 
 Génère une analyse SEO RÉALISTE avec:
 1. Score estimé sur 100 (sois honnête)
@@ -181,7 +167,7 @@ export async function generateSeoKeywords(service, zone) {
 
 Tu es un expert SEO. Génère des mots-clés optimisés pour:
 - Service: ${service || 'tous les services'}
-- Zone: ${zone || 'Franconville et Île-de-France'}
+- Zone: ${zone || 'non specifiee'}
 
 Génère 20 mots-clés avec leur volume de recherche estimé et difficulté.
 Inclus des mots-clés locaux, longue traîne, et questions.
@@ -189,7 +175,7 @@ Inclus des mots-clés locaux, longue traîne, et questions.
 Réponds en JSON:
 {
   "mots_cles": [
-    {"keyword": "coiffure afro Franconville", "volume": 320, "difficulte": "moyenne"},
+    {"keyword": "mot-cle local", "volume": 320, "difficulte": "moyenne"},
     ...
   ],
   "recommandation": "Focus sur..."
@@ -237,7 +223,7 @@ Réponds en JSON:
 export async function generateMarketingCampaign(type, objectif, budget) {
   const prompt = `${BUSINESS_CONTEXT}
 
-Tu es un expert marketing digital. Crée une campagne complète pour un salon de coiffure afro.
+Tu es un expert marketing digital. Cree une campagne complete pour cette entreprise.
 
 Type de campagne: ${type || 'promotion'}
 Objectif: ${objectif || 'augmenter les réservations'}
@@ -545,9 +531,9 @@ Réponds en JSON.`;
 export async function generateRhFormation(domaine, niveau) {
   const prompt = `${BUSINESS_CONTEXT}
 
-Recherche de formations pour une coiffeuse afro:
-Domaine: ${domaine || 'techniques avancées'}
-Niveau: ${niveau || 'confirmé'}
+Recherche de formations professionnelles:
+Domaine: ${domaine || 'techniques avancees'}
+Niveau: ${niveau || 'confirme'}
 
 Génère:
 1. 5 formations recommandées (avec prix estimés)

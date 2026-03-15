@@ -4,6 +4,8 @@
  */
 
 import { supabase } from '../../config/supabase.js';
+import { registerInterval } from '../../utils/intervalRegistry.js';
+import { retryWithBackoff, isTransientError } from '../../utils/retryWithBackoff.js';
 
 export const EVENT_TYPES = {
   RATE_LIMIT_EXCEEDED: 'rate_limit_exceeded',
@@ -42,20 +44,19 @@ export async function flushLogs() {
   logBuffer = [];
 
   try {
-    const { error } = await supabase
-      .from('sentinel_security_logs')
-      .insert(logsToInsert);
-
-    if (error) {
-      console.error('[SENTINEL] Error saving security logs:', error.message);
-      logBuffer = [...logsToInsert, ...logBuffer].slice(0, 1000);
-    }
+    await retryWithBackoff(
+      () => supabase.from('sentinel_security_logs').insert(logsToInsert),
+      { maxRetries: 2, label: 'securityLogFlush', shouldRetry: isTransientError }
+    );
   } catch (err) {
     console.error('[SENTINEL] Security log flush failed:', err.message);
+    // Re-queue failed logs (keep max 1000)
+    logBuffer = [...logsToInsert, ...logBuffer].slice(0, 1000);
   }
 }
 
-setInterval(flushLogs, FLUSH_INTERVAL);
+const _flushId = setInterval(flushLogs, FLUSH_INTERVAL);
+registerInterval('sentinel:securityLogFlush', _flushId);
 
 export async function logSecurityEvent(event) {
   const logEntry = {

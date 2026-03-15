@@ -4,12 +4,13 @@
  */
 
 import crypto from 'crypto';
+import { registerInterval } from '../../utils/intervalRegistry.js';
 
 const tokens = new Map();
 const TOKEN_TTL = 60 * 60 * 1000; // 1 hour
 
 // Cleanup expired tokens every 10 minutes
-setInterval(() => {
+const _cleanupId = setInterval(() => {
   const now = Date.now();
   for (const [key, data] of tokens.entries()) {
     if (now - data.createdAt > TOKEN_TTL) {
@@ -17,6 +18,7 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+registerInterval('sentinel:csrfCleanup', _cleanupId);
 
 export function generateCsrfToken(sessionId) {
   const token = crypto.randomBytes(32).toString('hex');

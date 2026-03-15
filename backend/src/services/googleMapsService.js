@@ -1,15 +1,30 @@
 /**
  * Service Google Maps pour le calcul des distances et géocodage
- * Fat's Hair-Afro - Franconville
+ * Multi-tenant - adresse chargée dynamiquement depuis le tenant config
  */
 
 import { Client } from '@googlemaps/google-maps-services-js';
-
-// Point de départ par défaut : adresse du salon
-const SALON_ADDRESS = "8 rue des Monts Rouges, 95130 Franconville, France";
+import { getBusinessInfoSync } from './tenantBusinessService.js';
+import logger from '../config/logger.js';
 
 // Instance du client Google Maps
 const googleMapsClient = new Client({});
+
+/**
+ * Récupère l'adresse de base d'un tenant
+ * @param {string} tenantId
+ * @returns {string} Adresse du tenant
+ */
+function getTenantAddress(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis pour getTenantAddress');
+  const info = getBusinessInfoSync(tenantId);
+  const adresse = info?.adresse;
+  if (!adresse) {
+    logger.warn('Aucune adresse configurée pour le tenant', { tag: 'GOOGLE_MAPS', tenantId });
+    throw new Error(`Aucune adresse configurée pour le tenant ${tenantId}`);
+  }
+  return adresse;
+}
 
 /**
  * Récupère la clé API Google Maps
@@ -30,7 +45,10 @@ function getApiKey() {
  * @param {string} addresseArrivee - Adresse d'arrivée
  * @returns {Promise<Object>} Distance et durée
  */
-async function calculateDistance(addresseDepart = SALON_ADDRESS, addresseArrivee) {
+async function calculateDistance(addresseDepart, addresseArrivee) {
+  if (!addresseDepart || !addresseArrivee) {
+    throw new Error('Les adresses de départ et d\'arrivée sont requises');
+  }
   try {
     console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("[GOOGLE MAPS BACKEND] 🗺️  CALCUL DE DISTANCE");
@@ -163,20 +181,24 @@ async function geocodeAddress(address) {
 }
 
 /**
- * Calcule la distance entre le salon et une adresse client
+ * Calcule la distance entre l'adresse du tenant et une adresse client
  * @param {string} clientAddress - Adresse du client
- * @returns {Promise<Object>} Distance et durée depuis le salon
+ * @param {string} tenantId - ID du tenant
+ * @returns {Promise<Object>} Distance et durée depuis l'adresse du tenant
  */
-async function getDistanceFromSalon(clientAddress) {
-  return calculateDistance(SALON_ADDRESS, clientAddress);
+async function getDistanceFromSalon(clientAddress, tenantId) {
+  const businessAddress = getTenantAddress(tenantId);
+  return calculateDistance(businessAddress, clientAddress);
 }
 
 /**
- * Obtient les coordonnées du salon
- * @returns {Promise<Object>} Coordonnées du salon
+ * Obtient les coordonnées de l'adresse du tenant
+ * @param {string} tenantId - ID du tenant
+ * @returns {Promise<Object>} Coordonnées de l'adresse
  */
-async function getSalonCoordinates() {
-  return geocodeAddress(SALON_ADDRESS);
+async function getSalonCoordinates(tenantId) {
+  const businessAddress = getTenantAddress(tenantId);
+  return geocodeAddress(businessAddress);
 }
 
 /**
@@ -199,5 +221,5 @@ export {
   getDistanceFromSalon,
   getSalonCoordinates,
   isValidAddress,
-  SALON_ADDRESS,
+  getTenantAddress,
 };

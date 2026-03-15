@@ -3,7 +3,7 @@ import { X, Loader2, FileText, Printer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { comptaApi, type CompteDetailResponse } from '@/lib/api';
+import { comptaApi } from '@/lib/api';
 
 interface AuxiliaryLedgerModalProps {
   type: 'client' | 'fournisseur' | 'personnel';

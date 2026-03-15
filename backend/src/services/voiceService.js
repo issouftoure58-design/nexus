@@ -89,13 +89,17 @@ import { getBusinessInfoSync } from './tenantBusinessService.js';
 /**
  * V2 - Génère les phrases de bienvenue dynamiques pour un tenant
  */
-function getTenantPhrases(tenantId = 'fatshairafro') {
+function getTenantPhrases(tenantId) {
+  if (!tenantId) {
+    logger.warn('getTenantPhrases appelé sans tenantId', { tag: 'VOICE' });
+    return { presentation: '', bienvenue: 'Bienvenue !', bienvenue_complet: 'Bonjour !' };
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
     const assistant = info.assistant_name || 'Nexus';
     const gerant = info.gerant || 'notre équipe';
     return {
-      'presentation': `Moi c'est ${assistant}, enchanté${assistant === 'Halimah' ? 'e' : ''} !`,
+      'presentation': `Moi c'est ${assistant}, enchante !`,
       'bienvenue': `Bienvenue chez ${info.nom} !`,
       'bienvenue_complet': `${info.nom} bonjour ! Moi c'est ${assistant}...`,
       'lieu_question': info.business_type === 'service_domicile'
@@ -108,23 +112,16 @@ function getTenantPhrases(tenantId = 'fatshairafro') {
   }
 }
 
-// Phrases génériques (communes à tous les tenants)
+// Phrases generiques (communes a tous les tenants)
+// NOTE (v3.23.0): Removed all Fat's Hair-Afro specific phrases (presentations,
+// services with prices, location). Tenant-specific phrases are now generated
+// dynamically via getTenantPhrases(tenantId).
 const GENERIC_PHRASES = {
   // Salutations
   'bonjour': "Bonjour ! Comment allez-vous ?",
   'bonjour_matin': "Bonjour ! Bien dormi ?",
   'bonjour_aprem': "Bonjour ! Comment se passe votre journée ?",
   'bonsoir': "Bonsoir ! Comment allez-vous ?",
-
-  // Confirmations (ci-dessous)
-};
-
-// Phrases spécifiques Fat's Hair Afro (legacy - pour cache existant)
-const FATSHAIRAFRO_PHRASES = {
-  // Présentations
-  'je_suis_halimah': "Moi c'est Halimah, enchantée !",
-  'bienvenue': "Bienvenue chez Fat's Hair-Afro !",
-  'bienvenue_complet': "Fat's Hair-Afro bonjour ! Moi c'est Halimah...",
 
   // Confirmations
   'ok': "D'accord !",
@@ -171,35 +168,24 @@ const FATSHAIRAFRO_PHRASES = {
   'prenez_soin': "Prenez soin de vous !",
   'a_tres_vite': "À très vite !",
   'merci_au_revoir': "Merci et à bientôt !",
-
-  // Services courants
-  'locks_reprise': "Reprise de locks, cinquante euros.",
-  'locks_creation': "Création de locks, deux cents euros.",
-  'tresses_braids': "Des braids, soixante euros.",
-  'soin_complet': "Un soin complet, cinquante euros.",
-
-  // Lieux (spécifiques Fat's Hair Afro)
-  'chez_vous_ou_fatou': "Chez vous ou chez Fatou ?",
-  'domicile_ou_salon': "À domicile ou au salon ?",
-  'adresse_fatou': "C'est au huit rue des Monts Rouges, à Franconville."
 };
 
-// V2 - Combinaison des phrases pour rétrocompatibilité
-// Les phrases génériques + Fat's Hair Afro pour le tenant par défaut
+// V2 - Phrases pre-generees = uniquement les generiques
+// Les phrases tenant-specifiques (presentation, bienvenue, services, lieux)
+// sont construites dynamiquement par getTenantPhrases(tenantId)
 const PREGENERATED_PHRASES = {
   ...GENERIC_PHRASES,
-  ...FATSHAIRAFRO_PHRASES,
 };
 
 /**
- * V2 - Récupère les phrases pré-générées pour un tenant
- * Utilise le cache existant pour fatshairafro, génère dynamiquement pour les autres
+ * V2 - Recupere les phrases pre-generees pour un tenant
+ * Combine les phrases generiques avec les phrases dynamiques du tenant
  */
-function getPregeneratedPhrasesForTenant(tenantId = 'fatshairafro') {
-  if (tenantId === 'fatshairafro') {
-    return PREGENERATED_PHRASES;
+function getPregeneratedPhrasesForTenant(tenantId) {
+  if (!tenantId) {
+    return GENERIC_PHRASES;
   }
-  // Pour les autres tenants, combiner les génériques avec les phrases dynamiques
+  // Combiner les generiques avec les phrases dynamiques du tenant
   const tenantPhrases = getTenantPhrases(tenantId);
   if (!tenantPhrases) {
     return GENERIC_PHRASES;

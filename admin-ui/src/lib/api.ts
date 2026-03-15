@@ -477,7 +477,7 @@ export const waitlistApi = {
     if (params?.status) query.set('status', params.status);
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
-    return api.get(`/admin/waitlist?${query}`) as Promise<{ waitlist: any[]; total: number; page: number }>;
+    return api.get(`/admin/waitlist?${query}`) as Promise<{ waitlist: Record<string, unknown>[]; total: number; page: number }>;
   },
   add: (data: Record<string, unknown>) => api.post('/admin/waitlist', data),
   get: (id: number) => api.get(`/admin/waitlist/${id}`),
@@ -902,10 +902,10 @@ export const analyticsApi = {
 
 // RH / Team
 export const rhApi = {
-  getTeam: () => api.get<{ members: TeamMember[] }>('/admin/rh/team'),
-  createMember: (data: CreateMemberData) => api.post<{ member: TeamMember }>('/admin/rh/team', data),
-  updateMember: (id: number, data: Partial<TeamMember>) => api.put<{ member: TeamMember }>(`/admin/rh/team/${id}`, data),
-  deleteMember: (id: number) => api.delete(`/admin/rh/team/${id}`),
+  getTeam: () => api.get<{ members: TeamMember[] }>('/admin/rh/membres'),
+  createMember: (data: CreateMemberData) => api.post<{ member: TeamMember }>('/admin/rh/membres', data),
+  updateMember: (id: number, data: Partial<TeamMember>) => api.put<{ member: TeamMember }>(`/admin/rh/membres/${id}`, data),
+  deleteMember: (id: number) => api.delete(`/admin/rh/membres/${id}`),
   getEmployeeDetail: (id: number) => api.get<EmployeeDetailResponse>(`/admin/rh/employes/${id}`),
 };
 
@@ -937,55 +937,6 @@ export const quotasApi = {
   get: () => api.get<QuotasData>('/quotas'),
 };
 
-// Tenant
-export const tenantApi = {
-  /**
-   * Récupère les infos du tenant actuel (détecté via JWT)
-   */
-  getMe: () => api.get<TenantResponse>('/tenants/me'),
-
-  /**
-   * Met à jour le branding du tenant
-   */
-  updateBranding: (data: Partial<TenantBranding>) =>
-    api.patch<TenantResponse>('/tenants/me/branding', data),
-
-  /**
-   * Liste des modules disponibles pour upgrade
-   */
-  getAvailableModules: () =>
-    api.get<{ modules: AvailableModule[] }>('/tenants/modules/available'),
-};
-
-// Subscription
-export const subscriptionApi = {
-  /**
-   * Récupère l'abonnement actuel
-   */
-  getCurrent: () => api.get<SubscriptionData>('/subscription'),
-
-  /**
-   * Change de plan
-   */
-  changePlan: (plan: 'starter' | 'pro' | 'business') =>
-    api.post<{ success: boolean; redirect_url?: string }>('/subscription/change', { plan }),
-
-  /**
-   * Active/désactive un module
-   */
-  toggleModule: (moduleId: string, active: boolean) =>
-    api.post<{ success: boolean }>('/subscription/modules', { moduleId, active }),
-
-  /**
-   * Récupère l'historique des factures
-   */
-  getInvoices: () => api.get<{ invoices: SubscriptionInvoice[] }>('/subscription/invoices'),
-
-  /**
-   * Portail de paiement Stripe
-   */
-  getPortalUrl: () => api.get<{ url: string }>('/subscription/portal'),
-};
 
 // Trial
 export interface TrialStatus {
@@ -1053,61 +1004,6 @@ export const trialApi = {
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
-
-// Tenant Types
-export interface TenantBranding {
-  logo?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-  favicon?: string;
-}
-
-export interface TenantResponse {
-  success: boolean;
-  tenant: {
-    id: number;
-    slug: string;
-    name: string;
-    plan: 'starter' | 'pro' | 'business';
-    modules: Record<string, boolean>;
-    branding: TenantBranding;
-    quotas: {
-      clients_max: number;
-      storage_gb: number;
-      posts_ia_month: number;
-      images_ia_month: number;
-      reservations_month: number;
-      messages_ia_month: number;
-    };
-    statut: 'actif' | 'essai' | 'suspendu' | 'annule';
-    essai_fin?: string;
-  };
-}
-
-export interface AvailableModule {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  requiredPlan: 'starter' | 'pro' | 'business';
-}
-
-export interface SubscriptionData {
-  plan: 'starter' | 'pro' | 'business';
-  status: 'active' | 'trialing' | 'past_due' | 'canceled';
-  currentPeriodEnd: string;
-  cancelAtPeriodEnd: boolean;
-  modules: string[];
-  monthlyPrice: number;
-}
-
-export interface SubscriptionInvoice {
-  id: string;
-  date: string;
-  amount: number;
-  status: 'paid' | 'open' | 'void';
-  pdfUrl?: string;
-}
 
 export interface DashboardStats {
   ca: { jour: number; mois: number };
@@ -1889,41 +1785,3 @@ export interface ChurnAnalysis {
   clients: ChurnClient[];
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SENTINEL API
-// ══════════════════════════════════════════════════════════════════════════════
-
-export const sentinelApi = {
-  getDashboard: () =>
-    api.get<{ success: boolean; data: SentinelDashboardData }>('/sentinel/dashboard'),
-
-  refresh: () =>
-    api.post<{ success: boolean }>('/sentinel/refresh'),
-
-  getActivity: (period: '7d' | '30d' | '90d') =>
-    api.get<{ success: boolean; data: unknown }>(`/sentinel/activity/${period}`),
-
-  getCosts: (period: '7d' | '30d' | '90d') =>
-    api.get<{ success: boolean; data: unknown }>(`/sentinel/costs/${period}`),
-
-  getInsights: (status?: string) =>
-    api.get<{ success: boolean; data: SentinelInsight[] }>(`/sentinel/insights${status ? `?status=${status}` : ''}`),
-
-  generateInsights: () =>
-    api.post<{ success: boolean; data: SentinelInsight[] }>('/sentinel/insights/generate'),
-
-  dismissInsight: (id: string, reason?: string) =>
-    api.patch<{ success: boolean }>(`/sentinel/insights/${id}/dismiss`, { reason }),
-
-  implementInsight: (id: string, notes?: string) =>
-    api.patch<{ success: boolean }>(`/sentinel/insights/${id}/implement`, { notes }),
-
-  getGoals: () =>
-    api.get<{ success: boolean; data: Record<string, unknown> }>('/sentinel/goals'),
-
-  updateGoals: (goals: Record<string, unknown>) =>
-    api.put<{ success: boolean; data: Record<string, unknown> }>('/sentinel/goals', goals),
-
-  getMonthlyGoals: (year?: number) =>
-    api.get<{ success: boolean; data: unknown[] }>(`/sentinel/monthly-goals${year ? `?year=${year}` : ''}`),
-}

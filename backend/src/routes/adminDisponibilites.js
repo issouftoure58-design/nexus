@@ -5,8 +5,8 @@ import { requireModule } from '../middleware/moduleProtection.js';
 
 const router = express.Router();
 
-// 🔒 MODULE PROTECTION: Toutes les routes disponibilités nécessitent le module 'reservations'
-router.use(requireModule('reservations'));
+// 🔒 MODULE PROTECTION: Auth d'abord, puis vérification module
+router.use(authenticateAdmin, requireModule('reservations'));
 
 // Noms des jours en français
 const JOURS_SEMAINE = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];

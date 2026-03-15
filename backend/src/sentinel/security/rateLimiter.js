@@ -3,6 +3,8 @@
  * Protege contre les abus et attaques DDoS
  */
 
+import { registerInterval } from '../../utils/intervalRegistry.js';
+
 // Stockage en memoire (Redis en production si besoin)
 const requests = new Map();
 
@@ -31,7 +33,7 @@ export const LIMITS = {
 };
 
 // Nettoyer les anciennes entrees toutes les 5 minutes
-setInterval(() => {
+const _cleanupId = setInterval(() => {
   const now = Date.now();
   for (const [key, data] of requests.entries()) {
     if (now - data.firstRequest > data.windowMs * 2) {
@@ -39,6 +41,7 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+registerInterval('sentinel:rateLimiterCleanup', _cleanupId);
 
 function getClientIP(req) {
   return (

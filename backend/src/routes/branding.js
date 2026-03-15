@@ -442,20 +442,23 @@ router.get('/theme.css', async (req, res) => {
     const host = req.get('host') || '';
     const origin = req.get('origin') || '';
 
-    // Mapping domaine -> tenant_id (même que reviews.js)
-    const domainToTenant = {
-      'fatshairafro.fr': 'fatshairafro',
-      'www.fatshairafro.fr': 'fatshairafro',
-      'nexus-backend-dev.onrender.com': 'fatshairafro',
-      'localhost': 'fatshairafro',
-    };
-
+    // Resolve tenant from custom domain via DB lookup
     let tenantId = null;
-    for (const [domain, tenant] of Object.entries(domainToTenant)) {
-      if (origin.includes(domain) || host.includes(domain)) {
-        tenantId = tenant;
-        break;
+    try {
+      const domainToCheck = origin ? new URL(origin).hostname : host.split(':')[0];
+      if (domainToCheck) {
+        const { data: brandingMatch } = await supabase
+          .from('branding')
+          .select('tenant_id')
+          .eq('custom_domain', domainToCheck)
+          .eq('custom_domain_verified', true)
+          .single();
+        if (brandingMatch) {
+          tenantId = brandingMatch.tenant_id;
+        }
       }
+    } catch {
+      // Domain resolution failed, fall through to auth fallback
     }
 
     // Fallback authentifié seulement
@@ -556,19 +559,23 @@ router.get('/pages/:slug', async (req, res) => {
     const host = req.get('host') || '';
     const origin = req.get('origin') || '';
 
-    const domainToTenant = {
-      'fatshairafro.fr': 'fatshairafro',
-      'www.fatshairafro.fr': 'fatshairafro',
-      'nexus-backend-dev.onrender.com': 'fatshairafro',
-      'localhost': 'fatshairafro',
-    };
-
+    // Resolve tenant from custom domain via DB lookup
     let tenantId = null;
-    for (const [domain, tenant] of Object.entries(domainToTenant)) {
-      if (origin.includes(domain) || host.includes(domain)) {
-        tenantId = tenant;
-        break;
+    try {
+      const domainToCheck = origin ? new URL(origin).hostname : host.split(':')[0];
+      if (domainToCheck) {
+        const { data: brandingMatch } = await supabase
+          .from('branding')
+          .select('tenant_id')
+          .eq('custom_domain', domainToCheck)
+          .eq('custom_domain_verified', true)
+          .single();
+        if (brandingMatch) {
+          tenantId = brandingMatch.tenant_id;
+        }
       }
+    } catch {
+      // Domain resolution failed, fall through to auth fallback
     }
 
     // Fallback: utilisateur authentifié uniquement

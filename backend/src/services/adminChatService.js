@@ -362,7 +362,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
 
     // Sauvegarder la reponse en BDD
     if (conversationId && fullResponse) {
-      await saveMessage(conversationId, 'assistant', fullResponse);
+      await saveMessage(conversationId, 'assistant', fullResponse, null, tenantId);
     }
 
     res.write(`data: ${JSON.stringify({ type: 'done', stop_reason: 'end_turn' })}\n\n`);
@@ -459,20 +459,19 @@ export async function chat(tenantId, messages, adminId = null) {
  * Sauvegarder un message en BDD
  * Verifie l'ownership de la conversation via tenant_id avant insertion
  */
-export async function saveMessage(conversationId, role, content, toolUse = null, tenantId = null) {
+export async function saveMessage(conversationId, role, content, toolUse = null, tenantId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: saveMessage');
   try {
-    // Si tenantId fourni, verifier que la conversation appartient au tenant
-    if (tenantId) {
-      const { data: conv } = await supabase
-        .from('admin_conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .eq('tenant_id', tenantId)
-        .single();
-      if (!conv) {
-        logger.warn('saveMessage: conversation non trouvee pour ce tenant', { tag: 'ADMIN CHAT', conversationId, tenantId });
-        return null;
-      }
+    // Verifier que la conversation appartient au tenant
+    const { data: conv } = await supabase
+      .from('admin_conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (!conv) {
+      logger.warn('saveMessage: conversation non trouvee pour ce tenant', { tag: 'ADMIN CHAT', conversationId, tenantId });
+      return null;
     }
 
     const { data, error } = await supabase
@@ -498,18 +497,17 @@ export async function saveMessage(conversationId, role, content, toolUse = null,
  * Recuperer les messages d'une conversation
  * Filtre via jointure sur admin_conversations.tenant_id
  */
-export async function getMessages(conversationId, tenantId = null) {
+export async function getMessages(conversationId, tenantId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: getMessages');
   try {
-    // Si tenantId fourni, verifier ownership d'abord
-    if (tenantId) {
-      const { data: conv } = await supabase
-        .from('admin_conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .eq('tenant_id', tenantId)
-        .single();
-      if (!conv) return [];
-    }
+    // Verifier ownership
+    const { data: conv } = await supabase
+      .from('admin_conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (!conv) return [];
 
     const { data, error } = await supabase
       .from('admin_messages')
@@ -575,16 +573,16 @@ export async function getConversations(tenantId, adminId) {
 /**
  * Mettre a jour le titre d'une conversation (avec filtre tenant_id)
  */
-export async function updateConversation(conversationId, updates, tenantId = null) {
+export async function updateConversation(conversationId, updates, tenantId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: updateConversation');
   try {
-    let query = supabase
+    const { data, error } = await supabase
       .from('admin_conversations')
       .update(updates)
-      .eq('id', conversationId);
-
-    if (tenantId) query = query.eq('tenant_id', tenantId);
-
-    const { data, error } = await query.select().single();
+      .eq('id', conversationId)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;
@@ -597,16 +595,14 @@ export async function updateConversation(conversationId, updates, tenantId = nul
 /**
  * Supprimer une conversation (avec filtre tenant_id obligatoire)
  */
-export async function deleteConversation(conversationId, tenantId = null) {
+export async function deleteConversation(conversationId, tenantId) {
+  if (!tenantId) throw new Error('TENANT_ID_REQUIRED: deleteConversation');
   try {
-    let query = supabase
+    const { error } = await supabase
       .from('admin_conversations')
       .delete()
-      .eq('id', conversationId);
-
-    if (tenantId) query = query.eq('tenant_id', tenantId);
-
-    const { error } = await query;
+      .eq('id', conversationId)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     return true;

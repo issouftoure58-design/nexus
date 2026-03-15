@@ -1,6 +1,6 @@
 /**
  * Routes de paiement - Stripe & PayPal
- * Fat's Hair-Afro - Franconville
+ * Multi-tenant
  */
 
 import express from 'express';
@@ -18,6 +18,7 @@ import {
 } from '../services/paymentService.js';
 import { getDistanceFromSalon } from '../services/googleMapsService.js';
 import { calculerFraisDepl } from '../utils/tarification.js';
+import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
 import { sendConfirmation, sendAnnulation } from '../services/notificationService.js';
 import { idempotencyMiddleware } from '../middleware/idempotency.js';
 import { authenticateAdmin } from './adminAuth.js';
@@ -48,12 +49,12 @@ const MONTANT_ACOMPTE = 10; // 10€
 /**
  * Calcule le montant total avec frais de déplacement
  */
-async function calculerMontantTotal(prixService, adresseClient) {
+async function calculerMontantTotal(prixService, adresseClient, tenantId) {
   let fraisDeplacement = 0;
 
   if (adresseClient) {
     try {
-      const distance = await getDistanceFromSalon(adresseClient);
+      const distance = await getDistanceFromSalon(adresseClient, tenantId);
       // calculerFraisDepl retourne directement le montant en euros
       fraisDeplacement = calculerFraisDepl(distance.distance_km);
     } catch (error) {
@@ -354,7 +355,7 @@ router.post('/create-intent', authenticateAdmin, async (req, res) => {
       }
 
       const prixBase = prix_service || amount;
-      montantDetails = await calculerMontantTotal(prixBase, adresse_client);
+      montantDetails = await calculerMontantTotal(prixBase, adresse_client, tenantId);
       montantAPayer = montantDetails.total;
     }
 
@@ -540,14 +541,14 @@ router.post('/create-paypal-order', authenticateAdmin, async (req, res) => {
       }
 
       const prixBase = prix_service || amount;
-      montantDetails = await calculerMontantTotal(prixBase, adresse_client);
+      montantDetails = await calculerMontantTotal(prixBase, adresse_client, tenantId);
       montantAPayer = montantDetails.total;
     }
 
     // 🔒 TENANT SHIELD: Créer la commande PayPal avec tenantId
     const order = await createPayPalOrder(tenantId, montantAPayer, {
       rdv_id: rdv_id.toString(),
-      description: description || `Réservation Fat's Hair-Afro - ${type}`,
+      description: description || `Reservation - ${type}`,
     });
 
     // Sauvegarder la transaction avec tenant_id
@@ -985,10 +986,12 @@ router.post('/order/create-paypal', authenticateAdmin, async (req, res) => {
     // Montant en euros pour PayPal
     const amountEuros = amount / 100;
 
-    // Description des services
+    // Description des services - dynamique par tenant
+    let brandName = 'NEXUS';
+    try { brandName = getBusinessInfoSync(tenantId)?.nom || brandName; } catch (e) { /* fallback */ }
     const description = items?.length > 0
-      ? `Fat's Hair-Afro - ${items.map(i => i.serviceNom).join(', ')}`
-      : 'Réservation Fat\'s Hair-Afro';
+      ? `${brandName} - ${items.map(i => i.serviceNom).join(', ')}`
+      : `Réservation ${brandName}`;
 
     // 🔒 TENANT SHIELD: Créer la commande PayPal avec tenantId
     const order = await createPayPalOrder(tenantId, amountEuros, {

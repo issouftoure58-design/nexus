@@ -8,6 +8,7 @@ import { enforceTrialLimit } from '../services/trialService.js';
 import logger from '../config/logger.js';
 import multer from 'multer';
 import { validate } from '../middleware/validate.js';
+import { success, error as apiError, paginated } from '../utils/response.js';
 
 const createClientSchema = z.object({
   prenom: z.string().max(100).optional(),
@@ -112,18 +113,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
       dernier_rdv: derniersRdv[client.id] || null
     }));
 
-    res.json({
-      clients: clientsWithStats,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: count,
-        pages: Math.ceil(count / limitNum)
-      }
-    });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur liste:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    paginated(res, { data: clientsWithStats, page: pageNum, limit: limitNum, total: count });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur liste:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -142,18 +135,18 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
     // Validation
     if (isPro) {
       if (!raison_sociale?.trim()) {
-        return res.status(400).json({ error: 'La raison sociale est requise' });
+        return apiError(res, 'La raison sociale est requise', 'BAD_REQUEST', 400);
       }
     } else {
       if (!prenom?.trim()) {
-        return res.status(400).json({ error: 'Le prénom est requis' });
+        return apiError(res, 'Le prénom est requis', 'BAD_REQUEST', 400);
       }
       if (!nom?.trim()) {
-        return res.status(400).json({ error: 'Le nom est requis' });
+        return apiError(res, 'Le nom est requis', 'BAD_REQUEST', 400);
       }
     }
     if (!telephone?.trim()) {
-      return res.status(400).json({ error: 'Le téléphone est requis' });
+      return apiError(res, 'Le téléphone est requis', 'BAD_REQUEST', 400);
     }
 
     // Vérifier si le téléphone existe déjà (🔒 TENANT ISOLATION)
@@ -165,10 +158,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
       .single();
 
     if (existing) {
-      return res.status(409).json({
-        error: 'Un client avec ce numéro de téléphone existe déjà',
-        client: existing
-      });
+      return apiError(res, 'Un client avec ce numéro de téléphone existe déjà', 'CONFLICT', 409);
     }
 
     // Créer le client (🔒 TENANT ISOLATION)
@@ -208,13 +198,10 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
       console.error('[ADMIN CLIENTS] Erreur workflow (non bloquant):', workflowErr.message);
     }
 
-    res.status(201).json({
-      success: true,
-      client
-    });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur création:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { client }, 201);
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur création:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -236,7 +223,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     if (clientError) throw clientError;
 
     if (!client) {
-      return res.status(404).json({ error: 'Client introuvable' });
+      return apiError(res, 'Client introuvable', 'NOT_FOUND', 404);
     }
 
     // Historique RDV (10 derniers) (🔒 TENANT ISOLATION)
@@ -304,7 +291,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       ?.filter(r => r.statut === 'termine')
       .sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.date || null;
 
-    res.json({
+    success(res, {
       client: {
         ...client,
         derniere_visite: derniereVisite
@@ -321,9 +308,9 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       // service_nom est déjà une colonne dans reservations
       historique_rdv: historiqueRdv || []
     });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur détail:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur détail:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -355,11 +342,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     if (error) {
       console.error('[ADMIN CLIENTS] Erreur Supabase update:', error.message, error.code);
-      return res.status(400).json({ error: error.message || 'Erreur modification client' });
+      return apiError(res, error.message || 'Erreur modification client', 'BAD_REQUEST', 400);
     }
 
     if (!client) {
-      return res.status(404).json({ error: 'Client introuvable' });
+      return apiError(res, 'Client introuvable', 'NOT_FOUND', 404);
     }
 
     // Logger l'action (🔒 TENANT ISOLATION)
@@ -372,10 +359,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       details: { updates }
     });
 
-    res.json({ client });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur modification:', error.message || error);
-    res.status(500).json({ error: error.message || 'Erreur serveur' });
+    success(res, { client });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur modification:', err.message || err);
+    apiError(res, err.message || 'Erreur serveur');
   }
 });
 
@@ -397,9 +384,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       .neq('statut', 'annule');
 
     if (rdvFuturs > 0) {
-      return res.status(400).json({
-        error: `Impossible de supprimer : ${rdvFuturs} rendez-vous futur(s) planifié(s)`
-      });
+      return apiError(res, `Impossible de supprimer : ${rdvFuturs} rendez-vous futur(s) planifié(s)`, 'BAD_REQUEST', 400);
     }
 
     // Supprimer les notes d'abord (foreign key) (🔒 TENANT ISOLATION)
@@ -427,10 +412,10 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       entite_id: req.params.id
     });
 
-    res.json({ message: 'Client supprimé' });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur suppression:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { message: 'Client supprimé' });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur suppression:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -454,10 +439,10 @@ router.get('/:id/notes', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ notes });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur liste notes:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { notes });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur liste notes:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -471,7 +456,7 @@ router.post('/:id/notes', authenticateAdmin, async (req, res) => {
     const { note } = req.body;
 
     if (!note || note.trim() === '') {
-      return res.status(400).json({ error: 'La note ne peut pas être vide' });
+      return apiError(res, 'La note ne peut pas être vide', 'BAD_REQUEST', 400);
     }
 
     // 🔒 TENANT ISOLATION: Inclure tenant_id dans l'insert
@@ -497,10 +482,10 @@ router.post('/:id/notes', authenticateAdmin, async (req, res) => {
       details: { client_id: req.params.id }
     });
 
-    res.json({ note: newNote });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur création note:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { note: newNote });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur création note:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -530,10 +515,10 @@ router.delete('/:id/notes/:noteId', authenticateAdmin, async (req, res) => {
       entite_id: req.params.noteId
     });
 
-    res.json({ message: 'Note supprimée' });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur suppression note:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    success(res, { message: 'Note supprimée' });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur suppression note:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -557,7 +542,7 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
       .eq('tenant_id', tenantId);
 
     if (!rdv) {
-      return res.json({
+      return success(res, {
         ca_total: 0,
         nb_rdv_total: 0,
         nb_rdv_honores: 0,
@@ -601,7 +586,7 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
       frequenceJours = Math.round(totalJours / (dates.length - 1));
     }
 
-    res.json({
+    success(res, {
       ca_total: caTotal,
       nb_rdv_total: nbRdvTotal,
       nb_rdv_honores: nbRdvHonores,
@@ -609,9 +594,9 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
       service_favori: serviceFavori,
       frequence_jours: frequenceJours
     });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur stats:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur stats:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 
@@ -624,19 +609,19 @@ router.get('/:id/stats', authenticateAdmin, async (req, res) => {
  * Import clients depuis un fichier CSV
  * Colonnes attendues : nom, prenom, email, telephone, adresse, notes
  */
-router.post('/import', authenticateAdmin, upload.single('file'), async (req, res) => {
+router.post('/import', authenticateAdmin, requireClientsQuota, upload.single('file'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
     if (!req.file) {
-      return res.status(400).json({ error: 'Fichier CSV requis' });
+      return apiError(res, 'Fichier CSV requis', 'BAD_REQUEST', 400);
     }
 
     const content = req.file.buffer.toString('utf-8');
     const lines = content.split(/\r?\n/).filter(l => l.trim());
 
     if (lines.length < 2) {
-      return res.status(400).json({ error: 'Le fichier doit contenir au moins un en-tête et une ligne de données' });
+      return apiError(res, 'Le fichier doit contenir au moins un en-tête et une ligne de données', 'BAD_REQUEST', 400);
     }
 
     // Parser l'en-tête
@@ -655,11 +640,7 @@ router.post('/import', authenticateAdmin, upload.single('file'), async (req, res
 
     // Vérifier qu'au moins nom ou email est présent
     if (colMap.nom === -1 && colMap.email === -1) {
-      return res.status(400).json({
-        error: 'Colonnes requises manquantes',
-        message: 'Le fichier doit contenir au moins une colonne "nom" ou "email"',
-        detected_columns: headers,
-      });
+      return apiError(res, 'Colonnes requises manquantes. Le fichier doit contenir au moins une colonne "nom" ou "email"', 'BAD_REQUEST', 400);
     }
 
     const imported = [];
@@ -722,8 +703,7 @@ router.post('/import', authenticateAdmin, upload.single('file'), async (req, res
       }
     }
 
-    res.json({
-      success: true,
+    success(res, {
       summary: {
         total_lines: lines.length - 1,
         imported: imported.length,
@@ -738,9 +718,9 @@ router.post('/import', authenticateAdmin, upload.single('file'), async (req, res
         Object.entries(colMap).filter(([, v]) => v >= 0).map(([k, v]) => [k, headers[v]])
       ),
     });
-  } catch (error) {
-    console.error('[ADMIN CLIENTS] Erreur import CSV:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (err) {
+    console.error('[ADMIN CLIENTS] Erreur import CSV:', err);
+    apiError(res, 'Erreur serveur');
   }
 });
 

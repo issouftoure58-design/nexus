@@ -360,7 +360,7 @@ export async function learnClientPreference({
 }
 
 /**
- * Apprendre une préférence admin (Fatou)
+ * Apprendre une préférence admin
  * 🔒 TENANT ISOLATION: Via remember()
  */
 export async function learnAdminPreference({
@@ -706,7 +706,7 @@ export function formatMemoryContextForPrompt(context) {
 
   // Préférences admin
   if (context.adminPreferences && context.adminPreferences.length > 0) {
-    prompt += '\n**Préférences de Fatou :**\n';
+    prompt += '\n**Préférences admin :**\n';
     context.adminPreferences.forEach(p => {
       prompt += `- ${p.key}: ${p.value}\n`;
     });

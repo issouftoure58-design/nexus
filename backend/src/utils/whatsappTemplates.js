@@ -6,27 +6,32 @@
  */
 
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+import logger from '../config/logger.js';
 
 /**
  * V2 - Récupère les infos du tenant pour les templates
  */
-function getTenantInfo(tenantId = 'fatshairafro') {
+function getTenantInfo(tenantId) {
+  if (!tenantId) {
+    logger.warn('getTenantInfo appelé sans tenantId', { tag: 'WHATSAPP_TEMPLATES' });
+    return { nom: 'Notre établissement', gerant: 'le responsable', businessProfile: 'service', urlCompte: '', urlAvis: '' };
+  }
   try {
     const info = getBusinessInfoSync(tenantId);
     return {
-      nom: info.nom || "Fat's Hair-Afro",
-      gerant: info.gerant || 'Fatou',
-      businessProfile: info.businessType || 'beauty',
-      urlCompte: info.urls?.frontend ? `${info.urls.frontend}/compte` : 'https://fatshairafro.fr/compte',
-      urlAvis: info.urls?.frontend ? `${info.urls.frontend}/avis` : 'https://fatshairafro.fr/avis',
+      nom: info.nom || 'Notre établissement',
+      gerant: info.gerant || 'le responsable',
+      businessProfile: info.businessType || 'service',
+      urlCompte: info.urls?.frontend ? `${info.urls.frontend}/compte` : '',
+      urlAvis: info.urls?.frontend ? `${info.urls.frontend}/avis` : '',
     };
   } catch (e) {
     return {
-      nom: "Fat's Hair-Afro",
-      gerant: 'Fatou',
-      businessProfile: 'beauty',
-      urlCompte: 'https://fatshairafro.fr/compte',
-      urlAvis: 'https://fatshairafro.fr/avis',
+      nom: 'NEXUS',
+      gerant: 'L\'equipe',
+      businessProfile: 'generic',
+      urlCompte: '',
+      urlAvis: '',
     };
   }
 }
@@ -71,7 +76,7 @@ function getPrenom(rdv) {
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function confirmationReservation(rdv, acompte = 10, tenantId = 'fatshairafro') {
+export function confirmationReservation(rdv, acompte = 10, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const duree = formatDuree(rdv.duree_minutes);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
@@ -111,7 +116,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function rappelJ1(rdv, acompte = 10, tenantId = 'fatshairafro') {
+export function rappelJ1(rdv, acompte = 10, tenantId = null) {
   const prenom = getPrenom(rdv);
   const dateFr = formatDateFr(rdv.date);
   const duree = formatDuree(rdv.duree_minutes);
@@ -144,7 +149,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function annulation(rdv, montantRembourse = 0, tenantId = 'fatshairafro') {
+export function annulation(rdv, montantRembourse = 0, tenantId = null) {
   const prenom = getPrenom(rdv);
   const dateFr = formatDateFr(rdv.date);
   const tenant = getTenantInfo(tenantId);
@@ -179,7 +184,7 @@ ${tenant.gerant}`;
  * @param {Object} nouveauRdv - Nouveau rendez-vous
  * @returns {string} Message formaté
  */
-export function modificationRdv(ancienRdv, nouveauRdv, tenantId = 'fatshairafro') {
+export function modificationRdv(ancienRdv, nouveauRdv, tenantId = null) {
   const prenom = getPrenom(nouveauRdv);
   const ancienneDateFr = formatDateFr(ancienRdv.date);
   const nouvelleDateFr = formatDateFr(nouveauRdv.date);
@@ -208,7 +213,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function remerciement(rdv, tenantId = 'fatshairafro') {
+export function remerciement(rdv, tenantId = null) {
   const prenom = getPrenom(rdv);
   const tenant = getTenantInfo(tenantId);
 
@@ -244,7 +249,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function demandeAvis(rdv, lienAvis = null, tenantId = 'fatshairafro') {
+export function demandeAvis(rdv, lienAvis = null, tenantId = null) {
   const prenom = getPrenom(rdv);
   const tenant = getTenantInfo(tenantId);
   const urlAvis = lienAvis || tenant.urlAvis;
@@ -272,7 +277,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function rappelPaiement(rdv, paymentUrl, minutesRestantes = 15, tenantId = 'fatshairafro') {
+export function rappelPaiement(rdv, paymentUrl, minutesRestantes = 15, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
   const tenant = getTenantInfo(tenantId);
@@ -296,7 +301,7 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function expirationPaiement(rdv, tenantId = 'fatshairafro') {
+export function expirationPaiement(rdv, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const tenant = getTenantInfo(tenantId);
 

@@ -13,7 +13,6 @@ import {
   Save,
   RefreshCw,
   AlertCircle,
-  Mic,
   Clock,
   User
 } from 'lucide-react';

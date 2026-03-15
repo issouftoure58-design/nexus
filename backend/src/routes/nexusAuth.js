@@ -15,11 +15,12 @@ import { createSession } from '../services/sessionService.js';
 
 const router = express.Router();
 
+// 🔒 JWT Secret - AUCUN fallback
 const JWT_SECRET = process.env.JWT_SECRET;
-const EFFECTIVE_JWT_SECRET = JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'dev-only-secret-change-in-prod' : null);
-if (!EFFECTIVE_JWT_SECRET) {
-  throw new Error('JWT_SECRET must be defined in .env for production');
+if (!JWT_SECRET) {
+  throw new Error('ERREUR CRITIQUE: JWT_SECRET non défini dans .env');
 }
+const EFFECTIVE_JWT_SECRET = JWT_SECRET;
 
 // Rate limiting in-memory (brute force protection)
 const loginAttempts = new Map();

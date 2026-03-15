@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { statsApi, quotasApi, type DashboardStats, type QuotasData } from '@/lib/api';
 import {
   TrendingUp,
-  TrendingDown,
   Users,
   Calendar,
   Euro,
@@ -19,7 +18,7 @@ import {
   ArrowRight,
   Sparkles
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -41,11 +40,6 @@ export default function Dashboard() {
 
   const formatTime = (heure: string) => {
     return heure?.slice(0, 5) || '--:--';
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   };
 
   if (isLoading) {
