@@ -39,7 +39,6 @@ import type {
   CheckoutItem,
   MembresResponse,
   MembresDisponiblesResponse,
-  ClientsResponse,
   ClientCreateResponse,
   ReservationDetailResponse,
 } from '../components/activites/types';
