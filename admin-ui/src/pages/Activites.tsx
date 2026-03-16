@@ -282,8 +282,8 @@ export default function Activites() {
       return;
     }
     try {
-      const data = await api.get<ClientsResponse>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
-      setClients(data.clients || []);
+      const { items } = await api.getPaginated<Client>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
+      setClients(items);
     } catch {
       setError('Impossible de rechercher les clients');
     }
