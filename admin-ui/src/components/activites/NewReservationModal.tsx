@@ -777,17 +777,31 @@ export default function NewReservationModal({
             </div>
           )}
 
-          {/* Date du RDV — Salon/Service domicile: juste la date (heure déjà dans les affectations) */}
+          {/* Date + Heure du RDV — Salon/Service domicile */}
           {!isPricingMode('hourly') && (isBusinessType('salon') || isBusinessType('service_domicile')) && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                Date du rendez-vous *
-              </label>
-              <Input
-                type="date"
-                value={newRdvForm.date_rdv}
-                onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Date *
+                  </label>
+                  <Input
+                    type="date"
+                    value={newRdvForm.date_rdv}
+                    onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Heure *
+                  </label>
+                  <Input
+                    type="time"
+                    value={newRdvForm.heure_rdv}
+                    onChange={(e) => onDateHeureChange('heure_rdv', e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
