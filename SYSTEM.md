@@ -1,7 +1,7 @@
 # NEXUS - SYSTEME COMPLET
 
-> **Derniere mise a jour:** 2026-03-13
-> **Version:** 3.23.0
+> **Derniere mise a jour:** 2026-03-16
+> **Version:** 3.24.0
 > **Status:** Production Ready (Score technique 100/100 | Performance ~9.0/10 vs leaders)
 > **Source de verite avancement:** PROGRESS.md
 
@@ -92,6 +92,8 @@ nexus/
 - **Services.tsx**: Commerce = Prix+TVA+Categorie | Security = PricingFields+TVA+CNAPS | Salon = Duree+Prix+CNAPS
 - **Activites.tsx**: Commerce → redirige vers /commandes | Security → "Nouvelle mission" | Autres → "Nouveau rdv"
 - Config backend: `backend/src/config/businessTypes.js` + `backend/src/services/tenantBusinessService.js`
+- **Terminologie dynamique** (v3.24.0): TOUS les modules admin-ui utilisent `t()` de ProfileContext — Waitlist, Workflows, CRMSegments, Equipe, Clients, Dashboard adaptent labels par business type
+- **`api.getPaginated<T>()`** (v3.24.0): normalise reponses backend `paginated()` en `{ items: T[], pagination }` — evite mismatch de noms de champs
 
 > **REGLE:** Ne JAMAIS tester sur fatshairafro. Utiliser nexus-test.
 
@@ -406,4 +408,4 @@ Audit complet (2026-03-07) vs leaders mondiaux (Treatwell, Mindbody, Fresha, Squ
 ---
 
 *Ce fichier est synchronise avec PROGRESS.md et NEXUS_KNOWLEDGE.md.*
-*Derniere synchronisation: 2026-03-13 (v3.23.0 — IA 2 couches: noyau general + adaptatif, client recognition)*
+*Derniere synchronisation: 2026-03-16 (v3.24.0 — Business type adaptation globale, getPaginated API, audit hardening 3 sprints)*

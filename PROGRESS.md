@@ -1,7 +1,7 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-15 UTC
+> Derniere mise a jour: 2026-03-16 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
@@ -1659,4 +1659,145 @@ Le backend (port 5000) tournait depuis jeudi avec des caches en memoire perimes.
 - [x] Commerce modals testes et valides (test-hospitality)
 - [ ] Security modals a tester (test-security)
 - [ ] Regression nexus-test (salon) a verifier
+
+---
+
+## SESSION 30 — IA Reservation Refactor: Noyau General + Couche Adaptative (13 mars 2026)
+
+### Architecture 2 couches
+Le systeme de prompts IA client a ete entierement refactore en 2 couches:
+1. **Noyau general** (`promptEngine.js` builders) — regles universelles anti-hallucination, dates, booking, annulation, canal
+2. **Couche adaptative** (`templates/businessTypePrompts/*.js`) — 6 fichiers, un par business type
+
+### Changements majeurs
+- `promptEngine.js` reecrit: buildCoreRules, buildDateRules, buildBookingProcessRules, buildCancellationRules, buildChannelRules, buildClientRecognitionContext
+- `nexusCore.js`: prompt frozen (240 lignes) supprime, tool loop fixe (sessionSystemPrompt cache), tool filtering par business type (getToolsForPlanAndBusiness), client recognition integre
+- `services/clientRecognition.js` — lookup client par telephone + historique recent
+- `templateLoader.js`: FROZEN_TENANTS + isFrozenTenant() supprimes
+- `toolsRegistry.js`: commerce + security ajoutes dans BUSINESS_TOOLS_INCLUDE
+- `adminChatService.js`: import BUSINESS_CONTEXTS depuis businessTypePrompts (plus systemPrompt.js)
+- `prompts/systemPrompt.js` supprime (fusionne dans businessTypePrompts)
+- fatshairafro utilise maintenant le moteur dynamique (plus de prompt hardcode)
+- 31/31 tests verification passes
+
+### Fichiers crees (8)
+- `backend/src/data/templates/businessTypePrompts/index.js`
+- `backend/src/data/templates/businessTypePrompts/salon.js`
+- `backend/src/data/templates/businessTypePrompts/serviceDomicile.js`
+- `backend/src/data/templates/businessTypePrompts/restaurant.js`
+- `backend/src/data/templates/businessTypePrompts/hotel.js`
+- `backend/src/data/templates/businessTypePrompts/commerce.js`
+- `backend/src/data/templates/businessTypePrompts/security.js`
+- `backend/src/services/clientRecognition.js`
+
+### Fichiers modifies (7)
+- `backend/src/data/templates/promptEngine.js`
+- `backend/src/core/nexusCore.js`
+- `backend/src/data/templates/templateLoader.js`
+- `backend/src/tools/toolsRegistry.js`
+- `backend/src/services/adminChatService.js`
+- `backend/src/services/tenantBusinessRules.js`
+- `backend/src/prompts/systemPrompt.js` (supprime)
+
+---
+
+## SESSION 31 — Audit Hardening 3 Sprints + PITR + Stripe CLI + Google SSO (15 mars 2026)
+
+### Sprint 1 — P0 Critique
+- **Stripe idempotence** (migration 081): table `stripe_processed_events`, deduplication dans handleWebhookEvent, populer `stripe_event_id` dans billing_events
+- **RGPD consentement** (migration 082): table `client_consents` avec RLS, `consentService.js` (hasConsent/grantConsent/revokeConsent), 3 routes dans rgpd.js
+- **RLS 50 tables** (migration 083): RLS avec `get_current_tenant()` sur billing_events, admin_sessions, documents, error_logs, ia_conversations (fix USING true), ia_messages (fix USING true), sso_providers
+- **RGPD deletion job**: `rgpdDeletionJob.js` — cascade ia_messages → ia_conversations → reservations → factures → clients → tenant
+
+### Sprint 2 — Qualite
+- `phoneBookingService.js` supprime (454 lignes dead code)
+- 22 fichiers raw `fetch()` → `api.get/post/put/delete()`
+- `bookingService.js` refactored (-300 lignes)
+- `intervalRegistry.js` fixes (tenantCache + scheduler enregistres)
+
+### Sprint 3 — Types + Accessibilite
+- `tsconfig.json` strict: `noUnusedLocals: true` + `noUnusedParameters: true`
+- 13 `any` corriges dans admin-ui
+- ~50 `aria-label` ajoutes sur boutons icones
+
+### Autres
+- **PITR Supabase** active (Pro Plan add-on)
+- **Stripe CLI**: webhook idempotence testee end-to-end
+- **Google SSO**: OIDC flow complet — SSOCallback.tsx, adminSSO.js discover endpoint, ssoService.js OIDC discovery
+- Migrations 081-083 executees
+- 142 fichiers changes, version 3.24.0
+- **COMMITE ET POUSSE**
+
+---
+
+## SESSION 32 — Business Type Adaptation Globale + Fix Activites + API Normalization (16 mars 2026)
+
+### Probleme resolu
+Plusieurs modules admin-ui avaient des labels hardcodes ("rendez-vous", "prestations", "creneaux") au lieu d'utiliser la terminologie dynamique par business type. De plus, la page Activites etait vide pour fatshairafro a cause d'un mismatch de format de reponse API.
+
+### Adaptation business type (6 fichiers)
+
+**Waitlist.tsx** — Terminologie adaptee:
+- Subtitle: "créneau" → "produit" (commerce) / "mission" (security) / "chambre" (hotel)
+- Colonnes tableau: "Créneau" et "Service" dynamiques via `t()`
+
+**Workflows.tsx** — Trigger labels dynamiques:
+- `TRIGGER_LABELS` transforme de const en fonction `getTriggerLabels(isCommerce, isSecurity, isHotel, isRestaurant)`
+- Labels "Prestation terminée" → "Commande complétée" / "Mission terminée" / "Check-out effectué" / "Service terminé"
+
+**CRMSegments.tsx** — Labels adaptes:
+- "historique de rendez-vous" → `"historique de " + t('reservation', true).toLowerCase()`
+
+**Equipe.tsx** — Labels adaptes:
+- "assigner aux prestations" → `"assigner aux " + t('reservation', true).toLowerCase()`
+
+**Clients.tsx** — Colonne adaptee:
+- `<th>Prestations</th>` → `<th>{t('reservation', true)}</th>`
+
+### Fix critique: Activites page vide (fatshairafro)
+
+**Root cause**: Backend `utils/response.js` `paginated()` retourne `{ success, data: [...], pagination }` mais `Activites.tsx` lisait `data.reservations` (undefined → tableau vide).
+
+**Solution**: Creation de `api.getPaginated<T>()` dans `admin-ui/src/lib/api.ts`:
+```typescript
+async getPaginated<T>(endpoint, options?): Promise<{ items: T[]; pagination }> {
+  const raw = await this.request(endpoint, { method: 'GET' });
+  return { items: raw.data || [], pagination: raw.pagination || defaults };
+}
+```
+
+**Activites.tsx** migre: reservations, stats (3 appels), services → tous via `getPaginated`
+
+### Backend SEO context adapte
+- `adminSEO.js`: utilise `getTenantSEOContext()` qui lit business_profile + template_id au lieu de legacy `secteur`
+- `seoArticleGenerator.js` + `keywordAnalyzer.js`: contexte SEO dynamique par business type
+
+### Scripts de developpement
+- `start-dev.sh` (NOUVEAU): Kill processus stale (ports 5000/3001) + relance backend et frontend
+- `stop-dev.sh` (NOUVEAU): Stop propre de tous les processus dev
+
+### Beta tester: Patwinsserie
+Documentation complete enregistree dans `.claude/projects/-Users-hobb/memory/beta-patwinsserie.md`:
+- Formation cake design (Qualiopi), stack actuel (GoHighLevel, ManyChat, Calendly, Zapier, Stripe, Discord)
+- Setter IA Instagram (qualification DM apres ebook), onboarding automatise, Yousign, dashboard Qualiopi
+
+### Fichiers modifies (18)
+1. `admin-ui/src/pages/Waitlist.tsx` — business type adaptation
+2. `admin-ui/src/pages/Workflows.tsx` — dynamic trigger labels
+3. `admin-ui/src/components/CRMSegments.tsx` — dynamic reservation label
+4. `admin-ui/src/pages/Equipe.tsx` — dynamic assignment label
+5. `admin-ui/src/pages/Clients.tsx` — dynamic column header
+6. `admin-ui/src/pages/Activites.tsx` — getPaginated migration (fix page vide)
+7. `admin-ui/src/lib/api.ts` — getPaginated<T>() method
+8. `admin-ui/src/pages/Dashboard.tsx` — business type adaptation
+9. `backend/src/routes/adminSEO.js` — getTenantSEOContext
+10. `backend/src/ai/seoArticleGenerator.js` — dynamic SEO context
+11. `backend/src/ai/keywordAnalyzer.js` — dynamic SEO context
+12. `backend/src/routes/social.js` — getSocialContext
+13. `start-dev.sh` (nouveau)
+14. `stop-dev.sh` (nouveau)
+
+### Commit
+- `f8dfed8` — "feat: business type adaptation + SEO context + API normalization (Session 32)"
+- **COMMITE ET POUSSE**
 - [ ] Commit a faire apres validation complete
