@@ -74,7 +74,7 @@ export default function CGV() {
 
         {/* Footer */}
         <div className="mt-12 text-center text-gray-400 text-sm">
-          <p>NEXUS SAS — Plateforme SaaS de gestion d'activité</p>
+          <p>NEXUS AI — SASU — SIRET 947 570 362 00022</p>
           <p className="mt-1">
             En créant un compte NEXUS, vous acceptez les présentes conditions générales de vente.
           </p>

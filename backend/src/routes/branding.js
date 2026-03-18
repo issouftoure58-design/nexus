@@ -14,6 +14,131 @@ const router = express.Router();
 const dnsResolve = promisify(dns.resolveCname);
 
 // ============================================
+// LOGO UPLOAD
+// ============================================
+
+/**
+ * POST /api/branding/logo
+ * Upload logo via multipart/form-data → Supabase Storage
+ */
+router.post('/logo', authenticateToken, async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    // Parse multipart body
+    const chunks = [];
+    let boundary = '';
+    const contentType = req.headers['content-type'] || '';
+
+    if (!contentType.includes('multipart/form-data')) {
+      return res.status(400).json({ success: false, error: 'multipart/form-data requis' });
+    }
+
+    boundary = contentType.split('boundary=')[1];
+    if (!boundary) {
+      return res.status(400).json({ success: false, error: 'Boundary manquant' });
+    }
+
+    const rawBody = await new Promise((resolve, reject) => {
+      const parts = [];
+      req.on('data', chunk => parts.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(parts)));
+      req.on('error', reject);
+    });
+
+    // Simple multipart parser — extract file
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    const parts = [];
+    let start = 0;
+
+    while (true) {
+      const idx = rawBody.indexOf(boundaryBuffer, start);
+      if (idx === -1) break;
+      if (start > 0) parts.push(rawBody.slice(start, idx));
+      start = idx + boundaryBuffer.length;
+    }
+
+    if (parts.length === 0) {
+      return res.status(400).json({ success: false, error: 'Aucun fichier recu' });
+    }
+
+    // Get file data from first part
+    const part = parts[0];
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) {
+      return res.status(400).json({ success: false, error: 'Format invalide' });
+    }
+
+    const headerStr = part.slice(0, headerEnd).toString();
+    const fileData = part.slice(headerEnd + 4, part.length - 2); // Remove trailing \r\n
+
+    // Extract filename and content-type
+    const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+    const ctMatch = headerStr.match(/Content-Type:\s*(\S+)/i);
+    const filename = filenameMatch?.[1] || 'logo.png';
+    const mimeType = ctMatch?.[1] || 'image/png';
+
+    // Validate
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(mimeType)) {
+      return res.status(400).json({ success: false, error: 'Type de fichier non autorise (PNG, JPG, WebP, SVG)' });
+    }
+
+    if (fileData.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ success: false, error: 'Fichier trop volumineux (max 2 Mo)' });
+    }
+
+    // Upload to Supabase Storage
+    const ext = filename.split('.').pop() || 'png';
+    const storagePath = `logos/${tenantId}/logo.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('branding')
+      .upload(storagePath, fileData, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      // If bucket doesn't exist, create it
+      if (uploadError.message?.includes('not found') || uploadError.statusCode === '404') {
+        await supabase.storage.createBucket('branding', { public: true });
+        const { error: retryErr } = await supabase.storage
+          .from('branding')
+          .upload(storagePath, fileData, { contentType: mimeType, upsert: true });
+        if (retryErr) throw retryErr;
+      } else {
+        throw uploadError;
+      }
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage.from('branding').getPublicUrl(storagePath);
+    const logoUrl = urlData.publicUrl;
+
+    // Update branding record
+    const { error: upsertErr } = await supabase
+      .from('branding')
+      .upsert({
+        tenant_id: tenantId,
+        logo_url: logoUrl,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'tenant_id' });
+
+    if (upsertErr) {
+      // If branding table doesn't have row yet, try update on tenants
+      console.warn('[BRANDING] Upsert warning:', upsertErr.message);
+    }
+
+    res.json({ success: true, logo_url: logoUrl });
+  } catch (error) {
+    console.error('[BRANDING] Logo upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // BRANDING PRINCIPAL
 // ============================================
 

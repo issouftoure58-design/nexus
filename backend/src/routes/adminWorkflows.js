@@ -24,7 +24,9 @@ const TRIGGER_TYPES = [
   { id: 'client_inactive', label: 'Client inactif', description: 'Déclenché pour les clients sans RDV depuis X jours' },
   { id: 'anniversaire', label: 'Anniversaire client', description: 'Déclenché le jour de l\'anniversaire du client' },
   { id: 'devis_envoye', label: 'Devis envoyé', description: 'Déclenché quand un devis est envoyé au client' },
-  { id: 'devis_expire', label: 'Devis expiré', description: 'Déclenché quand un devis dépasse sa date de validité' }
+  { id: 'devis_expire', label: 'Devis expiré', description: 'Déclenché quand un devis dépasse sa date de validité' },
+  { id: 'payment_received', label: 'Paiement reçu', description: 'Déclenché quand un paiement client est encaissé (facture ou Stripe)' },
+  { id: 'contract_signed', label: 'Contrat signé', description: 'Déclenché quand un document est signé via Yousign' }
 ];
 
 // Types d'actions disponibles
@@ -37,7 +39,9 @@ const ACTION_TYPES = [
   { id: 'create_task', label: 'Créer une tâche', icon: 'check-square' },
   { id: 'update_field', label: 'Modifier un champ', icon: 'edit' },
   { id: 'webhook', label: 'Appeler un webhook', icon: 'globe' },
-  { id: 'send_to_segment', label: 'Envoyer au segment', icon: 'users' }
+  { id: 'send_to_segment', label: 'Envoyer au segment', icon: 'users' },
+  { id: 'move_pipeline', label: 'Déplacer dans le pipeline', icon: 'git-branch' },
+  { id: 'send_discord_invite', label: 'Invitation Discord', icon: 'message-circle' }
 ];
 
 // Templates de workflows prédéfinis
@@ -165,6 +169,40 @@ const WORKFLOW_TEMPLATES = [
           message: 'Bonjour {{client.prenom}}, votre devis {{devis.numero}} de {{devis.montant_ttc}}€ est toujours valable. Repondez OUI pour accepter ou contactez-nous !',
           to_field: 'telephone',
           delay_minutes: 10080
+        }
+      ]
+    }
+  },
+  {
+    id: 'closing_sequence',
+    nom: 'Séquence closing post-paiement',
+    description: 'Envoie 3 emails après encaissement : contrat + programme, accès plateforme, communauté',
+    trigger_type: 'payment_received',
+    config: {
+      conditions: [],
+      actions: [
+        {
+          type: 'send_email',
+          template: 'closing_contrat',
+          to_field: 'email',
+          delay_minutes: 0
+        },
+        {
+          type: 'send_email',
+          template: 'closing_acces',
+          to_field: 'email',
+          delay_minutes: 1440
+        },
+        {
+          type: 'send_email',
+          template: 'closing_communaute',
+          to_field: 'email',
+          delay_minutes: 2880
+        },
+        {
+          type: 'move_pipeline',
+          etape: 'gagne',
+          delay_minutes: 0
         }
       ]
     }

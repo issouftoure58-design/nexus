@@ -8,6 +8,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { generateFacture } from '../services/pdfService.js';
+import { triggerWorkflows } from '../automation/workflowEngine.js';
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -1158,6 +1159,29 @@ router.patch('/:id/statut', async (req, res) => {
     // genererEcrituresFacture ignore les avoirs via son guard interne
     await genererEcrituresFacture(tenantId, parseInt(id));
 
+    // Déclencher workflows si facture payée
+    if (statut === 'payee' && data.client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id, prenom, nom, email, telephone')
+        .eq('id', data.client_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (client) {
+        const entity = {
+          ...client,
+          type: 'facture',
+          facture_id: data.id,
+          facture_numero: data.numero,
+          montant_ttc: data.montant_ttc,
+          mode_paiement: data.mode_paiement
+        };
+        triggerWorkflows('facture_payee', { tenant_id: tenantId, entity }).catch(e => console.error('[FACTURES] Workflow facture_payee error:', e));
+        triggerWorkflows('payment_received', { tenant_id: tenantId, entity }).catch(e => console.error('[FACTURES] Workflow payment_received error:', e));
+      }
+    }
+
     res.json({ success: true, facture: data });
   } catch (error) {
     console.error('[FACTURES] Erreur changement statut:', error);
@@ -1237,6 +1261,29 @@ router.post('/:id/paiement', async (req, res) => {
       .eq('tenant_id', tenantId);
 
     console.log(`[FACTURES] Paiement enregistré: Facture ${facture.numero} (${mode_paiement})`);
+
+    // Déclencher workflows payment_received + facture_payee
+    if (facture.client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id, prenom, nom, email, telephone')
+        .eq('id', facture.client_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (client) {
+        const entity = {
+          ...client,
+          type: 'facture',
+          facture_id: facture.id,
+          facture_numero: facture.numero,
+          montant_ttc: facture.montant_ttc,
+          mode_paiement
+        };
+        triggerWorkflows('facture_payee', { tenant_id: tenantId, entity }).catch(e => console.error('[FACTURES] Workflow facture_payee error:', e));
+        triggerWorkflows('payment_received', { tenant_id: tenantId, entity }).catch(e => console.error('[FACTURES] Workflow payment_received error:', e));
+      }
+    }
 
     res.json({
       success: true,

@@ -51,6 +51,11 @@ const Sentinel = lazy(() => import('./pages/Sentinel'));
 const IAAdmin = lazy(() => import('./pages/IAAdmin'));
 const IATelephone = lazy(() => import('./pages/IATelephone'));
 const IAWhatsApp = lazy(() => import('./pages/IAWhatsApp'));
+const SignaturesPage = lazy(() => import('./pages/Signatures'));
+const InstagramSetterPage = lazy(() => import('./pages/InstagramSetter'));
+const QuestionnairesPage = lazy(() => import('./pages/Questionnaires'));
+const QualiopiPage = lazy(() => import('./pages/Qualiopi'));
+const SatisfactionPage = lazy(() => import('./pages/Satisfaction'));
 const Menu = lazy(() => import('./pages/Menu'));
 const FloorPlan = lazy(() => import('./pages/FloorPlan'));
 const RoomCalendar = lazy(() => import('./pages/RoomCalendar'));
@@ -70,6 +75,7 @@ const Equipe = lazy(() => import('./pages/Equipe'));
 
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
+import CookieBanner from './components/CookieBanner';
 
 // Page loader for Suspense fallback
 function PageLoader() {
@@ -225,6 +231,11 @@ function App() {
             <Route path="/ia-admin" element={<ModuleRoute module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
             <Route path="/ia-telephone" element={<ModuleRoute module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
             <Route path="/ia-whatsapp" element={<ModuleRoute module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
+            <Route path="/signatures" element={<ModuleRoute module="pipeline" moduleTitle="Signatures" moduleDescription="Signatures électroniques Yousign"><SignaturesPage /></ModuleRoute>} />
+            <Route path="/instagram-setter" element={<ModuleRoute module="marketing" moduleTitle="Setter IA Instagram" moduleDescription="Qualification automatique via DMs Instagram"><InstagramSetterPage /></ModuleRoute>} />
+            <Route path="/questionnaires" element={<ModuleRoute module="marketing" moduleTitle="Questionnaires" moduleDescription="Formulaires de qualification avec scoring"><QuestionnairesPage /></ModuleRoute>} />
+            <Route path="/qualiopi" element={<ModuleRoute module="pipeline" moduleTitle="Conformite Qualiopi" moduleDescription="Checklist documentaire par apprenant"><QualiopiPage /></ModuleRoute>} />
+            <Route path="/satisfaction" element={<ModuleRoute module="pipeline" moduleTitle="Satisfaction" moduleDescription="Enquetes a chaud et a froid"><SatisfactionPage /></ModuleRoute>} />
 
             {/* Modules SEO & Système */}
             <Route path="/seo" element={<ModuleRoute module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
@@ -244,6 +255,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
+          <CookieBanner />
         </div>
         </ProfileProvider>
       </TenantProvider>

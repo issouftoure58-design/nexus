@@ -86,6 +86,13 @@ import adminCommerceOrdersRoutes from './routes/adminCommerceOrders.js';
 import orderTrackingRoutes from './routes/orderTracking.js';
 import billingRoutes from './routes/billing.js';
 import stripeWebhookRoutes from './routes/stripeWebhook.js';
+import yousignWebhookRoutes from './routes/yousignWebhook.js';
+import adminSignaturesRoutes from './routes/adminSignatures.js';
+import instagramWebhookRoutes from './routes/instagramWebhook.js';
+import adminIGSetterRoutes from './routes/adminIGSetter.js';
+import questionnairesRoutes from './routes/questionnaires.js';
+import qualiopiRoutes from './routes/qualiopi.js';
+import satisfactionRoutes from './routes/satisfaction.js';
 import signupRoutes from './routes/signup.js';
 import trialRoutes from './routes/trial.js';
 import publicRoutes from './routes/public.js';
@@ -216,6 +223,12 @@ app.use('/api/', apiLimiter);
 
 // Stripe Webhook (AVANT json parser - necessite raw body)
 app.use('/api/webhooks/stripe', stripeWebhookRoutes);
+
+// Yousign Webhook (signature électronique)
+app.use('/api/webhooks/yousign', yousignWebhookRoutes);
+
+// Instagram Webhook (Setter IA DMs)
+app.use('/api/webhooks/instagram', instagramWebhookRoutes);
 
 // JSON body parser
 app.use(express.json());
@@ -403,6 +416,21 @@ app.use('/api/admin/workflows', workflowsRoutes);
 
 // Routes Admin Pipeline Commercial (Pro/Business)
 app.use('/api/admin/pipeline', pipelineRoutes);
+
+// Routes Admin Signatures Yousign (Pro/Business)
+app.use('/api/admin/signatures', adminSignaturesRoutes);
+
+// Routes Admin Instagram Setter (Pro/Business)
+app.use('/api/admin/ig-setter', adminIGSetterRoutes);
+
+// Routes Questionnaires Qualification (public + admin)
+app.use('/api/questionnaires', questionnairesRoutes);
+
+// Routes Qualiopi Dashboard (admin)
+app.use('/api/admin/qualiopi', qualiopiRoutes);
+
+// Routes Satisfaction Surveys (public + admin)
+app.use('/api/satisfaction', satisfactionRoutes);
 
 // Routes Admin Devis & Prestations (Pro/Business)
 app.use('/api/admin/devis', devisRoutes);

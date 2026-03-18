@@ -16,6 +16,10 @@ import TestimonialsSection from './components/TestimonialsSection'
 import TrustBadges from './components/TrustBadges'
 import FAQSection from './components/FAQSection'
 import ContactForm from './components/ContactForm'
+import CookieBanner from './components/CookieBanner'
+import MentionsLegales from './components/MentionsLegales'
+import LandingCGV from './components/LandingCGV'
+import Confidentialite from './components/Confidentialite'
 
 // Hooks
 import useNexusAudio from './hooks/useNexusAudio'
@@ -35,6 +39,7 @@ function App() {
   const [hasStarted, setHasStarted] = useState(false)
   const [showStartButton, setShowStartButton] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [legalModal, setLegalModal] = useState(null)
   const { playAudio, stopAudio, isPlaying, audioEnabled, setAudioEnabled } = useNexusAudio()
   const { speak: speakTTS, stop: stopTTS, isSpeaking } = useTextToSpeech()
   const { playRobotBeeps, playConfirmBeep } = useSoundEffects()
@@ -282,11 +287,11 @@ function App() {
             </div>
 
             <div className="flex items-center gap-4">
-              <a href="https://nexus-admin-yedu.onrender.com/login" className="text-gray-400 hover:text-white transition hidden sm:block">
+              <a href="https://app.nexus-ai-saas.com/login" className="text-gray-400 hover:text-white transition hidden sm:block">
                 Connexion
               </a>
               <a
-                href="https://nexus-admin-yedu.onrender.com/signup"
+                href="https://app.nexus-ai-saas.com/signup"
                 className="bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-semibold py-2 px-5 rounded-xl hover:opacity-90 transition-opacity"
               >
                 Essai gratuit
@@ -308,7 +313,7 @@ function App() {
               <a href="#gallery" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Galerie</a>
               <a href="#demo" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Demo</a>
               <a href="#pricing" className="block text-gray-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
-              <a href="https://nexus-admin-yedu.onrender.com/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
+              <a href="https://app.nexus-ai-saas.com/login" className="block text-gray-300 hover:text-white py-2">Connexion</a>
             </div>
           </div>
         )}
@@ -482,7 +487,7 @@ function App() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="https://nexus-admin-yedu.onrender.com/signup"
+                href="https://app.nexus-ai-saas.com/signup"
                 className="inline-flex items-center gap-2 bg-white text-dark-900 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors"
               >
                 Demarrer l'essai gratuit
@@ -536,9 +541,9 @@ function App() {
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-white transition">CGV</a></li>
-                <li><a href="#" className="hover:text-white transition">Confidentialite</a></li>
-                <li><a href="#" className="hover:text-white transition">Mentions legales</a></li>
+                <li><button onClick={() => setLegalModal('cgv')} className="hover:text-white transition">CGV</button></li>
+                <li><button onClick={() => setLegalModal('confidentialite')} className="hover:text-white transition">Confidentialite</button></li>
+                <li><button onClick={() => setLegalModal('mentions')} className="hover:text-white transition">Mentions legales</button></li>
               </ul>
             </div>
           </div>
@@ -548,6 +553,26 @@ function App() {
         </div>
       </footer>
       </div>{/* Fin du contenu principal z-10 */}
+
+      {/* Legal Modal */}
+      {legalModal && (
+        <div className="fixed inset-0 z-[9000] bg-dark-950/90 backdrop-blur-sm flex items-start justify-center overflow-y-auto">
+          <div className="w-full max-w-3xl mx-4 my-8 bg-dark-900 border border-white/10 rounded-2xl p-6 md:p-10 relative">
+            <button
+              onClick={() => setLegalModal(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition p-2"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            {legalModal === 'cgv' && <LandingCGV />}
+            {legalModal === 'confidentialite' && <Confidentialite />}
+            {legalModal === 'mentions' && <MentionsLegales />}
+          </div>
+        </div>
+      )}
+
+      {/* Cookie Banner */}
+      <CookieBanner />
     </div>
   )
 }

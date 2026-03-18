@@ -1433,16 +1433,53 @@ function BrandingSubSection() {
           </div>
         )}
 
-        {/* Logo — disabled (no upload infra) */}
+        {/* Logo upload */}
         <div>
           <label className="block text-sm font-medium mb-2">Logo de l'entreprise</label>
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-2xl font-bold">
-              {tenant?.name?.charAt(0) || 'N'}
-            </div>
+            {(tenant as any)?.branding?.logo_url ? (
+              <img src={(tenant as any).branding.logo_url} alt="Logo" className="w-20 h-20 rounded-lg object-contain bg-gray-50 border" />
+            ) : (
+              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-2xl font-bold">
+                {tenant?.name?.charAt(0) || 'N'}
+              </div>
+            )}
             <div>
-              <Button variant="outline" disabled>Changer le logo</Button>
-              <p className="text-xs text-gray-400 mt-1">Upload bientôt disponible</p>
+              <label className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-200 bg-white px-4 py-2 hover:bg-gray-50 transition-colors">
+                Changer le logo
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      alert('Le fichier ne doit pas depasser 2 Mo');
+                      return;
+                    }
+                    try {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      const res = await fetch('/api/branding/logo', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${api.getToken()}` },
+                        body: formData,
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        queryClient.invalidateQueries({ queryKey: ['tenant'] });
+                        setFeedback({ message: 'Logo mis a jour', type: 'success' });
+                      } else {
+                        setFeedback({ message: data.error || 'Erreur upload', type: 'error' });
+                      }
+                    } catch {
+                      setFeedback({ message: 'Erreur lors de l\'upload', type: 'error' });
+                    }
+                  }}
+                />
+              </label>
+              <p className="text-xs text-gray-400 mt-1">PNG, JPG ou SVG — max 2 Mo</p>
             </div>
           </div>
         </div>

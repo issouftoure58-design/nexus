@@ -317,6 +317,12 @@ async function executeAction(action, entity, tenant_id) {
     case 'send_to_segment':
       return await executeSendToSegment(action, entity, tenant_id);
 
+    case 'move_pipeline':
+      return await executeMovePipeline(action, entity, tenant_id);
+
+    case 'send_discord_invite':
+      return await executeSendDiscordInvite(action, entity, tenant_id);
+
     default:
       throw new Error(`Action type inconnu: ${type}`);
   }
@@ -364,6 +370,39 @@ async function executeSendEmail(action, entity, tenant_id) {
       html: `Bonjour ${entity.prenom || ''},<br><br>
              Toute l'équipe vous souhaite un très joyeux anniversaire !<br><br>
              À cette occasion, bénéficiez de -10% sur votre prochain rendez-vous.`
+    },
+    closing_contrat: {
+      subject: 'Bienvenue ! Votre contrat et programme',
+      html: `Bonjour ${entity.prenom || ''},<br><br>
+             Félicitations pour votre inscription ! Nous sommes ravis de vous accompagner.<br><br>
+             <strong>Prochaines étapes :</strong><br>
+             1. Consultez votre contrat et programme en pièce jointe<br>
+             2. Signez votre contrat (vous recevrez un lien de signature électronique)<br>
+             3. Prenez connaissance de nos conditions générales<br><br>
+             Si vous avez la moindre question, n'hésitez pas à nous contacter.<br><br>
+             À très bientôt !`
+    },
+    closing_acces: {
+      subject: 'Vos accès à la plateforme',
+      html: `Bonjour ${entity.prenom || ''},<br><br>
+             Vos accès à la plateforme sont prêts !<br><br>
+             <strong>Comment démarrer :</strong><br>
+             1. Connectez-vous avec vos identifiants<br>
+             2. Suivez le tutoriel de prise en main<br>
+             3. Commencez à explorer les fonctionnalités<br><br>
+             Un guide complet est disponible dans votre espace membre.<br><br>
+             N'hésitez pas à nous contacter si vous avez besoin d'aide !`
+    },
+    closing_communaute: {
+      subject: 'Rejoignez notre communauté !',
+      html: `Bonjour ${entity.prenom || ''},<br><br>
+             Dernière étape pour profiter pleinement de votre expérience : rejoignez notre communauté !<br><br>
+             <strong>Les avantages :</strong><br>
+             • Échangez avec les autres membres<br>
+             • Accédez à du contenu exclusif<br>
+             • Participez aux événements en direct<br>
+             • Obtenez de l'aide rapidement<br><br>
+             Nous avons hâte de vous y retrouver !`
     }
   };
 
@@ -605,6 +644,76 @@ async function executeWebhook(action, entity, tenant_id) {
 }
 
 /**
+ * Action: Déplacer une opportunité dans le pipeline
+ */
+async function executeMovePipeline(action, entity, tenant_id) {
+  const { etape } = action;
+
+  if (!etape) {
+    throw new Error('Étape pipeline requise pour move_pipeline');
+  }
+
+  // Chercher l'opportunité liée au client
+  const clientId = entity.client_id || entity.id;
+  if (!clientId) {
+    throw new Error('ID client manquant pour move_pipeline');
+  }
+
+  const { data: opportunities, error } = await supabase
+    .from('opportunities')
+    .select('id, etape')
+    .eq('tenant_id', tenant_id)
+    .eq('client_id', clientId)
+    .neq('etape', 'perdu')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Erreur récupération opportunité: ${error.message}`);
+  }
+
+  if (!opportunities || opportunities.length === 0) {
+    console.log(`[WORKFLOWS] move_pipeline: aucune opportunité pour client ${clientId}`);
+    return { action: 'move_pipeline', success: true, skipped: true, reason: 'no_opportunity' };
+  }
+
+  const opp = opportunities[0];
+  const { error: updateError } = await supabase
+    .from('opportunities')
+    .update({ etape })
+    .eq('id', opp.id)
+    .eq('tenant_id', tenant_id);
+
+  if (updateError) {
+    throw new Error(`Erreur déplacement pipeline: ${updateError.message}`);
+  }
+
+  console.log(`[WORKFLOWS] move_pipeline: opportunité ${opp.id} déplacée de "${opp.etape}" vers "${etape}"`);
+  return { action: 'move_pipeline', opportunityId: opp.id, from: opp.etape, to: etape, success: true };
+}
+
+/**
+ * Action: Envoyer une invitation Discord par email
+ */
+async function executeSendDiscordInvite(action, entity, tenant_id) {
+  const { channel_id } = action;
+  const email = getNestedValue(entity, action.to_field || 'email');
+
+  if (!email) throw new Error('Email destinataire manquant pour Discord invite');
+  if (!channel_id) throw new Error('channel_id requis pour send_discord_invite');
+
+  const { sendInviteByEmail } = await import('../services/discordService.js');
+  const result = await sendInviteByEmail(
+    tenant_id,
+    email,
+    channel_id,
+    entity.prenom || entity.nom || ''
+  );
+
+  return { action: 'send_discord_invite', ...result, success: true };
+}
+
+/**
  * Programmer une action avec délai
  */
 async function scheduleDelayedAction(workflow, action, entity, delayMinutes) {
@@ -728,7 +837,15 @@ export async function processScheduledActions() {
       }
 
       try {
-        const result = await executeAction(action, entity, exec.tenant_id);
+        let result;
+        // Actions spéciales Instagram Setter
+        if (action.type === 'ig_setter_first_contact') {
+          const { sendFirstQualificationMessage } = await import('../services/instagramSetterService.js');
+          await sendFirstQualificationMessage(exec.tenant_id, action.conversation_id);
+          result = { action: 'ig_setter_first_contact', success: true };
+        } else {
+          result = await executeAction(action, entity, exec.tenant_id);
+        }
         await supabase
           .from('workflow_executions')
           .update({ statut: 'success', resultat: { ...exec.resultat, execution_result: result }, completed_at: new Date().toISOString() })

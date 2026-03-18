@@ -16,7 +16,7 @@ const CGV_CONTENT = {
     {
       numero: 1,
       titre: 'Objet',
-      contenu: `Les présentes Conditions Générales de Vente (CGV) régissent l'utilisation de la plateforme NEXUS, éditée par NEXUS SAS. NEXUS est une solution SaaS de gestion d'activité destinée aux professionnels (salons, restaurants, hôtels, services à domicile). En créant un compte, l'utilisateur accepte sans réserve les présentes CGV.`
+      contenu: `Les présentes Conditions Générales de Vente (CGV) régissent l'utilisation de la plateforme NEXUS, éditée par NEXUS AI, SASU au capital de 1€, SIRET 947 570 362 00022, dont le siège social est situé 8 Rue des Monts Rouges, 95130 Franconville. NEXUS est une solution SaaS de gestion d'activité destinée aux professionnels (salons, restaurants, hôtels, services à domicile). En créant un compte, l'utilisateur accepte sans réserve les présentes CGV.`
     },
     {
       numero: 2,

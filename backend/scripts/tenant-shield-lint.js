@@ -111,6 +111,9 @@ const IGNORE_FILES = [
   'retryWithBackoff.js', // utilitaire generique, exemple dans JSDoc
   'branding.js',        // résout tenant_id depuis custom_domain (comme resolveTenant)
   'reviews.js',         // résout tenant_id depuis custom_domain (comme resolveTenant)
+  'questionnaires.js',  // routes publiques (slug lookup, pas de tenant context) + admin filtré
+  'satisfaction.js',    // routes publiques (token unique) + admin filtré
+  'yousignService.js',  // webhook lookup par yousign_request_id (pas de tenant context entrant)
 ];
 
 // Dossiers à ignorer (tests, scripts CLI, migrations)

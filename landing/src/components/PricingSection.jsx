@@ -46,7 +46,7 @@ export default function PricingSection() {
               ))}
             </ul>
             <a
-              href="https://nexus-admin-yedu.onrender.com/signup?plan=starter"
+              href="https://app.nexus-ai-saas.com/signup?plan=starter"
               className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-white/10 rounded-xl font-semibold transition-colors"
             >
               Commencer l'essai
@@ -83,7 +83,7 @@ export default function PricingSection() {
               ))}
             </ul>
             <a
-              href="https://nexus-admin-yedu.onrender.com/signup?plan=pro"
+              href="https://app.nexus-ai-saas.com/signup?plan=pro"
               className="block w-full py-3 px-6 text-center bg-gradient-to-r from-neon-cyan to-primary-500 rounded-xl font-semibold hover:opacity-90 transition-opacity"
             >
               Commencer l'essai
@@ -120,7 +120,7 @@ export default function PricingSection() {
               ))}
             </ul>
             <a
-              href="https://nexus-admin-yedu.onrender.com/signup?plan=business"
+              href="https://app.nexus-ai-saas.com/signup?plan=business"
               className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
             >
               Contacter les ventes
