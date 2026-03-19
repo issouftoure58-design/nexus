@@ -217,12 +217,19 @@ router.patch('/config', async (req, res) => {
       ...config,
     };
 
+    const updateData = {
+      profile_config: newConfig,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Synchroniser template_id sur la colonne directe (lue par GET /tenants/me)
+    if (config.template_id) {
+      updateData.template_id = config.template_id;
+    }
+
     const { error } = await supabase
       .from('tenants')
-      .update({
-        profile_config: newConfig,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', tenantId);
 
     if (error) throw error;
