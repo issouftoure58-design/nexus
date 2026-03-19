@@ -200,7 +200,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
       const lignes = r.reservation_lignes || [];
       const dureeTotale = lignes.length > 0
         ? lignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0)
-        : r.duree_minutes || 60;
+        : r.duree_totale_minutes || r.duree_minutes || 60;
 
       return {
         id: r.id,
