@@ -923,7 +923,17 @@ export default function Activites() {
           missing.push('Heures des agents (définir heure début/fin pour au moins un agent)');
         }
       } else if (pricingMode !== 'daily') {
-        if (!newRdvForm.heure_rdv) missing.push('Heure');
+        if (isBusinessType('service_domicile')) {
+          // Domicile : l'heure vient des affectations, pas du champ global
+          const hasAffectationHeures = serviceLignes.some(sl =>
+            sl.affectations.some(aff => aff.heure_debut && aff.heure_fin)
+          );
+          if (!hasAffectationHeures) {
+            missing.push('Heure de début (saisir dans la 1ère affectation)');
+          }
+        } else {
+          if (!newRdvForm.heure_rdv) missing.push('Heure');
+        }
       }
     }
 
@@ -1012,12 +1022,12 @@ export default function Activites() {
           client_id: clientId,
           service: serviceLignes[0]?.service_nom || '',
           date_rdv: newRdvForm.date_rdv,
-          heure_rdv: newRdvForm.heure_rdv,
+          heure_rdv: newRdvForm.heure_rdv || serviceLignes[0]?.affectations[0]?.heure_debut || null,
           heure_fin: newRdvForm.heure_fin || null,
           date_fin: newRdvForm.date_fin || null,
           nb_agents: newRdvForm.nb_agents || 1,
           pricing_mode: profile?.pricing?.mode || 'fixed',
-          lieu: newRdvForm.adresse_prestation ? 'custom' : 'salon',
+          lieu: isBusinessType('service_domicile') ? 'domicile' : (newRdvForm.adresse_prestation ? 'custom' : 'salon'),
           adresse_client: newRdvForm.adresse_prestation,
           adresse_facturation: newRdvForm.adresse_facturation_identique
             ? newRdvForm.adresse_prestation
