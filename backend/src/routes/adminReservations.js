@@ -639,7 +639,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     if (montant_ht !== undefined) updateData.montant_ht = montant_ht;
     if (montant_tva !== undefined) updateData.montant_tva = montant_tva;
     if (prix_total !== undefined) updateData.prix_total = prix_total;
-    if (duree_totale_minutes !== undefined) updateData.duree_totale_minutes = duree_totale_minutes;
+    // Toujours stocker la durée totale réelle (pour la détection de conflits)
+    updateData.duree_totale_minutes = duree_totale_minutes || dureeConflictCheck;
     if (frais_deplacement !== undefined) updateData.frais_deplacement = frais_deplacement;
 
     // Restaurant: persister nb_couverts et table assignée

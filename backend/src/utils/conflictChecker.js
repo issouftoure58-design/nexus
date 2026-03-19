@@ -42,7 +42,7 @@ export async function checkConflicts(supabase, date, heure, dureeMinutes, exclud
   // Récupérer tous les RDV actifs de cette date POUR CE TENANT
   const { data: rdvs, error } = await supabase
     .from('reservations')
-    .select('id, heure, duree_minutes, service_nom, clients(prenom, nom)')
+    .select('id, heure, duree_minutes, duree_totale_minutes, service_nom, clients(prenom, nom)')
     .eq('tenant_id', tenantId)
     .eq('date', date)
     .in('statut', ['demande', 'en_attente', 'en_attente_paiement', 'confirme']);
@@ -61,7 +61,7 @@ export async function checkConflicts(supabase, date, heure, dureeMinutes, exclud
     if (excludeId && rdv.id === Number(excludeId)) continue;
 
     const existStart = heureToMinutes(rdv.heure);
-    const existDuree = rdv.duree_minutes || 60;
+    const existDuree = rdv.duree_totale_minutes || rdv.duree_minutes || 60;
     const existEnd = existStart + existDuree;
 
     // Chevauchement : newStart < existEnd ET newEnd > existStart

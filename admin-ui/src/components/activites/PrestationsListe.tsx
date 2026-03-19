@@ -242,23 +242,31 @@ export default function PrestationsListe({
                       </td>
                       <td className="px-4 py-4">
                         {rdv.services && rdv.services.length > 0 ? (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {rdv.services.map((s: ReservationService, idx: number) => (
-                              <div key={s.id || idx}>
-                                <div className="flex items-center gap-1">
+                              <div key={s.id || idx} className="border-l-2 border-cyan-200 dark:border-cyan-800 pl-2">
+                                <div className="flex items-center gap-1 flex-wrap">
                                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                                     {s.service_nom}
                                   </span>
                                   {s.quantite > 1 && <span className="text-xs text-gray-500">x{s.quantite}</span>}
-                                </div>
-                                {s.membre && (
-                                  <span className="text-xs text-cyan-600">
-                                    &rarr; {s.membre.prenom} {s.membre.nom}
+                                  <span className="text-xs text-gray-400">
+                                    {s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)} min` : ''}
                                   </span>
-                                )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  {s.heure_debut && s.heure_fin && (
+                                    <span className="text-gray-500">{s.heure_debut} → {s.heure_fin}</span>
+                                  )}
+                                  {s.membre && (
+                                    <span className="text-cyan-600">
+                                      {s.membre.prenom} {s.membre.nom}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             ))}
-                            <div className="text-xs text-gray-500 pt-1">{rdv.duree_totale || rdv.duree || 60} min</div>
+                            <div className="text-xs font-medium text-gray-500 pt-0.5">Total : {rdv.duree_totale || rdv.duree || 60} min</div>
                           </div>
                         ) : (
                           <>
@@ -409,23 +417,46 @@ export default function PrestationsListe({
                         <span className="text-gray-400">Client inconnu</span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between">
-                      {rdv.service_id ? (
-                        <EntityLink
-                          type="service"
-                          entity={{
-                            id: rdv.service_id,
-                            nom: rdv.service_nom || '',
-                            prix: (rdv.prix || 0) * 100,
-                            duree: rdv.duree || 60
-                          }}
-                          label={rdv.service_nom || ''}
-                          className="text-sm text-gray-600 dark:text-gray-400"
-                        />
+                    <div className="space-y-1">
+                      {rdv.services && rdv.services.length > 0 ? (
+                        <>
+                          {rdv.services.map((s: ReservationService, idx: number) => (
+                            <div key={s.id || idx} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-700 dark:text-gray-300">{s.service_nom}</span>
+                                {s.quantite > 1 && <span className="text-xs text-gray-400">x{s.quantite}</span>}
+                                {s.heure_debut && s.heure_fin && (
+                                  <span className="text-xs text-gray-400">({s.heure_debut}→{s.heure_fin})</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-400">{s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)}min` : ''}</span>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
+                            <span className="text-xs text-gray-500">Total : {rdv.duree_totale || rdv.duree || 60} min</span>
+                            <span className="font-medium text-green-600">{formatCurrency(rdv.prix || 0)}</span>
+                          </div>
+                        </>
                       ) : (
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{rdv.service_nom || '-'}</span>
+                        <div className="flex items-center justify-between">
+                          {rdv.service_id ? (
+                            <EntityLink
+                              type="service"
+                              entity={{
+                                id: rdv.service_id,
+                                nom: rdv.service_nom || '',
+                                prix: (rdv.prix || 0) * 100,
+                                duree: rdv.duree || 60
+                              }}
+                              label={rdv.service_nom || ''}
+                              className="text-sm text-gray-600 dark:text-gray-400"
+                            />
+                          ) : (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">{rdv.service_nom || '-'}</span>
+                          )}
+                          <span className="font-medium text-green-600">{formatCurrency(rdv.prix || 0)}</span>
+                        </div>
                       )}
-                      <span className="font-medium text-green-600">{formatCurrency(rdv.prix || 0)}</span>
                     </div>
                   </div>
 
