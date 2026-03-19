@@ -383,21 +383,40 @@ export default function Activites() {
       ];
     }
 
+    // Domicile solo : cascader les heures sur tous les services
+    if (isBusinessType('service_domicile')) {
+      const firstHeure = newLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+      if (firstHeure) {
+        newLignes = cascadeAllTimes(newLignes, firstHeure);
+      }
+    }
+
     setServiceLignes(newLignes);
 
-    if (newRdvForm.date_rdv && newRdvForm.heure_rdv) {
+    const heureRef = newRdvForm.heure_rdv || newLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+    if (newRdvForm.date_rdv && heureRef) {
       const dureeTotale = newLignes.reduce((sum, sl) => sum + sl.duree_minutes * sl.quantite, 0);
-      fetchMembresDisponibles(newRdvForm.date_rdv, newRdvForm.heure_rdv, dureeTotale);
+      fetchMembresDisponibles(newRdvForm.date_rdv, heureRef, dureeTotale);
     }
   };
 
   const removeServiceLigne = (serviceId: number) => {
-    const newLignes = serviceLignes.filter(sl => sl.service_id !== serviceId);
+    let newLignes = serviceLignes.filter(sl => sl.service_id !== serviceId);
+
+    // Domicile solo : recascader les heures
+    if (isBusinessType('service_domicile')) {
+      const firstHeure = newLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+      if (firstHeure) {
+        newLignes = cascadeAllTimes(newLignes, firstHeure);
+      }
+    }
+
     setServiceLignes(newLignes);
 
-    if (newRdvForm.date_rdv && newRdvForm.heure_rdv) {
+    const heureRef = newRdvForm.heure_rdv || newLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+    if (newRdvForm.date_rdv && heureRef) {
       const dureeTotale = newLignes.reduce((sum, sl) => sum + sl.duree_minutes * sl.quantite, 60);
-      fetchMembresDisponibles(newRdvForm.date_rdv, newRdvForm.heure_rdv, dureeTotale);
+      fetchMembresDisponibles(newRdvForm.date_rdv, heureRef, dureeTotale);
     }
   };
 
@@ -423,12 +442,39 @@ export default function Activites() {
 
       return { ...sl, quantite, affectations: newAffectations };
     });
-    setServiceLignes(newLignes);
 
-    if (newRdvForm.date_rdv && newRdvForm.heure_rdv) {
-      const dureeTotale = newLignes.reduce((sum, sl) => sum + sl.duree_minutes * sl.quantite, 0);
-      fetchMembresDisponibles(newRdvForm.date_rdv, newRdvForm.heure_rdv, dureeTotale);
+    // Domicile solo : recascader les heures
+    let finalLignes = newLignes;
+    if (isBusinessType('service_domicile')) {
+      const firstHeure = newLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+      if (firstHeure) {
+        finalLignes = cascadeAllTimes(newLignes, firstHeure);
+      }
     }
+    setServiceLignes(finalLignes);
+
+    const heureRef = newRdvForm.heure_rdv || finalLignes.flatMap(sl => sl.affectations).find(a => a.heure_debut)?.heure_debut;
+    if (newRdvForm.date_rdv && heureRef) {
+      const dureeTotale = finalLignes.reduce((sum, sl) => sum + sl.duree_minutes * sl.quantite, 0);
+      fetchMembresDisponibles(newRdvForm.date_rdv, heureRef, dureeTotale);
+    }
+  };
+
+  /**
+   * Recalcule toutes les heures en cascade pour domicile (coiffeur solo).
+   * Parcourt TOUS les services et affectations séquentiellement.
+   */
+  const cascadeAllTimes = (lignes: ServiceLigne[], startTime: string): ServiceLigne[] => {
+    let currentStart = startTime;
+    return lignes.map(sl => {
+      const newAffectations = sl.affectations.map(aff => {
+        const heureFin = calculateEndTime(currentStart, sl.duree_minutes);
+        const updated = { ...aff, heure_debut: currentStart, heure_fin: heureFin };
+        currentStart = heureFin;
+        return updated;
+      });
+      return { ...sl, affectations: newAffectations };
+    });
   };
 
   const updateAffectation = (
@@ -437,8 +483,47 @@ export default function Activites() {
     field: keyof ServiceAffectation,
     value: number | string | undefined
   ) => {
-    setServiceLignes(prev =>
-      prev.map(sl => {
+    setServiceLignes(prev => {
+      // Mode domicile (solo) : cascade globale sur TOUS les services
+      if (isBusinessType('service_domicile') && field === 'heure_debut' && value) {
+        // Trouver la position absolue de cette affectation
+        let foundStart = value as string;
+        let absoluteIndex = 0;
+        let targetAbsolute = 0;
+        for (const sl of prev) {
+          for (let i = 0; i < sl.affectations.length; i++) {
+            if (sl.service_id === serviceId && i === affectationIndex) {
+              targetAbsolute = absoluteIndex;
+            }
+            absoluteIndex++;
+          }
+        }
+        // Recalculer depuis la 1ère affectation en gardant l'heure saisie
+        // Si c'est la 1ère affectation globale, cascade tout depuis cette heure
+        if (targetAbsolute === 0) {
+          return cascadeAllTimes(prev, foundStart);
+        }
+        // Sinon, garder les heures avant et cascader à partir de celle modifiée
+        let currentStart = foundStart;
+        let idx = 0;
+        return prev.map(sl => {
+          const newAffectations = sl.affectations.map(aff => {
+            if (idx < targetAbsolute) {
+              idx++;
+              return aff;
+            }
+            const heureFin = calculateEndTime(currentStart, sl.duree_minutes);
+            const updated = { ...aff, heure_debut: currentStart, heure_fin: heureFin };
+            currentStart = heureFin;
+            idx++;
+            return updated;
+          });
+          return { ...sl, affectations: newAffectations };
+        });
+      }
+
+      // Mode salon ou autre champ : cascade locale au service
+      return prev.map(sl => {
         if (sl.service_id !== serviceId) return sl;
 
         const newAffectations = [...sl.affectations];
@@ -452,7 +537,6 @@ export default function Activites() {
             membre_nom: membre ? `${membre.prenom} ${membre.nom}` : undefined
           };
         } else if (field === 'heure_debut' && value) {
-          // Mettre à jour cette affectation + cascade sur les suivantes
           let currentStart = value as string;
           for (let i = affectationIndex; i < newAffectations.length; i++) {
             const heureFin = calculateEndTime(currentStart, sl.duree_minutes);
@@ -461,7 +545,6 @@ export default function Activites() {
               heure_debut: currentStart,
               heure_fin: heureFin
             };
-            // La suivante commence quand celle-ci finit
             currentStart = heureFin;
           }
         } else {
@@ -472,8 +555,8 @@ export default function Activites() {
         }
 
         return { ...sl, affectations: newAffectations };
-      })
-    );
+      });
+    });
   };
 
   // === CALCULS ===
