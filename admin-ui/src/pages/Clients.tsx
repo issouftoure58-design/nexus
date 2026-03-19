@@ -93,9 +93,9 @@ export default function Clients() {
 
   // Filter clients locally
   const filteredClients = useMemo(() => {
-    if (!data?.clients) return [];
+    if (!data?.data) return [];
 
-    return data.clients.filter(client => {
+    return data.data.filter(client => {
       // RDV count filter
       const nbRdv = client.nb_rdv || 0;
       if (filters.nbRdv === 'zero' && nbRdv > 0) return false;
@@ -115,7 +115,7 @@ export default function Clients() {
 
       return true;
     });
-  }, [data?.clients, filters]);
+  }, [data?.data, filters]);
 
   const resetFilters = () => {
     setFilters({ nbRdv: 'all', inscriptionDate: 'all' });
@@ -182,9 +182,9 @@ export default function Clients() {
                 className="pl-10"
               />
               {/* Suggestions dropdown */}
-              {showSuggestions && debouncedSearch && suggestions?.clients && suggestions.clients.length > 0 && (
+              {showSuggestions && debouncedSearch && suggestions?.data && suggestions.data.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
-                  {suggestions.clients.map((client) => (
+                  {suggestions.data.map((client) => (
                     <button
                       key={client.id}
                       type="button"
@@ -298,7 +298,7 @@ export default function Clients() {
 
             {hasActiveFilters && (
               <span className="text-sm text-gray-500">
-                {filteredClients.length} / {data?.clients?.length || 0} {t('client', true).toLowerCase()}
+                {filteredClients.length} / {data?.data?.length || 0} {t('client', true).toLowerCase()}
               </span>
             )}
           </div>

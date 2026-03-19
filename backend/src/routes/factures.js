@@ -743,7 +743,7 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
         montant_ttc: totalTTC,
         frais_deplacement: fraisDeplacement,
         statut: statut,
-        date_facture: reservation.date || new Date().toISOString().split('T')[0]
+        date_facture: new Date().toISOString().split('T')[0]
       })
       .select()
       .single();

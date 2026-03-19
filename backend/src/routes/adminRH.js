@@ -13,6 +13,12 @@ import documentsRHService from '../services/documentsRHService.js';
 const { genererDocument, getOrCreateModeles, regenererPDF, MODELES_DEFAUT } = documentsRHService;
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
+import payrollEngine from '../services/payrollEngine.js';
+import { generateDSN } from '../services/dsnGenerator.js';
+import { streamPayslipPDF } from '../services/payslipPdfGenerator.js';
+import conventionService from '../services/conventionService.js';
+import regularisationService from '../services/regularisationService.js';
+import dsnWorkflowService from '../services/dsnWorkflowService.js';
 
 const router = express.Router();
 
@@ -3865,209 +3871,43 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
  */
 router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
   try {
-    const { periode, type_declaration, nature_envoi } = req.body; // periode: "2026-02"
+    const { periode, nature, use_workflow } = req.body;
 
     if (!periode) {
       return res.status(400).json({ error: 'Période requise (format: YYYY-MM)' });
     }
 
-    // Récupérer les paramètres DSN
-    const { data: params } = await supabase
-      .from('rh_dsn_parametres')
-      .select('*')
-      .eq('tenant_id', req.admin.tenant_id)
-      .single();
-
-    if (!params || !params.siret) {
-      return res.status(400).json({ error: 'Paramètres DSN incomplets. Veuillez configurer les informations entreprise.' });
+    // Si workflow demande, utiliser le service workflow
+    if (use_workflow) {
+      const draft = await dsnWorkflowService.createDSNDraft(req.admin.tenant_id, periode, nature || '01');
+      const validation = await dsnWorkflowService.validateDSN(req.admin.tenant_id, draft.id);
+      return res.json({
+        success: true,
+        workflow: true,
+        draft,
+        validation: validation.validationReport,
+      });
     }
 
-    // Récupérer les employés actifs
-    const { data: membres } = await supabase
-      .from('rh_membres')
-      .select('*')
-      .eq('tenant_id', req.admin.tenant_id)
-      .eq('statut', 'actif');
+    // Generation directe via dsnGenerator
+    const result = await generateDSN(req.admin.tenant_id, periode, nature || '01');
 
-    // Récupérer les bulletins de paie de la période (source principale)
-    const { data: bulletins } = await supabase
-      .from('rh_bulletins_paie')
-      .select('*')
-      .eq('tenant_id', req.admin.tenant_id)
-      .eq('periode', periode);
-
-    // Créer un map des bulletins par membre_id pour accès rapide
-    const bulletinsMap = new Map();
-    (bulletins || []).forEach(b => {
-      bulletinsMap.set(b.membre_id, b);
-    });
-
-    console.log(`[DSN] Période ${periode}: ${membres?.length || 0} membres actifs, ${bulletins?.length || 0} bulletins trouvés`);
-
-    // Générer le contenu DSN - Format NEODeS 2026
-    const dateGeneration = new Date();
-    const [year, month] = periode.split('-');
-    const dateGen = dateGeneration.toISOString().slice(0, 10).replace(/-/g, '');
-    const moisDecl = `${year}${month}`; // Format AAAAMM
-
-    let dsn = '';
-    let nbRubriques = 0;
-
-    const add = (code, value) => {
-      if (value !== null && value !== undefined && value !== '') {
-        dsn += `${code},'${value}'\n`;
-        nbRubriques++;
-      }
-    };
-
-    // =====================================================
-    // S10 - ENVOI (structure obligatoire)
-    // =====================================================
-    // S10.G00.00 - Envoi
-    add('S10.G00.00.001', params.logiciel_paie || 'NEXUS SIRH');  // Nom du logiciel
-    add('S10.G00.00.002', 'NEXUS');                               // Nom de l'éditeur
-    add('S10.G00.00.003', '1.0.0');                               // Version du logiciel
-    add('S10.G00.00.005', '01');                                  // Code envoi: 01=réel, 02=test
-    add('S10.G00.00.006', params.version_norme || 'P26V01');      // Version norme NEODeS 2026
-    add('S10.G00.00.007', '01');                                  // Point de dépôt: 01=net-entreprises
-    add('S10.G00.00.008', '01');                                  // Type envoi: 01=normal
-
-    // S10.G00.01 - Emetteur de l'envoi
-    add('S10.G00.01.001', params.siren);                          // SIREN émetteur
-    add('S10.G00.01.002', params.nic || params.siret?.slice(9));  // NIC émetteur
-    add('S10.G00.01.004', params.raison_sociale);                 // Raison sociale
-    add('S10.G00.01.005', params.adresse_siege);                  // Adresse
-    add('S10.G00.01.006', params.code_postal_siege);              // Code postal
-    add('S10.G00.01.007', params.ville_siege);                    // Commune
-
-    // S10.G00.02 - Contact émetteur
-    add('S10.G00.02.001', params.contact_nom);                    // Nom contact
-    add('S10.G00.02.002', params.contact_email);                  // Email
-    add('S10.G00.02.004', params.contact_tel);                    // Téléphone
-
-    // =====================================================
-    // S20 - DÉCLARATION
-    // =====================================================
-    add('S20.G00.05.001', '01');                                  // Nature: 01=DSN mensuelle
-    add('S20.G00.05.002', '01');                                  // Type: 01=normale
-    add('S20.G00.05.003', params.fraction || '11');               // Fraction: 11=mensuelle normale
-    add('S20.G00.05.004', '00');                                  // Ordre de la déclaration
-    add('S20.G00.05.005', `01${moisDecl}`);                       // Date mois principal déclaré
-    add('S20.G00.05.007', '01');                                  // Devise: 01=Euro
-    add('S20.G00.05.008', '01');                                  // Champ: 01=régime général
-    add('S20.G00.05.009', params.urssaf_code || '');              // Identifiant URSSAF
-    add('S20.G00.05.010', dateGen);                               // Date constitution fichier
-
-    // S20.G00.07 - Contact déclaration
-    add('S20.G00.07.001', params.contact_nom);                    // Nom contact
-    add('S20.G00.07.002', params.contact_email);                  // Email
-
-    // =====================================================
-    // S21 - DONNÉES DÉCLARATIVES
-    // =====================================================
-
-    // S21.G00.06 - Entreprise
-    add('S21.G00.06.001', params.siren);                          // SIREN
-    add('S21.G00.06.002', params.code_naf);                       // Code APEN (NAF)
-    add('S21.G00.06.003', params.adresse_siege);                  // Adresse siège
-    add('S21.G00.06.004', params.code_postal_siege);              // Code postal siège
-    add('S21.G00.06.005', params.ville_siege);                    // Commune siège
-
-    // S21.G00.11 - Établissement
-    add('S21.G00.11.001', params.nic || params.siret?.slice(9));  // NIC
-    add('S21.G00.11.003', params.code_naf);                       // Code APET
-    add('S21.G00.11.004', params.adresse_etablissement || params.adresse_siege);
-    add('S21.G00.11.005', params.code_postal_etablissement || params.code_postal_siege);
-    add('S21.G00.11.006', params.ville_etablissement || params.ville_siege);
-    add('S21.G00.11.008', String(params.effectif_moyen || membres?.length || 0).padStart(5, '0'));
-
-    // Variables pour totaux
-    let totalBrut = 0;
-    let totalNet = 0;
-    let totalCotisations = 0;
-    let nbSalariesDSN = 0;
-
-    // Pour TOUS les salariés actifs
-    (membres || []).forEach((m) => {
-      // Chercher le bulletin de paie directement dans la table rh_bulletins_paie
-      const bulletin = bulletinsMap.get(m.id);
-
-      // Si pas de bulletin et pas de salaire mensuel, skip
-      if (!bulletin && !m.salaire_mensuel) return;
-
-      // Calculer les montants : soit depuis le bulletin, soit depuis le salaire de base
-      const brut = bulletin ? bulletin.brut_total : (m.salaire_mensuel || 0);
-      const cotisationsSalariales = bulletin
-        ? (bulletin.total_cotisations_salariales || Math.round(brut * 0.22))
-        : Math.round(brut * 0.22); // ~22% estimation
-      const net = bulletin ? bulletin.net_a_payer : (brut - cotisationsSalariales);
-      const cotisationsPatronales = bulletin
-        ? (bulletin.total_cotisations_patronales || Math.round(brut * 0.45))
-        : Math.round(brut * 0.45); // ~45% estimation
-
-      nbSalariesDSN++;
-      console.log(`[DSN] Ajout salarié: ${m.nom} ${m.prenom} - Brut: ${brut/100}€ (source: ${bulletin ? 'bulletin' : 'fiche'})`);
-
-      // S21.G00.30 - Individu
-      add('S21.G00.30.001', m.nir || '');                         // NIR
-      add('S21.G00.30.002', (m.nom || '').toUpperCase());         // Nom de famille
-      add('S21.G00.30.004', (m.prenom || ''));                    // Prénoms
-      add('S21.G00.30.006', m.sexe === 'M' ? '01' : '02');        // Sexe: 01=M, 02=F
-      add('S21.G00.30.007', m.date_naissance?.replace(/-/g, '')); // Date naissance AAAAMMJJ
-      add('S21.G00.30.008', m.lieu_naissance || '');              // Lieu naissance
-      add('S21.G00.30.014', m.adresse_rue || '');                 // Adresse salarié
-      add('S21.G00.30.015', m.adresse_cp || '');                  // Code postal
-      add('S21.G00.30.016', m.adresse_ville || '');               // Commune
-
-      // S21.G00.40 - Contrat
-      add('S21.G00.40.001', m.date_embauche?.replace(/-/g, ''));  // Date début contrat
-      add('S21.G00.40.007', m.type_contrat === 'cdi' ? '01' : '02'); // Nature: 01=CDI, 02=CDD
-      add('S21.G00.40.008', m.poste || m.role || '');             // Libellé emploi
-      add('S21.G00.40.009', '01');                                // Dispositif politique publique
-      add('S21.G00.40.011', String(Math.round((m.heures_mensuelles || 151.67) * 100))); // Quotité travail
-      add('S21.G00.40.016', params.idcc || '');                   // Code convention collective
-      add('S21.G00.40.019', m.categorie_sociopro || '');          // Catégorie socioprofessionnelle
-
-      // S21.G00.50 - Versement individu (brut/net déjà calculés au-dessus)
-      add('S21.G00.50.001', `01${moisDecl}`);                     // Date versement JJAAAAMM
-      add('S21.G00.50.002', String(Math.round(brut / 100)));      // Rémunération nette fiscale (euros)
-      add('S21.G00.50.004', String(Math.round(net / 100)));       // Montant net versé (euros)
-      add('S21.G00.50.006', '01');                                // Mode paiement: 01=virement
-      add('S21.G00.50.009', String(Math.round(brut / 100)));      // Rémunération brute (euros)
-
-      // S21.G00.51 - Rémunération (composantes)
-      add('S21.G00.51.001', `01${moisDecl}`);                     // Date début période paie
-      add('S21.G00.51.002', `${new Date(parseInt(year), parseInt(month), 0).getDate()}${moisDecl}`); // Date fin
-      add('S21.G00.51.010', '001');                               // Type: 001=salaire de base
-      add('S21.G00.51.011', String(Math.round(brut / 100)));      // Montant (euros)
-      add('S21.G00.51.012', String(Math.round((m.heures_mensuelles || 151.67) * 100))); // Nombre heures
-
-      totalBrut += brut;
-      totalNet += net;
-      totalCotisations += cotisationsPatronales + cotisationsSalariales;
-    });
-
-    // =====================================================
-    // S90 - TOTAL ENVOI (structure obligatoire)
-    // =====================================================
-    add('S90.G00.90.001', String(nbRubriques + 1).padStart(10, '0')); // Nombre de rubriques
-    add('S90.G00.90.002', '01');                                      // Nombre de déclarations
-
-    // Enregistrer dans l'historique
+    // Sauvegarder dans l'historique
     const { data: historique, error } = await supabase
       .from('rh_dsn_historique')
       .insert({
         tenant_id: req.admin.tenant_id,
         periode,
-        type_declaration: type_declaration || 'mensuelle',
-        nature_envoi: nature_envoi || '01',
-        nb_salaries: nbSalariesDSN,
-        total_brut: Math.round(totalBrut),
-        total_cotisations: Math.round(totalCotisations),
+        type_declaration: 'mensuelle',
+        nature_envoi: nature || '01',
+        nature: nature || '01',
+        nb_salaries: result.stats.individus,
+        total_brut: 0,
+        total_cotisations: 0,
         statut: 'generee',
-        fichier_nom: `DSN_${periode.replace('-', '')}_${Date.now()}.dsn`,
-        contenu_dsn: dsn
-        // genere_par omis car c'est une FK vers rh_membres et non admins
+        workflow_status: 'brouillon',
+        fichier_nom: result.filename,
+        contenu_dsn: result.content,
       })
       .select()
       .single();
@@ -4077,18 +3917,12 @@ router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
     res.json({
       success: true,
       historique,
-      contenu_dsn: dsn,
-      stats: {
-        periode,
-        nb_salaries: nbSalariesDSN,
-        total_brut: totalBrut / 100,
-        total_net: totalNet / 100,
-        total_cotisations: totalCotisations / 100
-      }
+      contenu_dsn: result.content,
+      stats: result.stats,
     });
   } catch (error) {
     console.error('[RH] Erreur génération DSN:', error);
-    res.status(500).json({ error: 'Erreur génération DSN' });
+    res.status(500).json({ error: error.message || 'Erreur génération DSN' });
   }
 });
 
@@ -5328,152 +5162,22 @@ router.get('/bulletins', authenticateAdmin, paginate(), async (req, res) => {
 router.post('/bulletins/generer', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { membre_id, periode } = req.body;
+    const { membre_id, periode, primes } = req.body;
 
     if (!membre_id || !periode) {
       return res.status(400).json({ error: 'membre_id et periode requis' });
     }
 
-    // Récupérer infos employé
-    const { data: membre, error: mError } = await supabase
-      .from('rh_membres')
-      .select('*')
-      .eq('id', membre_id)
-      .eq('tenant_id', tenantId)
-      .single();
+    // Utiliser le moteur de calcul paie
+    const payrollResult = await payrollEngine.calculatePayroll(tenantId, membre_id, periode, { primes });
 
-    if (mError || !membre) {
-      return res.status(404).json({ error: 'Employé non trouvé' });
-    }
-
-    // Récupérer heures supplémentaires du mois
-    const { data: heuresSupp } = await supabase
-      .from('rh_heures_supp_mensuel')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('membre_id', membre_id)
-      .eq('periode', periode)
-      .maybeSingle();
-
-    // Récupérer paramètres paie
-    const { data: params } = await supabase
-      .from('rh_parametres_paie')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
-
-    const plafondSS = params?.plafond_ss_mensuel || TAUX_COTISATIONS.plafond_ss_mensuel; // 4005€ en 2026
-
-    // Calcul du bulletin
-    const salaireBrut = membre.salaire_mensuel || 0;
-    const heuresNormales = membre.heures_mensuelles || 151.67;
-    const hs25 = heuresSupp?.heures_25 || 0;
-    const hs50 = heuresSupp?.heures_50 || 0;
-    const montantHS25 = heuresSupp?.montant_25 || 0;
-    const montantHS50 = heuresSupp?.montant_50 || 0;
-
-    const brutTotal = salaireBrut + montantHS25 + montantHS50;
-
-    // Calcul cotisations (taux 2025-2026 France)
-    const baseSS = Math.min(brutTotal, plafondSS);
-    const baseCSG = Math.round(brutTotal * 0.9825); // 98.25% du brut
-
-    // Cotisations SALARIALES (taux 2026 - URSSAF)
-    const cotisationsSalariales = [
-      { nom: 'Sécurité sociale - Maladie', base: brutTotal, taux: TAUX_COTISATIONS.maladie_salarie, montant: 0 }, // 0% depuis 2018
-      { nom: 'Sécurité sociale - Vieillesse (plafonnée)', base: baseSS, taux: TAUX_COTISATIONS.vieillesse_plafonnee_salarie, montant: Math.round(baseSS * TAUX_COTISATIONS.vieillesse_plafonnee_salarie / 100) },
-      { nom: 'Sécurité sociale - Vieillesse (déplaf.)', base: brutTotal, taux: TAUX_COTISATIONS.vieillesse_deplafonnee_salarie, montant: Math.round(brutTotal * TAUX_COTISATIONS.vieillesse_deplafonnee_salarie / 100) },
-      { nom: 'Retraite complémentaire T1', base: baseSS, taux: TAUX_COTISATIONS.retraite_t1_salarie, montant: Math.round(baseSS * TAUX_COTISATIONS.retraite_t1_salarie / 100) },
-      { nom: 'CEG T1', base: baseSS, taux: TAUX_COTISATIONS.ceg_t1_salarie, montant: Math.round(baseSS * TAUX_COTISATIONS.ceg_t1_salarie / 100) },
-      { nom: 'Assurance chômage', base: baseSS, taux: TAUX_COTISATIONS.chomage_salarie, montant: 0 }, // 0% salarié depuis 2019
-      { nom: 'CSG déductible', base: baseCSG, taux: TAUX_COTISATIONS.csg_deductible, montant: Math.round(baseCSG * TAUX_COTISATIONS.csg_deductible / 100) },
-      { nom: 'CSG non déductible', base: baseCSG, taux: TAUX_COTISATIONS.csg_non_deductible, montant: Math.round(baseCSG * TAUX_COTISATIONS.csg_non_deductible / 100) },
-      { nom: 'CRDS', base: baseCSG, taux: TAUX_COTISATIONS.crds, montant: Math.round(baseCSG * TAUX_COTISATIONS.crds / 100) }
-    ];
-
-    // Cotisations PATRONALES (taux 2026 - URSSAF)
-    const cotisationsPatronales = [
-      { nom: 'Sécurité sociale - Maladie', base: brutTotal, taux: TAUX_COTISATIONS.maladie_employeur, montant: Math.round(brutTotal * TAUX_COTISATIONS.maladie_employeur / 100) },
-      { nom: 'Sécurité sociale - Vieillesse (plafonnée)', base: baseSS, taux: TAUX_COTISATIONS.vieillesse_plafonnee_employeur, montant: Math.round(baseSS * TAUX_COTISATIONS.vieillesse_plafonnee_employeur / 100) },
-      { nom: 'Sécurité sociale - Vieillesse (déplaf.)', base: brutTotal, taux: TAUX_COTISATIONS.vieillesse_deplafonnee_employeur, montant: Math.round(brutTotal * TAUX_COTISATIONS.vieillesse_deplafonnee_employeur / 100) },
-      { nom: 'Allocations familiales', base: brutTotal, taux: TAUX_COTISATIONS.allocations_familiales_reduit, montant: Math.round(brutTotal * TAUX_COTISATIONS.allocations_familiales_reduit / 100) },
-      { nom: 'Accidents du travail', base: brutTotal, taux: TAUX_COTISATIONS.accidents_travail, montant: Math.round(brutTotal * TAUX_COTISATIONS.accidents_travail / 100) },
-      { nom: 'FNAL', base: baseSS, taux: TAUX_COTISATIONS.fnal_moins_50, montant: Math.round(baseSS * TAUX_COTISATIONS.fnal_moins_50 / 100) },
-      { nom: 'CSA', base: brutTotal, taux: TAUX_COTISATIONS.csa, montant: Math.round(brutTotal * TAUX_COTISATIONS.csa / 100) },
-      { nom: 'Retraite complémentaire T1', base: baseSS, taux: TAUX_COTISATIONS.retraite_t1_employeur, montant: Math.round(baseSS * TAUX_COTISATIONS.retraite_t1_employeur / 100) },
-      { nom: 'CEG T1', base: baseSS, taux: TAUX_COTISATIONS.ceg_t1_employeur, montant: Math.round(baseSS * TAUX_COTISATIONS.ceg_t1_employeur / 100) },
-      { nom: 'Assurance chômage', base: baseSS, taux: TAUX_COTISATIONS.chomage_employeur, montant: Math.round(baseSS * TAUX_COTISATIONS.chomage_employeur / 100) },
-      { nom: 'AGS', base: baseSS, taux: TAUX_COTISATIONS.ags, montant: Math.round(baseSS * TAUX_COTISATIONS.ags / 100) },
-      { nom: 'Formation professionnelle', base: brutTotal, taux: TAUX_COTISATIONS.formation_moins_11, montant: Math.round(brutTotal * TAUX_COTISATIONS.formation_moins_11 / 100) },
-      { nom: 'Taxe d\'apprentissage', base: brutTotal, taux: TAUX_COTISATIONS.taxe_apprentissage, montant: Math.round(brutTotal * TAUX_COTISATIONS.taxe_apprentissage / 100) }
-    ];
-
-    const totalCotisationsSalariales = cotisationsSalariales.reduce((sum, c) => sum + c.montant, 0);
-    const totalCotisationsPatronales = cotisationsPatronales.reduce((sum, c) => sum + c.montant, 0);
-    const netAvantIR = brutTotal - totalCotisationsSalariales;
-
-    // Prélèvement à la source (taux par défaut ou taux employé)
-    const tauxIR = membre.taux_ir || params?.taux_ir_defaut || 0;
-    const montantIR = Math.round(netAvantIR * (tauxIR / 100));
-    const netAPayer = netAvantIR - montantIR;
-
-    // Net imposable (sans CSG/CRDS non déductibles)
-    const netImposable = netAvantIR + cotisationsSalariales.find(c => c.nom.includes('non déductible'))?.montant +
-                         cotisationsSalariales.find(c => c.nom === 'CRDS')?.montant;
-
-    // Récupérer compteur congés
-    const annee = parseInt(periode.split('-')[0]);
-    const { data: compteur } = await supabase
-      .from('rh_compteurs_conges')
-      .select('cp_acquis, cp_pris')
-      .eq('tenant_id', tenantId)
-      .eq('membre_id', membre_id)
-      .eq('annee', annee)
-      .maybeSingle();
-
-    // Calculer ancienneté
-    const dateEmbauche = new Date(membre.date_embauche);
-    const datePeriode = new Date(periode + '-01');
-    const ancienneteMois = Math.floor((datePeriode - dateEmbauche) / (1000 * 60 * 60 * 24 * 30.44));
+    // Convertir en format bulletin DB
+    const bulletinData = payrollEngine.payrollToBulletinData(payrollResult);
 
     // Sauvegarder le bulletin
     const { data: bulletin, error: bError } = await supabase
       .from('rh_bulletins_paie')
-      .upsert({
-        tenant_id: tenantId,
-        membre_id,
-        periode,
-        employe_nom: membre.nom,
-        employe_prenom: membre.prenom,
-        employe_nir: membre.nir,
-        employe_adresse: [membre.adresse_rue, membre.adresse_cp, membre.adresse_ville].filter(Boolean).join(', '),
-        employe_poste: membre.poste || membre.role,
-        employe_classification: membre.classification_niveau,
-        type_contrat: membre.type_contrat,
-        date_embauche: membre.date_embauche,
-        anciennete_mois: ancienneteMois,
-        salaire_base: salaireBrut,
-        heures_normales: heuresNormales,
-        heures_supp_25: hs25,
-        montant_hs_25: montantHS25,
-        heures_supp_50: hs50,
-        montant_hs_50: montantHS50,
-        brut_total: brutTotal,
-        cotisations_salariales: cotisationsSalariales,
-        cotisations_patronales: cotisationsPatronales,
-        total_cotisations_salariales: totalCotisationsSalariales,
-        total_cotisations_patronales: totalCotisationsPatronales,
-        net_avant_ir: netAvantIR,
-        taux_ir: tauxIR,
-        montant_ir: montantIR,
-        net_a_payer: netAPayer,
-        net_imposable: netImposable,
-        cp_acquis: compteur?.cp_acquis || 0,
-        cp_pris: compteur?.cp_pris || 0,
-        cp_solde: (compteur?.cp_acquis || 0) - (compteur?.cp_pris || 0),
-        statut: 'brouillon',
-        updated_at: new Date().toISOString()
-      }, {
+      .upsert(bulletinData, {
         onConflict: 'tenant_id,membre_id,periode'
       })
       .select()
@@ -5484,7 +5188,7 @@ router.post('/bulletins/generer', authenticateAdmin, async (req, res) => {
     res.json({ success: true, bulletin });
   } catch (error) {
     console.error('[RH BULLETINS] Erreur génération:', error);
-    res.status(500).json({ error: 'Erreur génération bulletin' });
+    res.status(500).json({ error: error.message || 'Erreur génération bulletin' });
   }
 });
 
@@ -5569,263 +5273,13 @@ router.get('/bulletins/:id/pdf', authenticateAdmin, async (req, res) => {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
 
-    // Récupérer le bulletin
-    const { data: bulletin, error } = await supabase
-      .from('rh_bulletins_paie')
-      .select('*')
-      .eq('id', id)
-      .eq('tenant_id', tenantId)
-      .single();
-
-    if (error || !bulletin) {
-      return res.status(404).json({ error: 'Bulletin non trouvé' });
-    }
-
-    // Récupérer les infos tenant
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('name, settings')
-      .eq('id', tenantId)
-      .single();
-
-    // Récupérer les paramètres DSN
-    const { data: dsnParams } = await supabase
-      .from('rh_dsn_parametres')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
-
-    // Helpers
-    const fmt = (cents) => {
-      if (!cents) return '0,00';
-      const e = (cents / 100).toFixed(2).split('.');
-      e[0] = e[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-      return e.join(',');
-    };
-    const fmtE = (cents) => fmt(cents) + ' €';
-
-    const formatPeriode = (p) => {
-      const [y, m] = p.split('-');
-      return new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    };
-
-    // Créer le document PDF
-    const doc = new PDFDocument({ size: 'A4', margin: 40 });
-    const filename = `bulletin_${bulletin.employe_nom}_${bulletin.employe_prenom}_${bulletin.periode}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    doc.pipe(res);
-
-    const W = doc.page.width - 80;
-    const L = 40; // left margin
-    let y = 35;
-
-    // ===== TITRE =====
-    doc.font('Helvetica-Bold').fontSize(16);
-    doc.text('BULLETIN DE PAIE', L, y, { width: W, align: 'center' });
-    y += 30;
-
-    // ===== EN-TÊTE EMPLOYEUR / SALARIÉ =====
-    doc.rect(L, y, W/2 - 10, 90).stroke('#ccc');
-    doc.rect(L + W/2 + 10, y, W/2 - 10, 90).stroke('#ccc');
-
-    // Employeur (gauche)
-    doc.font('Helvetica-Bold').fontSize(10);
-    doc.text('EMPLOYEUR', L + 8, y + 8);
-    doc.font('Helvetica').fontSize(9);
-    doc.text(dsnParams?.raison_sociale || tenant?.name || 'Entreprise', L + 8, y + 24, { width: W/2 - 25 });
-    if (dsnParams?.siret) doc.text(`SIRET: ${dsnParams.siret}`, L + 8, y + 38);
-    if (dsnParams?.code_naf) doc.text(`Code NAF: ${dsnParams.code_naf}`, L + 8, y + 52);
-    const adresse = [dsnParams?.adresse_etablissement, `${dsnParams?.code_postal_etablissement || ''} ${dsnParams?.ville_etablissement || ''}`].filter(Boolean).join(', ');
-    if (adresse.trim()) doc.text(adresse, L + 8, y + 66, { width: W/2 - 25 });
-
-    // Salarié (droite)
-    const R = L + W/2 + 18;
-    doc.font('Helvetica-Bold').fontSize(10);
-    doc.text('SALARIÉ', R, y + 8);
-    doc.font('Helvetica').fontSize(9);
-    doc.text(`${bulletin.employe_prenom || ''} ${bulletin.employe_nom || ''}`, R, y + 24);
-    doc.text(`N° Sécurité sociale: ${bulletin.employe_nir || '-'}`, R, y + 38);
-    doc.text(`Emploi: ${bulletin.employe_poste || '-'}`, R, y + 52);
-    doc.text(`Contrat: ${bulletin.type_contrat?.toUpperCase() || 'CDI'}`, R, y + 66);
-    if (bulletin.date_embauche) doc.text(`Entrée: ${new Date(bulletin.date_embauche).toLocaleDateString('fr-FR')}`, R + 100, y + 66);
-
-    y += 100;
-
-    // ===== PÉRIODE =====
-    doc.rect(L, y, W, 28).fill('#f8f9fa').stroke('#dee2e6');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(12);
-    doc.text(`Période: ${formatPeriode(bulletin.periode).toUpperCase()}`, L + 10, y + 8, { width: W - 20, align: 'center' });
-    y += 38;
-
-    // ===== RÉMUNÉRATION BRUTE =====
-    doc.rect(L, y, W, 22).fill('#e9ecef').stroke('#dee2e6');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(9);
-    doc.text('RÉMUNÉRATION', L + 8, y + 6);
-    doc.text('Base', L + 260, y + 6, { width: 60, align: 'right' });
-    doc.text('Taux', L + 330, y + 6, { width: 50, align: 'right' });
-    doc.text('Salarié', L + 390, y + 6, { width: 60, align: 'right' });
-    doc.text('Employeur', L + 455, y + 6, { width: 60, align: 'right' });
-    y += 22;
-
-    doc.font('Helvetica').fontSize(9);
-
-    // Salaire de base
-    doc.text('Salaire de base', L + 8, y + 6);
-    doc.text(`${bulletin.heures_normales || 151.67} h`, L + 260, y + 6, { width: 60, align: 'right' });
-    doc.text(fmtE(bulletin.salaire_base), L + 390, y + 6, { width: 60, align: 'right' });
-    y += 18;
-
-    // Heures supp
-    if (bulletin.heures_supp_25 > 0) {
-      doc.text('Heures supplémentaires 25%', L + 8, y + 6);
-      doc.text(`${bulletin.heures_supp_25} h`, L + 260, y + 6, { width: 60, align: 'right' });
-      doc.text('125%', L + 330, y + 6, { width: 50, align: 'right' });
-      doc.text(fmtE(bulletin.montant_hs_25), L + 390, y + 6, { width: 60, align: 'right' });
-      y += 18;
-    }
-    if (bulletin.heures_supp_50 > 0) {
-      doc.text('Heures supplémentaires 50%', L + 8, y + 6);
-      doc.text(`${bulletin.heures_supp_50} h`, L + 260, y + 6, { width: 60, align: 'right' });
-      doc.text('150%', L + 330, y + 6, { width: 50, align: 'right' });
-      doc.text(fmtE(bulletin.montant_hs_50), L + 390, y + 6, { width: 60, align: 'right' });
-      y += 18;
-    }
-
-    // Total brut
-    y += 4;
-    doc.rect(L, y, W, 20).fill('#d4edda').stroke('#28a745');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(10);
-    doc.text('SALAIRE BRUT', L + 8, y + 5);
-    doc.text(fmtE(bulletin.brut_total), L + 390, y + 5, { width: 60, align: 'right' });
-    y += 28;
-
-    // ===== COTISATIONS =====
-    doc.rect(L, y, W, 22).fill('#e9ecef').stroke('#dee2e6');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(9);
-    doc.text('COTISATIONS ET CONTRIBUTIONS', L + 8, y + 6);
-    doc.text('Base', L + 260, y + 6, { width: 60, align: 'right' });
-    doc.text('Taux S/P', L + 330, y + 6, { width: 50, align: 'right' });
-    doc.text('Salarié', L + 390, y + 6, { width: 60, align: 'right' });
-    doc.text('Employeur', L + 455, y + 6, { width: 60, align: 'right' });
-    y += 22;
-
-    const brut = bulletin.brut_total || 0;
-    const plafond = 400500; // PMSS 2026
-    const basePlaf = Math.min(brut, plafond);
-    const baseCSG = Math.round(brut * 0.9825);
-
-    // Cotisations groupées par catégorie - Taux 2026
-    const categories = [
-      { nom: 'Santé - Maladie, maternité, invalidité, décès', base: brut, txS: 0, txP: 7.00 },
-      { nom: 'Accidents du travail - Maladies professionnelles', base: brut, txS: 0, txP: 2.08 },
-      { nom: 'Retraite Sécurité sociale plafonnée', base: basePlaf, txS: 6.90, txP: 8.55 },
-      { nom: 'Retraite Sécurité sociale déplafonnée', base: brut, txS: 0.40, txP: 2.11 },
-      { nom: 'Retraite complémentaire Tranche 1', base: basePlaf, txS: 3.15, txP: 4.72 },
-      { nom: 'Famille', base: brut, txS: 0, txP: 3.45 },
-      { nom: 'Assurance chômage', base: basePlaf, txS: 0, txP: 4.05 },
-      { nom: 'AGS (garantie salaires)', base: basePlaf, txS: 0, txP: 0.20 },
-      { nom: 'CSG déductible de l\'impôt sur le revenu', base: baseCSG, txS: 6.80, txP: 0 },
-      { nom: 'CSG/CRDS non déductible', base: baseCSG, txS: 2.90, txP: 0 },
-      { nom: 'FNAL, formation professionnelle, autres', base: brut, txS: 0, txP: 1.38 }
-    ];
-
-    let totalS = 0, totalP = 0;
-    doc.font('Helvetica').fontSize(8);
-    for (const cat of categories) {
-      const mS = Math.round(cat.base * cat.txS / 100);
-      const mP = Math.round(cat.base * cat.txP / 100);
-      totalS += mS;
-      totalP += mP;
-
-      doc.text(cat.nom, L + 8, y + 5, { width: 245 });
-      doc.text(fmt(cat.base), L + 260, y + 5, { width: 60, align: 'right' });
-      const taux = cat.txS > 0 && cat.txP > 0 ? `${cat.txS}/${cat.txP}` : (cat.txS > 0 ? `${cat.txS}` : `${cat.txP}`);
-      doc.text(taux + '%', L + 330, y + 5, { width: 50, align: 'right' });
-      doc.text(mS > 0 ? fmt(mS) : '-', L + 390, y + 5, { width: 60, align: 'right' });
-      doc.text(mP > 0 ? fmt(mP) : '-', L + 455, y + 5, { width: 60, align: 'right' });
-      y += 16;
-    }
-
-    // Total cotisations
-    y += 2;
-    doc.rect(L, y, W, 20).fill('#f8d7da').stroke('#dc3545');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(9);
-    doc.text('TOTAL COTISATIONS', L + 8, y + 5);
-    doc.text(fmtE(totalS), L + 390, y + 5, { width: 60, align: 'right' });
-    doc.text(fmtE(totalP), L + 455, y + 5, { width: 60, align: 'right' });
-    y += 28;
-
-    // ===== MONTANT NET SOCIAL =====
-    doc.rect(L, y, W, 22).fill('#e7f1ff').stroke('#0d6efd');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(10);
-    const netSocial = brut - totalS;
-    doc.text('MONTANT NET SOCIAL', L + 8, y + 6);
-    doc.text(fmtE(netSocial), L + 390, y + 6, { width: 60, align: 'right' });
-    y += 30;
-
-    // ===== NET AVANT IMPÔT =====
-    const netAvantIR = bulletin.net_avant_ir || netSocial;
-    doc.rect(L, y, W, 22).fill('#cce5ff').stroke('#0d6efd');
-    doc.fill('#000').font('Helvetica-Bold').fontSize(10);
-    doc.text('NET À PAYER AVANT IMPÔT SUR LE REVENU', L + 8, y + 6);
-    doc.text(fmtE(netAvantIR), L + 390, y + 6, { width: 60, align: 'right' });
-    y += 28;
-
-    // ===== IMPÔT SUR LE REVENU =====
-    const tauxIR = bulletin.taux_ir || 0;
-    const montantIR = bulletin.montant_ir || 0;
-    doc.font('Helvetica').fontSize(9);
-    doc.text(`Impôt sur le revenu - Prélèvement à la source (${tauxIR}%)`, L + 8, y + 4);
-    doc.text(montantIR > 0 ? `- ${fmtE(montantIR)}` : '-', L + 390, y + 4, { width: 60, align: 'right' });
-    y += 20;
-
-    // ===== NET À PAYER =====
-    const netAPayer = bulletin.net_a_payer || (netAvantIR - montantIR);
-    doc.rect(L, y, W, 28).fill('#198754').stroke('#198754');
-    doc.fill('#fff').font('Helvetica-Bold').fontSize(14);
-    doc.text('NET À PAYER', L + 10, y + 7);
-    doc.text(fmtE(netAPayer), L + 380, y + 7, { width: 80, align: 'right' });
-    y += 36;
-
-    // ===== COÛT EMPLOYEUR =====
-    const coutEmployeur = brut + totalP;
-    doc.fill('#000').font('Helvetica').fontSize(9);
-    doc.text(`Total versé par l'employeur (brut + charges patronales): ${fmtE(coutEmployeur)}`, L + 8, y + 4);
-    y += 25;
-
-    // ===== CUMULS & CONGÉS =====
-    doc.rect(L, y, W/2 - 10, 50).stroke('#dee2e6');
-    doc.rect(L + W/2 + 10, y, W/2 - 10, 50).stroke('#dee2e6');
-
-    doc.font('Helvetica-Bold').fontSize(9);
-    doc.text('CUMULS ANNUELS', L + 8, y + 8);
-    doc.font('Helvetica').fontSize(8);
-    doc.text(`Brut cumulé: ${fmtE(bulletin.cumul_brut || brut)}`, L + 8, y + 24);
-    doc.text(`Net imposable cumulé: ${fmtE(bulletin.cumul_net_imposable || netAvantIR)}`, L + 8, y + 38);
-
-    doc.font('Helvetica-Bold').fontSize(9);
-    doc.text('CONGÉS PAYÉS', L + W/2 + 18, y + 8);
-    doc.font('Helvetica').fontSize(8);
-    doc.text(`Acquis: ${bulletin.cp_acquis || 0} jours`, L + W/2 + 18, y + 24);
-    doc.text(`Pris: ${bulletin.cp_pris || 0} jours`, L + W/2 + 100, y + 24);
-    doc.text(`Solde: ${bulletin.cp_solde || 0} jours`, L + W/2 + 18, y + 38);
-    y += 60;
-
-    // ===== MENTIONS LÉGALES =====
-    doc.rect(L, y, W, 55).stroke('#ccc');
-    doc.font('Helvetica').fontSize(7).fillColor('#555');
-    doc.text('Dans votre intérêt, conservez ce bulletin de paie sans limitation de durée.', L + 8, y + 8, { width: W - 16 });
-    doc.text('Le montant net social correspond au revenu net après déduction de l\'ensemble des prélèvements sociaux obligatoires. Plus d\'informations sur www.mesdroitssociaux.gouv.fr', L + 8, y + 20, { width: W - 16 });
-    doc.text('Pour toute question concernant ce bulletin, adressez-vous au service des ressources humaines.', L + 8, y + 36, { width: W - 16 });
-    doc.fontSize(6).fillColor('#888');
-    doc.text(`Document généré le ${new Date().toLocaleDateString('fr-FR')} | NEXUS SIRH | Plafond mensuel Sécurité sociale 2026: 4 005 €`, L + 8, y + 46, { width: W - 16 });
-
-    doc.end();
-
+    // Deleguer au generateur PDF conforme 2026
+    await streamPayslipPDF(tenantId, id, res);
   } catch (error) {
     console.error('[RH BULLETINS] Erreur génération PDF:', error);
-    res.status(500).json({ error: 'Erreur génération PDF' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message || 'Erreur génération PDF' });
+    }
   }
 });
 
@@ -6343,6 +5797,206 @@ router.patch('/dpae/:id', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH DPAE] Erreur mise à jour:', error);
     res.status(500).json({ error: 'Erreur mise à jour DPAE' });
+  }
+});
+
+// ============================================
+// CONVENTIONS COLLECTIVES
+// ============================================
+
+/**
+ * GET /api/admin/rh/convention/:idcc
+ * Consulter une convention collective
+ */
+router.get('/convention/:idcc', authenticateAdmin, async (req, res) => {
+  try {
+    const convention = await conventionService.getConvention(req.params.idcc);
+    if (!convention) {
+      return res.status(404).json({ error: 'Convention non trouvée' });
+    }
+    res.json(convention);
+  } catch (error) {
+    console.error('[RH CONVENTION] Erreur:', error);
+    res.status(500).json({ error: 'Erreur récupération convention' });
+  }
+});
+
+/**
+ * GET /api/admin/rh/conventions
+ * Liste toutes les conventions disponibles
+ */
+router.get('/conventions', authenticateAdmin, async (req, res) => {
+  try {
+    const conventions = await conventionService.listConventions();
+    res.json(conventions);
+  } catch (error) {
+    console.error('[RH CONVENTIONS] Erreur:', error);
+    res.status(500).json({ error: 'Erreur liste conventions' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/convention/valider-salaire
+ * Valider un salaire vs minima conventionnel
+ */
+router.post('/convention/valider-salaire', authenticateAdmin, async (req, res) => {
+  try {
+    const { idcc, niveau, echelon, salaire_brut } = req.body;
+    if (!idcc || !niveau || !salaire_brut) {
+      return res.status(400).json({ error: 'idcc, niveau et salaire_brut requis' });
+    }
+    const result = await conventionService.validateSalaire(idcc, niveau, salaire_brut, echelon);
+    res.json(result);
+  } catch (error) {
+    console.error('[RH CONVENTION] Erreur validation:', error);
+    res.status(500).json({ error: 'Erreur validation salaire' });
+  }
+});
+
+// ============================================
+// REGULARISATION
+// ============================================
+
+/**
+ * POST /api/admin/rh/regularisation/calculer
+ * Calculer une régularisation rétroactive
+ */
+router.post('/regularisation/calculer', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { membre_id, periode_origine, corrections } = req.body;
+
+    if (!membre_id || !periode_origine || !corrections) {
+      return res.status(400).json({ error: 'membre_id, periode_origine et corrections requis' });
+    }
+
+    const result = await regularisationService.calculateRegularisation(
+      tenantId, membre_id, periode_origine, corrections
+    );
+
+    res.json({ success: true, regularisation: result });
+  } catch (error) {
+    console.error('[RH REGUL] Erreur calcul:', error);
+    res.status(500).json({ error: error.message || 'Erreur calcul régularisation' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/regularisation/appliquer
+ * Appliquer une régularisation sur un bulletin
+ */
+router.post('/regularisation/appliquer', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { membre_id, periode_application, regularisation } = req.body;
+
+    if (!membre_id || !periode_application || !regularisation) {
+      return res.status(400).json({ error: 'membre_id, periode_application et regularisation requis' });
+    }
+
+    const result = await regularisationService.applyRegularisation(
+      tenantId, membre_id, periode_application, regularisation
+    );
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[RH REGUL] Erreur application:', error);
+    res.status(500).json({ error: error.message || 'Erreur application régularisation' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/regularisation/recalculer-cumuls
+ * Recalculer les cumuls annuels
+ */
+router.post('/regularisation/recalculer-cumuls', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { membre_id, annee } = req.body;
+
+    if (!membre_id || !annee) {
+      return res.status(400).json({ error: 'membre_id et annee requis' });
+    }
+
+    const cumuls = await regularisationService.recalculateCumuls(tenantId, membre_id, annee);
+    res.json({ success: true, cumuls });
+  } catch (error) {
+    console.error('[RH REGUL] Erreur recalcul cumuls:', error);
+    res.status(500).json({ error: error.message || 'Erreur recalcul cumuls' });
+  }
+});
+
+// ============================================
+// DSN WORKFLOW
+// ============================================
+
+/**
+ * POST /api/admin/rh/dsn/soumettre
+ * Soumettre une DSN validée
+ */
+router.post('/dsn/soumettre', authenticateAdmin, async (req, res) => {
+  try {
+    const { dsn_id } = req.body;
+    if (!dsn_id) return res.status(400).json({ error: 'dsn_id requis' });
+
+    const result = await dsnWorkflowService.submitDSN(req.admin.tenant_id, dsn_id);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[RH DSN] Erreur soumission:', error);
+    res.status(500).json({ error: error.message || 'Erreur soumission DSN' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/dsn/retour
+ * Traiter un retour URSSAF (ARC/ARE)
+ */
+router.post('/dsn/retour', authenticateAdmin, async (req, res) => {
+  try {
+    const { dsn_id, retour } = req.body;
+    if (!dsn_id || !retour) return res.status(400).json({ error: 'dsn_id et retour requis' });
+
+    const result = await dsnWorkflowService.processRetour(req.admin.tenant_id, dsn_id, retour);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[RH DSN] Erreur retour:', error);
+    res.status(500).json({ error: error.message || 'Erreur traitement retour DSN' });
+  }
+});
+
+/**
+ * GET /api/admin/rh/dsn/calendrier
+ * Calendrier DSN de l'année
+ */
+router.get('/dsn/calendrier', authenticateAdmin, async (req, res) => {
+  try {
+    const annee = parseInt(req.query.annee) || new Date().getFullYear();
+    const calendar = await dsnWorkflowService.getDSNCalendar(req.admin.tenant_id, annee);
+    res.json(calendar);
+  } catch (error) {
+    console.error('[RH DSN] Erreur calendrier:', error);
+    res.status(500).json({ error: 'Erreur récupération calendrier DSN' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/dsn/evenement
+ * Générer une DSN événementielle
+ */
+router.post('/dsn/evenement', authenticateAdmin, async (req, res) => {
+  try {
+    const { membre_id, nature, evenement } = req.body;
+    if (!membre_id || !nature || !evenement) {
+      return res.status(400).json({ error: 'membre_id, nature et evenement requis' });
+    }
+
+    const result = await dsnWorkflowService.generateDSNEvenementielle(
+      req.admin.tenant_id, membre_id, nature, evenement
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[RH DSN] Erreur événementielle:', error);
+    res.status(500).json({ error: error.message || 'Erreur DSN événementielle' });
   }
 });
 

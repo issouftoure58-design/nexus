@@ -56,14 +56,46 @@ interface ResumePointage {
   jours_valides: number;
 }
 
+interface CotisationLine {
+  nom: string;
+  code: string;
+  base: number;
+  taux: number;
+  montant: number;
+  plafonne: boolean;
+}
+
 interface Bulletin {
   id: number;
   membre_id: number;
   periode: string;
   employe_nom: string;
   employe_prenom: string;
+  employe_poste: string;
+  salaire_base: number;
   brut_total: number;
+  heures_supp_25: number;
+  montant_hs_25: number;
+  heures_supp_50: number;
+  montant_hs_50: number;
+  primes: Array<{ code: string; nom: string; montant: number }>;
+  cotisations_salariales: CotisationLine[];
+  cotisations_patronales: CotisationLine[];
+  total_cotisations_salariales: number;
+  total_cotisations_patronales: number;
+  net_social: number;
+  net_imposable: number;
+  net_avant_ir: number;
+  taux_ir: number;
+  montant_ir: number;
   net_a_payer: number;
+  reduction_fillon: number;
+  cumul_brut: number;
+  cumul_net_imposable: number;
+  cumul_ir: number;
+  cp_acquis: number;
+  cp_pris: number;
+  cp_solde: number;
   statut: string;
   membre?: {
     id: number;
@@ -112,6 +144,7 @@ export function GestionPaie() {
   });
 
   const [selectedMembre, setSelectedMembre] = useState<number | null>(null);
+  const [selectedBulletin, setSelectedBulletin] = useState<Bulletin | null>(null);
 
   // Navigation période
   const navigatePeriode = (direction: 'prev' | 'next') => {
@@ -707,6 +740,8 @@ export function GestionPaie() {
                       <tr className="border-b text-left text-sm text-gray-500">
                         <th className="pb-2">Employé</th>
                         <th className="pb-2 text-right">Brut</th>
+                        <th className="pb-2 text-right">Cotis. S.</th>
+                        <th className="pb-2 text-right">Cotis. P.</th>
                         <th className="pb-2 text-right">Net à payer</th>
                         <th className="pb-2">Statut</th>
                         <th className="pb-2 text-right">Actions</th>
@@ -714,11 +749,24 @@ export function GestionPaie() {
                     </thead>
                     <tbody>
                       {bulletins.map((b) => (
-                        <tr key={b.id} className="border-b hover:bg-gray-50">
+                        <tr
+                          key={b.id}
+                          className={cn(
+                            "border-b hover:bg-gray-50 cursor-pointer",
+                            selectedBulletin?.id === b.id && "bg-blue-50"
+                          )}
+                          onClick={() => setSelectedBulletin(selectedBulletin?.id === b.id ? null : b)}
+                        >
                           <td className="py-3 font-medium">
                             {b.employe_prenom} {b.employe_nom}
                           </td>
                           <td className="py-3 text-right">{formatCurrency(b.brut_total)}</td>
+                          <td className="py-3 text-right text-red-600 text-sm">
+                            {formatCurrency(b.total_cotisations_salariales || 0)}
+                          </td>
+                          <td className="py-3 text-right text-orange-600 text-sm">
+                            {formatCurrency(b.total_cotisations_patronales || 0)}
+                          </td>
                           <td className="py-3 text-right font-medium text-green-600">
                             {formatCurrency(b.net_a_payer)}
                           </td>
@@ -731,7 +779,7 @@ export function GestionPaie() {
                                   "h-7 px-2",
                                   b.statut === 'brouillon' && 'bg-gray-500 hover:bg-gray-600'
                                 )}
-                                onClick={() => changerStatutBulletinMutation.mutate({ id: b.id, statut: 'brouillon' })}
+                                onClick={(e) => { e.stopPropagation(); changerStatutBulletinMutation.mutate({ id: b.id, statut: 'brouillon' }); }}
                                 disabled={b.statut === 'brouillon' || changerStatutBulletinMutation.isPending}
                                 title="Brouillon"
                               >
@@ -744,7 +792,7 @@ export function GestionPaie() {
                                   "h-7 px-2",
                                   b.statut === 'valide' && 'bg-green-500 hover:bg-green-600'
                                 )}
-                                onClick={() => changerStatutBulletinMutation.mutate({ id: b.id, statut: 'valide' })}
+                                onClick={(e) => { e.stopPropagation(); changerStatutBulletinMutation.mutate({ id: b.id, statut: 'valide' }); }}
                                 disabled={b.statut === 'valide' || changerStatutBulletinMutation.isPending}
                                 title="Validé"
                               >
@@ -757,7 +805,7 @@ export function GestionPaie() {
                                   "h-7 px-2",
                                   b.statut === 'envoye' && 'bg-blue-500 hover:bg-blue-600'
                                 )}
-                                onClick={() => changerStatutBulletinMutation.mutate({ id: b.id, statut: 'envoye' })}
+                                onClick={(e) => { e.stopPropagation(); changerStatutBulletinMutation.mutate({ id: b.id, statut: 'envoye' }); }}
                                 disabled={b.statut === 'envoye' || changerStatutBulletinMutation.isPending}
                                 title="Envoyé"
                               >
@@ -769,16 +817,16 @@ export function GestionPaie() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
-                                // Télécharger le PDF
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const token = api.getToken();
                                 const url = `/api/admin/rh/bulletins/${b.id}/pdf`;
                                 fetch(url, {
                                   headers: { 'Authorization': `Bearer ${token}` }
                                 })
-                                  .then(res => {
-                                    if (!res.ok) throw new Error('Erreur PDF');
-                                    return res.blob();
+                                  .then(r => {
+                                    if (!r.ok) throw new Error('Erreur PDF');
+                                    return r.blob();
                                   })
                                   .then(blob => {
                                     const urlBlob = URL.createObjectURL(blob);
@@ -807,6 +855,163 @@ export function GestionPaie() {
               )}
             </CardContent>
           </Card>
+
+          {/* Detail cotisations du bulletin sélectionné */}
+          {selectedBulletin && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">
+                  Détail - {selectedBulletin.employe_prenom} {selectedBulletin.employe_nom}
+                </CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedBulletin(null)}>
+                  Fermer
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Brut */}
+                <div>
+                  <h4 className="font-semibold text-sm mb-2">Rémunération brute</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500">Salaire de base</span>
+                      <p className="font-medium">{formatCurrency(selectedBulletin.salaire_base || 0)}</p>
+                    </div>
+                    {(selectedBulletin.heures_supp_25 || 0) > 0 && (
+                      <div className="bg-gray-50 p-2 rounded">
+                        <span className="text-gray-500">HS 25% ({selectedBulletin.heures_supp_25}h)</span>
+                        <p className="font-medium">{formatCurrency(selectedBulletin.montant_hs_25 || 0)}</p>
+                      </div>
+                    )}
+                    {(selectedBulletin.heures_supp_50 || 0) > 0 && (
+                      <div className="bg-gray-50 p-2 rounded">
+                        <span className="text-gray-500">HS 50% ({selectedBulletin.heures_supp_50}h)</span>
+                        <p className="font-medium">{formatCurrency(selectedBulletin.montant_hs_50 || 0)}</p>
+                      </div>
+                    )}
+                    <div className="bg-green-50 p-2 rounded border border-green-200">
+                      <span className="text-green-700">Total brut</span>
+                      <p className="font-bold text-green-700">{formatCurrency(selectedBulletin.brut_total)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cotisations salariales */}
+                {selectedBulletin.cotisations_salariales && Array.isArray(selectedBulletin.cotisations_salariales) && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-2">Cotisations salariales</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-xs text-gray-500">
+                            <th className="pb-1 text-left">Rubrique</th>
+                            <th className="pb-1 text-right">Base</th>
+                            <th className="pb-1 text-right">Taux</th>
+                            <th className="pb-1 text-right">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedBulletin.cotisations_salariales.filter((c: CotisationLine) => c.montant > 0).map((c: CotisationLine, i: number) => (
+                            <tr key={i} className="border-b border-gray-100">
+                              <td className="py-1.5">
+                                {c.nom}
+                                {c.plafonne && <span className="text-xs text-blue-500 ml-1">(T1)</span>}
+                              </td>
+                              <td className="py-1.5 text-right text-gray-600">{formatCurrency(c.base)}</td>
+                              <td className="py-1.5 text-right text-gray-600">{c.taux}%</td>
+                              <td className="py-1.5 text-right font-medium text-red-600">{formatCurrency(c.montant)}</td>
+                            </tr>
+                          ))}
+                          <tr className="font-bold bg-red-50">
+                            <td className="py-1.5" colSpan={3}>Total salarié</td>
+                            <td className="py-1.5 text-right text-red-700">{formatCurrency(selectedBulletin.total_cotisations_salariales || 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cotisations patronales */}
+                {selectedBulletin.cotisations_patronales && Array.isArray(selectedBulletin.cotisations_patronales) && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-2">Cotisations patronales</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-xs text-gray-500">
+                            <th className="pb-1 text-left">Rubrique</th>
+                            <th className="pb-1 text-right">Base</th>
+                            <th className="pb-1 text-right">Taux</th>
+                            <th className="pb-1 text-right">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedBulletin.cotisations_patronales.map((c: CotisationLine, i: number) => (
+                            <tr key={i} className="border-b border-gray-100">
+                              <td className="py-1.5">
+                                {c.nom}
+                                {c.plafonne && <span className="text-xs text-blue-500 ml-1">(T1)</span>}
+                              </td>
+                              <td className="py-1.5 text-right text-gray-600">{formatCurrency(c.base)}</td>
+                              <td className="py-1.5 text-right text-gray-600">{c.taux}%</td>
+                              <td className="py-1.5 text-right font-medium text-orange-600">{formatCurrency(c.montant)}</td>
+                            </tr>
+                          ))}
+                          <tr className="font-bold bg-orange-50">
+                            <td className="py-1.5" colSpan={3}>Total employeur</td>
+                            <td className="py-1.5 text-right text-orange-700">{formatCurrency(selectedBulletin.total_cotisations_patronales || 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reduction Fillon */}
+                {(selectedBulletin.reduction_fillon || 0) > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-emerald-700">
+                      Réduction générale (ex-Fillon): -{formatCurrency(selectedBulletin.reduction_fillon)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Nets */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                  <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                    <span className="text-blue-600">Net social</span>
+                    <p className="font-bold">{formatCurrency(selectedBulletin.net_social || selectedBulletin.net_avant_ir || 0)}</p>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <span className="text-gray-500">Net imposable</span>
+                    <p className="font-medium">{formatCurrency(selectedBulletin.net_imposable || 0)}</p>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <span className="text-gray-500">PAS ({selectedBulletin.taux_ir || 0}%)</span>
+                    <p className="font-medium">-{formatCurrency(selectedBulletin.montant_ir || 0)}</p>
+                  </div>
+                  <div className="bg-green-100 p-2 rounded border border-green-300">
+                    <span className="text-green-700">Net à payer</span>
+                    <p className="font-bold text-green-700 text-lg">{formatCurrency(selectedBulletin.net_a_payer)}</p>
+                  </div>
+                  <div className="bg-purple-50 p-2 rounded border border-purple-200">
+                    <span className="text-purple-600">Coût employeur</span>
+                    <p className="font-bold text-purple-700">
+                      {formatCurrency(selectedBulletin.brut_total + (selectedBulletin.total_cotisations_patronales || 0) - (selectedBulletin.reduction_fillon || 0))}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cumuls */}
+                <div className="flex gap-4 text-xs text-gray-500">
+                  <span>Cumul brut: {formatCurrency(selectedBulletin.cumul_brut || 0)}</span>
+                  <span>Cumul net imposable: {formatCurrency(selectedBulletin.cumul_net_imposable || 0)}</span>
+                  <span>Cumul PAS: {formatCurrency(selectedBulletin.cumul_ir || 0)}</span>
+                  <span>CP: {selectedBulletin.cp_acquis || 0} acquis / {selectedBulletin.cp_pris || 0} pris / {selectedBulletin.cp_solde || 0} solde</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

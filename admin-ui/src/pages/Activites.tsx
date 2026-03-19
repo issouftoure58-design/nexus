@@ -674,7 +674,7 @@ export default function Activites() {
     }
   };
 
-  const handleChangeStatut = async (rdvId: number, newStatut: string, _modePaiement?: string, membreId?: number) => {
+  const handleChangeStatut = async (rdvId: number, newStatut: string, modePaiement?: string, membreId?: number) => {
     // Restaurant checkout: intercepter "termine" pour ouvrir le modal d'encaissement
     if (newStatut === 'termine' && isBusinessType('restaurant')) {
       const rdv = reservations.find(r => r.id === rdvId);
@@ -685,10 +685,21 @@ export default function Activites() {
       return;
     }
 
+    // Non-restaurant: intercepter "termine" pour ouvrir le modal de paiement
+    // Permet d'enregistrer le paiement au niveau prestation (pas via relances)
+    if (newStatut === 'termine' && !isBusinessType('restaurant') && !modePaiement) {
+      setPendingTermineRdvId(rdvId);
+      setShowPaymentModal(true);
+      return;
+    }
+
     try {
-      const body: { statut: string; membre_id?: number } = { statut: newStatut };
+      const body: { statut: string; membre_id?: number; mode_paiement?: string } = { statut: newStatut };
       if (membreId) {
         body.membre_id = membreId;
+      }
+      if (modePaiement) {
+        body.mode_paiement = modePaiement;
       }
       await api.patch(`/admin/reservations/${rdvId}/statut`, body);
       fetchReservations();
@@ -698,6 +709,9 @@ export default function Activites() {
       if (msg.toLowerCase().includes('membre') && newStatut === 'termine') {
         const rdv = reservations.find(r => r.id === rdvId);
         if (rdv) {
+          // Fermer PaymentModal si ouvert (mode_paiement deja sauvegarde dans selectedModePaiement)
+          setShowPaymentModal(false);
+          setPendingTermineRdvId(null);
           setPendingTermineRdv(rdv);
           setSelectedMembreId(0);
           setShowMembreModal(true);
@@ -731,7 +745,8 @@ export default function Activites() {
         fetchReservations();
         fetchStats();
       } else {
-        await handleChangeStatut(pendingTermineRdv.id, 'termine', undefined, selectedMembreId);
+        // Passer le mode de paiement selectionne (pour tous les types de business)
+        await handleChangeStatut(pendingTermineRdv.id, 'termine', selectedModePaiement || undefined, selectedMembreId);
         setShowMembreModal(false);
         setPendingTermineRdv(null);
         setSelectedMembreId(0);

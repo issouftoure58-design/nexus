@@ -114,6 +114,7 @@ const IGNORE_FILES = [
   'questionnaires.js',  // routes publiques (slug lookup, pas de tenant context) + admin filtré
   'satisfaction.js',    // routes publiques (token unique) + admin filtré
   'yousignService.js',  // webhook lookup par yousign_request_id (pas de tenant context entrant)
+  'conventionService.js', // conventions collectives = donnees de reference nationales (IDCC), pas de tenant_id
 ];
 
 // Dossiers à ignorer (tests, scripts CLI, migrations)

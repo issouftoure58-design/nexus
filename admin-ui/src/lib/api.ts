@@ -1067,7 +1067,7 @@ export interface ClientsParams {
 }
 
 export interface ClientsResponse {
-  clients: Client[];
+  data: Client[];
   pagination: { page: number; limit: number; total: number; pages: number };
 }
 

@@ -1506,6 +1506,31 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
               console.error('[ADMIN RESERVATIONS] Erreur paiement checkout:', payErr.message);
             }
           }
+
+          // Paiement direct (non-restaurant): mode_paiement fourni dans le body
+          // Permet a tous les types de business d'enregistrer le paiement au moment de terminer la prestation
+          if (facture && mode_paiement && !checkoutModePaiement && facture.statut !== 'payee') {
+            try {
+              const datePaiement = new Date().toISOString();
+              await supabase
+                .from('factures')
+                .update({
+                  statut: 'payee',
+                  mode_paiement,
+                  date_paiement: datePaiement,
+                  updated_at: datePaiement
+                })
+                .eq('id', facture.id)
+                .eq('tenant_id', tenantId);
+
+              // Generer les ecritures comptables de paiement
+              await genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement);
+
+              console.log(`[ADMIN RESERVATIONS] Paiement direct: facture ${facture.numero} payee (${mode_paiement})`);
+            } catch (payErr) {
+              console.error('[ADMIN RESERVATIONS] Erreur paiement direct:', payErr.message);
+            }
+          }
         }
       } catch (factureErr) {
         console.error('[ADMIN RESERVATIONS] Erreur création facture:', factureErr.message);
