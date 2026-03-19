@@ -10,6 +10,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { isPeriodeVerrouillee } from '../services/exerciceService.js';
 
 const router = express.Router();
 const anthropic = new Anthropic();
@@ -506,6 +507,15 @@ router.post('/', async (req, res) => {
 
     // Modes de paiement valides
     const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+
+    // Garde verrouillage période
+    if (date_depense) {
+      const periode = date_depense.slice(0, 7);
+      const verrouillee = await isPeriodeVerrouillee(tenantId, periode);
+      if (verrouillee) {
+        return res.status(403).json({ success: false, error: `Période ${periode} verrouillée — dépense interdite` });
+      }
+    }
 
     // Validation
     if (!categorie || !CATEGORIES.includes(categorie)) {

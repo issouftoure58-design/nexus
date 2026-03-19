@@ -13,10 +13,12 @@ import {
   FileText,
   X,
   CheckCircle,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { comptaApi, type Invoice } from '@/lib/api';
+import { comptaApi, type Invoice, type FactureManuellePayload } from '@/lib/api';
 import { EntityLink } from '@/components/EntityLink';
+import FactureManuelleModal from './FactureManuelleModal';
 import {
   INVOICE_STATUS,
   MODES_PAIEMENT,
@@ -57,6 +59,9 @@ export default function ComptaInvoices({
   // Selected invoice for detail modal
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  // Facture manuelle modal
+  const [showFactureModal, setShowFactureModal] = useState(false);
+
   // ----------------------------------------------------------------
   // Mutations
   // ----------------------------------------------------------------
@@ -95,6 +100,16 @@ export default function ComptaInvoices({
     onSuccess: (data: { nb_envoyees?: number }) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       onNotify('success', `${data.nb_envoyees || 0} facture(s) envoyée(s) par email`);
+    },
+    onError: (err: Error) => onNotify('error', `Erreur: ${err.message}`),
+  });
+
+  const createFactureMutation = useMutation({
+    mutationFn: (data: FactureManuellePayload) => comptaApi.createFactureManuelle(data),
+    onSuccess: (data: { facture?: Invoice }) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      setShowFactureModal(false);
+      onNotify('success', `Facture ${data.facture?.numero || ''} créée`);
     },
     onError: (err: Error) => onNotify('error', `Erreur: ${err.message}`),
   });
@@ -198,6 +213,13 @@ export default function ComptaInvoices({
             </Button>
           )}
         </span>
+        <Button
+          onClick={() => setShowFactureModal(true)}
+          className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white"
+        >
+          <Plus className="h-4 w-4" />
+          Nouvelle facture
+        </Button>
         <Button
           variant="outline"
           onClick={() => syncMutation.mutate()}
@@ -392,6 +414,15 @@ export default function ComptaInvoices({
           )}
         </CardContent>
       </Card>
+
+      {/* Facture Manuelle Modal */}
+      {showFactureModal && (
+        <FactureManuelleModal
+          onClose={() => setShowFactureModal(false)}
+          onSubmit={async (data) => { await createFactureMutation.mutateAsync(data); }}
+          isSubmitting={createFactureMutation.isPending}
+        />
+      )}
 
       {/* Invoice Detail Modal */}
       {selectedInvoice && (

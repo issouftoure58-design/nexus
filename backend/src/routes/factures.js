@@ -9,6 +9,9 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { generateFacture } from '../services/pdfService.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
+import { computeHash, recordHash, auditLog, verifyChain, getAuditTrail } from '../services/iscaService.js';
+import { generateCIIXml, validateCIIXml } from '../services/facturXService.js';
+import { isPeriodeVerrouillee } from '../services/exerciceService.js';
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -753,12 +756,45 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
     // Générer les écritures comptables
     await genererEcrituresFacture(tenantId, facture.id);
 
+    // ISCA : chaîne de hash + piste d'audit
+    try {
+      const lastHash = await getLastHash(tenantId);
+      const hash = computeHash(facture, lastHash);
+      await recordHash(tenantId, facture.id, hash);
+      await auditLog(tenantId, facture.id, 'creation', null, { numero, statut, montant_ttc: totalTTC });
+    } catch (iscaErr) {
+      console.error('[ISCA] Erreur hash/audit (non bloquant):', iscaErr.message);
+    }
+
+    // Factur-X : générer XML CII
+    try {
+      const { data: tenant } = await supabase.from('tenants').select('name, adresse, siren').eq('id', tenantId).single();
+      if (tenant) {
+        const xml = generateCIIXml(facture, tenant);
+        await supabase.from('factures').update({ facturx_xml: xml, facturx_profile: 'BASIC' }).eq('id', facture.id).eq('tenant_id', tenantId);
+      }
+    } catch (fxErr) {
+      console.error('[FACTUR-X] Erreur génération XML (non bloquant):', fxErr.message);
+    }
+
     console.log(`[FACTURES] Facture ${numero} créée (statut: ${statut}) pour réservation ${reservationId}`);
     return { success: true, facture };
   } catch (error) {
     console.error('[FACTURES] Erreur création auto:', error);
     return { success: false, error: error.message };
   }
+}
+
+// Helper ISCA : récupérer le dernier hash
+async function getLastHash(tenantId) {
+  const { data } = await supabase
+    .from('factures_hash_chain')
+    .select('hash_sha256')
+    .eq('tenant_id', tenantId)
+    .order('sequence_num', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.hash_sha256 || '';
 }
 
 /**
@@ -856,6 +892,185 @@ export async function cancelFactureFromReservation(reservationId, tenantId, dele
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * POST /api/factures
+ * Création d'une facture manuelle (hors réservation)
+ */
+router.post('/', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    const {
+      client_id,
+      client_nom,
+      client_email,
+      client_telephone,
+      client_adresse,
+      lignes,
+      date_facture,
+      date_prestation,
+      notes,
+      frais_deplacement
+    } = req.body;
+
+    // Validation client
+    if (!client_id && !client_nom) {
+      return res.status(400).json({ error: 'client_id ou client_nom requis' });
+    }
+
+    // Validation lignes
+    if (!lignes || !Array.isArray(lignes) || lignes.length === 0) {
+      return res.status(400).json({ error: 'Au moins une ligne est requise' });
+    }
+
+    for (const ligne of lignes) {
+      if (!ligne.description || ligne.quantite <= 0 || ligne.prix_unitaire_ht < 0) {
+        return res.status(400).json({ error: 'Chaque ligne doit avoir description, quantité > 0, prix >= 0' });
+      }
+    }
+
+    // Vérifier période comptable
+    const dateFactureStr = date_facture || new Date().toISOString().split('T')[0];
+    const verrou = await isPeriodeVerrouillee(tenantId, dateFactureStr);
+    if (verrou) {
+      return res.status(400).json({ error: `Période comptable verrouillée (${dateFactureStr.slice(0, 7)})` });
+    }
+
+    // Résoudre client existant si client_id fourni
+    let resolvedClientNom = client_nom;
+    let resolvedClientEmail = client_email;
+    let resolvedClientTel = client_telephone;
+    let resolvedClientAdresse = client_adresse;
+
+    if (client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('nom, prenom, raison_sociale, email, telephone, adresse, type_client')
+        .eq('id', client_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (!client) {
+        return res.status(404).json({ error: 'Client non trouvé' });
+      }
+
+      resolvedClientNom = client.type_client === 'professionnel' && client.raison_sociale
+        ? client.raison_sociale
+        : `${client.prenom || ''} ${client.nom || ''}`.trim();
+      resolvedClientEmail = client.email || client_email;
+      resolvedClientTel = client.telephone || client_telephone;
+      resolvedClientAdresse = client.adresse || client_adresse;
+    }
+
+    // Calculer les montants (en centimes)
+    let totalHT = 0;
+    let totalTVA = 0;
+    const lignesDetail = lignes.map(l => {
+      const ligneHT = Math.round(l.quantite * l.prix_unitaire_ht * 100); // centimes
+      const ligneTVA = Math.round(ligneHT * (l.taux_tva || 20) / 100);
+      totalHT += ligneHT;
+      totalTVA += ligneTVA;
+      return {
+        nom: l.description,
+        quantite: l.quantite,
+        prix_unitaire: Math.round(l.prix_unitaire_ht * 100),
+        taux_tva: l.taux_tva || 20,
+        total: ligneHT
+      };
+    });
+
+    // Frais déplacement (en centimes)
+    const fraisDeplacementCents = frais_deplacement ? Math.round(frais_deplacement * 100) : 0;
+    if (fraisDeplacementCents > 0) {
+      totalHT += fraisDeplacementCents;
+      totalTVA += Math.round(fraisDeplacementCents * 20 / 100);
+    }
+
+    const totalTTC = totalHT + totalTVA;
+
+    if (totalTTC <= 0) {
+      return res.status(400).json({ error: 'Le montant total doit être supérieur à 0' });
+    }
+
+    // Générer numéro
+    const numero = await generateNumeroFacture(tenantId);
+
+    // Taux TVA dominant (celui de la première ligne)
+    const tauxTVAPrincipal = lignes[0].taux_tva || 20;
+
+    // Service description = résumé des lignes
+    const serviceNom = lignes.length === 1
+      ? lignes[0].description
+      : `${lignes.length} prestations`;
+
+    // Insert facture
+    const { data: facture, error: insertError } = await supabase
+      .from('factures')
+      .insert({
+        tenant_id: tenantId,
+        numero,
+        type: 'facture',
+        reservation_id: null,
+        client_id: client_id || null,
+        client_nom: resolvedClientNom,
+        client_email: resolvedClientEmail,
+        client_telephone: resolvedClientTel,
+        client_adresse: resolvedClientAdresse,
+        service_nom: serviceNom,
+        service_description: JSON.stringify(lignesDetail),
+        date_facture: dateFactureStr,
+        date_prestation: date_prestation || dateFactureStr,
+        montant_ht: totalHT,
+        taux_tva: tauxTVAPrincipal,
+        montant_tva: totalTVA,
+        montant_ttc: totalTTC,
+        frais_deplacement: fraisDeplacementCents,
+        notes: notes || null,
+        statut: 'generee'
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    // Écritures comptables VT
+    await genererEcrituresFacture(tenantId, facture.id);
+
+    // ISCA : chaîne de hash + piste d'audit
+    try {
+      const lastHash = await getLastHash(tenantId);
+      const hash = computeHash(facture, lastHash);
+      await recordHash(tenantId, facture.id, hash);
+      await auditLog(tenantId, facture.id, 'creation_manuelle', null, {
+        numero,
+        statut: 'generee',
+        montant_ttc: totalTTC,
+        nb_lignes: lignes.length
+      });
+    } catch (iscaErr) {
+      console.error('[ISCA] Erreur hash/audit (non bloquant):', iscaErr.message);
+    }
+
+    // Factur-X : générer XML CII
+    try {
+      const { data: tenant } = await supabase.from('tenants').select('name, adresse, siren').eq('id', tenantId).single();
+      if (tenant) {
+        const xml = generateCIIXml(facture, tenant);
+        await supabase.from('factures').update({ facturx_xml: xml, facturx_profile: 'BASIC' }).eq('id', facture.id).eq('tenant_id', tenantId);
+      }
+    } catch (fxErr) {
+      console.error('[FACTUR-X] Erreur génération XML (non bloquant):', fxErr.message);
+    }
+
+    console.log(`[FACTURES] Facture manuelle ${numero} créée: ${(totalTTC/100).toFixed(2)}€ TTC (${lignes.length} lignes)`);
+    res.status(201).json({ success: true, facture });
+  } catch (error) {
+    console.error('[FACTURES] Erreur création facture manuelle:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * GET /api/factures
@@ -1810,6 +2025,37 @@ router.post('/:id/avoir', async (req, res) => {
   } catch (error) {
     console.error('[AVOIRS] Erreur route avoir:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// ISCA — Vérification intégrité + piste d'audit
+// ============================================
+
+/**
+ * GET /api/factures/isca/verify — Vérifier la chaîne de hash
+ */
+router.get('/isca/verify', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    const result = await verifyChain(req.admin.tenant_id, exercice ? parseInt(exercice) : null);
+    res.json(result);
+  } catch (error) {
+    console.error('[ISCA] Erreur vérification chaîne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/factures/:id/audit — Piste d'audit d'une facture
+ */
+router.get('/:id/audit', async (req, res) => {
+  try {
+    const trail = await getAuditTrail(req.admin.tenant_id, parseInt(req.params.id));
+    res.json({ audit_trail: trail });
+  } catch (error) {
+    console.error('[ISCA] Erreur audit trail:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -14,6 +14,9 @@ import {
   Landmark,
   Users,
   UserCheck,
+  Calendar,
+  PenLine,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AVAILABLE_YEARS } from '@/components/comptabilite/constants';
@@ -24,8 +27,11 @@ const ComptaBilan = React.lazy(() => import('@/components/comptabilite/ComptaBil
 const Rapprochement = React.lazy(() => import('@/pages/Rapprochement'));
 const ComptesAuxiliaires = React.lazy(() => import('@/pages/ComptesAuxiliaires'));
 const ExpertComptable = React.lazy(() => import('@/pages/ExpertComptable'));
+const ComptaExercices = React.lazy(() => import('@/components/comptabilite/ComptaExercices'));
+const ComptaSaisieManuelle = React.lazy(() => import('@/components/comptabilite/ComptaSaisieManuelle'));
+const ComptaImport = React.lazy(() => import('@/components/comptabilite/ComptaImport'));
 
-type TabKey = 'resultat' | 'bilan' | 'rapprochement' | 'auxiliaires' | 'expert';
+type TabKey = 'resultat' | 'bilan' | 'rapprochement' | 'auxiliaires' | 'expert' | 'exercices' | 'saisie' | 'import';
 
 export default function Comptabilite() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -149,6 +155,9 @@ export default function Comptabilite() {
             { key: 'bilan' as TabKey, icon: Wallet, label: 'Bilan' },
             { key: 'rapprochement' as TabKey, icon: Landmark, label: 'Rapprochement' },
             { key: 'auxiliaires' as TabKey, icon: Users, label: 'Comptes Auxiliaires' },
+            { key: 'exercices' as TabKey, icon: Calendar, label: 'Exercices' },
+            { key: 'saisie' as TabKey, icon: PenLine, label: 'Saisie' },
+            { key: 'import' as TabKey, icon: Upload, label: 'Import' },
             { key: 'expert' as TabKey, icon: UserCheck, label: 'Expert-comptable' },
           ]).map(({ key, icon: Icon, label }) => (
             <button
@@ -224,6 +233,24 @@ export default function Comptabilite() {
         {activeTab === 'auxiliaires' && (
           <Suspense fallback={lazyFallback}>
             <ComptesAuxiliaires embedded />
+          </Suspense>
+        )}
+
+        {activeTab === 'exercices' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaExercices />
+          </Suspense>
+        )}
+
+        {activeTab === 'saisie' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaSaisieManuelle />
+          </Suspense>
+        )}
+
+        {activeTab === 'import' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaImport />
           </Suspense>
         )}
 

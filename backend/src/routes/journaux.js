@@ -8,6 +8,9 @@ import { authenticateAdmin } from './adminAuth.js';
 import { supabase } from '../config/supabase.js';
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
+import { isPeriodeVerrouillee } from '../services/exerciceService.js';
+import { generateFEC, validateFEC, rapportControleFEC } from '../services/fecExportService.js';
+import { prefillCA3, prefillCA12 } from '../services/comptaService.js';
 
 const router = express.Router();
 
@@ -303,16 +306,26 @@ router.post('/ecritures', async (req, res) => {
     const periode = date_ecriture.slice(0, 7);
     const exercice = parseInt(date_ecriture.slice(0, 4));
 
+    // Garde verrouillage période
+    const verrouillee = await isPeriodeVerrouillee(req.admin.tenant_id, periode);
+    if (verrouillee) {
+      return res.status(403).json({ error: `Période ${periode} verrouillée — écriture interdite` });
+    }
+
+    // Auto-générer numero_piece si absent
+    const pieceNum = numero_piece || `${journal_code}-${periode}-${Date.now().toString(36).toUpperCase()}`;
+
     const ecritures = lignes.map(l => ({
       tenant_id: req.admin.tenant_id,
       journal_code,
       date_ecriture,
-      numero_piece,
+      numero_piece: pieceNum,
       compte_numero: l.compte_numero,
       compte_libelle: l.compte_libelle,
       libelle: l.libelle,
       debit: l.debit || 0,
       credit: l.credit || 0,
+      justificatif_url: l.justificatif_url || null,
       periode,
       exercice
     }));
@@ -2413,97 +2426,266 @@ router.get('/balance-agee', async (req, res) => {
 
 /**
  * GET /api/journaux/fec
- * Export FEC (Fichier des Écritures Comptables) - Format légal français
+ * Export FEC conforme (Fichier des Écritures Comptables) - Art. L47 A-I LPF
+ * Délégué à fecExportService pour conformité SIREN, CompAux, dates
  */
 router.get('/fec', async (req, res) => {
   try {
     const { exercice } = req.query;
-    const tenantId = req.admin.tenant_id;
-
     if (!exercice) {
       return res.status(400).json({ error: 'Exercice requis pour le FEC' });
     }
 
-    // Récupérer le tenant pour le SIREN
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('name, slug')
-      .eq('id', tenantId)
-      .single();
-
-    // Récupérer toutes les écritures de l'exercice
-    const { data: ecritures, error } = await supabase
-      .from('ecritures_comptables')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('exercice', parseInt(exercice))
-      .order('date_ecriture', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (error) throw error;
-
-    // Format FEC (18 colonnes obligatoires)
-    const fecLines = [];
-
-    // En-tête
-    fecLines.push([
-      'JournalCode',
-      'JournalLib',
-      'EcritureNum',
-      'EcritureDate',
-      'CompteNum',
-      'CompteLib',
-      'CompAuxNum',
-      'CompAuxLib',
-      'PieceRef',
-      'PieceDate',
-      'EcritureLib',
-      'Debit',
-      'Credit',
-      'EcritureLet',
-      'DateLet',
-      'ValidDate',
-      'Montantdevise',
-      'Idevise'
-    ].join('\t'));
-
-    let ecritureNum = 1;
-    ecritures?.forEach(e => {
-      const line = [
-        e.journal_code,                                          // JournalCode
-        JOURNAUX[e.journal_code]?.libelle || e.journal_code,    // JournalLib
-        String(ecritureNum++).padStart(8, '0'),                 // EcritureNum
-        formatDateFEC(e.date_ecriture),                         // EcritureDate
-        e.compte_numero,                                         // CompteNum
-        e.compte_libelle || '',                                  // CompteLib
-        '',                                                      // CompAuxNum (auxiliaire)
-        '',                                                      // CompAuxLib
-        e.numero_piece || '',                                    // PieceRef
-        formatDateFEC(e.date_ecriture),                         // PieceDate
-        (e.libelle || '').replace(/\t/g, ' '),                  // EcritureLib
-        formatMontantFEC(e.debit),                              // Debit
-        formatMontantFEC(e.credit),                             // Credit
-        e.lettrage || '',                                        // EcritureLet
-        e.date_lettrage ? formatDateFEC(e.date_lettrage) : '',  // DateLet
-        formatDateFEC(e.date_ecriture),                         // ValidDate
-        '',                                                      // Montantdevise
-        ''                                                       // Idevise
-      ];
-      fecLines.push(line.join('\t'));
-    });
-
-    // Nom du fichier FEC: SIREN + FEC + date de clôture
-    const siren = '000000000'; // À remplacer par le vrai SIREN
-    const dateClot = `${exercice}1231`;
-    const filename = `${siren}FEC${dateClot}.txt`;
+    const result = await generateFEC(req.admin.tenant_id, exercice);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(fecLines.join('\n'));
-
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.content);
   } catch (error) {
     console.error('[JOURNAUX] Erreur export FEC:', error);
     res.status(500).json({ error: 'Erreur export FEC' });
+  }
+});
+
+/**
+ * GET /api/journaux/fec/validation — Validation pré-export FEC
+ */
+router.get('/fec/validation', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    if (!exercice) return res.status(400).json({ error: 'Exercice requis' });
+
+    const result = await validateFEC(req.admin.tenant_id, exercice);
+    res.json(result);
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur validation FEC:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/journaux/fec/rapport — Rapport de contrôle FEC
+ */
+router.get('/fec/rapport', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    if (!exercice) return res.status(400).json({ error: 'Exercice requis' });
+
+    const result = await rapportControleFEC(req.admin.tenant_id, exercice);
+    res.json(result);
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur rapport FEC:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/journaux/tva/ca3 — Pré-remplissage déclaration TVA CA3
+ */
+router.get('/tva/ca3', async (req, res) => {
+  try {
+    const { periode } = req.query;
+    if (!periode) return res.status(400).json({ error: 'Période requise (YYYY-MM)' });
+
+    const result = await prefillCA3(req.admin.tenant_id, periode);
+    res.json(result);
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur CA3:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/journaux/tva/ca12 — Pré-remplissage déclaration TVA CA12
+ */
+router.get('/tva/ca12', async (req, res) => {
+  try {
+    const { exercice } = req.query;
+    if (!exercice) return res.status(400).json({ error: 'Exercice requis' });
+
+    const result = await prefillCA12(req.admin.tenant_id, exercice);
+    res.json(result);
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur CA12:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/journaux/ecritures/contrepasser — Contrepassation d'écritures
+ */
+router.post('/ecritures/contrepasser', async (req, res) => {
+  try {
+    const { ecriture_ids, date_contrepassation, motif } = req.body;
+
+    if (!ecriture_ids || ecriture_ids.length === 0) {
+      return res.status(400).json({ error: 'IDs d\'écritures requis' });
+    }
+
+    const dateCP = date_contrepassation || new Date().toISOString().slice(0, 10);
+    const periode = dateCP.slice(0, 7);
+
+    // Garde verrouillage
+    const verrouillee = await isPeriodeVerrouillee(req.admin.tenant_id, periode);
+    if (verrouillee) {
+      return res.status(403).json({ error: `Période ${periode} verrouillée` });
+    }
+
+    // Charger les écritures originales
+    const { data: originales, error } = await supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', req.admin.tenant_id)
+      .in('id', ecriture_ids);
+
+    if (error) throw error;
+    if (!originales || originales.length === 0) {
+      return res.status(404).json({ error: 'Écritures introuvables' });
+    }
+
+    // Créer les écritures miroir (débit↔crédit)
+    const exercice = parseInt(dateCP.slice(0, 4));
+    const pieceNum = `CP-${periode}-${Date.now().toString(36).toUpperCase()}`;
+
+    const contrepassations = originales.map(e => ({
+      tenant_id: req.admin.tenant_id,
+      journal_code: 'OD',
+      date_ecriture: dateCP,
+      numero_piece: pieceNum,
+      compte_numero: e.compte_numero,
+      compte_libelle: e.compte_libelle,
+      libelle: `Contrepassation : ${motif || e.libelle}`,
+      debit: e.credit || 0,   // Inversé
+      credit: e.debit || 0,   // Inversé
+      contrepassation_de: e.id,
+      periode,
+      exercice
+    }));
+
+    const { data: created, error: insertErr } = await supabase
+      .from('ecritures_comptables')
+      .insert(contrepassations)
+      .select();
+
+    if (insertErr) throw insertErr;
+
+    res.json({
+      success: true,
+      nb_ecritures: created.length,
+      ecritures: created
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur contrepassation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/journaux/modeles-ecritures — Liste des modèles
+ */
+router.get('/modeles-ecritures', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('modeles_ecritures')
+      .select('*')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('actif', true)
+      .order('nom');
+
+    if (error) throw error;
+    res.json({ modeles: data || [] });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur modèles:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/journaux/modeles-ecritures — Créer un modèle
+ */
+router.post('/modeles-ecritures', async (req, res) => {
+  try {
+    const { nom, description, journal_code, lignes, recurrence } = req.body;
+
+    if (!nom || !lignes || lignes.length === 0) {
+      return res.status(400).json({ error: 'Nom et lignes requis' });
+    }
+
+    const { data, error } = await supabase
+      .from('modeles_ecritures')
+      .insert({
+        tenant_id: req.admin.tenant_id,
+        nom,
+        description,
+        journal_code: journal_code || 'OD',
+        lignes,
+        recurrence
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, modele: data });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur création modèle:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/journaux/modeles-ecritures/:id/appliquer — Appliquer un modèle
+ */
+router.post('/modeles-ecritures/:id/appliquer', async (req, res) => {
+  try {
+    const { date_ecriture } = req.body;
+    if (!date_ecriture) return res.status(400).json({ error: 'Date requise' });
+
+    // Charger le modèle
+    const { data: modele, error } = await supabase
+      .from('modeles_ecritures')
+      .select('*')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('id', parseInt(req.params.id))
+      .single();
+
+    if (error || !modele) return res.status(404).json({ error: 'Modèle introuvable' });
+
+    const periode = date_ecriture.slice(0, 7);
+    const exercice = parseInt(date_ecriture.slice(0, 4));
+
+    // Garde verrouillage
+    const verrouillee = await isPeriodeVerrouillee(req.admin.tenant_id, periode);
+    if (verrouillee) {
+      return res.status(403).json({ error: `Période ${periode} verrouillée` });
+    }
+
+    const pieceNum = `${modele.journal_code}-${periode}-${Date.now().toString(36).toUpperCase()}`;
+
+    const ecritures = modele.lignes.map(l => ({
+      tenant_id: req.admin.tenant_id,
+      journal_code: modele.journal_code,
+      date_ecriture,
+      numero_piece: pieceNum,
+      compte_numero: l.compte_numero,
+      compte_libelle: l.compte_libelle,
+      libelle: l.libelle,
+      debit: l.debit || 0,
+      credit: l.credit || 0,
+      periode,
+      exercice
+    }));
+
+    const { data: created, error: insertErr } = await supabase
+      .from('ecritures_comptables')
+      .insert(ecritures)
+      .select();
+
+    if (insertErr) throw insertErr;
+
+    res.json({ success: true, nb_ecritures: created.length, ecritures: created });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur application modèle:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

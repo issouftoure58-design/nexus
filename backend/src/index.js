@@ -114,6 +114,8 @@ import nexusAuthRoutes from './routes/nexusAuth.js';
 import cgvRoutes from './routes/cgv.js';
 import adminLoyaltyRoutes from './routes/adminLoyalty.js';
 import adminWaitlistRoutes from './routes/adminWaitlist.js';
+import exercicesRoutes from './routes/exercices.js';
+import comptaImportRoutes from './routes/comptaImport.js';
 
 // Import du middleware tenant resolution
 import { resolveTenantByDomain } from './middleware/resolveTenant.js';
@@ -484,6 +486,12 @@ app.use('/api/depenses', depensesRoutes);
 
 // Routes Journaux comptables (écritures, balance, grand livre)
 app.use('/api/journaux', journauxRoutes);
+
+// Routes Exercices comptables (clôture, périodes, verrouillage)
+app.use('/api/exercices', exercicesRoutes);
+
+// Routes Import comptable (FEC, CSV, soldes ouverture)
+app.use('/api/import-compta', comptaImportRoutes);
 
 // Routes Factures (génération, envoi, gestion)
 app.use('/api/factures', facturesRoutes);

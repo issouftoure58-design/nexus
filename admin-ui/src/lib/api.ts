@@ -617,6 +617,7 @@ export const comptaApi = {
   sendFacture: (id: number) => api.post<{ success: boolean; message: string }>(`/factures/${id}/envoyer`),
   sendAllFactures: () => api.post<{ success: boolean; nb_envoyees: number }>('/factures/envoyer-toutes'),
   syncFactures: () => api.post<{ success: boolean; message: string; nb_creees: number; nb_mises_a_jour: number; nb_echecs?: number; total_reservations?: number }>('/factures/generer-manquantes'),
+  createFactureManuelle: (data: FactureManuellePayload) => api.post<{ success: boolean; facture: Invoice }>('/factures', data),
   // Enregistrement paiement facture
   enregistrerPaiement: (factureId: number, data: {
     mode_paiement: 'especes' | 'cb' | 'virement' | 'prelevement' | 'cheque';
@@ -737,6 +738,98 @@ export const comptaApi = {
     window.open(`${API_BASE}/journaux/fec?exercice=${exercice}`, '_blank');
   },
 
+  // Validation FEC
+  validateFEC: (exercice: number) =>
+    api.get<FECValidationResult>(`/journaux/fec/validation?exercice=${exercice}`),
+
+  rapportFEC: (exercice: number) =>
+    api.get<FECRapportResult>(`/journaux/fec/rapport?exercice=${exercice}`),
+
+  // TVA
+  getTVACA3: (periode: string) =>
+    api.get<TVACA3Result>(`/journaux/tva/ca3?periode=${periode}`),
+
+  getTVACA12: (exercice: number) =>
+    api.get<TVACA12Result>(`/journaux/tva/ca12?exercice=${exercice}`),
+
+  // Contrepassation
+  contrepasserEcritures: (ecriture_ids: number[], date_contrepassation: string, motif: string) =>
+    api.post<{ success: boolean; nb_ecritures: number; ecritures: EcritureComptable[] }>('/journaux/ecritures/contrepasser', { ecriture_ids, date_contrepassation, motif }),
+
+  // Saisie manuelle
+  creerEcritureManuelle: (data: { journal_code: string; date_ecriture: string; numero_piece?: string; lignes: { compte_numero: string; compte_libelle?: string; libelle: string; debit: number; credit: number; justificatif_url?: string }[] }) =>
+    api.post<{ success: boolean; ecritures: EcritureComptable[] }>('/journaux/ecritures', data),
+
+  // Modèles écritures
+  getModelesEcritures: () =>
+    api.get<{ modeles: ModeleEcriture[] }>('/journaux/modeles-ecritures'),
+
+  creerModeleEcriture: (data: { nom: string; description?: string; journal_code?: string; lignes: ModeleEcritureLigne[]; recurrence?: string }) =>
+    api.post<{ success: boolean; modele: ModeleEcriture }>('/journaux/modeles-ecritures', data),
+
+  appliquerModele: (id: number, date_ecriture: string) =>
+    api.post<{ success: boolean; nb_ecritures: number; ecritures: EcritureComptable[] }>(`/journaux/modeles-ecritures/${id}/appliquer`, { date_ecriture }),
+
+  // Exercices comptables
+  getExercices: () =>
+    api.get<{ exercices: ExerciceComptable[] }>('/exercices'),
+
+  getExerciceCourant: () =>
+    api.get<{ exercice: ExerciceComptable | null }>('/exercices/courant'),
+
+  creerExercice: (data: { date_debut: string; date_fin: string; code: string }) =>
+    api.post<{ success: boolean; exercice: ExerciceComptable; nb_periodes: number }>('/exercices', data),
+
+  getPeriodesExercice: (exerciceId: number) =>
+    api.get<{ periodes: PeriodeComptable[] }>(`/exercices/${exerciceId}/periodes`),
+
+  verrouillerPeriode: (exerciceId: number, periode: string) =>
+    api.post<{ success: boolean }>(`/exercices/${exerciceId}/verrouiller-periode`, { periode }),
+
+  deverrouillerPeriode: (exerciceId: number, periode: string) =>
+    api.post<{ success: boolean }>(`/exercices/${exerciceId}/deverrouiller-periode`, { periode }),
+
+  verifierPreCloture: (exerciceId: number) =>
+    api.get<PreClotureResult>(`/exercices/${exerciceId}/pre-cloture`),
+
+  clotureProvisoire: (exerciceId: number) =>
+    api.post<ClotureResult>(`/exercices/${exerciceId}/cloture-provisoire`),
+
+  clotureDefinitive: (exerciceId: number) =>
+    api.post<ClotureResult>(`/exercices/${exerciceId}/cloture-definitive`),
+
+  // Import comptable
+  importFEC: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.upload<ImportParseResult>('/import-compta/fec', formData);
+  },
+
+  importCSV: (file: File, mapping: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mapping', JSON.stringify(mapping));
+    return api.upload<ImportParseResult>('/import-compta/csv', formData);
+  },
+
+  previewImport: (ecritures: ImportEcriture[]) =>
+    api.post<ImportValidationResult>('/import-compta/preview', { ecritures }),
+
+  executeImport: (ecritures: ImportEcriture[], creer_comptes_manquants: boolean, source?: string) =>
+    api.post<{ success: boolean; nb_ecritures: number; nb_comptes_crees: number }>('/import-compta/execute', { ecritures, creer_comptes_manquants, source }),
+
+  importSoldesOuverture: (soldes: { compte_numero: string; compte_libelle?: string; solde: number }[], date_ouverture: string) =>
+    api.post<{ success: boolean; nb_ecritures: number; equilibre: boolean }>('/import-compta/soldes-ouverture', { soldes, date_ouverture }),
+
+  // ISCA
+  verifyISCA: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<ISCAVerifyResult>(`/factures/isca/verify${query}`);
+  },
+
+  getFactureAudit: (factureId: number) =>
+    api.get<{ audit_trail: AuditTrailEntry[] }>(`/factures/${factureId}/audit`),
+
   // ============================================
   // DEVIS
   // ============================================
@@ -790,6 +883,8 @@ export interface EcritureComptable {
   exercice?: number;
   debit_euros?: string;
   credit_euros?: string;
+  justificatif_url?: string;
+  contrepassation_de?: number;
 }
 
 export interface BalanceCompte {
@@ -799,6 +894,152 @@ export interface BalanceCompte {
   credit: number;
   solde_debiteur: number;
   solde_crediteur: number;
+}
+
+// Types Exercices Comptables
+export interface ExerciceComptable {
+  id: number;
+  tenant_id: string;
+  code: string;
+  date_debut: string;
+  date_fin: string;
+  statut: 'ouvert' | 'cloture_provisoire' | 'cloture';
+  date_cloture?: string;
+  cloture_par?: string;
+  resultat_net: number;
+  resultat_type?: string;
+  an_generes: boolean;
+  notes?: string;
+  created_at: string;
+}
+
+export interface PeriodeComptable {
+  id: number;
+  tenant_id: string;
+  exercice_id: number;
+  periode: string;
+  verrouillee: boolean;
+  date_verrouillage?: string;
+  verrouille_par?: string;
+}
+
+export interface PreClotureResult {
+  ok: boolean;
+  warnings: string[];
+  errors: string[];
+  stats?: { nb_ecritures: number; nb_non_lettrees: number; nb_periodes_ouvertes: number };
+}
+
+export interface ClotureResult {
+  success: boolean;
+  exercice: ExerciceComptable;
+  resultat: { montant_centimes: number; montant_euros: string; type: string };
+  exercice_suivant?: ExerciceComptable;
+  a_nouveaux?: { nb_ecritures: number };
+}
+
+// Types FEC
+export interface FECValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: { nb_ecritures: number; nb_journaux: number; siren?: string };
+}
+
+export interface FECRapportResult {
+  equilibre: boolean;
+  total_debit: number;
+  total_credit: number;
+  nb_ecritures: number;
+  nb_journaux: number;
+  periodes_couvertes: string[];
+}
+
+// Types TVA
+export interface TVACA3Result {
+  periode: string;
+  ligne_01_ca_ht: number;
+  ligne_19_total_collectee: number;
+  ligne_23_total_deductible: number;
+  ligne_28_tva_nette: number;
+  resume: { ca_ht: string; tva_collectee: string; tva_deductible: string; tva_nette: string; statut: string };
+}
+
+export interface TVACA12Result {
+  exercice: number;
+  ca_ht: number;
+  tva_collectee: number;
+  tva_deductible: number;
+  tva_nette: number;
+  resume: { ca_ht: string; tva_collectee: string; tva_deductible: string; tva_nette: string; statut: string };
+}
+
+// Types Modèles Ecritures
+export interface ModeleEcritureLigne {
+  compte_numero: string;
+  compte_libelle?: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+}
+
+export interface ModeleEcriture {
+  id: number;
+  nom: string;
+  description?: string;
+  journal_code: string;
+  lignes: ModeleEcritureLigne[];
+  recurrence?: string;
+  actif: boolean;
+}
+
+// Types Import
+export interface ImportEcriture {
+  journal_code: string;
+  date_ecriture: string;
+  numero_piece: string;
+  compte_numero: string;
+  compte_libelle?: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  periode: string;
+  exercice: number;
+}
+
+export interface ImportParseResult {
+  success: boolean;
+  filename?: string;
+  ecritures: ImportEcriture[];
+  errors: string[];
+  stats: { nb_lignes: number; nb_ecritures: number; nb_erreurs: number; comptes?: string[] };
+}
+
+export interface ImportValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  comptes_manquants: string[];
+  stats: { nb_ecritures: number; total_debit: number; total_credit: number };
+}
+
+// Types ISCA
+export interface ISCAVerifyResult {
+  valid: boolean;
+  broken_at?: number;
+  facture_id?: number;
+  nb_verified: number;
+  message: string;
+}
+
+export interface AuditTrailEntry {
+  id: number;
+  facture_id: number;
+  action: string;
+  admin_id?: string;
+  details?: Record<string, unknown>;
+  ip_address?: string;
+  created_at: string;
 }
 
 // Types Relances
@@ -1205,6 +1446,22 @@ export interface Invoice {
   montant_ht_euros?: string;
   montant_ttc_euros?: string;
   montant_tva_euros?: string;
+  // Notes (factures manuelles)
+  notes?: string;
+  frais_deplacement?: number;
+}
+
+export interface FactureManuellePayload {
+  client_id?: number;
+  client_nom?: string;
+  client_email?: string;
+  client_telephone?: string;
+  client_adresse?: string;
+  lignes: { description: string; quantite: number; prix_unitaire_ht: number; taux_tva: number }[];
+  date_facture: string;
+  date_prestation: string;
+  notes?: string;
+  frais_deplacement?: number;
 }
 
 // ============================================
