@@ -248,6 +248,41 @@ export default function NewReservationModal({
             </div>
           )}
 
+          {/* === DATE (avant les prestations pour salon/domicile) === */}
+          {!isPricingMode('hourly') && (isBusinessType('salon') || isBusinessType('service_domicile')) && (
+            <div className="space-y-2">
+              <div className={isBusinessType('service_domicile') ? '' : 'grid grid-cols-2 gap-3'}>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Date *
+                  </label>
+                  <Input
+                    type="date"
+                    value={newRdvForm.date_rdv}
+                    onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
+                  />
+                </div>
+                {isBusinessType('salon') && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Heure *
+                    </label>
+                    <Input
+                      type="time"
+                      value={newRdvForm.heure_rdv}
+                      onChange={(e) => onDateHeureChange('heure_rdv', e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              {isBusinessType('service_domicile') && (
+                <p className="text-xs text-gray-500">
+                  L'heure sera définie par les affectations ci-dessous
+                </p>
+              )}
+            </div>
+          )}
+
           {/* === PÉRIODE (Mode Horaire - avant les services) === */}
           {isPricingMode('hourly') && (
             <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -777,33 +812,7 @@ export default function NewReservationModal({
             </div>
           )}
 
-          {/* Date + Heure du RDV — Salon/Service domicile */}
-          {!isPricingMode('hourly') && (isBusinessType('salon') || isBusinessType('service_domicile')) && (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Date *
-                  </label>
-                  <Input
-                    type="date"
-                    value={newRdvForm.date_rdv}
-                    onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Heure *
-                  </label>
-                  <Input
-                    type="time"
-                    value={newRdvForm.heure_rdv}
-                    onChange={(e) => onDateHeureChange('heure_rdv', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Date + Heure salon/domicile déplacés en haut du formulaire */}
 
           {/* Période complète — Security/Commerce: date début/fin + heures (missions multi-jours) */}
           {!isPricingMode('hourly') && (isBusinessType('security') || isBusinessType('commerce')) && (

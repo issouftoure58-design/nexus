@@ -526,9 +526,12 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       return apiError(res, 'Champs requis : client_id, service(s), date_rdv', 'BAD_REQUEST', 400);
     }
 
-    // Heure requise sauf en mode horaire (où les heures sont par agent)
-    if (!isHourlyMode && !heure_rdv) {
-      return apiError(res, 'Champs requis : heure_rdv', 'BAD_REQUEST', 400);
+    // Heure requise sauf si mode horaire ou si les services ont des affectations avec heures
+    const hasAffectationHeures = hasServices && services.some(s =>
+      s.affectations?.some(a => a.heure_debut)
+    );
+    if (!isHourlyMode && !heure_rdv && !hasAffectationHeures) {
+      return apiError(res, 'Champs requis : heure_rdv (ou heures dans les affectations)', 'BAD_REQUEST', 400);
     }
 
     // Vérifier que le client existe et récupérer ses infos (🔒 TENANT ISOLATION)
@@ -546,10 +549,10 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     // Nom du premier service (rétro-compatibilité)
     const servicePrincipal = hasServices ? services[0].service_nom : service;
 
-    // En mode horaire, extraire l'heure de début du premier agent si pas d'heure globale
+    // Extraire l'heure de début du premier agent si pas d'heure globale
+    // (mode horaire OU service_domicile où l'heure vient des affectations)
     let heureEffective = heure_rdv;
-    if (isHourlyMode && !heure_rdv && hasServices) {
-      // Chercher l'heure de début du premier agent dans les affectations
+    if (!heure_rdv && hasServices) {
       for (const svc of services) {
         if (svc.affectations && svc.affectations.length > 0) {
           const firstAff = svc.affectations.find(a => a.heure_debut);
@@ -559,7 +562,6 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
           }
         }
       }
-      // Fallback si aucune heure trouvée
       if (!heureEffective) heureEffective = '08:00';
     }
 
