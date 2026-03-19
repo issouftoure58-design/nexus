@@ -70,10 +70,10 @@ import {
 import { findAvailableTable, getTableAvailability, isRestaurantFull, getServiceType, getRestaurantCapacityForDay } from '../../services/restaurantAvailability.js';
 import { getBusinessInfo, getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
-// 📱 SMS de confirmation (mock en dev via MOCK_SMS=true)
-import { sendConfirmationSMS as _realSendSMS } from '../../services/bookingService.js';
+// 📱 Notification de confirmation (cascade: Email → WhatsApp → SMS)
+import { sendConfirmation as _sendConfirmationCascade } from '../../services/notificationService.js';
 
-async function sendConfirmationSMS(tenantId, phone, details) {
+async function sendConfirmationNotification(tenantId, phone, details, clientEmail = null) {
   if (process.env.MOCK_SMS === 'true' || (process.env.NODE_ENV !== 'production' && !process.env.TWILIO_ACCOUNT_SID)) {
     const { envoyerConfirmation } = await import('../../../../tests/mocks/notificationService.mock.js');
     return envoyerConfirmation({
@@ -84,7 +84,18 @@ async function sendConfirmationSMS(tenantId, phone, details) {
       prix_total: (details.prixTotal || 0) * 100,
     });
   }
-  return _realSendSMS(tenantId, phone, details);
+  // Cascade: Email → WhatsApp → SMS (comme les rappels J-1)
+  return _sendConfirmationCascade({
+    client_telephone: phone,
+    client_email: clientEmail,
+    service_nom: details.service,
+    date: details.date,
+    heure: details.heure,
+    total: details.prixTotal || 0,
+    prix_service: details.prixTotal || 0,
+    frais_deplacement: details.fraisDeplacement || 0,
+    adresse_client: details.adresse,
+  }, 0, tenantId);
 }
 
 // 🔧 TOOLS REGISTRY - Source unique des outils + filtrage par business type
@@ -2001,7 +2012,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
     // (voir adminReservations.js - PATCH /:id/statut)
     let facture = null;
 
-    // 11. ENVOYER SMS DE CONFIRMATION (une seule fois, pour toutes les dates)
+    // 11. ENVOYER CONFIRMATION CASCADE (Email → WhatsApp → SMS)
     if (sendSMS && data.client_telephone) {
       try {
         const datesFormatees = reservationDates.map(d => {
@@ -2009,7 +2020,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
           return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
         }).join(' et ');
 
-        await sendConfirmationSMS(data.tenant_id, data.client_telephone, {
+        await sendConfirmationNotification(data.tenant_id, data.client_telephone, {
           service: service.name,
           date: nbJours > 1 ? datesFormatees : data.date,
           heure: data.heure,
@@ -2017,11 +2028,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
           fraisDeplacement: fraisDeplacement,
           adresse: data.adresse || null,
           nbJours: nbJours
-        });
-        console.log('[NEXUS CORE] ✅ SMS de confirmation envoyé');
-      } catch (smsError) {
-        logger.warn('Erreur envoi SMS', { tag: 'NEXUS CORE', error: smsError.message });
-        // Ne pas échouer la réservation pour un SMS
+        }, data.client_email || null);
+        console.log('[NEXUS CORE] ✅ Confirmation envoyée (cascade Email→WA→SMS)');
+      } catch (notifError) {
+        logger.warn('Erreur envoi confirmation', { tag: 'NEXUS CORE', error: notifError.message });
+        // Ne pas échouer la réservation pour une notification
       }
     }
 
