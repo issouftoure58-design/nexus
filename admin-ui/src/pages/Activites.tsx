@@ -441,26 +441,35 @@ export default function Activites() {
       prev.map(sl => {
         if (sl.service_id !== serviceId) return sl;
 
-        const newAffectations = sl.affectations.map((aff, idx) => {
-          if (idx !== affectationIndex) return aff;
+        const newAffectations = [...sl.affectations];
 
-          if (field === 'membre_id') {
-            const membreId = value ? Number(value) : undefined;
-            const membre = membreId ? membres.find(m => m.id === membreId) : null;
-            return {
-              ...aff,
-              membre_id: membreId,
-              membre_nom: membre ? `${membre.prenom} ${membre.nom}` : undefined
+        if (field === 'membre_id') {
+          const membreId = value ? Number(value) : undefined;
+          const membre = membreId ? membres.find(m => m.id === membreId) : null;
+          newAffectations[affectationIndex] = {
+            ...newAffectations[affectationIndex],
+            membre_id: membreId,
+            membre_nom: membre ? `${membre.prenom} ${membre.nom}` : undefined
+          };
+        } else if (field === 'heure_debut' && value) {
+          // Mettre à jour cette affectation + cascade sur les suivantes
+          let currentStart = value as string;
+          for (let i = affectationIndex; i < newAffectations.length; i++) {
+            const heureFin = calculateEndTime(currentStart, sl.duree_minutes);
+            newAffectations[i] = {
+              ...newAffectations[i],
+              heure_debut: currentStart,
+              heure_fin: heureFin
             };
+            // La suivante commence quand celle-ci finit
+            currentStart = heureFin;
           }
-
-          if (field === 'heure_debut' && value) {
-            const heureFin = calculateEndTime(value as string, sl.duree_minutes);
-            return { ...aff, heure_debut: value as string, heure_fin: heureFin };
-          }
-
-          return { ...aff, [field]: value };
-        });
+        } else {
+          newAffectations[affectationIndex] = {
+            ...newAffectations[affectationIndex],
+            [field]: value
+          };
+        }
 
         return { ...sl, affectations: newAffectations };
       })
