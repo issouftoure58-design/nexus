@@ -16,6 +16,7 @@
     "test:trial": "node src/tests/trial.test.js",
     "test:quotas": "node src/tests/quotas-pro.test.js",
     "test:tenant": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=tenant-isolation --passWithNoTests",
+    "test:writeread": "NODE_OPTIONS=--experimental-vm-modules jest tests/modules-writeread.test.js --verbose",
     "lint:tenant": "node scripts/tenant-shield-lint.js",
     "lint:syntax": "node scripts/syntax-check.js",
     "stripe:sync": "node scripts/sync-stripe-products.mjs",

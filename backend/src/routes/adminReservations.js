@@ -235,25 +235,48 @@ router.get('/', authenticateAdmin, async (req, res) => {
         duree_totale: dureeTotale,
         duree: dureeTotale,
         // Multi-services avec membres assignés et heures effectives
-        services: lignes.map(l => ({
-          id: l.id,
-          service_id: l.service_id,
-          service_nom: l.service_nom,
-          quantite: l.quantite,
-          duree_minutes: l.duree_minutes,
-          prix_unitaire: l.prix_unitaire ? l.prix_unitaire / 100 : 0,
-          prix_total: l.prix_total ? l.prix_total / 100 : 0,
-          membre_id: l.membre_id,
-          heure_debut: l.heure_debut || null,
-          heure_fin: l.heure_fin || null,
-          // Supabase nested join: membre est dans l.membre
-          membre: l.membre ? {
-            id: l.membre.id,
-            nom: l.membre.nom,
-            prenom: l.membre.prenom,
-            role: l.membre.role
-          } : null
-        })),
+        // Fallback: si pas de reservation_lignes, construire depuis les champs legacy
+        services: lignes.length > 0
+          ? lignes.map(l => ({
+              id: l.id,
+              service_id: l.service_id,
+              service_nom: l.service_nom,
+              quantite: l.quantite,
+              duree_minutes: l.duree_minutes,
+              prix_unitaire: l.prix_unitaire ? l.prix_unitaire / 100 : 0,
+              prix_total: l.prix_total ? l.prix_total / 100 : 0,
+              membre_id: l.membre_id,
+              heure_debut: l.heure_debut || null,
+              heure_fin: l.heure_fin || null,
+              membre: l.membre ? {
+                id: l.membre.id,
+                nom: l.membre.nom,
+                prenom: l.membre.prenom,
+                role: l.membre.role
+              } : null
+            }))
+          : (r.service_nom ? [{
+              id: 0,
+              service_id: null,
+              service_nom: r.service_nom,
+              quantite: 1,
+              duree_minutes: r.duree_minutes || r.duree_totale_minutes || 60,
+              prix_unitaire: r.prix_total ? r.prix_total / 100 : 0,
+              prix_total: r.prix_total ? r.prix_total / 100 : 0,
+              membre_id: r.membre_id || null,
+              heure_debut: r.heure || null,
+              heure_fin: r.heure && (r.duree_minutes || r.duree_totale_minutes) ? (() => {
+                const [h, m] = r.heure.split(':').map(Number);
+                const totalMin = h * 60 + (m || 0) + (r.duree_minutes || r.duree_totale_minutes || 60);
+                return `${String(Math.floor(totalMin / 60) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+              })() : null,
+              membre: r.membre ? {
+                id: r.membre.id,
+                nom: r.membre.nom,
+                prenom: r.membre.prenom,
+                role: r.membre.role
+              } : null
+            }] : []),
         adresse_client: r.adresse_client,
         distance_km: r.distance_km,
         duree_trajet_minutes: r.duree_trajet_minutes,

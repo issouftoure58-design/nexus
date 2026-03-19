@@ -180,10 +180,29 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
     return builder;
   }
 
+  const mockClient = { from: (table) => createBuilder(table) };
   return {
-    supabase: { from: (table) => createBuilder(table) }
+    supabase: mockClient,
+    rawSupabase: mockClient,
+    default: mockClient
   };
 });
+
+// Mock tenantBusinessService — requireHotel calls getBusinessInfo()
+jest.unstable_mockModule('../src/services/tenantBusinessService.js', () => ({
+  getBusinessInfo: async (tenantId) => {
+    const tenant = stores.tenants.find(t => t.id === tenantId);
+    if (!tenant) return null;
+    return { id: tenantId, businessType: tenant.business_type, nom: tenantId };
+  },
+  getBusinessInfoSync: (tenantId) => {
+    const tenant = stores.tenants.find(t => t.id === tenantId);
+    return tenant ? { type: tenant.business_type } : null;
+  },
+  getAIContext: jest.fn(),
+  getTerminology: jest.fn(),
+  hasFeature: jest.fn()
+}));
 
 // Mock adminAuth
 jest.unstable_mockModule('../src/routes/adminAuth.js', () => ({

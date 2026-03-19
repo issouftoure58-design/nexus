@@ -25,13 +25,15 @@ describe('Multi-Business Types', () => {
 
   describe('Configuration businessTypes.js', () => {
 
-    test('devrait avoir 4 types de business configurés', () => {
+    test('devrait avoir 6 types de business configurés', () => {
       const types = Object.keys(BUSINESS_TYPES);
       expect(types).toContain('service_domicile');
       expect(types).toContain('salon');
       expect(types).toContain('restaurant');
       expect(types).toContain('hotel');
-      expect(types.length).toBe(4);
+      expect(types).toContain('commerce');
+      expect(types).toContain('security');
+      expect(types.length).toBe(6);
     });
 
     test('chaque type devrait avoir defaultLocation dans businessRules', () => {
@@ -39,6 +41,8 @@ describe('Multi-Business Types', () => {
       expect(BUSINESS_TYPES.salon.businessRules.defaultLocation).toBe('salon');
       expect(BUSINESS_TYPES.restaurant.businessRules.defaultLocation).toBe('restaurant');
       expect(BUSINESS_TYPES.hotel.businessRules.defaultLocation).toBe('hotel');
+      expect(BUSINESS_TYPES.commerce.businessRules.defaultLocation).toBe('boutique');
+      expect(BUSINESS_TYPES.security.businessRules.defaultLocation).toBe('site_client');
     });
 
     test('chaque type devrait avoir une terminologie complète', () => {

@@ -101,8 +101,11 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
     return builder;
   }
 
+  const mockClient = { from: (table) => createBuilder(table) };
   return {
-    supabase: { from: (table) => createBuilder(table) }
+    supabase: mockClient,
+    rawSupabase: mockClient,
+    default: mockClient
   };
 });
 
@@ -163,7 +166,16 @@ jest.unstable_mockModule('../src/middleware/apiAuth.js', () => ({
 
 // Mock quotas middleware
 jest.unstable_mockModule('../src/middleware/quotas.js', () => ({
-  requireClientsQuota: (req, res, next) => next()
+  requireClientsQuota: (req, res, next) => next(),
+  requireReservationsQuota: (req, res, next) => next(),
+  requireStorageQuota: (req, res, next) => next(),
+  requirePostsQuota: (req, res, next) => next(),
+  requireImagesQuota: (req, res, next) => next(),
+  checkClientsQuota: jest.fn().mockResolvedValue({ allowed: true }),
+  checkReservationsQuota: jest.fn().mockResolvedValue({ allowed: true }),
+  checkStorageQuota: jest.fn().mockResolvedValue({ allowed: true }),
+  getQuotaUsage: jest.fn().mockResolvedValue({}),
+  getTenantPlan: jest.fn().mockResolvedValue('business')
 }));
 
 // Import after mocking

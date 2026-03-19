@@ -31,6 +31,11 @@ function setBusinessInfo(tenantId, type) {
 
 // Mock tenantBusinessService
 jest.unstable_mockModule('../src/services/tenantBusinessService.js', () => ({
+  getBusinessInfo: async (tenantId) => {
+    const info = businessInfoCache[tenantId];
+    if (!info) return null;
+    return { id: tenantId, businessType: info.type, nom: tenantId };
+  },
   getBusinessInfoSync: (tenantId) => businessInfoCache[tenantId] || null,
   getAIContext: jest.fn(),
   getTerminology: jest.fn(),
@@ -190,8 +195,11 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
     return builder;
   }
 
+  const mockClient = { from: (table) => createBuilder(table) };
   return {
-    supabase: { from: (table) => createBuilder(table) }
+    supabase: mockClient,
+    rawSupabase: mockClient,
+    default: mockClient
   };
 });
 

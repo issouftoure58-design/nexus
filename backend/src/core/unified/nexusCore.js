@@ -2002,6 +2002,44 @@ export async function createReservationUnified(data, channel = 'web', options = 
       createdReservations.push({ id: newBooking.id, date: reservationDate });
       console.log(`[NEXUS CORE] ✅ RDV jour ${dayIndex + 1}/${nbJours} créé ! ID: ${newBooking.id}, Date: ${reservationDate}`);
 
+      // 9.1 INSERTION reservation_lignes (détail du service pour affichage multi-services)
+      try {
+        const ligneData = {
+          reservation_id: newBooking.id,
+          tenant_id: data.tenant_id,
+          service_id: null, // Set below if DB service
+          service_nom: service.name,
+          quantite: 1,
+          duree_minutes: data.duree_minutes || service.durationMinutes,
+          prix_unitaire: isFirstDay ? (service.priceInCents || Math.round(service.price * 100)) : 0,
+          prix_total: isFirstDay ? (service.priceInCents || Math.round(service.price * 100)) : 0,
+          membre_id: null,
+          heure_debut: data.heure || null,
+          heure_fin: data.heure ? (() => {
+            const [h, m] = data.heure.split(':').map(Number);
+            const totalMin = h * 60 + (m || 0) + (data.duree_minutes || service.durationMinutes);
+            return `${String(Math.floor(totalMin / 60) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+          })() : null
+        };
+
+        // Ajouter service_id si c'est un service BDD (pas config hardcodée)
+        if (service.id && String(service.id).startsWith('db_')) {
+          ligneData.service_id = parseInt(String(service.id).replace('db_', ''));
+        }
+
+        const { error: ligneError } = await db
+          .from('reservation_lignes')
+          .insert(ligneData);
+
+        if (ligneError) {
+          console.warn(`[NEXUS CORE] ⚠️ Erreur insertion reservation_lignes:`, ligneError.message);
+        } else {
+          console.log(`[NEXUS CORE] ✅ reservation_lignes créée pour RDV ${newBooking.id}`);
+        }
+      } catch (ligneErr) {
+        console.warn(`[NEXUS CORE] ⚠️ Exception reservation_lignes:`, ligneErr.message);
+      }
+
       // Invalider le cache pour chaque date
       invalidateCache(`slots_${reservationDate}`);
       invalidateCache(`availability_${reservationDate}`);
