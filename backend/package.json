@@ -21,7 +21,10 @@
     "stripe:sync": "node scripts/sync-stripe-products.mjs",
     "shield": "npm run lint:syntax && npm run lint:tenant",
     "precommit": "npm run lint:syntax && npm run lint:tenant",
-    "healthcheck": "node scripts/healthcheck.js"
+    "healthcheck": "node scripts/healthcheck.js",
+    "test:load:smoke": "k6 run tests/load/smoke.js",
+    "test:load": "k6 run tests/load/load-100users.js",
+    "test:load:stress": "k6 run tests/load/stress.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

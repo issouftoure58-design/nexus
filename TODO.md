@@ -154,7 +154,7 @@
 - [x] **Routes enregistrées** dans index.js (webhook + admin)
 - [x] **UI admin Signatures** — `admin-ui/src/pages/Signatures.tsx`
 - [x] **YOUSIGN_API_KEY** configurée (sandbox)
-- [ ] **Env vars restantes** : YOUSIGN_WEBHOOK_SECRET (à configurer sur dashboard Yousign)
+- [x] **YOUSIGN_WEBHOOK_SECRET** configuré (sandbox + Render)
 
 #### B3. Setter IA Instagram [FAIT ✅ — 18 mars 2026]
 - [x] **`instagramSetterService.js`** — service complet (qualification, scoring, relances, création prospect CRM)
@@ -204,10 +204,11 @@
 
 ### C. AMÉLIORATIONS TECHNIQUES
 
-#### C1. Tests [PRIORITÉ MOYENNE]
-- [ ] **Tests charge k6** — 100 users simultanés (aucune config k6 existante)
-- [ ] **Augmenter tests frontend** — seulement 2 tests admin-ui actuellement
-- [ ] **Tests E2E parcours critiques** — inscription complète, paiement, réservation
+#### C1. Tests [FAIT ✅ — 19 mars 2026]
+- [x] **Tests charge k6** — 3 scripts (smoke, load-100users, stress) dans `backend/tests/load/`
+- [x] **Tests frontend** — 20 tests admin-ui (Vitest) : 15 fichiers couvrant pages et composants
+- [x] **Tests E2E** — 4 specs Playwright (`inscription`, `login`, `reservation`, `paiement`) dans `admin-ui/e2e/`
+- [x] **k6 smoke test** validé en prod — 100% checks, p95=165ms, 0% erreurs
 
 #### C2. Landing Page [PRIORITÉ BASSE]
 - [ ] **Blog tenant** — blog hébergé par NEXUS sur sous-domaine tenant (SSR pour SEO Google)
@@ -258,7 +259,7 @@ COURT TERME — Beta Patwinsserie ✅ TOUT FAIT
 └── B7. Discord automation ✅ (service + action workflow)
 
 MOYEN TERME (1-2 mois)
-├── C1. Tests charge + tests frontend
+├── C1. Tests charge + E2E + frontend ✅
 ├── D1. Suivi financement (comité, SASU, ACRE, NACRE)
 └── Meta Business API (quand compte FB mature)
 
