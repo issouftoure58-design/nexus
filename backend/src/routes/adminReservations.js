@@ -260,14 +260,14 @@ router.get('/', authenticateAdmin, async (req, res) => {
               service_id: null,
               service_nom: r.service_nom,
               quantite: 1,
-              duree_minutes: r.duree_minutes || r.duree_totale_minutes || 60,
+              duree_minutes: r.duree_totale_minutes || r.duree_minutes || 60,
               prix_unitaire: r.prix_total ? r.prix_total / 100 : 0,
               prix_total: r.prix_total ? r.prix_total / 100 : 0,
               membre_id: r.membre_id || null,
               heure_debut: r.heure || null,
-              heure_fin: r.heure && (r.duree_minutes || r.duree_totale_minutes) ? (() => {
+              heure_fin: r.heure && (r.duree_totale_minutes || r.duree_minutes) ? (() => {
                 const [h, m] = r.heure.split(':').map(Number);
-                const totalMin = h * 60 + (m || 0) + (r.duree_minutes || r.duree_totale_minutes || 60);
+                const totalMin = h * 60 + (m || 0) + (r.duree_totale_minutes || r.duree_minutes || 60);
                 return `${String(Math.floor(totalMin / 60) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
               })() : null,
               membre: r.membre ? {
