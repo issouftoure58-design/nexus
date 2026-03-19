@@ -580,7 +580,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       // Restaurant
       nb_couverts: nb_couverts || nb_personnes || null
     }, 'admin', {
-      sendSMS: false,
+      sendSMS: true,
       // Skip validation horaires pour admin (surtout mode horaire = sécurité 24/7)
       skipValidation: true
     });
