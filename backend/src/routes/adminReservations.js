@@ -563,6 +563,36 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       if (!heureEffective) heureEffective = '08:00';
     }
 
+    // Calculer la durée totale réelle (tenant compte du nb de personnes / quantités)
+    let dureeConflictCheck = 60; // default 1h
+    if (hasServices) {
+      dureeConflictCheck = services.reduce((sum, s) => {
+        const duree = s.duree_minutes || 60;
+        const qty = s.quantite || 1;
+        return sum + (duree * qty);
+      }, 0);
+    } else if (duree_totale_minutes) {
+      dureeConflictCheck = duree_totale_minutes;
+    }
+
+    // Vérifier les conflits horaires AVANT création (même pour admin)
+    if (heureEffective && !isHourlyMode) {
+      const conflictResult = await checkConflicts(
+        supabase, date_rdv, heureEffective, dureeConflictCheck, null, tenantId
+      );
+      if (conflictResult.conflict) {
+        const c = conflictResult.rdv;
+        const suggestionsText = conflictResult.suggestions?.length > 0
+          ? ` Suggestions : ${conflictResult.suggestions.map(s => s.heure).join(', ')}`
+          : '';
+        return apiError(
+          res,
+          `Conflit horaire : ${c.client} a déjà "${c.service}" de ${c.heure} à ${c.fin}.${suggestionsText}`,
+          'CONFLICT', 409
+        );
+      }
+    }
+
     // Créer via createReservationUnified (même logique que tous les canaux)
     const { createReservationUnified } = await import('../core/unified/nexusCore.js');
 
@@ -581,7 +611,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       nb_couverts: nb_couverts || nb_personnes || null
     }, 'admin', {
       sendSMS: true,
-      // Skip validation horaires pour admin (surtout mode horaire = sécurité 24/7)
+      // Skip validation horaires d'ouverture pour admin (sécurité 24/7, etc.)
+      // Mais les conflits sont déjà vérifiés ci-dessus
       skipValidation: true
     });
 
