@@ -449,8 +449,23 @@ class SentinelCollector {
       const tenants = await this.getBusinessTenants();
       console.log(`[SENTINEL] Found ${tenants.length} Business tenants`);
 
+      // Re-collecter les 7 derniers jours pour capturer les changements de statut
+      // (factures passées de 'generee' à 'payee' après la collecte initiale)
+      const datesToCollect = new Set([dateStr]);
+      for (let i = 1; i <= 6; i++) {
+        const d = new Date(dateStr);
+        d.setDate(d.getDate() - i);
+        datesToCollect.add(d.toISOString().split('T')[0]);
+      }
+      const sortedDates = [...datesToCollect].sort();
+      console.log(`[SENTINEL] Collecting ${sortedDates.length} dates: ${sortedDates[0]} → ${sortedDates[sortedDates.length - 1]}`);
+
       for (const tenant of tenants) {
-        await this.collectDailySnapshot(tenant.id, dateStr);
+        // Re-collecter snapshots pour les 7 derniers jours (capture paiements tardifs)
+        for (const date of sortedDates) {
+          await this.collectDailySnapshot(tenant.id, date);
+        }
+        // Coûts et alertes uniquement pour le jour principal (hier)
         await this.collectDailyCosts(tenant.id, dateStr);
         await this.checkAlerts(tenant.id, dateStr);
 
@@ -458,7 +473,7 @@ class SentinelCollector {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      console.log(`[SENTINEL] Daily collection completed for ${dateStr}`);
+      console.log(`[SENTINEL] Daily collection completed for ${dateStr} (+6 jours de rattrapage)`);
 
     } catch (error) {
       console.error('[SENTINEL] Daily collection failed:', error);

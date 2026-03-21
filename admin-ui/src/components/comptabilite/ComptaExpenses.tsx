@@ -170,8 +170,8 @@ export default function ComptaExpenses({
   // ----------------------------------------------------------------
   return (
     <>
-      <div className="flex justify-between items-center">
-        <span className="text-sm text-gray-500">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-gray-500 mr-auto">
           {filteredExpenses.length} dépense{filteredExpenses.length > 1 ? 's' : ''}
           {hasActiveFilters && (
             <Button
@@ -187,7 +187,8 @@ export default function ComptaExpenses({
         <Button
           variant="outline"
           onClick={exportDepensesToExcel}
-          className="gap-2"
+          className="gap-2 hidden sm:flex"
+          size="sm"
         >
           <FileSpreadsheet className="h-4 w-4" />
           Export Excel
@@ -206,6 +207,7 @@ export default function ComptaExpenses({
             className="gap-2 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:from-purple-100 hover:to-pink-100"
             disabled={isUploadingExpense}
             onClick={() => fileInputRef.current?.click()}
+            size="sm"
           >
             {isUploadingExpense ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -216,17 +218,19 @@ export default function ComptaExpenses({
               </>
             )}
             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-medium">
-              {isUploadingExpense ? 'Analyse IA...' : 'Scanner facture'}
+              {isUploadingExpense ? 'Analyse IA...' : 'Scanner'}
             </span>
           </Button>
         </>
-        <Button onClick={() => setShowNewExpenseModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600">
+        <Button onClick={() => setShowNewExpenseModal(true)} className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600" size="sm">
           <Plus className="h-4 w-4" />
-          Nouvelle dépense
+          <span className="hidden sm:inline">Nouvelle dépense</span>
+          <span className="sm:hidden">Dépense</span>
         </Button>
       </div>
 
-      <Card>
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
@@ -340,7 +344,7 @@ export default function ComptaExpenses({
                   {filteredExpenses.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-gray-400">
-                        {expenseDateFilter !== 'all' || expenseCategoryFilter !== 'all' || expenseDescFilter !== 'all' || expenseMontantFilter !== 'all'
+                        {hasActiveFilters
                           ? 'Aucune dépense ne correspond aux filtres'
                           : 'Aucune dépense'}
                       </td>
@@ -352,6 +356,39 @@ export default function ComptaExpenses({
           )}
         </CardContent>
       </Card>
+
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
+          </div>
+        ) : filteredExpenses.length === 0 ? (
+          <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+            {hasActiveFilters ? 'Aucune dépense ne correspond aux filtres' : 'Aucune dépense'}
+          </div>
+        ) : (
+          filteredExpenses.map((expense) => (
+            <Card key={expense.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-500">{formatDate(expense.date_depense)}</span>
+                  {expense.payee !== false ? (
+                    <Badge className="bg-green-100 text-green-700 text-xs">Payée</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">Non payée</Badge>
+                  )}
+                </div>
+                <p className="font-medium text-gray-900">{expense.libelle || expense.description || '-'}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-gray-500">{EXPENSE_CATEGORIES[expense.categorie] || expense.categorie}</span>
+                  <span className="font-semibold text-red-600">-{formatCurrency((expense.montant || 0) / 100)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
       {/* New Expense Modal */}
       {showNewExpenseModal && (

@@ -199,8 +199,8 @@ export default function ComptaInvoices({
   // ----------------------------------------------------------------
   return (
     <>
-      <div className="flex justify-between items-center">
-        <span className="text-sm text-gray-500">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-gray-500 mr-auto">
           {filteredInvoices.length} facture{filteredInvoices.length > 1 ? 's' : ''}
           {hasActiveFilters && (
             <Button
@@ -216,24 +216,29 @@ export default function ComptaInvoices({
         <Button
           onClick={() => setShowFactureModal(true)}
           className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white"
+          size="sm"
         >
           <Plus className="h-4 w-4" />
-          Nouvelle facture
+          <span className="hidden sm:inline">Nouvelle facture</span>
+          <span className="sm:hidden">Facture</span>
         </Button>
         <Button
           variant="outline"
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
           className="gap-2"
+          size="sm"
         >
           {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Sync réservations
+          <span className="hidden sm:inline">Sync réservations</span>
+          <span className="sm:hidden">Sync</span>
         </Button>
         <Button
           variant="outline"
           onClick={() => sendAllMutation.mutate()}
           disabled={sendAllMutation.isPending}
-          className="gap-2"
+          className="gap-2 hidden sm:flex"
+          size="sm"
         >
           {sendAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
           Envoyer tout
@@ -241,14 +246,16 @@ export default function ComptaInvoices({
         <Button
           variant="outline"
           onClick={exportFacturesToExcel}
-          className="gap-2"
+          className="gap-2 hidden sm:flex"
+          size="sm"
         >
           <FileSpreadsheet className="h-4 w-4" />
           Export Excel
         </Button>
       </div>
 
-      <Card>
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
@@ -414,6 +421,38 @@ export default function ComptaInvoices({
           )}
         </CardContent>
       </Card>
+
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
+          </div>
+        ) : filteredInvoices.length === 0 ? (
+          <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+            {hasActiveFilters ? 'Aucune facture ne correspond aux filtres' : 'Aucune facture'}
+          </div>
+        ) : (
+          filteredInvoices.map((invoice) => (
+            <Card key={invoice.id} className="cursor-pointer active:bg-gray-50" onClick={() => setSelectedInvoice(invoice)}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-sm text-gray-500">{invoice.numero}</span>
+                  <Badge variant="outline" className={cn("text-xs", INVOICE_STATUS[invoice.statut]?.color || 'bg-gray-100')}>
+                    {INVOICE_STATUS[invoice.statut]?.label || invoice.statut}
+                  </Badge>
+                </div>
+                <p className="font-medium text-gray-900">{invoice.client_nom || 'Client'}</p>
+                <p className="text-sm text-gray-500">{invoice.service_nom || '-'}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="font-semibold">{formatCurrency((invoice.montant_ttc || 0) / 100)}</span>
+                  <span className="text-sm text-gray-400">{formatDate(invoice.date_facture)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
       {/* Facture Manuelle Modal */}
       {showFactureModal && (

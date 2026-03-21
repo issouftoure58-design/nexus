@@ -39,6 +39,7 @@ const createDevisSchema = z.object({
   })).optional(),
   date_prestation: z.string().optional(),
   heure_prestation: z.string().optional(),
+  acompte_pourcentage: z.number().int().min(0).max(100).optional(),
 }).passthrough();
 
 const router = express.Router();
@@ -334,7 +335,8 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
       opportunite_id,
       lignes, // Lignes de services individuelles
       date_prestation, // Date prévue de la prestation
-      heure_prestation // Heure prévue de la prestation
+      heure_prestation, // Heure prévue de la prestation
+      acompte_pourcentage // Pourcentage d'acompte (0-100)
     } = req.body;
 
     // Validation
@@ -375,6 +377,14 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
       }
     }
 
+    // Calculer acompte si pourcentage fourni
+    const acomptePourcentage = (acompte_pourcentage !== undefined && acompte_pourcentage !== null)
+      ? acompte_pourcentage
+      : null;
+    const montantAcompte = acomptePourcentage !== null
+      ? Math.round(montantTTC * acomptePourcentage / 100)
+      : 0;
+
     const devisData = {
       tenant_id: tenantId,
       numero,
@@ -391,6 +401,8 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
       montant_tva: montantTVA,
       montant_ttc: montantTTC,
       frais_deplacement: frais_deplacement || 0,
+      acompte_pourcentage: acomptePourcentage,
+      montant_acompte: montantAcompte,
       statut: 'brouillon',
       date_devis: dateDevis.toISOString().split('T')[0],
       validite_jours,
@@ -519,7 +531,8 @@ router.put('/:id', async (req, res) => {
       validite_jours,
       notes,
       date_prestation,
-      heure_prestation
+      heure_prestation,
+      acompte_pourcentage
     } = req.body;
 
     // Recalculer montants si modifiés
@@ -552,6 +565,18 @@ router.put('/:id', async (req, res) => {
       updateData.montant_tva = Math.round(ht * tva / 100);
       updateData.montant_ttc = ht + updateData.montant_tva + frais;
       updateData.frais_deplacement = frais;
+    }
+
+    // Acompte : recalculer si pourcentage modifié ou si montants changent
+    if (acompte_pourcentage !== undefined) {
+      updateData.acompte_pourcentage = acompte_pourcentage;
+      const ttc = updateData.montant_ttc || existing.montant_ttc || 0;
+      updateData.montant_acompte = acompte_pourcentage !== null
+        ? Math.round(ttc * acompte_pourcentage / 100)
+        : 0;
+    } else if (updateData.montant_ttc && existing.acompte_pourcentage) {
+      // Montants changés mais pas l'acompte → recalculer le montant_acompte
+      updateData.montant_acompte = Math.round(updateData.montant_ttc * existing.acompte_pourcentage / 100);
     }
 
     if (validite_jours !== undefined) {

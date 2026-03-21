@@ -130,19 +130,30 @@ ALTER TABLE factures_audit_trail ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factures_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies (service_role bypass, authenticated filtre par tenant)
-DO $$
-DECLARE
-  tbl TEXT;
-BEGIN
-  FOR tbl IN SELECT unnest(ARRAY[
-    'exercices_comptables', 'periodes_comptables', 'modeles_ecritures',
-    'imports_comptables', 'factures_hash_chain', 'factures_audit_trail', 'factures_snapshots'
-  ])
-  LOOP
-    EXECUTE format('
-      CREATE POLICY IF NOT EXISTS %I ON %I FOR ALL TO authenticated
-      USING (tenant_id = current_setting(''app.tenant_id'', true))
-      WITH CHECK (tenant_id = current_setting(''app.tenant_id'', true))
-    ', 'tenant_isolation_' || tbl, tbl);
-  END LOOP;
-END $$;
+CREATE POLICY tenant_isolation_exercices_comptables ON exercices_comptables FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_periodes_comptables ON periodes_comptables FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_modeles_ecritures ON modeles_ecritures FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_imports_comptables ON imports_comptables FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_factures_hash_chain ON factures_hash_chain FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_factures_audit_trail ON factures_audit_trail FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+CREATE POLICY tenant_isolation_factures_snapshots ON factures_snapshots FOR ALL TO authenticated
+  USING (tenant_id = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id = current_setting('app.tenant_id', true));

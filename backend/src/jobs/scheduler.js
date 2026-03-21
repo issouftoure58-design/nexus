@@ -954,47 +954,12 @@ export async function sentinelSnapshotJob() {
       console.error('[Scheduler] Auto-backfill error (non-blocking):', err.message);
     }
 
-    const db = getSupabase();
-    if (!db) {
-      console.log('[Scheduler] ⚠️ Supabase non configuré, skip SENTINEL snapshot');
-      return { success: false, reason: 'no_db' };
-    }
+    // runDailyCollection() gère tout : récupère les tenants Business et collecte pour chacun
+    // + re-collecte les 7 derniers jours pour capturer les paiements tardifs
+    await sentinelCollector.runDailyCollection();
 
-    // Récupérer tous les tenants Business actifs
-    const { data: tenants, error } = await db
-      .from('tenants')
-      .select('id, name, plan')
-      .in('plan', ['business', 'enterprise'])
-      .in('statut', ['actif', 'essai']);
-
-    if (error) {
-      console.error('[Scheduler] Erreur query tenants Business:', error.message);
-      return { success: false, error: error.message };
-    }
-
-    if (!tenants || tenants.length === 0) {
-      console.log('[Scheduler] Aucun tenant Business actif');
-      return { success: true, processed: 0 };
-    }
-
-    console.log(`[Scheduler] ${tenants.length} tenant(s) Business à traiter`);
-
-    let processed = 0;
-    let errors = 0;
-
-    for (const tenant of tenants) {
-      try {
-        await sentinelCollector.runDailyCollection();
-        processed++;
-        console.log(`[Scheduler] ✅ SENTINEL snapshot ${tenant.name} (${tenant.id})`);
-      } catch (err) {
-        errors++;
-        console.error(`[Scheduler] ❌ SENTINEL snapshot ${tenant.name}:`, err.message);
-      }
-    }
-
-    console.log(`[Scheduler] 📊 Fin ${jobName}: ${processed} traités, ${errors} erreurs`);
-    return { success: true, processed, errors };
+    console.log(`[Scheduler] 📊 Fin ${jobName}`);
+    return { success: true };
   } catch (error) {
     console.error(`[Scheduler] ❌ Erreur job ${jobName}:`, error.message);
     return { success: false, error: error.message };

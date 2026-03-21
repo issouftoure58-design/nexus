@@ -610,8 +610,8 @@ router.get('/monthly-goals', authenticateAdmin, requireAdminPlan('business'), as
 // HELPERS
 // ============================================
 
-// Convention: prix_total stocké en centimes dans la DB (standard Stripe/Supabase)
-// Le frontend divise par 100 via formatCurrency(amount / 100) pour affichage en EUR
+// Convention SENTINEL: revenue_paid/revenue_total stockés en EUROS (le collector convertit centimes→euros)
+// Le frontend affiche directement via formatCurrency(amount) sans division
 function calculateTrends(snapshots) {
   if (!snapshots || snapshots.length === 0) {
     return { insufficient_data: true, total_revenue: 0, total_reservations: 0, total_new_clients: 0, revenue_trend: 'up', revenue_change: 0, reservations_trend: 'up', reservations_change: 0 };

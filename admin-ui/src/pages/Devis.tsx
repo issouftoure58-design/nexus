@@ -168,18 +168,19 @@ export default function DevisPage() {
       )}
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Devis</h1>
           <p className="text-sm text-gray-500">Gestion des devis clients</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button
             onClick={() => setShowTemplateModal(true)}
-            className="px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 flex items-center gap-2"
+            className="flex-1 sm:flex-none px-3 py-2 bg-white border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 flex items-center justify-center gap-2 text-sm"
           >
-            <LayoutTemplate className="w-5 h-5" />
-            Utiliser un template
+            <LayoutTemplate className="w-4 h-4" />
+            <span className="hidden sm:inline">Utiliser un template</span>
+            <span className="sm:hidden">Template</span>
           </button>
           <button
             onClick={() => {
@@ -187,9 +188,9 @@ export default function DevisPage() {
               setTemplatePreFill(null);
               setShowForm(true);
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="flex-1 sm:flex-none px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Nouveau devis
@@ -228,7 +229,7 @@ export default function DevisPage() {
       )}
 
       {/* Filtres */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         <button
           onClick={() => setFiltreStatut('')}
           className={`px-3 py-1.5 rounded-full text-sm ${
@@ -250,8 +251,8 @@ export default function DevisPage() {
         ))}
       </div>
 
-      {/* Liste des devis */}
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+      {/* Liste des devis — Desktop */}
+      <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -406,6 +407,45 @@ export default function DevisPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Liste des devis — Mobile */}
+      <div className="md:hidden space-y-3">
+        {devisList.length === 0 ? (
+          <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
+            Aucun devis trouve
+          </div>
+        ) : (
+          devisList.map((devis: Devis) => {
+            const statutConfig = STATUT_LABELS[devis.statut as StatutDevis];
+            const isExpired = devis.date_expiration && new Date(devis.date_expiration) < new Date();
+            return (
+              <div
+                key={devis.id}
+                className="bg-white rounded-lg border shadow-sm p-4 space-y-3"
+                onClick={() => setShowDetailModal(devis.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-600 font-medium text-sm">{devis.numero}</span>
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${statutConfig?.bg} ${statutConfig?.color}`}>
+                    {statutConfig?.label}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{devis.client_nom || '-'}</p>
+                  <p className="text-sm text-gray-500">{devis.service_nom || '-'}</p>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">{formatMontant(devis.montant_ttc)}</span>
+                  <span className="text-gray-500">{formatDate(devis.date_devis)}</span>
+                </div>
+                {isExpired && devis.statut === 'envoye' && (
+                  <p className="text-xs text-red-600 font-medium">Expire le {formatDate(devis.date_expiration!)}</p>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Modal Formulaire */}

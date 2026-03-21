@@ -1950,7 +1950,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         date: reservationDate,
         heure: data.heure,
         duree_minutes: data.duree_minutes || service.durationMinutes,
-        duree_totale_minutes: data.duree_minutes || service.durationMinutes,
+        duree_totale_minutes: data.duree_totale_minutes || data.duree_minutes || service.durationMinutes,
         service_nom: service.name,
         prix_service: isFirstDay ? prixService : 0,  // En centimes
         distance_km: isFirstDay ? (distanceKm || null) : null,

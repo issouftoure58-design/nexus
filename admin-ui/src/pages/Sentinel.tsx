@@ -204,7 +204,7 @@ export default function Sentinel() {
 
   const chartData = activityData?.snapshots?.map((s: { date: string; revenue_paid: number; total_reservations: number; new_clients: number }) => ({
     date: new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-    revenue: s.revenue_paid / 100,
+    revenue: s.revenue_paid,
     reservations: s.total_reservations,
     clients: s.new_clients
   })) || [];

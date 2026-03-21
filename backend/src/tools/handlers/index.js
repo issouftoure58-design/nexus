@@ -27,6 +27,7 @@ import { socialHandlers } from './socialHandler.js';
 import { agentHandlers } from './agentHandler.js';
 import { rechercheHandlers } from './rechercheHandler.js';
 import { contenuHandlers } from './contenuHandler.js';
+import { videoHandlers } from './videoHandler.js';
 import { proHandlers } from './proHandler.js';
 
 // Map O(1) : toolName → handler function
@@ -50,6 +51,7 @@ const TOOL_HANDLERS = {
   ...agentHandlers,
   ...rechercheHandlers,
   ...contenuHandlers,
+  ...videoHandlers,
   ...proHandlers
 };
 

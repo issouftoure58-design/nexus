@@ -45,7 +45,7 @@ export function ServiceLayout({ children, title, icon: Icon, tabs, actions }: Se
           </div>
 
           {/* Tabs */}
-          <nav className="flex gap-1 -mb-px">
+          <nav className="flex gap-1 -mb-px overflow-x-auto">
             {tabs.map((tab) => {
               const isActive = location.pathname === tab.path;
               return (

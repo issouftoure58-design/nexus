@@ -58,7 +58,8 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     notes: devis?.notes || '',
     remise_type: 'aucune' as 'aucune' | 'pourcentage' | 'montant',
     remise_valeur: 0,
-    remise_motif: ''
+    remise_motif: '',
+    acompte_pourcentage: devis?.acompte_pourcentage ?? (isBusinessType('service_domicile') ? 30 : 0),
   });
 
   // Adresse facturation meme que prestation
@@ -377,6 +378,8 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
       nb_agents: calculs.nbAgents,
       // Liste des membres assignes
       membre_ids: uniqueMembreIds,
+      // Acompte
+      acompte_pourcentage: formData.acompte_pourcentage > 0 ? formData.acompte_pourcentage : undefined,
     });
   };
 
@@ -920,6 +923,33 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                 </>
               )}
             </div>
+          </div>
+
+          {/* Acompte */}
+          <div className="bg-green-50 rounded-lg p-4 space-y-3">
+            <h3 className="font-semibold text-gray-700">Acompte</h3>
+            <div className="flex gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={formData.acompte_pourcentage}
+                  onChange={(e) => setFormData({ ...formData, acompte_pourcentage: parseInt(e.target.value) || 0 })}
+                  className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">%</span>
+              </div>
+              {formData.acompte_pourcentage > 0 && calculs.montantTTC > 0 && (
+                <span className="text-sm text-green-700 font-medium">
+                  = {(calculs.montantTTC * formData.acompte_pourcentage / 100).toFixed(2)} EUR
+                </span>
+              )}
+            </div>
+            {formData.acompte_pourcentage === 0 && (
+              <p className="text-xs text-gray-500">Aucun acompte ne sera demande.</p>
+            )}
           </div>
 
           {/* Notes */}

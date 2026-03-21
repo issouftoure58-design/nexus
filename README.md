@@ -1,123 +1,132 @@
-# NEXUS Backend Dev
+# NEXUS
 
-Workspace de developpement pour la plateforme NEXUS (Fat's Hair / Halimah Salon).
+Plateforme SaaS multi-tenant tout-en-un qui automatise la gestion des entreprises de services et commerces grace a l'intelligence artificielle.
 
-## Architecture
+## Le probleme
 
-```
-PRODUCTION (NE PAS TOUCHER)
-===========================
-/Users/hobb/Documents/halimah-project/
-├── server/          # halimah-api (TypeScript)
-│   └── Deploye sur: https://halimah-api.onrender.com
-└── .claudeproject   # Lock de protection
+Les petites entreprises (salons, restaurants, artisans, independants) perdent des heures chaque jour sur des taches repetitives : repondre au telephone, gerer les rendez-vous, relancer les clients, faire la comptabilite. Elles ratent des clients quand elles ne peuvent pas decrocher.
 
-DEVELOPPEMENT (TRAVAILLER ICI)
-==============================
-/Users/hobb/Documents/nexus-backend-dev/
-├── backend/
-│   └── src/
-│       ├── routes/      # Routes API
-│       ├── services/    # Services metier
-│       ├── controllers/ # Controleurs
-│       ├── middleware/  # Auth, rate limiting
-│       ├── config/      # Supabase, Redis, env
-│       ├── jobs/        # Bull/Redis jobs
-│       └── modules/     # AI, SEO modules
-├── .claudeproject       # Config dev
-├── check-workspace.sh   # Script verification
-└── README.md            # Ce fichier
-```
+## La solution
 
-## Services Render
+NEXUS centralise tout dans une seule plateforme intelligente.
 
-| Service | Type | URL | Status |
-|---------|------|-----|--------|
-| halimah-api | PRODUCTION | https://halimah-api.onrender.com | LIVE |
-| nexus-backend-dev | DEV | https://nexus-backend-dev.onrender.com | LIVE |
+### IA Multicanale
 
-## Routes API Disponibles
+Un assistant IA repond au telephone 24h/24, sur WhatsApp et en chat web. Il prend les rendez-vous, repond aux questions, et transfere vers l'humain si necessaire. 105 outils IA integres pour l'administration (CRM, comptabilite, marketing, RH, SEO — pilotables en langage naturel).
 
-| Route | Description | Status |
-|-------|-------------|--------|
-| /health | Health check | Public |
-| /api/auth | Authentification | Public |
-| /api/crm | Gestion clients | Auth |
-| /api/stock | Gestion stocks | Auth |
-| /api/seo | Module SEO | Auth |
-| /api/rh | Module RH | Auth |
-| /api/marketing | Marketing automation | Auth |
-| /api/commercial | Gestion commerciale | Auth |
-| /api/comptabilite | Comptabilite | Auth |
-| /api/factures | Facturation | Auth |
-| /api/depenses | Gestion depenses | Auth |
-| /api/relances | Relances clients | Auth |
-| /api/analytics | Analytics | Auth |
+### 6 types d'activites
 
-## Workflow de Developpement
+L'interface, la terminologie et les outils s'adaptent automatiquement :
+
+| Type | Exemples |
+|------|----------|
+| Services a domicile | Coiffure, plomberie, electricite, coaching |
+| Salons et instituts | Coiffure, spa, barbier, esthetique |
+| Restaurants et bars | Gestion tables, couverts, carte, allergenes |
+| Hotels et hebergements | Chambres, check-in/out, extras, tarifs saisonniers |
+| Commerces | Click & collect, livraison, stock, commandes |
+| Securite et mise a disposition | Devis, planning multi-site, staff allocation |
+
+### Modules integres
+
+- **Agenda intelligent** — creneaux, rappels SMS/email, Google Calendar
+- **CRM** — segmentation automatique (VIP, fideles, inactifs), pipeline commercial
+- **Comptabilite** — journaux, rapprochement bancaire, export FEC, normes francaises
+- **RH** — fiches de paie, DSN automatisee, conges, planning equipes
+- **Marketing** — campagnes SMS/email, avis Google, SEO
+- **Gestion de stock** — inventaire temps reel, alertes, fournisseurs
+- **Devis et facturation** — templates par metier, relances automatiques
+
+## Stack technique
 
 ```
-1. Verifier le workspace
-   ./check-workspace.sh
-
-2. Developper dans /backend/src/
-
-3. Tester localement
-   cd backend && npm run dev
-
-4. Commit et push
-   git add . && git commit -m "Description" && git push
-
-5. Auto-deploy sur Render
-   Render detecte le push et deploie automatiquement
-
-6. Verifier le deploy
-   curl https://nexus-backend-dev.onrender.com/health
+Backend     Node.js / Express / 74 routes / 78 services / 87 migrations SQL
+Frontend    React / Vite / TypeScript (admin-ui: 43 pages, 49 composants)
+Database    PostgreSQL (Supabase) avec RLS multi-tenant
+IA          Claude (Anthropic) + OpenAI TTS
+Telephonie  Twilio (WhatsApp + Voice + SMS)
+Paiements   Stripe (mode live, webhooks idempotents)
+Monitoring  SENTINEL (error tracking + monitoring maison)
+CI/CD       GitHub Actions (5 workflows)
+Deploy      Render.com
+Domaine     nexus-ai-saas.com
 ```
 
-## Variables d'Environnement (Render)
+## Structure du projet
 
-Les variables sont configurees sur Render Dashboard:
-- SUPABASE_URL
-- SUPABASE_SERVICE_ROLE_KEY
-- JWT_SECRET
-- OPENAI_API_KEY
-- ANTHROPIC_API_KEY
-- STRIPE_SECRET_KEY
-- RESEND_API_KEY
-- TWILIO_*
-- PAYPAL_*
+```
+nexus/
+├── backend/        API Node.js/Express
+├── admin-ui/       Dashboard admin officiel (React/Vite/TS)
+├── frontend/       App publique tenants (reservations, chat)
+├── landing/        Page vitrine marketing (JSX + Spline 3D)
+├── sentinel/       Module monitoring
+├── .github/        CI/CD workflows
+└── docs/           Documentation et archives
+```
 
-## Commandes Utiles
+## Securite
+
+**Tenant Shield** — isolation stricte des donnees par tenant a chaque requete Supabase. Linter statique pre-commit + CI GitHub + middleware runtime. Aucun fallback tenant autorise.
+
+- RLS sur toutes les tables avec `get_current_tenant()`
+- Rate limiting (6 limiteurs : API, login, paiement, notification, signup, check)
+- Validation Zod sur les routes critiques
+- CSP/Helmet headers stricts
+- RGPD compliant (consentement, export, droit a l'oubli, suppression planifiee)
+- Stripe webhooks idempotents (deduplication par event_id)
+
+## Plans tarifaires
+
+| Plan | Prix | Cible |
+|------|------|-------|
+| **Starter** | 99 EUR/mois | Independants, auto-entrepreneurs |
+| **Pro** | 249 EUR/mois | Salons, restaurants, commerces, PME |
+| **Business** | 499 EUR/mois | Franchises, groupes, multi-sites |
+
+Essai gratuit 14 jours sans carte bancaire.
+
+## Clients
+
+| Client | Activite | Statut |
+|--------|----------|--------|
+| **Fat's Hair-Afro** | Coiffure afro a domicile (Ile-de-France) | Production |
+| **Patwinsserie** | Formation cake design (Qualiopi) | Beta / Onboarding |
+
+## Commandes
 
 ```bash
-# Verifier le workspace
-./check-workspace.sh
+# Developpement
+./start-dev.sh              # Lance backend (5000) + frontend (3001)
+./stop-dev.sh               # Arrete tous les processus dev
 
-# Developper localement
-cd backend && npm run dev
+# Verification
+npm run lint:tenant          # Verifier isolation tenant
+npm run shield               # Lint + tests tenant
 
-# Voir les logs Render
-# Via dashboard: https://dashboard.render.com
+# Base de donnees
+cd backend && node src/index.js   # Lancer le backend
 
-# Tester les endpoints
-curl https://nexus-backend-dev.onrender.com/health
-curl https://nexus-backend-dev.onrender.com/api/crm
+# Admin-ui
+cd admin-ui && npx vite           # Lancer le frontend
 ```
 
-## Regles Importantes
+## Documentation
 
-1. **JAMAIS modifier halimah-project** - C'est la production
-2. **Toujours travailler dans nexus-backend-dev**
-3. **Tester sur nexus-backend-dev.onrender.com avant migration**
-4. **Commit regulierement avec messages clairs**
+| Fichier | Description |
+|---------|-------------|
+| `CLAUDE.md` | Directives developpeur et regles Tenant Shield |
+| `PROGRESS.md` | Suivi d'avancement (source de verite) |
+| `SYSTEM.md` | Architecture technique complete |
+| `NEXUS_KNOWLEDGE.md` | Base de connaissance persistante |
+| `TENANT_SHIELD.md` | Documentation securite multi-tenant |
 
-## Historique
+## Liens
 
-- **2026-02-11**: Migration initiale depuis halimah-project
-- **2026-02-11**: Creation service Render nexus-backend-dev
-- **2026-02-11**: Configuration workspace permanent
+- **Production** : https://app.nexus-ai-saas.com
+- **Vitrine** : https://nexus-ai-saas.com
+- **GitHub** : https://github.com/issouftoure58-design/nexus
 
-## Contact
+---
 
-Repository: https://github.com/Ostive/nexus-backend-dev
+Version 3.24.0

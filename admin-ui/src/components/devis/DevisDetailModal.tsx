@@ -314,6 +314,12 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
                   <span className="text-lg font-bold">Total TTC</span>
                   <span className="text-lg font-bold text-blue-600">{formatMontant(devis.montant_ttc)}</span>
                 </div>
+                {devis.acompte_pourcentage != null && devis.acompte_pourcentage > 0 && (
+                  <div className="flex justify-between py-2 mt-1 bg-green-50 px-2 rounded">
+                    <span className="text-sm text-green-800 font-medium">Acompte demande ({devis.acompte_pourcentage}%)</span>
+                    <span className="text-sm text-green-800 font-bold">{formatMontant(devis.montant_acompte || 0)}</span>
+                  </div>
+                )}
               </div>
             </div>
 

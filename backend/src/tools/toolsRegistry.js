@@ -732,6 +732,42 @@ const TOOLS_ADMIN_SOCIAL = [
 ];
 
 // ============================================
+// OUTILS ADMIN - Scripts Vidéo Viraux
+// ============================================
+
+const TOOLS_ADMIN_VIDEO = [
+  {
+    name: "script_video_viral",
+    description: "Génère un script de vidéo virale pour TikTok, Instagram Reels ou YouTube Shorts. Inclut hook 3s, storytelling, CTA, hashtags tendance, et 3 variantes (humour/émotion/choc).",
+    input_schema: {
+      type: "object",
+      properties: {
+        service_produit: {
+          type: "string",
+          description: "Le service ou produit à promouvoir (ex: 'création locks', 'nouveau shampoing', 'offre fidélité')"
+        },
+        plateforme: {
+          type: "string",
+          enum: ["tiktok", "instagram_reels", "youtube_shorts"],
+          description: "Plateforme cible (défaut: tiktok)"
+        },
+        style: {
+          type: "string",
+          enum: ["viral", "educatif", "divertissement", "emotion", "humour", "choc"],
+          description: "Style de contenu souhaité (défaut: viral)"
+        },
+        duree_secondes: {
+          type: "integer",
+          enum: [15, 30, 60],
+          description: "Durée vidéo en secondes (défaut: 30)"
+        }
+      },
+      required: ["service_produit"]
+    }
+  }
+];
+
+// ============================================
 // OUTILS ADMIN - Création de Contenu
 // ============================================
 
@@ -1821,6 +1857,8 @@ export const TOOLS_ADMIN = [
   ...TOOLS_ADMIN_RH,
   // Création de contenu
   ...TOOLS_ADMIN_CONTENU,
+  // Scripts vidéo viraux
+  ...TOOLS_ADMIN_VIDEO,
   // Mémoire
   ...TOOLS_ADMIN_MEMOIRE,
   // Planification
@@ -1861,6 +1899,7 @@ export function getToolsForPlan(plan) {
     ...TOOLS_ADMIN_COMMERCIAL,
     ...TOOLS_ADMIN_COMPTABLE,
     ...TOOLS_ADMIN_CONTENU,
+    ...TOOLS_ADMIN_VIDEO,
     ...TOOLS_ADMIN_MEMOIRE,
     ...TOOLS_ADMIN_PLANIFICATION,
     ...TOOLS_ADMIN_AGENDA
@@ -1967,6 +2006,7 @@ export function getToolsByCategory(category) {
     comptable: TOOLS_ADMIN_COMPTABLE,
     rh: TOOLS_ADMIN_RH,
     contenu: TOOLS_ADMIN_CONTENU,
+    video: TOOLS_ADMIN_VIDEO,
     memoire: TOOLS_ADMIN_MEMOIRE,
     planification: TOOLS_ADMIN_PLANIFICATION,
     agent: TOOLS_ADMIN_AGENT,
@@ -2008,6 +2048,7 @@ export const TOOLS_STATS = {
   comptable: TOOLS_ADMIN_COMPTABLE.length,
   rh: TOOLS_ADMIN_RH.length,
   contenu: TOOLS_ADMIN_CONTENU.length,
+  video: TOOLS_ADMIN_VIDEO.length,
   memoire: TOOLS_ADMIN_MEMOIRE.length,
   planification: TOOLS_ADMIN_PLANIFICATION.length,
   agent: TOOLS_ADMIN_AGENT.length,

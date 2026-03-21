@@ -41,8 +41,52 @@ const router = express.Router();
 // Middleware d'idempotence pour prévenir les doubles paiements
 router.use(idempotencyMiddleware);
 
-// Montant de l'acompte fixe
-const MONTANT_ACOMPTE = 10; // 10€
+// Montant de l'acompte par défaut (fallback rétrocompatible)
+const MONTANT_ACOMPTE_DEFAUT = 10; // 10€
+
+/**
+ * Calcule le montant de l'acompte pour une réservation
+ * Priorité : devis.montant_acompte > deposit_percentage du template > 10€ fallback
+ */
+async function calculerAcompte(rdvId, tenantId, prixTotal) {
+  const db = getSupabase();
+  if (!db) return MONTANT_ACOMPTE_DEFAUT;
+
+  // 1. Chercher un devis lié à cette réservation
+  const { data: devis } = await db
+    .from('devis')
+    .select('montant_acompte, acompte_pourcentage')
+    .eq('tenant_id', tenantId)
+    .eq('reservation_id', rdvId)
+    .in('statut', ['accepte', 'execute'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (devis?.montant_acompte && devis.montant_acompte > 0) {
+    // montant_acompte est en centimes dans la DB, convertir en euros
+    const montantEuros = devis.montant_acompte / 100;
+    console.log(`[Payment] Acompte devis: ${montantEuros}€ (${devis.acompte_pourcentage}%)`);
+    return montantEuros;
+  }
+
+  // 2. Chercher deposit_percentage dans le template du tenant
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('profile_config, template_id')
+    .eq('id', tenantId)
+    .single();
+
+  const depositPct = tenant?.profile_config?.deposit_percentage;
+  if (depositPct && prixTotal && prixTotal > 0) {
+    const montant = Math.round(prixTotal * depositPct / 100 * 100) / 100;
+    console.log(`[Payment] Acompte template ${depositPct}%: ${montant}€`);
+    return montant;
+  }
+
+  // 3. Fallback rétrocompatible
+  return MONTANT_ACOMPTE_DEFAUT;
+}
 
 // ============= HELPERS =============
 
@@ -343,8 +387,10 @@ router.post('/create-intent', authenticateAdmin, async (req, res) => {
     let montantDetails;
 
     if (type === 'acompte') {
-      montantAPayer = MONTANT_ACOMPTE;
-      montantDetails = { type: 'acompte', montant: MONTANT_ACOMPTE };
+      // Acompte variable : devis > template > fallback 10€
+      const prixTotal = rdv.prix_total ? rdv.prix_total / 100 : (prix_service || amount || 0);
+      montantAPayer = await calculerAcompte(rdv_id, tenantId, prixTotal);
+      montantDetails = { type: 'acompte', montant: montantAPayer };
     } else {
       // Calculer le montant total avec frais de déplacement
       if (!prix_service && !amount) {
@@ -530,8 +576,10 @@ router.post('/create-paypal-order', authenticateAdmin, async (req, res) => {
     let montantDetails;
 
     if (type === 'acompte') {
-      montantAPayer = MONTANT_ACOMPTE;
-      montantDetails = { type: 'acompte', montant: MONTANT_ACOMPTE };
+      // Acompte variable : devis > template > fallback 10€
+      const prixTotal = rdv.prix_total ? rdv.prix_total / 100 : (prix_service || amount || 0);
+      montantAPayer = await calculerAcompte(rdv_id, tenantId, prixTotal);
+      montantDetails = { type: 'acompte', montant: montantAPayer };
     } else {
       if (!prix_service && !amount) {
         return res.status(400).json({
@@ -623,7 +671,10 @@ router.post('/capture-paypal', authenticateAdmin, async (req, res) => {
     }
 
     const montant = parseFloat(capture.amount) || 0;
-    const type = montant <= MONTANT_ACOMPTE ? 'acompte' : 'total';
+    // Déterminer le type depuis les metadata ou le montant
+    const prixTotal = rdv.prix_total ? rdv.prix_total / 100 : 0;
+    const acompteAttendu = await calculerAcompte(rdv_id, tenantId, prixTotal);
+    const type = montant <= acompteAttendu ? 'acompte' : 'total';
 
     // Mettre à jour le RDV
     await updateRdv(rdv_id, tenantId, {
@@ -716,14 +767,18 @@ router.post('/refund', authenticateAdmin, async (req, res) => {
     let montantRembourse;
     let regleAppliquee;
 
+    // Calculer le montant d'acompte retenu en cas d'annulation tardive
+    const prixTotal = rdv.prix_total ? rdv.prix_total / 100 : paymentInfo.amount;
+    const acompteRetenu = await calculerAcompte(rdv_id, tenantId, prixTotal);
+
     if (heuresDepuisReservation < 24) {
       // Moins de 24h : remboursement total
       montantRembourse = paymentInfo.amount;
       regleAppliquee = 'Annulation < 24h : remboursement total';
     } else {
-      // Plus de 24h : on garde l'acompte de 10€
-      montantRembourse = Math.max(0, paymentInfo.amount - MONTANT_ACOMPTE);
-      regleAppliquee = `Annulation > 24h : remboursement - ${MONTANT_ACOMPTE}€ (acompte retenu)`;
+      // Plus de 24h : on garde l'acompte
+      montantRembourse = Math.max(0, paymentInfo.amount - acompteRetenu);
+      regleAppliquee = `Annulation > 24h : remboursement - ${acompteRetenu}€ (acompte retenu)`;
     }
 
     // Effectuer le remboursement selon le provider

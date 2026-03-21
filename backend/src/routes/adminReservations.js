@@ -632,6 +632,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
       statut: 'confirme',
+      // Durée totale (somme de tous les services × quantités)
+      duree_totale_minutes: dureeConflictCheck,
       // Restaurant
       nb_couverts: nb_couverts || nb_personnes || null
     }, 'admin', {

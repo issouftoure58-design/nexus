@@ -1531,6 +1531,9 @@ export interface Devis {
   nb_jours?: number;
   nb_agents?: number;
   membre_ids?: number[];
+  // Acompte
+  acompte_pourcentage?: number;
+  montant_acompte?: number;
   // Liens
   opportunite_id?: number;
   reservation_id?: string;

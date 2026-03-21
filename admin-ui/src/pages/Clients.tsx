@@ -328,7 +328,8 @@ export default function Clients() {
         {!isLoading && !error && (
           <Card>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-gray-50/50">
@@ -472,6 +473,77 @@ export default function Clients() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile card view */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {filteredClients.map((client) => {
+                  const isPro = client.type_client === 'professionnel' || !!client.raison_sociale;
+                  const displayName = isPro && client.raison_sociale
+                    ? client.raison_sociale
+                    : `${client.prenom || ''} ${client.nom || ''}`.trim();
+                  const initials = isPro && client.raison_sociale
+                    ? client.raison_sociale.substring(0, 2).toUpperCase()
+                    : `${client.prenom?.[0] || ''}${client.nom?.[0] || ''}`;
+
+                  return (
+                    <div
+                      key={client.id}
+                      onClick={() => setSelectedClient(client)}
+                      className="p-4 cursor-pointer active:bg-gray-50 dark:active:bg-gray-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0",
+                          isPro
+                            ? "bg-gradient-to-br from-amber-500 to-orange-500"
+                            : "bg-gradient-to-br from-purple-500 to-blue-500"
+                        )}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">{displayName}</p>
+                            {isPro && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 flex-shrink-0">
+                                PRO
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {client.telephone}
+                            </span>
+                            <span className="text-sm text-gray-400">
+                              {client.nb_rdv || 0} rdv
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredClients.length === 0 && (
+                  <div className="py-12 text-center text-gray-500">
+                    <Users className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                    <p>Aucun {t('client').toLowerCase()} trouvé</p>
+                    {(search || hasActiveFilters) && (
+                      <Button
+                        variant="link"
+                        onClick={() => {
+                          setSearch('');
+                          setSearchInput('');
+                          resetFilters();
+                        }}
+                        className="mt-2"
+                      >
+                        Effacer les filtres
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Pagination */}

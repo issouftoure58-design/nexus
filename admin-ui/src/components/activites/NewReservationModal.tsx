@@ -18,6 +18,7 @@ import { calculateHours, calculateDays } from './types';
 interface ProfileLike {
   id?: string;
   pricing?: { mode?: string };
+  duration?: { allowMultiDay?: boolean; allowOvernight?: boolean };
 }
 
 interface NewReservationModalProps {
@@ -814,11 +815,11 @@ export default function NewReservationModal({
 
           {/* Date + Heure salon/domicile déplacés en haut du formulaire */}
 
-          {/* Période complète — Security/Commerce: date début/fin + heures (missions multi-jours) */}
-          {!isPricingMode('hourly') && (isBusinessType('security') || isBusinessType('commerce')) && (
+          {/* Période complète — Security/Commerce/Service domicile multi-jours: date début/fin + heures */}
+          {!isPricingMode('hourly') && (isBusinessType('security') || isBusinessType('commerce') || (isBusinessType('service_domicile') && profile?.duration?.allowMultiDay)) && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                Période de la {isBusinessType('security') ? 'mission' : 'prestation'}
+                Période {isBusinessType('security') ? 'de la mission' : isBusinessType('service_domicile') ? 'du chantier' : 'de la prestation'}
               </label>
 
               {isPricingMode('daily') ? (
