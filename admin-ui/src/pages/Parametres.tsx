@@ -6,13 +6,14 @@ import type { AdminTeamMember } from '@/lib/api';
 import { PermissionSelector, getDefaultPermissions } from '@/components/team/PermissionSelector';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTenant } from '@/hooks/useTenant';
+import { useProfile } from '@/contexts/ProfileContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   User, Bell, Shield, Palette, Key, Globe, AlertCircle,
-  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase
+  Loader2, Webhook, CheckCircle, X, Plus, Trash2, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase, RotateCcw, Type
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -214,6 +215,84 @@ const TEMPLATE_LABELS: Record<string, { label: string; emoji: string }> = {
   commerce: { label: 'Commerce', emoji: '🛍️' },
   autre: { label: 'Autre activité', emoji: '⚙️' },
 };
+
+/**
+ * Toggle multi-jours pour service_domicile (couvreur, BTP, etc.)
+ * Ecrit allow_multi_day dans profile_config du tenant
+ */
+function MultiDayToggle() {
+  const [enabled, setEnabled] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (!loaded) {
+      api.get<{ config: Record<string, unknown> }>('/admin/profile/config')
+        .then((res) => {
+          setEnabled(!!res?.config?.allow_multi_day);
+          setLoaded(true);
+        })
+        .catch(() => setLoaded(true));
+    }
+  }, [loaded]);
+
+  const handleToggle = async () => {
+    const newValue = !enabled;
+    setSaving(true);
+    try {
+      await api.patch('/admin/profile/config', {
+        config: { allow_multi_day: newValue },
+      });
+      setEnabled(newValue);
+      setFeedback({ message: newValue ? 'Interventions multi-jours activées' : 'Interventions multi-jours désactivées', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="space-y-3 pt-4 border-t">
+      {feedback && (
+        <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />
+      )}
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Interventions multi-jours
+          </label>
+          <p className="text-xs text-gray-500">
+            Activez cette option pour les chantiers de plusieurs jours (couverture, BTP, rénovation...).
+            Le formulaire de réservation affichera les champs date de début et date de fin.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={handleToggle}
+          disabled={saving}
+          className={cn(
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            enabled ? 'bg-cyan-600' : 'bg-gray-300',
+            saving && 'opacity-50'
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+              enabled ? 'translate-x-6' : 'translate-x-1'
+            )}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ActiviteSubSection() {
   const { tenant, refetch } = useTenant();
@@ -433,8 +512,186 @@ function ActiviteSubSection() {
             </div>
           </div>
         )}
+
+        {/* Interventions multi-jours — service_domicile uniquement */}
+        {currentTemplate === 'service_domicile' && (
+          <MultiDayToggle />
+        )}
+
+        {/* Terminologie personnalisée — tous business types */}
+        <TerminologyCustomizer />
       </CardContent>
     </Card>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TERMINOLOGY CUSTOMIZER
+// ══════════════════════════════════════════════════════════════════════════════
+
+const TERMINOLOGY_KEYS = ['reservation', 'service', 'client', 'employee'] as const;
+
+const TERMINOLOGY_LABELS: Record<string, string> = {
+  reservation: 'Réservation / RDV',
+  service: 'Service / Prestation',
+  client: 'Client',
+  employee: 'Employé / Intervenant',
+};
+
+function TerminologyCustomizer() {
+  const { profile, refreshProfile } = useProfile();
+  const [custom, setCustom] = useState<Record<string, { singular: string; plural: string }>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Charger les overrides existants depuis profile_config
+  useEffect(() => {
+    if (!loaded) {
+      api.get<{ config: Record<string, unknown> }>('/admin/profile/config')
+        .then((res) => {
+          const ct = (res?.config as any)?.custom_terminology || {};
+          setCustom(ct);
+          setLoaded(true);
+        })
+        .catch(() => setLoaded(true));
+    }
+  }, [loaded]);
+
+  // Valeurs par défaut du business type (placeholders)
+  const defaults = (profile?.terminology || {}) as Record<string, { singular?: string; plural?: string } | string>;
+
+  const handleChange = (key: string, field: 'singular' | 'plural', value: string) => {
+    setCustom(prev => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || {}),
+        [field]: value,
+      },
+    }));
+    setHasChanges(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Nettoyer : ne garder que les clés avec au moins une valeur non vide
+      const cleaned: Record<string, { singular?: string; plural?: string }> = {};
+      for (const key of TERMINOLOGY_KEYS) {
+        const entry = custom[key];
+        if (entry?.singular || entry?.plural) {
+          cleaned[key] = {};
+          if (entry.singular) cleaned[key].singular = entry.singular.trim();
+          if (entry.plural) cleaned[key].plural = entry.plural.trim();
+        }
+      }
+
+      await api.patch('/admin/profile/config', {
+        config: { custom_terminology: Object.keys(cleaned).length > 0 ? cleaned : null },
+      });
+
+      await refreshProfile();
+      setHasChanges(false);
+      setFeedback({ message: 'Terminologie personnalisée enregistrée', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setSaving(true);
+    try {
+      await api.patch('/admin/profile/config', {
+        config: { custom_terminology: null },
+      });
+      setCustom({});
+      await refreshProfile();
+      setHasChanges(false);
+      setFeedback({ message: 'Terminologie réinitialisée aux valeurs par défaut', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la réinitialisation', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasAnyCustom = TERMINOLOGY_KEYS.some(k => custom[k]?.singular || custom[k]?.plural);
+
+  if (!loaded) {
+    return (
+      <div className="pt-4 border-t flex justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pt-4 border-t">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Type className="h-4 w-4 text-cyan-500" />
+            <label className="text-sm font-medium text-gray-700">Terminologie personnalisée</label>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Adaptez les termes affichés dans toute l'interface à votre métier exact.
+            Laissez vide pour garder la valeur par défaut.
+          </p>
+        </div>
+        {hasAnyCustom && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReset}
+            disabled={saving}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1" />
+            Réinitialiser
+          </Button>
+        )}
+      </div>
+
+      {feedback && <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />}
+
+      <div className="space-y-3">
+        {TERMINOLOGY_KEYS.map(key => {
+          const def = defaults[key];
+          const defaultSingular = typeof def === 'object' ? def?.singular : def || '';
+          const defaultPlural = typeof def === 'object' ? def?.plural : '';
+          return (
+            <div key={key} className="grid grid-cols-[140px_1fr_1fr] gap-3 items-center">
+              <span className="text-sm text-gray-600 font-medium">{TERMINOLOGY_LABELS[key]}</span>
+              <Input
+                placeholder={defaultSingular || 'Singulier'}
+                value={custom[key]?.singular || ''}
+                onChange={e => handleChange(key, 'singular', e.target.value)}
+                className="h-9 text-sm"
+              />
+              <Input
+                placeholder={defaultPlural || 'Pluriel'}
+                value={custom[key]?.plural || ''}
+                onChange={e => handleChange(key, 'plural', e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={!hasChanges || saving}
+          className="bg-cyan-600 hover:bg-cyan-700"
+        >
+          {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer la terminologie'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -138,10 +138,59 @@ export async function loadProfile(tenantId) {
       return null;
     }
 
-    // Merger avec la config personnalisée du tenant si existe
-    const customConfig = {};
+    // Merger avec la config personnalisée du tenant (profile_config)
+    let customConfig = {};
+    try {
+      const { data: tenantConfig } = await supabase
+        .from('tenants')
+        .select('profile_config')
+        .eq('id', tenantId)
+        .single();
+      customConfig = tenantConfig?.profile_config || {};
+    } catch (e) {
+      // profile_config optionnel, pas bloquant
+    }
+
+    // Appliquer allow_multi_day depuis profile_config (override tenant-level)
+    const durationOverride = {};
+    if (customConfig.allow_multi_day !== undefined) {
+      durationOverride.allowMultiDay = !!customConfig.allow_multi_day;
+    }
+
+    // Custom terminology overrides (priorité max sur les valeurs du profil)
+    const customTerminology = customConfig.custom_terminology || {};
+    let terminologyOverride = {};
+    if (Object.keys(customTerminology).length > 0) {
+      const mergeKey = (key) => {
+        const custom = customTerminology[key];
+        const base = profile.terminology?.[key];
+        if (!custom) return base;
+        if (typeof base === 'object') {
+          return {
+            singular: custom.singular || base.singular,
+            plural: custom.plural || base.plural,
+          };
+        }
+        return custom;
+      };
+      terminologyOverride = {
+        reservation: mergeKey('reservation'),
+        service: mergeKey('service'),
+        client: mergeKey('client'),
+        employee: mergeKey('employee'),
+      };
+    }
+
     const mergedProfile = {
       ...profile,
+      duration: {
+        ...profile.duration,
+        ...durationOverride,
+      },
+      terminology: {
+        ...profile.terminology,
+        ...terminologyOverride,
+      },
       tenantConfig: customConfig,
     };
 

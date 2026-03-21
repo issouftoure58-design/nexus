@@ -40,6 +40,43 @@ router.get('/', async (req, res) => {
       const businessType = businessInfo.businessType || 'service_domicile';
       const businessTypeConfig = BUSINESS_TYPES[businessType] || BUSINESS_TYPES.service_domicile;
 
+      // Lire profile_config pour overrides tenant-level (ex: allow_multi_day)
+      let profileConfig = {};
+      try {
+        const { data: tenantRow } = await supabase
+          .from('tenants')
+          .select('profile_config')
+          .eq('id', tenantId)
+          .single();
+        profileConfig = tenantRow?.profile_config || {};
+      } catch (e) { /* optionnel */ }
+
+      // Override duration.allowMultiDay depuis profile_config
+      const durationOverride = {};
+      if (profileConfig.allow_multi_day !== undefined) {
+        durationOverride.allowMultiDay = !!profileConfig.allow_multi_day;
+      }
+
+      // Custom terminology overrides (priorité max)
+      const customTerminology = profileConfig.custom_terminology || {};
+
+      // Helper: merge une clé de terminologie (custom > businessType > profile)
+      const mergeTermKey = (key) => {
+        const custom = customTerminology[key];
+        const bt = businessTypeConfig?.terminology?.[key];
+        const base = profile.terminology?.[key];
+        if (!custom) return bt || base;
+        // Pour les clés objet {singular, plural}, merger partiellement
+        if (typeof (bt || base) === 'object') {
+          const ref = bt || base || {};
+          return {
+            singular: custom.singular || ref.singular,
+            plural: custom.plural || ref.plural,
+          };
+        }
+        return custom;
+      };
+
       // Enrichir le profil avec les infos V2
       profile = {
         ...profile,
@@ -57,13 +94,19 @@ router.get('/', async (req, res) => {
         },
         // Features flags
         features: businessInfo.features || {},
-        // Terminologie V2
+        // Duration avec overrides tenant
+        duration: {
+          ...(profile.duration || {}),
+          ...durationOverride,
+        },
+        // Terminologie V2 (custom > businessType > profil)
         terminology: {
           ...profile.terminology,
-          reservation: businessTypeConfig?.terminology?.reservation || profile.terminology?.reservation,
-          service: businessTypeConfig?.terminology?.service || profile.terminology?.service,
-          client: businessTypeConfig?.terminology?.client || profile.terminology?.client,
-          employee: businessTypeConfig?.terminology?.employee || profile.terminology?.employee,
+          ...(businessTypeConfig?.terminology || {}),
+          reservation: mergeTermKey('reservation'),
+          service: mergeTermKey('service'),
+          client: mergeTermKey('client'),
+          employee: mergeTermKey('employee'),
         },
         // Règles métier V2
         businessRules: businessTypeConfig?.businessRules || {},
