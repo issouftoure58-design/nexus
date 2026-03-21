@@ -23,6 +23,8 @@ import {
   clearConversation
 } from '../core/unified/nexusCore.js';
 import voiceService from '../services/voiceService.js';
+import ttsService from '../services/ttsService.js';
+import openaiTTS from '../services/openaiTTSService.js';
 import { logCallStart, logCallEnd, logSMS, logSMSStatus } from '../modules/twilio/callLogService.js';
 import { saveVoiceRecording } from '../services/voiceRecordingService.js';
 import usageTracking from '../services/usageTrackingService.js';
@@ -315,37 +317,75 @@ function getSpeechHints(tenantId) {
 const BASE_URL = process.env.BASE_URL || 'https://nexus-backend-dev.onrender.com';
 
 /**
- * Joue l'audio ElevenLabs ou fallback sur Polly
+ * Nettoie le texte pour la synthèse vocale (Polly ou ElevenLabs)
+ * Supprime emojis, markdown, astérisques, et artefacts non prononçables
+ */
+function cleanTextForTTS(text) {
+  return text
+    // Supprimer les emojis (tous les blocs Unicode emoji)
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]/gu, '')
+    // Supprimer le markdown bold/italic
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    // Supprimer les tirets de liste en début de ligne
+    .replace(/^\s*[-•]\s+/gm, '')
+    // Supprimer les # de titre markdown
+    .replace(/^#+\s*/gm, '')
+    // Supprimer les doubles espaces restants
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Joue l'audio via TTS (OpenAI → ElevenLabs → Polly)
+ * Priorité : OpenAI TTS (naturel, pas cher) > ElevenLabs (premium) > Polly (gratuit, robotique)
  * @param {object} parent - twiml ou gather element
  * @param {string} text - texte à prononcer
  */
-async function sayWithElevenLabs(parent, text) {
-  if (!voiceService.isConfigured()) {
-    parent.say(VOICE_CONFIG, text);
+async function sayWithTTS(parent, text) {
+  // Toujours nettoyer le texte avant tout TTS
+  const cleanText = cleanTextForTTS(text);
+
+  // Si aucun TTS externe configuré → Polly (fallback gratuit)
+  if (!ttsService.isConfigured()) {
+    parent.say(VOICE_CONFIG, cleanText);
     return;
   }
 
   try {
-    const result = await voiceService.textToSpeech(text);
+    // Utiliser le service unifié (OpenAI par défaut, ElevenLabs en fallback)
+    const result = await ttsService.textToSpeech(cleanText);
     if (!result.success) throw new Error(result.error || 'TTS failed');
 
-    // Calculer le nom de fichier (même logique que le cache)
-    const optimized = voiceService.optimizeText(text);
-    const hash = voiceService.getTextHash(optimized, voiceService.DEFAULT_VOICE_ID);
-    const filename = `${hash}.mp3`;
-    const publicUrl = `${BASE_URL}/api/voice/audio/${filename}`;
+    // Déterminer le hash selon le provider utilisé
+    const provider = result.provider || 'openai';
+    let filename;
+    if (provider === 'openai') {
+      const hash = openaiTTS.getTextHash(openaiTTS.optimizeText(cleanText), openaiTTS.DEFAULT_VOICE);
+      filename = `${hash}.mp3`;
+    } else {
+      const optimized = voiceService.optimizeText(cleanText);
+      const hash = voiceService.getTextHash(optimized, voiceService.DEFAULT_VOICE_ID);
+      filename = `${hash}.mp3`;
+    }
 
-    logger.info(`VOICE ElevenLabs ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
+    const publicUrl = `${BASE_URL}/api/voice/audio/${filename}`;
+    logger.info(`VOICE ${provider.toUpperCase()} ${publicUrl} (${result.fromCache ? 'cache' : 'API'})`);
     parent.play(publicUrl);
   } catch (error) {
-    logger.warn(`VOICE ElevenLabs failed, fallback Polly: ${error.message}`);
-    parent.say(VOICE_CONFIG, text);
+    logger.warn(`VOICE TTS failed, fallback Polly: ${error.message}`);
+    parent.say(VOICE_CONFIG, cleanText);
   }
 }
 
 /**
  * Crée un gather avec audio interruptible (barge-in)
  * L'audio est joué À L'INTÉRIEUR du gather pour permettre l'interruption
+ *
+ * Options :
+ *  - timeout: secondes d'attente après fin de parole (défaut: 3)
+ *  - action: URL callback
+ *  - tenantId: pour les speech hints
+ *  - enhanced: utiliser enhanced speech model (meilleure compréhension, +$)
  */
 async function gatherWithBargeIn(twiml, text, options = {}) {
   const hints = getSpeechHints(options.tenantId || null);
@@ -354,15 +394,16 @@ async function gatherWithBargeIn(twiml, text, options = {}) {
     language: 'fr-FR',
     speechTimeout: 'auto',
     speechModel: 'phone_call',
+    enhanced: true,         // Meilleure reconnaissance vocale
     hints,
     action: options.action || '/api/twilio/voice/conversation',
     method: 'POST',
-    timeout: options.timeout || 5,
-    bargeIn: true  // Permet d'interrompre pendant que l'audio joue
+    timeout: options.timeout || 3,
+    bargeIn: true           // Permet d'interrompre pendant que l'audio joue
   });
 
   // Jouer l'audio À L'INTÉRIEUR du gather pour que bargeIn fonctionne
-  await sayWithElevenLabs(gather, text);
+  await sayWithTTS(gather, text);
 
   return gather;
 }
@@ -428,7 +469,7 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
     await gatherWithBargeIn(twiml, "Vous êtes toujours là ? Je vous écoute.", { timeout: 3, tenantId });
 
     // Si toujours pas de réponse
-    await sayWithElevenLabs(twiml, "Je n'entends rien. N'hésitez pas à rappeler ou à nous contacter par WhatsApp. Au revoir !");
+    await sayWithTTS(twiml, "Je n'entends rien. N'hésitez pas à rappeler ou à nous contacter par WhatsApp. Au revoir !");
 
   } catch (error) {
     logger.error(`VOICE Erreur accueil pour tenant ${tenantId}: ${error.message}`);
@@ -460,7 +501,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
   // 🔒 TENANT ISOLATION: Rejeter si pas de tenant en session
   if (!tenantId) {
     logger.error(`VOICE No tenantId in session for CallSid: ${CallSid}`);
-    await sayWithElevenLabs(twiml, "Excusez-moi, une erreur technique s'est produite. Veuillez rappeler.");
+    await sayWithTTS(twiml, "Excusez-moi, une erreur technique s'est produite. Veuillez rappeler.");
     twiml.hangup();
     res.type('text/xml');
     return res.send(twiml.toString());
@@ -474,7 +515,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
     await gatherWithBargeIn(twiml, "Excusez-moi, je n'ai pas bien entendu. Pouvez-vous répéter ?", { timeout: 5, tenantId });
 
     // Après timeout sans réponse
-    await sayWithElevenLabs(twiml, "Je n'entends plus rien. Si vous avez des questions, n'hésitez pas à rappeler. Au revoir !");
+    await sayWithTTS(twiml, "Je n'entends plus rien. Si vous avez des questions, n'hésitez pas à rappeler. Au revoir !");
 
     res.type('text/xml');
     return res.send(twiml.toString());
@@ -493,7 +534,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
       logger.info(`VOICE Transfert vers responsable pour ${clientName} (tenant: ${tenantId})`);
 
       // Dire qu'on transfère (sans gather car on va dial après)
-      await sayWithElevenLabs(twiml, response);
+      await sayWithTTS(twiml, response);
 
       // Récupérer le numéro de transfert pour ce tenant
       const transferPhone = getTransferPhone(tenantId);
@@ -523,7 +564,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
 
     } else if (shouldEndCall) {
       // Terminer l'appel proprement - dire au revoir puis raccrocher
-      await sayWithElevenLabs(twiml, response);
+      await sayWithTTS(twiml, response);
       logger.info(`VOICE Fin de conversation pour ${CallSid}`);
       cleanupVoiceService(CallSid);
       cleanupVoiceSession(CallSid);
@@ -536,7 +577,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
       await gatherWithBargeIn(twiml, "Vous êtes toujours là ?", { timeout: 3, tenantId });
 
       // Fin après double timeout
-      await sayWithElevenLabs(twiml, messages.goodbye);
+      await sayWithTTS(twiml, messages.goodbye);
     }
 
   } catch (error) {
@@ -544,7 +585,7 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
     captureException(error, { tags: { service: 'twilio', type: 'voice_conversation' }, extra: { CallSid, tenantId } });
     const info = tenantId ? getBusinessInfoSync(tenantId) : {};
     const phoneMsg = info.telephone ? ` ou envoyer un SMS au ${info.telephone}` : '';
-    await sayWithElevenLabs(twiml, `Excusez-moi, j'ai eu un petit souci. Pouvez-vous rappeler${phoneMsg} ? Au revoir !`);
+    await sayWithTTS(twiml, `Excusez-moi, j'ai eu un petit souci. Pouvez-vous rappeler${phoneMsg} ? Au revoir !`);
     // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
   }
 
@@ -607,12 +648,12 @@ router.post('/voice/transfer', validateTwilioSignature, async (req, res) => {
 
   const twiml = new VoiceResponse();
 
-  await sayWithElevenLabs(twiml, messages.transferMessage);
+  await sayWithTTS(twiml, messages.transferMessage);
 
   const transferPhone = getTransferPhone(tenantId);
   if (!transferPhone) {
     logger.error(`VOICE No transfer phone configured for tenant ${tenantId}`);
-    await sayWithElevenLabs(twiml, messages.voicemail);
+    await sayWithTTS(twiml, messages.voicemail);
     twiml.record({
       maxLength: 120,
       playBeep: true,
@@ -652,7 +693,7 @@ router.post('/voice/transfer-status', validateTwilioSignature, async (req, res) 
   const twiml = new VoiceResponse();
 
   if (DialCallStatus !== 'completed') {
-    await sayWithElevenLabs(twiml, messages.voicemail);
+    await sayWithTTS(twiml, messages.voicemail);
 
     twiml.record({
       maxLength: 120,
@@ -664,7 +705,7 @@ router.post('/voice/transfer-status', validateTwilioSignature, async (req, res) 
     });
   }
 
-  await sayWithElevenLabs(twiml, messages.goodbye);
+  await sayWithTTS(twiml, messages.goodbye);
   // Note: Ne pas appeler cleanupConversation ici - sera fait par /voice/status
 
   res.type('text/xml');
@@ -693,7 +734,7 @@ router.post('/voice/transfer-result', validateTwilioSignature, async (req, res) 
   if (DialCallStatus === 'completed') {
     // Le responsable a pris l'appel et la conversation est terminée
     logger.info(`VOICE Transfert réussi pour ${CallSid}`);
-    await sayWithElevenLabs(twiml, messages.goodbye);
+    await sayWithTTS(twiml, messages.goodbye);
     cleanupVoiceService(CallSid);
     cleanupVoiceSession(CallSid);
   } else {
@@ -708,7 +749,7 @@ router.post('/voice/transfer-result', validateTwilioSignature, async (req, res) 
     );
 
     // Timeout - si pas de réponse
-    await sayWithElevenLabs(twiml, messages.goodbye);
+    await sayWithTTS(twiml, messages.goodbye);
   }
 
   res.type('text/xml');
@@ -752,7 +793,7 @@ router.post('/voice/recording', validateTwilioSignature, async (req, res) => {
   }
 
   const twiml = new VoiceResponse();
-  await sayWithElevenLabs(twiml, messages.messageRecorded);
+  await sayWithTTS(twiml, messages.messageRecorded);
 
   res.type('text/xml');
   res.send(twiml.toString());
