@@ -2755,4 +2755,430 @@ function getLibelleCompte(numero) {
   return numero;
 }
 
+// ============================================
+// DASHBOARD ANALYTIQUE COMPTABLE
+// ============================================
+
+/**
+ * Helper : construit un compte de résultat à partir d'écritures filtrées
+ */
+function buildCompteResultatFromEcritures(ecritures) {
+  const comptes = {};
+  ecritures?.forEach(e => {
+    const classe = e.compte_numero.charAt(0);
+    if (classe !== '6' && classe !== '7') return;
+    const num = e.compte_numero.substring(0, 3);
+    if (!comptes[num]) {
+      comptes[num] = { numero: num, libelle: getLibelleCompte(num), debit: 0, credit: 0 };
+    }
+    comptes[num].debit += e.debit || 0;
+    comptes[num].credit += e.credit || 0;
+  });
+
+  const charges = { exploitation: [], financieres: [], exceptionnelles: [] };
+  const produits = { exploitation: [], financiers: [], exceptionnels: [] };
+
+  Object.values(comptes).forEach(c => {
+    const num = parseInt(c.numero);
+    const montant = c.numero.charAt(0) === '6'
+      ? (c.debit - c.credit) / 100
+      : (c.credit - c.debit) / 100;
+    if (num >= 600 && num <= 659) charges.exploitation.push({ ...c, montant });
+    else if (num >= 660 && num <= 669) charges.financieres.push({ ...c, montant });
+    else if (num >= 670 && num <= 679) charges.exceptionnelles.push({ ...c, montant });
+    else if (num >= 700 && num <= 759) produits.exploitation.push({ ...c, montant });
+    else if (num >= 760 && num <= 769) produits.financiers.push({ ...c, montant });
+    else if (num >= 770 && num <= 779) produits.exceptionnels.push({ ...c, montant });
+  });
+
+  const tCE = charges.exploitation.reduce((s, c) => s + c.montant, 0);
+  const tCF = charges.financieres.reduce((s, c) => s + c.montant, 0);
+  const tCX = charges.exceptionnelles.reduce((s, c) => s + c.montant, 0);
+  const tPE = produits.exploitation.reduce((s, c) => s + c.montant, 0);
+  const tPF = produits.financiers.reduce((s, c) => s + c.montant, 0);
+  const tPX = produits.exceptionnels.reduce((s, c) => s + c.montant, 0);
+  const totalCharges = tCE + tCF + tCX;
+  const totalProduits = tPE + tPF + tPX;
+  const net = totalProduits - totalCharges;
+
+  return {
+    charges, produits,
+    totaux: {
+      charges: { exploitation: tCE, financieres: tCF, exceptionnelles: tCX, total: totalCharges },
+      produits: { exploitation: tPE, financiers: tPF, exceptionnels: tPX, total: totalProduits },
+      resultats: {
+        exploitation: tPE - tCE, financier: tPF - tCF, exceptionnel: tPX - tCX,
+        net, type: net >= 0 ? 'bénéfice' : 'perte'
+      }
+    }
+  };
+}
+
+/**
+ * GET /api/journaux/analytics/dashboard
+ * Dashboard KPI comptable consolidé
+ */
+router.get('/analytics/dashboard', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const exercice = parseInt(req.query.exercice) || new Date().getFullYear();
+    const now = new Date();
+    const currentMonth = `${exercice}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Période courante = du 1er janvier au dernier jour du mois courant
+    const startOfYear = `${exercice}-01-01`;
+    const endOfYear = `${exercice}-12-31`;
+
+    // Période précédente (année N-1)
+    const prevExercice = exercice - 1;
+    const prevStartOfYear = `${prevExercice}-01-01`;
+    const prevEndOfYear = `${prevExercice}-12-31`;
+
+    // 6 requêtes parallèles
+    const [ecrituresCur, ecrituresPrev, ecrituresMensuelles, facturesRes, facturesImpayeesRes, tresoMensuelle] = await Promise.all([
+      // 1. Écritures exercice courant
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit, date_ecriture, periode')
+        .eq('tenant_id', tenantId)
+        .eq('exercice', exercice),
+
+      // 2. Écritures exercice précédent
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit')
+        .eq('tenant_id', tenantId)
+        .eq('exercice', prevExercice),
+
+      // 3. Écritures par mois (12 derniers mois, classes 6+7)
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit, periode')
+        .eq('tenant_id', tenantId)
+        .gte('periode', `${prevExercice}-${String(now.getMonth() + 2).padStart(2, '0')}`)
+        .lte('periode', currentMonth),
+
+      // 4. Factures pour top services + top clients
+      supabase.from('factures')
+        .select('service_nom, client_id, client_nom, montant_ht, montant_ttc, statut')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['payee', 'envoyee', 'generee'])
+        .gte('date_facture', startOfYear)
+        .lte('date_facture', endOfYear),
+
+      // 5. Factures impayées
+      supabase.from('factures')
+        .select('id, montant_ttc')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['generee', 'envoyee']),
+
+      // 6. Trésorerie mensuelle (journal BQ + CA, compte 512 et 530)
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit, periode')
+        .eq('tenant_id', tenantId)
+        .in('compte_numero', ['512', '530'])
+        .gte('periode', `${prevExercice}-${String(now.getMonth() + 2).padStart(2, '0')}`)
+        .lte('periode', currentMonth),
+    ]);
+
+    const ecCur = ecrituresCur.data || [];
+    const ecPrev = ecrituresPrev.data || [];
+    const factures = facturesRes.data || [];
+
+    // --- KPIs ---
+    let ca_ht = 0, charges = 0, ca_ht_prev = 0, charges_prev = 0;
+    let tva_collectee = 0, tva_deductible = 0;
+
+    for (const e of ecCur) {
+      const cl = e.compte_numero.charAt(0);
+      if (cl === '7') ca_ht += (e.credit - e.debit) / 100;
+      if (cl === '6') charges += (e.debit - e.credit) / 100;
+      if (e.compte_numero.startsWith('44571')) tva_collectee += (e.credit - e.debit) / 100;
+      if (e.compte_numero.startsWith('44566')) tva_deductible += (e.debit - e.credit) / 100;
+    }
+
+    for (const e of ecPrev) {
+      const cl = e.compte_numero.charAt(0);
+      if (cl === '7') ca_ht_prev += (e.credit - e.debit) / 100;
+      if (cl === '6') charges_prev += (e.debit - e.credit) / 100;
+    }
+
+    const resultat_net = ca_ht - charges;
+    const resultat_net_prev = ca_ht_prev - charges_prev;
+    const marge_pct = ca_ht > 0 ? (resultat_net / ca_ht) * 100 : 0;
+    const tva_nette = tva_collectee - tva_deductible;
+
+    const impayees = facturesImpayeesRes.data || [];
+    const factures_impayees_count = impayees.length;
+    const factures_impayees_montant = impayees.reduce((s, f) => s + (f.montant_ttc || 0), 0) / 100;
+
+    const variation = (cur, prev) => prev !== 0 ? ((cur - prev) / Math.abs(prev)) * 100 : 0;
+
+    const kpis = {
+      ca_ht: Math.round(ca_ht * 100) / 100,
+      ca_ht_prev: Math.round(ca_ht_prev * 100) / 100,
+      variation_ca_pct: Math.round(variation(ca_ht, ca_ht_prev) * 10) / 10,
+      charges: Math.round(charges * 100) / 100,
+      charges_prev: Math.round(charges_prev * 100) / 100,
+      variation_charges_pct: Math.round(variation(charges, charges_prev) * 10) / 10,
+      resultat_net: Math.round(resultat_net * 100) / 100,
+      resultat_net_prev: Math.round(resultat_net_prev * 100) / 100,
+      variation_resultat_pct: Math.round(variation(resultat_net, resultat_net_prev) * 10) / 10,
+      marge_pct: Math.round(marge_pct * 10) / 10,
+      tva_nette: Math.round(tva_nette * 100) / 100,
+      factures_impayees_count,
+      factures_impayees_montant: Math.round(factures_impayees_montant * 100) / 100,
+    };
+
+    // --- Tendance 12 mois ---
+    const tendanceMap = {};
+    for (const e of (ecrituresMensuelles.data || [])) {
+      const mois = e.periode;
+      if (!mois) continue;
+      if (!tendanceMap[mois]) tendanceMap[mois] = { mois, ca_ht: 0, charges: 0, resultat: 0 };
+      const cl = e.compte_numero.charAt(0);
+      if (cl === '7') tendanceMap[mois].ca_ht += (e.credit - e.debit) / 100;
+      if (cl === '6') tendanceMap[mois].charges += (e.debit - e.credit) / 100;
+    }
+    const tendance_12mois = Object.values(tendanceMap)
+      .map(t => ({ ...t, resultat: Math.round((t.ca_ht - t.charges) * 100) / 100, ca_ht: Math.round(t.ca_ht * 100) / 100, charges: Math.round(t.charges * 100) / 100 }))
+      .sort((a, b) => a.mois.localeCompare(b.mois));
+
+    // --- Trésorerie mensuelle ---
+    const tresoMap = {};
+    for (const e of (tresoMensuelle.data || [])) {
+      const mois = e.periode;
+      if (!mois) continue;
+      if (!tresoMap[mois]) tresoMap[mois] = { mois, encaissements: 0, decaissements: 0, solde_fin: 0 };
+      tresoMap[mois].encaissements += (e.debit || 0) / 100;
+      tresoMap[mois].decaissements += (e.credit || 0) / 100;
+    }
+    let soldeCumul = 0;
+    const tresorerie_mensuelle = Object.values(tresoMap)
+      .sort((a, b) => a.mois.localeCompare(b.mois))
+      .map(t => {
+        soldeCumul += t.encaissements - t.decaissements;
+        return { ...t, encaissements: Math.round(t.encaissements * 100) / 100, decaissements: Math.round(t.decaissements * 100) / 100, solde_fin: Math.round(soldeCumul * 100) / 100 };
+      });
+
+    // --- Charges par catégorie (sous-classes de 6) ---
+    const chargesMap = {};
+    for (const e of ecCur) {
+      if (e.compte_numero.charAt(0) !== '6') continue;
+      const sousClasse = e.compte_numero.substring(0, 2);
+      const montant = (e.debit - e.credit) / 100;
+      if (!chargesMap[sousClasse]) chargesMap[sousClasse] = { categorie: getLibelleCompte(sousClasse + '0') || `Classe ${sousClasse}x`, montant: 0 };
+      chargesMap[sousClasse].montant += montant;
+    }
+    const totalChargesCateg = Object.values(chargesMap).reduce((s, c) => s + c.montant, 0);
+    const charges_par_categorie = Object.values(chargesMap)
+      .filter(c => c.montant > 0)
+      .map(c => ({ ...c, montant: Math.round(c.montant * 100) / 100, pct: totalChargesCateg > 0 ? Math.round((c.montant / totalChargesCateg) * 1000) / 10 : 0 }))
+      .sort((a, b) => b.montant - a.montant);
+
+    // --- Top services ---
+    const serviceMap = {};
+    for (const f of factures) {
+      const nom = f.service_nom || 'Non catégorisé';
+      if (!serviceMap[nom]) serviceMap[nom] = { nom, ca_ht: 0, nb_factures: 0 };
+      serviceMap[nom].ca_ht += (f.montant_ht || f.montant_ttc || 0) / 100;
+      serviceMap[nom].nb_factures += 1;
+    }
+    const totalCAServices = Object.values(serviceMap).reduce((s, v) => s + v.ca_ht, 0);
+    const top_services = Object.values(serviceMap)
+      .map(s => ({ ...s, ca_ht: Math.round(s.ca_ht * 100) / 100, pct: totalCAServices > 0 ? Math.round((s.ca_ht / totalCAServices) * 1000) / 10 : 0 }))
+      .sort((a, b) => b.ca_ht - a.ca_ht)
+      .slice(0, 10);
+
+    // --- Top clients ---
+    const clientMap = {};
+    for (const f of factures) {
+      const key = f.client_id || f.client_nom || 'Inconnu';
+      if (!clientMap[key]) clientMap[key] = { client_id: f.client_id, client_nom: f.client_nom || 'Inconnu', ca_ht: 0, nb_factures: 0 };
+      clientMap[key].ca_ht += (f.montant_ht || f.montant_ttc || 0) / 100;
+      clientMap[key].nb_factures += 1;
+    }
+    const totalCAClients = Object.values(clientMap).reduce((s, v) => s + v.ca_ht, 0);
+    const top_clients = Object.values(clientMap)
+      .map(c => ({ ...c, ca_ht: Math.round(c.ca_ht * 100) / 100, pct: totalCAClients > 0 ? Math.round((c.ca_ht / totalCAClients) * 1000) / 10 : 0 }))
+      .sort((a, b) => b.ca_ht - a.ca_ht)
+      .slice(0, 10);
+
+    res.json({ kpis, tendance_12mois, tresorerie_mensuelle, charges_par_categorie, top_services, top_clients });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur dashboard analytique:', error);
+    res.status(500).json({ error: 'Erreur dashboard analytique' });
+  }
+});
+
+/**
+ * GET /api/journaux/compte-resultat/compare
+ * Compare P&L entre 2 périodes
+ */
+router.get('/compte-resultat/compare', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { exercice1, periode1, exercice2, periode2 } = req.query;
+
+    if (!exercice1 || !exercice2) {
+      return res.status(400).json({ error: 'exercice1 et exercice2 requis' });
+    }
+
+    // Helper : filtrer écritures pour un jeu de params
+    async function fetchEcritures(exercice, periode) {
+      let query = supabase.from('ecritures_comptables')
+        .select('compte_numero, compte_libelle, debit, credit')
+        .eq('tenant_id', tenantId)
+        .eq('exercice', parseInt(exercice));
+
+      if (periode) {
+        const [year, month] = periode.split('-').map(Number);
+        const startOfYear = `${year}-01-01`;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const endOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+        query = query.gte('date_ecriture', startOfYear).lte('date_ecriture', endOfMonth);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    }
+
+    const [ec1, ec2] = await Promise.all([
+      fetchEcritures(exercice1, periode1),
+      fetchEcritures(exercice2, periode2),
+    ]);
+
+    const cr1 = buildCompteResultatFromEcritures(ec1);
+    const cr2 = buildCompteResultatFromEcritures(ec2);
+
+    // Calculer variations
+    const vari = (a, b) => ({ montant: Math.round((a - b) * 100) / 100, pct: b !== 0 ? Math.round(((a - b) / Math.abs(b)) * 1000) / 10 : 0 });
+
+    const variations = {
+      charges_exploitation: vari(cr1.totaux.charges.exploitation, cr2.totaux.charges.exploitation),
+      charges_financieres: vari(cr1.totaux.charges.financieres, cr2.totaux.charges.financieres),
+      produits_exploitation: vari(cr1.totaux.produits.exploitation, cr2.totaux.produits.exploitation),
+      resultat_exploitation: vari(cr1.totaux.resultats.exploitation, cr2.totaux.resultats.exploitation),
+      resultat_net: vari(cr1.totaux.resultats.net, cr2.totaux.resultats.net),
+    };
+
+    res.json({
+      periode1: { ...cr1, exercice: parseInt(exercice1), periode: periode1 || 'annuel' },
+      periode2: { ...cr2, exercice: parseInt(exercice2), periode: periode2 || 'annuel' },
+      variations,
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur compare P&L:', error);
+    res.status(500).json({ error: 'Erreur comparaison P&L' });
+  }
+});
+
+/**
+ * GET /api/journaux/analytics/tresorerie
+ * Vue trésorerie dédiée
+ */
+router.get('/analytics/tresorerie', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const exercice = parseInt(req.query.exercice) || new Date().getFullYear();
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prevYear = exercice - 1;
+
+    // 4 requêtes parallèles
+    const [soldesRes, fluxRes, facturesAEncaisser, depensesAPayer] = await Promise.all([
+      // 1. Soldes cumulatifs (banque 512 + caisse 530)
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit')
+        .eq('tenant_id', tenantId)
+        .in('compte_numero', ['512', '530']),
+
+      // 2. Flux mensuels (12 derniers mois)
+      supabase.from('ecritures_comptables')
+        .select('compte_numero, debit, credit, periode')
+        .eq('tenant_id', tenantId)
+        .in('compte_numero', ['512', '530'])
+        .gte('periode', `${prevYear}-${String(now.getMonth() + 2).padStart(2, '0')}`)
+        .lte('periode', currentMonth),
+
+      // 3. Factures à encaisser
+      supabase.from('factures')
+        .select('numero, client_nom, montant_ttc, date_facture')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['envoyee', 'generee'])
+        .order('date_facture', { ascending: true }),
+
+      // 4. Dépenses non payées
+      supabase.from('depenses')
+        .select('libelle, montant_ttc, montant, date_depense, categorie')
+        .eq('tenant_id', tenantId)
+        .eq('payee', false)
+        .order('date_depense', { ascending: true }),
+    ]);
+
+    // Soldes
+    let banque = 0, caisse = 0;
+    for (const e of (soldesRes.data || [])) {
+      const val = ((e.debit || 0) - (e.credit || 0)) / 100;
+      if (e.compte_numero === '512') banque += val;
+      if (e.compte_numero === '530') caisse += val;
+    }
+
+    // Flux 12 mois
+    const fluxMap = {};
+    for (const e of (fluxRes.data || [])) {
+      const mois = e.periode;
+      if (!mois) continue;
+      if (!fluxMap[mois]) fluxMap[mois] = { mois, encaissements: 0, decaissements: 0, solde_fin: 0 };
+      fluxMap[mois].encaissements += (e.debit || 0) / 100;
+      fluxMap[mois].decaissements += (e.credit || 0) / 100;
+    }
+    let cumul = 0;
+    const flux_12mois = Object.values(fluxMap)
+      .sort((a, b) => a.mois.localeCompare(b.mois))
+      .map(t => {
+        cumul += t.encaissements - t.decaissements;
+        return {
+          mois: t.mois,
+          encaissements: Math.round(t.encaissements * 100) / 100,
+          decaissements: Math.round(t.decaissements * 100) / 100,
+          solde_fin: Math.round(cumul * 100) / 100,
+        };
+      });
+
+    // Prévisions
+    const fae = (facturesAEncaisser.data || []).map(f => ({
+      numero: f.numero,
+      client: f.client_nom,
+      montant: Math.round((f.montant_ttc || 0) / 100 * 100) / 100,
+      date_facture: f.date_facture,
+    }));
+
+    const dap = (depensesAPayer.data || []).map(d => ({
+      libelle: d.libelle || d.categorie || 'Dépense',
+      montant: Math.round(((d.montant_ttc || d.montant || 0) / 100) * 100) / 100,
+      date_depense: d.date_depense,
+    }));
+
+    const totalAEncaisser = fae.reduce((s, f) => s + f.montant, 0);
+    const totalAPayer = dap.reduce((s, d) => s + d.montant, 0);
+    const solde_previsionnel_30j = Math.round((banque + caisse + totalAEncaisser - totalAPayer) * 100) / 100;
+
+    res.json({
+      soldes: {
+        banque: Math.round(banque * 100) / 100,
+        caisse: Math.round(caisse * 100) / 100,
+        total: Math.round((banque + caisse) * 100) / 100,
+      },
+      flux_12mois,
+      previsions: {
+        factures_a_encaisser: fae,
+        depenses_a_payer: dap,
+        solde_previsionnel_30j,
+      },
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur trésorerie:', error);
+    res.status(500).json({ error: 'Erreur trésorerie' });
+  }
+});
+
 export default router;

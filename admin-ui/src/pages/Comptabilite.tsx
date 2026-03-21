@@ -17,13 +17,17 @@ import {
   Calendar,
   PenLine,
   Upload,
+  LayoutDashboard,
+  Banknote,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AVAILABLE_YEARS } from '@/components/comptabilite/constants';
 
 // Lazy-load heavy tabs
+const ComptaDashboard = React.lazy(() => import('@/components/comptabilite/ComptaDashboard'));
 const ComptaResultat = React.lazy(() => import('@/components/comptabilite/ComptaResultat'));
 const ComptaBilan = React.lazy(() => import('@/components/comptabilite/ComptaBilan'));
+const ComptaTresorerie = React.lazy(() => import('@/components/comptabilite/ComptaTresorerie'));
 const Rapprochement = React.lazy(() => import('@/pages/Rapprochement'));
 const ComptesAuxiliaires = React.lazy(() => import('@/pages/ComptesAuxiliaires'));
 const ExpertComptable = React.lazy(() => import('@/pages/ExpertComptable'));
@@ -31,16 +35,16 @@ const ComptaExercices = React.lazy(() => import('@/components/comptabilite/Compt
 const ComptaSaisieManuelle = React.lazy(() => import('@/components/comptabilite/ComptaSaisieManuelle'));
 const ComptaImport = React.lazy(() => import('@/components/comptabilite/ComptaImport'));
 
-type TabKey = 'resultat' | 'bilan' | 'rapprochement' | 'auxiliaires' | 'expert' | 'exercices' | 'saisie' | 'import';
+type TabKey = 'dashboard' | 'resultat' | 'bilan' | 'tresorerie' | 'rapprochement' | 'auxiliaires' | 'expert' | 'exercices' | 'saisie' | 'import';
 
 export default function Comptabilite() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = (searchParams.get('tab') as TabKey) || 'resultat';
+  const initialTab = (searchParams.get('tab') as TabKey) || 'dashboard';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
-    if (tab === 'resultat') {
+    if (tab === 'dashboard') {
       setSearchParams({});
     } else {
       setSearchParams({ tab });
@@ -101,7 +105,7 @@ export default function Comptabilite() {
         </div>
 
         {/* Sélecteur de période (résultat/bilan uniquement) */}
-        {(activeTab === 'resultat' || activeTab === 'bilan') && <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
+        {(['dashboard', 'resultat', 'bilan', 'tresorerie'] as TabKey[]).includes(activeTab) && <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
           <select
             value={statsPeriod}
             onChange={(e) => setStatsPeriod(e.target.value as 'jour' | 'mois' | 'annee')}
@@ -151,8 +155,10 @@ export default function Comptabilite() {
         {/* Tabs */}
         <div className="flex gap-1 border-b overflow-x-auto">
           {([
+            { key: 'dashboard' as TabKey, icon: LayoutDashboard, label: 'Tableau de bord' },
             { key: 'resultat' as TabKey, icon: BarChart3, label: 'Compte de résultat' },
             { key: 'bilan' as TabKey, icon: Wallet, label: 'Bilan' },
+            { key: 'tresorerie' as TabKey, icon: Banknote, label: 'Trésorerie' },
             { key: 'rapprochement' as TabKey, icon: Landmark, label: 'Rapprochement' },
             { key: 'auxiliaires' as TabKey, icon: Users, label: 'Comptes Auxiliaires' },
             { key: 'exercices' as TabKey, icon: Calendar, label: 'Exercices' },
@@ -188,6 +194,12 @@ export default function Comptabilite() {
         )}
 
         {/* Tab content */}
+        {activeTab === 'dashboard' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaDashboard exercice={statsYear} />
+          </Suspense>
+        )}
+
         {activeTab === 'resultat' && (
           <Suspense fallback={lazyFallback}>
             <ComptaResultat
@@ -221,6 +233,12 @@ export default function Comptabilite() {
               onStatsDayChange={setStatsDay}
               onNotify={notify}
             />
+          </Suspense>
+        )}
+
+        {activeTab === 'tresorerie' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaTresorerie exercice={statsYear} />
           </Suspense>
         )}
 

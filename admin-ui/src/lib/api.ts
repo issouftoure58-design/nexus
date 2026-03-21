@@ -831,6 +831,28 @@ export const comptaApi = {
     api.get<{ audit_trail: AuditTrailEntry[] }>(`/factures/${factureId}/audit`),
 
   // ============================================
+  // DASHBOARD ANALYTIQUE + TRESORERIE + COMPARE
+  // ============================================
+  getDashboardAnalytics: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<ComptaDashboardResponse>(`/journaux/analytics/dashboard${query}`);
+  },
+
+  getCompteResultatCompare: (params: { exercice1: number; periode1?: string; exercice2: number; periode2?: string }) => {
+    const query = new URLSearchParams();
+    query.set('exercice1', params.exercice1.toString());
+    if (params.periode1) query.set('periode1', params.periode1);
+    query.set('exercice2', params.exercice2.toString());
+    if (params.periode2) query.set('periode2', params.periode2);
+    return api.get<CompteResultatCompareResponse>(`/journaux/compte-resultat/compare?${query}`);
+  },
+
+  getTresorerie: (exercice?: number) => {
+    const query = exercice ? `?exercice=${exercice}` : '';
+    return api.get<TresorerieResponse>(`/journaux/analytics/tresorerie${query}`);
+  },
+
+  // ============================================
   // DEVIS
   // ============================================
   getDevis: (params?: { statut?: string; mois?: string; client_id?: number }) => {
@@ -1138,6 +1160,7 @@ export interface AnalytiqueData {
   depenses: { par_categorie: AnalytiqueDepenseCategorie[] };
   synthese: AnalytiqueSynthese;
   tendance_mensuelle: Array<Record<string, string | number>>;
+  par_client?: AnalytiqueClient[];
 }
 
 export const analyticsApi = {
@@ -1896,6 +1919,64 @@ export interface CompteResultatResponse {
       type: 'bénéfice' | 'perte';
     };
   };
+}
+
+// Dashboard Analytique Comptable
+export interface ComptaDashboardKpis {
+  ca_ht: number;
+  ca_ht_prev: number;
+  variation_ca_pct: number;
+  charges: number;
+  charges_prev: number;
+  variation_charges_pct: number;
+  resultat_net: number;
+  resultat_net_prev: number;
+  variation_resultat_pct: number;
+  marge_pct: number;
+  tva_nette: number;
+  factures_impayees_count: number;
+  factures_impayees_montant: number;
+}
+
+export interface ComptaDashboardResponse {
+  kpis: ComptaDashboardKpis;
+  tendance_12mois: Array<{ mois: string; ca_ht: number; charges: number; resultat: number }>;
+  tresorerie_mensuelle: Array<{ mois: string; encaissements: number; decaissements: number; solde_fin: number }>;
+  charges_par_categorie: Array<{ categorie: string; montant: number; pct: number }>;
+  top_services: Array<{ nom: string; ca_ht: number; nb_factures: number; pct: number }>;
+  top_clients: Array<{ client_id: number; client_nom: string; ca_ht: number; nb_factures: number; pct: number }>;
+}
+
+export interface CompteResultatCompareResponse {
+  periode1: CompteResultatResponse;
+  periode2: CompteResultatResponse;
+  variations: {
+    charges_exploitation: { montant: number; pct: number };
+    charges_financieres: { montant: number; pct: number };
+    produits_exploitation: { montant: number; pct: number };
+    resultat_exploitation: { montant: number; pct: number };
+    resultat_net: { montant: number; pct: number };
+  };
+}
+
+export interface TresorerieResponse {
+  soldes: { banque: number; caisse: number; total: number };
+  flux_12mois: Array<{ mois: string; encaissements: number; decaissements: number; solde_fin: number }>;
+  previsions: {
+    factures_a_encaisser: Array<{ numero: string; client: string; montant: number; date_facture: string }>;
+    depenses_a_payer: Array<{ libelle: string; montant: number; date_depense: string }>;
+    solde_previsionnel_30j: number;
+  };
+}
+
+export interface AnalytiqueClient {
+  client_id: number;
+  client_nom: string;
+  ca_ht: number;
+  ca_ttc: number;
+  nb_factures: number;
+  ca_moyen: number;
+  derniere_facture: string | null;
 }
 
 export interface BalanceAgeeLigne {

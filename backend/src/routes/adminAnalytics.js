@@ -13,7 +13,7 @@ import {
   detectPatterns
 } from '../ai/predictiveAnalytics.js';
 import { analyzeChurnRiskAll, scheduleChurnPrevention } from '../ai/predictions.js';
-import { getComptabiliteAnalytique } from '../services/analytiqueService.js';
+import { getComptabiliteAnalytique, getTopClients } from '../services/analytiqueService.js';
 
 const router = express.Router();
 
@@ -306,8 +306,11 @@ router.get('/analytique', authenticateAdmin, async (req, res) => {
     const fin = req.query.fin || now.toISOString().split('T')[0];
     const businessType = req.query.businessType || 'salon';
 
-    const data = await getComptabiliteAnalytique(tenantId, debut, fin, businessType);
-    res.json(data);
+    const [data, par_client] = await Promise.all([
+      getComptabiliteAnalytique(tenantId, debut, fin, businessType),
+      getTopClients(tenantId, debut, fin),
+    ]);
+    res.json({ ...data, par_client });
   } catch (error) {
     console.error('[Analytics] Erreur comptabilité analytique:', error);
     res.status(500).json({ error: 'Erreur comptabilité analytique' });

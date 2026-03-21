@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { analyticsApi } from '@/lib/api';
-import type { AnalytiqueData } from '@/lib/api';
+import type { AnalytiqueData, AnalytiqueClient } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/contexts/ProfileContext';
 import {
@@ -19,6 +19,7 @@ import {
   TrendingDown,
   BarChart3,
   Users,
+  UserCheck,
   Target,
   Calculator,
 } from 'lucide-react';
@@ -39,7 +40,7 @@ import {
 } from 'recharts';
 
 type Periode = 'mois' | 'trimestre' | 'annee';
-type Onglet = 'vue' | 'services' | 'collaborateurs' | 'seuil';
+type Onglet = 'vue' | 'services' | 'collaborateurs' | 'clients' | 'seuil';
 
 const PERIODES: { value: Periode; label: string }[] = [
   { value: 'mois', label: 'Ce mois' },
@@ -51,6 +52,7 @@ const ONGLETS: { value: Onglet; label: string; icon: typeof BarChart3 }[] = [
   { value: 'vue', label: "Vue d'ensemble", icon: BarChart3 },
   { value: 'services', label: 'Par service', icon: Target },
   { value: 'collaborateurs', label: 'Par collaborateur', icon: Users },
+  { value: 'clients', label: 'Par client', icon: UserCheck },
   { value: 'seuil', label: 'Seuil de rentabilité', icon: Calculator },
 ];
 
@@ -190,6 +192,7 @@ export default function Analytics() {
       {onglet === 'vue' && <OngletVueEnsemble data={data} businessType={businessType} />}
       {onglet === 'services' && <OngletServices data={data} />}
       {onglet === 'collaborateurs' && <OngletCollaborateurs data={data} />}
+      {onglet === 'clients' && <OngletClients clients={data.par_client || []} />}
       {onglet === 'seuil' && <OngletSeuil data={data} />}
     </div>
   );
@@ -771,6 +774,98 @@ function OngletSeuil({ data }: { data: AnalytiqueData }) {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ─── Onglet 5 : Par client ────────────────────────────────────────────────
+
+function OngletClients({ clients }: { clients: AnalytiqueClient[] }) {
+  const totalCA = clients.reduce((sum, c) => sum + c.ca_ht, 0);
+  const top10 = clients.slice(0, 10);
+
+  return (
+    <div className="space-y-6">
+      {/* BarChart Top 10 clients */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Top 10 clients par CA</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {top10.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">Aucune donnée client</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={top10} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" fontSize={12} tickFormatter={(v) => `${v}€`} />
+                <YAxis type="category" dataKey="client_nom" fontSize={11} width={130} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Bar dataKey="ca_ht" name="CA HT" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
+                  {top10.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Détail par client</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {clients.length === 0 ? (
+            <p className="text-center text-gray-400 py-4">Aucune facture sur la période</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="pb-2 font-medium">Client</th>
+                    <th className="pb-2 font-medium text-right">CA HT</th>
+                    <th className="pb-2 font-medium text-right">Factures</th>
+                    <th className="pb-2 font-medium text-right">CA moyen</th>
+                    <th className="pb-2 font-medium text-right">Dernière facture</th>
+                    <th className="pb-2 font-medium text-right">% du total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clients.map((c) => (
+                    <tr key={c.client_id || c.client_nom} className="border-b last:border-0">
+                      <td className="py-2 font-medium">{c.client_nom}</td>
+                      <td className="py-2 text-right">{formatCurrency(c.ca_ht)}</td>
+                      <td className="py-2 text-right">{c.nb_factures}</td>
+                      <td className="py-2 text-right">{formatCurrency(c.ca_moyen)}</td>
+                      <td className="py-2 text-right text-gray-500">
+                        {c.derniere_facture ? new Date(c.derniere_facture).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '-'}
+                      </td>
+                      <td className="py-2 text-right">
+                        {totalCA > 0 ? ((c.ca_ht / totalCA) * 100).toFixed(1) : 0}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="font-semibold">
+                    <td className="pt-2">Total</td>
+                    <td className="pt-2 text-right">{formatCurrency(totalCA)}</td>
+                    <td className="pt-2 text-right">{clients.reduce((s, c) => s + c.nb_factures, 0)}</td>
+                    <td className="pt-2 text-right">
+                      {clients.length > 0 ? formatCurrency(totalCA / clients.length) : '-'}
+                    </td>
+                    <td />
+                    <td className="pt-2 text-right">100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

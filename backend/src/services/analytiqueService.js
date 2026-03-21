@@ -340,6 +340,46 @@ export async function getComptabiliteAnalytique(tenantId, dateDebut, dateFin, bu
   };
 }
 
+/**
+ * Top clients par CA sur une période
+ */
+export async function getTopClients(tenantId, dateDebut, dateFin) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  const { data: factures, error } = await supabase
+    .from('factures')
+    .select('client_id, client_nom, montant_ht, montant_ttc, date_facture')
+    .eq('tenant_id', tenantId)
+    .in('statut', ['payee', 'envoyee'])
+    .gte('date_facture', dateDebut)
+    .lte('date_facture', dateFin);
+
+  if (error) throw error;
+
+  const clientMap = {};
+  for (const f of (factures || [])) {
+    const key = f.client_id || f.client_nom || 'Inconnu';
+    if (!clientMap[key]) {
+      clientMap[key] = { client_id: f.client_id, client_nom: f.client_nom || 'Inconnu', ca_ht: 0, ca_ttc: 0, nb_factures: 0, derniere_facture: null };
+    }
+    clientMap[key].ca_ht += parseFloat(f.montant_ht || f.montant_ttc || 0) / 100;
+    clientMap[key].ca_ttc += parseFloat(f.montant_ttc || f.montant_ht || 0) / 100;
+    clientMap[key].nb_factures += 1;
+    if (!clientMap[key].derniere_facture || f.date_facture > clientMap[key].derniere_facture) {
+      clientMap[key].derniere_facture = f.date_facture;
+    }
+  }
+
+  return Object.values(clientMap)
+    .map(c => ({
+      ...c,
+      ca_ht: round2(c.ca_ht),
+      ca_ttc: round2(c.ca_ttc),
+      ca_moyen: c.nb_factures > 0 ? round2(c.ca_ht / c.nb_factures) : 0,
+    }))
+    .sort((a, b) => b.ca_ht - a.ca_ht);
+}
+
 function round2(n) {
   return Math.round(n * 100) / 100;
 }

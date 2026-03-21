@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -7,9 +9,10 @@ import {
   BarChart3,
   Download,
   Printer,
+  GitCompareArrows,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CompteResultatResponse } from '@/lib/api';
+import { comptaApi, type CompteResultatResponse, type CompteResultatCompareResponse } from '@/lib/api';
 import { AVAILABLE_YEARS, formatCurrency, exportToCSV } from './constants';
 
 // -------------------------------------------------------------------
@@ -45,6 +48,23 @@ export default function ComptaResultat({
   onStatsDayChange,
   onNotify,
 }: ComptaResultatProps) {
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareYear, setCompareYear] = useState(statsYear - 1);
+  const [compareMonth, setCompareMonth] = useState(statsMonth);
+
+  const comparePeriode1 = statsPeriod === 'annee' ? undefined : `${statsYear}-${String(statsMonth).padStart(2, '0')}`;
+  const comparePeriode2 = statsPeriod === 'annee' ? undefined : `${compareYear}-${String(compareMonth).padStart(2, '0')}`;
+
+  const { data: compareData, isLoading: compareLoading } = useQuery<CompteResultatCompareResponse>({
+    queryKey: ['compte-resultat-compare', statsYear, comparePeriode1, compareYear, comparePeriode2],
+    queryFn: () => comptaApi.getCompteResultatCompare({
+      exercice1: statsYear,
+      periode1: comparePeriode1,
+      exercice2: compareYear,
+      periode2: comparePeriode2,
+    }),
+    enabled: compareMode,
+  });
 
   const exportCompteResultat = () => {
     if (!compteResultatData) {
@@ -148,6 +168,42 @@ export default function ComptaResultat({
                 </select>
               )}
             </div>
+            <Button
+              variant={compareMode ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1"
+              onClick={() => setCompareMode(!compareMode)}
+            >
+              <GitCompareArrows className="h-4 w-4" />
+              Comparer
+            </Button>
+            {compareMode && (
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1">
+                <span className="text-xs text-gray-500">vs</span>
+                <select
+                  value={compareYear}
+                  onChange={(e) => setCompareYear(Number(e.target.value))}
+                  className="px-2 py-1 border-0 bg-white rounded text-xs"
+                >
+                  {AVAILABLE_YEARS.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+                {statsPeriod !== 'annee' && (
+                  <select
+                    value={compareMonth}
+                    onChange={(e) => setCompareMonth(Number(e.target.value))}
+                    className="px-2 py-1 border-0 bg-white rounded text-xs"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                      <option key={month} value={month}>
+                        {new Date(2000, month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
             <Button variant="outline" size="sm" className="gap-1" onClick={exportCompteResultat}>
               <Download className="h-4 w-4" />
               Export CSV
@@ -159,11 +215,27 @@ export default function ComptaResultat({
           </div>
         </CardHeader>
         <CardContent>
-          {compteResultatLoading ? (
+          {/* Mode comparaison */}
+          {compareMode && (
+            <div className="mb-6">
+              {compareLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                </div>
+              ) : compareData ? (
+                <CompareView data={compareData} />
+              ) : (
+                <div className="text-center py-4 text-gray-500">Aucune donnée de comparaison</div>
+              )}
+            </div>
+          )}
+
+          {/* Vue classique */}
+          {!compareMode && compteResultatLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
             </div>
-          ) : compteResultatData ? (
+          ) : !compareMode && compteResultatData ? (
           <div className="space-y-6">
             {/* Produits d'exploitation */}
             <div>
@@ -282,13 +354,73 @@ export default function ComptaResultat({
               </p>
             </div>
           </div>
-          ) : (
+          ) : !compareMode ? (
             <div className="text-center py-8 text-gray-500">
               Aucune donnée comptable pour cette période
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ─── Compare View ───────────────────────────────────────────────────────────
+
+function VariationBadge({ value }: { value: { montant: number; pct: number } }) {
+  const isPos = value.montant >= 0;
+  return (
+    <span className={cn(
+      'text-xs font-medium px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5',
+      isPos ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+    )}>
+      {isPos ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {isPos ? '+' : ''}{value.pct}%
+    </span>
+  );
+}
+
+function CompareView({ data }: { data: CompteResultatCompareResponse }) {
+  const { periode1: p1, periode2: p2, variations } = data;
+  const label1 = p1.periode !== 'annuel' ? p1.periode : String(p1.exercice);
+  const label2 = p2.periode !== 'annuel' ? p2.periode : String(p2.exercice);
+
+  const rows = [
+    { label: "Produits d'exploitation", v1: p1.totaux.produits.exploitation, v2: p2.totaux.produits.exploitation, var: variations.produits_exploitation },
+    { label: "Charges d'exploitation", v1: p1.totaux.charges.exploitation, v2: p2.totaux.charges.exploitation, var: variations.charges_exploitation },
+    { label: "Résultat d'exploitation", v1: p1.totaux.resultats.exploitation, v2: p2.totaux.resultats.exploitation, var: variations.resultat_exploitation, bold: true },
+    { label: 'Charges financières', v1: p1.totaux.charges.financieres, v2: p2.totaux.charges.financieres, var: variations.charges_financieres },
+    { label: 'Résultat Net', v1: p1.totaux.resultats.net, v2: p2.totaux.resultats.net, var: variations.resultat_net, bold: true },
+  ];
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-gray-500">
+            <th className="pb-2 text-left font-medium">Poste</th>
+            <th className="pb-2 text-right font-medium">{label1}</th>
+            <th className="pb-2 text-right font-medium">{label2}</th>
+            <th className="pb-2 text-right font-medium">Variation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.label} className={cn('border-b last:border-0', r.bold && 'bg-gray-50')}>
+              <td className={cn('py-2', r.bold && 'font-semibold')}>{r.label}</td>
+              <td className={cn('py-2 text-right', r.bold && 'font-semibold', r.v1 >= 0 ? 'text-green-700' : 'text-red-700')}>
+                {formatCurrency(r.v1)}
+              </td>
+              <td className={cn('py-2 text-right', r.bold && 'font-semibold', r.v2 >= 0 ? 'text-green-700' : 'text-red-700')}>
+                {formatCurrency(r.v2)}
+              </td>
+              <td className="py-2 text-right">
+                <VariationBadge value={r.var} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
