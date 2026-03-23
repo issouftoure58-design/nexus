@@ -651,6 +651,122 @@ router.get('/billing', async (req, res) => {
   }
 });
 
+// ============================================
+// PLTE — LOGIC TESTS (cross-tenant pour operateur)
+// ============================================
+
+import logicTestEngine from '../services/logicTestEngine.js';
+import { PLTE_TENANT_IDS, PLTE_TENANTS } from '../services/logicTests/bootstrap.js';
+
+/**
+ * GET /api/nexus/sentinel/plte/all-tests
+ * Tous les tests de tous les PLTE tenants avec nom du tenant
+ */
+router.get('/sentinel/plte/all-tests', async (req, res) => {
+  try {
+    const { category } = req.query;
+    const allTests = [];
+
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const tests = await logicTestEngine.getTests(tenantId, category || null);
+      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      for (const t of tests) {
+        allTests.push({ ...t, tenant_id: tenantId, tenant_name: tenantName, profile });
+      }
+    }
+
+    res.json({ success: true, data: allTests });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] PLTE all-tests error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/nexus/sentinel/plte/all-status
+ * Status agrege de tous les PLTE tenants
+ */
+router.get('/sentinel/plte/all-status', async (req, res) => {
+  try {
+    // Agreger status de tous les tenants
+    const allFailed = [];
+    const categories = {};
+    let totalTests = 0;
+    let autoFixedCount = 0;
+
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const status = await logicTestEngine.getStatus(tenantId);
+      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+
+      totalTests += status.total_tests || 0;
+      autoFixedCount += status.auto_fixed_count || 0;
+
+      // Fusionner les categories
+      for (const [cat, stats] of Object.entries(status.categories || {})) {
+        if (!categories[cat]) categories[cat] = { total: 0, pass: 0, fail: 0, error: 0 };
+        categories[cat].total += stats.total;
+        categories[cat].pass += stats.pass;
+        categories[cat].fail += stats.fail;
+        categories[cat].error += stats.error;
+      }
+
+      // Ajouter tenant info aux tests en echec
+      for (const t of (status.failed_tests || [])) {
+        allFailed.push({ ...t, tenant_id: tenantId, tenant_name: tenantName, profile });
+      }
+    }
+
+    // Score global
+    const globalData = await logicTestEngine.getGlobalStatus();
+
+    res.json({
+      success: true,
+      data: {
+        health_score: globalData.global_score,
+        total_tests: totalTests,
+        auto_fixed_count: autoFixedCount,
+        categories,
+        failed_tests: allFailed,
+      }
+    });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] PLTE all-status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/nexus/sentinel/plte/all-history
+ * Historique des runs de tous les PLTE tenants
+ */
+router.get('/sentinel/plte/all-history', async (req, res) => {
+  try {
+    const allRuns = [];
+
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const history = await logicTestEngine.getHistory(tenantId, 1, 5);
+      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      for (const run of (history.runs || [])) {
+        allRuns.push({ ...run, tenant_id: tenantId, tenant_name: tenantName, profile });
+      }
+    }
+
+    // Trier par date desc
+    allRuns.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+
+    res.json({
+      success: true,
+      data: { runs: allRuns.slice(0, 20), total: allRuns.length, page: 1, pages: 1 }
+    });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] PLTE all-history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
 
 // ============================================

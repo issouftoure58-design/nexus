@@ -29,6 +29,9 @@ interface LogicTest {
   pass_count: number;
   auto_fixed?: boolean;
   fix_description?: string | null;
+  tenant_id?: string;
+  tenant_name?: string;
+  profile?: string;
 }
 
 interface LogicRun {
@@ -41,6 +44,9 @@ interface LogicRun {
   failed: number;
   errors: number;
   health_score: number;
+  tenant_id?: string;
+  tenant_name?: string;
+  profile?: string;
 }
 
 interface StatusData {
@@ -246,7 +252,10 @@ function CategoryAccordion({
               {t.auto_fixed && <SelfHealedBadge />}
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-slate-300 truncate">{t.description || t.name}</div>
-                <div className="text-[9px] text-slate-600 font-mono mt-0.5">{t.module} / {t.name}</div>
+                <div className="text-[9px] text-slate-600 font-mono mt-0.5">
+                  {t.tenant_name && <span className="text-cyan-500/70">[{t.tenant_name}] </span>}
+                  {t.module} / {t.name}
+                </div>
               </div>
               {t.last_run_at && (
                 <div className="text-[9px] text-slate-600 font-mono shrink-0">
@@ -288,6 +297,11 @@ function RunTimeline({ runs }: { runs: LogicRun[] }) {
             <span className="text-[10px] text-slate-400 font-medium w-14">
               {RUN_TYPE_LABELS[run.run_type] || run.run_type}
             </span>
+            {run.tenant_name && (
+              <span className="text-[9px] text-cyan-500/60 font-mono w-24 truncate shrink-0" title={run.tenant_name}>
+                {run.tenant_name}
+              </span>
+            )}
             <span className={`text-sm font-bold font-mono ${scoreColor} w-10`}>
               {Math.round(score)}
             </span>
@@ -354,9 +368,9 @@ export default function SentinelLogicTests() {
   const fetchData = useCallback(async () => {
     try {
       const [statusRes, historyRes, testsRes, globalRes] = await Promise.allSettled([
-        nexusApi.get<{ data?: StatusData; success?: boolean }>('/sentinel/logic/status'),
-        nexusApi.get<{ data?: HistoryData; success?: boolean }>('/sentinel/logic/history?limit=10'),
-        nexusApi.get<{ data?: LogicTest[]; success?: boolean }>('/sentinel/logic/tests'),
+        nexusApi.get<{ data?: StatusData; success?: boolean }>('/nexus/sentinel/plte/all-status'),
+        nexusApi.get<{ data?: HistoryData; success?: boolean }>('/nexus/sentinel/plte/all-history'),
+        nexusApi.get<{ data?: LogicTest[]; success?: boolean }>('/nexus/sentinel/plte/all-tests'),
         nexusApi.get<{ data?: GlobalData; success?: boolean }>('/sentinel/logic/global'),
       ]);
 
@@ -565,10 +579,13 @@ export default function SentinelLogicTests() {
           </h3>
           <div className="space-y-2">
             {status.failed_tests.map(t => (
-              <div key={t.id || t.name} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
+              <div key={`${t.tenant_id}-${t.id || t.name}`} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
                 <SeverityBadge severity={t.severity} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-white">{t.description || t.name}</div>
+                  <div className="text-xs text-white">
+                    {t.tenant_name && <span className="text-cyan-400/80 mr-1">[{t.tenant_name}]</span>}
+                    {t.description || t.name}
+                  </div>
                   {t.last_error && (
                     <div className="text-[10px] text-red-400/70 mt-1 break-words">{t.last_error}</div>
                   )}
