@@ -8,8 +8,8 @@ import { nexusApi } from '@/lib/nexusApi';
 import {
   FlaskConical, Play, ChevronDown, ChevronRight,
   CheckCircle2, XCircle, AlertTriangle, Clock, RefreshCw,
-  Shield, Database, Bot, Zap, Wrench, Activity,
-  Stethoscope, CircleHelp, DollarSign,
+  Shield, Database, Bot, Zap, Activity,
+  Stethoscope, HelpCircle, DollarSign,
 } from 'lucide-react';
 
 // ============================================
@@ -186,7 +186,7 @@ function DiagnosisBadge({ category }: { category: string | null | undefined }) {
   const config: Record<string, { bg: string; text: string; icon: typeof CheckCircle2; label: string }> = {
     FIXED: { bg: 'bg-green-500/15', text: 'text-green-400', icon: CheckCircle2, label: 'Fixe' },
     DIAGNOSED: { bg: 'bg-orange-500/15', text: 'text-orange-400', icon: Stethoscope, label: 'Diagnostique' },
-    UNKNOWN: { bg: 'bg-red-500/15', text: 'text-red-400', icon: CircleHelp, label: 'Inconnu' },
+    UNKNOWN: { bg: 'bg-red-500/15', text: 'text-red-400', icon: HelpCircle, label: 'Inconnu' },
   };
   const c = config[category];
   if (!c) return null;
@@ -700,7 +700,7 @@ export default function SentinelLogicTests() {
                 diagFilter === 'UNKNOWN' ? 'bg-red-500/25 text-red-300 ring-1 ring-red-500/40' : 'bg-red-500/10 text-red-400 hover:bg-red-500/15'
               }`}
             >
-              <CircleHelp size={10} />
+              <HelpCircle size={10} />
               {unknownTests.length} Inconnu(s)
             </button>
           </div>
