@@ -150,11 +150,12 @@ function HealthGauge({ score }: { score: number }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {
-    pass: { bg: 'bg-green-500/15', text: 'text-green-400', icon: CheckCircle2 },
-    fail: { bg: 'bg-red-500/15', text: 'text-red-400', icon: XCircle },
-    error: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', icon: AlertTriangle },
-    pending: { bg: 'bg-slate-500/15', text: 'text-slate-400', icon: Clock },
+  const config: Record<string, { bg: string; text: string; icon: typeof CheckCircle2; label: string }> = {
+    pass: { bg: 'bg-green-500/15', text: 'text-green-400', icon: CheckCircle2, label: 'OK' },
+    fail: { bg: 'bg-red-500/15', text: 'text-red-400', icon: XCircle, label: 'ECHEC' },
+    error: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', icon: AlertTriangle, label: 'ERREUR' },
+    skip: { bg: 'bg-slate-500/15', text: 'text-slate-400', icon: Clock, label: 'IGNORE' },
+    pending: { bg: 'bg-slate-500/15', text: 'text-slate-400', icon: Clock, label: 'EN ATTENTE' },
   };
   const c = config[status] || config.pending;
   const Icon = c.icon;
@@ -162,20 +163,33 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${c.bg} ${c.text}`}>
       <Icon size={10} />
-      {status.toUpperCase()}
+      {c.label}
     </span>
   );
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
-  const colors: Record<string, string> = {
-    critical: 'text-red-400 bg-red-500/10',
-    warning: 'text-yellow-400 bg-yellow-500/10',
-    info: 'text-blue-400 bg-blue-500/10',
+const SEVERITY_LABELS: Record<string, string> = {
+  critical: 'Essentiel',
+  warning: 'Important',
+  info: 'Mineur',
+};
+
+function SeverityBadge({ severity, status }: { severity: string; status?: string }) {
+  const isPassing = status === 'pass' || status === 'skip';
+  // Quand le test passe, on affiche la priorite en gris discret (pas alarmant)
+  // Quand il echoue, la couleur indique l'urgence de correction
+  const colors: Record<string, { pass: string; fail: string }> = {
+    critical: { pass: 'text-slate-500 bg-slate-500/8', fail: 'text-red-400 bg-red-500/10' },
+    warning:  { pass: 'text-slate-500 bg-slate-500/8', fail: 'text-yellow-400 bg-yellow-500/10' },
+    info:     { pass: 'text-slate-500 bg-slate-500/8', fail: 'text-blue-400 bg-blue-500/10' },
   };
+  const colorSet = colors[severity] || colors.info;
+  const style = isPassing ? colorSet.pass : colorSet.fail;
+  const label = SEVERITY_LABELS[severity] || severity;
+
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${colors[severity] || colors.info}`}>
-      {severity}
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${style}`}>
+      {label}
     </span>
   );
 }
@@ -273,8 +287,8 @@ function CategoryAccordion({
           {tests.map(t => (
             <div key={t.id || t.name} className="px-4 py-2.5 flex items-center gap-3 hover:bg-slate-800/30 transition-colors">
               <StatusBadge status={t.last_status} />
-              <SeverityBadge severity={t.severity} />
-              <DiagnosisBadge category={t.diagnosis_category} />
+              <SeverityBadge severity={t.severity} status={t.last_status} />
+              {t.last_status !== 'pass' && <DiagnosisBadge category={t.diagnosis_category} />}
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-slate-300 truncate">{t.description || t.name}</div>
                 <div className="text-[9px] text-slate-600 font-mono mt-0.5">
@@ -711,7 +725,7 @@ export default function SentinelLogicTests() {
               <div key={`diag-${t.tenant_id}-${t.id || t.name}`} className="px-3 py-2.5 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
                 <div className="flex items-center gap-2 mb-1">
                   <DiagnosisBadge category={t.diagnosis_category} />
-                  <SeverityBadge severity={t.severity} />
+                  <SeverityBadge severity={t.severity} status={t.last_status} />
                   <span className="text-xs text-white flex-1 truncate">
                     {t.tenant_name && <span className="text-cyan-400/80 mr-1">[{t.tenant_name}]</span>}
                     {t.description || t.name}
@@ -751,7 +765,7 @@ export default function SentinelLogicTests() {
           <div className="space-y-2">
             {filteredFailed.map(t => (
               <div key={`${t.tenant_id}-${t.id || t.name}`} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
-                <SeverityBadge severity={t.severity} />
+                <SeverityBadge severity={t.severity} status={t.last_status} />
                 <DiagnosisBadge category={t.diagnosis_category} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-white">

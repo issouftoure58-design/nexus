@@ -122,18 +122,24 @@ export function generateGlobalReport(allReports) {
 
 /**
  * Determine si une alerte doit etre envoyee
+ * Pas de spam si tout va bien — alerte uniquement sur vrais problemes
  */
 export function shouldAlert(report) {
   if (!report) return false;
 
+  const score = report.globalScore ?? report.score ?? 100;
+
+  // Score >= 95% et pas d'inconnus → tout va bien, pas d'alerte
+  if (score >= 95 && report.counts.unknown === 0) return false;
+
   // Alerter si:
-  // - DIAGNOSED > 0 (problemes identifies non resolus)
-  // - UNKNOWN > 0 (problemes non identifies)
-  // - Score global < 80%
+  // - UNKNOWN > 0 (problemes non identifies — toujours alerter)
+  // - Score global < 80% (degradation significative)
+  // - Score < 95% et plus de 2 diagnosed (accumulation de problemes)
   return (
-    report.counts.diagnosed > 0 ||
     report.counts.unknown > 0 ||
-    (report.globalScore !== undefined && report.globalScore < 80)
+    score < 80 ||
+    (score < 95 && report.counts.diagnosed > 2)
   );
 }
 
@@ -189,9 +195,10 @@ export async function sendAlert(report) {
   const title = `PLTE ${runTypeLabel} — Score ${score}%`;
 
   // Niveau d'alerte base sur la gravite
+  // CRITICAL = action immediate requise, URGENT = a corriger bientot, WARNING = a surveiller
   const level = report.counts.unknown > 2 || score < 50
     ? 'CRITICAL'
-    : report.counts.diagnosed > 0 || score < 80
+    : score < 80
       ? 'URGENT'
       : 'WARNING';
 
