@@ -57,7 +57,7 @@ const JOBS_SCHEDULE = {
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
   operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
   rgpdDeletion: { hour: 3, minute: 0 }, // 03h00 - Suppressions RGPD planifiees
-  plteHourly:  { interval: 60 },                       // Toutes les heures - PLTE v2 vie quotidienne
+  plteHourly:  { interval: 240 },                      // Toutes les 4h - PLTE v2 vie quotidienne
   plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
 };
