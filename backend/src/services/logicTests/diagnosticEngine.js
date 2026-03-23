@@ -97,6 +97,56 @@ async function diagnose(tenantId, test) {
     return diagnoseProfileBootstrap(tenantId, test);
   }
 
+  // === N15 — Order cycle ===
+  if (name.includes('n15') || name.includes('order')) {
+    return diagnoseOrderFailure(tenantId, test);
+  }
+
+  // === N17 — CRM pipeline ===
+  if (name.includes('n17') || name.includes('crm_pipeline')) {
+    return diagnoseCRMFailure(tenantId, test);
+  }
+
+  // === N21 — Notification cascade ===
+  if (name.includes('n21') || name.includes('notification_cascade')) {
+    return diagnoseNotificationCascade(tenantId, test);
+  }
+
+  // === N22 — Social post ===
+  if (name.includes('n22') || name.includes('social_post')) {
+    return diagnoseSocialFailure(tenantId, test);
+  }
+
+  // === N23 — Voice AI ===
+  if (name.includes('n23') || name.includes('voice_ai')) {
+    return diagnoseVoiceAI(tenantId, test);
+  }
+
+  // === N25 — RGPD ===
+  if (name.includes('n25') || name.includes('rgpd')) {
+    return diagnoseRGPDFailure(tenantId, test);
+  }
+
+  // === N26 — Usage quotas ===
+  if (name.includes('n26') || name.includes('usage_quota')) {
+    return diagnoseUsageQuota(tenantId, test);
+  }
+
+  // === N27 — FEC export ===
+  if (name.includes('n27') || name.includes('fec')) {
+    return diagnoseFECFailure(tenantId, test);
+  }
+
+  // === N28 — RH avance ===
+  if (name.includes('n28') || name.includes('rh_avance')) {
+    return diagnoseRHAvance(tenantId, test);
+  }
+
+  // === N32 — Referrals ===
+  if (name.includes('n32') || name.includes('referral')) {
+    return diagnoseReferralFailure(tenantId, test);
+  }
+
   // === Ecritures desequilibrees (N6/H6 coherence) ===
   if (name.includes('coherence') && error.includes('desequilibree')) {
     return await diagnoseUnbalancedEntries(tenantId, test, test.error || '');
@@ -970,6 +1020,341 @@ async function diagnoseMissingAvoirEntries(tenantId, test) {
     return makeDiag('UNKNOWN', test.name, 'Erreur lors de l\'analyse des avoirs', null, null,
       'Verifier la table factures (type=avoir) et ecritures_comptables', {});
   }
+}
+
+// ============================================
+// HANDLERS DIAGNOSTIQUES — N15-N34
+// ============================================
+
+/**
+ * N15 — Order cycle failure
+ */
+async function diagnoseOrderFailure(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('product_stock')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data?.length) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table product_stock vide — seedProductStock non execute',
+        error.substring(0, 200),
+        null,
+        'Verifier que seedProductStock() est appele dans le bootstrap commerce',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  if (/PGRST205|42P01/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Table orders ou product_stock inexistante',
+      error.substring(0, 200),
+      null,
+      'Migration BDD manquante — creer les tables orders et product_stock',
+      { tenantId });
+  }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Cycle commande echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier orderService.js — createOrder/updateOrderStatus/cancelOrder',
+    { tenantId });
+}
+
+/**
+ * N17 — CRM pipeline failure
+ */
+async function diagnoseCRMFailure(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data: contacts } = await supabase
+      .from('crm_contacts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!contacts) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table crm_contacts inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration CRM manquante — verifier tables crm_contacts et quotes',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  try {
+    const { data: quotes } = await supabase
+      .from('quotes')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!quotes) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table quotes inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration CRM manquante — creer la table quotes',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Pipeline CRM echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier crmService.js — createContact/createQuote/sendQuote/acceptQuote',
+    { tenantId });
+}
+
+/**
+ * N21 — Notification cascade failure
+ */
+function diagnoseNotificationCascade(tenantId, test) {
+  const error = test.error || '';
+
+  if (/config|smtp|resend|api.*key/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Configuration email/notification manquante',
+      error.substring(0, 200),
+      null,
+      'Configurer Resend API key ou SMTP pour activer les notifications email',
+      { tenantId });
+  }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Cascade notification echouee',
+    error.substring(0, 200),
+    null,
+    'Verifier notificationCascadeService.js — sendWithCascade et getStats',
+    { tenantId });
+}
+
+/**
+ * N22 — Social post failure
+ */
+async function diagnoseSocialFailure(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('social_posts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table social_posts inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration manquante — creer la table social_posts',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Cycle social post echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier socialService.js — createPost/schedulePost/getPostStats',
+    { tenantId });
+}
+
+/**
+ * N23 — Voice AI failure
+ */
+function diagnoseVoiceAI(tenantId, test) {
+  const error = test.error || '';
+
+  // Reuse chat IA pattern
+  if (/TENANT_ID_REQUIRED|configuration.*manquante|config/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Configuration Voice AI manquante pour ce tenant',
+      error.substring(0, 200),
+      null,
+      'Verifier que le tenant a une config IA active dans profile_config',
+      { tenantId });
+  }
+
+  if (/timeout|ECONNREFUSED|502|503|529|overloaded/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'API IA indisponible ou timeout lors du voice AI',
+      error.substring(0, 200),
+      null,
+      'Probleme temporaire API — aucune action requise si ponctuel',
+      { tenantId });
+  }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Voice AI echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier voiceAIService.js — getVoiceResponse',
+    { tenantId });
+}
+
+/**
+ * N25 — RGPD failure
+ */
+async function diagnoseRGPDFailure(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('consent_records')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table consent_records inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration RGPD manquante — creer la table consent_records',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'RGPD consent cycle echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier consentService.js — grantConsent/hasConsent/revokeConsent',
+    { tenantId });
+}
+
+/**
+ * N26 — Usage quota failure
+ */
+async function diagnoseUsageQuota(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('usage_tracking')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table usage_tracking inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration manquante — creer la table usage_tracking',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Usage quota echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier usageTrackingService.js — trackUsage/getMonthlyUsage/checkQuota',
+    { tenantId });
+}
+
+/**
+ * N27 — FEC export failure
+ */
+function diagnoseFECFailure(tenantId, test) {
+  const error = test.error || '';
+
+  if (/SIREN|entreprise/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'SIREN ou informations entreprise manquantes pour FEC',
+      error.substring(0, 200),
+      null,
+      'Configurer le SIREN du tenant dans les parametres entreprise',
+      { tenantId });
+  }
+
+  if (/aucune.*ecriture|no.*ecriture/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Aucune ecriture comptable pour generer le FEC',
+      error.substring(0, 200),
+      null,
+      'Normal si le tenant n\'a pas encore d\'activite comptable',
+      { tenantId });
+  }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Export FEC echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier fecExportService.js — validateFEC/generateFEC + config entreprise',
+    { tenantId });
+}
+
+/**
+ * N28 — RH avance failure
+ */
+async function diagnoseRHAvance(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('hr_employees')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table hr_employees inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration HR manquante — creer la table hr_employees',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Cycle RH avance echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier hrService.js — createEmployee/clockIn/clockOut/requestLeave/approveLeave',
+    { tenantId });
+}
+
+/**
+ * N32 — Referral failure
+ */
+async function diagnoseReferralFailure(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('referrals')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table referrals inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration manquante — creer la table referrals',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Generation code referral echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier referralService.js — generateReferralCode',
+    { tenantId });
 }
 
 // ============================================

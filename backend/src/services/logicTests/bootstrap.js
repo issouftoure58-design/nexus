@@ -319,6 +319,7 @@ async function seedProfileData(tenantId, profile) {
         { nom: `${TEST_PREFIX}Eau minerale`, prix: 150, stock: 300, reference: 'EAU-001' },
         { nom: `${TEST_PREFIX}Cookie`, prix: 200, stock: 60, reference: 'COO-001' },
       ]);
+      await seedProductStock(tenantId);
       break;
 
     case 'hotel':
@@ -530,6 +531,40 @@ async function seedZonesIntervention(tenantId) {
 }
 
 /**
+ * Seed product_stock pour le profil commerce (necessaire pour N15_order_cycle)
+ */
+export async function seedProductStock(tenantId) {
+  try {
+    const { data: produits } = await supabase
+      .from('produits')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .like('nom', `${TEST_PREFIX}%`)
+      .limit(20);
+
+    if (!produits?.length) return;
+
+    for (const p of produits) {
+      const { data: existing } = await supabase
+        .from('product_stock')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('product_id', p.id)
+        .limit(1);
+
+      if (existing?.length) continue;
+
+      await supabase.from('product_stock').insert({
+        tenant_id: tenantId,
+        product_id: p.id,
+        quantity: 50,
+        reserved_quantity: 0,
+      });
+    }
+  } catch { /* product_stock table may not exist */ }
+}
+
+/**
  * Nettoie toutes les donnees de test PLTE pour un tenant
  */
 export async function cleanupPlteData(tenantId) {
@@ -541,6 +576,10 @@ export async function cleanupPlteData(tenantId) {
     { table: 'reservations', field: 'service_nom' },
     { table: 'devis', field: 'numero' },
     { table: 'marketing_campaigns', field: 'name' },
+    { table: 'social_posts', field: 'content' },
+    { table: 'quotes', field: 'reference' },
+    { table: 'orders', field: 'customer_name' },
+    { table: 'avis_clients', field: 'commentaire' },
   ];
 
   for (const { table, field } of tables) {
@@ -550,6 +589,17 @@ export async function cleanupPlteData(tenantId) {
         .delete()
         .eq('tenant_id', tenantId)
         .like(field, `${TEST_PREFIX}%`);
+    } catch { /* table may not exist */ }
+  }
+
+  // Cleanup crm_contacts et hr_employees par email PLTE
+  for (const table of ['crm_contacts', 'hr_employees']) {
+    try {
+      await supabase
+        .from(table)
+        .delete()
+        .eq('tenant_id', tenantId)
+        .like('email', '%@plte.internal');
     } catch { /* table may not exist */ }
   }
 

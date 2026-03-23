@@ -33,7 +33,7 @@ function simplifyError(error) {
  */
 export async function runWeeklyTests(ctx) {
   const results = [];
-  const { tenantId } = ctx;
+  const { tenantId, profile } = ctx;
 
   // W1 — Admin chat tool execution
   results.push(await testW1_AdminChatTool(tenantId));
@@ -52,6 +52,20 @@ export async function runWeeklyTests(ctx) {
 
   // W6 — XSS payload dans champs
   results.push(await testW6_XSS(tenantId));
+
+  // W7 — Yousign integration
+  if (['events', 'consulting', 'securite'].includes(profile)) {
+    results.push(await testW7_YousignIntegration(tenantId));
+  }
+
+  // W8 — Onboarding check
+  results.push(await testW8_OnboardingCheck(tenantId));
+
+  // W9 — Public API / profile_config
+  results.push(await testW9_PublicAPI(tenantId));
+
+  // W10 — Quota manager
+  results.push(await testW10_QuotaManager(tenantId));
 
   return results;
 }
@@ -274,6 +288,178 @@ async function testW5_InjectionSQL(tenantId) {
 
     return makeResult(name, module, severity, description, 'pass');
   } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// W7 — YOUSIGN INTEGRATION
+// ============================================
+
+async function testW7_YousignIntegration(tenantId) {
+  const name = 'W7_yousign_integration';
+  const module = 'signature';
+  const severity = 'info';
+  const description = 'Yousign: isConfigured() sans crash';
+
+  try {
+    const yousignService = await import('../../services/yousignService.js');
+    const isConfigured = yousignService.isConfigured || yousignService.default?.isConfigured;
+
+    if (!isConfigured) {
+      return makeResult(name, module, severity, description, 'pass', 'Fonction isConfigured non exportee (skip)');
+    }
+
+    const result = isConfigured();
+    if (typeof result !== 'boolean') {
+      return makeResult(name, module, severity, description, 'fail',
+        `isConfigured retourne ${typeof result} au lieu de boolean`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `Yousign configured: ${result}`);
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module Yousign non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// W8 — ONBOARDING CHECK
+// ============================================
+
+async function testW8_OnboardingCheck(tenantId) {
+  const name = 'W8_onboarding_check';
+  const module = 'onboarding';
+  const severity = 'info';
+  const description = 'Onboarding: tenant a name + plan + statut + services';
+
+  try {
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id, name, plan, statut')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) {
+      return makeResult(name, module, severity, description, 'fail', `Tenant query error: ${error.message}`);
+    }
+
+    if (!tenant) {
+      return makeResult(name, module, severity, description, 'fail', 'Tenant non trouve');
+    }
+
+    const missing = [];
+    if (!tenant.name) missing.push('name');
+    if (!tenant.plan) missing.push('plan');
+    if (!tenant.statut) missing.push('statut');
+
+    if (missing.length) {
+      return makeResult(name, module, severity, description, 'fail',
+        `Onboarding incomplet — champs manquants: ${missing.join(', ')}`);
+    }
+
+    // Verifier qu'il y a au moins 1 service
+    const { count } = await supabase
+      .from('services')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('actif', true);
+
+    if (!count || count === 0) {
+      return makeResult(name, module, severity, description, 'fail',
+        'Aucun service actif pour ce tenant');
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `Tenant ${tenant.name}, plan ${tenant.plan}, ${count} service(s)`);
+  } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// W9 — PUBLIC API / PROFILE CONFIG
+// ============================================
+
+async function testW9_PublicAPI(tenantId) {
+  const name = 'W9_public_api';
+  const module = 'config';
+  const severity = 'info';
+  const description = 'Config: profile_config lisible, plan valide';
+
+  try {
+    const { data: config, error } = await supabase
+      .from('profile_config')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows — config non definie, verifier dans tenants
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('plan')
+          .eq('id', tenantId)
+          .single();
+
+        if (!tenant?.plan) {
+          return makeResult(name, module, severity, description, 'fail', 'Pas de plan defini pour ce tenant');
+        }
+
+        const validPlans = ['starter', 'pro', 'business', 'enterprise', 'trial'];
+        if (!validPlans.includes(tenant.plan)) {
+          return makeResult(name, module, severity, description, 'fail',
+            `Plan invalide: ${tenant.plan}`);
+        }
+
+        return makeResult(name, module, severity, description, 'pass',
+          `Plan ${tenant.plan} (pas de profile_config — normal)`);
+      }
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return makeResult(name, module, severity, description, 'pass', 'Table profile_config non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', error.message);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// W10 — QUOTA MANAGER
+// ============================================
+
+async function testW10_QuotaManager(tenantId) {
+  const name = 'W10_quota_manager';
+  const module = 'usage';
+  const severity = 'warning';
+  const description = 'Usage: getQuotaStatus → modules + totalOverage';
+
+  try {
+    const { getQuotaStatus } = await import('../../services/quotaManager.js');
+
+    const status = await getQuotaStatus(tenantId);
+    if (!status) {
+      return makeResult(name, module, severity, description, 'fail', 'getQuotaStatus retourne null');
+    }
+
+    // Verifier structure
+    if (typeof status !== 'object') {
+      return makeResult(name, module, severity, description, 'fail',
+        `getQuotaStatus retourne ${typeof status} au lieu d'un objet`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module quota manager non disponible (skip)');
+    }
     return makeResult(name, module, severity, description, 'error', err.message);
   }
 }

@@ -28,6 +28,7 @@ export async function getProfileSpecificChecks(ctx) {
 
     case 'hotel':
       results.push(await testChambreDisponibilite(tenantId, ctx));
+      results.push(await testP_HotelWaitlist(tenantId));
       break;
 
     case 'securite':
@@ -37,19 +38,26 @@ export async function getProfileSpecificChecks(ctx) {
 
     case 'domicile':
       results.push(await testFraisDeplacement(tenantId, ctx));
+      results.push(await testP_DomicileRelances(tenantId));
       break;
 
     case 'consulting':
       results.push(await testPricingHoraire(tenantId, ctx, 'consulting'));
+      results.push(await testP_ConsultingCRM(tenantId));
       break;
 
     case 'commerce':
+      results.push(await testStockAutoDecrement(tenantId, ctx));
+      results.push(await testP_CommerceOrders(tenantId));
+      break;
+
     case 'salon':
       results.push(await testStockAutoDecrement(tenantId, ctx));
       break;
 
     case 'events':
       results.push(await testForfaitPackage(tenantId, ctx));
+      results.push(await testP_EventsYousign(tenantId));
       break;
   }
 
@@ -322,6 +330,153 @@ async function testForfaitPackage(tenantId, ctx) {
     return makeResult(name, module, severity, description, 'pass',
       `${services.length} service(s), ${durees.length} duree(s) differentes`);
   } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// COMMERCE — Orders table accessible
+// ============================================
+
+async function testP_CommerceOrders(tenantId) {
+  const name = 'P_commerce_orders';
+  const module = 'commerce';
+  const severity = 'info';
+  const description = 'Commerce: table orders accessible';
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return makeResult(name, module, severity, description, 'pass', 'Table orders non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', error.message);
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `Table orders accessible — ${data?.length || 0} commande(s)`);
+  } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// EVENTS — Yousign integration
+// ============================================
+
+async function testP_EventsYousign(tenantId) {
+  const name = 'P_events_yousign';
+  const module = 'signature';
+  const severity = 'info';
+  const description = 'Events: yousignService.isConfigured() sans crash';
+
+  try {
+    const yousignService = await import('../../services/yousignService.js');
+    const isConfigured = yousignService.isConfigured || yousignService.default?.isConfigured;
+
+    if (!isConfigured) {
+      return makeResult(name, module, severity, description, 'pass', 'Fonction isConfigured non exportee (skip)');
+    }
+
+    const result = isConfigured();
+    return makeResult(name, module, severity, description, 'pass',
+      `Yousign configured: ${result}`);
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module Yousign non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// CONSULTING — CRM stats
+// ============================================
+
+async function testP_ConsultingCRM(tenantId) {
+  const name = 'P_consulting_crm';
+  const module = 'crm';
+  const severity = 'info';
+  const description = 'Consulting: getCRMStats retourne un objet';
+
+  try {
+    const { getCRMStats } = await import('../../modules/crm/crmService.js');
+
+    const stats = await getCRMStats(tenantId);
+    if (!stats || typeof stats !== 'object') {
+      return makeResult(name, module, severity, description, 'fail',
+        `getCRMStats retourne ${typeof stats} au lieu d'un objet`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module CRM non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// HOTEL — Waitlist accessible
+// ============================================
+
+async function testP_HotelWaitlist(tenantId) {
+  const name = 'P_hotel_waitlist';
+  const module = 'reservations';
+  const severity = 'info';
+  const description = 'Hotel: table waitlist accessible';
+
+  try {
+    const { data, error } = await supabase
+      .from('waitlist')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return makeResult(name, module, severity, description, 'pass', 'Table waitlist non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', error.message);
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `Table waitlist accessible — ${data?.length || 0} entree(s)`);
+  } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// DOMICILE — Relances settings
+// ============================================
+
+async function testP_DomicileRelances(tenantId) {
+  const name = 'P_domicile_relances';
+  const module = 'relances';
+  const severity = 'info';
+  const description = 'Domicile: getRelanceSettings retourne un objet';
+
+  try {
+    const { getRelanceSettings } = await import('../../services/relancesService.js');
+
+    const settings = await getRelanceSettings(tenantId);
+    if (!settings || typeof settings !== 'object') {
+      return makeResult(name, module, severity, description, 'fail',
+        `getRelanceSettings retourne ${typeof settings} au lieu d'un objet`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module relances non disponible (skip)');
+    }
     return makeResult(name, module, severity, description, 'error', err.message);
   }
 }

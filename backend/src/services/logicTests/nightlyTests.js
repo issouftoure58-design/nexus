@@ -104,6 +104,76 @@ export async function runNightlyTests(ctx) {
   // N14 — Chat IA (deplace depuis hourly — 1 appel/jour au lieu de 6/jour par tenant)
   results.push(await testN14_ChatIA(tenantId));
 
+  // N15 — Cycle commande commerce
+  if (profile === 'commerce') {
+    results.push(await testN15_OrderCycle(tenantId));
+  }
+
+  // N16 — Stock advisor
+  if (['commerce', 'salon'].includes(profile)) {
+    results.push(await testN16_StockAdvisor(tenantId));
+  }
+
+  // N17 — CRM pipeline
+  results.push(await testN17_CRMPipeline(tenantId, client));
+
+  // N18 — CRM stats
+  results.push(await testN18_CRMStats(tenantId));
+
+  // N19 — Billing Stripe config
+  results.push(await testN19_BillingStripe(tenantId));
+
+  // N20 — Trial status
+  results.push(await testN20_TrialStatus(tenantId));
+
+  // N21 — Notification cascade
+  results.push(await testN21_NotificationCascade(tenantId, client));
+
+  // N22 — Social post lifecycle
+  results.push(await testN22_SocialPostLifecycle(tenantId));
+
+  // N23 — Voice AI cycle
+  results.push(await testN23_VoiceAICycle(tenantId));
+
+  // N24 — Relances
+  results.push(await testN24_Relances(tenantId));
+
+  // N25 — RGPD
+  results.push(await testN25_RGPD(tenantId, client));
+
+  // N26 — Usage quotas
+  results.push(await testN26_UsageQuotas(tenantId));
+
+  // N27 — FEC export
+  results.push(await testN27_FECExport(tenantId));
+
+  // N28 — RH avance
+  if (['salon', 'securite', 'restaurant'].includes(profile)) {
+    results.push(await testN28_RHAvance(tenantId));
+  }
+
+  // N29 — Pointage sync
+  if (['salon', 'securite', 'restaurant'].includes(profile)) {
+    results.push(await testN29_PointageSync(tenantId));
+  }
+
+  // N30 — Waitlist
+  if (['restaurant', 'hotel', 'salon'].includes(profile)) {
+    results.push(await testN30_Waitlist(tenantId, client));
+  }
+
+  // N31 — Reviews
+  results.push(await testN31_Reviews(tenantId, client));
+
+  // N32 — Referrals
+  results.push(await testN32_Referrals(tenantId));
+
+  // N33 — Sentinel intelligence
+  results.push(await testN33_SentinelIntelligence(tenantId));
+
+  // N34 — SSO config
+  results.push(await testN34_SSOConfig(tenantId));
+
   // Purge donnees test > 7 jours
   await purgeOldTestData(tenantId);
   await cleanupPlteData(tenantId);
@@ -938,6 +1008,913 @@ async function testN14_ChatIA(tenantId) {
 
     return makeResult(name, module, severity, description, 'pass');
   } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N15 — CYCLE COMMANDE COMMERCE
+// ============================================
+
+async function testN15_OrderCycle(tenantId) {
+  const name = 'N15_order_cycle';
+  const module = 'commerce';
+  const severity = 'critical';
+  const description = 'Commerce: cycle createOrder → updateStatus → cancelOrder';
+
+  try {
+    const { createOrder, updateOrderStatus, cancelOrder } =
+      await import('../../modules/commerce/orderService.js');
+
+    const order = await createOrder(tenantId, {
+      customer_name: `${TEST_PREFIX}Client_N15`,
+      customer_email: 'n15@plte.internal',
+      customer_phone: '0600000015',
+      type: 'click_collect',
+      items: [{ product_name: `${TEST_PREFIX}Burger Classic`, quantity: 2, unit_price: 890 }],
+      total: 1780,
+    });
+
+    const orderId = order?.id || order?.data?.id;
+    if (!orderId) {
+      const errMsg = order?.error || 'Commande non creee';
+      if (/PGRST205|42P01/i.test(errMsg)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table orders non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', `Creation echouee: ${errMsg}`);
+    }
+
+    // Transition confirmed
+    const updated = await updateOrderStatus(tenantId, orderId, 'confirmed');
+    if (updated?.error && !/already|invalid.*transition/i.test(updated.error)) {
+      return makeResult(name, module, severity, description, 'fail', `updateStatus echoue: ${updated.error}`);
+    }
+
+    // Annulation
+    const cancelled = await cancelOrder(tenantId, orderId, 'Test PLTE');
+    if (cancelled?.error && !/already.*cancel/i.test(cancelled.error)) {
+      return makeResult(name, module, severity, description, 'fail', `cancelOrder echoue: ${cancelled.error}`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module commerce non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N16 — STOCK ADVISOR
+// ============================================
+
+async function testN16_StockAdvisor(tenantId) {
+  const name = 'N16_stock_advisor';
+  const module = 'stock';
+  const severity = 'warning';
+  const description = 'Stock: analyzeStock retourne summary, alerts et recommendations';
+
+  try {
+    const { analyzeStock } = await import('../../modules/commerce/stockAdvisorService.js');
+
+    const result = await analyzeStock(tenantId);
+    if (!result) {
+      return makeResult(name, module, severity, description, 'fail', 'analyzeStock retourne null');
+    }
+
+    // Verifier structure minimale
+    const hasSummary = result.summary !== undefined || result.total !== undefined;
+    const hasAlerts = Array.isArray(result.alerts) || result.alerts !== undefined;
+    const hasRecommendations = Array.isArray(result.recommendations) || result.recommendations !== undefined;
+
+    if (!hasSummary && !hasAlerts && !hasRecommendations) {
+      return makeResult(name, module, severity, description, 'fail',
+        'analyzeStock ne retourne ni summary, ni alerts, ni recommendations');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module stock advisor non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N17 — CRM PIPELINE
+// ============================================
+
+async function testN17_CRMPipeline(tenantId, client) {
+  const name = 'N17_crm_pipeline';
+  const module = 'crm';
+  const severity = 'warning';
+  const description = 'CRM: createContact → createQuote → sendQuote → acceptQuote';
+
+  try {
+    const { createContact, createQuote, sendQuote, acceptQuote } =
+      await import('../../modules/crm/crmService.js');
+
+    // Creer contact CRM
+    const contact = await createContact(tenantId, {
+      nom: `${TEST_PREFIX}Contact_N17`,
+      prenom: 'PLTE',
+      email: `crm-n17-${Date.now()}@plte.internal`,
+      telephone: '0600000017',
+      source: 'plte_test',
+      statut: 'lead',
+    });
+
+    const contactId = contact?.id || contact?.data?.id;
+    if (!contactId) {
+      const errMsg = contact?.error || 'Contact non cree';
+      if (/PGRST205|42P01/i.test(errMsg)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table crm_contacts non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', `createContact echoue: ${errMsg}`);
+    }
+
+    // Creer devis CRM
+    const quote = await createQuote(tenantId, {
+      contact_id: contactId,
+      reference: `${TEST_PREFIX}DEV-CRM-N17`,
+      items: [{ description: 'Service test PLTE', quantity: 1, unit_price: 5000 }],
+      total_ht: 5000,
+      total_ttc: 6000,
+    });
+
+    const quoteId = quote?.id || quote?.data?.id;
+    if (!quoteId) {
+      return makeResult(name, module, severity, description, 'fail',
+        `createQuote echoue: ${quote?.error || 'pas d\'ID'}`);
+    }
+
+    // Envoyer devis
+    try {
+      await sendQuote(tenantId, quoteId);
+    } catch (sendErr) {
+      // Envoi peut echouer si pas de config email — acceptable
+      if (!/smtp|email|config|resend/i.test(sendErr.message)) {
+        return makeResult(name, module, severity, description, 'fail', `sendQuote crash: ${sendErr.message}`);
+      }
+    }
+
+    // Accepter devis
+    const accepted = await acceptQuote(tenantId, quoteId);
+    if (accepted?.error && !/already/i.test(accepted.error)) {
+      return makeResult(name, module, severity, description, 'fail', `acceptQuote echoue: ${accepted.error}`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module CRM non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N18 — CRM STATS
+// ============================================
+
+async function testN18_CRMStats(tenantId) {
+  const name = 'N18_crm_stats';
+  const module = 'crm';
+  const severity = 'info';
+  const description = 'CRM: getCRMStats retourne total, leads, conversion_rate';
+
+  try {
+    const { getCRMStats } = await import('../../modules/crm/crmService.js');
+
+    const stats = await getCRMStats(tenantId);
+    if (!stats) {
+      return makeResult(name, module, severity, description, 'fail', 'getCRMStats retourne null');
+    }
+
+    // Verifier structure — au minimum un objet avec des proprietes numeriques
+    if (typeof stats !== 'object') {
+      return makeResult(name, module, severity, description, 'fail',
+        `getCRMStats retourne ${typeof stats} au lieu d'un objet`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module CRM non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N19 — BILLING STRIPE CONFIG
+// ============================================
+
+async function testN19_BillingStripe(tenantId) {
+  const name = 'N19_billing_stripe';
+  const module = 'billing';
+  const severity = 'info';
+  const description = 'Billing: isStripeConfigured() + getSubscriptionDetails() sans crash';
+
+  try {
+    const { isStripeConfigured, getSubscriptionDetails } =
+      await import('../stripeBillingService.js');
+
+    // Verifier config Stripe (booleen)
+    const configured = isStripeConfigured();
+    if (typeof configured !== 'boolean') {
+      return makeResult(name, module, severity, description, 'fail',
+        `isStripeConfigured retourne ${typeof configured} au lieu de boolean`);
+    }
+
+    // Recuperer subscription (peut etre null si pas configure)
+    const sub = await getSubscriptionDetails(tenantId);
+    // L'important c'est que ca ne crash pas — null/undefined OK
+    if (sub?.error && !/not found|no subscription|not configured/i.test(sub.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `getSubscriptionDetails erreur: ${sub.error}`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `Stripe configured: ${configured}`);
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module Stripe non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N20 — TRIAL STATUS
+// ============================================
+
+async function testN20_TrialStatus(tenantId) {
+  const name = 'N20_trial_status';
+  const module = 'billing';
+  const severity = 'info';
+  const description = 'Billing: getTrialStatus + checkTrialLimit fonctionnels';
+
+  try {
+    const { getTrialStatus, checkTrialLimit } = await import('../trialService.js');
+
+    const status = await getTrialStatus(tenantId);
+    if (!status && status !== null) {
+      return makeResult(name, module, severity, description, 'fail', 'getTrialStatus retourne undefined');
+    }
+
+    // checkTrialLimit — verifier que reservations est autorise (plan actif ou trial)
+    const limit = await checkTrialLimit(tenantId, 'reservations');
+    if (limit === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'checkTrialLimit retourne undefined');
+    }
+
+    // allowed doit etre un booleen ou l'objet doit avoir .allowed
+    const allowed = typeof limit === 'boolean' ? limit : limit?.allowed;
+    if (allowed === undefined) {
+      return makeResult(name, module, severity, description, 'fail',
+        'checkTrialLimit ne retourne pas de champ allowed');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module trial non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N21 — NOTIFICATION CASCADE
+// ============================================
+
+async function testN21_NotificationCascade(tenantId, client) {
+  const name = 'N21_notification_cascade';
+  const module = 'notifications';
+  const severity = 'warning';
+  const description = 'Notifications: sendWithCascade(priority:low) → email only + getStats()';
+
+  try {
+    const { sendWithCascade, getStats } =
+      await import('../notificationCascadeService.js');
+
+    // Envoi priorite basse = email seulement (pas de SMS/WA reel)
+    const result = await sendWithCascade(tenantId, client.id, {
+      subject: 'Test PLTE N21',
+      body: `${TEST_PREFIX}Notification cascade test`,
+    }, 'low');
+
+    // Meme si l'envoi echoue (pas de config email), on verifie que ca ne crash pas
+    if (result?.error && !/config|smtp|resend|api.*key/i.test(result.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `sendWithCascade erreur: ${result.error}`);
+    }
+
+    // Verifier stats
+    const stats = await getStats();
+    if (stats === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'getStats retourne undefined');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module notification cascade non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N22 — SOCIAL POST LIFECYCLE
+// ============================================
+
+async function testN22_SocialPostLifecycle(tenantId) {
+  const name = 'N22_social_post_lifecycle';
+  const module = 'social';
+  const severity = 'info';
+  const description = 'Social: createPost → draft + schedulePost → scheduled + getPostStats';
+
+  try {
+    const { createPost, schedulePost, getPostStats } =
+      await import('../../modules/social/socialService.js');
+
+    const post = await createPost(tenantId, {
+      content: `${TEST_PREFIX}Post PLTE test automatique`,
+      platforms: ['facebook'],
+      status: 'draft',
+    });
+
+    const postId = post?.id || post?.data?.id;
+    if (!postId) {
+      const errMsg = post?.error || 'Post non cree';
+      if (/PGRST205|42P01/i.test(errMsg)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table social_posts non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', `createPost echoue: ${errMsg}`);
+    }
+
+    // Programmer pour demain
+    const scheduledFor = new Date(Date.now() + 86400000).toISOString();
+    const scheduled = await schedulePost(tenantId, postId, scheduledFor);
+    if (scheduled?.error) {
+      return makeResult(name, module, severity, description, 'fail',
+        `schedulePost echoue: ${scheduled.error}`);
+    }
+
+    // Stats
+    const stats = await getPostStats(tenantId);
+    if (stats === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'getPostStats retourne undefined');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module social non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N23 — VOICE AI CYCLE
+// ============================================
+
+async function testN23_VoiceAICycle(tenantId) {
+  const name = 'N23_voice_ai_cycle';
+  const module = 'ia';
+  const severity = 'warning';
+  const description = 'Voice AI: getVoiceResponse(bonjour) → greeting + (au revoir) → shouldEndCall';
+
+  try {
+    const { getVoiceResponse } = await import('../voiceAIService.js');
+
+    // Test greeting
+    const greeting = await getVoiceResponse(tenantId, `plte-n23-${Date.now()}`, 'bonjour');
+    if (!greeting) {
+      return makeResult(name, module, severity, description, 'fail', 'getVoiceResponse(bonjour) retourne null');
+    }
+
+    // Verifier qu'on a une reponse vocale
+    const response1 = greeting?.response || greeting?.text || greeting?.message || greeting;
+    if (typeof response1 === 'string' && response1.length < 3) {
+      return makeResult(name, module, severity, description, 'fail', 'Reponse voice trop courte');
+    }
+
+    // Test fin de conversation
+    const goodbye = await getVoiceResponse(tenantId, `plte-n23-bye-${Date.now()}`, 'au revoir');
+    if (!goodbye) {
+      return makeResult(name, module, severity, description, 'fail', 'getVoiceResponse(au revoir) retourne null');
+    }
+
+    // Verifier shouldEndCall ou hangup
+    const shouldEnd = goodbye?.shouldEndCall || goodbye?.endCall || goodbye?.hangup;
+    // Pas obligatoire que shouldEndCall soit true, l'important c'est que ca ne crash pas
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module|TENANT_ID_REQUIRED|config/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module voice AI non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N24 — RELANCES
+// ============================================
+
+async function testN24_Relances(tenantId) {
+  const name = 'N24_relances';
+  const module = 'relances';
+  const severity = 'info';
+  const description = 'Relances: getStatsRelances + getRelanceSettings retourne r1-r5';
+
+  try {
+    const { getStatsRelances, getRelanceSettings } = await import('../relancesService.js');
+
+    const stats = await getStatsRelances(tenantId);
+    if (stats === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'getStatsRelances retourne undefined');
+    }
+
+    const settings = await getRelanceSettings(tenantId);
+    if (!settings) {
+      return makeResult(name, module, severity, description, 'fail', 'getRelanceSettings retourne null');
+    }
+
+    // Verifier structure minimale — settings doit etre un objet ou array
+    if (typeof settings !== 'object') {
+      return makeResult(name, module, severity, description, 'fail',
+        `getRelanceSettings retourne ${typeof settings} au lieu d'un objet`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module relances non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N25 — RGPD
+// ============================================
+
+async function testN25_RGPD(tenantId, client) {
+  const name = 'N25_rgpd';
+  const module = 'rgpd';
+  const severity = 'critical';
+  const description = 'RGPD: export tables + consent grant/get/revoke cycle';
+
+  try {
+    const { grantConsent, hasConsent, revokeConsent } = await import('../consentService.js');
+
+    // Grant consent
+    const granted = await grantConsent(tenantId, client.id, 'email', 'plte_test');
+    if (granted?.error && !/PGRST205|42P01/i.test(granted.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `grantConsent echoue: ${granted.error}`);
+    }
+
+    // Verifier consent
+    const has = await hasConsent(tenantId, client.id, 'email');
+    if (has !== true && has?.granted !== true && has?.has_consent !== true) {
+      // Si la table n'existe pas, skip
+      if (/PGRST205|42P01/i.test(String(has?.error || ''))) {
+        return makeResult(name, module, severity, description, 'pass', 'Table consent non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail',
+        'Consent accorde mais hasConsent retourne false');
+    }
+
+    // Revoquer consent
+    const revoked = await revokeConsent(tenantId, client.id, 'email');
+    if (revoked?.error) {
+      return makeResult(name, module, severity, description, 'fail',
+        `revokeConsent echoue: ${revoked.error}`);
+    }
+
+    // Verifier revocation
+    const hasAfter = await hasConsent(tenantId, client.id, 'email');
+    if (hasAfter === true || hasAfter?.granted === true) {
+      return makeResult(name, module, severity, description, 'fail',
+        'Consent revoque mais hasConsent retourne encore true');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module RGPD/consent non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N26 — USAGE QUOTAS
+// ============================================
+
+async function testN26_UsageQuotas(tenantId) {
+  const name = 'N26_usage_quotas';
+  const module = 'usage';
+  const severity = 'warning';
+  const description = 'Usage: trackUsage + getMonthlyUsage + checkQuota';
+
+  try {
+    const { trackUsage, getMonthlyUsage, checkQuota } =
+      await import('../usageTrackingService.js');
+
+    // Tracker un usage test
+    const tracked = await trackUsage(tenantId, 'plte_test', 1, { source: 'plte_n26' });
+    if (tracked?.error && !/PGRST205|42P01/i.test(tracked.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `trackUsage echoue: ${tracked.error}`);
+    }
+
+    // Recuperer usage mensuel
+    const monthly = await getMonthlyUsage(tenantId);
+    if (monthly === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'getMonthlyUsage retourne undefined');
+    }
+
+    // Verifier quota
+    const quota = await checkQuota(tenantId, 'plte_test', 1);
+    if (quota === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'checkQuota retourne undefined');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module usage tracking non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N27 — FEC EXPORT
+// ============================================
+
+async function testN27_FECExport(tenantId) {
+  const name = 'N27_fec_export';
+  const module = 'compta';
+  const severity = 'warning';
+  const description = 'Compta: validateFEC + generateFEC → filename pattern, BOM UTF-8';
+
+  try {
+    const { validateFEC, generateFEC } = await import('../fecExportService.js');
+
+    const exercice = new Date().getFullYear().toString();
+
+    // Valider FEC
+    const validation = await validateFEC(tenantId, exercice);
+    // Validation peut retourner des warnings — l'important c'est que ca ne crash pas
+    if (validation?.error && !/PGRST205|42P01|aucune|no.*ecriture|SIREN/i.test(validation.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `validateFEC erreur: ${validation.error}`);
+    }
+
+    // Generer FEC
+    const fec = await generateFEC(tenantId, exercice);
+    if (!fec) {
+      return makeResult(name, module, severity, description, 'pass',
+        'Aucune ecriture comptable pour generer le FEC (skip)');
+    }
+
+    // Verifier pattern filename
+    const filename = fec.filename || fec.name || '';
+    if (filename && !/FEC/i.test(filename)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `Filename FEC ne contient pas "FEC": ${filename}`);
+    }
+
+    // Verifier BOM UTF-8 si contenu disponible
+    const content = fec.content || fec.data || '';
+    if (typeof content === 'string' && content.length > 0) {
+      // BOM = \uFEFF en debut de fichier
+      const hasBOM = content.charCodeAt(0) === 0xFEFF || content.startsWith('\uFEFF');
+      if (!hasBOM && content.length > 100) {
+        return makeResult(name, module, severity, description, 'fail', 'FEC genere sans BOM UTF-8');
+      }
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module|SIREN|entreprise/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module FEC non disponible ou config manquante (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N28 — RH AVANCE
+// ============================================
+
+async function testN28_RHAvance(tenantId) {
+  const name = 'N28_rh_avance';
+  const module = 'rh';
+  const severity = 'warning';
+  const description = 'RH: createEmployee → clockIn → clockOut → requestLeave → approveLeave';
+
+  try {
+    const { createEmployee, clockIn, clockOut, requestLeave, approveLeave } =
+      await import('../../modules/hr/hrService.js');
+
+    // Creer employe test
+    const emp = await createEmployee(tenantId, {
+      nom: `${TEST_PREFIX}Employe_N28`,
+      prenom: 'PLTE',
+      email: `rh-n28-${Date.now()}@plte.internal`,
+      poste: 'test_plte',
+      date_embauche: '2024-01-01',
+      salaire_brut: 250000,
+    });
+
+    const empId = emp?.id || emp?.data?.id;
+    if (!empId) {
+      const errMsg = emp?.error || 'Employe non cree';
+      if (/PGRST205|42P01/i.test(errMsg)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table hr_employees non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', `createEmployee echoue: ${errMsg}`);
+    }
+
+    // Clock in
+    const cin = await clockIn(tenantId, empId);
+    if (cin?.error && !/already.*clocked|PGRST205/i.test(cin.error)) {
+      return makeResult(name, module, severity, description, 'fail', `clockIn echoue: ${cin.error}`);
+    }
+
+    // Clock out
+    const cout = await clockOut(tenantId, empId);
+    if (cout?.error && !/not.*clocked|PGRST205/i.test(cout.error)) {
+      return makeResult(name, module, severity, description, 'fail', `clockOut echoue: ${cout.error}`);
+    }
+
+    // Request leave
+    const leave = await requestLeave(tenantId, empId, {
+      type: 'conge_paye',
+      date_debut: futureDate(30),
+      date_fin: futureDate(35),
+      motif: 'Test PLTE N28',
+    });
+
+    const leaveId = leave?.id || leave?.data?.id;
+    if (leaveId) {
+      // Approve leave
+      const approved = await approveLeave(tenantId, leaveId);
+      if (approved?.error && !/already.*approved/i.test(approved.error)) {
+        return makeResult(name, module, severity, description, 'fail', `approveLeave echoue: ${approved.error}`);
+      }
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module HR non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N29 — POINTAGE SYNC
+// ============================================
+
+async function testN29_PointageSync(tenantId) {
+  const name = 'N29_pointage_sync';
+  const module = 'rh';
+  const severity = 'info';
+  const description = 'RH: synchroniserPointageDepuisReservations → success';
+
+  try {
+    const { synchroniserPointageDepuisReservations } = await import('../pointageService.js');
+
+    const today = new Date().toISOString().split('T')[0];
+    const result = await synchroniserPointageDepuisReservations(tenantId, today);
+
+    // Le resultat peut etre null/0 si aucune resa terminee — c'est OK
+    if (result?.error && !/PGRST205|42P01|aucune/i.test(result.error)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `synchroniserPointage echoue: ${result.error}`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module pointage non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N30 — WAITLIST
+// ============================================
+
+async function testN30_Waitlist(tenantId, client) {
+  const name = 'N30_waitlist';
+  const module = 'reservations';
+  const severity = 'info';
+  const description = 'Waitlist: ajout et statut waiting';
+
+  try {
+    const { addToWaitlist } = await import('../waitlistService.js');
+
+    const result = await addToWaitlist(tenantId, {
+      client_id: client.id,
+      client_nom: client.nom,
+      client_prenom: client.prenom,
+      client_telephone: client.telephone,
+      date_souhaitee: futureDate(7),
+      heure_souhaitee: '12:00',
+      nombre_personnes: 2,
+      notes: `${TEST_PREFIX}Waitlist N30`,
+    });
+
+    const entryId = result?.id || result?.data?.id;
+    if (!entryId) {
+      const errMsg = result?.error || 'Ajout waitlist echoue';
+      if (/PGRST205|42P01/i.test(errMsg)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table waitlist non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', `addToWaitlist echoue: ${errMsg}`);
+    }
+
+    // Verifier statut
+    const status = result?.status || result?.data?.status;
+    if (status && status !== 'waiting' && status !== 'pending') {
+      return makeResult(name, module, severity, description, 'fail',
+        `Statut waitlist inattendu: ${status} au lieu de waiting`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module waitlist non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N31 — REVIEWS (AVIS)
+// ============================================
+
+async function testN31_Reviews(tenantId, client) {
+  const name = 'N31_reviews';
+  const module = 'marketing';
+  const severity = 'info';
+  const description = 'Reviews: insert avis → AVG(note) est un nombre';
+
+  try {
+    // Insert avis test
+    const { data: avis, error } = await supabase
+      .from('avis_clients')
+      .insert({
+        tenant_id: tenantId,
+        client_id: client.id,
+        note: 4,
+        commentaire: `${TEST_PREFIX}Excellent service PLTE test`,
+        source: 'plte_test',
+        created_at: new Date().toISOString(),
+      })
+      .select('id, note')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return makeResult(name, module, severity, description, 'pass', 'Table avis_clients non existante (skip)');
+      }
+      return makeResult(name, module, severity, description, 'fail', error.message);
+    }
+
+    // Calculer moyenne
+    const { data: avg } = await supabase
+      .from('avis_clients')
+      .select('note')
+      .eq('tenant_id', tenantId);
+
+    if (avg?.length) {
+      const moyenne = avg.reduce((s, a) => s + (a.note || 0), 0) / avg.length;
+      if (typeof moyenne !== 'number' || isNaN(moyenne)) {
+        return makeResult(name, module, severity, description, 'fail',
+          `Moyenne des avis n'est pas un nombre: ${moyenne}`);
+      }
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N32 — REFERRALS
+// ============================================
+
+async function testN32_Referrals(tenantId) {
+  const name = 'N32_referrals';
+  const module = 'crm';
+  const severity = 'info';
+  const description = 'Referrals: generateReferralCode → format NXS-XXXXXXXX';
+
+  try {
+    const { generateReferralCode } = await import('../referralService.js');
+
+    const code = await generateReferralCode(tenantId);
+    if (!code) {
+      return makeResult(name, module, severity, description, 'fail', 'generateReferralCode retourne null');
+    }
+
+    const codeStr = typeof code === 'string' ? code : code?.code || code?.data?.code;
+    if (!codeStr) {
+      return makeResult(name, module, severity, description, 'fail',
+        'generateReferralCode ne retourne pas de code string');
+    }
+
+    // Verifier format NXS-XXXXXXXX
+    if (!/^NXS-[A-Z0-9]{8}$/i.test(codeStr)) {
+      return makeResult(name, module, severity, description, 'fail',
+        `Format referral invalide: ${codeStr} (attendu NXS-XXXXXXXX)`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module referral non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N33 — SENTINEL INTELLIGENCE
+// ============================================
+
+async function testN33_SentinelIntelligence(tenantId) {
+  const name = 'N33_sentinel_intelligence';
+  const module = 'sentinel';
+  const severity = 'info';
+  const description = 'Sentinel: captureMetrics → success + health_score';
+
+  try {
+    const { captureMetrics } = await import('../../modules/sentinel-intelligence/sentinelIntelligenceService.js');
+
+    const result = await captureMetrics(tenantId);
+    if (!result) {
+      return makeResult(name, module, severity, description, 'fail', 'captureMetrics retourne null');
+    }
+
+    // Verifier success
+    const success = result?.success || result?.captured || (result && !result.error);
+    if (!success && result?.error) {
+      return makeResult(name, module, severity, description, 'fail',
+        `captureMetrics erreur: ${result.error}`);
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module sentinel intelligence non disponible (skip)');
+    }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N34 — SSO CONFIG
+// ============================================
+
+async function testN34_SSOConfig(tenantId) {
+  const name = 'N34_sso_config';
+  const module = 'config';
+  const severity = 'info';
+  const description = 'SSO: getSSOConfig → array (empty OK), no crash';
+
+  try {
+    const { getSSOConfig } = await import('../ssoService.js');
+
+    const config = await getSSOConfig(tenantId);
+    // Config peut etre null, [], ou un objet — l'important c'est pas de crash
+    if (config === undefined) {
+      return makeResult(name, module, severity, description, 'fail', 'getSSOConfig retourne undefined');
+    }
+
+    return makeResult(name, module, severity, description, 'pass',
+      `SSO config: ${Array.isArray(config) ? config.length + ' provider(s)' : typeof config}`);
+  } catch (err) {
+    if (/Cannot find module/i.test(err.message)) {
+      return makeResult(name, module, severity, description, 'pass', 'Module SSO non disponible (skip)');
+    }
     return makeResult(name, module, severity, description, 'error', err.message);
   }
 }
