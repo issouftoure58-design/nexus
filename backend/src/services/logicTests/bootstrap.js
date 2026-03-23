@@ -70,8 +70,13 @@ async function ensureTenantReady(tenantId, config) {
   // 5. Verifier/creer des horaires
   await ensureBusinessHours(tenantId, template);
 
-  // 6. Seed specifique par profil
-  const profileData = await seedProfileData(tenantId, profile);
+  // 6. Seed specifique par profil (non-bloquant — ne doit pas empecher les tests)
+  let profileData = {};
+  try {
+    profileData = await seedProfileData(tenantId, profile);
+  } catch (err) {
+    console.warn(`[PLTE Bootstrap] seedProfileData ${tenantId} (${profile}): ${err.message}`);
+  }
 
   return {
     tenantId,
