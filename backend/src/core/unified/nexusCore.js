@@ -2862,6 +2862,12 @@ export async function processMessage(message, channel, context = {}) {
     if (response.usage) {
       const tracking = await trackTenantCall(tenantId, response.model || 'sonnet', response.usage.input_tokens || 0, response.usage.output_tokens || 0);
       console.log(`[SENTINEL] ${tenantId} - Coût appel: ${tracking.callCost.toFixed(4)}€ | Total: ${tracking.totalCost.toFixed(4)}€`);
+      // 💰 Log prompt caching
+      const cacheWrite = response.usage.cache_creation_input_tokens || 0;
+      const cacheRead = response.usage.cache_read_input_tokens || 0;
+      if (cacheWrite > 0 || cacheRead > 0) {
+        console.log(`[CACHE] 💰 write: ${cacheWrite} | read: ${cacheRead} | input: ${response.usage.input_tokens} (${cacheRead > 0 ? Math.round(cacheRead / (cacheRead + response.usage.input_tokens) * 100) + '% cached' : 'creation'})`);
+      }
     }
 
     console.log(`[NEXUS CORE] ✅ Réponse en ${duration}ms`);
@@ -3283,6 +3289,12 @@ export async function* processMessageStreaming(message, channel, context = {}) {
       if (finalMessage.usage) {
         const tracking = await trackTenantCall(tenantId, finalMessage.model || currentModel || 'sonnet', finalMessage.usage.input_tokens || 0, finalMessage.usage.output_tokens || 0);
         console.log(`[SENTINEL] ${tenantId} - Coût appel: ${tracking.callCost.toFixed(4)}€ | Total: ${tracking.totalCost.toFixed(4)}€`);
+        // 💰 Log prompt caching
+        const cacheWrite = finalMessage.usage.cache_creation_input_tokens || 0;
+        const cacheRead = finalMessage.usage.cache_read_input_tokens || 0;
+        if (cacheWrite > 0 || cacheRead > 0) {
+          console.log(`[CACHE] 💰 write: ${cacheWrite} | read: ${cacheRead} | input: ${finalMessage.usage.input_tokens} (${cacheRead > 0 ? Math.round(cacheRead / (cacheRead + finalMessage.usage.input_tokens) * 100) + '% cached' : 'creation'})`);
+        }
       }
 
       // Si tool_use, exécuter les outils et continuer
