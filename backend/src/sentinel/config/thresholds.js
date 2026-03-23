@@ -3,10 +3,15 @@
  */
 
 export const THRESHOLDS = {
-  // Seuils de couts
+  // Seuils de couts horaires (plateforme globale)
+  hourly: {
+    warning: 5,       // 5 EUR/h -> alerte email
+    critical: 10,     // 10 EUR/h -> alerte SMS
+  },
+  // Seuils de couts journaliers
   daily: {
-    warning: 30,      // 30 EUR -> alerte jaune
-    critical: 50,     // 50 EUR -> alerte rouge
+    warning: 15,      // 15 EUR -> alerte email
+    critical: 25,     // 25 EUR -> alerte SMS
     shutdown: 100     // 100 EUR -> mode degrade
   },
   monthly: {

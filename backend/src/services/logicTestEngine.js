@@ -12,7 +12,8 @@ import { ensurePlteTenantsReady, PLTE_TENANT_IDS, PLTE_TENANTS } from './logicTe
 import { runHourlyTests } from './logicTests/hourlyTests.js';
 import { runNightlyTests } from './logicTests/nightlyTests.js';
 import { runWeeklyTests } from './logicTests/weeklyTests.js';
-import { runSelfHealing } from './logicTests/selfHealing.js';
+import { runDiagnostics } from './logicTests/diagnosticEngine.js';
+import { generateReport, generateGlobalReport, shouldAlert, sendAlert } from './logicTests/reportingService.js';
 
 // Poids par severite pour calcul score
 const SEVERITY_WEIGHTS = {
@@ -74,10 +75,15 @@ class LogicTestEngine {
         pass_count: isPass ? existing.pass_count + 1 : existing.pass_count,
       };
 
-      // Self-healing columns
+      // Diagnostic columns
       if (test.auto_fixed !== undefined) {
         updateData.auto_fixed = test.auto_fixed;
         updateData.fix_description = test.fix_description || null;
+      }
+      if (test.diagnosis_category) {
+        updateData.diagnosis_category = test.diagnosis_category;
+        updateData.root_cause = test.root_cause || null;
+        updateData.operator_action = test.operator_action || null;
       }
 
       await supabase
@@ -104,6 +110,11 @@ class LogicTestEngine {
         insertData.auto_fixed = test.auto_fixed;
         insertData.fix_description = test.fix_description || null;
       }
+      if (test.diagnosis_category) {
+        insertData.diagnosis_category = test.diagnosis_category;
+        insertData.root_cause = test.root_cause || null;
+        insertData.operator_action = test.operator_action || null;
+      }
 
       await supabase
         .from('sentinel_logic_tests')
@@ -111,7 +122,7 @@ class LogicTestEngine {
     }
   }
 
-  async saveRun(tenantId, runType, results, startedAt) {
+  async saveRun(tenantId, runType, results, startedAt, diagnostics = []) {
     if (!tenantId) throw new Error('tenant_id requis');
 
     const passed = results.filter(r => r.status === 'pass').length;
@@ -119,6 +130,10 @@ class LogicTestEngine {
     const errors = results.filter(r => r.status === 'error').length;
     const autoFixed = results.filter(r => r.auto_fixed).length;
     const healthScore = this.calculateHealthScore(results);
+
+    const diagnosticsFixed = diagnostics.filter(d => d.category === 'FIXED').length;
+    const diagnosticsDiagnosed = diagnostics.filter(d => d.category === 'DIAGNOSED').length;
+    const diagnosticsUnknown = diagnostics.filter(d => d.category === 'UNKNOWN').length;
 
     const { data } = await supabase
       .from('sentinel_logic_runs')
@@ -133,11 +148,18 @@ class LogicTestEngine {
         errors,
         health_score: healthScore,
         results: JSON.stringify(results),
+        diagnostics_fixed: diagnosticsFixed,
+        diagnostics_diagnosed: diagnosticsDiagnosed,
+        diagnostics_unknown: diagnosticsUnknown,
+        diagnostic_report: JSON.stringify(diagnostics),
       })
       .select('id')
       .single();
 
-    return { runId: data?.id, healthScore, passed, failed, errors, autoFixed, total: results.length };
+    return {
+      runId: data?.id, healthScore, passed, failed, errors, autoFixed, total: results.length,
+      diagnosticsFixed, diagnosticsDiagnosed, diagnosticsUnknown,
+    };
   }
 
   // ============================================
@@ -156,29 +178,41 @@ class LogicTestEngine {
       const contexts = await ensurePlteTenantsReady();
       const allRuns = [];
 
+      const allReports = [];
+
       for (const ctx of Object.values(contexts)) {
         try {
           const startedAt = new Date().toISOString();
           const results = await runHourlyTests(ctx);
 
-          // Self-healing sur les fails
-          const fixes = await runSelfHealing(ctx.tenantId, results);
+          // Diagnostic Engine (remplace self-healing)
+          const diagnostics = await runDiagnostics(ctx.tenantId, results);
 
           // Persister
           for (const r of results) {
             await this.upsertTest(ctx.tenantId, r);
           }
 
-          const run = await this.saveRun(ctx.tenantId, 'hourly', results, startedAt);
-          allRuns.push({ tenantId: ctx.tenantId, profile: ctx.profile, ...run, fixes: fixes.length });
+          const run = await this.saveRun(ctx.tenantId, 'hourly', results, startedAt, diagnostics);
+          allRuns.push({ tenantId: ctx.tenantId, profile: ctx.profile, ...run, fixes: run.diagnosticsFixed });
 
-          console.log(`[PLTE v2] ${ctx.tenantId} (${ctx.profile}): ${run.healthScore}% — ${run.passed}P/${run.failed}F/${run.errors}E${fixes.length ? ` [${fixes.length} auto-fix]` : ''}`);
+          // Generer rapport tenant
+          const report = generateReport(ctx.tenantId, 'hourly', results, diagnostics);
+          allReports.push(report);
+
+          console.log(`[PLTE v2] ${ctx.tenantId} (${ctx.profile}): ${run.healthScore}% — ${run.passed}P/${run.failed}F/${run.errors}E [${run.diagnosticsFixed}fix/${run.diagnosticsDiagnosed}diag/${run.diagnosticsUnknown}unk]`);
         } catch (err) {
           console.error(`[PLTE v2] Hourly error for ${ctx.tenantId}:`, err.message);
         }
 
         // Throttle
         await new Promise(r => setTimeout(r, 500));
+      }
+
+      // Rapport global + alerte si necessaire
+      const globalReport = generateGlobalReport(allReports);
+      if (globalReport && shouldAlert(globalReport)) {
+        await sendAlert(globalReport);
       }
 
       this.logGlobalScore(allRuns, 'hourly');
@@ -200,23 +234,37 @@ class LogicTestEngine {
       const contexts = await ensurePlteTenantsReady();
       const allRuns = [];
 
+      const allReports = [];
+
       for (const ctx of Object.values(contexts)) {
         try {
           const startedAt = new Date().toISOString();
           const results = await runNightlyTests(ctx);
 
+          // Diagnostic Engine
+          const diagnostics = await runDiagnostics(ctx.tenantId, results);
+
           for (const r of results) {
             await this.upsertTest(ctx.tenantId, r);
           }
 
-          const run = await this.saveRun(ctx.tenantId, 'nightly', results, startedAt);
+          const run = await this.saveRun(ctx.tenantId, 'nightly', results, startedAt, diagnostics);
           allRuns.push({ tenantId: ctx.tenantId, profile: ctx.profile, ...run });
 
-          console.log(`[PLTE v2] Nightly ${ctx.tenantId}: ${run.healthScore}% — ${run.passed}P/${run.failed}F`);
+          const report = generateReport(ctx.tenantId, 'nightly', results, diagnostics);
+          allReports.push(report);
+
+          console.log(`[PLTE v2] Nightly ${ctx.tenantId}: ${run.healthScore}% — ${run.passed}P/${run.failed}F [${run.diagnosticsFixed}fix/${run.diagnosticsDiagnosed}diag]`);
         } catch (err) {
           console.error(`[PLTE v2] Nightly error for ${ctx.tenantId}:`, err.message);
         }
         await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Rapport global + alerte
+      const globalReport = generateGlobalReport(allReports);
+      if (globalReport && shouldAlert(globalReport)) {
+        await sendAlert(globalReport);
       }
 
       this.logGlobalScore(allRuns, 'nightly');
@@ -242,6 +290,8 @@ class LogicTestEngine {
       const profiles = [...new Set(Object.values(PLTE_TENANTS).map(t => t.profile))];
       const weekNum = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
 
+      const allReports = [];
+
       for (const ctx of Object.values(contexts)) {
         // Rotation: chaque semaine un profil different pour les tests IA lourds
         const profileIndex = profiles.indexOf(ctx.profile);
@@ -251,18 +301,28 @@ class LogicTestEngine {
           const startedAt = new Date().toISOString();
           const results = await runWeeklyTests(ctx);
 
+          const diagnostics = await runDiagnostics(ctx.tenantId, results);
+
           for (const r of results) {
             await this.upsertTest(ctx.tenantId, r);
           }
 
-          const run = await this.saveRun(ctx.tenantId, 'weekly', results, startedAt);
+          const run = await this.saveRun(ctx.tenantId, 'weekly', results, startedAt, diagnostics);
           allRuns.push({ tenantId: ctx.tenantId, profile: ctx.profile, ...run });
+
+          const report = generateReport(ctx.tenantId, 'weekly', results, diagnostics);
+          allReports.push(report);
 
           console.log(`[PLTE v2] Weekly ${ctx.tenantId}: ${run.healthScore}% — ${run.passed}P/${run.failed}F`);
         } catch (err) {
           console.error(`[PLTE v2] Weekly error for ${ctx.tenantId}:`, err.message);
         }
         await new Promise(r => setTimeout(r, 2000));
+      }
+
+      const globalReport = generateGlobalReport(allReports);
+      if (globalReport && shouldAlert(globalReport)) {
+        await sendAlert(globalReport);
       }
 
       this.logGlobalScore(allRuns, 'weekly');
@@ -278,6 +338,7 @@ class LogicTestEngine {
     // Pas de lock isRunning ici car les sous-methodes le gerent pas directement
     const contexts = await ensurePlteTenantsReady();
     const allRuns = [];
+    const allReports = [];
 
     for (const ctx of Object.values(contexts)) {
       try {
@@ -293,21 +354,29 @@ class LogicTestEngine {
         const weeklyResults = await runWeeklyTests(ctx);
         allResults.push(...weeklyResults);
 
-        // Self-healing
-        await runSelfHealing(ctx.tenantId, allResults);
+        // Diagnostic Engine
+        const diagnostics = await runDiagnostics(ctx.tenantId, allResults);
 
         for (const r of allResults) {
           await this.upsertTest(ctx.tenantId, r);
         }
 
-        const run = await this.saveRun(ctx.tenantId, 'full', allResults, startedAt);
+        const run = await this.saveRun(ctx.tenantId, 'full', allResults, startedAt, diagnostics);
         allRuns.push({ tenantId: ctx.tenantId, profile: ctx.profile, ...run });
+
+        const report = generateReport(ctx.tenantId, 'full', allResults, diagnostics);
+        allReports.push(report);
 
         console.log(`[PLTE v2] Full ${ctx.tenantId}: ${run.healthScore}%`);
       } catch (err) {
         console.error(`[PLTE v2] Full error for ${ctx.tenantId}:`, err.message);
       }
       await new Promise(r => setTimeout(r, 1000));
+    }
+
+    const globalReport = generateGlobalReport(allReports);
+    if (globalReport && shouldAlert(globalReport)) {
+      await sendAlert(globalReport);
     }
 
     this.logGlobalScore(allRuns, 'full');

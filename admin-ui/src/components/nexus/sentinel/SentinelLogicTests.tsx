@@ -9,6 +9,7 @@ import {
   FlaskConical, Play, ChevronDown, ChevronRight,
   CheckCircle2, XCircle, AlertTriangle, Clock, RefreshCw,
   Shield, Database, Bot, Zap, Wrench, Activity,
+  Stethoscope, CircleHelp, DollarSign,
 } from 'lucide-react';
 
 // ============================================
@@ -29,6 +30,9 @@ interface LogicTest {
   pass_count: number;
   auto_fixed?: boolean;
   fix_description?: string | null;
+  diagnosis_category?: string | null;
+  root_cause?: string | null;
+  operator_action?: string | null;
   tenant_id?: string;
   tenant_name?: string;
   profile?: string;
@@ -44,6 +48,9 @@ interface LogicRun {
   failed: number;
   errors: number;
   health_score: number;
+  diagnostics_fixed?: number;
+  diagnostics_diagnosed?: number;
+  diagnostics_unknown?: number;
   tenant_id?: string;
   tenant_name?: string;
   profile?: string;
@@ -56,6 +63,7 @@ interface StatusData {
   categories: Record<string, { total: number; pass: number; fail: number; error: number }>;
   total_tests: number;
   auto_fixed_count?: number;
+  diagnostics?: { fixed: number; diagnosed: number; unknown: number };
   profile?: string | null;
 }
 
@@ -77,6 +85,12 @@ interface GlobalData {
   }>;
   total_tenants: number;
   active_tenants: number;
+}
+
+interface CostData {
+  hourly: { cost: number; hour: string; warning: number; critical: number; status: string };
+  daily: { cost: number; day: string; warning: number; critical: number; status: string };
+  recentAlerts: Array<{ level: string; title: string; timestamp: string }>;
 }
 
 // ============================================
@@ -166,11 +180,22 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-function SelfHealedBadge() {
+function DiagnosisBadge({ category }: { category: string | null | undefined }) {
+  if (!category) return null;
+
+  const config: Record<string, { bg: string; text: string; icon: typeof CheckCircle2; label: string }> = {
+    FIXED: { bg: 'bg-green-500/15', text: 'text-green-400', icon: CheckCircle2, label: 'Fixe' },
+    DIAGNOSED: { bg: 'bg-orange-500/15', text: 'text-orange-400', icon: Stethoscope, label: 'Diagnostique' },
+    UNKNOWN: { bg: 'bg-red-500/15', text: 'text-red-400', icon: CircleHelp, label: 'Inconnu' },
+  };
+  const c = config[category];
+  if (!c) return null;
+  const Icon = c.icon;
+
   return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-500/15 text-emerald-400">
-      <Wrench size={9} />
-      Self-healed
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${c.bg} ${c.text}`}>
+      <Icon size={9} />
+      {c.label}
     </span>
   );
 }
@@ -249,22 +274,22 @@ function CategoryAccordion({
             <div key={t.id || t.name} className="px-4 py-2.5 flex items-center gap-3 hover:bg-slate-800/30 transition-colors">
               <StatusBadge status={t.last_status} />
               <SeverityBadge severity={t.severity} />
-              {t.auto_fixed && <SelfHealedBadge />}
+              <DiagnosisBadge category={t.diagnosis_category} />
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-slate-300 truncate">{t.description || t.name}</div>
                 <div className="text-[9px] text-slate-600 font-mono mt-0.5">
                   {t.tenant_name && <span className="text-cyan-500/70">[{t.tenant_name}] </span>}
                   {t.module} / {t.name}
                 </div>
+                {t.root_cause && t.last_status !== 'pass' && (
+                  <div className="text-[9px] text-orange-400/70 mt-0.5 truncate" title={t.root_cause}>
+                    Cause: {t.root_cause}
+                  </div>
+                )}
               </div>
               {t.last_run_at && (
                 <div className="text-[9px] text-slate-600 font-mono shrink-0">
                   {new Date(t.last_run_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
-              {t.last_error && t.last_status !== 'pass' && (
-                <div className="text-[9px] text-red-400/70 max-w-[200px] truncate" title={t.last_error}>
-                  {t.last_error}
                 </div>
               )}
             </div>
@@ -311,6 +336,12 @@ function RunTimeline({ runs }: { runs: LogicRun[] }) {
               {run.failed > 0 && <span className="text-red-400">{run.failed}F</span>}
               {run.errors > 0 && <span className="text-yellow-400">{run.errors}E</span>}
               <span className="text-slate-600">({run.total_tests})</span>
+              {(run.diagnostics_fixed || 0) > 0 && (
+                <span className="text-green-400/70 ml-1">{run.diagnostics_fixed}fix</span>
+              )}
+              {(run.diagnostics_diagnosed || 0) > 0 && (
+                <span className="text-orange-400/70">{run.diagnostics_diagnosed}diag</span>
+              )}
             </div>
             <span className="text-[9px] text-slate-600 font-mono shrink-0">
               {run.started_at ? new Date(run.started_at).toLocaleString('fr-FR', {
@@ -351,6 +382,79 @@ function ProfileCard({ tenant }: { tenant: GlobalData['tenants'][0] }) {
   );
 }
 
+function CostProgressBar({ label, cost, warning, critical, status }: {
+  label: string; cost: number; warning: number; critical: number; status: string;
+}) {
+  const max = critical * 1.2;
+  const pct = Math.min((cost / max) * 100, 100);
+  const warningPct = (warning / max) * 100;
+  const criticalPct = (critical / max) * 100;
+  const barColor = status === 'critical' ? 'bg-red-500' : status === 'warning' ? 'bg-orange-500' : 'bg-green-500';
+  const textColor = status === 'critical' ? 'text-red-400' : status === 'warning' ? 'text-orange-400' : 'text-green-400';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-slate-400">{label}</span>
+        <span className={`text-xs font-mono font-bold ${textColor}`}>{cost.toFixed(2)}EUR</span>
+      </div>
+      <div className="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${barColor} transition-all duration-500`} style={{ width: `${pct}%` }} />
+        <div className="absolute top-0 h-full w-px bg-yellow-500/50" style={{ left: `${warningPct}%` }} title={`Warning: ${warning}EUR`} />
+        <div className="absolute top-0 h-full w-px bg-red-500/50" style={{ left: `${criticalPct}%` }} title={`Critical: ${critical}EUR`} />
+      </div>
+      <div className="flex justify-between text-[8px] text-slate-600">
+        <span>0</span>
+        <span className="text-yellow-500/50">{warning}EUR</span>
+        <span className="text-red-500/50">{critical}EUR</span>
+      </div>
+    </div>
+  );
+}
+
+function CostWidget({ costData }: { costData: CostData | null }) {
+  if (!costData) return null;
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+        <DollarSign size={14} className="text-cyan-400" />
+        Couts IA temps reel
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CostProgressBar
+          label="Cout heure en cours"
+          cost={costData.hourly.cost}
+          warning={costData.hourly.warning}
+          critical={costData.hourly.critical}
+          status={costData.hourly.status}
+        />
+        <CostProgressBar
+          label="Cout du jour"
+          cost={costData.daily.cost}
+          warning={costData.daily.warning}
+          critical={costData.daily.critical}
+          status={costData.daily.status}
+        />
+      </div>
+      {costData.recentAlerts.length > 0 && (
+        <div className="mt-3 space-y-1">
+          <div className="text-[10px] text-slate-500 font-medium">Alertes couts recentes</div>
+          {costData.recentAlerts.slice(-3).map((a, i) => (
+            <div key={i} className="flex items-center gap-2 text-[9px]">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${a.level === 'CRITICAL' ? 'bg-red-500' : 'bg-orange-500'}`} />
+              <span className="text-slate-400 truncate flex-1">{a.title}</span>
+              <span className="text-slate-600 font-mono shrink-0">
+                {new Date(a.timestamp).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -360,18 +464,21 @@ export default function SentinelLogicTests() {
   const [history, setHistory] = useState<HistoryData | null>(null);
   const [tests, setTests] = useState<LogicTest[]>([]);
   const [globalData, setGlobalData] = useState<GlobalData | null>(null);
+  const [costData, setCostData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [runDropdown, setRunDropdown] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['hourly']));
+  const [diagFilter, setDiagFilter] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, historyRes, testsRes, globalRes] = await Promise.allSettled([
+      const [statusRes, historyRes, testsRes, globalRes, costRes] = await Promise.allSettled([
         nexusApi.get<{ data?: StatusData; success?: boolean }>('/nexus/sentinel/plte/all-status'),
         nexusApi.get<{ data?: HistoryData; success?: boolean }>('/nexus/sentinel/plte/all-history'),
         nexusApi.get<{ data?: LogicTest[]; success?: boolean }>('/nexus/sentinel/plte/all-tests'),
         nexusApi.get<{ data?: GlobalData; success?: boolean }>('/sentinel/logic/global'),
+        nexusApi.get<{ data?: CostData; success?: boolean }>('/sentinel/costs/realtime'),
       ]);
 
       if (statusRes.status === 'fulfilled') {
@@ -389,6 +496,10 @@ export default function SentinelLogicTests() {
       if (globalRes.status === 'fulfilled') {
         const d = globalRes.value;
         setGlobalData((d as { data: GlobalData }).data || d as GlobalData);
+      }
+      if (costRes.status === 'fulfilled') {
+        const d = costRes.value;
+        setCostData((d as { data: CostData }).data || null);
       }
     } catch {
       // Silent
@@ -432,13 +543,22 @@ export default function SentinelLogicTests() {
     testsByCategory[t.category].push(t);
   }
 
-  // Auto-fixed tests this week
-  const autoFixedTests = tests.filter(t => t.auto_fixed);
+  // Diagnostic-classified tests
+  const fixedTests = tests.filter(t => t.diagnosis_category === 'FIXED');
+  const diagnosedTests = tests.filter(t => t.diagnosis_category === 'DIAGNOSED');
+  const unknownTests = tests.filter(t => t.diagnosis_category === 'UNKNOWN');
+
+  // Filtered failed tests for diagnostic view
+  const filteredFailed = status?.failed_tests?.filter(t => {
+    if (!diagFilter) return true;
+    return t.diagnosis_category === diagFilter;
+  }) || [];
 
   const healthScore = status?.health_score ?? 0;
   const totalTests = status?.total_tests ?? 0;
   const failedCount = status?.failed_tests?.length ?? 0;
   const globalScore = globalData?.global_score ?? 0;
+  const diag = status?.diagnostics || { fixed: 0, diagnosed: 0, unknown: 0 };
 
   if (loading) {
     return (
@@ -462,16 +582,18 @@ export default function SentinelLogicTests() {
         <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard label="Tests total" value={totalTests} color="cyan" icon={FlaskConical} />
           <KpiCard label="En echec" value={failedCount} color={failedCount > 0 ? 'red' : 'green'} icon={XCircle} />
-          <KpiCard label="Auto-corriges" value={status?.auto_fixed_count ?? 0} color="emerald" icon={Wrench} />
+          <KpiCard label="Fixes auto" value={diag.fixed || status?.auto_fixed_count || 0} color="emerald" icon={CheckCircle2} />
           <KpiCard
-            label="Profils actifs"
-            value={globalData?.active_tenants ?? 0}
-            text={globalData ? `${globalData.active_tenants}/${globalData.total_tenants}` : undefined}
-            color="purple"
-            icon={Activity}
+            label="Diagnostiques"
+            value={diag.diagnosed + diag.unknown}
+            color={diag.diagnosed + diag.unknown > 0 ? 'orange' : 'green'}
+            icon={Stethoscope}
           />
         </div>
       </div>
+
+      {/* Widget couts IA temps reel */}
+      <CostWidget costData={costData} />
 
       {/* Vue par profil */}
       {globalData?.tenants && globalData.tenants.length > 0 && (
@@ -544,49 +666,105 @@ export default function SentinelLogicTests() {
         ))}
       </div>
 
-      {/* Auto-corrections */}
-      {autoFixedTests.length > 0 && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4">
-          <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-            <Wrench size={14} />
-            Auto-corrections ({autoFixedTests.length})
+      {/* Rapport Diagnostic */}
+      {(fixedTests.length > 0 || diagnosedTests.length > 0 || unknownTests.length > 0) && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <Stethoscope size={14} className="text-cyan-400" />
+            Rapport Diagnostic
           </h3>
+
+          {/* Diagnostic KPI badges */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => setDiagFilter(diagFilter === 'FIXED' ? null : 'FIXED')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                diagFilter === 'FIXED' ? 'bg-green-500/25 text-green-300 ring-1 ring-green-500/40' : 'bg-green-500/10 text-green-400 hover:bg-green-500/15'
+              }`}
+            >
+              <CheckCircle2 size={10} />
+              {fixedTests.length} Fixe(s)
+            </button>
+            <button
+              onClick={() => setDiagFilter(diagFilter === 'DIAGNOSED' ? null : 'DIAGNOSED')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                diagFilter === 'DIAGNOSED' ? 'bg-orange-500/25 text-orange-300 ring-1 ring-orange-500/40' : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/15'
+              }`}
+            >
+              <Stethoscope size={10} />
+              {diagnosedTests.length} Diagnostique(s)
+            </button>
+            <button
+              onClick={() => setDiagFilter(diagFilter === 'UNKNOWN' ? null : 'UNKNOWN')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                diagFilter === 'UNKNOWN' ? 'bg-red-500/25 text-red-300 ring-1 ring-red-500/40' : 'bg-red-500/10 text-red-400 hover:bg-red-500/15'
+              }`}
+            >
+              <CircleHelp size={10} />
+              {unknownTests.length} Inconnu(s)
+            </button>
+          </div>
+
+          {/* Filtered diagnostic list */}
           <div className="space-y-2">
-            {autoFixedTests.map(t => (
-              <div key={t.id || t.name} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
-                <SelfHealedBadge />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-white">{t.description || t.name}</div>
-                  {t.fix_description && (
-                    <div className="text-[10px] text-emerald-400/70 mt-1">{t.fix_description}</div>
-                  )}
+            {(diagFilter === 'FIXED' ? fixedTests : diagFilter === 'DIAGNOSED' ? diagnosedTests : diagFilter === 'UNKNOWN' ? unknownTests : [...diagnosedTests, ...unknownTests, ...fixedTests]).map(t => (
+              <div key={`diag-${t.tenant_id}-${t.id || t.name}`} className="px-3 py-2.5 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <DiagnosisBadge category={t.diagnosis_category} />
+                  <SeverityBadge severity={t.severity} />
+                  <span className="text-xs text-white flex-1 truncate">
+                    {t.tenant_name && <span className="text-cyan-400/80 mr-1">[{t.tenant_name}]</span>}
+                    {t.description || t.name}
+                  </span>
                 </div>
-                <div className="text-[9px] text-slate-600 font-mono shrink-0">
-                  {t.last_run_at ? new Date(t.last_run_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
-                </div>
+                {t.root_cause && (
+                  <div className="text-[10px] text-orange-400/80 mt-1 pl-1">
+                    Cause: {t.root_cause}
+                  </div>
+                )}
+                {t.operator_action && (
+                  <div className="text-[10px] text-yellow-400/70 mt-0.5 pl-1">
+                    Action: {t.operator_action}
+                  </div>
+                )}
+                {t.fix_description && (
+                  <div className="text-[10px] text-green-400/70 mt-0.5 pl-1">
+                    Fix: {t.fix_description}
+                  </div>
+                )}
               </div>
             ))}
+            {(!diagFilter && diagnosedTests.length === 0 && unknownTests.length === 0 && fixedTests.length === 0) && (
+              <div className="text-xs text-slate-600 text-center py-3">Aucun diagnostic en cours</div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Failed Tests Detail */}
-      {status?.failed_tests && status.failed_tests.length > 0 && (
+      {/* Failed Tests Detail (non-diagnosed) */}
+      {filteredFailed.length > 0 && (
         <div className="rounded-xl border border-red-500/20 bg-red-950/10 p-4">
           <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
             <XCircle size={14} />
-            Tests en echec ({status.failed_tests.length})
+            Tests en echec ({filteredFailed.length})
           </h3>
           <div className="space-y-2">
-            {status.failed_tests.map(t => (
+            {filteredFailed.map(t => (
               <div key={`${t.tenant_id}-${t.id || t.name}`} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
                 <SeverityBadge severity={t.severity} />
+                <DiagnosisBadge category={t.diagnosis_category} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-white">
                     {t.tenant_name && <span className="text-cyan-400/80 mr-1">[{t.tenant_name}]</span>}
                     {t.description || t.name}
                   </div>
-                  {t.last_error && (
+                  {t.root_cause && (
+                    <div className="text-[10px] text-orange-400/70 mt-1">Cause: {t.root_cause}</div>
+                  )}
+                  {t.operator_action && (
+                    <div className="text-[10px] text-yellow-400/70 mt-0.5">Action: {t.operator_action}</div>
+                  )}
+                  {t.last_error && !t.root_cause && (
                     <div className="text-[10px] text-red-400/70 mt-1 break-words">{t.last_error}</div>
                   )}
                 </div>
@@ -628,6 +806,7 @@ function KpiCard({ label, value, text, color, icon: Icon }: {
     blue: 'border-blue-800 bg-blue-950/30',
     green: 'border-green-800 bg-green-950/30',
     red: 'border-red-800 bg-red-950/30',
+    orange: 'border-orange-800 bg-orange-950/30',
     purple: 'border-purple-800 bg-purple-950/30',
     emerald: 'border-emerald-800 bg-emerald-950/30',
   };
@@ -636,17 +815,18 @@ function KpiCard({ label, value, text, color, icon: Icon }: {
     blue: 'text-blue-400',
     green: 'text-green-400',
     red: 'text-red-400',
+    orange: 'text-orange-400',
     purple: 'text-purple-400',
     emerald: 'text-emerald-400',
   };
 
   return (
-    <div className={`p-3 rounded-lg border ${bgMap[color]} transition-all`}>
+    <div className={`p-3 rounded-lg border ${bgMap[color] || bgMap.cyan} transition-all`}>
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon size={12} className={textMap[color]} />
+        <Icon size={12} className={textMap[color] || textMap.cyan} />
         <span className="text-[10px] text-slate-400">{label}</span>
       </div>
-      <div className={`text-lg font-bold font-mono ${textMap[color]}`}>
+      <div className={`text-lg font-bold font-mono ${textMap[color] || textMap.cyan}`}>
         {text ?? animated}
       </div>
     </div>

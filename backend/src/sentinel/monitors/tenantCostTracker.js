@@ -12,9 +12,20 @@ import { checkQuota, getPlan } from './quotas.js';
 import { getTenantConfig } from '../../config/tenants/index.js';
 import { saveUsage, loadTodayUsage } from '../persistence.js';
 import { PRICING as GLOBAL_PRICING } from '../../config/pricing.js';
+import { THRESHOLDS } from '../config/thresholds.js';
+import { alerter } from '../actions/alerter.js';
 
 // Structure : { tenantId: { calls, tokensIn, tokensOut, cost, history[] } }
 const tenantUsage = {};
+
+// ============================================
+// PLATFORM COST TRACKING (temps reel)
+// ============================================
+let platformHourlyCost = 0;
+let platformDailyCost = 0;
+let currentHourKey = getHourKey();
+let currentDayKey = getDayKey();
+const recentCostAlerts = [];
 
 // Prix Claude API (par token, en EUR) — depuis config/pricing.js
 const PRICING = {
@@ -54,6 +65,9 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
   tenantUsage[tenantId].tokensIn += tokensIn;
   tenantUsage[tenantId].tokensOut += tokensOut;
   tenantUsage[tenantId].cost += callCost;
+
+  // Surveillance couts plateforme temps reel
+  checkPlatformCostThresholds(callCost);
 
   // Garder les 100 derniers appels
   tenantUsage[tenantId].history.push({
@@ -152,4 +166,120 @@ export function resetTenantUsage(tenantId) {
   } else {
     Object.keys(tenantUsage).forEach(k => delete tenantUsage[k]);
   }
+}
+
+// ============================================
+// PLATFORM COST — SURVEILLANCE TEMPS REEL
+// ============================================
+
+function getHourKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}`;
+}
+
+function getDayKey() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function checkPlatformCostThresholds(callCost) {
+  const hourKey = getHourKey();
+  const dayKey = getDayKey();
+
+  // Reset compteurs si changement d'heure/jour
+  if (hourKey !== currentHourKey) {
+    platformHourlyCost = 0;
+    currentHourKey = hourKey;
+  }
+  if (dayKey !== currentDayKey) {
+    platformDailyCost = 0;
+    currentDayKey = dayKey;
+  }
+
+  platformHourlyCost += callCost;
+  platformDailyCost += callCost;
+
+  const hourlyThresholds = THRESHOLDS.hourly || { warning: 5, critical: 10 };
+  const dailyThresholds = THRESHOLDS.daily || { warning: 15, critical: 25 };
+
+  // Seuils horaires
+  if (platformHourlyCost >= hourlyThresholds.critical) {
+    sendCostAlert('CRITICAL', `Cout IA horaire critique: ${platformHourlyCost.toFixed(2)}EUR/h (seuil: ${hourlyThresholds.critical}EUR)`, {
+      type: 'hourly', cost: platformHourlyCost, threshold: hourlyThresholds.critical, hour: currentHourKey,
+    });
+  } else if (platformHourlyCost >= hourlyThresholds.warning) {
+    sendCostAlert('URGENT', `Cout IA horaire eleve: ${platformHourlyCost.toFixed(2)}EUR/h (seuil: ${hourlyThresholds.warning}EUR)`, {
+      type: 'hourly', cost: platformHourlyCost, threshold: hourlyThresholds.warning, hour: currentHourKey,
+    });
+  }
+
+  // Seuils journaliers
+  if (platformDailyCost >= dailyThresholds.critical) {
+    sendCostAlert('CRITICAL', `Cout IA journalier critique: ${platformDailyCost.toFixed(2)}EUR/j (seuil: ${dailyThresholds.critical}EUR)`, {
+      type: 'daily', cost: platformDailyCost, threshold: dailyThresholds.critical, day: currentDayKey,
+    });
+  } else if (platformDailyCost >= dailyThresholds.warning) {
+    sendCostAlert('URGENT', `Cout IA journalier eleve: ${platformDailyCost.toFixed(2)}EUR/j (seuil: ${dailyThresholds.warning}EUR)`, {
+      type: 'daily', cost: platformDailyCost, threshold: dailyThresholds.warning, day: currentDayKey,
+    });
+  }
+}
+
+async function sendCostAlert(level, title, data) {
+  try {
+    const result = await alerter.send(level, title, data);
+    if (result.sent) {
+      recentCostAlerts.push({
+        level,
+        title,
+        data,
+        timestamp: new Date().toISOString(),
+      });
+      // Garder les 50 dernieres alertes
+      if (recentCostAlerts.length > 50) recentCostAlerts.shift();
+    }
+  } catch (err) {
+    console.error('[SENTINEL] Cost alert error:', err.message);
+  }
+}
+
+/**
+ * Retourne le status des couts plateforme en temps reel
+ * Pour le dashboard et l'API
+ */
+export function getPlatformCostStatus() {
+  const hourKey = getHourKey();
+  const dayKey = getDayKey();
+
+  // Reset si changement d'heure/jour
+  if (hourKey !== currentHourKey) {
+    platformHourlyCost = 0;
+    currentHourKey = hourKey;
+  }
+  if (dayKey !== currentDayKey) {
+    platformDailyCost = 0;
+    currentDayKey = dayKey;
+  }
+
+  const hourlyThresholds = THRESHOLDS.hourly || { warning: 5, critical: 10 };
+  const dailyThresholds = THRESHOLDS.daily || { warning: 15, critical: 25 };
+
+  return {
+    hourly: {
+      cost: Math.round(platformHourlyCost * 100) / 100,
+      hour: currentHourKey,
+      warning: hourlyThresholds.warning,
+      critical: hourlyThresholds.critical,
+      status: platformHourlyCost >= hourlyThresholds.critical ? 'critical'
+        : platformHourlyCost >= hourlyThresholds.warning ? 'warning' : 'ok',
+    },
+    daily: {
+      cost: Math.round(platformDailyCost * 100) / 100,
+      day: currentDayKey,
+      warning: dailyThresholds.warning,
+      critical: dailyThresholds.critical,
+      status: platformDailyCost >= dailyThresholds.critical ? 'critical'
+        : platformDailyCost >= dailyThresholds.warning ? 'warning' : 'ok',
+    },
+    recentAlerts: recentCostAlerts.slice(-10),
+  };
 }

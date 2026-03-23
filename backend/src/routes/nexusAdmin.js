@@ -721,6 +721,24 @@ router.get('/sentinel/plte/all-status', async (req, res) => {
     // Score global
     const globalData = await logicTestEngine.getGlobalStatus();
 
+    // Diagnostic counts from latest runs
+    let totalFixed = 0, totalDiagnosed = 0, totalUnknown = 0;
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const { data: latestRun } = await supabase
+        .from('sentinel_logic_runs')
+        .select('diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown')
+        .eq('tenant_id', tenantId)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestRun) {
+        totalFixed += latestRun.diagnostics_fixed || 0;
+        totalDiagnosed += latestRun.diagnostics_diagnosed || 0;
+        totalUnknown += latestRun.diagnostics_unknown || 0;
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -729,10 +747,93 @@ router.get('/sentinel/plte/all-status', async (req, res) => {
         auto_fixed_count: autoFixedCount,
         categories,
         failed_tests: allFailed,
+        diagnostics: { fixed: totalFixed, diagnosed: totalDiagnosed, unknown: totalUnknown },
       }
     });
   } catch (error) {
     console.error('[NEXUS ADMIN] PLTE all-status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/nexus/sentinel/plte/reports
+ * Historique des rapports diagnostiques PLTE
+ */
+router.get('/sentinel/plte/reports', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+
+    const allReports = [];
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const { data: runs } = await supabase
+        .from('sentinel_logic_runs')
+        .select('id, tenant_id, run_type, started_at, health_score, passed, failed, errors, diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown, diagnostic_report')
+        .eq('tenant_id', tenantId)
+        .not('diagnostic_report', 'eq', '[]')
+        .order('started_at', { ascending: false })
+        .limit(5);
+
+      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+
+      for (const run of (runs || [])) {
+        allReports.push({ ...run, tenant_name: tenantName, profile });
+      }
+    }
+
+    allReports.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+
+    res.json({ success: true, data: allReports.slice(0, limit) });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] PLTE reports error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/nexus/sentinel/plte/reports/latest
+ * Dernier rapport global PLTE
+ */
+router.get('/sentinel/plte/reports/latest', async (req, res) => {
+  try {
+    const latestReports = [];
+    for (const tenantId of PLTE_TENANT_IDS) {
+      const { data: run } = await supabase
+        .from('sentinel_logic_runs')
+        .select('id, tenant_id, run_type, started_at, health_score, passed, failed, errors, diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown, diagnostic_report')
+        .eq('tenant_id', tenantId)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (run) {
+        const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
+        const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+        latestReports.push({ ...run, tenant_name: tenantName, profile });
+      }
+    }
+
+    const scored = latestReports.filter(r => r.health_score !== null);
+    const globalScore = scored.length > 0
+      ? Math.round(scored.reduce((s, r) => s + r.health_score, 0) / scored.length)
+      : null;
+
+    const totalFixed = latestReports.reduce((s, r) => s + (r.diagnostics_fixed || 0), 0);
+    const totalDiagnosed = latestReports.reduce((s, r) => s + (r.diagnostics_diagnosed || 0), 0);
+    const totalUnknown = latestReports.reduce((s, r) => s + (r.diagnostics_unknown || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        global_score: globalScore,
+        tenants_count: latestReports.length,
+        diagnostics: { fixed: totalFixed, diagnosed: totalDiagnosed, unknown: totalUnknown },
+        tenant_reports: latestReports,
+      }
+    });
+  } catch (error) {
+    console.error('[NEXUS ADMIN] PLTE latest report error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

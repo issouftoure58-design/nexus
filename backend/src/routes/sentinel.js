@@ -13,6 +13,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import { sentinelCollector } from '../services/sentinelCollector.js';
 import { sentinelInsights } from '../services/sentinelInsights.js';
 import { logicTestEngine } from '../services/logicTestEngine.js';
+import { getPlatformCostStatus } from '../sentinel/monitors/tenantCostTracker.js';
 
 const router = express.Router();
 
@@ -761,6 +762,24 @@ function getDefaultGoals(tenantId) {
     notify_alerts: true
   };
 }
+
+// ============================================
+// COUTS IA — TEMPS REEL
+// ============================================
+
+/**
+ * GET /api/sentinel/costs/realtime
+ * Cout heure en cours + jour + alertes recentes
+ */
+router.get('/costs/realtime', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const costStatus = getPlatformCostStatus();
+    res.json({ success: true, data: costStatus });
+  } catch (error) {
+    console.error('[SENTINEL] Costs realtime error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ============================================
 // PLTE — LOGIC TESTS
