@@ -2608,10 +2608,12 @@ export async function processMessage(message, channel, context = {}) {
     history.push({ role: 'user', content: message });
 
     // 💰 OPTIMISATION 2: Sélection intelligente du modèle via modelRouter
+    // Compter uniquement les vrais tours utilisateur (pas les tool_results)
+    const userTurnCount = history.filter(m => m.role === 'user' && typeof m.content === 'string').length;
     const routerResult = modelRouter.selectModel({
       userMessage: message,
       context: {
-        conversationLength: history.length,
+        conversationLength: userTurnCount,
         intent: context.intent,
         hasPersonalData: context.hasPersonalData
       }
@@ -2636,7 +2638,22 @@ export async function processMessage(message, channel, context = {}) {
     // 🔧 Filtrage outils par business type + plan
     const businessType = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
     const tenantPlan = tenantConfig.plan || 'starter';
-    const filteredTools = getToolsForPlanAndBusiness(tenantPlan, businessType);
+    let filteredTools = getToolsForPlanAndBusiness(tenantPlan, businessType);
+
+    // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)
+    // Sonnet reçoit tous les outils, Haiku ne reçoit que les essentiels
+    // Économie: ~10,000 tokens d'input par appel simple
+    if (selectedModel.includes('haiku')) {
+      const ESSENTIAL_TOOL_NAMES = [
+        'parse_date', 'get_services', 'get_available_slots', 'create_booking',
+        'get_business_info', 'search_client', 'get_reservations',
+      ];
+      const essentialTools = filteredTools.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
+      if (essentialTools.length > 0) {
+        console.log(`[NEXUS CORE] 💰 Haiku: ${essentialTools.length} outils essentiels (au lieu de ${filteredTools.length})`);
+        filteredTools = essentialTools;
+      }
+    }
 
     // 🫀 PULSE: Événement sélection modèle
     liveEventStream.optimization({
@@ -2663,11 +2680,26 @@ export async function processMessage(message, channel, context = {}) {
     // Appeler Claude avec les outils filtrés par business type
     console.log(`[NEXUS CORE] ${modelEmoji} Modèle: ${selectedModel.includes('haiku') ? 'HAIKU' : 'SONNET'} (${modelReason})`);
     console.log(`[NEXUS CORE] 📊 Historique: ${history.length} messages, Outils: ${filteredTools.length} (${businessType})`);
+
+    // 💰 PROMPT CACHING: system + outils cachés ~5min (90% moins cher sur tokens cachés)
+    const cachedSystem = [{
+      type: 'text',
+      text: sessionSystemPrompt,
+      cache_control: { type: 'ephemeral' }
+    }];
+    const cachedTools = filteredTools.length > 0
+      ? filteredTools.map((t, i) =>
+          i === filteredTools.length - 1
+            ? { ...t, cache_control: { type: 'ephemeral' } }
+            : t
+        )
+      : [];
+
     let response = await anthropic.messages.create({
       model: selectedModel,
       max_tokens: MAX_TOKENS,
-      system: sessionSystemPrompt,
-      tools: filteredTools,
+      system: cachedSystem,
+      tools: cachedTools,
       messages: history
     });
     console.log(`[NEXUS CORE] ✅ Réponse Claude reçue - stop_reason: ${response.stop_reason}`);
@@ -2701,13 +2733,35 @@ export async function processMessage(message, channel, context = {}) {
       // Ajouter les résultats
       history.push({ role: 'user', content: toolResults });
 
-      // Continuer la conversation (toujours Sonnet pour tool_use)
+      // Continuer la conversation — escalade Sonnet UNIQUEMENT si booking
       // 🔒 Utilise sessionSystemPrompt (prompt caché en début de session, pas re-généré)
+      const needsSonnet = toolUseBlocks.some(tb =>
+        tb.name === 'create_booking' || tb.name === 'create_appointment'
+      );
+      const toolModel = needsSonnet ? CLAUDE_SONNET : selectedModel;
+      // Si escalade Sonnet, remettre les outils complets (Haiku avait les essentiels seulement)
+      const toolLoopTools = needsSonnet
+        ? getToolsForPlanAndBusiness(tenantPlan, businessType)
+        : filteredTools;
+
+      if (needsSonnet && selectedModel !== CLAUDE_SONNET) {
+        console.log(`[NEXUS CORE] 🔄 Escalade HAIKU → SONNET (booking détecté)`);
+      }
+
+      // 💰 PROMPT CACHING sur tool loop
+      const cachedToolLoopTools = toolLoopTools.length > 0
+        ? toolLoopTools.map((t, i) =>
+            i === toolLoopTools.length - 1
+              ? { ...t, cache_control: { type: 'ephemeral' } }
+              : t
+          )
+        : [];
+
       response = await anthropic.messages.create({
-        model: CLAUDE_SONNET,
+        model: toolModel,
         max_tokens: MAX_TOKENS,
-        system: sessionSystemPrompt,
-        tools: filteredTools,
+        system: cachedSystem,
+        tools: cachedToolLoopTools,
         messages: history
       });
     }
@@ -3116,9 +3170,11 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     history.push({ role: 'user', content: message });
 
     // Sélection adaptative du modèle via modelRouter centralisé
+    // Compter uniquement les vrais tours utilisateur (pas les tool_results)
+    const userTurnCountStream = history.filter(m => m.role === 'user' && typeof m.content === 'string').length;
     const routerResultStream = modelRouter.selectModel({
       userMessage: message,
-      context: { conversationLength: history.length }
+      context: { conversationLength: userTurnCountStream }
     });
     const selectedModel = routerResultStream.model;
     const modelReason = routerResultStream.reason;
@@ -3134,22 +3190,49 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     // 🔧 Filtrage outils par business type + plan
     const businessTypeStream = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
     const tenantPlanStream = tenantConfig.plan || 'starter';
-    const filteredToolsStream = getToolsForPlanAndBusiness(tenantPlanStream, businessTypeStream);
+    let filteredToolsStream = getToolsForPlanAndBusiness(tenantPlanStream, businessTypeStream);
+
+    // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)
+    if (selectedModel.includes('haiku')) {
+      const ESSENTIAL_TOOL_NAMES = [
+        'parse_date', 'get_services', 'get_available_slots', 'create_booking',
+        'get_business_info', 'search_client', 'get_reservations',
+      ];
+      const essentialTools = filteredToolsStream.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
+      if (essentialTools.length > 0) {
+        console.log(`[NEXUS CORE] 💰 Haiku stream: ${essentialTools.length} outils essentiels (au lieu de ${filteredToolsStream.length})`);
+        filteredToolsStream = essentialTools;
+      }
+    }
 
     let currentModel = selectedModel;
     let continueLoop = true;
     let fullResponseText = '';
     let allToolResults = [];
 
+    // 💰 PROMPT CACHING streaming: system + outils cachés ~5min
+    const cachedStreamSystem = [{
+      type: 'text',
+      text: sessionStreamPrompt,
+      cache_control: { type: 'ephemeral' }
+    }];
+    let cachedStreamTools = filteredToolsStream.length > 0
+      ? filteredToolsStream.map((t, i) =>
+          i === filteredToolsStream.length - 1
+            ? { ...t, cache_control: { type: 'ephemeral' } }
+            : t
+        )
+      : [];
+
     while (continueLoop) {
       console.log(`[NEXUS CORE] 🤖 Appel Claude API (streaming, ${currentModel === CLAUDE_HAIKU ? 'HAIKU' : 'SONNET'})...`);
 
-      // Utiliser le streaming avec prompt caché et outils filtrés
+      // Utiliser le streaming avec prompt caché et outils filtrés + cache
       const stream = await anthropic.messages.stream({
         model: currentModel,
         max_tokens: MAX_TOKENS,
-        system: sessionStreamPrompt,
-        tools: filteredToolsStream,
+        system: cachedStreamSystem,
+        tools: cachedStreamTools,
         messages: history
       });
 
@@ -3219,8 +3302,22 @@ export async function* processMessageStreaming(message, channel, context = {}) {
         }
 
         history.push({ role: 'user', content: toolResults });
-        // Si tool_use, passer à Sonnet pour la suite
-        currentModel = CLAUDE_SONNET;
+        // Escalade Sonnet UNIQUEMENT si booking
+        const needsSonnetStream = toolUseBlocks.some(tb =>
+          tb.name === 'create_booking' || tb.name === 'create_appointment'
+        );
+        if (needsSonnetStream) {
+          currentModel = CLAUDE_SONNET;
+          // Remettre les outils complets pour Sonnet + cache
+          filteredToolsStream = getToolsForPlanAndBusiness(tenantPlanStream, businessTypeStream);
+          cachedStreamTools = filteredToolsStream.map((t, i) =>
+            i === filteredToolsStream.length - 1
+              ? { ...t, cache_control: { type: 'ephemeral' } }
+              : t
+          );
+          console.log(`[NEXUS CORE] 🔄 Stream: Escalade → SONNET (booking détecté)`);
+        }
+        // Sinon: currentModel reste Haiku
         // Continuer la boucle pour la réponse suivante
       } else {
         continueLoop = false;

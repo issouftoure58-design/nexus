@@ -127,9 +127,17 @@ class ModelRouter {
     }
 
     // 5. Prise de RDV (Sonnet) - score 5
+    // IMPORTANT: distinguer "je veux réserver" (action) de "combien de réservations" (info)
+    const bookingActionPatterns = [
+      /(?:je\s+)?(?:veux|voudrais|souhaite|aimerais)\s+(?:r[eé]serv|prendre)/i,
+      /(?:prendre|fixer|poser)\s+(?:un\s+)?(?:rendez-vous|rdv)/i,
+      /(?:disponible|cr[eé]neau|slot)\s+(?:pour|le|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi)/i,
+      /r[eé]server?\s+(?:un|une|pour|le|ce)/i,
+    ];
+    const isBookingInfo = /combien|nombre|liste|historique|aujourd|cette semaine|ce mois/i.test(msgLower);
+
     if (context.intent === 'booking' ||
-        /rendez-vous|rdv|r[eé]serv/i.test(msgLower) ||
-        /disponible|cr[eé]neau|slot/i.test(msgLower)) {
+        (!isBookingInfo && bookingActionPatterns.some(p => p.test(msgLower)))) {
       reasons.push('Prise de RDV - logique complexe');
       score = 5;
     }
@@ -168,8 +176,8 @@ class ModelRouter {
     }
 
     return {
-      score: score || 3, // Par defaut moyen
-      reasons: reasons.length > 0 ? reasons : ['Complexite moyenne']
+      score: score || 1, // Par defaut simple → Haiku (seuls patterns complexes montent vers Sonnet)
+      reasons: reasons.length > 0 ? reasons : ['Message simple - Haiku']
     };
   }
 
