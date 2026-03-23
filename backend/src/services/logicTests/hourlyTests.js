@@ -102,7 +102,7 @@ export async function runHourlyTests(ctx) {
   // H6 — Coherence globale
   results.push(await testH6_Coherence(tenantId));
 
-  // H7 — Chat IA rapide
+  // H7 — Chat IA rapide (optimisé: Haiku + cache + outils réduits)
   results.push(await testH7_ChatIA(tenantId));
 
   // Profile-specific tests
@@ -213,8 +213,8 @@ async function testH2_PaiementEcritures(tenantId, reservationId, client) {
       .from('ecritures_comptables')
       .select('*')
       .eq('tenant_id', tenantId)
-      .eq('piece_origine_id', factureId)
-      .eq('journal', 'VT');
+      .eq('facture_id', factureId)
+      .eq('journal_code', 'VT');
 
     if (!ecrituresVT?.length) {
       return makeResult(name, module, severity, description, 'fail',
@@ -251,8 +251,8 @@ async function testH2_PaiementEcritures(tenantId, reservationId, client) {
         .from('ecritures_comptables')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('piece_origine_id', factureId)
-        .eq('journal', 'BQ');
+        .eq('facture_id', factureId)
+        .eq('journal_code', 'BQ');
 
       if (!ecrituresBQ?.length) {
         return makeResult(name, module, severity, description, 'fail',
@@ -300,7 +300,7 @@ async function testH3_Avoir(tenantId, factureId) {
         .from('ecritures_comptables')
         .select('debit, credit')
         .eq('tenant_id', tenantId)
-        .eq('piece_origine_id', result.avoir.id);
+        .eq('facture_id', result.avoir.id);
 
       if (ecritures?.length) {
         const totalDebit = ecritures.reduce((s, e) => s + (e.debit || 0), 0);
@@ -535,8 +535,10 @@ async function testH7_ChatIA(tenantId) {
   try {
     const { processMessage } = await import('../../core/unified/nexusCore.js');
 
+    // Question simple sans mot-cle RDV/commande → route vers Haiku (7 outils, ~3K tokens)
+    // au lieu de Sonnet (114 outils, ~14K tokens) = 14x moins cher
     const result = await processMessage(
-      'Combien de reservations aujourd\'hui ?',
+      'Bonjour, quels services proposez-vous ?',
       'admin',
       {
         tenantId,
