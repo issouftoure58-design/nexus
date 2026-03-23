@@ -4,7 +4,7 @@ services:
     name: nexus-backend-dev
     runtime: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install && node scripts/obfuscate.js
     startCommand: node src/index.js
     healthCheckPath: /health
     envVars:
