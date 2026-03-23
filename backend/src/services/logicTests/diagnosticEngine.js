@@ -22,7 +22,7 @@ export async function runDiagnostics(tenantId, testResults) {
   if (!tenantId) throw new Error('tenant_id requis');
 
   const diagnostics = [];
-  const failedTests = testResults.filter(r => r.status === 'fail');
+  const failedTests = testResults.filter(r => r.status === 'fail' || r.status === 'error');
 
   if (failedTests.length === 0) return diagnostics;
 
@@ -69,20 +69,46 @@ export async function runDiagnostics(tenantId, testResults) {
  * Route un test en echec vers le handler diagnostique appropriate
  */
 async function diagnose(tenantId, test) {
-  const error = test.error || '';
+  const error = (test.error || '').toLowerCase();
+  const name = (test.name || '').toLowerCase();
+  const desc = (test.description || '').toLowerCase();
 
-  // === Ecritures desequilibrees ===
-  if (test.name?.includes('coherence') && error.includes('desequilibree')) {
-    return await diagnoseUnbalancedEntries(tenantId, test, error);
+  // === H1 — Reservation echouee ===
+  if (name.includes('h1') || name.includes('reservation_unified')) {
+    return diagnoseReservationFailure(tenantId, test);
   }
 
-  // === Facture payee sans ecritures BQ ===
-  if (error.includes('sans ecritures BQ') || error.includes('payee(s) sans ecritures')) {
+  // === H2 — Facturation / ecritures VT/BQ ===
+  if (name.includes('h2') || name.includes('paiement_ecritures') ||
+      desc.includes('facturation') || desc.includes('ecritures comptables')) {
+    return diagnoseFacturationFailure(tenantId, test);
+  }
+
+  // === H7 — Chat IA ===
+  if (name.includes('h7') || name.includes('chat_ia') || desc.includes('chat ia') || desc.includes('assistant ia')) {
+    return diagnoseChatIAFailure(tenantId, test);
+  }
+
+  // === Profile bootstrap — tables, chambres, agents, sites, zones ===
+  if (name.startsWith('p_') || error.includes('aucune table') || error.includes('aucune chambre') ||
+      error.includes('aucun agent') || error.includes('aucun site') || error.includes('aucune zone') ||
+      error.includes('configure') || desc.includes('tables presentes') || desc.includes('chambres configurees') ||
+      desc.includes('agents et sites') || desc.includes('zones intervention')) {
+    return diagnoseProfileBootstrap(tenantId, test);
+  }
+
+  // === Ecritures desequilibrees (N6/H6 coherence) ===
+  if (name.includes('coherence') && error.includes('desequilibree')) {
+    return await diagnoseUnbalancedEntries(tenantId, test, test.error || '');
+  }
+
+  // === Facture payee sans ecritures BQ (nightly) ===
+  if (error.includes('sans ecritures bq') || error.includes('payee(s) sans ecritures')) {
     return await diagnoseMissingPaymentEntries(tenantId, test);
   }
 
   // === Solde fidelite incoherent ===
-  if (test.name?.includes('fidelite') && error.includes('incoherent')) {
+  if (name.includes('fidelite') && error.includes('incoherent')) {
     return await diagnoseLoyaltyBalance(tenantId, test);
   }
 
@@ -96,20 +122,319 @@ async function diagnose(tenantId, test) {
     return await diagnoseMissingAvoirEntries(tenantId, test);
   }
 
-  // Pas de handler pour ce type d'erreur
+  // === Fidelite schema/BDD ===
+  if (name.includes('fidelite') && (error.includes('schema') || error.includes('colonne'))) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Schema BDD fidelite incomplet',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier les colonnes de la table loyalty_transactions (migration manquante ?)',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === Bootstrap check (H0) ===
+  if (name.includes('h0') || name.includes('bootstrap')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Donnees bootstrap manquantes',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier seedProfileData — clients et/ou services non crees pour ce tenant',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // Fallback — UNKNOWN avec info utile
   return {
     category: 'UNKNOWN',
     test_name: test.name,
-    root_cause: `Aucun handler diagnostique pour ce type d'erreur`,
-    root_cause_detail: error.substring(0, 200),
+    root_cause: `Pas de handler diagnostique pour: ${test.name}`,
+    root_cause_detail: test.error?.substring(0, 200),
     fix_applied: null,
-    operator_action: 'Analyser manuellement ce type de test',
-    evidence: { test_name: test.name, error_snippet: error.substring(0, 100) },
+    operator_action: 'Analyser manuellement — verifier les logs serveur',
+    evidence: { test_name: test.name, error_snippet: test.error?.substring(0, 100) },
   };
 }
 
 // ============================================
-// HANDLERS DIAGNOSTIQUES
+// HANDLERS DIAGNOSTIQUES — NOUVEAUX (H1, H2, H7, Profile)
+// ============================================
+
+/**
+ * H1 — Reservation echouee
+ * Diagnostic de la cause racine de l'echec reservation
+ */
+function diagnoseReservationFailure(tenantId, test) {
+  const error = test.error || '';
+
+  // Service non trouve
+  if (/service.*introuvable|service.*trouve|service_nom.*match/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Service non trouve lors de la reservation',
+      error.substring(0, 200),
+      null,
+      'Verifier que les services crees par seedProfileData matchent les noms utilises dans createReservationUnified',
+      { tenantId });
+  }
+
+  // Erreur BDD / schema
+  if (/schema|PGRST|42P01|column|colonne/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Erreur schema BDD lors de la reservation',
+      error.substring(0, 200),
+      null,
+      'Migration BDD manquante — verifier la structure de la table reservations',
+      { tenantId });
+  }
+
+  // Permission / RLS
+  if (/permission|denied|RLS/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Permission refusee (RLS) pour creer la reservation',
+      error.substring(0, 200),
+      null,
+      'Verifier les policies RLS sur la table reservations pour ce tenant',
+      { tenantId });
+  }
+
+  // Erreur createReservationUnified generique
+  return makeDiag('DIAGNOSED', test.name,
+    'Reservation echouee — createReservationUnified a retourne une erreur',
+    error.substring(0, 200),
+    null,
+    'Verifier createReservationUnified dans nexusCore.js — logs serveur pour detail',
+    { tenantId });
+}
+
+/**
+ * H2 — Facturation / ecritures VT/BQ echouee
+ * Diagnostique la cascade reservation → facture → ecritures
+ */
+function diagnoseFacturationFailure(tenantId, test) {
+  const error = test.error || '';
+
+  // H1 en echec → cascade
+  if (/h1.*echec|skip.*h2|h1.*skip/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Test saute — depend de H1 (reservation) qui a echoue',
+      'H2 facturation ne peut pas s\'executer sans reservation H1 reussie',
+      null,
+      'Corriger d\'abord l\'echec H1 (reservation) — H2 suivra automatiquement',
+      { tenantId, dependency: 'H1_reservation_unified' });
+  }
+
+  // Creation facture echouee
+  if (/creation facture echouee|facture.*echouee|factureresult/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Creation de la facture echouee',
+      error.substring(0, 200),
+      null,
+      'Verifier createFactureFromReservation dans factures.js — reservation peut manquer de service_nom ou de montant',
+      { tenantId });
+  }
+
+  // Ecritures VT non generees
+  if (/ecritures vt non generees|vt.*non.*genere/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Ecritures comptables VT non generees apres creation facture',
+      error.substring(0, 200),
+      null,
+      'Verifier genererEcrituresFacture dans factures.js — facture existe mais ecritures VT absentes',
+      { tenantId });
+  }
+
+  // Ecritures VT desequilibrees
+  if (/vt.*desequilibree/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Ecritures VT desequilibrees (debit != credit)',
+      error.substring(0, 200),
+      null,
+      'Verifier le calcul TVA dans genererEcrituresFacture — debit/credit totaux ne matchent pas',
+      { tenantId });
+  }
+
+  // Ecritures BQ non generees
+  if (/ecritures bq non generees|bq.*non.*genere/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Ecritures BQ (paiement) non generees',
+      error.substring(0, 200),
+      null,
+      'Verifier genererEcrituresPaiement dans factures.js — facture payee mais ecritures BQ absentes',
+      { tenantId });
+  }
+
+  // Ecritures BQ desequilibrees
+  if (/bq.*desequilibree/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Ecritures BQ desequilibrees (debit != credit)',
+      error.substring(0, 200),
+      null,
+      'Verifier le calcul dans genererEcrituresPaiement — montant TTC vs ecritures banque/client',
+      { tenantId });
+  }
+
+  // Erreur schema / BDD
+  if (/schema|PGRST|42P01|column|colonne/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Erreur schema BDD lors de la facturation',
+      error.substring(0, 200),
+      null,
+      'Migration manquante — verifier les colonnes des tables factures et ecritures_comptables',
+      { tenantId });
+  }
+
+  // Erreur generique facturation
+  return makeDiag('DIAGNOSED', test.name,
+    'Echec facturation — erreur dans le flux facture/ecritures',
+    error.substring(0, 200),
+    null,
+    'Verifier les logs serveur pour createFactureFromReservation et genererEcrituresFacture',
+    { tenantId });
+}
+
+/**
+ * H7 — Chat IA echoue
+ * Diagnostique les erreurs de l'assistant IA
+ */
+function diagnoseChatIAFailure(tenantId, test) {
+  const error = test.error || '';
+
+  // Config IA manquante
+  if (/TENANT_ID_REQUIRED|configuration.*manquante|config.*ia/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Configuration IA manquante pour ce tenant',
+      error.substring(0, 200),
+      null,
+      'Verifier que le tenant a une config IA active (cle API, modele, etc.) dans profile_config',
+      { tenantId });
+  }
+
+  // Erreur API Claude / timeout
+  if (/timeout|delai.*depasse|ECONNREFUSED|502|503|529|overloaded/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'API Claude indisponible ou timeout',
+      error.substring(0, 200),
+      null,
+      'Probleme temporaire API — aucune action requise si ponctuel. Verifier le statut Anthropic si recurrent.',
+      { tenantId });
+  }
+
+  // Quota / rate limit
+  if (/rate.*limit|quota|429|credit/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Rate limit ou quota API IA atteint',
+      error.substring(0, 200),
+      null,
+      'Verifier les credits Anthropic et le rate limiting. Reduire la frequence PLTE si necessaire.',
+      { tenantId });
+  }
+
+  // Reponse vide ou trop courte
+  if (/reponse.*trop courte|reponse.*vide|pas de reponse/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Reponse IA vide ou trop courte',
+      error.substring(0, 200),
+      null,
+      'L\'IA a repondu mais contenu insuffisant — verifier le prompt systeme et les outils disponibles',
+      { tenantId });
+  }
+
+  // Erreur schema BDD
+  if (/schema|PGRST|colonne/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Erreur BDD dans le traitement IA',
+      error.substring(0, 200),
+      null,
+      'Schema BDD incomplet — migration manquante affectant processMessage',
+      { tenantId });
+  }
+
+  // Erreur generique IA
+  return makeDiag('DIAGNOSED', test.name,
+    'Echec Chat IA — erreur dans processMessage',
+    error.substring(0, 200),
+    null,
+    'Verifier les logs serveur pour processMessage — erreur IA non categorisee',
+    { tenantId });
+}
+
+/**
+ * P_* — Tests profil (bootstrap data manquante)
+ * Diagnostique les donnees metier manquantes par profil
+ */
+function diagnoseProfileBootstrap(tenantId, test) {
+  const error = test.error || '';
+  const name = test.name || '';
+
+  // Restaurant — tables
+  if (/table/i.test(error) || name.includes('restaurant_table')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Tables restaurant non configurees dans le bootstrap',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData pour le profil restaurant — tables avec zone et capacite doivent etre creees',
+      { tenantId, profile: 'restaurant', missing: 'tables' });
+  }
+
+  // Hotel — chambres
+  if (/chambre/i.test(error) || name.includes('hotel_chambre')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Chambres hotel non configurees dans le bootstrap',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData pour le profil hotel — chambres avec type et capacite doivent etre creees',
+      { tenantId, profile: 'hotel', missing: 'chambres' });
+  }
+
+  // Securite — agents / sites
+  if (/agent/i.test(error) || /site/i.test(error) || name.includes('securite')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Agents ou sites securite non configures dans le bootstrap',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData pour le profil securite — agents et sites doivent etre crees',
+      { tenantId, profile: 'securite', missing: 'agents/sites' });
+  }
+
+  // Domicile — zones intervention
+  if (/zone/i.test(error) || name.includes('domicile')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Zones intervention non configurees dans le bootstrap',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData pour le profil domicile — zones avec rayon_km doivent etre creees',
+      { tenantId, profile: 'domicile', missing: 'zones' });
+  }
+
+  // Generique profil — prix, services, forfaits
+  if (/prix|service|forfait/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Configuration metier manquante (services/prix)',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData — services avec prix doivent etre crees pour ce profil',
+      { tenantId, missing: 'services/prix' });
+  }
+
+  // Capacite manquante
+  if (/capacite/i.test(error)) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Capacite non definie sur les entites metier',
+      error.substring(0, 200),
+      null,
+      'Verifier seedProfileData — champ capacite requis sur tables/chambres/zones',
+      { tenantId, missing: 'capacite' });
+  }
+
+  // Generique profil
+  return makeDiag('DIAGNOSED', test.name,
+    'Donnees metier profil manquantes dans le bootstrap',
+    error.substring(0, 200),
+    null,
+    'Verifier seedProfileData pour ce profil — donnees metier non creees ou incompletes',
+    { tenantId });
+}
+
+// ============================================
+// HANDLERS DIAGNOSTIQUES — ORIGINAUX (coherence, BQ, fidelite, stock, avoir)
 // ============================================
 
 /**
