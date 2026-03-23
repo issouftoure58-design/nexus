@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CV — Issouf Toure</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: #1a1a2e;
+      background: #f5f5f7;
+      line-height: 1.45;
+    }
+
+    .page {
+      max-width: 794px;
+      height: 1123px;
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    /* === HEADER === */
+    .header {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+      color: white;
+      padding: 34px 44px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .header-left h1 {
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 3px;
+    }
+
+    .header-left .title {
+      font-size: 14px;
+      font-weight: 400;
+      color: #a78bfa;
+      margin-bottom: 8px;
+    }
+
+    .header-left .tagline {
+      font-size: 11px;
+      font-weight: 300;
+      color: #94a3b8;
+      max-width: 370px;
+      line-height: 1.55;
+    }
+
+    .header-right {
+      text-align: right;
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.8;
+    }
+
+    .header-right a {
+      color: #a78bfa;
+      text-decoration: none;
+    }
+
+    /* === BODY === */
+    .content {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      height: calc(1123px - 115px);
+    }
+
+    /* === SIDEBAR === */
+    .sidebar {
+      background: #f8f9fb;
+      padding: 24px 22px;
+      border-right: 1px solid #e5e7eb;
+    }
+
+    .sidebar h3 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.3px;
+      color: #6b21a8;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #e9d5ff;
+    }
+
+    .sidebar section {
+      margin-bottom: 20px;
+    }
+
+    .skill-group {
+      margin-bottom: 10px;
+    }
+
+    .skill-group-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+
+    .skill-tag {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2.5px 7px;
+      border-radius: 3px;
+      margin: 1.5px 2px 1.5px 0;
+    }
+
+    .sidebar .item {
+      margin-bottom: 8px;
+    }
+
+    .sidebar .item-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .sidebar .item-value {
+      font-size: 10.5px;
+      color: #6b7280;
+      line-height: 1.4;
+    }
+
+    .lang-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+    }
+
+    .lang-bar .lang-name {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: #374151;
+      width: 56px;
+    }
+
+    .lang-bar .bar {
+      flex: 1;
+      height: 5px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .lang-bar .bar-fill {
+      height: 100%;
+      background: #7c3aed;
+      border-radius: 3px;
+    }
+
+    .lang-bar .level {
+      font-size: 9.5px;
+      color: #9ca3af;
+      width: 40px;
+      text-align: right;
+    }
+
+    /* === MAIN === */
+    .main {
+      padding: 24px 32px;
+    }
+
+    .main h2 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.1px;
+      color: #6b21a8;
+      margin-bottom: 12px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #e9d5ff;
+    }
+
+    .main section {
+      margin-bottom: 18px;
+    }
+
+    /* === EXPERIENCE ITEM === */
+    .exp-item {
+      margin-bottom: 14px;
+      position: relative;
+      padding-left: 14px;
+      border-left: 2px solid #e9d5ff;
+    }
+
+    .exp-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .exp-item::before {
+      content: '';
+      position: absolute;
+      left: -4.5px;
+      top: 5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #7c3aed;
+    }
+
+    .exp-item.current::before {
+      box-shadow: 0 0 0 2.5px #ede9fe;
+    }
+
+    .exp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1px;
+    }
+
+    .exp-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .exp-date {
+      font-size: 10px;
+      font-weight: 500;
+      color: #7c3aed;
+      white-space: nowrap;
+    }
+
+    .exp-company {
+      font-size: 11px;
+      font-weight: 500;
+      color: #6b7280;
+      margin-bottom: 3px;
+    }
+
+    .exp-desc {
+      font-size: 11px;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    /* === FORMATION === */
+    .formation-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 7px;
+    }
+
+    .formation-item .diploma {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #1a1a2e;
+    }
+
+    .formation-item .school {
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    .formation-item .year {
+      font-size: 10px;
+      font-weight: 500;
+      color: #7c3aed;
+      white-space: nowrap;
+    }
+
+    /* === PROJET NEXUS === */
+    .nexus-highlight {
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+      border: 1px solid #e9d5ff;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 5px;
+    }
+
+    .nexus-highlight .nh-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #5b21b6;
+      margin-bottom: 5px;
+    }
+
+    .nexus-highlight .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 10px;
+    }
+
+    .nexus-highlight .stat {
+      font-size: 10px;
+      color: #4b5563;
+    }
+
+    .nexus-highlight .stat strong {
+      color: #5b21b6;
+    }
+
+    /* === PRINT === */
+    @media print {
+      body { background: white; margin: 0; }
+      .page { box-shadow: none; margin: 0; width: 100%; height: auto; max-height: 100vh; }
+      @page { margin: 0; size: A4; }
+
+      /* Force print backgrounds (colors, gradients, images) */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left">
+        <h1>Issouf Toure</h1>
+        <div class="title">Fondateur & CTO — NEXUS</div>
+        <div class="tagline">
+          Entrepreneur et developpeur full-stack. 10 ans en comptabilite, 4 ans de gestion d'entreprise.
+          Createur de NEXUS, plateforme SaaS multi-tenant de gestion intelligente pour PME.
+        </div>
+      </div>
+      <div class="header-right">
+        +33 7 60 53 76 94<br>
+        nexussentinelai@yahoo.com<br>
+        Franconville (95130)<br>
+        <a href="https://nexus-ai-saas.com">nexus-ai-saas.com</a><br>
+        SIREN : 947 570 362
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+
+        <section>
+          <h3>Competences</h3>
+
+          <div class="skill-group">
+            <div class="skill-group-label">Developpement</div>
+            <span class="skill-tag">JavaScript</span>
+            <span class="skill-tag">TypeScript</span>
+            <span class="skill-tag">React</span>
+            <span class="skill-tag">Node.js</span>
+            <span class="skill-tag">Express</span>
+            <span class="skill-tag">PostgreSQL</span>
+            <span class="skill-tag">Supabase</span>
+            <span class="skill-tag">Vite</span>
+            <span class="skill-tag">Tailwind</span>
+          </div>
+
+          <div class="skill-group">
+            <div class="skill-group-label">IA & APIs</div>
+            <span class="skill-tag">Claude / Anthropic</span>
+            <span class="skill-tag">OpenAI</span>
+            <span class="skill-tag">Stripe</span>
+            <span class="skill-tag">Twilio</span>
+            <span class="skill-tag">Resend</span>
+            <span class="skill-tag">REST API</span>
+          </div>
+
+          <div class="skill-group">
+            <div class="skill-group-label">Infra & DevOps</div>
+            <span class="skill-tag">Git / GitHub</span>
+            <span class="skill-tag">CI/CD</span>
+            <span class="skill-tag">Render</span>
+            <span class="skill-tag">Redis</span>
+          </div>
+
+          <div class="skill-group">
+            <div class="skill-group-label">Comptabilite & Gestion</div>
+            <span class="skill-tag">Plan comptable</span>
+            <span class="skill-tag">FEC</span>
+            <span class="skill-tag">Rapprochement</span>
+            <span class="skill-tag">Facturation</span>
+            <span class="skill-tag">TVA</span>
+            <span class="skill-tag">DSN / Paie</span>
+          </div>
+        </section>
+
+        <section>
+          <h3>Langues</h3>
+          <div class="lang-bar">
+            <span class="lang-name">Francais</span>
+            <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
+            <span class="level">Natif</span>
+          </div>
+          <div class="lang-bar">
+            <span class="lang-name">Anglais</span>
+            <div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+            <span class="level">B1</span>
+          </div>
+        </section>
+
+        <section>
+          <h3>Certifications</h3>
+          <div class="item">
+            <div class="item-label">CQP APS</div>
+            <div class="item-value">Agent Prevention Securite (2008)</div>
+          </div>
+          <div class="item">
+            <div class="item-label">SSIAP 1</div>
+            <div class="item-value">Securite Incendie (2024)</div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Qualites</h3>
+          <div class="item">
+            <div class="item-value">Determination — SaaS complet construit seul, en autodidacte, en 18 mois</div>
+          </div>
+          <div class="item">
+            <div class="item-value">Polyvalence — profil technique, comptable et entrepreneurial</div>
+          </div>
+          <div class="item">
+            <div class="item-value">Vision produit — connaissance terrain des besoins PME</div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+
+        <!-- EXPERIENCE -->
+        <section>
+          <h2>Experience professionnelle</h2>
+
+          <div class="exp-item current">
+            <div class="exp-header">
+              <span class="exp-title">Fondateur & CTO</span>
+              <span class="exp-date">2024 — present</span>
+            </div>
+            <div class="exp-company">NEXUS.AI — Franconville (95)</div>
+            <div class="exp-desc">
+              Conception, developpement et mise en production d'une plateforme SaaS multi-tenant de gestion intelligente pour PME.
+              <div class="nexus-highlight">
+                <div class="nh-title">Projet NEXUS — en production</div>
+                <div class="stat-grid">
+                  <div class="stat"><strong>74</strong> routes API, <strong>78</strong> services</div>
+                  <div class="stat"><strong>43</strong> pages, <strong>49</strong> composants</div>
+                  <div class="stat"><strong>87</strong> migrations SQL</div>
+                  <div class="stat"><strong>484</strong> tests automatises</div>
+                  <div class="stat"><strong>105</strong> outils IA integres</div>
+                  <div class="stat">Score technique <strong>100/100</strong></div>
+                  <div class="stat"><strong>6</strong> types d'activites</div>
+                  <div class="stat"><strong>2 clients</strong> (1 prod, 1 beta)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="exp-item">
+            <div class="exp-header">
+              <span class="exp-title">Agent de securite — SSIAP 1</span>
+              <span class="exp-date">2023 — 2025</span>
+            </div>
+            <div class="exp-company">Securite privee</div>
+            <div class="exp-desc">Surveillance, controle d'acces, securite incendie.</div>
+          </div>
+
+          <div class="exp-item">
+            <div class="exp-header">
+              <span class="exp-title">Gerant de SARL — Livraison de colis</span>
+              <span class="exp-date">2019 — 2023</span>
+            </div>
+            <div class="exp-company">Entrepreneur (4 ans)</div>
+            <div class="exp-desc">
+              Creation et gestion complete d'une societe de livraison. Administration, comptabilite, relation client, management operationnel et logistique.
+            </div>
+          </div>
+
+          <div class="exp-item">
+            <div class="exp-header">
+              <span class="exp-title">Comptable</span>
+              <span class="exp-date">2014 — 2020</span>
+            </div>
+            <div class="exp-company">Entreprise (6 ans)</div>
+            <div class="exp-desc">
+              Tenue comptable complete, lettrage, rapprochement bancaire. Declarations TVA, preparation bilans, liasses fiscales. Immobilisations et tresorerie.
+            </div>
+          </div>
+
+          <div class="exp-item">
+            <div class="exp-header">
+              <span class="exp-title">Assistant comptable</span>
+              <span class="exp-date">2010 — 2013</span>
+            </div>
+            <div class="exp-company">Cabinet / Entreprise</div>
+            <div class="exp-desc">Saisie comptable, rapprochements, declarations fiscales.</div>
+          </div>
+
+        </section>
+
+        <!-- FORMATION -->
+        <section>
+          <h2>Formation</h2>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">Developpement full-stack (autodidacte)</span>
+              <span class="school"> — React, Node.js, TypeScript, PostgreSQL, IA</span>
+            </div>
+            <span class="year">2024 — 2026</span>
+          </div>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">SSIAP 1</span>
+              <span class="school"> — Securite Incendie</span>
+            </div>
+            <span class="year">2024</span>
+          </div>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">Bac Pro Comptabilite</span>
+              <span class="school"> — Alternance</span>
+            </div>
+            <span class="year">2010</span>
+          </div>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">Comptabilite et Gestion Informatisee</span>
+              <span class="school"> — IFOCOP</span>
+            </div>
+            <span class="year">2009</span>
+          </div>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">CQP APS</span>
+              <span class="school"> — Agent Prevention Securite</span>
+            </div>
+            <span class="year">2008</span>
+          </div>
+
+          <div class="formation-item">
+            <div>
+              <span class="diploma">BEP Comptabilite</span>
+            </div>
+            <span class="year">2006</span>
+          </div>
+
+        </section>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

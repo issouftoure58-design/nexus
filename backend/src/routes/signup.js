@@ -90,11 +90,13 @@ router.get('/secteurs', async (req, res) => {
 });
 
 /**
- * GET /api/signup/business-types
- * Liste des types de structure juridique
+ * GET /api/signup/structures-juridiques (alias: /business-types pour rétrocompatibilité)
+ * Liste des structures juridiques disponibles (independent / company)
+ * NOTE: Ne pas confondre avec les 6 types métier NEXUS (salon, restaurant, etc.)
+ *       qui sont dans business_profile / GET /api/admin/profile
  */
-router.get('/business-types', (req, res) => {
-  const businessTypes = [
+router.get('/structures-juridiques', (req, res) => {
+  const structures = [
     {
       id: 'independent',
       name: 'Indépendant / Auto-entrepreneur',
@@ -128,7 +130,31 @@ router.get('/business-types', (req, res) => {
     },
   ];
 
-  res.json({ success: true, businessTypes, taxStatuses });
+  res.json({ success: true, structures, taxStatuses });
+});
+
+// Alias rétrocompatibilité
+router.get('/business-types', (req, res) => {
+  // Redirige vers structures-juridiques
+  const structures = [
+    {
+      id: 'independent',
+      name: 'Indépendant / Auto-entrepreneur',
+      description: 'Freelance, service à domicile, micro-entreprise',
+      examples: ['Coiffeur à domicile', 'Coach sportif', 'Consultant', 'Artisan'],
+      default_tax_status: 'franchise_tva',
+      tax_info: 'Non assujetti à la TVA (franchise en base)',
+    },
+    {
+      id: 'company',
+      name: 'Entreprise / Société',
+      description: 'Salon, restaurant, hôtel, commerce avec local',
+      examples: ['Salon de coiffure', 'Restaurant', 'Hôtel', 'Boutique'],
+      default_tax_status: 'assujetti_tva',
+      tax_info: 'Assujetti à la TVA (20%)',
+    },
+  ];
+  res.json({ success: true, businessTypes: structures, taxStatuses: [] });
 });
 
 /**
@@ -142,8 +168,8 @@ router.post('/', signupLimiter, async (req, res) => {
     company_name,
     secteur_id,
 
-    // Type de structure (nouveau)
-    business_type,  // 'independent' ou 'company'
+    // Structure juridique
+    structure_juridique,  // 'independent' ou 'company'
     tax_status,     // 'franchise_tva' ou 'assujetti_tva'
     siret,          // Optionnel
 
@@ -300,9 +326,9 @@ router.post('/', signupLimiter, async (req, res) => {
     if (plan.rh_multiemployes) modules_actifs.push('rh');
     if (plan.api_integrations) modules_actifs.push('api');
 
-    // Déterminer le statut TVA selon le type de structure
-    const effectiveBusinessType = business_type || 'company';
-    const effectiveTaxStatus = tax_status || (effectiveBusinessType === 'independent' ? 'franchise_tva' : 'assujetti_tva');
+    // Déterminer le statut TVA selon la structure juridique
+    const effectiveStructure = structure_juridique || 'company';
+    const effectiveTaxStatus = tax_status || (effectiveStructure === 'independent' ? 'franchise_tva' : 'assujetti_tva');
 
     const { data: newTenant, error: tenantError } = await supabase
       .from('tenants')
@@ -319,8 +345,8 @@ router.post('/', signupLimiter, async (req, res) => {
         periode_facturation: periode || 'monthly',
         essai_fin: essai_fin.toISOString(),
         statut: 'essai',
-        // Nouveau: type de structure et fiscalité
-        business_type: effectiveBusinessType,
+        // Structure juridique et fiscalité
+        structure_juridique: effectiveStructure,
         tax_status: effectiveTaxStatus,
         tva_rate: effectiveTaxStatus === 'assujetti_tva' ? 20.00 : 0,
         siret: siret || null,

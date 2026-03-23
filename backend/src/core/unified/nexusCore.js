@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * ╔═══════════════════════════════════════════════════════════════════╗
  * ║                                                                   ║
  * ║   🔒 NEXUS CORE UNIFIÉ - SERVICE CENTRAL                          ║

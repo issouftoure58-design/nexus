@@ -19,6 +19,7 @@ import {
   Upload,
   LayoutDashboard,
   Banknote,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AVAILABLE_YEARS } from '@/components/comptabilite/constants';
@@ -34,8 +35,9 @@ const ExpertComptable = React.lazy(() => import('@/pages/ExpertComptable'));
 const ComptaExercices = React.lazy(() => import('@/components/comptabilite/ComptaExercices'));
 const ComptaSaisieManuelle = React.lazy(() => import('@/components/comptabilite/ComptaSaisieManuelle'));
 const ComptaImport = React.lazy(() => import('@/components/comptabilite/ComptaImport'));
+const ComptaPlanComptable = React.lazy(() => import('@/components/comptabilite/ComptaPlanComptable'));
 
-type TabKey = 'dashboard' | 'resultat' | 'bilan' | 'tresorerie' | 'rapprochement' | 'auxiliaires' | 'expert' | 'exercices' | 'saisie' | 'import';
+type TabKey = 'dashboard' | 'resultat' | 'bilan' | 'tresorerie' | 'rapprochement' | 'auxiliaires' | 'expert' | 'exercices' | 'saisie' | 'import' | 'pcg';
 
 export default function Comptabilite() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -163,6 +165,7 @@ export default function Comptabilite() {
             { key: 'auxiliaires' as TabKey, icon: Users, label: 'Comptes Auxiliaires' },
             { key: 'exercices' as TabKey, icon: Calendar, label: 'Exercices' },
             { key: 'saisie' as TabKey, icon: PenLine, label: 'Saisie' },
+            { key: 'pcg' as TabKey, icon: BookOpen, label: 'Plan Comptable' },
             { key: 'import' as TabKey, icon: Upload, label: 'Import' },
             { key: 'expert' as TabKey, icon: UserCheck, label: 'Expert-comptable' },
           ]).map(({ key, icon: Icon, label }) => (
@@ -263,6 +266,12 @@ export default function Comptabilite() {
         {activeTab === 'saisie' && (
           <Suspense fallback={lazyFallback}>
             <ComptaSaisieManuelle />
+          </Suspense>
+        )}
+
+        {activeTab === 'pcg' && (
+          <Suspense fallback={lazyFallback}>
+            <ComptaPlanComptable />
           </Suspense>
         )}
 

@@ -1,0 +1,86 @@
+NEXUS AI — PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+
+SASU au capital de 1€
+SIRET 947 570 362 00022
+8 Rue des Monts Rouges, 95130 Franconville, France
+
+================================================================================
+
+AVIS IMPORTANT — LIRE ATTENTIVEMENT AVANT TOUTE UTILISATION
+
+Ce logiciel et la documentation associée (ci-après "le Logiciel") sont la
+propriété exclusive de NEXUS AI. Ils sont protégés par le droit d'auteur
+français (Code de la propriété intellectuelle, articles L111-1 et suivants),
+les traités internationaux relatifs au droit d'auteur et les lois applicables.
+
+================================================================================
+
+1. INTERDICTIONS
+
+Les actions suivantes sont STRICTEMENT INTERDITES sans autorisation écrite
+préalable de NEXUS AI :
+
+  a) Copier, reproduire ou dupliquer tout ou partie du Logiciel ;
+  b) Modifier, adapter, traduire ou créer des œuvres dérivées ;
+  c) Distribuer, publier, transmettre ou mettre à disposition le Logiciel ;
+  d) Décompiler, désassembler, procéder à de l'ingénierie inverse (reverse
+     engineering) ou tenter d'extraire le code source ;
+  e) Sous-licencier, louer, prêter ou transférer le Logiciel à un tiers ;
+  f) Supprimer, altérer ou masquer les mentions de propriété, copyright ou
+     avertissements contenus dans le Logiciel ;
+  g) Utiliser le Logiciel pour développer un produit concurrent.
+
+2. DROIT D'USAGE
+
+L'accès au Logiciel est accordé exclusivement aux clients disposant d'un
+abonnement actif à la plateforme SaaS NEXUS (https://nexus-ai-saas.com).
+
+Ce droit d'usage est :
+  - Non-exclusif
+  - Non-transférable
+  - Révocable
+  - Limité à la durée de l'abonnement
+  - Limité à l'usage professionnel du client dans le cadre de son activité
+
+3. CONFIDENTIALITÉ
+
+Le code source, l'architecture technique, les algorithmes, les modèles IA
+et le savoir-faire intégrés dans le Logiciel constituent des informations
+confidentielles et des secrets d'affaires de NEXUS AI au sens de la
+directive (UE) 2016/943. Toute divulgation non autorisée constitue une
+violation de la présente licence et expose son auteur à des poursuites.
+
+4. DONNÉES
+
+Les données saisies par le client dans le Logiciel restent la propriété
+du client. Le Logiciel lui-même, y compris son code, son architecture,
+ses interfaces et ses modèles IA, demeure la propriété exclusive de NEXUS AI.
+
+5. RÉSILIATION
+
+Toute violation des termes de cette licence entraîne sa résiliation
+immédiate et automatique, sans préavis ni indemnité. NEXUS AI se réserve
+le droit d'engager toute action judiciaire pour faire valoir ses droits.
+
+6. SANCTIONS
+
+Toute reproduction, représentation ou diffusion non autorisée du Logiciel
+constitue une contrefaçon sanctionnée par les articles L335-2 et suivants
+du Code de la propriété intellectuelle (jusqu'à 3 ans d'emprisonnement
+et 300 000€ d'amende).
+
+7. DROIT APPLICABLE
+
+La présente licence est régie par le droit français. Tout litige sera
+soumis à la compétence exclusive du Tribunal de Commerce de Pontoise.
+
+================================================================================
+
+AUCUNE LICENCE OPEN-SOURCE N'EST ACCORDÉE.
+CE LOGICIEL N'EST PAS LIBRE DE DROITS.
+
+Pour toute demande : contact@nexus-ai-saas.com
+
+================================================================================

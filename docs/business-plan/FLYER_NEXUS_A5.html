@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Flyer NEXUS A5</title>
+<style>
+  @page { size: 148mm 210mm; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f0f0; }
+
+  .page {
+    width: 148mm;
+    height: 210mm;
+    margin: 10px auto;
+    overflow: hidden;
+    position: relative;
+    background: #ffffff;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+  }
+
+  /* ═══════════════════════════════════════════ */
+  /* RECTO                                       */
+  /* ═══════════════════════════════════════════ */
+  .recto {
+    background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 40%, #1e40af 100%);
+    color: white;
+    padding: 12mm 10mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .recto-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10mm;
+  }
+
+  .logo-box {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .recto-hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .hero-problem {
+    font-size: 11px;
+    color: #93c5fd;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+    margin-bottom: 4mm;
+  }
+
+  .hero-title {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 5mm;
+  }
+
+  .hero-title em {
+    font-style: normal;
+    color: #60a5fa;
+  }
+
+  .hero-sub {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+    max-width: 115mm;
+  }
+
+  .recto-features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3mm;
+    margin-top: 8mm;
+  }
+
+  .feature-pill {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 4mm 4mm;
+    text-align: center;
+  }
+
+  .feature-icon {
+    font-size: 20px;
+    margin-bottom: 2mm;
+  }
+
+  .feature-text {
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .recto-bottom {
+    margin-top: 8mm;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cta-badge {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    padding: 3mm 5mm;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .trial-text {
+    font-size: 10px;
+    color: #93c5fd;
+    font-weight: 500;
+  }
+
+  /* ═══════════════════════════════════════════ */
+  /* VERSO                                       */
+  /* ═══════════════════════════════════════════ */
+  .verso {
+    background: #ffffff;
+    color: #1e293b;
+    padding: 10mm 10mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .verso-header {
+    text-align: center;
+    margin-bottom: 6mm;
+  }
+
+  .verso-header h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #1e3a5f;
+  }
+
+  .verso-header p {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 1mm;
+  }
+
+  .modules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5mm;
+    margin-bottom: 5mm;
+  }
+
+  .module-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 3mm;
+    background: #f8fafc;
+  }
+
+  .module-title {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #1e3a5f;
+    margin-bottom: 1mm;
+  }
+
+  .module-desc {
+    font-size: 8px;
+    color: #64748b;
+    line-height: 1.3;
+  }
+
+  .secteurs {
+    background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+    border-radius: 8px;
+    padding: 4mm;
+    margin-bottom: 5mm;
+    text-align: center;
+  }
+
+  .secteurs-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #2563eb;
+    margin-bottom: 2mm;
+  }
+
+  .secteurs-list {
+    font-size: 9px;
+    color: #475569;
+    line-height: 1.5;
+  }
+
+  .pricing-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2.5mm;
+    margin-bottom: 5mm;
+  }
+
+  .price-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 3mm;
+    text-align: center;
+  }
+
+  .price-card.featured {
+    border-color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .price-name {
+    font-size: 9px;
+    font-weight: 700;
+    color: #1e3a5f;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .price-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #2563eb;
+    margin: 1mm 0;
+  }
+
+  .price-value span {
+    font-size: 9px;
+    font-weight: 500;
+    color: #64748b;
+  }
+
+  .price-desc {
+    font-size: 7.5px;
+    color: #64748b;
+  }
+
+  .verso-bottom {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 2px solid #e2e8f0;
+    padding-top: 4mm;
+  }
+
+  .contact-info {
+    font-size: 9px;
+    line-height: 1.6;
+    color: #475569;
+  }
+
+  .contact-info strong {
+    color: #1e3a5f;
+    font-size: 10px;
+  }
+
+  .qr-placeholder {
+    width: 22mm;
+    height: 22mm;
+    border: 2px solid #2563eb;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .qr-placeholder .qr-icon {
+    font-size: 22px;
+    color: #2563eb;
+  }
+
+  .qr-placeholder .qr-text {
+    font-size: 7px;
+    color: #2563eb;
+    font-weight: 600;
+    margin-top: 1mm;
+  }
+
+  /* ═══════════════════════════════════════════ */
+  /* PRINT                                       */
+  /* ═══════════════════════════════════════════ */
+  @media print {
+    body { background: white; }
+    .page {
+      box-shadow: none;
+      margin: 0;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    @page { size: 148mm 210mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ RECTO ═══════════════ -->
+<div class="page recto">
+
+  <div class="recto-header">
+    <div class="logo-box">N</div>
+    <div class="brand-name">NEXUS</div>
+  </div>
+
+  <div class="recto-hero">
+    <div class="hero-problem">Le probleme des PME</div>
+    <div class="hero-title">
+      Vous perdez des clients<br>
+      quand vous ne pouvez<br>
+      pas <em>decrocher</em> ?
+    </div>
+    <div class="hero-sub">
+      NEXUS repond a vos clients 24h/24 par telephone, WhatsApp et chat.
+      Il prend les rendez-vous, gere votre agenda, votre comptabilite
+      et votre marketing — <strong>tout en une seule plateforme.</strong>
+    </div>
+  </div>
+
+  <div class="recto-features">
+    <div class="feature-pill">
+      <div class="feature-icon">📞</div>
+      <div class="feature-text">IA Telephone<br>24h/24</div>
+    </div>
+    <div class="feature-pill">
+      <div class="feature-icon">📅</div>
+      <div class="feature-text">Agenda &<br>Reservations</div>
+    </div>
+    <div class="feature-pill">
+      <div class="feature-icon">📊</div>
+      <div class="feature-text">CRM &<br>Comptabilite</div>
+    </div>
+    <div class="feature-pill">
+      <div class="feature-icon">📱</div>
+      <div class="feature-text">WhatsApp &<br>SMS auto</div>
+    </div>
+  </div>
+
+  <div class="recto-bottom">
+    <div class="cta-badge">14 jours d'essai gratuit</div>
+    <div class="trial-text">Sans engagement — Sans carte bancaire</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════ VERSO ═══════════════ -->
+<div class="page verso">
+
+  <div class="verso-header">
+    <h2>Tout ce dont votre entreprise a besoin</h2>
+    <p>Une seule plateforme. Zero complexite. Pilotee par l'IA.</p>
+  </div>
+
+  <div class="modules-grid">
+    <div class="module-card">
+      <div class="module-title">📞 IA Multicanale</div>
+      <div class="module-desc">Repond au telephone, WhatsApp et chat web 24h/24. Prend les RDV automatiquement.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">📅 Agenda intelligent</div>
+      <div class="module-desc">Reservations en ligne, rappels SMS/email, synchronisation Google Calendar.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">👥 CRM automatise</div>
+      <div class="module-desc">Segmentation VIP/fideles/inactifs, pipeline commercial, relances auto.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">💰 Comptabilite</div>
+      <div class="module-desc">Factures, devis, rapprochement bancaire, export FEC. Normes francaises.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">👔 Gestion RH</div>
+      <div class="module-desc">Fiches de paie, DSN auto, conges, planning equipes.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">📢 Marketing</div>
+      <div class="module-desc">Campagnes SMS/email, avis Google, SEO, reseaux sociaux.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">📦 Stock & commandes</div>
+      <div class="module-desc">Inventaire temps reel, alertes, click & collect, livraison.</div>
+    </div>
+    <div class="module-card">
+      <div class="module-title">🔒 Securite</div>
+      <div class="module-desc">Donnees chiffrees, RGPD, hebergement en France, sauvegardes auto.</div>
+    </div>
+  </div>
+
+  <div class="secteurs">
+    <div class="secteurs-title">S'adapte a votre metier</div>
+    <div class="secteurs-list">
+      Coiffure &bull; Restaurant &bull; Hotel &bull; Commerce &bull; Artisan &bull; Securite &bull; Coaching &bull; Spa &bull; Medecin &bull; et plus
+    </div>
+  </div>
+
+  <div class="pricing-row">
+    <div class="price-card">
+      <div class="price-name">Starter <span style="background:#e65100;color:#fff;font-size:6px;padding:1px 4px;border-radius:3px;vertical-align:middle">LANCEMENT</span></div>
+      <div class="price-value">79 &euro;<span>/mois <span style="text-decoration:line-through;color:#999;font-size:9px">99&euro;</span></span></div>
+      <div class="price-desc">Independants</div>
+    </div>
+    <div class="price-card featured">
+      <div class="price-name">Pro <span style="background:#e65100;color:#fff;font-size:6px;padding:1px 4px;border-radius:3px;vertical-align:middle">LANCEMENT</span></div>
+      <div class="price-value">199 &euro;<span>/mois <span style="text-decoration:line-through;color:#999;font-size:9px">249&euro;</span></span></div>
+      <div class="price-desc">PME & commerces</div>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Business <span style="background:#e65100;color:#fff;font-size:6px;padding:1px 4px;border-radius:3px;vertical-align:middle">LANCEMENT</span></div>
+      <div class="price-value">399 &euro;<span>/mois <span style="text-decoration:line-through;color:#999;font-size:9px">499&euro;</span></span></div>
+      <div class="price-desc">Franchises & groupes</div>
+    </div>
+  </div>
+
+  <div class="verso-bottom">
+    <div class="contact-info">
+      <strong>NEXUS</strong><br>
+      nexus-ai-saas.com<br>
+      nexussentinelai@yahoo.com<br>
+      07 60 53 76 94
+    </div>
+    <div style="text-align:center;flex-shrink:0;">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://nexus-ai-saas.com&color=1e3a5f" alt="QR Code NEXUS" style="width:22mm;height:22mm;border-radius:2mm;">
+      <div style="font-size:7px;color:#2563eb;font-weight:600;margin-top:1mm;">Scannez pour essayer</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

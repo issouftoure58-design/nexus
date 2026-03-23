@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * NEXUS Workflow Engine
  * Moteur d'exécution des workflows de marketing automation
  * Plan PRO Feature

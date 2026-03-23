@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS — Livret Commercial A5</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @page {
+            size: 148mm 210mm;
+            margin: 0;
+        }
+
+        body {
+            background: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+
+        .pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px 0;
+        }
+
+        .page {
+            width: 148mm;
+            height: 210mm;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .page img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 148mm;
+            height: 210mm;
+        }
+
+        /* Portrait : cover pour remplir */
+        .page-portrait img {
+            object-fit: cover;
+            object-position: center center;
+        }
+
+        /* BD : contain pour tout montrer, fond assorti */
+        .page-bd img {
+            object-fit: contain;
+            object-position: center center;
+        }
+
+        /* Barre impression */
+        .print-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #0c4a6e, #06b6d4);
+            color: white;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .print-bar h1 { font-size: 16px; font-weight: 600; }
+        .print-bar .info { font-size: 12px; opacity: 0.8; }
+
+        .print-btn {
+            background: white;
+            color: #0c4a6e;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .print-btn:hover { transform: scale(1.05); }
+
+        .spacer { height: 56px; }
+
+        .page-label {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            z-index: 10;
+        }
+
+        /* ===== PRINT ===== */
+        @media print {
+            body {
+                background: white !important;
+            }
+
+            .pages-container {
+                padding: 0 !important;
+                gap: 0 !important;
+            }
+
+            .print-bar, .spacer, .page-label {
+                display: none !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                page-break-after: always;
+                page-break-inside: avoid;
+                break-after: page;
+                break-inside: avoid;
+                width: 100%;
+                height: 100vh;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+
+            .page:last-child {
+                page-break-after: avoid;
+                break-after: avoid;
+            }
+
+            .page img {
+                width: 100% !important;
+                height: 100% !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="print-bar">
+        <div>
+            <h1>NEXUS — Livret Commercial A5</h1>
+            <div class="info">10 pages · A5 (148 x 210 mm) · Impression recto-verso recommandee</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">Imprimer le livret</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="pages-container">
+
+        <!-- Page 1 : Couverture (portrait → cover) -->
+        <div class="page page-portrait" style="background: #0b1628;">
+            <span class="page-label">1 — Couverture</span>
+            <img src="bd/couverture.jpeg" alt="NEXUS — L'IA qui gere votre entreprise">
+        </div>
+
+        <!-- Page 2 : Le Problème — bords beige/creme -->
+        <div class="page page-bd" style="background: #e8d9b8;">
+            <span class="page-label">2 — Le Probleme</span>
+            <img src="bd/1.jpeg" alt="Le probleme">
+        </div>
+
+        <!-- Page 3 : La Solution — bords bleu clair -->
+        <div class="page page-bd" style="background: #c5d8e8;">
+            <span class="page-label">3 — La Solution</span>
+            <img src="bd/2.jpeg" alt="La solution NEXUS">
+        </div>
+
+        <!-- Page 4 : Avant / Après — bords beige doux -->
+        <div class="page page-bd" style="background: #d4c9a8;">
+            <span class="page-label">4 — Avant / Apres</span>
+            <img src="bd/3.jpeg" alt="Sans NEXUS vs Avec NEXUS">
+        </div>
+
+        <!-- Page 5 : Modules — bords blanc -->
+        <div class="page page-bd" style="background: #ffffff;">
+            <span class="page-label">5 — Les Modules</span>
+            <img src="bd/4.jpeg" alt="Tous les modules NEXUS">
+        </div>
+
+        <!-- Page 6 : Secteurs — bords beige/creme -->
+        <div class="page page-bd" style="background: #e2d5b0;">
+            <span class="page-label">6 — Secteurs</span>
+            <img src="bd/5.jpeg" alt="NEXUS s'adapte a votre secteur">
+        </div>
+
+        <!-- Page 7 : Témoignages — bords bleu fonce -->
+        <div class="page page-bd" style="background: #1a3a5c;">
+            <span class="page-label">7 — Temoignages</span>
+            <img src="bd/6.jpeg" alt="Ils utilisent NEXUS">
+        </div>
+
+        <!-- Page 8 : ROI + Tarifs — bords vert clair -->
+        <div class="page page-bd" style="background: #d4e8c0;">
+            <span class="page-label">8 — ROI & Tarifs</span>
+            <img src="bd/7.jpeg" alt="Retour sur investissement et tarifs">
+        </div>
+
+        <!-- Page 9 : Pourquoi NEXUS — bords bleu nuit -->
+        <div class="page page-bd" style="background: #0f2a4a;">
+            <span class="page-label">9 — Pourquoi NEXUS</span>
+            <img src="bd/8.jpeg" alt="Pourquoi choisir NEXUS">
+        </div>
+
+        <!-- Page 10 : 4ème de couverture (portrait → cover) -->
+        <div class="page page-portrait" style="background: #0a1628;">
+            <span class="page-label">10 — 4eme de couverture</span>
+            <img src="bd/4eme option 2.jpeg" alt="NEXUS — Contacts, ROI, QR code">
+        </div>
+
+    </div>
+
+</body>
+</html>

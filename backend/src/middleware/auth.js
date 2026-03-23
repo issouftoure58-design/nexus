@@ -53,14 +53,33 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Verifier que l'utilisateur existe encore
-    const { data: user, error } = await supabase
+    // Verifier que l'utilisateur existe (table users OU admin_users)
+    const userId = decoded.userId || decoded.id;
+    let user;
+
+    // 1. Chercher dans users (clients publics)
+    const { data: publicUser } = await supabase
       .from('users')
       .select('id, email, role, tenant_id, is_active')
-      .eq('id', decoded.userId || decoded.id)
+      .eq('id', userId)
       .single();
 
-    if (error || !user) {
+    if (publicUser) {
+      user = publicUser;
+    } else {
+      // 2. Fallback sur admin_users (admins dashboard)
+      const { data: adminUser } = await supabase
+        .from('admin_users')
+        .select('id, email, role, tenant_id')
+        .eq('id', userId)
+        .single();
+
+      if (adminUser) {
+        user = { ...adminUser, is_active: true };
+      }
+    }
+
+    if (!user) {
       return res.status(401).json({
         success: false,
         error: 'Utilisateur non trouve',

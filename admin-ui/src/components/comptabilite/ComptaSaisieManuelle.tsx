@@ -29,6 +29,9 @@ export default function ComptaSaisieManuelle() {
   const [lignes, setLignes] = useState<LigneEcriture[]>([{ ...EMPTY_LIGNE }, { ...EMPTY_LIGNE }]);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Champ montant en cours d'édition (évite le reformatage pendant la saisie)
+  const [editingAmount, setEditingAmount] = useState<{ index: number; field: 'debit' | 'credit'; raw: string } | null>(null);
+
   // Contrepassation
   const [cpIds, setCpIds] = useState('');
   const [cpDate, setCpDate] = useState(new Date().toISOString().slice(0, 10));
@@ -113,6 +116,58 @@ export default function ComptaSaisieManuelle() {
     onError: (err: Error) => notify('error', err.message),
   });
 
+  // Calcul auto TVA/HT quand un montant TTC est saisi
+  const autoCalculMontants = (updated: LigneEcriture[]) => {
+    const tauxTVA = 20; // Taux TVA par défaut
+
+    // --- VENTES : 411 (client) → 445xx (TVA collectée) + 70x (produits/services) ---
+    const ligneClient = updated.find(l => l.compte_numero.startsWith('411'));
+    if (ligneClient) {
+      const montantTTC = ligneClient.debit || ligneClient.credit;
+      if (montantTTC) {
+        const montantTVA = Math.round(montantTTC * tauxTVA / (100 + tauxTVA));
+        const montantHT = montantTTC - montantTVA;
+        const clientAuDebit = ligneClient.debit > 0;
+
+        updated.forEach(l => {
+          if (l === ligneClient) return;
+          if (l.compte_numero.startsWith('445')) {
+            l.credit = clientAuDebit ? montantTVA : 0;
+            l.debit = clientAuDebit ? 0 : montantTVA;
+          } else if (l.compte_numero.startsWith('70')) {
+            l.credit = clientAuDebit ? montantHT : 0;
+            l.debit = clientAuDebit ? 0 : montantHT;
+          }
+        });
+      }
+      return;
+    }
+
+    // --- ACHATS : 401 (fournisseur) → 445xx (TVA déductible) + 60x-62x (charges) ---
+    const ligneFournisseur = updated.find(l => l.compte_numero.startsWith('401'));
+    if (ligneFournisseur) {
+      const montantTTC = ligneFournisseur.credit || ligneFournisseur.debit;
+      if (montantTTC) {
+        const montantTVA = Math.round(montantTTC * tauxTVA / (100 + tauxTVA));
+        const montantHT = montantTTC - montantTVA;
+        const fournisseurAuCredit = ligneFournisseur.credit > 0;
+
+        updated.forEach(l => {
+          if (l === ligneFournisseur) return;
+          if (l.compte_numero.startsWith('445')) {
+            l.debit = fournisseurAuCredit ? montantTVA : 0;
+            l.credit = fournisseurAuCredit ? 0 : montantTVA;
+          } else if (/^6[0-2]/.test(l.compte_numero)) {
+            // Charges : 60x (achats), 61x (services ext.), 62x (autres services ext.)
+            l.debit = fournisseurAuCredit ? montantHT : 0;
+            l.credit = fournisseurAuCredit ? 0 : montantHT;
+          }
+        });
+      }
+      return;
+    }
+  };
+
   const updateLigne = (index: number, field: keyof LigneEcriture, value: string | number) => {
     const updated = [...lignes];
     (updated[index] as any)[field] = value;
@@ -121,6 +176,20 @@ export default function ComptaSaisieManuelle() {
     if (field === 'compte_numero') {
       const found = comptes.find(c => c.numero === value);
       if (found) updated[index].compte_libelle = found.libelle;
+    }
+
+    // Auto-propager le libellé écriture aux autres lignes vides
+    if (field === 'libelle' && typeof value === 'string' && value.length > 0) {
+      updated.forEach((l, j) => {
+        if (j !== index && !l.libelle) {
+          l.libelle = value;
+        }
+      });
+    }
+
+    // Auto-calcul TVA/HT quand un montant est saisi
+    if (field === 'debit' || field === 'credit') {
+      autoCalculMontants(updated);
     }
 
     setLignes(updated);
@@ -241,8 +310,15 @@ export default function ComptaSaisieManuelle() {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={ligne.debit ? (ligne.debit / 100).toFixed(2) : ''}
-                        onChange={e => updateLigne(i, 'debit', Math.round(parseFloat(e.target.value || '0') * 100))}
+                        value={editingAmount?.index === i && editingAmount?.field === 'debit'
+                          ? editingAmount.raw
+                          : (ligne.debit ? (ligne.debit / 100).toFixed(2) : '')}
+                        onFocus={e => setEditingAmount({ index: i, field: 'debit', raw: e.target.value })}
+                        onChange={e => setEditingAmount({ index: i, field: 'debit', raw: e.target.value })}
+                        onBlur={e => {
+                          updateLigne(i, 'debit', Math.round(parseFloat(e.target.value || '0') * 100));
+                          setEditingAmount(null);
+                        }}
                         className="w-full px-2 py-1.5 border rounded text-sm text-right"
                         placeholder="0.00"
                       />
@@ -252,8 +328,15 @@ export default function ComptaSaisieManuelle() {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={ligne.credit ? (ligne.credit / 100).toFixed(2) : ''}
-                        onChange={e => updateLigne(i, 'credit', Math.round(parseFloat(e.target.value || '0') * 100))}
+                        value={editingAmount?.index === i && editingAmount?.field === 'credit'
+                          ? editingAmount.raw
+                          : (ligne.credit ? (ligne.credit / 100).toFixed(2) : '')}
+                        onFocus={e => setEditingAmount({ index: i, field: 'credit', raw: e.target.value })}
+                        onChange={e => setEditingAmount({ index: i, field: 'credit', raw: e.target.value })}
+                        onBlur={e => {
+                          updateLigne(i, 'credit', Math.round(parseFloat(e.target.value || '0') * 100));
+                          setEditingAmount(null);
+                        }}
                         className="w-full px-2 py-1.5 border rounded text-sm text-right"
                         placeholder="0.00"
                       />

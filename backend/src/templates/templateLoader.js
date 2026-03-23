@@ -146,7 +146,7 @@ export async function getEffectiveConfig(tenantConfig) {
     frozen: tenantConfig.frozen || false,
 
     // Fiscalité / Structure juridique
-    business_type: tenantConfig.business_type || 'company',
+    structure_juridique: tenantConfig.structure_juridique || tenantConfig.business_type || 'company',
     tax_status: tenantConfig.tax_status || 'franchise_tva',
     tva_rate: tenantConfig.tva_rate || 0,
     siret: tenantConfig.siret || null,

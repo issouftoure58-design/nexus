@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { api, comptaApi, type Invoice, type Expense, type EcritureComptable, type BalanceGeneraleResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
+import { api, comptaApi, invitationsApi, type Invoice, type Expense, type EcritureComptable, type BalanceGeneraleResponse, type BalanceAgeeResponse, type GrandLivreResponse, type CompteResultatResponse, type BilanResponse } from '@/lib/api';
 import {
   Euro,
   FileText,
@@ -512,20 +512,75 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const exportFEC = () => {
-    comptaApi.exportFEC(statsYear);
-    setNotification({ type: 'success', message: `FEC ${statsYear} en cours de téléchargement...` });
-    setTimeout(() => setNotification(null), 3000);
+  const exportFEC = async () => {
+    try {
+      setNotification({ type: 'success', message: `FEC ${statsYear} en cours de téléchargement...` });
+      await comptaApi.exportFEC(statsYear);
+      setTimeout(() => setNotification(null), 3000);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur export FEC' });
+      setTimeout(() => setNotification(null), 5000);
+    }
   };
 
-  const handleInviteExpert = () => {
-    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
-    setTimeout(() => setNotification(null), 3000);
+  const [expertEmail, setExpertEmail] = useState('');
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [accessLink, setAccessLink] = useState('');
+
+  const handleInviteExpert = async () => {
+    if (!expertEmail) {
+      setShowInviteForm(true);
+      return;
+    }
+    setInviteLoading(true);
+    try {
+      await invitationsApi.send(expertEmail, 'comptable', {
+        comptabilite: ['read'],
+        ecritures: ['read'],
+        factures: ['read'],
+        export: ['read'],
+      });
+      setNotification({ type: 'success', message: `Invitation envoyée à ${expertEmail}` });
+      setExpertEmail('');
+      setShowInviteForm(false);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur envoi invitation' });
+    } finally {
+      setInviteLoading(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
   };
 
-  const handleGenerateAccessLink = () => {
-    setNotification({ type: 'error', message: 'Fonctionnalité en cours de développement' });
-    setTimeout(() => setNotification(null), 3000);
+  const handleGenerateAccessLink = async () => {
+    if (!expertEmail) {
+      setShowInviteForm(true);
+      setNotification({ type: 'error', message: 'Saisissez l\'email de l\'expert-comptable pour générer le lien' });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    setInviteLoading(true);
+    try {
+      const result = await invitationsApi.send(expertEmail, 'comptable', {
+        comptabilite: ['read'],
+        ecritures: ['read'],
+        factures: ['read'],
+        export: ['read'],
+      });
+      const token = result.invitation?.id;
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/invitation/${token}`;
+      setAccessLink(link);
+      await navigator.clipboard.writeText(link);
+      setNotification({ type: 'success', message: 'Lien généré et copié dans le presse-papier' });
+      setExpertEmail('');
+      setShowInviteForm(false);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur génération lien' });
+    } finally {
+      setInviteLoading(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
   };
 
   return (
@@ -1241,16 +1296,42 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                 <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
                   Invitez votre expert-comptable à accéder à vos données comptables en lecture seule, ou envoyez-lui des exports périodiques.
                 </p>
+
+                {showInviteForm && (
+                  <div className="flex gap-2 justify-center mb-4 max-w-sm mx-auto">
+                    <Input
+                      type="email"
+                      placeholder="email@expert-comptable.fr"
+                      value={expertEmail}
+                      onChange={e => setExpertEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleInviteExpert()}
+                    />
+                    <Button onClick={handleInviteExpert} disabled={!expertEmail || inviteLoading} size="sm">
+                      {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Envoyer'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowInviteForm(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex gap-3 justify-center">
-                  <Button className="gap-2" onClick={handleInviteExpert} disabled title="Fonctionnalité en cours de développement">
+                  <Button className="gap-2" onClick={handleInviteExpert} disabled={inviteLoading}>
                     <Mail className="h-4 w-4" />
                     Inviter par email
                   </Button>
-                  <Button variant="outline" className="gap-2" onClick={handleGenerateAccessLink} disabled title="Fonctionnalité en cours de développement">
-                    <Link2 className="h-4 w-4" />
+                  <Button variant="outline" className="gap-2" onClick={handleGenerateAccessLink} disabled={inviteLoading}>
+                    {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                     Générer un lien d'accès
                   </Button>
                 </div>
+
+                {accessLink && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm max-w-lg mx-auto">
+                    <p className="text-green-700 mb-1 font-medium">Lien d'accès généré :</p>
+                    <code className="text-xs text-green-600 break-all">{accessLink}</code>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>

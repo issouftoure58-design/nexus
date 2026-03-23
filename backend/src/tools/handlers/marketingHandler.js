@@ -36,7 +36,7 @@ async function marketing_generer_post(toolInput, tenantId, adminId) {
   // Recuperer infos tenant pour personnaliser
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('business_name, business_type, description')
+    .select('business_name, business_profile, name, description')
     .eq('id', tenantId)
     .single();
 
@@ -58,7 +58,7 @@ Genere un post ${plateforme || 'Instagram'} professionnel et engageant.
 
 CONTEXTE :
 - Business : ${tenant?.business_name || 'Mon entreprise'}
-- Type : ${tenant?.business_type || 'Services'}
+- Type : ${tenant?.business_profile || 'Services'}
 - Description : ${tenant?.description || 'Entreprise specialisee'}
 - Services proposes :
 ${servicesText}

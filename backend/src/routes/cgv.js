@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * Route publique CGV — Conditions Générales de Vente NEXUS
  * GET /api/cgv — retourne contenu + version courante
  */
@@ -7,11 +11,11 @@ import express from 'express';
 
 const router = express.Router();
 
-const CGV_VERSION = '1.0';
+const CGV_VERSION = '1.1';
 
 const CGV_CONTENT = {
   version: CGV_VERSION,
-  updated_at: '2026-03-08',
+  updated_at: '2026-03-22',
   articles: [
     {
       numero: 1,
@@ -57,6 +61,11 @@ const CGV_CONTENT = {
       numero: 9,
       titre: 'Contact',
       contenu: `Pour toute question relative aux présentes CGV : Email : support@nexus-ai-saas.com. Site : https://nexus-ai-saas.com. Les présentes CGV sont consultables à tout moment sur la plateforme.`
+    },
+    {
+      numero: 10,
+      titre: 'Propriété Intellectuelle',
+      contenu: `Le logiciel NEXUS, incluant son code source, son architecture technique, ses algorithmes, ses modèles d'intelligence artificielle, ses interfaces graphiques, ses bases de données, sa documentation et l'ensemble de ses composants, est la propriété exclusive de NEXUS AI, protégé par le Code de la propriété intellectuelle (articles L111-1 et suivants) et les conventions internationales relatives au droit d'auteur. L'abonnement confère au client un droit d'usage non-exclusif, non-transférable, révocable et limité à la durée de l'abonnement, dans le cadre strict de son activité professionnelle. Il est strictement interdit de : (a) copier, reproduire ou dupliquer tout ou partie du logiciel ; (b) modifier, adapter ou créer des œuvres dérivées ; (c) décompiler, désassembler ou procéder à de l'ingénierie inverse (reverse engineering) ; (d) sous-licencier, louer, prêter, revendre ou transférer l'accès au logiciel à un tiers ; (e) utiliser le logiciel pour développer un produit concurrent. Les données saisies par le client lui appartiennent et restent sa propriété. Le logiciel lui-même demeure la propriété exclusive de NEXUS AI. Toute violation du présent article entraîne la résiliation immédiate de l'abonnement, sans préavis ni remboursement, et expose le contrevenant à des poursuites judiciaires. La reproduction ou représentation non autorisée constitue une contrefaçon sanctionnée par les articles L335-2 et suivants du Code de la propriété intellectuelle (jusqu'à 3 ans d'emprisonnement et 300 000€ d'amende).`
     }
   ]
 };

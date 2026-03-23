@@ -15,7 +15,7 @@ import logger from '../config/logger.js';
 const router = express.Router();
 
 const INVITE_EXPIRY_HOURS = 72;
-const VALID_ROLES = ['admin', 'manager', 'viewer'];
+const VALID_ROLES = ['admin', 'manager', 'viewer', 'comptable'];
 
 // Limites utilisateurs par plan
 const PLAN_USER_LIMITS = {

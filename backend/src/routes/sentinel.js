@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * Routes SENTINEL - Dashboard Analytics Client
  * Business Intelligence pour clients Business plan
  */
@@ -8,6 +12,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { sentinelCollector } from '../services/sentinelCollector.js';
 import { sentinelInsights } from '../services/sentinelInsights.js';
+import { logicTestEngine } from '../services/logicTestEngine.js';
 
 const router = express.Router();
 
@@ -756,5 +761,109 @@ function getDefaultGoals(tenantId) {
     notify_alerts: true
   };
 }
+
+// ============================================
+// PLTE — LOGIC TESTS
+// ============================================
+
+/**
+ * GET /api/sentinel/logic/status
+ * Score sante + derniers resultats
+ */
+router.get('/logic/status', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const status = await logicTestEngine.getStatus(tenantId);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    console.error('[SENTINEL] Logic status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/sentinel/logic/history
+ * Historique des runs (pagination)
+ */
+router.get('/logic/history', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const history = await logicTestEngine.getHistory(tenantId, page, limit);
+    res.json({ success: true, data: history });
+  } catch (error) {
+    console.error('[SENTINEL] Logic history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/sentinel/logic/run
+ * Lancer un run manuel PLTE v2
+ */
+router.post('/logic/run', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const { type } = req.body;
+
+    if (!type || !['hourly', 'nightly', 'weekly', 'full'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Type requis: hourly | nightly | weekly | full'
+      });
+    }
+
+    let result;
+    switch (type) {
+      case 'hourly':
+        result = await logicTestEngine.runHourly();
+        break;
+      case 'nightly':
+        result = await logicTestEngine.runNightly();
+        break;
+      case 'weekly':
+        result = await logicTestEngine.runWeekly();
+        break;
+      case 'full':
+        result = await logicTestEngine.runFull();
+        break;
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[SENTINEL] Logic run error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/sentinel/logic/global
+ * Status global PLTE — vue d'ensemble 8 tenants
+ */
+router.get('/logic/global', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const globalStatus = await logicTestEngine.getGlobalStatus();
+    res.json({ success: true, data: globalStatus });
+  } catch (error) {
+    console.error('[SENTINEL] Logic global error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/sentinel/logic/tests
+ * Liste des tests avec statut
+ */
+router.get('/logic/tests', authenticateAdmin, requireAdminPlan('business'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { category } = req.query;
+    const tests = await logicTestEngine.getTests(tenantId, category || null);
+    res.json({ success: true, data: tests });
+  } catch (error) {
+    console.error('[SENTINEL] Logic tests error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 export default router;

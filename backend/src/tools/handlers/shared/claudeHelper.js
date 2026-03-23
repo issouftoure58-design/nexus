@@ -66,7 +66,7 @@ export async function generateText(prompt, maxTokens = 1000) {
 export async function getTenantContext(supabase, tenantId) {
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('business_name, business_type, description')
+    .select('business_name, business_profile, name, description')
     .eq('id', tenantId)
     .single();
 
@@ -80,8 +80,8 @@ export async function getTenantContext(supabase, tenantId) {
   const servicesText = services?.map(s => `- ${s.nom}: ${(s.prix / 100).toFixed(0)}€`).join('\n') || '';
 
   return {
-    businessName: tenant?.business_name || 'Mon entreprise',
-    businessType: tenant?.business_type || 'Services',
+    businessName: tenant?.business_name || tenant?.name || 'Mon entreprise',
+    businessType: tenant?.business_profile || 'Services',
     description: tenant?.description || '',
     servicesText
   };

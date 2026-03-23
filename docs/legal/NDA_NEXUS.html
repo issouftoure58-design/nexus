@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NDA — NEXUS AI — Accord de Confidentialite</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 20mm 15mm; font-size: 11pt; }
+      .no-print { display: none; }
+      .page-break { page-break-before: always; }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 40px 50px;
+      background: #fff;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 3px double #1a1a1a;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 24pt;
+      font-weight: bold;
+      letter-spacing: 2px;
+      margin-bottom: 5px;
+    }
+
+    .header h2 {
+      font-size: 14pt;
+      font-weight: normal;
+      color: #444;
+    }
+
+    .header .subtitle {
+      font-size: 11pt;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .parties {
+      margin: 25px 0;
+      padding: 15px 20px;
+      background: #f8f8f8;
+      border-left: 4px solid #1a1a1a;
+    }
+
+    .parties h3 {
+      font-size: 12pt;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .party {
+      margin-bottom: 15px;
+    }
+
+    .party strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .fill-line {
+      border-bottom: 1px dotted #999;
+      display: inline-block;
+      min-width: 250px;
+      height: 1.2em;
+      margin-left: 5px;
+    }
+
+    article {
+      margin: 20px 0;
+    }
+
+    article h3 {
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      color: #1a1a1a;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 3px;
+    }
+
+    article p {
+      margin-bottom: 8px;
+      text-align: justify;
+    }
+
+    article ul {
+      margin: 8px 0 8px 25px;
+    }
+
+    article li {
+      margin-bottom: 4px;
+    }
+
+    .signatures {
+      margin-top: 50px;
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+    }
+
+    .signature-block {
+      flex: 1;
+      border: 1px solid #ddd;
+      padding: 20px;
+      min-height: 180px;
+    }
+
+    .signature-block h4 {
+      font-size: 11pt;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+
+    .signature-block .field {
+      margin-bottom: 8px;
+      font-size: 10pt;
+    }
+
+    .signature-block .field span {
+      border-bottom: 1px dotted #999;
+      display: inline-block;
+      min-width: 180px;
+    }
+
+    .signature-area {
+      margin-top: 20px;
+      height: 60px;
+      border: 1px dashed #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      font-style: italic;
+      font-size: 9pt;
+    }
+
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 9pt;
+      color: #888;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 25px;
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      border-radius: 4px;
+    }
+
+    .print-btn:hover {
+      background: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="print-btn no-print" onclick="window.print()">Imprimer / PDF</button>
+
+  <div class="header">
+    <h1>ACCORD DE CONFIDENTIALITE</h1>
+    <h2>Non-Disclosure Agreement (NDA)</h2>
+    <p class="subtitle">NEXUS AI — Document bilateral</p>
+  </div>
+
+  <div class="parties">
+    <h3>Entre les parties</h3>
+
+    <div class="party">
+      <strong>Partie A — NEXUS AI (Partie Divulgatrice)</strong>
+      NEXUS AI — SASU au capital de 1&euro;<br>
+      SIRET : 947 570 362 00022<br>
+      Siege social : 8 Rue des Monts Rouges, 95130 Franconville, France<br>
+      Representee par : Issouf TOURE, President
+    </div>
+
+    <div class="party">
+      <strong>Partie B — (Partie Receptrice)</strong>
+      Nom / Raison sociale : <span class="fill-line"></span><br>
+      SIRET / N&deg; identification : <span class="fill-line"></span><br>
+      Adresse : <span class="fill-line"></span><br>
+      Representee par : <span class="fill-line"></span><br>
+      Qualite : <span class="fill-line"></span>
+    </div>
+  </div>
+
+  <p style="text-align: justify;">
+    Ci-apres denommees individuellement "la Partie" et collectivement "les Parties".
+    Les Parties conviennent de ce qui suit :
+  </p>
+
+  <article>
+    <h3>Article 1 — Objet</h3>
+    <p>
+      Le present accord a pour objet de definir les conditions dans lesquelles les Parties
+      s'engagent a proteger les informations confidentielles echangees dans le cadre de leur
+      collaboration relative a la plateforme NEXUS (ci-apres "le Projet"), qu'il s'agisse
+      d'un partenariat commercial, d'une phase de test (beta), d'une prestation de service
+      ou de toute autre forme de cooperation.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 2 — Definition des Informations Confidentielles</h3>
+    <p>Sont considerees comme "Informations Confidentielles" au sens du present accord :</p>
+    <ul>
+      <li>Le code source, l'architecture technique, les algorithmes et les modeles d'intelligence artificielle du logiciel NEXUS ;</li>
+      <li>Les specifications fonctionnelles et techniques, la documentation interne ;</li>
+      <li>Les donnees clients, prospects et utilisateurs de la plateforme ;</li>
+      <li>Les strategies commerciales, tarifs, conditions de vente et grilles de remise ;</li>
+      <li>La feuille de route produit (roadmap), les projets en cours de developpement ;</li>
+      <li>Les informations financieres, comptables et juridiques ;</li>
+      <li>Les methodes de travail, processus internes et savoir-faire ;</li>
+      <li>Toute information expressement designee comme confidentielle par la Partie Divulgatrice.</li>
+    </ul>
+  </article>
+
+  <article>
+    <h3>Article 3 — Obligations de la Partie Receptrice</h3>
+    <p>La Partie Receptrice s'engage a :</p>
+    <ul>
+      <li>Ne pas divulguer les Informations Confidentielles a des tiers sans autorisation ecrite prealable ;</li>
+      <li>Ne pas utiliser les Informations Confidentielles a d'autres fins que celles du Projet ;</li>
+      <li>Prendre toutes les mesures necessaires pour proteger la confidentialite des informations recues, avec au minimum le meme niveau de protection que celui accorde a ses propres informations confidentielles ;</li>
+      <li>Limiter l'acces aux Informations Confidentielles aux seules personnes ayant besoin d'en connaitre dans le cadre du Projet ;</li>
+      <li>Informer immediatement la Partie Divulgatrice en cas de divulgation accidentelle ou non autorisee.</li>
+    </ul>
+  </article>
+
+  <article>
+    <h3>Article 4 — Exceptions</h3>
+    <p>Ne sont pas considerees comme Informations Confidentielles les informations qui :</p>
+    <ul>
+      <li>Sont ou deviennent publiquement disponibles sans faute de la Partie Receptrice ;</li>
+      <li>Etaient deja connues de la Partie Receptrice avant leur divulgation, comme en atteste une preuve ecrite ;</li>
+      <li>Sont recues legitimement d'un tiers non soumis a une obligation de confidentialite ;</li>
+      <li>Sont developpees independamment par la Partie Receptrice sans utilisation des Informations Confidentielles ;</li>
+      <li>Doivent etre divulguees en vertu d'une obligation legale, reglementaire ou d'une decision judiciaire, sous reserve d'en informer prealablement la Partie Divulgatrice.</li>
+    </ul>
+  </article>
+
+  <article>
+    <h3>Article 5 — Duree</h3>
+    <p>
+      Le present accord entre en vigueur a la date de sa signature et demeure en vigueur
+      pendant toute la duree de la collaboration entre les Parties.
+    </p>
+    <p>
+      Les obligations de confidentialite survivent a l'expiration ou la resiliation du present
+      accord pour une duree de <strong>trois (3) ans</strong> a compter de la fin de la collaboration.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 6 — Restitution des documents</h3>
+    <p>
+      A la fin de la collaboration, ou a la demande de la Partie Divulgatrice, la Partie Receptrice
+      s'engage a restituer ou detruire l'ensemble des documents, copies et supports contenant
+      des Informations Confidentielles, et a confirmer par ecrit cette restitution ou destruction.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 7 — Propriete intellectuelle</h3>
+    <p>
+      Le present accord ne confere a la Partie Receptrice aucun droit de propriete intellectuelle
+      sur les Informations Confidentielles, le logiciel NEXUS, ses composants ou ses derivees.
+      Tous les droits de propriete intellectuelle demeurent la propriete exclusive de NEXUS AI.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 8 — Penalite contractuelle</h3>
+    <p>
+      En cas de violation des obligations de confidentialite prevues au present accord, la Partie
+      defaillante sera redevable d'une penalite contractuelle forfaitaire de <strong>cinq mille
+      euros (5 000 &euro;)</strong> par infraction constatee, sans prejudice du droit de la Partie
+      lesee de reclamer l'indemnisation integrale du prejudice subi sur le fondement du droit commun.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 9 — Droit applicable et juridiction</h3>
+    <p>
+      Le present accord est regi par le droit francais. Tout litige relatif a son interpretation
+      ou a son execution sera soumis a la competence exclusive du
+      <strong>Tribunal de Commerce de Pontoise</strong>, apres tentative de resolution amiable
+      dans un delai de trente (30) jours.
+    </p>
+  </article>
+
+  <article>
+    <h3>Article 10 — Dispositions generales</h3>
+    <p>
+      Le present accord constitue l'integralite de l'entente entre les Parties concernant la
+      confidentialite et remplace tout accord anterieur sur le meme sujet. Toute modification
+      devra faire l'objet d'un avenant ecrit signe par les deux Parties. Si une disposition du
+      present accord est jugee invalide, les autres dispositions resteront pleinement en vigueur.
+    </p>
+  </article>
+
+  <div class="page-break"></div>
+
+  <div class="signatures">
+    <div class="signature-block">
+      <h4>Partie A — NEXUS AI</h4>
+      <div class="field">Nom : Issouf TOURE</div>
+      <div class="field">Qualite : President</div>
+      <div class="field">Date : <span></span></div>
+      <div class="field">Lieu : Franconville</div>
+      <div class="signature-area">Signature precedee de la mention "Lu et approuve"</div>
+    </div>
+
+    <div class="signature-block">
+      <h4>Partie B</h4>
+      <div class="field">Nom : <span></span></div>
+      <div class="field">Qualite : <span></span></div>
+      <div class="field">Date : <span></span></div>
+      <div class="field">Lieu : <span></span></div>
+      <div class="signature-area">Signature precedee de la mention "Lu et approuve"</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>NEXUS AI — SASU au capital de 1&euro; — SIRET 947 570 362 00022</p>
+    <p>8 Rue des Monts Rouges, 95130 Franconville — contact@nexus-ai-saas.com</p>
+    <p>Document confidentiel — Ne pas diffuser sans autorisation</p>
+  </div>
+
+</body>
+</html>

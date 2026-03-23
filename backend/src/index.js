@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * Backend API - NEXUS Multi-tenant Platform
  * Point d'entrée principal
  */

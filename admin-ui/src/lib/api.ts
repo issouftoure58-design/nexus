@@ -1,4 +1,8 @@
 /**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * API Client NEXUS - Multi-tenant
  *
  * Features:
@@ -677,6 +681,14 @@ export const comptaApi = {
 
   // États comptables avancés
   getPlanComptable: () => api.get<{ comptes: CompteComptable[]; classes: Record<string, { libelle: string; comptes: CompteComptable[] }> }>('/journaux/plan-comptable'),
+  createCompte: (data: { numero: string; libelle: string; type?: string; nature?: string }) =>
+    api.post<{ success: boolean; compte: CompteComptable }>('/journaux/plan-comptable/comptes', data),
+  updateCompte: (numero: string, data: { libelle?: string; type?: string; nature?: string; actif?: boolean }) =>
+    api.put<{ success: boolean; compte: CompteComptable }>(`/journaux/plan-comptable/comptes/${numero}`, data),
+  deleteCompte: (numero: string) =>
+    api.delete<{ success: boolean; message: string }>(`/journaux/plan-comptable/comptes/${numero}`),
+  initPCG: () =>
+    api.post<{ success: boolean; message: string; count: number }>('/journaux/plan-comptable/init', {}),
 
   getGrandLivre: (params?: { compte?: string; periode_debut?: string; periode_fin?: string; exercice?: number }) => {
     const query = new URLSearchParams();
@@ -734,8 +746,31 @@ export const comptaApi = {
 
   getBalanceAgee: () => api.get<BalanceAgeeResponse>('/journaux/balance-agee'),
 
-  exportFEC: (exercice: number) => {
-    window.open(`${API_BASE}/journaux/fec?exercice=${exercice}`, '_blank');
+  exportFEC: async (exercice: number) => {
+    const token = localStorage.getItem('token');
+    const tenantId = localStorage.getItem('tenantId');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (tenantId) headers['X-Tenant-ID'] = tenantId;
+
+    const res = await fetch(`${API_BASE}/journaux/fec?exercice=${exercice}`, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Erreur export FEC' }));
+      throw new Error(err.error || err.message || 'Erreur export FEC');
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?(.+?)"?$/);
+    const filename = match?.[1] || `FEC_${exercice}.txt`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 
   // Validation FEC

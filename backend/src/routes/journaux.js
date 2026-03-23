@@ -1461,7 +1461,14 @@ router.get('/plan-comptable', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
 
-    // Récupérer tous les comptes distincts utilisés
+    // 1. Comptes référencés dans la table comptes_comptables
+    const { data: comptesDB } = await supabase
+      .from('comptes_comptables')
+      .select('numero, libelle, classe, type, nature, actif')
+      .eq('tenant_id', tenantId)
+      .order('numero');
+
+    // 2. Comptes découverts dans les écritures (complémentaire)
     const { data: ecritures, error } = await supabase
       .from('ecritures_comptables')
       .select('compte_numero, compte_libelle')
@@ -1469,8 +1476,19 @@ router.get('/plan-comptable', async (req, res) => {
 
     if (error) throw error;
 
-    // Dédupliquer et trier
+    // Fusionner : comptes DB prioritaires, puis écritures pour les comptes non référencés
     const comptesMap = new Map();
+    comptesDB?.forEach(c => {
+      comptesMap.set(c.numero, {
+        numero: c.numero,
+        libelle: c.libelle,
+        classe: String(c.classe),
+        type: c.type,
+        nature: c.nature,
+        actif: c.actif
+      });
+    });
+
     ecritures?.forEach(e => {
       if (!comptesMap.has(e.compte_numero)) {
         comptesMap.set(e.compte_numero, {
@@ -1505,6 +1523,251 @@ router.get('/plan-comptable', async (req, res) => {
   } catch (error) {
     console.error('[JOURNAUX] Erreur plan comptable:', error);
     res.status(500).json({ error: 'Erreur récupération plan comptable' });
+  }
+});
+
+// ============================================
+// PLAN COMPTABLE — CRUD comptes
+// ============================================
+
+/**
+ * POST /api/journaux/plan-comptable/comptes
+ * Créer un nouveau compte comptable
+ */
+router.post('/plan-comptable/comptes', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { numero, libelle, type, nature } = req.body;
+
+    if (!numero || !libelle) {
+      return res.status(400).json({ error: 'Numéro et libellé requis' });
+    }
+
+    if (!/^\d{3,8}$/.test(numero)) {
+      return res.status(400).json({ error: 'Numéro de compte invalide (3-8 chiffres)' });
+    }
+
+    const classe = parseInt(numero.charAt(0));
+    if (classe < 1 || classe > 8) {
+      return res.status(400).json({ error: 'Classe de compte invalide (1-8)' });
+    }
+
+    const { data, error } = await supabase
+      .from('comptes_comptables')
+      .insert({
+        tenant_id: tenantId,
+        numero,
+        libelle,
+        classe,
+        type: type || 'general',
+        nature: nature || null
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ error: `Le compte ${numero} existe déjà` });
+      }
+      throw error;
+    }
+
+    res.status(201).json({ success: true, compte: data });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur création compte:', error);
+    res.status(500).json({ error: 'Erreur création compte' });
+  }
+});
+
+/**
+ * PUT /api/journaux/plan-comptable/comptes/:numero
+ * Modifier un compte comptable
+ */
+router.put('/plan-comptable/comptes/:numero', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { numero } = req.params;
+    const { libelle, type, nature, actif } = req.body;
+
+    const updates = { updated_at: new Date().toISOString() };
+    if (libelle !== undefined) updates.libelle = libelle;
+    if (type !== undefined) updates.type = type;
+    if (nature !== undefined) updates.nature = nature;
+    if (actif !== undefined) updates.actif = actif;
+
+    const { data, error } = await supabase
+      .from('comptes_comptables')
+      .update(updates)
+      .eq('tenant_id', tenantId)
+      .eq('numero', numero)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Compte non trouvé' });
+
+    res.json({ success: true, compte: data });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur modification compte:', error);
+    res.status(500).json({ error: 'Erreur modification compte' });
+  }
+});
+
+/**
+ * DELETE /api/journaux/plan-comptable/comptes/:numero
+ * Supprimer un compte (uniquement si non utilisé)
+ */
+router.delete('/plan-comptable/comptes/:numero', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { numero } = req.params;
+
+    // Vérifier si le compte est utilisé dans des écritures
+    const { count } = await supabase
+      .from('ecritures_comptables')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('compte_numero', numero);
+
+    if (count > 0) {
+      return res.status(409).json({
+        error: `Ce compte est utilisé dans ${count} écriture(s). Désactivez-le plutôt.`
+      });
+    }
+
+    const { error } = await supabase
+      .from('comptes_comptables')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('numero', numero);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: `Compte ${numero} supprimé` });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur suppression compte:', error);
+    res.status(500).json({ error: 'Erreur suppression compte' });
+  }
+});
+
+/**
+ * POST /api/journaux/plan-comptable/init
+ * Initialiser le PCG avec les comptes standards français
+ */
+router.post('/plan-comptable/init', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    // Vérifier si déjà initialisé
+    const { count } = await supabase
+      .from('comptes_comptables')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
+
+    if (count > 0) {
+      return res.status(409).json({ error: 'Le plan comptable est déjà initialisé', count });
+    }
+
+    const pcgStandard = [
+      // Classe 1 — Capitaux
+      { numero: '101', libelle: 'Capital social', classe: 1, nature: 'credit' },
+      { numero: '106', libelle: 'Réserves', classe: 1, nature: 'credit' },
+      { numero: '108', libelle: 'Compte de l\'exploitant', classe: 1, nature: 'credit' },
+      { numero: '110', libelle: 'Report à nouveau (solde créditeur)', classe: 1, nature: 'credit' },
+      { numero: '119', libelle: 'Report à nouveau (solde débiteur)', classe: 1, nature: 'debit' },
+      { numero: '120', libelle: 'Résultat de l\'exercice (bénéfice)', classe: 1, nature: 'credit' },
+      { numero: '129', libelle: 'Résultat de l\'exercice (perte)', classe: 1, nature: 'debit' },
+      { numero: '164', libelle: 'Emprunts auprès des établissements de crédit', classe: 1, nature: 'credit' },
+      // Classe 2 — Immobilisations
+      { numero: '205', libelle: 'Concessions, brevets, licences', classe: 2, nature: 'debit' },
+      { numero: '2183', libelle: 'Matériel de bureau et informatique', classe: 2, nature: 'debit' },
+      { numero: '2184', libelle: 'Mobilier', classe: 2, nature: 'debit' },
+      { numero: '2182', libelle: 'Matériel de transport', classe: 2, nature: 'debit' },
+      { numero: '2815', libelle: 'Amort. installations techniques', classe: 2, nature: 'credit' },
+      { numero: '2818', libelle: 'Amort. autres immobilisations corporelles', classe: 2, nature: 'credit' },
+      // Classe 3 — Stocks
+      { numero: '311', libelle: 'Matières premières', classe: 3, nature: 'debit' },
+      { numero: '355', libelle: 'Produits finis', classe: 3, nature: 'debit' },
+      { numero: '371', libelle: 'Marchandises', classe: 3, nature: 'debit' },
+      // Classe 4 — Tiers
+      { numero: '401', libelle: 'Fournisseurs', classe: 4, nature: 'credit' },
+      { numero: '4011', libelle: 'Fournisseurs — Achats de biens', classe: 4, nature: 'credit', type: 'auxiliaire' },
+      { numero: '4012', libelle: 'Fournisseurs — Achats de services', classe: 4, nature: 'credit', type: 'auxiliaire' },
+      { numero: '411', libelle: 'Clients', classe: 4, nature: 'debit' },
+      { numero: '4111', libelle: 'Clients — Ventes de services', classe: 4, nature: 'debit', type: 'auxiliaire' },
+      { numero: '421', libelle: 'Personnel — Rémunérations dues', classe: 4, nature: 'credit' },
+      { numero: '431', libelle: 'Sécurité sociale', classe: 4, nature: 'credit' },
+      { numero: '437', libelle: 'Autres organismes sociaux', classe: 4, nature: 'credit' },
+      { numero: '4456', libelle: 'TVA déductible', classe: 4, nature: 'debit' },
+      { numero: '44562', libelle: 'TVA déductible sur immobilisations', classe: 4, nature: 'debit' },
+      { numero: '44566', libelle: 'TVA déductible sur biens et services', classe: 4, nature: 'debit' },
+      { numero: '4457', libelle: 'TVA collectée', classe: 4, nature: 'credit' },
+      { numero: '44571', libelle: 'TVA collectée', classe: 4, nature: 'credit' },
+      { numero: '44551', libelle: 'TVA à décaisser', classe: 4, nature: 'credit' },
+      { numero: '44567', libelle: 'Crédit de TVA à reporter', classe: 4, nature: 'debit' },
+      { numero: '455', libelle: 'Associés — Comptes courants', classe: 4, nature: 'credit' },
+      { numero: '467', libelle: 'Autres comptes débiteurs ou créditeurs', classe: 4 },
+      // Classe 5 — Trésorerie
+      { numero: '512', libelle: 'Banque', classe: 5, nature: 'debit' },
+      { numero: '5121', libelle: 'Banque — Compte courant', classe: 5, nature: 'debit' },
+      { numero: '514', libelle: 'Chèques postaux', classe: 5, nature: 'debit' },
+      { numero: '530', libelle: 'Caisse', classe: 5, nature: 'debit' },
+      { numero: '580', libelle: 'Virements internes', classe: 5 },
+      // Classe 6 — Charges
+      { numero: '601', libelle: 'Achats de matières premières', classe: 6, nature: 'debit' },
+      { numero: '602', libelle: 'Achats de fournitures', classe: 6, nature: 'debit' },
+      { numero: '604', libelle: 'Achats d\'études et de prestations', classe: 6, nature: 'debit' },
+      { numero: '606', libelle: 'Achats non stockés de matières et fournitures', classe: 6, nature: 'debit' },
+      { numero: '607', libelle: 'Achats de marchandises', classe: 6, nature: 'debit' },
+      { numero: '611', libelle: 'Sous-traitance générale', classe: 6, nature: 'debit' },
+      { numero: '613', libelle: 'Locations', classe: 6, nature: 'debit' },
+      { numero: '615', libelle: 'Entretien et réparations', classe: 6, nature: 'debit' },
+      { numero: '616', libelle: 'Primes d\'assurance', classe: 6, nature: 'debit' },
+      { numero: '618', libelle: 'Divers', classe: 6, nature: 'debit' },
+      { numero: '622', libelle: 'Rémunérations d\'intermédiaires et honoraires', classe: 6, nature: 'debit' },
+      { numero: '623', libelle: 'Publicité, publications, relations publiques', classe: 6, nature: 'debit' },
+      { numero: '625', libelle: 'Déplacements, missions et réceptions', classe: 6, nature: 'debit' },
+      { numero: '626', libelle: 'Frais postaux et de télécommunications', classe: 6, nature: 'debit' },
+      { numero: '627', libelle: 'Services bancaires', classe: 6, nature: 'debit' },
+      { numero: '635', libelle: 'Autres impôts, taxes et versements assimilés', classe: 6, nature: 'debit' },
+      { numero: '641', libelle: 'Rémunérations du personnel', classe: 6, nature: 'debit' },
+      { numero: '645', libelle: 'Charges de sécurité sociale et de prévoyance', classe: 6, nature: 'debit' },
+      { numero: '651', libelle: 'Redevances pour concessions, brevets, licences', classe: 6, nature: 'debit' },
+      { numero: '658', libelle: 'Charges diverses de gestion courante', classe: 6, nature: 'debit' },
+      { numero: '661', libelle: 'Charges d\'intérêts', classe: 6, nature: 'debit' },
+      { numero: '671', libelle: 'Charges exceptionnelles sur opérations de gestion', classe: 6, nature: 'debit' },
+      { numero: '681', libelle: 'Dotations aux amortissements et provisions', classe: 6, nature: 'debit' },
+      // Classe 7 — Produits
+      { numero: '706', libelle: 'Prestations de services', classe: 7, nature: 'credit' },
+      { numero: '707', libelle: 'Ventes de marchandises', classe: 7, nature: 'credit' },
+      { numero: '708', libelle: 'Produits des activités annexes', classe: 7, nature: 'credit' },
+      { numero: '741', libelle: 'Subventions d\'exploitation', classe: 7, nature: 'credit' },
+      { numero: '761', libelle: 'Produits de participations', classe: 7, nature: 'credit' },
+      { numero: '764', libelle: 'Revenus des valeurs mobilières', classe: 7, nature: 'credit' },
+      { numero: '771', libelle: 'Produits exceptionnels sur opérations de gestion', classe: 7, nature: 'credit' },
+      { numero: '781', libelle: 'Reprises sur amortissements et provisions', classe: 7, nature: 'credit' },
+    ];
+
+    const rows = pcgStandard.map(c => ({
+      tenant_id: tenantId,
+      numero: c.numero,
+      libelle: c.libelle,
+      classe: c.classe,
+      type: c.type || 'general',
+      nature: c.nature || null
+    }));
+
+    const { data, error } = await supabase
+      .from('comptes_comptables')
+      .insert(rows)
+      .select('numero');
+
+    if (error) throw error;
+
+    res.json({ success: true, message: `${data.length} comptes créés`, count: data.length });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur init PCG:', error);
+    res.status(500).json({ error: 'Erreur initialisation plan comptable' });
   }
 });
 

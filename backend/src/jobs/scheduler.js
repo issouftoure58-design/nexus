@@ -57,6 +57,9 @@ const JOBS_SCHEDULE = {
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
   operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
   rgpdDeletion: { hour: 3, minute: 0 }, // 03h00 - Suppressions RGPD planifiees
+  plteHourly:  { interval: 60 },                       // Toutes les heures - PLTE v2 vie quotidienne
+  plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
+  plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1172,6 +1175,9 @@ let lastStockAlertesRun = 0;
 // Tracking du dernier run de l'intelligence monitoring (toutes les heures - Plan Business)
 let lastIntelligenceMonitoringRun = 0;
 
+// Tracking du dernier run PLTE hourly (toutes les heures)
+let lastPlteHourlyRun = 0;
+
 /**
  * Boucle principale du scheduler
  */
@@ -1328,6 +1334,40 @@ async function runScheduler() {
     }
   }
 
+  // Job: PLTE v2 hourly — 8 tenants vie quotidienne (toutes les heures)
+  const plteInterval = JOBS_SCHEDULE.plteHourly.interval * 60 * 1000;
+  if (now - lastPlteHourlyRun >= plteInterval) {
+    lastPlteHourlyRun = now;
+    try {
+      const { logicTestEngine } = await import('../services/logicTestEngine.js');
+      await logicTestEngine.runHourly();
+    } catch (err) {
+      console.error('[Scheduler] Erreur PLTE hourly:', err.message);
+    }
+  }
+
+  // Job: PLTE v2 nightly — stress tests (02h00)
+  if (shouldRunJob('plteNightly', JOBS_SCHEDULE.plteNightly)) {
+    markJobExecuted('plteNightly');
+    try {
+      const { logicTestEngine } = await import('../services/logicTestEngine.js');
+      await logicTestEngine.runNightly();
+    } catch (err) {
+      console.error('[Scheduler] Erreur PLTE nightly:', err.message);
+    }
+  }
+
+  // Job: PLTE v2 weekly — IA deep tests (lundi 03h00)
+  if (shouldRunWeeklyJob('plteWeekly', JOBS_SCHEDULE.plteWeekly)) {
+    markJobExecuted('plteWeekly');
+    try {
+      const { logicTestEngine } = await import('../services/logicTestEngine.js');
+      await logicTestEngine.runWeekly();
+    } catch (err) {
+      console.error('[Scheduler] Erreur PLTE weekly:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1367,6 +1407,9 @@ export function startScheduler() {
   console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
   console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
   console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
+  console.log(`  ✅ PLTE v2 Hourly: toutes les ${JOBS_SCHEDULE.plteHourly.interval} min (8 tenants vie quotidienne)`);
+  console.log(`  ✅ PLTE v2 Nightly: tous les jours a ${JOBS_SCHEDULE.plteNightly.hour}h${String(JOBS_SCHEDULE.plteNightly.minute).padStart(2, '0')} (stress tests)`);
+  console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis

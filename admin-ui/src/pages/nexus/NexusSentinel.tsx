@@ -1,3 +1,8 @@
+/**
+ * NEXUS AI — Proprietary & Confidential
+ * Copyright (c) 2026 NEXUS AI — Issouf Toure. All rights reserved.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ */
 import { lazy, Suspense } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import NexusLayout from '@/components/nexus/NexusLayout';
@@ -9,6 +14,7 @@ const SentinelIntelligence = lazy(() => import('@/components/nexus/sentinel/Sent
 const SentinelAutopilot = lazy(() => import('@/components/nexus/sentinel/SentinelAutopilot'));
 const SentinelBackups = lazy(() => import('@/components/nexus/sentinel/SentinelBackups'));
 const SentinelErrors = lazy(() => import('@/components/nexus/sentinel/SentinelErrors'));
+const SentinelLogicTests = lazy(() => import('@/components/nexus/sentinel/SentinelLogicTests'));
 
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
   overview: SentinelOverview,
@@ -18,6 +24,7 @@ const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentTy
   intelligence: SentinelIntelligence,
   backups: SentinelBackups,
   errors: SentinelErrors,
+  'logic-tests': SentinelLogicTests,
 };
 
 const VALID_TABS = Object.keys(TAB_COMPONENTS);

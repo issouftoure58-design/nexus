@@ -43,6 +43,21 @@ export default function MentionsLegales() {
           est la propriete exclusive de NEXUS AI ou de ses partenaires. Toute reproduction,
           representation ou diffusion, en tout ou partie, sans autorisation prealable ecrite est interdite.
         </p>
+        <p className="mt-2">
+          Le logiciel NEXUS, son code source, son architecture technique, ses algorithmes et ses
+          modeles d'intelligence artificielle sont proteges par le droit d'auteur francais
+          (Code de la propriete intellectuelle, articles L111-1 et suivants) et les conventions
+          internationales relatives au droit d'auteur.
+        </p>
+        <p className="mt-2">
+          La marque NEXUS AI fait l'objet d'une procedure de depot aupres de l'INPI
+          (Institut National de la Propriete Industrielle).
+        </p>
+        <p className="mt-2">
+          Toute reproduction, representation ou diffusion non autorisee de tout ou partie du
+          logiciel constitue une contrefacon sanctionnee par les articles L335-2 et suivants du
+          Code de la propriete intellectuelle, passible de 3 ans d'emprisonnement et 300 000 euros d'amende.
+        </p>
       </section>
 
       <section>

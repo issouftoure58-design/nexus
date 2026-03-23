@@ -431,12 +431,12 @@ function buildBusinessInfo(tc) {
  * Construit le texte sur la fiscalité/TVA
  */
 function buildTaxInfo(tc) {
-  const businessType = tc.business_type || tc.businessType || 'company';
+  const structure = tc.structure_juridique || tc.business_type || tc.businessType || 'company';
   const taxStatus = tc.tax_status || tc.taxStatus || 'franchise_tva';
 
   if (taxStatus === 'franchise_tva') {
     return `=== FISCALITÉ ===
-• Statut : ${businessType === 'independent' ? 'Auto-entrepreneur / Indépendant' : 'Entreprise'}
+• Statut : ${structure === 'independent' ? 'Auto-entrepreneur / Indépendant' : 'Entreprise'}
 • TVA : Non assujetti (franchise en base)
 • Prix affichés : Prix NETS (pas de TVA à ajouter)
 • Mention légale : "TVA non applicable, art. 293 B du CGI"
