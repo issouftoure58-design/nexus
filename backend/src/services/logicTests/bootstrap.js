@@ -40,7 +40,7 @@ export async function ensurePlteTenantsReady() {
       contexts[tenantId] = ctx;
       console.log(`[PLTE Bootstrap] ${tenantId} (${config.profile}) OK — ${ctx.services.length} services, ${ctx.clients.length} clients`);
     } catch (err) {
-      console.error(`[PLTE Bootstrap] ERREUR ${tenantId}:`, err.message);
+      console.error(`[PLTE Bootstrap] ERREUR ${tenantId}:`, err.message, err.stack?.split('\n').slice(0, 3).join(' | '));
       // On continue avec les autres tenants
     }
   }
@@ -103,7 +103,7 @@ async function ensureTenantExists(tenantId, name, template) {
   if (existing) return;
 
   // Creer le tenant (pour plte-hotel et plte-domicile)
-  await supabase.from('tenants').insert({
+  const { error } = await supabase.from('tenants').insert({
     id: tenantId,
     name,
     plan: 'business',
@@ -112,6 +112,10 @@ async function ensureTenantExists(tenantId, name, template) {
     modules_actifs: ['reservations', 'whatsapp', 'marketing', 'seo', 'comptabilite', 'fidelite', 'rh', 'stock'],
     created_at: new Date().toISOString(),
   });
+  if (error) {
+    console.error(`[PLTE Bootstrap] ERREUR creation tenant ${tenantId}:`, error.message, error.details, error.hint);
+    throw new Error(`Tenant creation failed: ${error.message}`);
+  }
   console.log(`[PLTE Bootstrap] Tenant ${tenantId} cree`);
 }
 
