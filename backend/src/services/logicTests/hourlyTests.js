@@ -49,7 +49,10 @@ function futureDate(daysFromNow = 7) {
 }
 
 function futureHeure() {
-  return '14:00';
+  // Heure unique par run pour eviter conflits entre executions hourly
+  const h = 10 + (new Date().getHours() % 8); // 10-17
+  const m = new Date().getMinutes();
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 /**

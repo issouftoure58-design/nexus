@@ -603,7 +603,7 @@ export async function cleanupPlteData(tenantId) {
     } catch { /* table may not exist */ }
   }
 
-  // Cleanup loyalty transactions avant clients
+  // Cleanup reservations + loyalty transactions + factures par client PLTE
   try {
     const { data: testClients } = await supabase
       .from('clients')
@@ -613,11 +613,51 @@ export async function cleanupPlteData(tenantId) {
 
     if (testClients?.length) {
       const ids = testClients.map(c => c.id);
-      await supabase
-        .from('loyalty_transactions')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .in('client_id', ids);
+
+      // Supprimer ecritures comptables liees aux factures PLTE
+      try {
+        const { data: plteFactures } = await supabase
+          .from('factures')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .in('client_id', ids);
+
+        if (plteFactures?.length) {
+          const factureIds = plteFactures.map(f => f.id);
+          await supabase
+            .from('ecritures_comptables')
+            .delete()
+            .eq('tenant_id', tenantId)
+            .in('facture_id', factureIds);
+        }
+      } catch { /* non-blocking */ }
+
+      // Supprimer factures par client PLTE
+      try {
+        await supabase
+          .from('factures')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .in('client_id', ids);
+      } catch { /* non-blocking */ }
+
+      // Supprimer reservations par client PLTE (fix conflit H1)
+      try {
+        await supabase
+          .from('reservations')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .in('client_id', ids);
+      } catch { /* non-blocking */ }
+
+      // Supprimer loyalty transactions
+      try {
+        await supabase
+          .from('loyalty_transactions')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .in('client_id', ids);
+      } catch { /* non-blocking */ }
     }
   } catch { /* non-blocking */ }
 
