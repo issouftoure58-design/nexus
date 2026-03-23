@@ -198,12 +198,12 @@ async function testH2_PaiementEcritures(tenantId, reservationId, client) {
 
     const factureResult = await createFactureFromReservation(reservationId, tenantId, { statut: 'generee' });
 
-    if (!factureResult?.id && !factureResult?.data?.id) {
+    // createFactureFromReservation retourne { success, facture } ou { id } ou { data: { id } }
+    const factureId = factureResult?.facture?.id || factureResult?.id || factureResult?.data?.id;
+    if (!factureId) {
       return makeResult(name, module, severity, description, 'fail',
-        'Creation facture echouee');
+        `Creation facture echouee: ${JSON.stringify(factureResult)?.substring(0, 100)}`);
     }
-
-    const factureId = factureResult?.id || factureResult?.data?.id;
 
     // Generer ecritures VT
     await genererEcrituresFacture(tenantId, factureId);

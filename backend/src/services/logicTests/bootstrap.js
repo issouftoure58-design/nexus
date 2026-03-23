@@ -146,7 +146,7 @@ async function ensureServices(tenantId, templateId) {
   const tpl = BUSINESS_TEMPLATES[templateId];
   if (!tpl?.defaultServices?.length) {
     // Creer un service generique
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('services')
       .insert({
         tenant_id: tenantId,
@@ -157,24 +157,34 @@ async function ensureServices(tenantId, templateId) {
         actif: true,
       })
       .select('id, nom, duree, prix, categorie, actif');
-    return data || [];
+    if (error) console.error(`[PLTE Bootstrap] Service insert error ${tenantId}:`, error.message);
+    if (data?.length) return data;
+  } else {
+    const rows = tpl.defaultServices.slice(0, 6).map(s => ({
+      tenant_id: tenantId,
+      nom: s.name,
+      duree: s.duration,
+      prix: s.price * 100, // template en euros, BDD en centimes
+      categorie: s.category || 'general',
+      actif: true,
+    }));
+
+    const { data, error } = await supabase
+      .from('services')
+      .insert(rows)
+      .select('id, nom, duree, prix, categorie, actif');
+    if (error) console.error(`[PLTE Bootstrap] Services insert error ${tenantId}:`, error.message);
+    if (data?.length) return data;
   }
 
-  const rows = tpl.defaultServices.slice(0, 6).map(s => ({
-    tenant_id: tenantId,
-    nom: s.name,
-    duree: s.duration,
-    prix: s.price * 100, // template en euros, BDD en centimes
-    categorie: s.category || 'general',
-    actif: true,
-  }));
-
-  const { data } = await supabase
+  // Retry: re-query au cas ou les inserts ont echoue (doublons) mais les services existent
+  const { data: retry } = await supabase
     .from('services')
-    .insert(rows)
-    .select('id, nom, duree, prix, categorie, actif');
-
-  return data || [];
+    .select('id, nom, duree, prix, categorie, actif')
+    .eq('tenant_id', tenantId)
+    .eq('actif', true)
+    .limit(20);
+  return retry || [];
 }
 
 // ============================================
@@ -203,12 +213,25 @@ async function ensureTestClients(tenantId) {
     created_at: new Date().toISOString(),
   }));
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('clients')
-    .insert(rows)
+    .upsert(rows, { onConflict: 'tenant_id,email' })
     .select('id, nom, prenom, email, telephone');
 
-  return data || [];
+  if (error) console.error(`[PLTE Bootstrap] Clients upsert error ${tenantId}:`, error.message);
+
+  // Retry: re-query si upsert a echoue mais clients existent deja
+  if (!data?.length) {
+    const { data: retry } = await supabase
+      .from('clients')
+      .select('id, nom, prenom, email, telephone')
+      .eq('tenant_id', tenantId)
+      .like('email', '%@plte.internal')
+      .limit(5);
+    return retry || [];
+  }
+
+  return data;
 }
 
 // ============================================
