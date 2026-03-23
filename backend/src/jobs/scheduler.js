@@ -57,7 +57,7 @@ const JOBS_SCHEDULE = {
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
   operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
   rgpdDeletion: { hour: 3, minute: 0 }, // 03h00 - Suppressions RGPD planifiees
-  plteHourly:  { interval: 240 },                      // Toutes les 4h - PLTE v2 vie quotidienne
+  plteHourly:  { interval: 60 },                       // Toutes les heures - PLTE v2 tests plateforme (H1-H6, sans IA)
   plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
 };
@@ -1407,7 +1407,7 @@ export function startScheduler() {
   console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
   console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
   console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
-  console.log(`  ✅ PLTE v2 Hourly: toutes les ${JOBS_SCHEDULE.plteHourly.interval} min (8 tenants vie quotidienne)`);
+  console.log(`  ✅ PLTE v2 Hourly: toutes les ${JOBS_SCHEDULE.plteHourly.interval} min (8 tenants, H1-H6 sans IA)`);
   console.log(`  ✅ PLTE v2 Nightly: tous les jours a ${JOBS_SCHEDULE.plteNightly.hour}h${String(JOBS_SCHEDULE.plteNightly.minute).padStart(2, '0')} (stress tests)`);
   console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);

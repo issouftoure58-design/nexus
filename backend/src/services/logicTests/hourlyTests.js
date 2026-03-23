@@ -102,8 +102,8 @@ export async function runHourlyTests(ctx) {
   // H6 — Coherence globale
   results.push(await testH6_Coherence(tenantId));
 
-  // H7 — Chat IA rapide (optimisé: Haiku + cache + outils réduits)
-  results.push(await testH7_ChatIA(tenantId));
+  // H7 — Chat IA: deplace en nightly (N14) pour economiser les appels Claude
+  // 8 tenants x toutes les 4h = trop cher en API. Un test/jour suffit.
 
   // Profile-specific tests
   const profileResults = await getProfileSpecificChecks(ctx);
@@ -522,43 +522,4 @@ async function testH6_Coherence(tenantId) {
   }
 }
 
-// ============================================
-// H7 — CHAT IA RAPIDE
-// ============================================
-
-async function testH7_ChatIA(tenantId) {
-  const name = 'H7_chat_ia_rapide';
-  const module = 'ia';
-  const severity = 'warning';
-  const description = 'Assistant IA : reponse a une question simple du patron';
-
-  try {
-    const { processMessage } = await import('../../core/unified/nexusCore.js');
-
-    // Question simple sans mot-cle RDV/commande → route vers Haiku (7 outils, ~3K tokens)
-    // au lieu de Sonnet (114 outils, ~14K tokens) = 14x moins cher
-    const result = await processMessage(
-      'Bonjour, quels services proposez-vous ?',
-      'admin',
-      {
-        tenantId,
-        conversationId: `plte-h7-${tenantId}-${Date.now()}`,
-        userId: 'plte-system',
-      }
-    );
-
-    if (!result?.success) {
-      return makeResult(name, module, severity, description, 'fail',
-        `IA echec: ${result?.error || 'pas de reponse'}`);
-    }
-
-    if (!result.response || result.response.length < 5) {
-      return makeResult(name, module, severity, description, 'fail',
-        'Reponse IA trop courte ou vide');
-    }
-
-    return makeResult(name, module, severity, description, 'pass');
-  } catch (err) {
-    return makeResult(name, module, severity, description, 'error', err.message);
-  }
-}
+// H7 — Chat IA: deplace vers nightlyTests.js (N14) pour economiser les couts API

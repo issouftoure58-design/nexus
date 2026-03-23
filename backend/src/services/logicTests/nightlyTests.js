@@ -101,6 +101,9 @@ export async function runNightlyTests(ctx) {
   // N13 — Marketing campagne via vraies fonctions
   results.push(await testN13_MarketingReelCycle(tenantId));
 
+  // N14 — Chat IA (deplace depuis hourly — 1 appel/jour au lieu de 6/jour par tenant)
+  results.push(await testN14_ChatIA(tenantId));
+
   // Purge donnees test > 7 jours
   await purgeOldTestData(tenantId);
   await cleanupPlteData(tenantId);
@@ -270,7 +273,7 @@ async function testN4_CoherenceComptable(tenantId) {
     // Verifier chaque piece comptable
     const { data: ecritures } = await supabase
       .from('ecritures_comptables')
-      .select('id, numero_piece, journal, debit, credit, compte, date_ecriture')
+      .select('id, numero_piece, journal_code, facture_id, debit, credit, compte, date_ecriture')
       .eq('tenant_id', tenantId);
 
     if (!ecritures?.length) {
@@ -310,9 +313,9 @@ async function testN4_CoherenceComptable(tenantId) {
       let orphelines = 0;
       for (const f of facturesPayees) {
         const bqLines = ecritures.filter(e =>
-          e.piece_origine_id === f.id && e.journal === 'BQ'
+          e.facture_id === f.id && e.journal_code === 'BQ'
         );
-        // On peut aussi chercher par numero_piece si piece_origine_id n'est pas dans le select
+        // Verifie si cette facture payee a des ecritures BQ correspondantes
         if (bqLines.length === 0) orphelines++;
       }
 
@@ -511,7 +514,7 @@ async function testN7_DoublePaiement(tenantId, client, service) {
       .from('ecritures_comptables')
       .select('id')
       .eq('tenant_id', tenantId)
-      .eq('piece_origine_id', factureId);
+      .eq('facture_id', factureId);
 
     const count1 = ecritures1?.length || 0;
 
@@ -522,7 +525,7 @@ async function testN7_DoublePaiement(tenantId, client, service) {
       .from('ecritures_comptables')
       .select('id')
       .eq('tenant_id', tenantId)
-      .eq('piece_origine_id', factureId);
+      .eq('facture_id', factureId);
 
     const count2 = ecritures2?.length || 0;
 
@@ -895,6 +898,46 @@ async function testN13_MarketingReelCycle(tenantId) {
     if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
       return makeResult(name, module, severity, description, 'pass', 'Module marketing non disponible (skip)');
     }
+    return makeResult(name, module, severity, description, 'error', err.message);
+  }
+}
+
+// ============================================
+// N14 — CHAT IA (ex-H7, deplace pour economie)
+// ============================================
+
+async function testN14_ChatIA(tenantId) {
+  const name = 'N14_chat_ia';
+  const module = 'ia';
+  const severity = 'warning';
+  const description = 'Assistant IA : reponse a une question simple du patron';
+
+  try {
+    const { processMessage } = await import('../../core/unified/nexusCore.js');
+
+    // Question simple sans mot-cle RDV/commande → route vers Haiku
+    const result = await processMessage(
+      'Bonjour, quels services proposez-vous ?',
+      'admin',
+      {
+        tenantId,
+        conversationId: `plte-n14-${tenantId}-${Date.now()}`,
+        userId: 'plte-system',
+      }
+    );
+
+    if (!result?.success) {
+      return makeResult(name, module, severity, description, 'fail',
+        `IA echec: ${result?.error || 'pas de reponse'}`);
+    }
+
+    if (!result.response || result.response.length < 5) {
+      return makeResult(name, module, severity, description, 'fail',
+        'Reponse IA trop courte ou vide');
+    }
+
+    return makeResult(name, module, severity, description, 'pass');
+  } catch (err) {
     return makeResult(name, module, severity, description, 'error', err.message);
   }
 }
