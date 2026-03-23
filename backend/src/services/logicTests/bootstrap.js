@@ -108,7 +108,7 @@ async function ensureTenantExists(tenantId, name, template) {
     name,
     plan: 'business',
     statut: 'actif',
-    business_type: template,
+    structure_juridique: 'company',
     modules_actifs: ['reservations', 'whatsapp', 'marketing', 'seo', 'comptabilite', 'fidelite', 'rh', 'stock'],
     created_at: new Date().toISOString(),
   });
