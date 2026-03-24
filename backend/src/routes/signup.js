@@ -440,11 +440,6 @@ router.post('/', signupLimiter, async (req, res) => {
             }
           };
 
-          // Promo 100 premiers clients
-          if (process.env.STRIPE_PROMO_COUPON_ID) {
-            checkoutParams.discounts = [{ coupon: process.env.STRIPE_PROMO_COUPON_ID }];
-          }
-
           const session = await stripe.checkout.sessions.create(checkoutParams);
 
           checkoutUrl = session.url;
