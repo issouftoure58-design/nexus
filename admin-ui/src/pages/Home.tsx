@@ -3,7 +3,7 @@
  * Chat IA plein page + Sentinel Live Feed + Multi-conversations
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -127,6 +127,39 @@ const SECONDARY_ACTIONS = [
   { label: 'Actions urgentes', prompt: 'Quelles actions urgentes dois-je faire ?' },
   { label: 'Créer un document', prompt: 'Aide-moi à créer un document professionnel' },
 ];
+
+// Memoized message — ne re-render que quand content/isStreaming changent
+const ChatMessage = memo(({ message }: { message: Message }) => (
+  <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${
+      message.role === 'user'
+        ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/25'
+        : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/25'
+    }`}>
+      {message.role === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
+    </div>
+
+    <div className={`max-w-[80%] ${message.role === 'user' ? 'text-right' : ''}`}>
+      <div className={`inline-block px-4 py-2.5 rounded-2xl shadow-md ${
+        message.role === 'user'
+          ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/20'
+          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-gray-200/50 dark:shadow-black/20'
+      }`}>
+        {message.role === 'user' ? (
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-table:text-xs prose-th:px-2 prose-td:px-2">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          </div>
+        )}
+        {message.isStreaming && <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse ml-1 rounded-sm" />}
+      </div>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+        {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+      </p>
+    </div>
+  </div>
+));
 
 export function Home() {
   const navigate = useNavigate();
@@ -466,6 +499,16 @@ export function Home() {
       const decoder = new TextDecoder();
       let fullContent = '';
       let sseBuffer = '';
+      let rafId: number | null = null;
+
+      // Flush batché — max 1 setState par frame (~60fps)
+      const flushContent = () => {
+        const content = fullContent;
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId ? { ...m, content } : m
+        ));
+        rafId = null;
+      };
 
       if (reader) {
         while (true) {
@@ -474,7 +517,6 @@ export function Home() {
 
           sseBuffer += decoder.decode(value, { stream: true });
           const lines = sseBuffer.split('\n');
-          // Keep last (potentially incomplete) line in buffer
           sseBuffer = lines.pop() || '';
 
           for (const line of lines) {
@@ -483,13 +525,16 @@ export function Home() {
                 const data = JSON.parse(line.slice(6));
                 if (data.type === 'text') {
                   fullContent += data.content;
-                  setMessages(prev => prev.map(m =>
-                    m.id === assistantId ? { ...m, content: fullContent } : m
-                  ));
+                  // Planifier un flush au prochain frame si pas déjà prévu
+                  if (rafId === null) {
+                    rafId = requestAnimationFrame(flushContent);
+                  }
                 } else if (data.type === 'done') {
+                  if (rafId !== null) cancelAnimationFrame(rafId);
                   setMessages(prev => prev.map(m =>
-                    m.id === assistantId ? { ...m, isStreaming: false } : m
+                    m.id === assistantId ? { ...m, content: fullContent, isStreaming: false } : m
                   ));
+                  rafId = null;
                 } else if (data.type === 'error') {
                   throw new Error(data.message || 'Erreur streaming');
                 }
@@ -500,6 +545,11 @@ export function Home() {
             }
           }
         }
+        // Flush final si le stream se termine sans event 'done'
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId ? { ...m, content: fullContent, isStreaming: false } : m
+        ));
       }
 
       setConversations(prev => prev.map(c =>
@@ -992,35 +1042,7 @@ export function Home() {
               /* Messages list */
               <div className="space-y-4">
                 {messages.map(message => (
-                  <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${
-                      message.role === 'user'
-                        ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/25'
-                        : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/25'
-                    }`}>
-                      {message.role === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
-                    </div>
-
-                    <div className={`max-w-[80%] ${message.role === 'user' ? 'text-right' : ''}`}>
-                      <div className={`inline-block px-4 py-2.5 rounded-2xl shadow-md ${
-                        message.role === 'user'
-                          ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/20'
-                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-gray-200/50 dark:shadow-black/20'
-                      }`}>
-                        {message.role === 'user' ? (
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                        ) : (
-                          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-table:text-xs prose-th:px-2 prose-td:px-2">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                          </div>
-                        )}
-                        {message.isStreaming && <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse ml-1 rounded-sm" />}
-                      </div>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
+                  <ChatMessage key={message.id} message={message} />
                 ))}
                 <div ref={messagesEndRef} />
               </div>
