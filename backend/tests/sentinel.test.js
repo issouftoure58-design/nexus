@@ -98,8 +98,10 @@ jest.unstable_mockModule('../src/config/supabase.js', () => {
     return builder;
   }
 
+  const client = { from: (table) => createBuilder(table) };
   return {
-    supabase: { from: (table) => createBuilder(table) }
+    supabase: client,
+    rawSupabase: client,
   };
 });
 
