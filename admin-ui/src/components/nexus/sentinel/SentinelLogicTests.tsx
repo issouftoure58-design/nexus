@@ -8,7 +8,7 @@ import { nexusApi } from '@/lib/nexusApi';
 import {
   FlaskConical, Play, ChevronDown, ChevronRight,
   CheckCircle2, XCircle, AlertTriangle, Clock, RefreshCw,
-  Shield, Database, Bot, Zap, Activity,
+  Shield, Database, Bot, Zap, Activity, Route,
   Stethoscope, HelpCircle, DollarSign,
 } from 'lucide-react';
 
@@ -218,12 +218,14 @@ const CATEGORY_ICONS: Record<string, typeof Shield> = {
   hourly: Activity,
   nightly: Zap,
   weekly: Bot,
+  e2e: Route,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
   hourly: 'Vie quotidienne (horaire)',
   nightly: 'Stress tests (nocturne)',
   weekly: 'IA + Securite (hebdo)',
+  e2e: 'Parcours utilisateur (E2E)',
 };
 
 const RUN_TYPE_LABELS: Record<string, string> = {
@@ -231,6 +233,7 @@ const RUN_TYPE_LABELS: Record<string, string> = {
   nightly: 'Nocturne',
   weekly: 'Hebdo',
   full: 'Complet',
+  e2e: 'E2E',
 };
 
 const PROFILE_LABELS: Record<string, string> = {
@@ -650,6 +653,7 @@ export default function SentinelLogicTests() {
                 { type: 'hourly', label: 'Tests horaires', desc: 'Vie quotidienne (8 tenants)' },
                 { type: 'nightly', label: 'Tests nocturnes', desc: 'Stress + edge cases' },
                 { type: 'weekly', label: 'Tests IA', desc: 'IA deep + securite' },
+                { type: 'e2e', label: 'Tests E2E', desc: 'Parcours utilisateur HTTP (34 tests)' },
                 { type: 'full', label: 'Suite complete', desc: 'Tout d\'un coup' },
               ].map(item => (
                 <button
@@ -668,7 +672,7 @@ export default function SentinelLogicTests() {
 
       {/* Categories Accordions */}
       <div className="space-y-2">
-        {['hourly', 'nightly', 'weekly'].map(cat => (
+        {['hourly', 'nightly', 'weekly', 'e2e'].map(cat => (
           <CategoryAccordion
             key={cat}
             category={cat}
