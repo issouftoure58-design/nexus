@@ -107,12 +107,16 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 // Plans NEXUS officiels - Grille tarifaire 2026
+// Promo 100 premiers clients: prix réduits
+const PROMO_ACTIVE = true; // Désactiver quand les 100 premiers clients sont atteints
 const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
     price: 99,
+    promoPrice: 79,
     yearlyPrice: 950,
+    promoYearlyPrice: 758,
     description: 'Pour démarrer votre activité',
     color: 'from-gray-500 to-gray-600',
     features: [
@@ -130,7 +134,9 @@ const PLANS = [
     id: 'pro',
     name: 'Pro',
     price: 249,
+    promoPrice: 199,
     yearlyPrice: 2390,
+    promoYearlyPrice: 1910,
     description: 'Pour les équipes en croissance',
     popular: true,
     color: 'from-purple-500 to-indigo-600',
@@ -152,7 +158,9 @@ const PLANS = [
     id: 'business',
     name: 'Business',
     price: 499,
+    promoPrice: 399,
     yearlyPrice: 4790,
+    promoYearlyPrice: 3830,
     description: 'Pour les entreprises structurées',
     color: 'from-cyan-500 to-blue-600',
     features: [
@@ -425,7 +433,10 @@ export default function Subscription() {
             <p className="text-lg opacity-90 mb-6">{currentPlanData.description}</p>
 
             <div className="flex items-baseline gap-1">
-              <span className="text-5xl font-bold">{currentPlanData.price}€</span>
+              {PROMO_ACTIVE && (
+                <span className="text-2xl opacity-60 line-through mr-2">{currentPlanData.price}€</span>
+              )}
+              <span className="text-5xl font-bold">{PROMO_ACTIVE ? currentPlanData.promoPrice : currentPlanData.price}€</span>
               <span className="text-xl opacity-80">/mois</span>
             </div>
           </div>
@@ -470,7 +481,9 @@ export default function Subscription() {
               {PLANS.map((plan) => {
                 const isCurrentPlan = plan.id === currentPlan;
                 const Icon = plan.id === 'business' ? Crown : plan.id === 'pro' ? Star : Zap;
-                const displayPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
+                const originalPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
+                const promoPrice = billingCycle === 'yearly' ? plan.promoYearlyPrice : plan.promoPrice;
+                const displayPrice = PROMO_ACTIVE ? promoPrice : originalPrice;
                 const priceSuffix = billingCycle === 'yearly' ? '/an' : '/mois';
 
                 return (
@@ -509,9 +522,17 @@ export default function Subscription() {
 
                     <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                     <div className="flex items-baseline gap-1 mb-1">
+                      {PROMO_ACTIVE && (
+                        <span className="text-lg text-gray-400 line-through mr-1">{originalPrice}€</span>
+                      )}
                       <span className="text-3xl font-bold text-gray-900">{displayPrice}€</span>
                       <span className="text-gray-500">{priceSuffix}</span>
                     </div>
+                    {PROMO_ACTIVE && (
+                      <span className="inline-block text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                        OFFRE 100 PREMIERS CLIENTS
+                      </span>
+                    )}
                     <div className="mb-3" />
 
                     <ul className="space-y-2 mb-6">
@@ -862,7 +883,10 @@ export default function Subscription() {
               {tenantStatut !== 'essai' && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Facturation</span>
-                  <span className="font-semibold text-gray-900">{currentPlanData.price}€/mois</span>
+                  <span className="font-semibold text-gray-900">
+                    {PROMO_ACTIVE && <span className="text-gray-400 line-through text-sm mr-1">{currentPlanData.price}€</span>}
+                    {PROMO_ACTIVE ? currentPlanData.promoPrice : currentPlanData.price}€/mois
+                  </span>
                 </div>
               )}
               {subscriptionData?.current_period_end && (
@@ -946,7 +970,7 @@ export default function Subscription() {
               Notre équipe est là pour vous aider avec votre abonnement.
             </p>
             <a
-              href="mailto:support@nexus-ai-saas.com"
+              href="mailto:nexussentinelai@yahoo.com"
               className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
             >
               Contacter le support

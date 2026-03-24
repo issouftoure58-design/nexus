@@ -416,7 +416,7 @@ router.post('/', signupLimiter, async (req, res) => {
           : plan.stripe_price_id_monthly;
 
         if (priceId) {
-          const session = await stripe.checkout.sessions.create({
+          const checkoutParams = {
             customer: customer.id,
             mode: 'subscription',
             payment_method_types: ['card'],
@@ -438,7 +438,14 @@ router.post('/', signupLimiter, async (req, res) => {
               tenant_id,
               admin_email: email
             }
-          });
+          };
+
+          // Promo 100 premiers clients
+          if (process.env.STRIPE_PROMO_COUPON_ID) {
+            checkoutParams.discounts = [{ coupon: process.env.STRIPE_PROMO_COUPON_ID }];
+          }
+
+          const session = await stripe.checkout.sessions.create(checkoutParams);
 
           checkoutUrl = session.url;
         }

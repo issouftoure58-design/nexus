@@ -643,6 +643,11 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
     }
   };
 
+  // Promo 100 premiers clients — coupon Stripe (si configuré)
+  if (process.env.STRIPE_PROMO_COUPON_ID) {
+    sessionParams.discounts = [{ coupon: process.env.STRIPE_PROMO_COUPON_ID }];
+  }
+
   // Pas de trial Stripe si le tenant a déjà bénéficié d'un essai NEXUS
   if (!hasHadTrial) {
     sessionParams.subscription_data.trial_period_days = 14;
