@@ -191,10 +191,12 @@ export default function RoomCalendar() {
   });
 
   if (error) {
+    const errMsg = error instanceof Error ? error.message : 'Erreur inconnue';
     return (
       <div className="p-8 text-center">
         <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-4" />
         <p className="text-gray-600">Erreur de chargement du calendrier</p>
+        <p className="text-sm text-gray-400 mt-2">{errMsg}</p>
       </div>
     );
   }
