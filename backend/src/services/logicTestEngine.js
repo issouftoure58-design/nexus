@@ -415,6 +415,7 @@ class LogicTestEngine {
           id: e2eTenantId,
           name: 'PLTE E2E Runner',
           plan: 'business',
+          status: 'active',
           statut: 'actif',
           created_at: new Date().toISOString(),
         });

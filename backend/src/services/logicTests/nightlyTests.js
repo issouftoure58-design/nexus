@@ -983,6 +983,20 @@ async function testN14_ChatIA(tenantId) {
   const description = 'Assistant IA : reponse a une question simple du patron';
 
   try {
+    // S'assurer que le cache tenant est charge (force reload si absent)
+    const { getTenantConfig } = await import('../../config/tenants/index.js');
+    const { loadAllTenants } = await import('../../config/tenants/tenantCache.js');
+    let cfg = getTenantConfig(tenantId);
+    if (!cfg) {
+      // Forcer un rechargement du cache depuis Supabase
+      await loadAllTenants();
+      cfg = getTenantConfig(tenantId);
+    }
+    if (!cfg) {
+      return makeResult(name, module, severity, description, 'fail',
+        'Config tenant absente en base — verifier que le tenant existe dans la table tenants');
+    }
+
     const { processMessage } = await import('../../core/unified/nexusCore.js');
 
     // Question simple sans mot-cle RDV/commande → route vers Haiku
