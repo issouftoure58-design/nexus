@@ -315,22 +315,22 @@ router.get('/occupation', async (req, res) => {
     const { data: occupation, error: occupationError } = await occupationQuery;
     if (occupationError) throw occupationError;
 
-    // Récupérer les réservations en cours
+    // Récupérer les réservations en cours (colonnes hotel: date_arrivee/date_depart)
     const { data: reservations, error: resaError } = await supabase
       .from('reservations')
       .select(`
         id,
         client_id,
         service_id,
-        date_debut,
-        date_fin,
+        date_arrivee,
+        date_depart,
         statut,
         nb_personnes,
         client:clients(prenom, nom, telephone)
       `)
       .eq('tenant_id', tenantId)
-      .gte('date_fin', start)
-      .lte('date_debut', end)
+      .gte('date_depart', start)
+      .lte('date_arrivee', end)
       .in('statut', ['confirmee', 'en_cours']);
 
     if (resaError) throw resaError;
@@ -475,8 +475,8 @@ router.get('/stats', async (req, res) => {
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('date_debut', startOfMonth.toISOString().slice(0, 10))
-      .lt('date_debut', endOfMonth.toISOString().slice(0, 10));
+      .gte('date_arrivee', startOfMonth.toISOString().slice(0, 10))
+      .lt('date_arrivee', endOfMonth.toISOString().slice(0, 10));
 
     // Occupation aujourd'hui
     const today = new Date().toISOString().slice(0, 10);

@@ -30,7 +30,7 @@ const mockCalendarData = {
         { id: 2, service_id: 1, date_occupation: '2026-03-15', statut: 'maintenance' },
       ],
       reservations: [
-        { id: 1, client_id: 10, service_id: 1, date_debut: '2026-03-10', date_fin: '2026-03-12', statut: 'confirmee', nb_personnes: 2, client: { prenom: 'Jean', nom: 'Dupont', telephone: '+33612345678' } }
+        { id: 1, client_id: 10, service_id: 1, date_arrivee: '2026-03-10', date_depart: '2026-03-12', statut: 'confirmee', nb_personnes: 2, client: { prenom: 'Jean', nom: 'Dupont', telephone: '+33612345678' } }
       ]
     },
     {

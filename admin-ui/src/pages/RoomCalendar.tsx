@@ -48,8 +48,8 @@ interface Reservation {
   id: number;
   client_id: number;
   service_id: number;
-  date_debut: string;
-  date_fin: string;
+  date_arrivee: string;
+  date_depart: string;
   statut: string;
   nb_personnes: number;
   client: {
@@ -145,7 +145,7 @@ export default function RoomCalendar() {
 
     // Vérifier les réservations
     const reservation = chambre.reservations.find(r =>
-      dateStr >= r.date_debut && dateStr < r.date_fin
+      dateStr >= r.date_arrivee && dateStr < r.date_depart
     );
     if (reservation) {
       return { statut: 'reservee', reservation };
@@ -364,14 +364,14 @@ export default function RoomCalendar() {
                       const dateStr = day.toISOString().slice(0, 10);
 
                       // Déterminer si c'est le début/fin d'une réservation
-                      const isFirstOfReservation = reservation && reservation.date_debut === dateStr;
+                      const isFirstOfReservation = reservation && reservation.date_arrivee === dateStr;
                       const prevDate = new Date(day);
                       prevDate.setDate(prevDate.getDate() - 1);
                       const nextDate = new Date(day);
                       nextDate.setDate(nextDate.getDate() + 1);
                       const nextDateStr = nextDate.toISOString().slice(0, 10);
                       const isLastOfReservation = reservation && (
-                        nextDateStr >= reservation.date_fin ||
+                        nextDateStr >= reservation.date_depart ||
                         index === days.length - 1
                       );
 
@@ -470,7 +470,7 @@ function ReservationModal({
   onClose: () => void;
 }) {
   const nbNuits = Math.ceil(
-    (new Date(reservation.date_fin).getTime() - new Date(reservation.date_debut).getTime()) /
+    (new Date(reservation.date_depart).getTime() - new Date(reservation.date_arrivee).getTime()) /
     (1000 * 60 * 60 * 24)
   );
 
@@ -506,7 +506,7 @@ function ReservationModal({
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="text-xs text-gray-500 mb-1">Arrivée</div>
               <div className="font-medium">
-                {new Date(reservation.date_debut).toLocaleDateString('fr-FR', {
+                {new Date(reservation.date_arrivee).toLocaleDateString('fr-FR', {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short'
@@ -516,7 +516,7 @@ function ReservationModal({
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="text-xs text-gray-500 mb-1">Départ</div>
               <div className="font-medium">
-                {new Date(reservation.date_fin).toLocaleDateString('fr-FR', {
+                {new Date(reservation.date_depart).toLocaleDateString('fr-FR', {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short'
