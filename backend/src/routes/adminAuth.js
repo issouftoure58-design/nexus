@@ -451,7 +451,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
 
     if (tenantError) {
       logger.error('[SIGNUP] Erreur création tenant:', tenantError);
-      throw new Error('Erreur lors de la création du compte');
+      throw new Error(`Erreur création tenant: ${tenantError.message || tenantError.code || 'inconnu'}`);
     }
 
     // Hasher le mot de passe
@@ -475,7 +475,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
       // Rollback: supprimer le tenant créé
       await supabase.from('tenants').delete().eq('id', tenant.id);
       logger.error('[SIGNUP] Erreur création admin:', userError);
-      throw new Error('Erreur lors de la création du compte');
+      throw new Error(`Erreur création admin: ${userError.message || userError.code || 'inconnu'}`);
     }
 
     // ═══ Auto-provisionner depuis le template ═══
