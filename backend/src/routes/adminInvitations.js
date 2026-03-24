@@ -32,11 +32,13 @@ router.get('/limits', authenticateAdmin, async (req, res) => {
 
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan')
+      .select('plan, statut')
       .eq('id', tenantId)
       .single();
 
-    const plan = tenant?.plan || 'starter';
+    // En mode essai, forcer le plan Starter (même si plan choisi = business)
+    const storedPlan = tenant?.plan || 'starter';
+    const plan = tenant?.statut === 'essai' ? 'starter' : storedPlan;
     const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
 
     const { count: currentUsers } = await supabase
@@ -108,11 +110,13 @@ router.post('/', authenticateAdmin, async (req, res) => {
     // Vérifier le quota utilisateurs du plan
     const { data: tenantData } = await supabase
       .from('tenants')
-      .select('plan, name')
+      .select('plan, name, statut')
       .eq('id', tenantId)
       .single();
 
-    const plan = tenantData?.plan || 'starter';
+    // En mode essai, forcer le plan Starter
+    const storedPlan = tenantData?.plan || 'starter';
+    const plan = tenantData?.statut === 'essai' ? 'starter' : storedPlan;
     const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
 
     const { count: currentUsers } = await supabase
