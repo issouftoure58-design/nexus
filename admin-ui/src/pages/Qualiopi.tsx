@@ -61,27 +61,27 @@ export default function Qualiopi() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['qualiopi-apprenants'],
     queryFn: () =>
-      api.get<{ apprenants: Apprenant[] }>('/api/admin/qualiopi/apprenants'),
+      api.get<{ apprenants: Apprenant[] }>('/admin/qualiopi/apprenants'),
   });
 
   const { data: alertesData } = useQuery({
     queryKey: ['qualiopi-alertes'],
     queryFn: () =>
-      api.get<{ alertes: Alerte[] }>('/api/admin/qualiopi/alertes'),
+      api.get<{ alertes: Alerte[] }>('/admin/qualiopi/alertes'),
   });
 
   const { data: checklistData } = useQuery({
     queryKey: ['qualiopi-checklist', selectedClient],
     queryFn: () =>
       api.get<{ checklist: ChecklistItem[] }>(
-        `/api/admin/qualiopi/apprenants/${selectedClient}/documents`
+        `/admin/qualiopi/apprenants/${selectedClient}/documents`
       ),
     enabled: !!selectedClient,
   });
 
   const validateMutation = useMutation({
     mutationFn: ({ clientId, docType }: { clientId: string; docType: string }) =>
-      api.post(`/api/admin/qualiopi/apprenants/${clientId}/documents`, {
+      api.post(`/admin/qualiopi/apprenants/${clientId}/documents`, {
         document_type: docType,
         status: 'valide',
       }),

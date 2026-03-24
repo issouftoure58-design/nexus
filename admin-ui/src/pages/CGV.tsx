@@ -25,7 +25,7 @@ export default function CGV() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<CGVData>('/api/cgv')
+    api.get<CGVData>('/cgv')
       .then(data => setCgv(data))
       .catch(() => setCgv(null))
       .finally(() => setLoading(false));

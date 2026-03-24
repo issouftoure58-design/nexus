@@ -62,19 +62,19 @@ export default function Satisfaction() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['satisfaction-enquetes'],
     queryFn: () =>
-      api.get<{ enquetes: Enquete[] }>('/api/satisfaction/admin/enquetes'),
+      api.get<{ enquetes: Enquete[] }>('/satisfaction/admin/enquetes'),
   });
 
   const { data: resultsData } = useQuery({
     queryKey: ['satisfaction-results', selectedId],
     queryFn: () =>
-      api.get<ResultsData>(`/api/satisfaction/admin/enquetes/${selectedId}/results`),
+      api.get<ResultsData>(`/satisfaction/admin/enquetes/${selectedId}/results`),
     enabled: !!selectedId,
   });
 
   const createMutation = useMutation({
     mutationFn: (type: 'chaud' | 'froid') =>
-      api.post('/api/satisfaction/admin/enquetes', { type }),
+      api.post('/satisfaction/admin/enquetes', { type }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['satisfaction-enquetes'] }),
   });
 

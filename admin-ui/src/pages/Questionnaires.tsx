@@ -54,26 +54,26 @@ export default function Questionnaires() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['questionnaires'],
     queryFn: () =>
-      api.get<{ questionnaires: Questionnaire[] }>('/api/questionnaires/admin'),
+      api.get<{ questionnaires: Questionnaire[] }>('/questionnaires/admin'),
   });
 
   const { data: subsData } = useQuery({
     queryKey: ['questionnaire-submissions', selectedId],
     queryFn: () =>
       api.get<{ submissions: Submission[] }>(
-        `/api/questionnaires/admin/${selectedId}/submissions`
+        `/questionnaires/admin/${selectedId}/submissions`
       ),
     enabled: !!selectedId,
   });
 
   const toggleMutation = useMutation({
     mutationFn: (q: Questionnaire) =>
-      api.put(`/api/questionnaires/admin/${q.id}`, { actif: !q.actif }),
+      api.put(`/questionnaires/admin/${q.id}`, { actif: !q.actif }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/questionnaires/admin/${id}`),
+    mutationFn: (id: string) => api.delete(`/questionnaires/admin/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questionnaires'] });
       setSelectedId(null);
@@ -82,7 +82,7 @@ export default function Questionnaires() {
 
   const createMutation = useMutation({
     mutationFn: (titre: string) =>
-      api.post('/api/questionnaires/admin', {
+      api.post('/questionnaires/admin', {
         titre,
         questions: [
           { id: 'q1', type: 'select', label: 'Quel est votre besoin principal ?', max_points: 10, options: [
