@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTenantContext } from '@/contexts/TenantContext';
 import { api, servicesApi, disponibilitesApi } from '@/lib/api';
-import { Loader2, Check, ArrowRight, Settings } from 'lucide-react';
+import { Loader2, Check, ArrowRight, Settings, SkipForward } from 'lucide-react';
 import ConfigServicesList, { type ServiceItem } from '@/components/config/ConfigServicesList';
 import ConfigHoursSingle, { type DayHours } from '@/components/config/ConfigHoursSingle';
 import ConfigHoursMulti, { type DayMultiHours } from '@/components/config/ConfigHoursMulti';
@@ -323,12 +323,23 @@ export default function Configuration() {
 
           {/* Bouton Terminer */}
           <div className="flex justify-between items-center pt-4">
-            <button
-              onClick={() => navigate('/')}
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  await api.patch('/tenants/me/complete-onboarding');
+                  await refetch();
+                  navigate('/');
+                } catch {
+                  // Fallback: navigate anyway
+                  navigate('/');
+                }
+              }}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
+              <SkipForward className="w-4 h-4 mr-1" />
               Passer pour l'instant
-            </button>
+            </Button>
             <Button
               onClick={handleSave}
               disabled={saving || saved}
