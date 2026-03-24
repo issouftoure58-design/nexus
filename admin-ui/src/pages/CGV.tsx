@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 interface Article {
@@ -21,6 +21,7 @@ interface CGVData {
 }
 
 export default function CGV() {
+  const navigate = useNavigate();
   const [cgv, setCgv] = useState<CGVData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -43,10 +44,10 @@ export default function CGV() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-12">
         {/* Header */}
-        <Link to="/signup" className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-8 transition-colors">
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Retour</span>
-        </Link>
+        </button>
 
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
