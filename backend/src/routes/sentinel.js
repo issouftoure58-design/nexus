@@ -825,10 +825,10 @@ router.post('/logic/run', authenticateAdmin, requireAdminPlan('business'), async
   try {
     const { type } = req.body;
 
-    if (!type || !['hourly', 'nightly', 'weekly', 'full'].includes(type)) {
+    if (!type || !['hourly', 'nightly', 'weekly', 'full', 'e2e'].includes(type)) {
       return res.status(400).json({
         success: false,
-        error: 'Type requis: hourly | nightly | weekly | full'
+        error: 'Type requis: hourly | nightly | weekly | full | e2e'
       });
     }
 
@@ -845,6 +845,9 @@ router.post('/logic/run', authenticateAdmin, requireAdminPlan('business'), async
         break;
       case 'full':
         result = await logicTestEngine.runFull();
+        break;
+      case 'e2e':
+        result = await logicTestEngine.runE2E();
         break;
     }
 

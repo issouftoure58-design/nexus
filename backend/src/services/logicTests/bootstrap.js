@@ -679,3 +679,67 @@ export async function cleanupPlteData(tenantId) {
     }
   } catch { /* non-blocking */ }
 }
+
+/**
+ * Supprime completement un tenant ephemere E2E (cascading delete)
+ * Utilise par les tests E2E pour nettoyer les tenants crees pendant les tests
+ */
+export async function cleanupE2ETenant(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  console.log(`[PLTE E2E Cleanup] Suppression tenant ${tenantId}...`);
+
+  // Ordre de suppression: dependances d'abord, tenant en dernier
+  const cascadeTables = [
+    'admin_sessions',
+    'invitations',
+    'loyalty_transactions',
+    'avis_clients',
+    'ecritures_comptables',
+    'factures',
+    'reservations',
+    'services',
+    'business_hours',
+    'clients',
+    'usage_tracking',
+    'rh_bulletins_paie',
+    'rh_membres',
+    'produits',
+    'product_stock',
+    'marketing_campaigns',
+    'social_posts',
+    'devis',
+    'orders',
+    'quotes',
+    'crm_contacts',
+    'hr_employees',
+    'hotel_chambres',
+    'restaurant_tables',
+    'security_sites',
+    'zones_intervention',
+    'sentinel_logic_tests',
+    'sentinel_logic_runs',
+    'admin_users',
+  ];
+
+  for (const table of cascadeTables) {
+    try {
+      await supabase
+        .from(table)
+        .delete()
+        .eq('tenant_id', tenantId);
+    } catch { /* table may not exist or no rows — non-blocking */ }
+  }
+
+  // Finally delete the tenant itself
+  try {
+    await supabase
+      .from('tenants')
+      .delete()
+      .eq('id', tenantId);
+  } catch (err) {
+    console.error(`[PLTE E2E Cleanup] Erreur suppression tenant ${tenantId}:`, err.message);
+  }
+
+  console.log(`[PLTE E2E Cleanup] Tenant ${tenantId} supprime`);
+}

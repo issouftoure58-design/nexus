@@ -60,6 +60,7 @@ const JOBS_SCHEDULE = {
   plteHourly:  { interval: 60 },                       // Toutes les heures - PLTE v2 tests plateforme (H1-H6, sans IA)
   plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
+  plteE2E:     { hour: 4, minute: 0 },                 // 04h00 - PLTE E2E parcours utilisateur complet
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1368,6 +1369,17 @@ async function runScheduler() {
     }
   }
 
+  // Job: PLTE E2E — tests parcours utilisateur complet via HTTP (04h00)
+  if (shouldRunJob('plteE2E', JOBS_SCHEDULE.plteE2E)) {
+    markJobExecuted('plteE2E');
+    try {
+      const { logicTestEngine } = await import('../services/logicTestEngine.js');
+      await logicTestEngine.runE2E();
+    } catch (err) {
+      console.error('[Scheduler] Erreur PLTE E2E:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1410,6 +1422,7 @@ export function startScheduler() {
   console.log(`  ✅ PLTE v2 Hourly: toutes les ${JOBS_SCHEDULE.plteHourly.interval} min (8 tenants, H1-H6 sans IA)`);
   console.log(`  ✅ PLTE v2 Nightly: tous les jours a ${JOBS_SCHEDULE.plteNightly.hour}h${String(JOBS_SCHEDULE.plteNightly.minute).padStart(2, '0')} (stress tests)`);
   console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
+  console.log(`  ✅ PLTE E2E: tous les jours a ${JOBS_SCHEDULE.plteE2E.hour}h${String(JOBS_SCHEDULE.plteE2E.minute).padStart(2, '0')} (10 contextes, 34 tests HTTP)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis

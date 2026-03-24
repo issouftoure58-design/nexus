@@ -12,6 +12,7 @@ import { ensurePlteTenantsReady, PLTE_TENANT_IDS, PLTE_TENANTS } from './logicTe
 import { runHourlyTests } from './logicTests/hourlyTests.js';
 import { runNightlyTests } from './logicTests/nightlyTests.js';
 import { runWeeklyTests } from './logicTests/weeklyTests.js';
+import { runE2ETests } from './logicTests/e2eTests.js';
 import { runDiagnostics } from './logicTests/diagnosticEngine.js';
 import { generateReport, generateGlobalReport, shouldAlert, sendAlert } from './logicTests/reportingService.js';
 
@@ -381,6 +382,57 @@ class LogicTestEngine {
 
     this.logGlobalScore(allRuns, 'full');
     return allRuns;
+  }
+
+  // ============================================
+  // E2E — Tests parcours utilisateur via HTTP
+  // ============================================
+
+  async runE2E() {
+    if (this.isRunning) {
+      console.log('[PLTE] Already running, skipping E2E');
+      return [];
+    }
+    this.isRunning = true;
+
+    try {
+      console.log('[PLTE E2E] Running E2E tests (10 contextes)...');
+      const startedAt = new Date().toISOString();
+      const results = await runE2ETests();
+
+      // Use a synthetic tenant_id for E2E runs (not tied to PLTE tenants)
+      const e2eTenantId = 'plte-e2e';
+
+      // Ensure plte-e2e tenant exists for persistence
+      const { data: existing } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('id', e2eTenantId)
+        .single();
+
+      if (!existing) {
+        await supabase.from('tenants').insert({
+          id: e2eTenantId,
+          name: 'PLTE E2E Runner',
+          plan: 'business',
+          statut: 'actif',
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      // Persist each test result
+      for (const r of results) {
+        await this.upsertTest(e2eTenantId, r);
+      }
+
+      // Save run
+      const run = await this.saveRun(e2eTenantId, 'e2e', results, startedAt);
+
+      console.log(`[PLTE E2E] === RESULTAT: ${run.healthScore}% — ${run.passed}P/${run.failed}F/${run.errors}E ===`);
+      return [{ tenantId: e2eTenantId, profile: 'e2e', ...run }];
+    } finally {
+      this.isRunning = false;
+    }
   }
 
   // ============================================
