@@ -429,15 +429,48 @@ function CostProgressBar({ label, cost, warning, critical, status }: {
   );
 }
 
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  iconColor = 'text-cyan-400',
+  badge,
+  children,
+  defaultOpen = true,
+  borderColor = 'border-slate-800',
+  bgColor = 'bg-slate-900/50',
+}: {
+  title: string;
+  icon: typeof FlaskConical;
+  iconColor?: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  borderColor?: string;
+  bgColor?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className={`rounded-xl border ${borderColor} ${bgColor} overflow-hidden`}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-800/30 transition-colors"
+      >
+        <Icon size={14} className={iconColor} />
+        <span className="text-sm font-semibold text-white flex-1 text-left">{title}</span>
+        {badge}
+        {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
+
 function CostWidget({ costData }: { costData: CostData | null }) {
   if (!costData) return null;
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-        <DollarSign size={14} className="text-cyan-400" />
-        Couts IA temps reel
-      </h3>
+    <CollapsibleSection title="Couts IA temps reel" icon={DollarSign}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <CostProgressBar
           label="Cout heure en cours"
@@ -468,7 +501,7 @@ function CostWidget({ costData }: { costData: CostData | null }) {
           ))}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -614,84 +647,87 @@ export default function SentinelLogicTests() {
 
       {/* Vue par profil */}
       {globalData?.tenants && globalData.tenants.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Database size={14} className="text-cyan-400" />
-            Score par profil metier
-          </h2>
+        <CollapsibleSection
+          title="Score par profil metier"
+          icon={Database}
+          badge={<span className="text-[10px] text-slate-500 font-mono">{globalData.tenants.length} tenants</span>}
+        >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {globalData.tenants.map(t => (
               <ProfileCard key={t.tenantId} tenant={t} />
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-          <FlaskConical size={14} className="text-cyan-400" />
-          Tests par categorie
-        </h2>
+      {/* Tests par categorie */}
+      <CollapsibleSection
+        title="Tests par categorie"
+        icon={FlaskConical}
+        badge={
+          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <div className="relative">
+              <button
+                onClick={() => setRunDropdown(!runDropdown)}
+                disabled={running}
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-medium transition-all
+                  ${running
+                    ? 'bg-slate-800 text-slate-500 cursor-wait'
+                    : 'bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/20'}`}
+              >
+                {running ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />}
+                {running ? 'En cours...' : 'Lancer un test'}
+              </button>
 
-        <div className="relative">
-          <button
-            onClick={() => setRunDropdown(!runDropdown)}
-            disabled={running}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-              ${running
-                ? 'bg-slate-800 text-slate-500 cursor-wait'
-                : 'bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/20'}`}
-          >
-            {running ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />}
-            {running ? 'En cours...' : 'Lancer un test'}
-          </button>
-
-          {runDropdown && !running && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden">
-              {[
-                { type: 'hourly', label: 'Tests horaires', desc: 'Vie quotidienne (8 tenants)' },
-                { type: 'nightly', label: 'Tests nocturnes', desc: 'Stress + edge cases' },
-                { type: 'weekly', label: 'Tests IA', desc: 'IA deep + securite' },
-                { type: 'e2e', label: 'Tests E2E', desc: 'Parcours utilisateur HTTP (34 tests)' },
-                { type: 'full', label: 'Suite complete', desc: 'Tout d\'un coup' },
-              ].map(item => (
-                <button
-                  key={item.type}
-                  onClick={() => handleRun(item.type)}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors"
-                >
-                  <div className="text-xs text-white">{item.label}</div>
-                  <div className="text-[9px] text-slate-500">{item.desc}</div>
-                </button>
-              ))}
+              {runDropdown && !running && (
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden">
+                  {[
+                    { type: 'hourly', label: 'Tests horaires', desc: 'Vie quotidienne (8 tenants)' },
+                    { type: 'nightly', label: 'Tests nocturnes', desc: 'Stress + edge cases' },
+                    { type: 'weekly', label: 'Tests IA', desc: 'IA deep + securite' },
+                    { type: 'e2e', label: 'Tests E2E', desc: 'Parcours utilisateur HTTP (34 tests)' },
+                    { type: 'full', label: 'Suite complete', desc: 'Tout d\'un coup' },
+                  ].map(item => (
+                    <button
+                      key={item.type}
+                      onClick={() => handleRun(item.type)}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="text-xs text-white">{item.label}</div>
+                      <div className="text-[9px] text-slate-500">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        }
+      >
+        <div className="space-y-2">
+          {['hourly', 'nightly', 'weekly', 'e2e'].map(cat => (
+            <CategoryAccordion
+              key={cat}
+              category={cat}
+              stats={status?.categories?.[cat] || { total: 0, pass: 0, fail: 0, error: 0 }}
+              tests={testsByCategory[cat] || []}
+              expanded={expandedCategories.has(cat)}
+              onToggle={() => toggleCategory(cat)}
+            />
+          ))}
         </div>
-      </div>
-
-      {/* Categories Accordions */}
-      <div className="space-y-2">
-        {['hourly', 'nightly', 'weekly', 'e2e'].map(cat => (
-          <CategoryAccordion
-            key={cat}
-            category={cat}
-            stats={status?.categories?.[cat] || { total: 0, pass: 0, fail: 0, error: 0 }}
-            tests={testsByCategory[cat] || []}
-            expanded={expandedCategories.has(cat)}
-            onToggle={() => toggleCategory(cat)}
-          />
-        ))}
-      </div>
+      </CollapsibleSection>
 
       {/* Rapport Diagnostic */}
       {(fixedTests.length > 0 || diagnosedTests.length > 0 || unknownTests.length > 0) && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Stethoscope size={14} className="text-cyan-400" />
-            Rapport Diagnostic
-          </h3>
-
+        <CollapsibleSection
+          title="Rapport Diagnostic"
+          icon={Stethoscope}
+          badge={
+            <span className="text-[10px] text-slate-500 font-mono">
+              {fixedTests.length + diagnosedTests.length + unknownTests.length} item(s)
+            </span>
+          }
+        >
           {/* Diagnostic KPI badges */}
           <div className="flex items-center gap-3 mb-4">
             <button
@@ -756,16 +792,18 @@ export default function SentinelLogicTests() {
               <div className="text-xs text-slate-600 text-center py-3">Aucun diagnostic en cours</div>
             )}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* Failed Tests Detail (non-diagnosed) */}
       {filteredFailed.length > 0 && (
-        <div className="rounded-xl border border-red-500/20 bg-red-950/10 p-4">
-          <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
-            <XCircle size={14} />
-            Tests en echec ({filteredFailed.length})
-          </h3>
+        <CollapsibleSection
+          title={`Tests en echec (${filteredFailed.length})`}
+          icon={XCircle}
+          iconColor="text-red-400"
+          borderColor="border-red-500/20"
+          bgColor="bg-red-950/10"
+        >
           <div className="space-y-2">
             {filteredFailed.map(t => (
               <div key={`${t.tenant_id}-${t.id || t.name}`} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-900/50">
@@ -792,17 +830,21 @@ export default function SentinelLogicTests() {
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* Run History */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <Clock size={14} className="text-cyan-400" />
-          Historique des runs
-        </h3>
+      <CollapsibleSection
+        title="Historique des runs"
+        icon={Clock}
+        badge={
+          <span className="text-[10px] text-slate-500 font-mono">
+            {history?.runs?.length || 0} run(s)
+          </span>
+        }
+      >
         <RunTimeline runs={history?.runs || []} />
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
