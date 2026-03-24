@@ -47,13 +47,14 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Récupérer le plan et modules actifs du tenant
+    // Récupérer le plan, modules actifs et statut du tenant
     const { data: tenantRow } = await supabase
       .from('tenants')
-      .select('plan, modules_actifs')
+      .select('plan, modules_actifs, statut')
       .eq('id', tenantId)
       .single();
-    const plan = tenantRow?.plan || 'starter';
+    // ═══ ESSAI: quotas Starter (pas ceux du plan choisi) ═══
+    const plan = tenantRow?.statut === 'essai' ? 'starter' : (tenantRow?.plan || 'starter');
 
     // Récupérer les demandes d'activation en cours
     const { data: pendingReqs } = await supabase
@@ -116,12 +117,22 @@ router.post('/request-activation', async (req, res) => {
       return res.status(404).json({ success: false, error: `Module inconnu: ${moduleId}` });
     }
 
-    // Récupérer le plan du tenant
+    // Récupérer le plan et statut du tenant
     const { data: tenantRow } = await supabase
       .from('tenants')
-      .select('plan, name')
+      .select('plan, name, statut')
       .eq('id', tenantId)
       .single();
+
+    // ═══ ESSAI: bloquer les demandes d'activation ═══
+    if (tenantRow?.statut === 'essai') {
+      return res.status(403).json({
+        success: false,
+        error: 'Souscrivez à un plan payant pour activer ce module',
+        code: 'TRIAL_RESTRICTION',
+      });
+    }
+
     const plan = tenantRow?.plan || 'starter';
 
     // Vérifier que le module est inclus dans le plan

@@ -138,12 +138,15 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Déterminer le plan (priorité: plan > tier)
-    const plan = (tenant.plan || tenant.tier || 'starter').toLowerCase();
+    // Déterminer le plan stocké et le plan effectif
+    const storedPlan = (tenant.plan || tenant.tier || 'starter').toLowerCase();
+    // ═══ ESSAI: plan effectif = Starter (accès restreint) ═══
+    // Le plan choisi reste mémorisé dans storedPlan pour la conversion post-paiement
+    const effectivePlan = tenant.statut === 'essai' ? 'starter' : storedPlan;
 
-    // Construire les quotas (merge défaut + custom)
+    // Construire les quotas selon le plan effectif (Starter pendant essai)
     const quotas = {
-      ...DEFAULT_QUOTAS[plan] || DEFAULT_QUOTAS.starter,
+      ...DEFAULT_QUOTAS[effectivePlan] || DEFAULT_QUOTAS.starter,
       ...(tenant.quotas || {}),
     };
 
@@ -153,9 +156,9 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       ? modulesRaw.reduce((acc, mod) => ({ ...acc, [mod]: true }), {})
       : modulesRaw; // Si c'est déjà un objet, le garder
 
-    // Merge: garantir que tous les modules inclus dans le plan sont actifs
+    // Merge: garantir que les modules du plan effectif sont actifs
     // Source unique de vérité: config/planFeatures.js
-    const planDefaults = getFeaturesForPlan(plan);
+    const planDefaults = getFeaturesForPlan(effectivePlan);
 
     if (!modulesObject || Object.keys(modulesObject).length === 0) {
       modulesObject = { ...planDefaults };
@@ -189,7 +192,8 @@ router.get('/me', authenticateAdmin, async (req, res) => {
         id: tenant.id,
         slug: tenant.id, // Le slug est l'ID pour l'instant
         name: tenant.name || tenant.nom_commercial || 'NEXUS',
-        plan: plan,
+        plan: effectivePlan,            // Plan effectif (Starter pendant essai)
+        plan_choisi: storedPlan,        // Plan choisi au signup (pour affichage upgrade)
         modules: modulesObject,
         branding: {
           logo: tenant.logo_url || null,
@@ -309,11 +313,13 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
     // Récupérer le tenant pour connaître son plan
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan, tier, modules_actifs')
+      .select('plan, tier, statut, modules_actifs')
       .eq('id', tenantId)
       .single();
 
-    const currentPlan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
+    const storedPlan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
+    // ═══ ESSAI: plan effectif Starter ═══
+    const currentPlan = tenant?.statut === 'essai' ? 'starter' : storedPlan;
     const activeModules = tenant?.modules_actifs || {};
 
     // Enrichir les modules avec leur statut

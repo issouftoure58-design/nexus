@@ -50,7 +50,8 @@ export function requireModule(moduleName) {
       }
 
       // PLAN_FEATURES et PLAN_LIMITS importés depuis config/planFeatures.js (source unique de vérité)
-      const planName = tenant.plan || 'starter';
+      // ═══ ESSAI: forcer Starter pour le contrôle d'accès modules ═══
+      const planName = tenant.statut === 'essai' ? 'starter' : (tenant.plan || 'starter');
       const plan = {
         nom: planName,
         modules: PLAN_FEATURES[planName] || PLAN_FEATURES.starter,

@@ -72,6 +72,7 @@ export interface Tenant {
   slug: string;
   name: string;
   plan: PlanType;
+  plan_choisi?: PlanType;      // Plan choisi au signup (visible après conversion)
   modules: TenantModules;
   branding: TenantBranding;
   quotas: TenantQuotas;
@@ -297,10 +298,14 @@ export function useTenant() {
   }
 
   // Valeurs par défaut si pas encore chargé
+  // Le backend retourne déjà le plan effectif (Starter pendant essai)
   const currentPlan: PlanType = tenant?.plan || 'starter';
   const currentModules = tenant?.modules || {};
   const currentBranding = tenant?.branding || {};
   const currentQuotas = tenant?.quotas || DEFAULT_QUOTAS[currentPlan];
+
+  // Plan choisi au signup (pour affichage upgrade sur la page abonnement)
+  const chosenPlan: PlanType = tenant?.plan_choisi || currentPlan;
 
   return {
     // Données tenant
@@ -312,13 +317,14 @@ export function useTenant() {
     // Raccourcis
     slug: tenant?.slug || tenantSlug,
     name: tenant?.name || 'NEXUS',
-    plan: currentPlan,
+    plan: currentPlan,         // Plan effectif (Starter pendant essai)
+    chosenPlan,                // Plan choisi au signup (pour info upgrade)
     modules: currentModules,
     branding: currentBranding,
     quotas: currentQuotas,
     statut: tenant?.statut || 'actif',
 
-    // Helpers plan
+    // Helpers plan — basés sur le plan effectif (Starter pendant essai)
     hasPlan: (requiredPlan: PlanType) => hasPlanAccess(currentPlan, requiredPlan),
     isPro: hasPlanAccess(currentPlan, 'pro'),
     isBusiness: hasPlanAccess(currentPlan, 'business'),

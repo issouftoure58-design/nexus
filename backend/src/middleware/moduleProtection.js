@@ -90,6 +90,7 @@ async function getTenantConfig(tenantId) {
     .from('tenants')
     .select(`
       plan,
+      statut,
       options_canaux_actifs,
       module_metier_id,
       module_metier_paye,
@@ -103,14 +104,17 @@ async function getTenantConfig(tenantId) {
     return null;
   }
 
-  // Utiliser le mapping PLAN_FEATURES au lieu d'une table plans
-  const planId = tenant.plan || 'starter';
+  // ═══ ESSAI: forcer Starter pour le contrôle d'accès ═══
+  const planId = tenant.statut === 'essai' ? 'starter' : (tenant.plan || 'starter');
   const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
 
   const config = {
     plan_id: planId,
     plan: planFeatures,
-    options_canaux: tenant.options_canaux_actifs || extractCanauxFromPlan(planId),
+    // Pendant l'essai: canaux Starter uniquement (pas WhatsApp/Telephone)
+    options_canaux: tenant.statut === 'essai'
+      ? extractCanauxFromPlan('starter')
+      : (tenant.options_canaux_actifs || extractCanauxFromPlan(planId)),
     module_metier_id: tenant.module_metier_id,
     module_metier_paye: tenant.module_metier_paye
   };

@@ -228,7 +228,8 @@ const getBarColor = (pct: number) =>
 
 export default function Subscription() {
   const queryClient = useQueryClient();
-  const { plan: currentPlan, tenant, isLoading: loadingTenant } = useTenant();
+  const { plan: currentPlan, chosenPlan, tenant, isLoading: loadingTenant } = useTenant();
+  const isOnTrial = tenant?.statut === 'essai';
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [error, setError] = useState<string | null>(null);
 
@@ -376,6 +377,32 @@ export default function Subscription() {
         <h1 className="text-2xl font-bold text-gray-900">Mon Abonnement</h1>
         <p className="text-gray-500">Gérez votre plan et votre facturation</p>
       </div>
+
+      {/* Bannière essai gratuit */}
+      {isOnTrial && (
+        <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <Clock className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-gray-900">Essai gratuit — Plan Starter</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Pendant votre essai, vous avez acces aux fonctionnalites Starter.
+                {chosenPlan !== 'starter' && (
+                  <> Souscrivez au plan <span className="font-semibold capitalize">{chosenPlan}</span> pour debloquer toutes ses fonctionnalites (WhatsApp IA, Telephone IA, etc.).</>
+                )}
+              </p>
+              {tenant?.essai_fin && (
+                <p className="text-sm text-blue-700 font-medium mt-2">
+                  {(() => {
+                    const days = Math.max(0, Math.ceil((new Date(tenant.essai_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                    return days > 0 ? `${days} jour${days > 1 ? 's' : ''} restant${days > 1 ? 's' : ''}` : 'Essai expire';
+                  })()}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Plan actuel */}
       <div className="mb-8">
@@ -553,7 +580,7 @@ export default function Subscription() {
                 </div>
               ) : quotaData?.modules ? (
                 <>
-                  {(PLAN_MODULES[currentPlan || 'starter'] || PLAN_MODULES.starter).map((moduleId) => {
+                  {(PLAN_MODULES[currentPlan || 'starter'] || PLAN_MODULES.starter).map((moduleId: string) => {
                     const mod = quotaData.modules[moduleId];
                     const config = QUOTA_MODULE_CONFIG[moduleId];
                     if (!mod || !config) return null;

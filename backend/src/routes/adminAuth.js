@@ -419,8 +419,9 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const effectiveTemplate = template_type || 'autre';
     const businessProfile = TEMPLATE_TO_PROFILE[effectiveTemplate] || 'salon';
 
-    // Modules par plan — depuis config/planFeatures.js (source unique de vérité)
-    const modulesActifs = getFeaturesForPlan(plan);
+    // ═══ ESSAI: toujours Starter — le plan choisi est mémorisé dans tenant.plan ═══
+    // Le client doit souscrire pour débloquer Pro/Business (WhatsApp, Téléphone, etc.)
+    const modulesActifs = getFeaturesForPlan('starter');
 
     // Créer le tenant avec template + business_profile + modules
     const { data: tenant, error: tenantError } = await supabase
