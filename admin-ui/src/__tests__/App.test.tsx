@@ -30,6 +30,30 @@ vi.mock('../components/ModuleGate/ModuleGate', () => ({
 
 vi.mock('../contexts/TenantContext', () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  useTenantContext: () => ({
+    tenant: null,
+    isLoading: false,
+    error: null,
+    slug: '',
+    name: 'Test',
+    plan: 'starter',
+    chosenPlan: 'starter',
+    modules: {},
+    branding: {},
+    quotas: { clients_max: 200, storage_gb: 2, posts_ia_month: 0, images_ia_month: 100, reservations_month: 500, messages_ia_month: 1000 },
+    statut: 'actif',
+    hasPlan: () => false,
+    isPro: false,
+    isBusiness: false,
+    hasModule: () => false,
+    getQuota: () => 0,
+    isQuotaUnlimited: () => false,
+    onboardingCompleted: true,
+    isOnTrial: false,
+    trialEndsAt: null,
+    detectedSlug: '',
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock('../contexts/ProfileContext', () => ({
