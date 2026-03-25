@@ -1671,24 +1671,27 @@ async function testN28_RHAvance(tenantId) {
       return makeResult(name, module, severity, description, 'fail', `clockIn echoue: ${cin.error}`);
     }
 
-    // Clock out
-    const cout = await clockOut(tenantId, empId);
+    // Clock out — utiliser le timeclockId retourne par clockIn
+    const timeclockId = cin?.id || cin?.data?.id;
+    const cout = await clockOut(tenantId, timeclockId || empId);
     if (cout?.error && !/not.*clocked|PGRST205/i.test(cout.error)) {
       return makeResult(name, module, severity, description, 'fail', `clockOut echoue: ${cout.error}`);
     }
 
-    // Request leave
-    const leave = await requestLeave(tenantId, empId, {
+    // Request leave — signature: requestLeave(tenantId, data)
+    const leave = await requestLeave(tenantId, {
+      employee_id: empId,
       type: 'conge_paye',
-      date_debut: futureDate(30),
-      date_fin: futureDate(35),
-      motif: 'Test PLTE N28',
+      start_date: futureDate(30),
+      end_date: futureDate(35),
+      days_count: 5,
+      reason: 'Test PLTE N28',
     });
 
     const leaveId = leave?.id || leave?.data?.id;
     if (leaveId) {
-      // Approve leave
-      const approved = await approveLeave(tenantId, leaveId);
+      // Approve leave — signature: approveLeave(tenantId, leaveId, reviewerId)
+      const approved = await approveLeave(tenantId, leaveId, empId);
       if (approved?.error && !/already.*approved/i.test(approved.error)) {
         return makeResult(name, module, severity, description, 'fail', `approveLeave echoue: ${approved.error}`);
       }

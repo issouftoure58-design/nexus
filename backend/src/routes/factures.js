@@ -48,13 +48,13 @@ export async function genererEcrituresFacture(tenantId, factureId) {
 
     if (errFact || !facture) {
       console.error('[FACTURES] Facture non trouvée pour écritures:', factureId);
-      return;
+      return { success: false, error: 'Facture non trouvée' };
     }
 
     // GUARD: ne jamais appeler genererEcrituresFacture sur un avoir
     if (facture.type === 'avoir') {
       console.log(`[FACTURES] Facture ${factureId} est un avoir — genererEcrituresFacture ignoré`);
-      return;
+      return { success: true, count: 0 };
     }
 
     // IMMUTABILITE: si des écritures VT existent déjà, ne pas les recréer
@@ -68,12 +68,12 @@ export async function genererEcrituresFacture(tenantId, factureId) {
 
     if (existingEcritures && existingEcritures.length > 0) {
       console.log(`[FACTURES] Écritures VT déjà existantes pour facture ${factureId} — immutable`);
-      return;
+      return { success: true, count: 0 };
     }
 
-    const dateFacture = facture.date_facture;
-    const periode = dateFacture?.slice(0, 7);
-    const exercice = parseInt(dateFacture?.slice(0, 4)) || new Date().getFullYear();
+    const dateFacture = facture.date_facture || new Date().toISOString().split('T')[0];
+    const periode = dateFacture.slice(0, 7);
+    const exercice = parseInt(dateFacture.slice(0, 4)) || new Date().getFullYear();
     const montantTTC = facture.montant_ttc || 0;
     const montantHT = facture.montant_ht || montantTTC;
     const montantTVA = facture.montant_tva || (montantTTC - montantHT);
@@ -175,13 +175,17 @@ export async function genererEcrituresFacture(tenantId, factureId) {
         .insert(ecritures);
 
       if (error) {
-        console.error('[FACTURES] Erreur insertion écritures:', error);
-      } else {
-        console.log(`[FACTURES] ${ecritures.length} écritures générées pour facture ${facture.numero}`);
+        console.error('[FACTURES] Erreur insertion écritures:', error.message, { factureId, dateFacture, count: ecritures.length });
+        return { success: false, error: error.message };
       }
+      console.log(`[FACTURES] ${ecritures.length} écritures générées pour facture ${facture.numero}`);
+      return { success: true, count: ecritures.length };
     }
+
+    return { success: true, count: 0 };
   } catch (err) {
-    console.error('[FACTURES] Erreur génération écritures:', err);
+    console.error('[FACTURES] Erreur génération écritures:', err.message, { factureId });
+    return { success: false, error: err.message };
   }
 }
 

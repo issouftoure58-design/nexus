@@ -78,6 +78,13 @@ async function ensureTenantReady(tenantId, config) {
     console.warn(`[PLTE Bootstrap] seedProfileData ${tenantId} (${profile}): ${err.message}`);
   }
 
+  // 7. Config IA admin (requis par N14_chat_ia)
+  try {
+    await seedIAConfig(tenantId, profile);
+  } catch (err) {
+    console.warn(`[PLTE Bootstrap] seedIAConfig ${tenantId}: ${err.message}`);
+  }
+
   // Log diagnostique si données manquantes
   if (!services?.length || !clients?.length) {
     console.error(`[PLTE Bootstrap] ⚠️ ${tenantId}: services=${services?.length || 0} clients=${clients?.length || 0} — H0 va echouer!`);
@@ -561,6 +568,48 @@ async function seedZonesIntervention(tenantId) {
   if (error) console.error(`[PLTE Bootstrap] seedZones error ${tenantId}:`, error.message, error.details, error.code);
   console.log(`[PLTE Bootstrap] seedZones ${tenantId}: ${data?.length || 0} zones (existing: ${existing?.length || 0})`);
   return data || existing || [];
+}
+
+/**
+ * Seed config IA admin pour le tenant (necessaire pour N14_chat_ia)
+ * Le channel 'admin' est utilise par processMessage quand channel='admin'
+ */
+async function seedIAConfig(tenantId, profile) {
+  const { data: existing } = await supabase
+    .from('tenant_ia_config')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('channel', 'admin')
+    .limit(1);
+
+  if (existing?.length) return;
+
+  const profileDescriptions = {
+    salon: 'Assistant professionnel du salon de coiffure',
+    restaurant: 'Assistant professionnel du restaurant',
+    commerce: 'Assistant professionnel du commerce',
+    hotel: 'Assistant professionnel de l\'hotel',
+    securite: 'Assistant professionnel de la societe de securite',
+    domicile: 'Assistant professionnel du service a domicile',
+    consulting: 'Assistant professionnel du cabinet de conseil',
+    events: 'Assistant professionnel de l\'agence evenementielle',
+  };
+
+  const { error } = await supabase.from('tenant_ia_config').upsert({
+    tenant_id: tenantId,
+    channel: 'admin',
+    config: {
+      personality: profileDescriptions[profile] || 'Assistant professionnel Nexus',
+      tone: 'friendly_professional',
+      can_book: true,
+      can_quote: true,
+      active: true,
+    }
+  }, { onConflict: 'tenant_id,channel' });
+
+  if (error) {
+    console.warn(`[PLTE Bootstrap] seedIAConfig upsert ${tenantId}:`, error.message);
+  }
 }
 
 /**

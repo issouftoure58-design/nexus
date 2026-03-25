@@ -31,17 +31,25 @@ class ResponseCache {
       /quels?.*(service|prestation|soin)/i,
       /proposez|faites|offrez/i,
       /c'est quoi/i,
-      /qu'est-ce que/i
+      /qu'est-ce que/i,
+      /combien/i,
+      /nombre\s+de/i,
+      /liste\s+des/i,
+      /historique/i,
+      /aujourd'?hui|cette semaine|ce mois/i
     ];
 
-    // Patterns NON cacheables (donnees personnelles/dynamiques)
+    // Patterns NON cacheables (ACTIONS dynamiques uniquement)
+    // IMPORTANT: distinguer "je veux réserver" (action) de "combien de reservations" (info)
     this.nonCacheablePatterns = [
-      /rendez-vous|rdv|r[eé]serv/i,
+      /(?:je\s+)?(?:veux|voudrais|souhaite)\s+(?:r[eé]serv|prendre)/i,
+      /(?:prendre|fixer)\s+(?:un\s+)?(?:rendez-vous|rdv)/i,
+      /r[eé]server?\s+(?:un|une|pour|le|ce)/i,
       /commander|acheter|panier/i,
-      /mon compte|mes/i,
-      /annuler|modifier/i,
+      /mon compte|mes\s+(?:rendez-vous|rdv|commandes|factures)/i,
+      /annuler|modifier\s+(?:mon|ma|le|la)/i,
       /paiement|payer/i,
-      /disponible|cr[eé]neau/i
+      /(?:disponible|cr[eé]neau)\s+(?:pour|le|demain)/i
     ];
   }
 

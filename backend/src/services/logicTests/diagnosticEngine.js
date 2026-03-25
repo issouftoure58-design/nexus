@@ -1209,17 +1209,17 @@ async function diagnoseRGPDFailure(tenantId, test) {
 
   try {
     const { data } = await supabase
-      .from('consent_records')
+      .from('client_consents')
       .select('id')
       .eq('tenant_id', tenantId)
       .limit(1);
 
     if (!data) {
       return makeDiag('DIAGNOSED', test.name,
-        'Table consent_records inaccessible',
+        'Table client_consents inaccessible',
         error.substring(0, 200),
         null,
-        'Migration RGPD manquante — creer la table consent_records',
+        'Migration RGPD manquante — verifier migration 082_client_consents.sql',
         { tenantId });
     }
   } catch { /* table may not exist */ }
