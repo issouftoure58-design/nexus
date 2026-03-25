@@ -22,9 +22,9 @@ const DEFAULT_CONFIG = {
   },
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.5,
-    prefix_padding_ms: 300,
-    silence_duration_ms: 500,
+    threshold: 0.8,            // 0.5 → 0.8 : ignore les bruits ambiants
+    prefix_padding_ms: 400,    // 300 → 400 : attend un peu plus avant de considerer que c'est de la parole
+    silence_duration_ms: 800,  // 500 → 800 : attend plus longtemps avant de couper le tour
   },
   temperature: 0.7,
   max_response_output_tokens: 500,
