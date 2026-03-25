@@ -302,7 +302,7 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     // Jours du mois courant
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const date = new Date(year, month, d);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
       const absencesJour = absences.filter(a => {
         if (a.statut === 'refuse' || a.statut === 'annule') return false;
