@@ -656,7 +656,7 @@ router.get('/billing', async (req, res) => {
 // ============================================
 
 import logicTestEngine from '../services/logicTestEngine.js';
-import { PLTE_TENANT_IDS, PLTE_TENANTS } from '../services/logicTests/bootstrap.js';
+import { PLTE_TENANT_IDS, PLTE_TENANTS, ALL_PLTE_IDS, ALL_PLTE_TENANTS } from '../services/logicTests/bootstrap.js';
 
 /**
  * GET /api/nexus/sentinel/plte/all-tests
@@ -667,10 +667,10 @@ router.get('/sentinel/plte/all-tests', async (req, res) => {
     const { category } = req.query;
     const allTests = [];
 
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const tests = await logicTestEngine.getTests(tenantId, category || null);
-      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
-      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      const tenantName = ALL_PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = ALL_PLTE_TENANTS[tenantId]?.profile || 'unknown';
       for (const t of tests) {
         allTests.push({ ...t, tenant_id: tenantId, tenant_name: tenantName, profile });
       }
@@ -695,10 +695,10 @@ router.get('/sentinel/plte/all-status', async (req, res) => {
     let totalTests = 0;
     let autoFixedCount = 0;
 
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const status = await logicTestEngine.getStatus(tenantId);
-      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
-      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      const tenantName = ALL_PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = ALL_PLTE_TENANTS[tenantId]?.profile || 'unknown';
 
       totalTests += status.total_tests || 0;
       autoFixedCount += status.auto_fixed_count || 0;
@@ -723,7 +723,7 @@ router.get('/sentinel/plte/all-status', async (req, res) => {
 
     // Diagnostic counts from latest runs
     let totalFixed = 0, totalDiagnosed = 0, totalUnknown = 0;
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const { data: latestRun } = await supabase
         .from('sentinel_logic_runs')
         .select('diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown')
@@ -765,7 +765,7 @@ router.get('/sentinel/plte/reports', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
     const allReports = [];
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const { data: runs } = await supabase
         .from('sentinel_logic_runs')
         .select('id, tenant_id, run_type, started_at, health_score, passed, failed, errors, diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown, diagnostic_report')
@@ -774,8 +774,8 @@ router.get('/sentinel/plte/reports', async (req, res) => {
         .order('started_at', { ascending: false })
         .limit(5);
 
-      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
-      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      const tenantName = ALL_PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = ALL_PLTE_TENANTS[tenantId]?.profile || 'unknown';
 
       for (const run of (runs || [])) {
         allReports.push({ ...run, tenant_name: tenantName, profile });
@@ -798,7 +798,7 @@ router.get('/sentinel/plte/reports', async (req, res) => {
 router.get('/sentinel/plte/reports/latest', async (req, res) => {
   try {
     const latestReports = [];
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const { data: run } = await supabase
         .from('sentinel_logic_runs')
         .select('id, tenant_id, run_type, started_at, health_score, passed, failed, errors, diagnostics_fixed, diagnostics_diagnosed, diagnostics_unknown, diagnostic_report')
@@ -808,8 +808,8 @@ router.get('/sentinel/plte/reports/latest', async (req, res) => {
         .single();
 
       if (run) {
-        const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
-        const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+        const tenantName = ALL_PLTE_TENANTS[tenantId]?.name || tenantId;
+        const profile = ALL_PLTE_TENANTS[tenantId]?.profile || 'unknown';
         latestReports.push({ ...run, tenant_name: tenantName, profile });
       }
     }
@@ -846,10 +846,10 @@ router.get('/sentinel/plte/all-history', async (req, res) => {
   try {
     const allRuns = [];
 
-    for (const tenantId of PLTE_TENANT_IDS) {
+    for (const tenantId of ALL_PLTE_IDS) {
       const history = await logicTestEngine.getHistory(tenantId, 1, 5);
-      const tenantName = PLTE_TENANTS[tenantId]?.name || tenantId;
-      const profile = PLTE_TENANTS[tenantId]?.profile || 'unknown';
+      const tenantName = ALL_PLTE_TENANTS[tenantId]?.name || tenantId;
+      const profile = ALL_PLTE_TENANTS[tenantId]?.profile || 'unknown';
       for (const run of (history.runs || [])) {
         allRuns.push({ ...run, tenant_id: tenantId, tenant_name: tenantName, profile });
       }

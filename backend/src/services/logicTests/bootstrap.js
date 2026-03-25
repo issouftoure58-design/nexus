@@ -24,7 +24,16 @@ export const PLTE_TENANTS = {
   'plte-domicile':     { name: 'Service a Domicile Sentinel', profile: 'domicile', template: 'artisan' },
 };
 
+// Tenant synthetique pour les E2E (pas bootstrappe, cree par e2eTests.js)
+const E2E_TENANT = {
+  'plte-e2e': { name: 'E2E Runner', profile: 'e2e', template: null },
+};
+
 export const PLTE_TENANT_IDS = Object.keys(PLTE_TENANTS);
+
+// IDs incluant le runner E2E (pour les endpoints d'affichage SENTINEL)
+export const ALL_PLTE_IDS = [...PLTE_TENANT_IDS, ...Object.keys(E2E_TENANT)];
+export const ALL_PLTE_TENANTS = { ...PLTE_TENANTS, ...E2E_TENANT };
 
 /**
  * Prepare les 8 tenants PLTE avec toutes les donnees necessaires
