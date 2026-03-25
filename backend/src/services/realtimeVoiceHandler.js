@@ -156,11 +156,29 @@ function openOpenAISession(tenantId, callSid) {
       reject(new Error('OpenAI Realtime connection timeout (10s)'));
     }, 10000);
 
+    // Attendre session.updated avant d'envoyer le greeting
+    // Sinon l'audio est genere en pcm16 (defaut) au lieu de g711_ulaw -> gresillements
+    let sessionConfigured = false;
+
+    ws.on('message', (rawMsg) => {
+      try {
+        const msg = JSON.parse(rawMsg);
+        if (msg.type === 'session.updated' && !sessionConfigured) {
+          sessionConfigured = true;
+          logger.info(`REALTIME Session configured (g711_ulaw) for tenant=${tenantId}`);
+          // Maintenant que le format audio est correct, envoyer l'accueil
+          sendGreeting(ws, tenantId);
+        }
+      } catch {
+        // Ignore — les autres messages sont geres par setupOpenAIListeners
+      }
+    });
+
     ws.on('open', () => {
       clearTimeout(timeout);
       logger.info(`REALTIME OpenAI WS connected for tenant=${tenantId}`);
 
-      // Configurer la session
+      // Configurer la session (le greeting sera envoye apres session.updated)
       const systemInstructions = buildSystemInstructions(tenantId);
       const tools = buildRealtimeTools(tenantId);
 
@@ -179,9 +197,6 @@ function openOpenAISession(tenantId, callSid) {
           max_response_output_tokens: config.max_response_output_tokens,
         },
       }));
-
-      // Envoyer le message d'accueil initial
-      sendGreeting(ws, tenantId);
 
       resolve(ws);
     });
@@ -221,18 +236,13 @@ function sendGreeting(openaiWs, tenantId) {
 
 /**
  * Configure les listeners pour les messages OpenAI -> Twilio
+ *
+ * Strategie : PAS de barge-in. L'IA reste breve (1-2 phrases max),
+ * le client attend la fin de la reponse puis parle. Elimine tous les
+ * problemes de bruits ambiants qui coupaient la conversation.
  */
 function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) {
-  // Tracking pour barge-in intelligent
   let lastResponseId = null;
-  let responseAudioStartedAt = 0;  // Quand l'audio de reponse a commence
-  let isPlayingResponse = false;    // Est-ce que l'IA parle en ce moment
-  let bargeInDebounce = null;       // Timer debounce pour eviter faux positifs
-
-  // Duree minimum de reponse avant d'autoriser le barge-in (ms)
-  const BARGE_IN_GRACE_PERIOD = 1500;
-  // Delai de confirmation du barge-in : attendre que la parole soit soutenue (ms)
-  const BARGE_IN_DEBOUNCE = 400;
 
   openaiWs.on('message', async (rawMsg) => {
     try {
@@ -248,12 +258,6 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
         // ---- Audio de reponse -> Twilio ----
         case 'response.audio.delta': {
           if (twilioWs.readyState === WebSocket.OPEN && event.delta) {
-            // Marquer le debut de l'audio si c'est le premier chunk
-            if (!isPlayingResponse) {
-              isPlayingResponse = true;
-              responseAudioStartedAt = Date.now();
-            }
-
             twilioWs.send(JSON.stringify({
               event: 'media',
               streamSid,
@@ -267,9 +271,6 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
 
         // ---- Reponse complete ----
         case 'response.done': {
-          isPlayingResponse = false;
-          responseAudioStartedAt = 0;
-
           if (event.response) {
             lastResponseId = event.response.id;
             const outputs = event.response.output || [];
@@ -291,53 +292,11 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           break;
         }
 
-        // ---- Barge-in : le client parle pendant la reponse ----
-        case 'input_audio_buffer.speech_started': {
-          // Si l'IA ne parle pas, pas besoin de barge-in (c'est juste le client qui parle normalement)
-          if (!isPlayingResponse) break;
-
-          // Grace period : ignorer les bruits pendant les premieres 1.5s de reponse
-          const elapsed = Date.now() - responseAudioStartedAt;
-          if (elapsed < BARGE_IN_GRACE_PERIOD) {
-            logger.info(`REALTIME Barge-in ignored (grace period: ${elapsed}ms < ${BARGE_IN_GRACE_PERIOD}ms) (call=${callSid})`);
-            break;
-          }
-
-          // Debounce : attendre 400ms pour confirmer que c'est de la vraie parole
-          if (bargeInDebounce) clearTimeout(bargeInDebounce);
-          bargeInDebounce = setTimeout(() => {
-            // Verifier que l'IA parle encore (la reponse n'est pas terminee entre-temps)
-            if (!isPlayingResponse) return;
-
-            logger.info(`REALTIME Barge-in confirmed after debounce (call=${callSid})`);
-
-            // Annuler la reponse en cours cote OpenAI
-            openaiWs.send(JSON.stringify({ type: 'response.cancel' }));
-
-            // Arreter l'audio en cours cote Twilio
-            if (twilioWs.readyState === WebSocket.OPEN) {
-              twilioWs.send(JSON.stringify({
-                event: 'clear',
-                streamSid,
-              }));
-            }
-
-            isPlayingResponse = false;
-            bargeInDebounce = null;
-          }, BARGE_IN_DEBOUNCE);
-
+        // ---- Barge-in desactive : on ignore speech_started/stopped ----
+        // L'IA reste breve, pas besoin d'interrompre
+        case 'input_audio_buffer.speech_started':
+        case 'input_audio_buffer.speech_stopped':
           break;
-        }
-
-        // ---- Fin de parole detectee (annule le debounce si c'etait du bruit) ----
-        case 'input_audio_buffer.speech_stopped': {
-          if (bargeInDebounce) {
-            clearTimeout(bargeInDebounce);
-            bargeInDebounce = null;
-            logger.info(`REALTIME Barge-in cancelled (speech too short = bruit) (call=${callSid})`);
-          }
-          break;
-        }
 
         // ---- OpenAI invoque un tool ----
         case 'response.function_call_arguments.done': {
