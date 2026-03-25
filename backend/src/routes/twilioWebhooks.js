@@ -31,6 +31,8 @@ import usageTracking from '../services/usageTrackingService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 // V2 - Multi-tenant dynamic messages
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
+// V3 - Realtime WebSocket mode
+import { isRealtimeEnabled } from '../config/realtimeConfig.js';
 
 /**
  * V2 - Génère les messages dynamiques pour les appels vocaux
@@ -412,6 +414,76 @@ async function gatherWithBargeIn(twiml, text, options = {}) {
 // === WEBHOOK APPEL ENTRANT - ACCUEIL IA ===
 // ============================================================
 
+// ============================================================
+// === HELPER TEMPS REEL (WebSocket via Twilio Media Streams) ===
+// ============================================================
+
+/**
+ * V3 - Genere le TwiML <Connect><Stream> pour le mode temps reel
+ * Utilise par /voice/realtime et par /voice quand le tenant a voice_mode=realtime
+ */
+function handleRealtimeCall(req, res, { From, To, CallSid, CallerCity, CallerCountry, tenantId, tenantConfig }) {
+  logger.info(`REALTIME === NOUVEL APPEL TEMPS REEL ===`);
+  logger.info(`REALTIME De: ${From} vers ${To}`);
+  logger.info(`REALTIME Tenant: ${tenantId} (${tenantConfig?.name || 'inconnu'})`);
+  logger.info(`REALTIME CallSid: ${CallSid}`);
+
+  // Stocker session pour le status callback
+  voiceSessions.set(CallSid, {
+    startTime: Date.now(),
+    tenantId,
+    tenantConfig,
+    mode: 'realtime'
+  });
+
+  trackConversation(CallSid);
+  logCallStart(tenantId, { CallSid, From, To, CallerCity, CallerCountry }).catch(() => {});
+
+  // Construire le TwiML avec <Connect><Stream>
+  const twiml = new VoiceResponse();
+  const connect = twiml.connect();
+  const host = req.headers.host || process.env.BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:3001';
+  const stream = connect.stream({
+    url: `wss://${host}/media-stream`,
+  });
+
+  // Passer le contexte tenant via custom parameters
+  stream.parameter({ name: 'tenantId', value: tenantId });
+  stream.parameter({ name: 'callSid', value: CallSid });
+  stream.parameter({ name: 'from', value: From || '' });
+  stream.parameter({ name: 'to', value: To || '' });
+
+  logger.info(`REALTIME TwiML Stream -> wss://${host}/media-stream (tenant=${tenantId})`);
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+}
+
+/**
+ * Route directe /voice/realtime — pour appel explicite ou tests
+ */
+router.all('/voice/realtime', validateTwilioSignature, async (req, res) => {
+  const params = req.method === 'GET' ? req.query : req.body;
+  const { From, To, CallSid, CallerCity, CallerCountry } = params;
+
+  const { tenantId, config: tenantConfig } = getTenantByPhoneNumber(To);
+
+  if (!tenantId) {
+    logger.error(`REALTIME TENANT_NOT_FOUND: Rejecting call from ${From} to unknown number ${To}`);
+    const twiml = new VoiceResponse();
+    twiml.say(VOICE_CONFIG, "Desolee, ce numero n'est plus en service. Au revoir.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
+
+  return handleRealtimeCall(req, res, { From, To, CallSid, CallerCity, CallerCountry, tenantId, tenantConfig });
+});
+
+// ============================================================
+// === WEBHOOK APPEL ENTRANT - ACCUEIL IA (Gather classique) ===
+// ============================================================
+
 // Accepte GET et POST (Twilio peut envoyer l'un ou l'autre selon la config)
 // ⚠️ SECURED: Validates Twilio signature
 router.all('/voice', validateTwilioSignature, async (req, res) => {
@@ -436,6 +508,14 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
     twiml.hangup();
     res.type('text/xml');
     return res.send(twiml.toString());
+  }
+
+  // V3: Router vers le mode temps reel si active pour ce tenant
+  const realtimeCheck = isRealtimeEnabled(tenantId);
+  logger.info(`VOICE Realtime check: ${realtimeCheck} (env=${process.env.VOICE_REALTIME}, tenant=${tenantId})`);
+  if (realtimeCheck) {
+    logger.info(`VOICE >>> ROUTING TO REALTIME MODE for tenant ${tenantId}`);
+    return handleRealtimeCall(req, res, { From, To, CallSid, CallerCity, CallerCountry, tenantId, tenantConfig });
   }
 
   // 🔒 IMPORTANT: Nettoyer toute conversation précédente avec ce CallSid

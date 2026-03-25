@@ -147,6 +147,10 @@ import { sentinel } from './sentinel/index.js';
 // Central interval registry for graceful shutdown
 import { shutdownAllIntervals } from './utils/intervalRegistry.js';
 
+// V3 - Realtime Voice WebSocket (Twilio Media Streams <-> OpenAI Realtime)
+import { WebSocketServer } from 'ws';
+import { handleMediaStream, closeAllSessions as closeRealtimeSessions } from './services/realtimeVoiceHandler.js';
+
 // Création de l'application Express
 const app = express();
 app.set('trust proxy', 1);
@@ -821,6 +825,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('  GET  /api/admin/compta/dashboard         - Dashboard compta');
   console.log('');
 
+  // V3 - Realtime Voice WebSocket Server (Twilio Media Streams)
+  const wss = new WebSocketServer({ server, path: '/media-stream' });
+  wss.on('connection', (ws, req) => {
+    console.log(`[REALTIME] WebSocket connection on /media-stream from ${req.socket.remoteAddress}`);
+    handleMediaStream(ws);
+  });
+  wss.on('error', (err) => {
+    console.error(`[REALTIME] WebSocketServer error: ${err.message}`);
+  });
+  console.log(`[REALTIME] WebSocket server ready on /media-stream`);
+
   // Démarrer le scheduler de jobs
   startScheduler();
 
@@ -864,10 +879,13 @@ async function gracefulShutdown(signal) {
     logger.info('[SHUTDOWN] Serveur HTTP ferme');
   });
 
-  // 2. Arreter tous les setInterval enregistres
+  // 2. Fermer les sessions Realtime Voice actives
+  closeRealtimeSessions();
+
+  // 3. Arreter tous les setInterval enregistres
   shutdownAllIntervals();
 
-  // 3. Arreter le worker BullMQ
+  // 4. Arreter le worker BullMQ
   try {
     await stopNotificationWorker();
     logger.info('[SHUTDOWN] Worker notifications arrete');
@@ -875,7 +893,7 @@ async function gracefulShutdown(signal) {
     logger.error('[SHUTDOWN] Erreur arret worker:', { error: err.message });
   }
 
-  // 4. Forcer la sortie apres 10s si le cleanup prend trop longtemps
+  // 5. Forcer la sortie apres 10s si le cleanup prend trop longtemps
   setTimeout(() => {
     logger.warn('[SHUTDOWN] Force exit apres timeout 10s');
     process.exit(1);
