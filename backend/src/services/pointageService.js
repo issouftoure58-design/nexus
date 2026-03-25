@@ -24,13 +24,13 @@ export async function synchroniserPointageDepuisReservations(tenantId, date = nu
     .select(`
       id,
       membre_id,
-      date_reservation,
+      date,
       heure_debut,
       heure_fin,
       statut
     `)
     .eq('tenant_id', tenantId)
-    .eq('date_reservation', date)
+    .eq('date', date)
     .not('membre_id', 'is', null)
     .in('statut', ['completed', 'paid', 'confirmed']);
 

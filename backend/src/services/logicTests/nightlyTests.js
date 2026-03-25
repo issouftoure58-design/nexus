@@ -1041,9 +1041,9 @@ async function testN15_OrderCycle(tenantId) {
       await import('../../modules/commerce/orderService.js');
 
     const order = await createOrder(tenantId, {
-      customer_name: `${TEST_PREFIX}Client_N15`,
-      customer_email: 'n15@plte.internal',
-      customer_phone: '0600000015',
+      customerName: `${TEST_PREFIX}Client_N15`,
+      customerEmail: 'n15@plte.internal',
+      customerPhone: '0600000015',
       type: 'click_collect',
       items: [{ product_name: `${TEST_PREFIX}Burger Classic`, quantity: 2, unit_price: 890 }],
       total: 1780,
@@ -1097,10 +1097,13 @@ async function testN16_StockAdvisor(tenantId) {
       return makeResult(name, module, severity, description, 'fail', 'analyzeStock retourne null');
     }
 
+    // Unwrap result.data si present (analyzeStock retourne { success, data: { summary, alerts, recommendations } })
+    const payload = result.data || result;
+
     // Verifier structure minimale
-    const hasSummary = result.summary !== undefined || result.total !== undefined;
-    const hasAlerts = Array.isArray(result.alerts) || result.alerts !== undefined;
-    const hasRecommendations = Array.isArray(result.recommendations) || result.recommendations !== undefined;
+    const hasSummary = payload.summary !== undefined || payload.total !== undefined;
+    const hasAlerts = Array.isArray(payload.alerts) || payload.alerts !== undefined;
+    const hasRecommendations = Array.isArray(payload.recommendations) || payload.recommendations !== undefined;
 
     if (!hasSummary && !hasAlerts && !hasRecommendations) {
       return makeResult(name, module, severity, description, 'fail',
@@ -1132,12 +1135,12 @@ async function testN17_CRMPipeline(tenantId, client) {
 
     // Creer contact CRM
     const contact = await createContact(tenantId, {
-      nom: `${TEST_PREFIX}Contact_N17`,
-      prenom: 'PLTE',
+      last_name: `${TEST_PREFIX}Contact_N17`,
+      first_name: 'PLTE',
       email: `crm-n17-${Date.now()}@plte.internal`,
-      telephone: '0600000017',
+      phone: '0600000017',
       source: 'plte_test',
-      statut: 'lead',
+      status: 'lead',
     });
 
     const contactId = contact?.id || contact?.data?.id;
@@ -1644,12 +1647,13 @@ async function testN28_RHAvance(tenantId) {
 
     // Creer employe test
     const emp = await createEmployee(tenantId, {
-      nom: `${TEST_PREFIX}Employe_N28`,
-      prenom: 'PLTE',
+      last_name: `${TEST_PREFIX}Employe_N28`,
+      first_name: 'PLTE',
       email: `rh-n28-${Date.now()}@plte.internal`,
-      poste: 'test_plte',
-      date_embauche: '2024-01-01',
-      salaire_brut: 250000,
+      position: 'test_plte',
+      hire_date: '2024-01-01',
+      gross_salary: 250000,
+      contract_type: 'cdi',
     });
 
     const empId = emp?.id || emp?.data?.id;
@@ -1745,12 +1749,8 @@ async function testN30_Waitlist(tenantId, client) {
 
     const result = await addToWaitlist(tenantId, {
       client_id: client.id,
-      client_nom: client.nom,
-      client_prenom: client.prenom,
-      client_telephone: client.telephone,
-      date_souhaitee: futureDate(7),
-      heure_souhaitee: '12:00',
-      nombre_personnes: 2,
+      preferred_date: futureDate(7),
+      preferred_time_start: '12:00',
       notes: `${TEST_PREFIX}Waitlist N30`,
     });
 
