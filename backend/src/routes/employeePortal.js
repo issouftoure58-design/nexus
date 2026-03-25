@@ -254,7 +254,7 @@ router.post('/absences', async (req, res) => {
         date_fin: dateFinEffective,
         motif: motif || null,
         demi_journee: demi_journee || false,
-        periode: demi_journee ? (periode || 'matin') : null,
+        periode_journee: demi_journee ? (periode || 'matin') : null,
         statut: 'en_attente',
       })
       .select()
