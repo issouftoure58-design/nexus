@@ -26,7 +26,7 @@ const DEFAULT_CONFIG = {
     prefix_padding_ms: 350,    // Legere marge avant detection parole
     silence_duration_ms: 600,  // Attend 600ms de silence avant de repondre
   },
-  temperature: 0.7,
+  temperature: 0.5,            // Bas pour eviter les anticipations
   max_response_output_tokens: 500,
 };
 
