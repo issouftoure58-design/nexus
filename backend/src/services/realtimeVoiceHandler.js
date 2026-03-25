@@ -15,7 +15,8 @@ import logger from '../config/logger.js';
 import { getRealtimeConfig } from '../config/realtimeConfig.js';
 import { getVoiceSystemPrompt } from '../prompts/voicePrompt.js';
 import { TOOLS_CLIENT } from '../tools/toolsRegistry.js';
-import { processMessage, clearConversation } from '../core/unified/nexusCore.js';
+import { createReservationUnified, clearConversation } from '../core/unified/nexusCore.js';
+import { getServicesListForTenant, getHorairesForTenant, checkAvailability } from '../services/bookingService.js';
 import { logCallStart, logCallEnd } from '../modules/twilio/callLogService.js';
 import usageTracking from '../services/usageTrackingService.js';
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
@@ -359,8 +360,8 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
 }
 
 /**
- * Execute un tool NEXUS via processMessage
- * Mappe les tools OpenAI Realtime vers l'execution nexusCore
+ * Execute un tool NEXUS directement (sans passer par le pipeline IA)
+ * Appelle les fonctions backend correspondantes pour chaque tool
  *
  * @param {string} toolName
  * @param {object} toolArgs
@@ -369,53 +370,68 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
  * @returns {Promise<object>}
  */
 async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid) {
-  const conversationId = `realtime_${callSid}`;
-
   try {
-    // Pour les outils qui necessitent un traitement special
-    if (toolName === 'transferer_responsable') {
-      return { success: true, action: 'transfer', message: 'Transfert vers le responsable demande.' };
+    switch (toolName) {
+      case 'consulter_services': {
+        const services = await getServicesListForTenant(tenantId);
+        if (!services || services.length === 0) {
+          return { success: true, services: [], message: 'Aucun service configure.' };
+        }
+        const liste = services.map(s => ({
+          nom: s.nom,
+          prix: s.prix,
+          duree: s.duree_minutes,
+          categorie: s.categorie || null,
+        }));
+        return { success: true, services: liste };
+      }
+
+      case 'consulter_horaires': {
+        const horaires = await getHorairesForTenant(tenantId);
+        return { success: true, horaires: horaires || 'Horaires non configures.' };
+      }
+
+      case 'verifier_disponibilite': {
+        const dispo = await checkAvailability(tenantId, toolArgs.date, toolArgs.heure);
+        return { success: true, disponible: dispo.available, message: dispo.message || '' };
+      }
+
+      case 'creer_reservation': {
+        const result = await createReservationUnified({
+          tenant_id: tenantId,
+          service_name: toolArgs.service_name,
+          date: toolArgs.date,
+          heure: toolArgs.heure,
+          client_nom: toolArgs.client_nom,
+          client_telephone: toolArgs.client_telephone,
+          lieu: toolArgs.lieu || 'salon',
+          adresse: toolArgs.adresse || null,
+          nb_couverts: toolArgs.nb_couverts || null,
+          notes: `[Via appel vocal ${callSid}]`,
+        }, 'phone');
+
+        logger.info(`REALTIME Reservation result: success=${result.success} id=${result.reservationId || 'N/A'} (tenant=${tenantId})`);
+        return {
+          success: result.success,
+          message: result.message || (result.success ? 'Reservation creee.' : 'Echec de la reservation.'),
+          reservationId: result.reservationId || null,
+          recap: result.recap || null,
+          error: result.error || null,
+        };
+      }
+
+      case 'transferer_responsable': {
+        return { success: true, action: 'transfer', message: 'Transfert vers le responsable demande.' };
+      }
+
+      default: {
+        logger.warn(`REALTIME Unknown tool: ${toolName} (tenant=${tenantId})`);
+        return { success: false, error: `Outil inconnu: ${toolName}` };
+      }
     }
-
-    // Construire un message naturel a partir du tool call pour processMessage
-    const toolMessage = buildToolMessage(toolName, toolArgs);
-
-    const result = await processMessage(toolMessage, 'phone', {
-      conversationId,
-      tenantId,
-      intent: toolName,
-    });
-
-    return {
-      success: result.success,
-      response: result.response,
-      hasBooking: result.hasBooking || false,
-    };
   } catch (err) {
     logger.error(`REALTIME Tool execution error: ${toolName} - ${err.message}`, { tenantId, callSid });
-    return {
-      success: false,
-      error: err.message,
-    };
-  }
-}
-
-/**
- * Construit un message naturel a partir d'un tool call
- * Permet de passer par processMessage qui gere deja les tools
- */
-function buildToolMessage(toolName, args) {
-  switch (toolName) {
-    case 'consulter_services':
-      return args.categorie ? `Quels sont vos services en ${args.categorie} ?` : 'Quels sont vos services ?';
-    case 'consulter_horaires':
-      return args.jour ? `Quels sont vos horaires le ${args.jour} ?` : 'Quels sont vos horaires ?';
-    case 'verifier_disponibilite':
-      return `Est-ce que le ${args.date} a ${args.heure} est disponible pour ${args.service_name || 'un rendez-vous'} ?`;
-    case 'creer_reservation':
-      return `Je voudrais reserver ${args.service_name} le ${args.date} a ${args.heure}. Mon nom est ${args.client_nom || ''}, telephone ${args.client_telephone || ''}.`;
-    default:
-      return `Action: ${toolName} avec ${JSON.stringify(args)}`;
+    return { success: false, error: err.message };
   }
 }
 
