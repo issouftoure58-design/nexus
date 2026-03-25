@@ -78,6 +78,14 @@ async function ensureTenantReady(tenantId, config) {
     console.warn(`[PLTE Bootstrap] seedProfileData ${tenantId} (${profile}): ${err.message}`);
   }
 
+  // Log diagnostique si données manquantes
+  if (!services?.length || !clients?.length) {
+    console.error(`[PLTE Bootstrap] ⚠️ ${tenantId}: services=${services?.length || 0} clients=${clients?.length || 0} — H0 va echouer!`);
+  }
+  if (profile === 'securite' && (!profileData.agents?.length || !profileData.sites?.length)) {
+    console.error(`[PLTE Bootstrap] ⚠️ ${tenantId}: agents=${profileData.agents?.length || 0} sites=${profileData.sites?.length || 0} — P_securite va echouer!`);
+  }
+
   return {
     tenantId,
     profile,
@@ -96,13 +104,20 @@ async function ensureTenantReady(tenantId, config) {
 async function ensureTenantExists(tenantId, name, template) {
   const { data: existing } = await supabase
     .from('tenants')
-    .select('id')
+    .select('id, status')
     .eq('id', tenantId)
     .single();
 
-  if (existing) return;
+  if (existing) {
+    // S'assurer que le status est 'active' (fix pour tenants crees avant le correctif)
+    if (existing.status !== 'active') {
+      await supabase.from('tenants').update({ status: 'active', statut: 'actif' }).eq('id', tenantId);
+      console.log(`[PLTE Bootstrap] Tenant ${tenantId} status corrige → active`);
+    }
+    return;
+  }
 
-  // Creer le tenant (pour plte-hotel et plte-domicile)
+  // Creer le tenant
   const { error } = await supabase.from('tenants').insert({
     id: tenantId,
     name,
@@ -143,38 +158,47 @@ async function ensureAdminExists(tenantId) {
 // ============================================
 
 async function ensureServices(tenantId, templateId) {
-  const { data: existing } = await supabase
+  // Check tous les services (actif ou non)
+  const { data: existing, error: queryErr } = await supabase
     .from('services')
     .select('id, nom, duree, prix, categorie, actif')
     .eq('tenant_id', tenantId)
-    .eq('actif', true)
     .limit(20);
 
-  if (existing?.length >= 1) return existing;
+  if (queryErr) console.error(`[PLTE Bootstrap] Services query error ${tenantId}:`, queryErr.message);
+
+  // Si des services existent mais sont inactifs, les reactiver
+  if (existing?.length >= 1) {
+    const inactive = existing.filter(s => !s.actif);
+    if (inactive.length) {
+      await supabase.from('services').update({ actif: true })
+        .eq('tenant_id', tenantId).in('id', inactive.map(s => s.id));
+    }
+    return existing;
+  }
 
   // Seed depuis le template metier
   const tpl = BUSINESS_TEMPLATES[templateId];
   if (!tpl?.defaultServices?.length) {
-    // Creer un service generique
     const { data, error } = await supabase
       .from('services')
       .insert({
         tenant_id: tenantId,
         nom: 'Service Standard',
         duree: 60,
-        prix: 5000, // 50€ en centimes
+        prix: 5000,
         categorie: 'general',
         actif: true,
       })
       .select('id, nom, duree, prix, categorie, actif');
-    if (error) console.error(`[PLTE Bootstrap] Service insert error ${tenantId}:`, error.message);
+    if (error) console.error(`[PLTE Bootstrap] Service generic insert error ${tenantId}:`, error.message, error.details);
     if (data?.length) return data;
   } else {
     const rows = tpl.defaultServices.slice(0, 6).map(s => ({
       tenant_id: tenantId,
       nom: s.name,
       duree: s.duration,
-      prix: s.price * 100, // template en euros, BDD en centimes
+      prix: s.price * 100,
       categorie: s.category || 'general',
       actif: true,
     }));
@@ -183,17 +207,26 @@ async function ensureServices(tenantId, templateId) {
       .from('services')
       .insert(rows)
       .select('id, nom, duree, prix, categorie, actif');
-    if (error) console.error(`[PLTE Bootstrap] Services insert error ${tenantId}:`, error.message);
+    if (error) {
+      console.error(`[PLTE Bootstrap] Services template insert error ${tenantId} (${templateId}):`, error.message, error.details, error.code);
+      // Retry individuellement si le batch a echoue
+      for (const row of rows) {
+        const { error: singleErr } = await supabase.from('services').insert(row);
+        if (singleErr && singleErr.code !== '23505') { // Ignorer doublons
+          console.error(`[PLTE Bootstrap] Service single insert error ${tenantId}:`, row.nom, singleErr.message);
+        }
+      }
+    }
     if (data?.length) return data;
   }
 
-  // Retry: re-query au cas ou les inserts ont echoue (doublons) mais les services existent
+  // Retry final
   const { data: retry } = await supabase
     .from('services')
     .select('id, nom, duree, prix, categorie, actif')
     .eq('tenant_id', tenantId)
-    .eq('actif', true)
     .limit(20);
+  console.log(`[PLTE Bootstrap] Services retry ${tenantId}: ${retry?.length || 0} found`);
   return retry || [];
 }
 
@@ -375,11 +408,13 @@ async function seedEmployes(tenantId, employes) {
     created_at: new Date().toISOString(),
   }));
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('rh_membres')
     .upsert(rows, { onConflict: 'tenant_id,nom' })
     .select('id, nom, prenom, poste');
 
+  if (error) console.error(`[PLTE Bootstrap] seedEmployes error ${tenantId}:`, error.message, error.details, error.code);
+  console.log(`[PLTE Bootstrap] seedEmployes ${tenantId}: ${data?.length || 0} employes (existing: ${existing?.length || 0})`);
   return data || existing || [];
 }
 
@@ -464,15 +499,14 @@ async function seedChambres(tenantId) {
 
   const rows = chambres.map(c => ({ tenant_id: tenantId, ...c }));
 
-  try {
-    const { data } = await supabase
-      .from('hotel_chambres')
-      .upsert(rows, { onConflict: 'tenant_id,numero' })
-      .select('id, numero, type, capacite, prix_nuit');
-    return data || [];
-  } catch {
-    return existing || [];
-  }
+  const { data, error } = await supabase
+    .from('hotel_chambres')
+    .upsert(rows, { onConflict: 'tenant_id,numero' })
+    .select('id, numero, type, capacite, prix_nuit');
+
+  if (error) console.error(`[PLTE Bootstrap] seedChambres error ${tenantId}:`, error.message, error.details, error.code);
+  console.log(`[PLTE Bootstrap] seedChambres ${tenantId}: ${data?.length || 0} chambres (existing: ${existing?.length || 0})`);
+  return data || existing || [];
 }
 
 async function seedSites(tenantId) {
@@ -492,15 +526,14 @@ async function seedSites(tenantId) {
 
   const rows = sites.map(s => ({ tenant_id: tenantId, ...s, actif: true }));
 
-  try {
-    const { data } = await supabase
-      .from('security_sites')
-      .upsert(rows, { onConflict: 'tenant_id,nom' })
-      .select('id, nom, adresse, type_site');
-    return data || [];
-  } catch {
-    return existing || [];
-  }
+  const { data, error } = await supabase
+    .from('security_sites')
+    .upsert(rows, { onConflict: 'tenant_id,nom' })
+    .select('id, nom, adresse, type_site');
+
+  if (error) console.error(`[PLTE Bootstrap] seedSites error ${tenantId}:`, error.message, error.details, error.code);
+  console.log(`[PLTE Bootstrap] seedSites ${tenantId}: ${data?.length || 0} sites (existing: ${existing?.length || 0})`);
+  return data || existing || [];
 }
 
 async function seedZonesIntervention(tenantId) {
@@ -520,15 +553,14 @@ async function seedZonesIntervention(tenantId) {
 
   const rows = zones.map(z => ({ tenant_id: tenantId, ...z, actif: true }));
 
-  try {
-    const { data } = await supabase
-      .from('zones_intervention')
-      .upsert(rows, { onConflict: 'tenant_id,nom' })
-      .select('id, nom, rayon_km, frais_deplacement');
-    return data || [];
-  } catch {
-    return existing || [];
-  }
+  const { data, error } = await supabase
+    .from('zones_intervention')
+    .upsert(rows, { onConflict: 'tenant_id,nom' })
+    .select('id, nom, rayon_km, frais_deplacement');
+
+  if (error) console.error(`[PLTE Bootstrap] seedZones error ${tenantId}:`, error.message, error.details, error.code);
+  console.log(`[PLTE Bootstrap] seedZones ${tenantId}: ${data?.length || 0} zones (existing: ${existing?.length || 0})`);
+  return data || existing || [];
 }
 
 /**
