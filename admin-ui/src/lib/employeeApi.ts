@@ -68,7 +68,10 @@ class EmployeeApiClient {
     if (response.status === 401) {
       console.warn('[EMP-API] 401 — clearing employee auth');
       this.clearToken();
-      window.location.href = '/employee/login';
+      // Ne pas rediriger si on est sur setup-password (page publique)
+      if (!window.location.pathname.includes('/employee/setup-password')) {
+        window.location.href = '/employee/login';
+      }
       throw new Error('Session expiree');
     }
 
