@@ -160,14 +160,26 @@ function openOpenAISession(tenantId, callSid) {
     // Sinon l'audio est genere en pcm16 (defaut) au lieu de g711_ulaw -> gresillements
     let sessionConfigured = false;
 
+    // Fallback : si session.updated n'arrive pas en 3s, envoyer le greeting quand meme
+    const greetingFallback = setTimeout(() => {
+      if (!sessionConfigured) {
+        sessionConfigured = true;
+        logger.warn(`REALTIME session.updated timeout — sending greeting anyway (tenant=${tenantId})`);
+        sendGreeting(ws, tenantId);
+      }
+    }, 3000);
+
     ws.on('message', (rawMsg) => {
       try {
         const msg = JSON.parse(rawMsg);
         if (msg.type === 'session.updated' && !sessionConfigured) {
           sessionConfigured = true;
+          clearTimeout(greetingFallback);
           logger.info(`REALTIME Session configured (g711_ulaw) for tenant=${tenantId}`);
-          // Maintenant que le format audio est correct, envoyer l'accueil
           sendGreeting(ws, tenantId);
+        }
+        if (msg.type === 'error') {
+          logger.error(`REALTIME OpenAI error during setup: ${JSON.stringify(msg.error)}`);
         }
       } catch {
         // Ignore — les autres messages sont geres par setupOpenAIListeners
