@@ -402,6 +402,7 @@ async function seedEmployes(tenantId, employes) {
   const rows = employes.map(e => ({
     tenant_id: tenantId,
     ...e,
+    role: e.poste || 'employe',
     statut: 'actif',
     date_embauche: '2024-01-01',
     created_at: new Date().toISOString(),
