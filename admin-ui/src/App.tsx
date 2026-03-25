@@ -79,6 +79,17 @@ const SSOCallback = lazy(() => import('./pages/SSOCallback'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
 
+// Employee Portal (lazy)
+const EmployeeLogin = lazy(() => import('./pages/employee/EmployeeLogin'));
+const EmployeeSetupPassword = lazy(() => import('./pages/employee/EmployeeSetupPassword'));
+const EmployeePlanning = lazy(() => import('./pages/employee/EmployeePlanning'));
+const EmployeeAbsences = lazy(() => import('./pages/employee/EmployeeAbsences'));
+const EmployeeBulletins = lazy(() => import('./pages/employee/EmployeeBulletins'));
+const EmployeeProfil = lazy(() => import('./pages/employee/EmployeeProfil'));
+import { EmployeeAuthProvider } from './contexts/EmployeeAuthContext';
+import { EmployeeProtectedRoute } from './components/employee/EmployeeProtectedRoute';
+import { EmployeeLayout } from './components/employee/EmployeeLayout';
+
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
 import CookieBanner from './components/CookieBanner';
@@ -256,6 +267,17 @@ function App() {
             <Route path="/nexus/billing" element={<NexusProtectedRoute><NexusBilling /></NexusProtectedRoute>} />
             <Route path="/nexus/settings" element={<NexusProtectedRoute><NexusSettings /></NexusProtectedRoute>} />
             <Route path="/nexus" element={<Navigate to="/nexus/dashboard" replace />} />
+
+            {/* Employee Portal routes */}
+            <Route path="/employee/login" element={<EmployeeAuthProvider><EmployeeLogin /></EmployeeAuthProvider>} />
+            <Route path="/employee/setup-password" element={<EmployeeAuthProvider><EmployeeSetupPassword /></EmployeeAuthProvider>} />
+            <Route path="/employee" element={<EmployeeAuthProvider><EmployeeProtectedRoute><EmployeeLayout /></EmployeeProtectedRoute></EmployeeAuthProvider>}>
+              <Route index element={<Navigate to="/employee/planning" replace />} />
+              <Route path="planning" element={<EmployeePlanning />} />
+              <Route path="conges" element={<EmployeeAbsences />} />
+              <Route path="bulletins" element={<EmployeeBulletins />} />
+              <Route path="profil" element={<EmployeeProfil />} />
+            </Route>
 
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/" replace />} />

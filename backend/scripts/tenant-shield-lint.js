@@ -74,6 +74,7 @@ const SYSTEM_TABLES = [
   'payments',           // liées à reservations
   'depenses',           // comptabilité, la query par ID est OK
   'admin_sessions',     // validées par token_hash unique (SHA-256)
+  'employee_sessions',  // validées par token_hash unique (SHA-256, même pattern)
   'referrals',          // cross-tenant par design (parrainage: referrer_tenant_id ≠ referred_tenant_id)
   'stripe_processed_events', // idempotence check par event_id (Stripe events globaux)
   'rgpd_requests',      // job système cross-tenant (traite les demandes de tous les tenants)
@@ -101,6 +102,7 @@ const IGNORE_FILES = [
   'whatsappService.js',
   // Routes spéciales
   'adminAuth.js',       // auth avant tenant connu
+  'employeeAuth.js',    // employee auth avant tenant connu (même pattern)
   'adminInvitations.js', // accept/verify publics (token unique, pas de tenant context)
   'signup.js',          // création de tenant
   'provisioning.js',    // provisioning système

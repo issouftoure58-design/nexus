@@ -115,6 +115,8 @@ import nexusAdminRoutes, {
   optimizationRouter
 } from './routes/nexusAdmin.js';
 import nexusAuthRoutes from './routes/nexusAuth.js';
+import employeeAuthRoutes from './routes/employeeAuth.js';
+import employeePortalRoutes from './routes/employeePortal.js';
 import cgvRoutes from './routes/cgv.js';
 import adminLoyaltyRoutes from './routes/adminLoyalty.js';
 import adminWaitlistRoutes from './routes/adminWaitlist.js';
@@ -364,6 +366,10 @@ app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
 app.use('/api/sentinel/autopilot', sentinelAutopilotRouter);
 app.use('/api/sentinel/live', sentinelLiveRouter);
 app.use('/api/optimization', optimizationRouter);
+
+// 👤 EMPLOYEE PORTAL (auth propre, avant tenant resolution)
+app.use('/api/employee/auth', employeeAuthRoutes);
+app.use('/api/employee', employeePortalRoutes);
 
 // 🔑 SSO public routes (avant tenant resolution — pas d'auth/tenant requise)
 app.use('/api/sso', adminSSORoutes);

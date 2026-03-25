@@ -42,7 +42,9 @@ import {
   Phone,
   ClipboardList,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Globe,
+  Ban
 } from 'lucide-react';
 
 interface Membre {
@@ -227,6 +229,10 @@ export default function RH() {
   });
   const [generatingPaie, setGeneratingPaie] = useState(false);
 
+  // Portal status per membre
+  const [portalStatuses, setPortalStatuses] = useState<Record<number, string | null>>({});
+  const [invitingPortal, setInvitingPortal] = useState<number | null>(null);
+
   // Employee filters
   const [employeeFilters, setEmployeeFilters] = useState({
     role: 'all',
@@ -287,10 +293,25 @@ export default function RH() {
       ]);
 
       if (dashData) setDashboard((dashData as any).data ?? dashData);
-      if (membresData) setMembres(Array.isArray(membresData) ? membresData : (membresData as any).data || []);
+      const membresArr = membresData ? (Array.isArray(membresData) ? membresData : (membresData as any).data || []) : [];
+      if (membresData) setMembres(membresArr);
       if (absencesData) setAbsences(Array.isArray(absencesData) ? absencesData : (absencesData as any).data || []);
       if (recrutementsData) setRecrutements(Array.isArray(recrutementsData) ? recrutementsData : (recrutementsData as any).data || []);
       if (candidaturesData) setCandidatures(Array.isArray(candidaturesData) ? candidaturesData : (candidaturesData as any).data || []);
+
+      // Fetch portal statuses for all members (non-blocking)
+      if (membresArr.length > 0) {
+        const statuses: Record<number, string | null> = {};
+        await Promise.all(
+          membresArr.map(async (m: Membre) => {
+            try {
+              const res = await api.get<{ portal_status: string | null }>(`/admin/rh/membres/${m.id}/portal-status`);
+              statuses[m.id] = res.portal_status;
+            } catch { statuses[m.id] = null; }
+          })
+        );
+        setPortalStatuses(statuses);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des donnees RH');
     } finally {
@@ -340,6 +361,28 @@ export default function RH() {
       fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la desactivation du membre');
+    }
+  };
+
+  const handleInvitePortal = async (membreId: number) => {
+    setInvitingPortal(membreId);
+    try {
+      await api.post(`/admin/rh/membres/${membreId}/invite-portal`);
+      setPortalStatuses(prev => ({ ...prev, [membreId]: 'invite_pending' }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur envoi invitation');
+    } finally {
+      setInvitingPortal(null);
+    }
+  };
+
+  const handleDisablePortal = async (membreId: number) => {
+    if (!confirm('Desactiver l\'acces portail de cet employe ?')) return;
+    try {
+      await api.post(`/admin/rh/membres/${membreId}/disable-portal`);
+      setPortalStatuses(prev => ({ ...prev, [membreId]: 'desactive' }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur desactivation');
     }
   };
 
@@ -769,7 +812,51 @@ export default function RH() {
                       {membre.email && <p className="text-sm text-gray-400">{membre.email}</p>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Portal status badge + actions */}
+                    {portalStatuses[membre.id] === 'actif' ? (
+                      <button
+                        onClick={() => handleDisablePortal(membre.id)}
+                        title="Desactiver acces portail"
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 text-emerald-700 rounded-md hover:bg-red-50 hover:text-red-600 transition"
+                      >
+                        <Globe className="w-3 h-3" />
+                        Portail actif
+                      </button>
+                    ) : portalStatuses[membre.id] === 'invite_pending' ? (
+                      <button
+                        onClick={() => handleInvitePortal(membre.id)}
+                        title="Renvoyer l'invitation"
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded-md hover:bg-amber-100 transition"
+                      >
+                        <Mail className="w-3 h-3" />
+                        Invite en attente
+                      </button>
+                    ) : portalStatuses[membre.id] === 'desactive' ? (
+                      <button
+                        onClick={() => handleInvitePortal(membre.id)}
+                        title="Reinviter au portail"
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded-md hover:bg-gray-100 transition"
+                      >
+                        <Ban className="w-3 h-3" />
+                        Desactive
+                      </button>
+                    ) : membre.email ? (
+                      <button
+                        onClick={() => handleInvitePortal(membre.id)}
+                        disabled={invitingPortal === membre.id}
+                        title="Inviter au portail employe"
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 text-emerald-600 rounded-md hover:bg-emerald-100 transition disabled:opacity-50"
+                      >
+                        {invitingPortal === membre.id ? (
+                          <div className="w-3 h-3 border border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Globe className="w-3 h-3" />
+                        )}
+                        Inviter portail
+                      </button>
+                    ) : null}
+
                     <Button size="sm" variant="outline" onClick={() => openEditForm(membre)}>
                       <Edit2 className="w-4 h-4" />
                     </Button>

@@ -4,10 +4,13 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import PDFDocument from 'pdfkit';
+import bcrypt from 'bcryptjs';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import { supabase } from '../config/supabase.js';
+import { sendEmail } from '../services/emailService.js';
 import { validerDSN, genererRapport } from '../services/dsnValidator.js';
 import documentsRHService from '../services/documentsRHService.js';
 const { genererDocument, getOrCreateModeles, regenererPDF, MODELES_DEFAUT } = documentsRHService;
@@ -5997,6 +6000,195 @@ router.post('/dsn/evenement', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH DSN] Erreur événementielle:', error);
     res.status(500).json({ error: error.message || 'Erreur DSN événementielle' });
+  }
+});
+
+// ============================================
+// PORTAIL EMPLOYE — Invitation & Statut
+// ============================================
+
+/**
+ * POST /api/admin/rh/membres/:id/invite-portal
+ * Inviter un employe au portail employe
+ */
+router.post('/membres/:id/invite-portal', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    // Verifier que le membre existe
+    const { data: membre, error: mErr } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, email, statut')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (mErr || !membre) {
+      return res.status(404).json({ error: 'Employe non trouve' });
+    }
+
+    if (!membre.email) {
+      return res.status(400).json({ error: 'L\'employe n\'a pas d\'adresse email renseignee' });
+    }
+
+    // Verifier si deja inscrit
+    const { data: existing } = await supabase
+      .from('employee_users')
+      .select('id, statut')
+      .eq('tenant_id', tenantId)
+      .eq('membre_id', parseInt(id))
+      .single();
+
+    if (existing) {
+      if (existing.statut === 'actif') {
+        return res.status(400).json({ error: 'Cet employe a deja un acces au portail' });
+      }
+      // Reinviter : generer nouveau token
+      const inviteToken = crypto.randomBytes(32).toString('hex');
+      const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+
+      await supabase
+        .from('employee_users')
+        .update({
+          invite_token: inviteToken,
+          invite_expires_at: inviteExpiresAt,
+          statut: 'invite_pending',
+          password_hash: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+        .eq('tenant_id', tenantId);
+
+      // Envoyer email
+      const appUrl = process.env.APP_URL || 'https://app.nexus-ai-saas.com';
+      const setupUrl = `${appUrl}/employee/setup-password?token=${inviteToken}`;
+
+      await sendEmail({
+        to: membre.email,
+        subject: 'Invitation au portail employe - NEXUS',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #059669;">Bienvenue sur votre espace employe</h2>
+            <p>Bonjour ${membre.prenom},</p>
+            <p>Votre employeur vous invite a acceder a votre espace employe NEXUS.</p>
+            <p>Vous pourrez consulter votre planning, demander des conges et voir vos bulletins de paie.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${setupUrl}" style="background: #059669; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                Activer mon compte
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">Ce lien expire dans 72 heures.</p>
+          </div>
+        `,
+        tags: ['employee-invite'],
+      });
+
+      return res.json({ success: true, message: 'Invitation renvoyee' });
+    }
+
+    // Creer employee_users + envoyer email
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+
+    const { data: empUser, error: insertErr } = await supabase
+      .from('employee_users')
+      .insert({
+        tenant_id: tenantId,
+        membre_id: parseInt(id),
+        email: membre.email.trim().toLowerCase(),
+        invite_token: inviteToken,
+        invite_expires_at: inviteExpiresAt,
+        statut: 'invite_pending',
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    // Envoyer email invitation
+    const appUrl = process.env.APP_URL || 'https://app.nexus-ai-saas.com';
+    const setupUrl = `${appUrl}/employee/setup-password?token=${inviteToken}`;
+
+    await sendEmail({
+      to: membre.email,
+      subject: 'Invitation au portail employe - NEXUS',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #059669;">Bienvenue sur votre espace employe</h2>
+          <p>Bonjour ${membre.prenom},</p>
+          <p>Votre employeur vous invite a acceder a votre espace employe NEXUS.</p>
+          <p>Vous pourrez consulter votre planning, demander des conges et voir vos bulletins de paie.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${setupUrl}" style="background: #059669; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Activer mon compte
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">Ce lien expire dans 72 heures.</p>
+        </div>
+      `,
+      tags: ['employee-invite'],
+    });
+
+    res.json({ success: true, message: 'Invitation envoyee', id: empUser.id });
+  } catch (error) {
+    console.error('[RH PORTAL] Erreur invitation:', error);
+    res.status(500).json({ error: 'Erreur envoi invitation' });
+  }
+});
+
+/**
+ * GET /api/admin/rh/membres/:id/portal-status
+ * Retourne le statut du portail employe pour un membre
+ */
+router.get('/membres/:id/portal-status', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    const { data: empUser } = await supabase
+      .from('employee_users')
+      .select('id, statut, last_login, created_at')
+      .eq('tenant_id', tenantId)
+      .eq('membre_id', parseInt(id))
+      .single();
+
+    if (!empUser) {
+      return res.json({ portal_status: null });
+    }
+
+    res.json({
+      portal_status: empUser.statut,
+      last_login: empUser.last_login,
+      created_at: empUser.created_at,
+    });
+  } catch (error) {
+    console.error('[RH PORTAL] Erreur statut:', error);
+    res.status(500).json({ error: 'Erreur recuperation statut portail' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/membres/:id/disable-portal
+ * Desactiver l'acces au portail employe
+ */
+router.post('/membres/:id/disable-portal', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('employee_users')
+      .update({ statut: 'desactive', updated_at: new Date().toISOString() })
+      .eq('tenant_id', tenantId)
+      .eq('membre_id', parseInt(id));
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Acces portail desactive' });
+  } catch (error) {
+    console.error('[RH PORTAL] Erreur desactivation:', error);
+    res.status(500).json({ error: 'Erreur desactivation portail' });
   }
 });
 
