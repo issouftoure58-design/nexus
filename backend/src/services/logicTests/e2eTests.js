@@ -19,9 +19,10 @@ const E2E_PASSWORD = 'Nexus2026E2E!Secure';
 // HELPERS
 // ============================================
 
-async function apiCall(method, path, token = null, body = null) {
+async function apiCall(method, path, token = null, body = null, { tenantId } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (tenantId) headers['X-Tenant-ID'] = tenantId;
 
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -66,10 +67,13 @@ async function createDirectTenant(suffix, options = {}) {
   const statut = options.statut || 'essai';
   const essaiFin = options.essai_fin || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Insert tenant
+  // Insert tenant (tier + status requis par schema)
   const { error: tenantErr } = await supabase.from('tenants').insert({
     id: tenantId,
     name: `${E2E_PREFIX}${suffix}`,
+    tier: plan,
+    status: statut === 'essai' ? 'trial' : 'active',
+    domain: `${tenantId}.nexus.app`,
     plan,
     statut,
     essai_fin: essaiFin,
@@ -104,7 +108,7 @@ async function createDirectTenant(suffix, options = {}) {
   });
 
   if (status !== 200 || !data?.token) {
-    throw new Error(`Login failed for direct tenant: status=${status}`);
+    throw new Error(`Login failed for direct tenant: status=${status}, email=${email}, error=${data?.error || 'unknown'}`);
   }
 
   return { tenantId, email, token: data.token, adminId: admin.id };
@@ -242,7 +246,7 @@ async function runContext_C1_signup() {
 
   // C1_04: Services seeded
   try {
-    const { status, data } = await apiCall('GET', '/api/services', token);
+    const { status, data } = await apiCall('GET', '/api/services', token, null, { tenantId });
     // services endpoint might be /api/admin/services or /api/services
     const services = data?.services || data?.data || data || [];
     const passed = status === 200 && Array.isArray(services) && services.length >= 1;
@@ -400,37 +404,66 @@ async function runContext_C4_expiration() {
   let tenantId = null;
 
   try {
-    // Create tenant with expired trial
+    // Create tenant with expired trial — INSERT direct (pas de login, car expire = 403)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const direct = await createDirectTenant('expired', {
+    tenantId = `${E2E_PREFIX}expired-${Date.now()}`;
+    const email = `${tenantId}@plte.internal`;
+
+    const { error: tenantErr } = await supabase.from('tenants').insert({
+      id: tenantId,
+      name: `${E2E_PREFIX}expired`,
+      tier: 'business',
+      status: 'trial',
+      domain: `${tenantId}.nexus.app`,
       plan: 'business',
       statut: 'essai',
       essai_fin: yesterday,
+      onboarding_completed: true,
+      structure_juridique: 'company',
+      modules_actifs: ['reservations'],
+      created_at: new Date().toISOString(),
     });
-    tenantId = direct.tenantId;
+    if (tenantErr) throw new Error(`Tenant insert: ${tenantErr.message}`);
+
+    const passwordHash = await bcrypt.hash(E2E_PASSWORD, 10);
+    const { error: adminErr } = await supabase.from('admin_users').insert({
+      tenant_id: tenantId,
+      email,
+      password_hash: passwordHash,
+      nom: `${E2E_PREFIX}Admin`,
+      role: 'owner',
+      actif: true,
+      created_at: new Date().toISOString(),
+    });
+    if (adminErr) throw new Error(`Admin insert: ${adminErr.message}`);
 
     // C4_01: Tenant created
     results.push(makeResult('C4_01_create_expired', 'expiration', 'critical',
       'Tenant avec essai expire cree', true));
 
-    // C4_02: Plan toujours starter (essai = starter)
+    // C4_02: Login doit retourner 403 TRIAL_EXPIRED
     try {
-      const { status, data } = await apiCall('GET', '/api/tenants/me', direct.token);
-      const tenant = data?.tenant;
-      const passed = status === 200 && tenant?.plan === 'starter';
-      results.push(makeResult('C4_02_plan_toujours_starter', 'expiration', 'critical',
-        'Plan effectif reste starter malgre expiration', passed,
-        passed ? null : `plan=${tenant?.plan}, statut=${tenant?.statut}`));
+      const { status, data } = await apiCall('POST', '/api/admin/auth/login', null, {
+        email,
+        password: E2E_PASSWORD,
+      });
+      const passed = status === 403 && data?.code === 'TRIAL_EXPIRED';
+      results.push(makeResult('C4_02_login_bloque', 'expiration', 'critical',
+        'Login retourne 403 TRIAL_EXPIRED', passed,
+        passed ? null : `status=${status}, code=${data?.code}`));
     } catch (err) {
-      results.push(makeResult('C4_02_plan_toujours_starter', 'expiration', 'critical',
-        'Plan effectif reste starter', false, err.message));
+      results.push(makeResult('C4_02_login_bloque', 'expiration', 'critical',
+        'Login bloque pour essai expire', false, err.message));
     }
 
-    // C4_03: essai_fin < now
+    // C4_03: Verification directe en DB — essai_fin < now
     try {
-      const { status, data } = await apiCall('GET', '/api/tenants/me', direct.token);
-      const tenant = data?.tenant;
-      const passed = status === 200 && tenant?.essai_fin && new Date(tenant.essai_fin) < new Date();
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('essai_fin, statut')
+        .eq('id', tenantId)
+        .single();
+      const passed = tenant?.essai_fin && new Date(tenant.essai_fin) < new Date();
       results.push(makeResult('C4_03_essai_expire', 'expiration', 'warning',
         'essai_fin dans le passe (expire)', passed,
         passed ? null : `essai_fin=${tenant?.essai_fin}`));
@@ -559,7 +592,7 @@ async function runContext_C6_quotas(tenantId, token) {
   // C6_03: Create a reservation
   try {
     // First get a service
-    const { data: svcData } = await apiCall('GET', '/api/services', token);
+    const { data: svcData } = await apiCall('GET', '/api/services', token, null, { tenantId });
     const services = svcData?.services || svcData?.data || svcData || [];
     const service = Array.isArray(services) && services.length > 0 ? services[0] : null;
 
@@ -654,7 +687,7 @@ async function runContext_C7_downgrade(tenantId, token) {
 
   // C7_03: Donnees intactes (services still there)
   try {
-    const { status, data } = await apiCall('GET', '/api/services', token);
+    const { status, data } = await apiCall('GET', '/api/services', token, null, { tenantId });
     const services = data?.services || data?.data || data || [];
     const passed = status === 200 && Array.isArray(services) && services.length >= 1;
     results.push(makeResult('C7_03_donnees_intactes', 'plan', 'warning',
