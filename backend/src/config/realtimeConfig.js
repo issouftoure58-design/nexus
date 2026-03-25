@@ -22,7 +22,7 @@ const DEFAULT_CONFIG = {
   },
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.65,           // Equilibre : filtre bruits ambiants sans etre lent
+    threshold: 0.7,            // Filtre bruits ambiants telephoniques
     prefix_padding_ms: 350,    // Legere marge avant detection parole
     silence_duration_ms: 600,  // Attend 600ms de silence avant de repondre
   },
