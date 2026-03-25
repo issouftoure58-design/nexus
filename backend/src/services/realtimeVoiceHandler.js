@@ -156,41 +156,12 @@ function openOpenAISession(tenantId, callSid) {
       reject(new Error('OpenAI Realtime connection timeout (10s)'));
     }, 10000);
 
-    // Attendre session.updated avant d'envoyer le greeting
-    // Sinon l'audio est genere en pcm16 (defaut) au lieu de g711_ulaw -> gresillements
-    let sessionConfigured = false;
-
-    // Fallback : si session.updated n'arrive pas en 3s, envoyer le greeting quand meme
-    const greetingFallback = setTimeout(() => {
-      if (!sessionConfigured) {
-        sessionConfigured = true;
-        logger.warn(`REALTIME session.updated timeout — sending greeting anyway (tenant=${tenantId})`);
-        sendGreeting(ws, tenantId);
-      }
-    }, 3000);
-
-    ws.on('message', (rawMsg) => {
-      try {
-        const msg = JSON.parse(rawMsg);
-        if (msg.type === 'session.updated' && !sessionConfigured) {
-          sessionConfigured = true;
-          clearTimeout(greetingFallback);
-          logger.info(`REALTIME Session configured (g711_ulaw) for tenant=${tenantId}`);
-          sendGreeting(ws, tenantId);
-        }
-        if (msg.type === 'error') {
-          logger.error(`REALTIME OpenAI error during setup: ${JSON.stringify(msg.error)}`);
-        }
-      } catch {
-        // Ignore — les autres messages sont geres par setupOpenAIListeners
-      }
-    });
-
     ws.on('open', () => {
       clearTimeout(timeout);
       logger.info(`REALTIME OpenAI WS connected for tenant=${tenantId}`);
 
-      // Configurer la session (le greeting sera envoye apres session.updated)
+      // Configurer la session — le greeting sera envoye par setupOpenAIListeners
+      // quand session.updated confirmera le format g711_ulaw
       const systemInstructions = buildSystemInstructions(tenantId);
       const tools = buildRealtimeTools(tenantId);
 
@@ -255,16 +226,40 @@ function sendGreeting(openaiWs, tenantId) {
  */
 function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) {
   let lastResponseId = null;
+  let greetingSent = false;
+
+  // Fallback : si session.updated n'arrive pas en 3s, envoyer le greeting quand meme
+  const greetingFallback = setTimeout(() => {
+    if (!greetingSent) {
+      greetingSent = true;
+      logger.warn(`REALTIME session.updated timeout — greeting fallback (tenant=${tenantId})`);
+      sendGreeting(openaiWs, tenantId);
+    }
+  }, 3000);
 
   openaiWs.on('message', async (rawMsg) => {
     try {
-      const event = JSON.parse(rawMsg);
+      const event = JSON.parse(rawMsg.toString());
 
       switch (event.type) {
         // ---- Session configuree ----
         case 'session.created':
+          logger.info(`REALTIME session.created (tenant=${tenantId})`);
+          break;
+
         case 'session.updated':
-          logger.info(`REALTIME ${event.type} (tenant=${tenantId})`);
+          logger.info(`REALTIME session.updated — format g711_ulaw OK (tenant=${tenantId})`);
+          // Format audio confirme, envoyer le greeting maintenant
+          if (!greetingSent) {
+            greetingSent = true;
+            clearTimeout(greetingFallback);
+            sendGreeting(openaiWs, tenantId);
+          }
+          break;
+
+        // ---- Erreurs OpenAI ----
+        case 'error':
+          logger.error(`REALTIME OpenAI error: ${JSON.stringify(event.error)} (tenant=${tenantId})`);
           break;
 
         // ---- Audio de reponse -> Twilio ----
