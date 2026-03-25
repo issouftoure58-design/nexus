@@ -90,7 +90,7 @@ export default function EmployeeAbsences() {
 
       {/* Compteurs */}
       {compteurs && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <CompteursCard label="Conges payes" solde={compteurs.cp.solde} acquis={compteurs.cp.acquis} pris={compteurs.cp.pris} color="blue" />
           <CompteursCard label="RTT" solde={compteurs.rtt.solde} acquis={compteurs.rtt.acquis} pris={compteurs.rtt.pris} color="purple" />
           <CompteursCard label="Repos comp." solde={compteurs.rc.solde} acquis={compteurs.rc.acquis} pris={compteurs.rc.pris} color="orange" />
@@ -125,7 +125,7 @@ export default function EmployeeAbsences() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date debut</label>
                   <input

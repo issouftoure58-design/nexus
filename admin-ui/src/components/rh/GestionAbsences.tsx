@@ -249,6 +249,9 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
       if (filters.type !== 'all' && absence.type !== filters.type) return false;
       if (filters.membre_id !== 'all' && absence.membre_id !== parseInt(filters.membre_id)) return false;
 
+      // Les absences en attente sont toujours visibles (ne pas filtrer par periode)
+      if (absence.statut === 'en_attente') return true;
+
       // Filtre par période
       const dateDebut = new Date(absence.date_debut);
       const now = new Date();

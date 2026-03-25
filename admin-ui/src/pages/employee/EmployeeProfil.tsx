@@ -141,8 +141,8 @@ export default function EmployeeProfil() {
         icon={Phone}
         action={
           editing ? (
-            <div className="flex gap-2">
-              <button onClick={() => setEditing(false)} className="text-sm text-gray-500 hover:text-gray-700">
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => setEditing(false)} className="text-sm text-gray-500 hover:text-gray-700 py-1">
                 Annuler
               </button>
               <button
@@ -151,7 +151,7 @@ export default function EmployeeProfil() {
                 className="flex items-center gap-1 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg transition disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
-                {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+                {saving ? '...' : 'Sauvegarder'}
               </button>
             </div>
           ) : (
