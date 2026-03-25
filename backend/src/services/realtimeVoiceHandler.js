@@ -1,13 +1,13 @@
 /**
- * Realtime Voice Handler — Proxy WebSocket Twilio Media Streams <-> OpenAI Realtime API
+ * Realtime Voice Handler — Proxy WebSocket Twilio Media Streams <-> OpenAI Realtime API (GA)
  *
  * Architecture :
  *   Telephone -> Twilio Media Streams (WebSocket bidir, G.711 mulaw 8kHz base64)
  *        <-> Express WS Proxy (ce fichier)
- *        <-> OpenAI Realtime API (WebSocket, g711_ulaw natif)
+ *        <-> OpenAI Realtime API GA (WebSocket, audio/pcmu natif)
  *        -> Reponse audio streamee -> telephone
  *
- * Gain : ~200-300ms TTFB (vs 2-4s avec Gather), barge-in natif, VAD server-side.
+ * Format GA (aout 2025) : model gpt-realtime, audio/pcmu, response.output_audio.delta
  */
 
 import WebSocket from 'ws';
@@ -66,7 +66,7 @@ export function handleMediaStream(twilioWs) {
           // Persister debut d'appel
           logCallStart(tenantId, { CallSid: callSid, From: from, To: customParams.to || '' }).catch(() => {});
 
-          // Ouvrir connexion OpenAI Realtime
+          // Ouvrir connexion OpenAI Realtime GA
           openaiWs = await openOpenAISession(tenantId, callSid);
 
           // Stocker la session
@@ -81,10 +81,9 @@ export function handleMediaStream(twilioWs) {
         // ---- Audio du telephone -> OpenAI ----
         case 'media': {
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-            // Envoyer l'audio brut a OpenAI (g711_ulaw base64, pas de conversion)
             openaiWs.send(JSON.stringify({
               type: 'input_audio_buffer.append',
-              audio: msg.media.payload, // base64 g711_ulaw
+              audio: msg.media.payload, // base64 pcmu (g711 mulaw)
             }));
           }
           break;
@@ -103,11 +102,9 @@ export function handleMediaStream(twilioWs) {
           break;
         }
 
-        // ---- Mark event (confirmation clear audio) ----
-        case 'mark': {
-          // Twilio confirme que l'audio en cours a ete arrete (apres un clear)
+        // ---- Mark event ----
+        case 'mark':
           break;
-        }
 
         default:
           break;
@@ -129,8 +126,8 @@ export function handleMediaStream(twilioWs) {
 }
 
 /**
- * Ouvre une session WebSocket vers OpenAI Realtime API
- * Configure la voix, le prompt, les tools et le VAD
+ * Ouvre une session WebSocket vers OpenAI Realtime API (GA)
+ * URL inclut model et temperature en query params
  *
  * @param {string} tenantId
  * @param {string} callSid
@@ -144,10 +141,12 @@ function openOpenAISession(tenantId, callSid) {
 
     const config = getRealtimeConfig(tenantId);
 
-    const ws = new WebSocket(`${OPENAI_REALTIME_URL}?model=${config.model}`, {
+    // GA API : model et temperature dans l'URL
+    const url = `${OPENAI_REALTIME_URL}?model=${config.model}&temperature=${config.temperature}`;
+
+    const ws = new WebSocket(url, {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'realtime=v1',
       },
     });
 
@@ -158,25 +157,31 @@ function openOpenAISession(tenantId, callSid) {
 
     ws.on('open', () => {
       clearTimeout(timeout);
-      logger.info(`REALTIME OpenAI WS connected for tenant=${tenantId}`);
+      logger.info(`REALTIME OpenAI WS connected (GA, model=${config.model}) for tenant=${tenantId}`);
 
-      // Configurer la session — le greeting sera envoye par setupOpenAIListeners
-      // quand session.updated confirmera le format g711_ulaw
+      // Configurer la session — format GA avec audio/pcmu
       const systemInstructions = buildSystemInstructions(tenantId);
       const tools = buildRealtimeTools(tenantId);
 
       ws.send(JSON.stringify({
         type: 'session.update',
         session: {
-          voice: config.voice,
+          type: 'realtime',
+          model: config.model,
+          output_modalities: ['audio'],
+          audio: {
+            input: {
+              format: { type: 'audio/pcmu' },
+              turn_detection: config.turn_detection,
+            },
+            output: {
+              format: { type: 'audio/pcmu' },
+              voice: config.voice,
+            },
+          },
           instructions: systemInstructions,
-          input_audio_format: config.input_audio_format,
-          output_audio_format: config.output_audio_format,
-          input_audio_transcription: config.input_audio_transcription,
-          turn_detection: config.turn_detection,
           tools,
           tool_choice: 'auto',
-          temperature: config.temperature,
           max_response_output_tokens: config.max_response_output_tokens,
         },
       }));
@@ -194,6 +199,7 @@ function openOpenAISession(tenantId, callSid) {
 
 /**
  * Envoie le message d'accueil (premiere reponse vocale)
+ * Utilise conversation.item.create + response.create (pattern officiel GA)
  */
 function sendGreeting(openaiWs, tenantId) {
   let greeting;
@@ -208,21 +214,26 @@ function sendGreeting(openaiWs, tenantId) {
     greeting = 'Bonjour ! Comment puis-je vous aider ?';
   }
 
+  // Pattern GA : creer un message user simulé puis déclencher la réponse
   openaiWs.send(JSON.stringify({
-    type: 'response.create',
-    response: {
-      modalities: ['audio', 'text'],
-      instructions: `Dis exactement ceci pour l'accueil : "${greeting}"`,
+    type: 'conversation.item.create',
+    item: {
+      type: 'message',
+      role: 'user',
+      content: [{ type: 'input_text', text: `Dis exactement ceci pour l'accueil : "${greeting}"` }],
     },
   }));
+
+  openaiWs.send(JSON.stringify({ type: 'response.create' }));
 }
 
 /**
  * Configure les listeners pour les messages OpenAI -> Twilio
  *
+ * Format GA : response.output_audio.delta (pas response.audio.delta)
+ *
  * Strategie : PAS de barge-in. L'IA reste breve (1-2 phrases max),
- * le client attend la fin de la reponse puis parle. Elimine tous les
- * problemes de bruits ambiants qui coupaient la conversation.
+ * le client attend la fin de la reponse puis parle.
  */
 function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) {
   let lastResponseId = null;
@@ -248,8 +259,7 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           break;
 
         case 'session.updated':
-          logger.info(`REALTIME session.updated — format g711_ulaw OK (tenant=${tenantId})`);
-          // Format audio confirme, envoyer le greeting maintenant
+          logger.info(`REALTIME session.updated — audio/pcmu OK (tenant=${tenantId})`);
           if (!greetingSent) {
             greetingSent = true;
             clearTimeout(greetingFallback);
@@ -262,8 +272,8 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           logger.error(`REALTIME OpenAI error: ${JSON.stringify(event.error)} (tenant=${tenantId})`);
           break;
 
-        // ---- Audio de reponse -> Twilio ----
-        case 'response.audio.delta': {
+        // ---- Audio de reponse -> Twilio (format GA) ----
+        case 'response.output_audio.delta': {
           if (twilioWs.readyState === WebSocket.OPEN && event.delta) {
             twilioWs.send(JSON.stringify({
               event: 'media',
@@ -300,7 +310,6 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
         }
 
         // ---- Barge-in desactive : on ignore speech_started/stopped ----
-        // L'IA reste breve, pas besoin d'interrompre
         case 'input_audio_buffer.speech_started':
         case 'input_audio_buffer.speech_stopped':
           break;
@@ -317,10 +326,8 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
             toolArgs = {};
           }
 
-          // Executer le tool via NEXUS CORE processMessage
           const toolResult = await executeRealtimeTool(toolName, toolArgs, tenantId, callSid);
 
-          // Renvoyer le resultat a OpenAI
           openaiWs.send(JSON.stringify({
             type: 'conversation.item.create',
             item: {
@@ -330,25 +337,13 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
             },
           }));
 
-          // Declencher la reponse suivante
-          openaiWs.send(JSON.stringify({
-            type: 'response.create',
-          }));
-
-          break;
-        }
-
-        // ---- Erreurs ----
-        case 'error': {
-          logger.error(`REALTIME OpenAI error: ${JSON.stringify(event.error)} (tenant=${tenantId})`);
+          openaiWs.send(JSON.stringify({ type: 'response.create' }));
           break;
         }
 
         // ---- Rate limits ----
-        case 'rate_limits.updated': {
-          // Log pour monitoring
+        case 'rate_limits.updated':
           break;
-        }
 
         default:
           break;
@@ -359,6 +354,7 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
   });
 
   openaiWs.on('close', (code, reason) => {
+    clearTimeout(greetingFallback);
     logger.info(`REALTIME OpenAI WS closed: code=${code} reason=${reason?.toString() || ''} (tenant=${tenantId})`);
   });
 
@@ -369,24 +365,15 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
 
 /**
  * Execute un tool NEXUS via processMessage
- * Mappe les tools OpenAI Realtime vers l'execution nexusCore
- *
- * @param {string} toolName
- * @param {object} toolArgs
- * @param {string} tenantId
- * @param {string} callSid
- * @returns {Promise<object>}
  */
 async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid) {
   const conversationId = `realtime_${callSid}`;
 
   try {
-    // Pour les outils qui necessitent un traitement special
     if (toolName === 'transferer_responsable') {
       return { success: true, action: 'transfer', message: 'Transfert vers le responsable demande.' };
     }
 
-    // Construire un message naturel a partir du tool call pour processMessage
     const toolMessage = buildToolMessage(toolName, toolArgs);
 
     const result = await processMessage(toolMessage, 'phone', {
@@ -402,16 +389,12 @@ async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid) {
     };
   } catch (err) {
     logger.error(`REALTIME Tool execution error: ${toolName} - ${err.message}`, { tenantId, callSid });
-    return {
-      success: false,
-      error: err.message,
-    };
+    return { success: false, error: err.message };
   }
 }
 
 /**
  * Construit un message naturel a partir d'un tool call
- * Permet de passer par processMessage qui gere deja les tools
  */
 function buildToolMessage(toolName, args) {
   switch (toolName) {
@@ -430,13 +413,8 @@ function buildToolMessage(toolName, args) {
 
 /**
  * Construit les tools au format OpenAI Realtime (function calling)
- * Subset des TOOLS_CLIENT optimise pour la voix
- *
- * @param {string} tenantId
- * @returns {Array} Tools au format OpenAI Realtime
  */
 export function buildRealtimeTools(tenantId) {
-  // Tools principaux pour la voix telephonique
   return [
     {
       type: 'function',
@@ -445,10 +423,7 @@ export function buildRealtimeTools(tenantId) {
       parameters: {
         type: 'object',
         properties: {
-          categorie: {
-            type: 'string',
-            description: 'Categorie de services a filtrer (optionnel)',
-          },
+          categorie: { type: 'string', description: 'Categorie de services a filtrer (optionnel)' },
         },
         required: [],
       },
@@ -460,10 +435,7 @@ export function buildRealtimeTools(tenantId) {
       parameters: {
         type: 'object',
         properties: {
-          jour: {
-            type: 'string',
-            description: 'Jour specifique (lundi, mardi, etc.)',
-          },
+          jour: { type: 'string', description: 'Jour specifique (lundi, mardi, etc.)' },
         },
         required: [],
       },
@@ -517,10 +489,7 @@ export function buildRealtimeTools(tenantId) {
 }
 
 /**
- * Genere les instructions systeme pour OpenAI Realtime a partir du prompt tenant
- *
- * @param {string} tenantId
- * @returns {string}
+ * Genere les instructions systeme pour OpenAI Realtime
  */
 export function buildSystemInstructions(tenantId) {
   const basePrompt = getVoiceSystemPrompt(tenantId);
@@ -566,16 +535,13 @@ function cleanupSession(streamSid) {
 
   const { openaiWs, tenantId, callSid, startTime, from } = session;
 
-  // Fermer le WS OpenAI
   if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
     openaiWs.close();
   }
 
-  // Nettoyer la conversation NEXUS CORE
   const conversationId = `realtime_${callSid}`;
   clearConversation(conversationId);
 
-  // Tracker la duree
   const durationSec = Math.round((Date.now() - startTime) / 1000);
   if (tenantId && durationSec > 0) {
     usageTracking.trackPhoneCall(tenantId, durationSec, callSid, 'inbound').catch(() => {});
@@ -583,7 +549,6 @@ function cleanupSession(streamSid) {
   }
 
   logger.info(`REALTIME Session cleaned: stream=${streamSid}, tenant=${tenantId}, duration=${durationSec}s`);
-
   activeSessions.delete(streamSid);
 }
 

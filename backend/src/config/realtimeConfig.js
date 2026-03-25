@@ -1,33 +1,30 @@
 /**
- * Configuration OpenAI Realtime API par tenant
+ * Configuration OpenAI Realtime API (GA) par tenant
  *
  * Gere les parametres de session WebSocket pour la voix temps reel.
  * Chaque tenant peut avoir sa propre voix et ses propres seuils VAD.
+ *
+ * Format GA (aout 2025) — audio/pcmu, model gpt-realtime
  */
 
 import { getTenantConfig } from '../config/tenants/index.js';
 
-const OPENAI_REALTIME_MODEL = 'gpt-4o-realtime-preview';
+const OPENAI_REALTIME_MODEL = 'gpt-realtime';
 
 /**
- * Configuration par defaut pour OpenAI Realtime
+ * Configuration par defaut pour OpenAI Realtime GA
  */
 const DEFAULT_CONFIG = {
   model: OPENAI_REALTIME_MODEL,
   voice: 'alloy',
-  input_audio_format: 'g711_ulaw',
-  output_audio_format: 'g711_ulaw',
-  input_audio_transcription: {
-    model: 'whisper-1',
-  },
+  temperature: 0.5,
+  max_response_output_tokens: 500,
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.7,            // Filtre bruits ambiants telephoniques
-    prefix_padding_ms: 300,    // Marge courte avant detection parole
-    silence_duration_ms: 400,  // Reactive : repond vite apres fin de parole
+    threshold: 0.7,
+    prefix_padding_ms: 300,
+    silence_duration_ms: 400,
   },
-  temperature: 0.5,            // Bas pour eviter les anticipations/hallucinations
-  max_response_output_tokens: 500,
 };
 
 /**
@@ -40,7 +37,10 @@ const DEFAULT_CONFIG = {
 export function getRealtimeConfig(tenantId) {
   if (!tenantId) throw new Error('tenant_id requis');
 
-  const config = { ...DEFAULT_CONFIG };
+  const config = {
+    ...DEFAULT_CONFIG,
+    turn_detection: { ...DEFAULT_CONFIG.turn_detection },
+  };
 
   // Charger overrides depuis la config tenant
   try {
