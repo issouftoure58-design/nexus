@@ -404,7 +404,6 @@ async function seedEmployes(tenantId, employes) {
     ...e,
     statut: 'actif',
     date_embauche: '2024-01-01',
-    salaire_brut: 200000, // 2000€ en centimes
     created_at: new Date().toISOString(),
   }));
 
