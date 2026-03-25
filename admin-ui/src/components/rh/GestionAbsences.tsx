@@ -105,7 +105,7 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
     statut: 'all',
     type: 'all',
     membre_id: 'all',
-    periode: 'mois' // mois, trimestre, annee
+    periode: 'all' // all, mois, trimestre, annee
   });
 
   // Calendrier
@@ -253,15 +253,24 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
       if (absence.statut === 'en_attente') return true;
 
       // Filtre par période
-      const dateDebut = new Date(absence.date_debut);
-      const now = new Date();
-      if (filters.periode === 'mois') {
-        if (dateDebut.getMonth() !== now.getMonth() || dateDebut.getFullYear() !== now.getFullYear()) {
-          // Inclure aussi les absences qui chevauchent le mois en cours
-          const dateFin = new Date(absence.date_fin);
+      if (filters.periode !== 'all') {
+        const dateDebut = new Date(absence.date_debut);
+        const dateFin = new Date(absence.date_fin);
+        const now = new Date();
+
+        if (filters.periode === 'mois') {
           const debutMois = new Date(now.getFullYear(), now.getMonth(), 1);
           const finMois = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           if (dateFin < debutMois || dateDebut > finMois) return false;
+        } else if (filters.periode === 'trimestre') {
+          const qStart = Math.floor(now.getMonth() / 3) * 3;
+          const debutTrim = new Date(now.getFullYear(), qStart, 1);
+          const finTrim = new Date(now.getFullYear(), qStart + 3, 0);
+          if (dateFin < debutTrim || dateDebut > finTrim) return false;
+        } else if (filters.periode === 'annee') {
+          const debutAn = new Date(now.getFullYear(), 0, 1);
+          const finAn = new Date(now.getFullYear(), 11, 31);
+          if (dateFin < debutAn || dateDebut > finAn) return false;
         }
       }
 
@@ -468,6 +477,17 @@ export default function GestionAbsences({ membres, onRefresh }: GestionAbsencesP
             {membres.map(m => (
               <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
             ))}
+          </select>
+
+          <select
+            value={filters.periode}
+            onChange={e => setFilters({ ...filters, periode: e.target.value })}
+            className="text-sm border rounded px-2 py-1.5"
+          >
+            <option value="all">Toutes périodes</option>
+            <option value="mois">Ce mois</option>
+            <option value="trimestre">Ce trimestre</option>
+            <option value="annee">Cette année</option>
           </select>
         </div>
 
