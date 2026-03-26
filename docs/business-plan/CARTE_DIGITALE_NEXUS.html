@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>NEXUS AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #06060a;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: linear-gradient(170deg, #101018 0%, #0c0c14 50%, #101018 100%);
+    border-radius: 28px;
+    overflow: hidden;
+    position: relative;
+    border: 1.5px solid rgba(212,175,55,0.2);
+    box-shadow:
+      0 0 80px rgba(212,175,55,0.06),
+      0 30px 100px rgba(0,0,0,0.7);
+  }
+
+  /* Animated shimmer sweep */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(212,175,55,0.04) 45%,
+      rgba(245,230,163,0.06) 50%,
+      rgba(212,175,55,0.04) 55%,
+      transparent 60%
+    );
+    animation: sweep 5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  @keyframes sweep {
+    0% { left: -100%; }
+    50% { left: 100%; }
+    100% { left: 100%; }
+  }
+
+  /* Gold glow */
+  .card::after {
+    content: '';
+    position: absolute;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(212,175,55,0.1) 0%, transparent 70%);
+    top: 25%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: glow 4s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.9); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  }
+
+  .inner {
+    position: relative;
+    z-index: 3;
+    padding: 36px 24px 28px;
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .brand {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 40px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #f5e6a3 0%, #d4af37 25%, #f5e6a3 50%, #d4af37 75%, #b8962e 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gold-shift 6s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 16px rgba(212,175,55,0.25));
+  }
+
+  @keyframes gold-shift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+
+  .subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5px;
+    color: rgba(212,175,55,0.55);
+    font-weight: 500;
+    line-height: 1.5;
+    margin-top: 8px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 18px 0;
+  }
+
+  .ornament-line {
+    flex: 1;
+    max-width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212,175,55,0.4));
+  }
+
+  .ornament-line:last-child {
+    background: linear-gradient(90deg, rgba(212,175,55,0.4), transparent);
+  }
+
+  .ornament-diamond {
+    width: 6px; height: 6px;
+    background: linear-gradient(135deg, #d4af37, #f5e6a3);
+    transform: rotate(45deg);
+    box-shadow: 0 0 8px rgba(212,175,55,0.5);
+  }
+
+  /* ===== FEATURES ===== */
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+    margin-bottom: 24px;
+    padding: 0 4px;
+  }
+
+  .feat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+
+  .feat-icon {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #d4af37, #f5e6a3);
+    flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(212,175,55,0.5);
+  }
+
+  /* ===== QR CODE ===== */
+  .qr-section {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .qr-frame {
+    display: inline-block;
+    padding: 16px;
+    background: white;
+    border-radius: 22px;
+    position: relative;
+    box-shadow:
+      0 0 0 2px rgba(212,175,55,0.15),
+      0 0 40px rgba(212,175,55,0.08),
+      0 12px 40px rgba(0,0,0,0.35);
+  }
+
+  .qr-frame::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(212,175,55,0.3), transparent 40%, transparent 60%, rgba(212,175,55,0.3));
+    z-index: -1;
+  }
+
+  .qr-frame img {
+    width: 180px; height: 180px;
+    display: block;
+  }
+
+  .qr-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: rgba(212,175,55,0.45);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-top: 14px;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 18px;
+    border-top: 1px solid rgba(212,175,55,0.1);
+  }
+
+  .footer-url {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #d4af37, #f5e6a3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 0.3px;
+  }
+
+  .footer-offer {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    color: #0a0a0f;
+    background: linear-gradient(135deg, #d4af37, #f5e6a3, #d4af37);
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(212,175,55,0.25);
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="inner">
+
+    <div class="header">
+      <div class="brand">NEXUS AI</div>
+      <div class="subtitle">Plateforme SaaS IA tout-en-un<br>pour les entreprises de services</div>
+    </div>
+
+    <div class="ornament">
+      <div class="ornament-line"></div>
+      <div class="ornament-diamond"></div>
+      <div class="ornament-line"></div>
+    </div>
+
+    <div class="features">
+      <div class="feat"><span class="feat-icon"></span> IA telephone 24h/24</div>
+      <div class="feat"><span class="feat-icon"></span> Agenda & reservations</div>
+      <div class="feat"><span class="feat-icon"></span> WhatsApp & SMS auto</div>
+      <div class="feat"><span class="feat-icon"></span> CRM & fidelisation</div>
+      <div class="feat"><span class="feat-icon"></span> Comptabilite & factures</div>
+      <div class="feat"><span class="feat-icon"></span> Marketing & SEO</div>
+      <div class="feat"><span class="feat-icon"></span> Gestion RH & paie</div>
+      <div class="feat"><span class="feat-icon"></span> Stock & commandes</div>
+    </div>
+
+    <div class="qr-section">
+      <div class="qr-frame">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&color=0a0a0f&data=https%3A//nexus-backend-dev.onrender.com/commercial/" alt="QR">
+      </div>
+      <div class="qr-label">Scannez pour decouvrir</div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-url">nexus-ai-saas.com</div>
+      <div class="footer-offer">14 jours gratuits</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
