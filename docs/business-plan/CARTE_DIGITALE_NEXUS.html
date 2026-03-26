@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light">
 <title>NEXUS AI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -215,7 +217,7 @@
   .qr-frame {
     display: inline-block;
     padding: 16px;
-    background: #ffffff;
+    background: #ffffff !important;
     border-radius: 22px;
     position: relative;
     border: 2px solid rgba(212,175,55,0.25);
@@ -223,11 +225,16 @@
       0 0 30px rgba(212,175,55,0.15),
       0 0 60px rgba(212,175,55,0.06),
       0 12px 40px rgba(0,0,0,0.35);
+    color-scheme: light;
   }
 
   .qr-frame img {
     width: 200px; height: 200px;
     display: block;
+    -webkit-filter: none !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+    opacity: 1 !important;
   }
 
   .qr-label {
@@ -301,7 +308,7 @@
 
     <div class="qr-section">
       <div class="qr-frame">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=png&color=0a0a0f&data=https%3A//nexus-backend-dev.onrender.com/commercial/" alt="QR Code NEXUS">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=png&color=000000&data=https%3A//nexus-backend-dev.onrender.com/commercial/" alt="QR Code NEXUS">
       </div>
       <div class="qr-label">Scannez pour decouvrir</div>
     </div>
