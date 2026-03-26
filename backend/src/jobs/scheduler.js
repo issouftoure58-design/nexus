@@ -62,6 +62,9 @@ const JOBS_SCHEDULE = {
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
   plteE2E:     { hour: 4, minute: 0 },                 // 04h00 - PLTE E2E parcours utilisateur complet
   prospectionFollowUp: { interval: 30 },               // Toutes les 30 min - Relances prospection (J3/J7/J14)
+  prospectionAutoScrape: { dayOfWeek: 1, hour: 7, minute: 0 },  // Lundi 07h00 - Scrape Google Places auto
+  prospectionAutoEmails: { dayOfWeek: 1, hour: 8, minute: 0 },  // Lundi 08h00 - Recherche emails auto
+  prospectionAutoCampaign: { hour: 9, minute: 0 },              // Tous les jours 09h00 - Envoi campagnes actives
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1396,6 +1399,39 @@ async function runScheduler() {
     }
   }
 
+  // Job: Prospection auto-scrape Google Places (lundi 7h)
+  if (shouldRunWeeklyJob('prospectionAutoScrape', JOBS_SCHEDULE.prospectionAutoScrape)) {
+    markJobExecuted('prospectionAutoScrape');
+    try {
+      const { autoScrapeProspects } = await import('../modules/prospection/followUpScheduler.js');
+      await autoScrapeProspects();
+    } catch (err) {
+      console.error('[Scheduler] Erreur prospection auto-scrape:', err.message);
+    }
+  }
+
+  // Job: Prospection auto recherche emails (lundi 8h)
+  if (shouldRunWeeklyJob('prospectionAutoEmails', JOBS_SCHEDULE.prospectionAutoEmails)) {
+    markJobExecuted('prospectionAutoEmails');
+    try {
+      const { autoScrapeEmails } = await import('../modules/prospection/followUpScheduler.js');
+      await autoScrapeEmails();
+    } catch (err) {
+      console.error('[Scheduler] Erreur prospection auto-emails:', err.message);
+    }
+  }
+
+  // Job: Prospection envoi campagnes actives (tous les jours 9h)
+  if (shouldRunJob('prospectionAutoCampaign', JOBS_SCHEDULE.prospectionAutoCampaign)) {
+    markJobExecuted('prospectionAutoCampaign');
+    try {
+      const { autoRunCampaigns } = await import('../modules/prospection/followUpScheduler.js');
+      await autoRunCampaigns();
+    } catch (err) {
+      console.error('[Scheduler] Erreur prospection auto-campaign:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1440,6 +1476,9 @@ export function startScheduler() {
   console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
   console.log(`  ✅ PLTE E2E: tous les jours a ${JOBS_SCHEDULE.plteE2E.hour}h${String(JOBS_SCHEDULE.plteE2E.minute).padStart(2, '0')} (10 contextes, 34 tests HTTP)`);
   console.log(`  ✅ Prospection Follow-Up: toutes les ${JOBS_SCHEDULE.prospectionFollowUp.interval} min (relances J3/J7/J14)`);
+  console.log(`  ✅ Prospection Auto-Scrape: lundi ${JOBS_SCHEDULE.prospectionAutoScrape.hour}h (Google Places)`);
+  console.log(`  ✅ Prospection Auto-Emails: lundi ${JOBS_SCHEDULE.prospectionAutoEmails.hour}h (recherche emails)`);
+  console.log(`  ✅ Prospection Auto-Campaign: tous les jours a ${JOBS_SCHEDULE.prospectionAutoCampaign.hour}h (envoi campagnes)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
