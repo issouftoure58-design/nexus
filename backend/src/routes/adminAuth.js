@@ -26,6 +26,11 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 
 function checkRateLimit(ip) {
+  // Skip rate limit for E2E/dev environments
+  if (process.env.SKIP_RATE_LIMIT === 'true') {
+    return { allowed: true };
+  }
+
   const now = Date.now();
   const attempts = loginAttempts.get(ip);
 
@@ -162,16 +167,20 @@ router.post('/login', loginLimiter, async (req, res) => {
     // 🔒 G4: Reset rate limit après login réussi
     resetRateLimit(clientIp);
 
-    // Créer la session en DB
+    // Créer la session en DB (await pour éviter race condition avec validateSession)
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    createSession({
-      adminId: loginResult.user.id,
-      tenantId: loginResult.user.tenant_id,
-      token,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-      expiresAt,
-    }).catch(err => logger.error('[Session] Erreur création:', { error: err.message }));
+    try {
+      await createSession({
+        adminId: loginResult.user.id,
+        tenantId: loginResult.user.tenant_id,
+        token,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+        expiresAt,
+      });
+    } catch (err) {
+      logger.error('[Session] Erreur création:', { error: err.message });
+    }
 
     // Logger l'action
     try {

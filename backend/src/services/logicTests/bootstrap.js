@@ -17,8 +17,8 @@ export const PLTE_TENANTS = {
   'nexus-test':        { name: 'Salon Elegance Paris', profile: 'salon',      template: 'salon_coiffure' },
   'blackburn':         { name: 'Blackburn',            profile: 'restaurant',  template: 'restaurant' },
   'test-hospitality':  { name: 'Quick Burger Express', profile: 'commerce',    template: 'commerce' },
-  'test-events':       { name: 'Emma Events',          profile: 'events',      template: 'event_wedding' },
-  'test-consulting':   { name: 'Clara Conseil',        profile: 'consulting',  template: 'consultant' },
+  'test-events':       { name: 'Emma Events',          profile: 'events',      template: 'autre' },
+  'test-consulting':   { name: 'Clara Conseil',        profile: 'consulting',  template: 'autre' },
   'test-security':     { name: 'Atlas Securite',       profile: 'securite',    template: 'security' },
   'plte-hotel':        { name: 'Hotel Sentinel',       profile: 'hotel',       template: 'hotel' },
   'plte-domicile':     { name: 'Service a Domicile Sentinel', profile: 'domicile', template: 'artisan' },
@@ -243,7 +243,27 @@ async function ensureServices(tenantId, templateId) {
     .eq('tenant_id', tenantId)
     .limit(20);
   console.log(`[PLTE Bootstrap] Services retry ${tenantId}: ${retry?.length || 0} found`);
-  return retry || [];
+  if (retry?.length) return retry;
+
+  // Safety net: one last insert if nothing exists at all
+  console.error(`[PLTE Bootstrap] ⚠️ ${tenantId}: 0 services apres retry — safety insert`);
+  try {
+    const { data: safetyData } = await supabase
+      .from('services')
+      .insert({
+        tenant_id: tenantId,
+        nom: `Service Test ${tenantId}`,
+        duree: 30,
+        prix: 2500,
+        categorie: 'general',
+        actif: true,
+      })
+      .select('id, nom, duree, prix, categorie, actif');
+    if (safetyData?.length) return safetyData;
+  } catch (err) {
+    console.error(`[PLTE Bootstrap] Safety insert failed ${tenantId}:`, err.message);
+  }
+  return [];
 }
 
 // ============================================
@@ -277,9 +297,24 @@ async function ensureTestClients(tenantId) {
     .upsert(rows, { onConflict: 'tenant_id,email' })
     .select('id, nom, prenom, email, telephone');
 
-  if (error) console.error(`[PLTE Bootstrap] Clients upsert error ${tenantId}:`, error.message);
+  if (error) {
+    console.error(`[PLTE Bootstrap] Clients upsert error ${tenantId}:`, error.message, error.code);
+    // Fallback: insert individually (handles missing unique constraint gracefully)
+    for (const row of rows) {
+      try {
+        const { data: check } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('email', row.email)
+          .limit(1);
+        if (check?.length) continue; // Already exists
+        await supabase.from('clients').insert(row);
+      } catch { /* non-blocking */ }
+    }
+  }
 
-  // Retry: re-query si upsert a echoue mais clients existent deja
+  // Re-query to get final state
   if (!data?.length) {
     const { data: retry } = await supabase
       .from('clients')
@@ -668,7 +703,7 @@ export async function cleanupPlteData(tenantId) {
     { table: 'devis', field: 'numero' },
     { table: 'marketing_campaigns', field: 'name' },
     { table: 'social_posts', field: 'content' },
-    { table: 'quotes', field: 'reference' },
+    // quotes cleaned via CRM cascade above (by contact_id)
     { table: 'orders', field: 'customer_name' },
     { table: 'avis_clients', field: 'commentaire' },
   ];
@@ -682,6 +717,48 @@ export async function cleanupPlteData(tenantId) {
         .like(field, `${TEST_PREFIX}%`);
     } catch { /* table may not exist */ }
   }
+
+  // Cleanup CRM cascade: follow_ups → quote_items → quotes → contacts (order matters for FK)
+  try {
+    const { data: testContacts } = await supabase
+      .from('crm_contacts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .like('email', '%@plte.internal');
+
+    if (testContacts?.length) {
+      const contactIds = testContacts.map(c => c.id);
+
+      // Find quotes linked to test contacts
+      const { data: testQuotes } = await supabase
+        .from('quotes')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .in('contact_id', contactIds);
+
+      if (testQuotes?.length) {
+        const quoteIds = testQuotes.map(q => q.id);
+
+        // Delete follow_ups for test quotes
+        try {
+          await supabase.from('follow_ups').delete()
+            .eq('tenant_id', tenantId).in('quote_id', quoteIds);
+        } catch { /* table may not exist */ }
+
+        // Delete quote_items for test quotes
+        try {
+          await supabase.from('quote_items').delete()
+            .eq('tenant_id', tenantId).in('quote_id', quoteIds);
+        } catch { /* table may not exist */ }
+
+        // Delete the quotes themselves
+        try {
+          await supabase.from('quotes').delete()
+            .eq('tenant_id', tenantId).in('id', quoteIds);
+        } catch { /* table may not exist */ }
+      }
+    }
+  } catch { /* CRM tables may not exist */ }
 
   // Cleanup crm_contacts et hr_employees par email PLTE
   for (const table of ['crm_contacts', 'hr_employees']) {
@@ -786,8 +863,13 @@ export async function cleanupE2ETenant(tenantId) {
     'invitations',
     'loyalty_transactions',
     'avis_clients',
+    'factures_audit_trail',
+    'factures_hash_chain',
+    'factures_snapshots',
     'ecritures_comptables',
     'factures',
+    'reservation_lignes',
+    'reservation_membres',
     'reservations',
     'services',
     'business_hours',
@@ -801,13 +883,19 @@ export async function cleanupE2ETenant(tenantId) {
     'social_posts',
     'devis',
     'orders',
+    'quote_items',
     'quotes',
     'crm_contacts',
+    'contact_interactions',
+    'follow_ups',
     'hr_employees',
     'hotel_chambres',
     'restaurant_tables',
     'security_sites',
     'zones_intervention',
+    'tenant_ia_config',
+    'ia_conversations',
+    'historique_admin',
     'sentinel_logic_tests',
     'sentinel_logic_runs',
     'admin_users',

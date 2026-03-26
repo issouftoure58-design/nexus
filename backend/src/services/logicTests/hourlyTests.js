@@ -63,10 +63,15 @@ export async function runHourlyTests(ctx) {
   const { tenantId, profile, clients, services } = ctx;
 
   if (!clients?.length || !services?.length) {
+    const detail = `clients=${clients?.length || 0} services=${services?.length || 0} (tenant=${tenantId} profile=${profile})`;
     results.push(makeResult('H0_bootstrap_check', 'config', 'critical',
-      'Donnees bootstrap presentes', 'fail', 'Pas de clients ou services disponibles'));
+      'Donnees bootstrap presentes', 'fail', `Bootstrap incomplet: ${detail}`));
     return results;
   }
+
+  results.push(makeResult('H0_bootstrap_check', 'config', 'critical',
+    'Donnees bootstrap presentes', 'pass', null,
+    { detail: `${services.length} services, ${clients.length} clients` }));
 
   // Cleanup avant
   await cleanupPlteData(tenantId);

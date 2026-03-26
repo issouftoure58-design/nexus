@@ -2646,7 +2646,8 @@ export async function processMessage(message, channel, context = {}) {
     if (selectedModel.includes('haiku')) {
       const ESSENTIAL_TOOL_NAMES = [
         'parse_date', 'get_services', 'get_available_slots', 'create_booking',
-        'get_business_info', 'search_client', 'get_reservations',
+        'get_salon_info', 'get_business_hours', 'get_price', 'check_availability',
+        'find_appointment', 'get_upcoming_days',
       ];
       const essentialTools = filteredTools.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
       if (essentialTools.length > 0) {
@@ -3202,7 +3203,8 @@ export async function* processMessageStreaming(message, channel, context = {}) {
     if (selectedModel.includes('haiku')) {
       const ESSENTIAL_TOOL_NAMES = [
         'parse_date', 'get_services', 'get_available_slots', 'create_booking',
-        'get_business_info', 'search_client', 'get_reservations',
+        'get_salon_info', 'get_business_hours', 'get_price', 'check_availability',
+        'find_appointment', 'get_upcoming_days',
       ];
       const essentialTools = filteredToolsStream.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
       if (essentialTools.length > 0) {

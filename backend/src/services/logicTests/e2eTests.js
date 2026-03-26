@@ -62,7 +62,7 @@ function makeResult(name, module, severity, description, passed, error = null) {
  */
 async function createDirectTenant(suffix, options = {}) {
   const tenantId = `${E2E_PREFIX}${suffix}-${Date.now()}`;
-  const email = `${tenantId}@plte.internal`;
+  const email = `${tenantId}@plte.internal`.toLowerCase();
   const plan = options.plan || 'business';
   const statut = options.statut || 'essai';
   const essaiFin = options.essai_fin || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -246,8 +246,7 @@ async function runContext_C1_signup() {
 
   // C1_04: Services seeded
   try {
-    const { status, data } = await apiCall('GET', '/api/services', token, null, { tenantId });
-    // services endpoint might be /api/admin/services or /api/services
+    const { status, data } = await apiCall('GET', '/api/admin/services', token);
     const services = data?.services || data?.data || data || [];
     const passed = status === 200 && Array.isArray(services) && services.length >= 1;
     results.push(makeResult('C1_04_services_seeded', 'signup', 'warning',
@@ -407,7 +406,7 @@ async function runContext_C4_expiration() {
     // Create tenant with expired trial — INSERT direct (pas de login, car expire = 403)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     tenantId = `${E2E_PREFIX}expired-${Date.now()}`;
-    const email = `${tenantId}@plte.internal`;
+    const email = `${tenantId}@plte.internal`.toLowerCase();
 
     const { error: tenantErr } = await supabase.from('tenants').insert({
       id: tenantId,
@@ -591,8 +590,8 @@ async function runContext_C6_quotas(tenantId, token) {
 
   // C6_03: Create a reservation
   try {
-    // First get a service
-    const { data: svcData } = await apiCall('GET', '/api/services', token, null, { tenantId });
+    // First get a service (admin endpoint, pas public)
+    const { data: svcData } = await apiCall('GET', '/api/admin/services', token);
     const services = svcData?.services || svcData?.data || svcData || [];
     const service = Array.isArray(services) && services.length > 0 ? services[0] : null;
 
@@ -687,7 +686,7 @@ async function runContext_C7_downgrade(tenantId, token) {
 
   // C7_03: Donnees intactes (services still there)
   try {
-    const { status, data } = await apiCall('GET', '/api/services', token, null, { tenantId });
+    const { status, data } = await apiCall('GET', '/api/admin/services', token);
     const services = data?.services || data?.data || data || [];
     const passed = status === 200 && Array.isArray(services) && services.length >= 1;
     results.push(makeResult('C7_03_donnees_intactes', 'plan', 'warning',

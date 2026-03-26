@@ -137,9 +137,19 @@ async function diagnose(tenantId, test) {
     return diagnoseFECFailure(tenantId, test);
   }
 
+  // === N3 — Bulletin paie ===
+  if (name.includes('n3_') || name.includes('bulletin_paie')) {
+    return diagnoseBulletinPaie(tenantId, test);
+  }
+
   // === N28 — RH avance ===
   if (name.includes('n28') || name.includes('rh_avance')) {
     return diagnoseRHAvance(tenantId, test);
+  }
+
+  // === N29 — Pointage sync ===
+  if (name.includes('n29') || name.includes('pointage_sync')) {
+    return diagnosePointageSync(tenantId, test);
   }
 
   // === N32 — Referrals ===
@@ -1323,6 +1333,86 @@ async function diagnoseRHAvance(tenantId, test) {
     error.substring(0, 200),
     null,
     'Verifier hrService.js — createEmployee/clockIn/clockOut/requestLeave/approveLeave',
+    { tenantId });
+}
+
+/**
+ * N3 — Bulletin paie failure
+ */
+async function diagnoseBulletinPaie(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('rh_bulletins_paie')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table rh_bulletins_paie inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration paie manquante — verifier table rh_bulletins_paie (migration 089)',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  // Verifier qu'il y a des employes test
+  try {
+    const { data: membres } = await supabase
+      .from('rh_membres')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!membres?.length) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Aucun membre RH pour ce tenant',
+        error.substring(0, 200),
+        null,
+        'Bootstrap RH incomplet — aucun employe dans rh_membres pour generer un bulletin',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Bulletin de paie echoue',
+    error.substring(0, 200),
+    null,
+    'Verifier coherence salaire_brut - cotisations = salaire_net dans rh_bulletins_paie',
+    { tenantId });
+}
+
+/**
+ * N29 — Pointage sync failure
+ */
+async function diagnosePointageSync(tenantId, test) {
+  const error = test.error || '';
+
+  try {
+    const { data } = await supabase
+      .from('rh_pointage')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!data) {
+      return makeDiag('DIAGNOSED', test.name,
+        'Table rh_pointage inaccessible',
+        error.substring(0, 200),
+        null,
+        'Migration pointage manquante — verifier table rh_pointage (migration 024)',
+        { tenantId });
+    }
+  } catch { /* table may not exist */ }
+
+  return makeDiag('DIAGNOSED', test.name,
+    'Synchronisation pointage echouee',
+    error.substring(0, 200),
+    null,
+    'Verifier pointageService.js — synchroniserPointageDepuisReservations requiert des reservations terminees avec membre_id',
     { tenantId });
 }
 

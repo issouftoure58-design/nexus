@@ -32,16 +32,14 @@ router.get('/export', async (req, res) => {
 
     console.log(`[RGPD] Export demandé par ${adminEmail} pour tenant ${tenantId}`);
 
-    // Collecter toutes les données du tenant
+    // Collecter toutes les données du tenant (queries resilientes)
     const [
       { data: tenant },
       { data: clients },
       { data: reservations },
       { data: factures },
       { data: services },
-      { data: admins },
-      { data: conversations },
-      { data: consents }
+      { data: admins }
     ] = await Promise.all([
       supabase.from('tenants').select('*').eq('id', tenantId).single(),
       supabase.from('clients').select('*').eq('tenant_id', tenantId),
@@ -49,19 +47,25 @@ router.get('/export', async (req, res) => {
       supabase.from('factures').select('*').eq('tenant_id', tenantId),
       supabase.from('services').select('*').eq('tenant_id', tenantId),
       supabase.from('admin_users').select('id, nom, prenom, email, created_at').eq('tenant_id', tenantId),
-      supabase.from('ia_conversations').select('*').eq('tenant_id', tenantId),
-      supabase.from('client_consents').select('*').eq('tenant_id', tenantId)
     ]);
+
+    // Tables optionnelles (peuvent ne pas exister)
+    let conversations = null;
+    let consents = null;
+    try { ({ data: conversations } = await supabase.from('ia_conversations').select('*').eq('tenant_id', tenantId)); } catch { /* table may not exist */ }
+    try { ({ data: consents } = await supabase.from('client_consents').select('*').eq('tenant_id', tenantId)); } catch { /* table may not exist */ }
 
     // Charger les messages IA lies aux conversations
     const conversationIds = (conversations || []).map(c => c.id);
     let iaMessages = [];
     if (conversationIds.length > 0) {
-      const { data } = await supabase
-        .from('ia_messages')
-        .select('*')
-        .in('conversation_id', conversationIds);
-      iaMessages = data || [];
+      try {
+        const { data } = await supabase
+          .from('ia_messages')
+          .select('*')
+          .in('conversation_id', conversationIds);
+        iaMessages = data || [];
+      } catch { /* table may not exist */ }
     }
 
     const exportData = {
@@ -104,14 +108,16 @@ router.get('/export', async (req, res) => {
       }
     };
 
-    // Logger l'action
-    await supabase.from('historique_admin').insert({
-      tenant_id: tenantId,
-      admin_id: req.admin.id,
-      action: 'rgpd_export',
-      entite: 'tenant',
-      details: { items_exported: exportData.metadata }
-    });
+    // Logger l'action (non-bloquant)
+    try {
+      await supabase.from('historique_admin').insert({
+        tenant_id: tenantId,
+        admin_id: req.admin.id,
+        action: 'rgpd_export',
+        entite: 'tenant',
+        details: { items_exported: exportData.metadata }
+      });
+    } catch { /* non-blocking */ }
 
     // Retourner en JSON avec headers pour téléchargement
     res.setHeader('Content-Type', 'application/json');

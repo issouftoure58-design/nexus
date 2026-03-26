@@ -81,17 +81,11 @@ async function testW1_AdminChatTool(tenantId) {
   const description = 'Admin chat: execution d\'outil (reservations)';
 
   try {
-    const { processMessage } = await import('../../core/unified/nexusCore.js');
+    const { chat } = await import('../../services/adminChatService.js');
 
-    const result = await processMessage(
-      'Combien de reservations ai-je cette semaine ?',
-      'admin',
-      {
-        tenantId,
-        conversationId: `plte-w1-${tenantId}-${Date.now()}`,
-        userId: 'plte-system',
-      }
-    );
+    const result = await chat(tenantId, [
+      { role: 'user', content: 'Combien de reservations ai-je cette semaine ?' }
+    ]);
 
     if (!result?.success) {
       return makeResult(name, module, severity, description, 'fail',
@@ -120,17 +114,11 @@ async function testW2_AdminChatReservation(tenantId) {
   const description = 'Admin chat: demande creation RDV';
 
   try {
-    const { processMessage } = await import('../../core/unified/nexusCore.js');
+    const { chat } = await import('../../services/adminChatService.js');
 
-    const result = await processMessage(
-      'Combien de clients ai-je au total ?',
-      'admin',
-      {
-        tenantId,
-        conversationId: `plte-w2-${tenantId}-${Date.now()}`,
-        userId: 'plte-system',
-      }
-    );
+    const result = await chat(tenantId, [
+      { role: 'user', content: 'Combien de clients ai-je au total ?' }
+    ]);
 
     if (!result?.success) {
       return makeResult(name, module, severity, description, 'fail',
@@ -161,17 +149,11 @@ async function testW3_AdminChatMultiTool(tenantId) {
   const description = 'Admin chat: question CA du mois (multi-tool)';
 
   try {
-    const { processMessage } = await import('../../core/unified/nexusCore.js');
+    const { chat } = await import('../../services/adminChatService.js');
 
-    const result = await processMessage(
-      'Quel est le chiffre d\'affaires du mois en cours ?',
-      'admin',
-      {
-        tenantId,
-        conversationId: `plte-w3-${tenantId}-${Date.now()}`,
-        userId: 'plte-system',
-      }
-    );
+    const result = await chat(tenantId, [
+      { role: 'user', content: 'Quel est le chiffre d\'affaires du mois en cours ?' }
+    ]);
 
     if (!result?.success) {
       return makeResult(name, module, severity, description, 'fail',
