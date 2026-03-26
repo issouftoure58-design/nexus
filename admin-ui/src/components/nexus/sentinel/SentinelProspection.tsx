@@ -3,7 +3,7 @@ import { nexusApi } from '@/lib/nexusApi';
 import {
   Mail, Search, Users, BarChart3, Settings, Play, Pause,
   Plus, RefreshCw, Eye, MousePointerClick, CalendarCheck,
-  TrendingUp, Globe, Trash2, FileText, Send, ChevronDown
+  TrendingUp, Globe, Trash2, FileText, Send
 } from 'lucide-react';
 
 // ============================================================================
@@ -446,7 +446,6 @@ function CreateCampaignForm({ onClose, onCreated }: { onClose: () => void; onCre
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; html_body: string } | null>(null);
-  const [previewing, setPreviewing] = useState(false);
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -469,19 +468,13 @@ function CreateCampaignForm({ onClose, onCreated }: { onClose: () => void; onCre
   }
 
   async function handlePreview() {
-    setPreviewing(true);
     try {
-      // First create, then preview — or create temp campaign
-      // For simplicity, we'll create a temp then preview, or we can make preview work with mock data via direct call
       const res = await nexusApi.post<{ data: { subject: string; html_body: string } }>('/nexus/prospection/campaigns/0/preview', {
         prospect_name: `${SECTOR_LABELS[sector] || sector} Exemple`,
       });
       setPreview((res as any).data || res);
     } catch {
-      // Preview not available for id=0, handle gracefully
       setPreview(null);
-    } finally {
-      setPreviewing(false);
     }
   }
 
