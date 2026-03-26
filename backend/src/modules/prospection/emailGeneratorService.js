@@ -124,11 +124,13 @@ const SECTOR_CONTEXT = {
 };
 
 // =============================================================================
-// TEMPLATE HTML PREMIUM
+// TEMPLATE HTML PREMIUM — GLASS / LIQUID DESIGN
 // =============================================================================
 
+const HERO_BG_URL = (process.env.BACKEND_URL || 'https://nexus-backend-dev.onrender.com') + '/images/nexus-hero-bg.jpg';
+
 /**
- * Wrap le contenu genere par IA dans un template email professionnel
+ * Wrap le contenu genere par IA dans un template email premium glass/liquid
  */
 function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsubscribeUrl = '{{unsubscribe_url}}' }) {
   return `<!DOCTYPE html>
@@ -137,28 +139,42 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXUS</title>
+<!--[if !mso]><!-->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<!--<![endif]-->
 </head>
-<body style="margin:0;padding:0;background-color:#f0f1f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background-color:#0a0e1a;font-family:'Poppins',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f1f3;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0a0e1a;">
 <tr><td align="center" style="padding:24px 12px;">
 
-<!-- CONTAINER -->
-<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.08);">
+<!-- CONTAINER — IMAGE ROBOT EN ARRIERE-PLAN DE TOUT LE MAIL -->
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;border-radius:20px;overflow:hidden;box-shadow:0 12px 48px rgba(14,165,233,0.15),0 4px 24px rgba(139,92,246,0.1);background-image:url('${HERO_BG_URL}');background-size:cover;background-position:center top;background-repeat:no-repeat;">
 
-  <!-- ========== HERO HEADER ========== -->
+  <!--[if gte mso 9]>
+  <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;">
+  <v:fill type="frame" src="${HERO_BG_URL}" />
+  <v:textbox inset="0,0,0,0">
+  <![endif]-->
+
+  <!-- OVERLAY SOMBRE SEMI-TRANSPARENT SUR TOUT LE MAIL -->
   <tr>
-    <td style="background:linear-gradient(135deg,#0ea5e9 0%,#4f46e5 50%,#8b5cf6 100%);padding:36px 40px 32px;text-align:center;">
-      <!-- Logo -->
+    <td>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:linear-gradient(180deg,rgba(10,14,26,0.4) 0%,rgba(10,14,26,0.82) 20%,rgba(10,14,26,0.88) 50%,rgba(10,14,26,0.92) 80%,rgba(10,14,26,0.96) 100%);">
+
+  <!-- ========== HERO HEADER — GLASS ========== -->
+  <tr>
+    <td style="padding:40px 40px 28px;text-align:center;">
+      <!-- Logo glass pill -->
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
         <tr>
-          <td style="background:rgba(255,255,255,0.15);border-radius:14px;padding:12px 20px;">
+          <td style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:14px 24px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">
             <table role="presentation" cellpadding="0" cellspacing="0">
               <tr>
-                <td style="width:36px;height:36px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;">
-                  <span style="color:#4f46e5;font-size:22px;font-weight:900;line-height:36px;font-family:Arial,Helvetica,sans-serif;">N</span>
+                <td style="width:38px;height:38px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);border-radius:10px;text-align:center;vertical-align:middle;">
+                  <span style="color:#ffffff;font-size:22px;font-weight:900;line-height:38px;font-family:'Poppins',Arial,sans-serif;">N</span>
                 </td>
-                <td style="padding-left:12px;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:3px;font-family:Arial,Helvetica,sans-serif;">
+                <td style="padding-left:12px;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:4px;font-family:'Poppins',Arial,sans-serif;">
                   NEXUS
                 </td>
               </tr>
@@ -167,35 +183,34 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
         </tr>
       </table>
       <!-- Tagline -->
-      <p style="color:rgba(255,255,255,0.85);font-size:14px;margin:14px 0 0;letter-spacing:0.5px;font-weight:400;">
-        L'IA qui fait tourner votre business pendant que vous travaillez
+      <p style="color:rgba(255,255,255,0.9);font-size:15px;margin:18px 0 0;letter-spacing:0.5px;font-weight:300;font-family:'Poppins',Arial,sans-serif;">
+        L'intelligence artificielle au service de votre business
       </p>
+      <!-- Accent line -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 0;">
+        <tr>
+          <td style="width:80px;height:3px;background:linear-gradient(90deg,#06b6d4,#8b5cf6,#ec4899);border-radius:2px;"></td>
+        </tr>
+      </table>
     </td>
-  </tr>
-
-  <!-- ========== ACCENT BAR ========== -->
-  <tr>
-    <td style="height:4px;background:linear-gradient(90deg,#06b6d4,#8b5cf6,#ec4899,#06b6d4);background-size:200% 100%;"></td>
   </tr>
 
   <!-- ========== BODY CONTENT ========== -->
   <tr>
-    <td style="padding:36px 40px 12px;">
+    <td style="padding:20px 40px 16px;">
       ${bodyHtml}
     </td>
   </tr>
 
-  <!-- ========== CTA BUTTON ========== -->
+  <!-- ========== CTA BUTTON — LIQUID GLASS ========== -->
   <tr>
-    <td align="center" style="padding:16px 40px 12px;">
+    <td align="center" style="padding:8px 40px 8px;">
       <table role="presentation" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);border-radius:14px;mso-padding-alt:0;">
-            <!--[if mso]><i style="mso-font-width:300%;mso-text-raise:30pt">&nbsp;</i><![endif]-->
-            <a href="${LANDING_URL}" target="_blank" style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);border-radius:14px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;padding:16px 44px;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+          <td style="border-radius:50px;background:linear-gradient(135deg,rgba(6,182,212,0.85) 0%,rgba(99,102,241,0.85) 50%,rgba(139,92,246,0.85) 100%);box-shadow:0 4px 24px rgba(6,182,212,0.4),0 0 48px rgba(99,102,241,0.2);border:1px solid rgba(255,255,255,0.2);">
+            <a href="${LANDING_URL}" target="_blank" style="border-radius:50px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;padding:16px 48px;letter-spacing:0.8px;font-family:'Poppins',Arial,sans-serif;">
               ${ctaText} &rarr;
             </a>
-            <!--[if mso]><i style="mso-font-width:300%">&nbsp;</i><![endif]-->
           </td>
         </tr>
       </table>
@@ -204,51 +219,60 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
 
   <!-- Sub-CTA -->
   <tr>
-    <td align="center" style="padding:8px 40px 32px;">
-      <p style="margin:0;font-size:13px;color:#9ca3af;">
-        &#x2705; Gratuit &nbsp;&bull;&nbsp; &#x23F1; 15 minutes &nbsp;&bull;&nbsp; &#x1F6AB; Sans engagement
+    <td align="center" style="padding:12px 40px 28px;">
+      <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.45);font-family:'Poppins',Arial,sans-serif;">
+        &#x2705; Gratuit &nbsp;&bull;&nbsp; &#x23F1; 15 minutes &nbsp;&bull;&nbsp; Sans engagement
       </p>
     </td>
   </tr>
 
-  <!-- ========== SEPARATOR ========== -->
+  <!-- ========== MODULES NEXUS — GLASS CARD ========== -->
   <tr>
-    <td style="padding:0 40px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-        <tr><td style="border-top:2px solid #f3f4f6;"></td></tr>
+    <td style="padding:0 28px 28px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+        <tr>
+          <td style="padding:24px 28px;">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:600;color:#06b6d4;letter-spacing:1.5px;text-transform:uppercase;font-family:'Poppins',Arial,sans-serif;">
+              Tout NEXUS en un clic
+            </p>
+            <p style="margin:0 0 16px;font-size:13px;font-style:italic;color:rgba(255,255,255,0.75);line-height:1.9;font-family:'Poppins',Arial,sans-serif;">
+              &#x1F4DE; IA Vocale 24/7 &mdash; r&eacute;pond &agrave; vos appels, prend les RDV<br>
+              &#x1F4AC; Chat &amp; WhatsApp IA &mdash; r&eacute;ponses instantan&eacute;es &agrave; vos clients<br>
+              &#x1F4C5; Planning intelligent &mdash; z&eacute;ro conflit, rappels SMS auto<br>
+              &#x1F4B3; Facturation automatique &mdash; devis, factures, relances<br>
+              &#x1F4CA; Dashboard temps r&eacute;el &mdash; CA, clients, performance<br>
+              &#x1F91D; CRM int&eacute;gr&eacute; &mdash; fid&eacute;lisation, suivi, historique<br>
+              &#x1F9E0; 114 outils IA &mdash; pilotables en langage naturel
+            </p>
+            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.45);font-family:'Poppins',Arial,sans-serif;">
+              &Agrave; partir de <strong style="color:#06b6d4;">79&euro;/mois</strong> &mdash; ROI x20 d&egrave;s le premier mois
+            </p>
+          </td>
+        </tr>
       </table>
-    </td>
-  </tr>
-
-  <!-- ========== A BIENTOT ========== -->
-  <tr>
-    <td align="center" style="padding:24px 40px 8px;">
-      <p style="margin:0;font-size:15px;color:#6366f1;font-weight:600;font-style:italic;">
-        &Agrave; bient&ocirc;t sur NEXUS &#x1F680;
-      </p>
     </td>
   </tr>
 
   <!-- ========== SIGNATURE ========== -->
   <tr>
-    <td style="padding:28px 40px 24px;">
+    <td style="padding:24px 40px;border-top:1px solid rgba(255,255,255,0.06);">
       <table role="presentation" cellpadding="0" cellspacing="0">
         <tr>
           <td style="vertical-align:top;">
             <table role="presentation" cellpadding="0" cellspacing="0">
               <tr>
-                <td style="width:44px;height:44px;background:linear-gradient(135deg,#0ea5e9,#8b5cf6);border-radius:12px;text-align:center;vertical-align:middle;">
-                  <span style="color:#ffffff;font-size:22px;font-weight:900;line-height:44px;font-family:Arial,Helvetica,sans-serif;">N</span>
+                <td style="width:44px;height:44px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);border-radius:12px;text-align:center;vertical-align:middle;box-shadow:0 2px 12px rgba(6,182,212,0.3);">
+                  <span style="color:#ffffff;font-size:22px;font-weight:900;line-height:44px;font-family:'Poppins',Arial,sans-serif;">N</span>
                 </td>
               </tr>
             </table>
           </td>
           <td style="padding-left:16px;vertical-align:top;">
-            <p style="margin:0;font-size:15px;font-weight:700;color:#1f2937;">L'equipe NEXUS</p>
-            <p style="margin:3px 0 0;font-size:13px;color:#6b7280;">
+            <p style="margin:0;font-size:15px;font-weight:700;color:#ffffff;font-family:'Poppins',Arial,sans-serif;">L'&eacute;quipe NEXUS</p>
+            <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.5);font-family:'Poppins',Arial,sans-serif;">
               &#x1F4E7; nexussentinelai@yahoo.com<br>
               &#x1F4F1; 07 60 53 76 94<br>
-              &#x1F310; <a href="${LANDING_URL}" style="color:#6366f1;text-decoration:none;">nexus-ai-saas.com</a>
+              &#x1F310; <a href="${LANDING_URL}" style="color:#06b6d4;text-decoration:none;">nexus-ai-saas.com</a>
             </p>
           </td>
         </tr>
@@ -258,15 +282,22 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
 
   <!-- ========== FOOTER RGPD ========== -->
   <tr>
-    <td style="background-color:#f8f9fa;padding:20px 40px;border-top:1px solid #e5e7eb;">
-      <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;line-height:1.8;">
+    <td style="padding:18px 40px;border-top:1px solid rgba(255,255,255,0.04);">
+      <p style="margin:0;font-size:10px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.8;font-family:'Poppins',Arial,sans-serif;">
         NEXUS Business Solutions &mdash; nexussentinelai@yahoo.com<br>
-        <a href="${LANDING_URL}" style="color:#6366f1;text-decoration:none;">nexus-ai-saas.com</a>
+        <a href="${LANDING_URL}" style="color:rgba(6,182,212,0.6);text-decoration:none;">nexus-ai-saas.com</a>
         &nbsp;|&nbsp;
-        <a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Se desinscrire</a>
+        <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.3);text-decoration:underline;">Se d&eacute;sinscrire</a>
       </p>
     </td>
   </tr>
+
+      </table>
+      <!-- FIN OVERLAY -->
+    </td>
+  </tr>
+
+  <!--[if gte mso 9]></v:textbox></v:rect><![endif]-->
 
 </table>
 <!-- FIN CONTAINER -->
@@ -424,9 +455,9 @@ REGLES ABSOLUES :
 - Ton : confiant, direct, moderne. Comme un SMS d'un ami expert.
 - PAS de superlatifs creux ("revolutionnaire", "incroyable")
 
-FORMAT HTML :
-- Chaque paragraphe : <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">
-- Gras : <strong style="color:#111827;">
+FORMAT HTML (fond sombre, texte clair) :
+- Chaque paragraphe : <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:rgba(255,255,255,0.85);font-family:'Poppins',Arial,sans-serif;">
+- Gras : <strong style="color:#06b6d4;">
 - INTERDIT : <div>, <table>, <style>, <img>, <a>, <button>, <h1/h2/h3>
 - INTERDIT : generer bouton CTA, header, footer, signature (gere par le template)
 
