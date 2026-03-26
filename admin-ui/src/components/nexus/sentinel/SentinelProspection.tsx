@@ -278,6 +278,8 @@ function CampaignsSection() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<number | null>(null);
   const [campaignEmails, setCampaignEmails] = useState<CampaignEmail[]>([]);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => { fetchCampaigns(); }, []);
 
@@ -312,6 +314,21 @@ function CampaignsSection() {
       setCampaignEmails((res as any).data || []);
     } catch (err) {
       console.error('Campaign emails error:', err);
+    }
+  }
+
+  async function previewEmail(campaignId: number) {
+    setPreviewLoading(true);
+    setPreviewHtml(null);
+    try {
+      const res = await nexusApi.post<{ data: { subject: string; html_body: string } }>(`/nexus/prospection/campaigns/${campaignId}/preview`, {});
+      const data = (res as any).data;
+      setPreviewHtml(data.html_body);
+    } catch (err) {
+      console.error('Preview error:', err);
+      setPreviewHtml('<p style="color:red;padding:20px;">Erreur lors de la generation du preview</p>');
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -363,6 +380,14 @@ function CampaignsSection() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => previewEmail(c.id)}
+                    className="p-1.5 text-cyan-500 hover:text-cyan-300 transition-colors"
+                    title="Apercu email"
+                    disabled={previewLoading}
+                  >
+                    <Eye size={14} />
+                  </button>
+                  <button
                     onClick={() => viewEmails(c.id)}
                     className="p-1.5 text-slate-500 hover:text-white transition-colors"
                     title="Voir emails"
@@ -390,6 +415,33 @@ function CampaignsSection() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Preview email */}
+      {(previewLoading || previewHtml) && (
+        <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-cyan-400">
+              <Eye size={14} className="inline mr-2" />
+              Apercu email (genere par IA)
+            </h4>
+            <button onClick={() => setPreviewHtml(null)} className="text-slate-500 hover:text-white text-xs">
+              Fermer
+            </button>
+          </div>
+          {previewLoading ? (
+            <div className="text-center py-8 text-slate-500 text-sm">Generation en cours...</div>
+          ) : (
+            <div className="rounded-lg overflow-hidden border border-slate-700">
+              <iframe
+                srcDoc={previewHtml || ''}
+                className="w-full border-0"
+                style={{ minHeight: '700px' }}
+                title="Preview email"
+              />
+            </div>
+          )}
         </div>
       )}
 
