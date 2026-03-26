@@ -82,6 +82,7 @@ interface CampaignEmail {
   id: number;
   email_type: string;
   subject: string;
+  html_body: string;
   to_address: string;
   status: string;
   sent_at: string | null;
@@ -394,39 +395,79 @@ function CampaignsSection() {
 
       {/* Campaign emails detail */}
       {selectedCampaign && (
-        <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-slate-300">
-              Emails campagne #{selectedCampaign}
-            </h4>
-            <button onClick={() => setSelectedCampaign(null)} className="text-slate-500 hover:text-white text-xs">
-              Fermer
+        <CampaignEmailsList emails={campaignEmails} onClose={() => setSelectedCampaign(null)} campaignId={selectedCampaign} />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Campaign Emails List (avec apercu contenu)
+// ============================================================================
+
+function CampaignEmailsList({ emails, onClose, campaignId }: { emails: CampaignEmail[]; onClose: () => void; campaignId: number }) {
+  const [selectedEmail, setSelectedEmail] = useState<CampaignEmail | null>(null);
+
+  return (
+    <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-medium text-slate-300">
+          Emails campagne #{campaignId}
+        </h4>
+        <button onClick={onClose} className="text-slate-500 hover:text-white text-xs">
+          Fermer
+        </button>
+      </div>
+
+      {emails.length === 0 ? (
+        <p className="text-xs text-slate-500">Aucun email envoye</p>
+      ) : (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {emails.map(e => (
+            <div
+              key={e.id}
+              onClick={() => setSelectedEmail(selectedEmail?.id === e.id ? null : e)}
+              className="bg-slate-800/50 rounded px-3 py-2 cursor-pointer hover:bg-slate-800 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-white">{e.prospection_prospects?.name || e.to_address}</span>
+                  <span className="text-[10px] text-slate-500 ml-2">{e.email_type}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${EMAIL_STATUS_COLORS[e.status] || ''}`}>
+                    {e.status}
+                  </span>
+                  {e.sent_at && (
+                    <span className="text-[10px] text-slate-600">
+                      {new Date(e.sent_at).toLocaleDateString('fr')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">{e.subject}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Apercu email */}
+      {selectedEmail && (
+        <div className="mt-4 border-t border-slate-800 pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="text-xs text-slate-500">De : contact@nexus-ai-saas.com</div>
+              <div className="text-xs text-slate-500">A : {selectedEmail.to_address}</div>
+            </div>
+            <button onClick={() => setSelectedEmail(null)} className="text-[10px] text-slate-500 hover:text-white">
+              Fermer apercu
             </button>
           </div>
-          {campaignEmails.length === 0 ? (
-            <p className="text-xs text-slate-500">Aucun email envoye</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {campaignEmails.map(e => (
-                <div key={e.id} className="flex items-center justify-between bg-slate-800/50 rounded px-3 py-2">
-                  <div>
-                    <span className="text-xs text-white">{e.prospection_prospects?.name || e.to_address}</span>
-                    <span className="text-[10px] text-slate-500 ml-2">{e.email_type}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${EMAIL_STATUS_COLORS[e.status] || ''}`}>
-                      {e.status}
-                    </span>
-                    {e.sent_at && (
-                      <span className="text-[10px] text-slate-600">
-                        {new Date(e.sent_at).toLocaleDateString('fr')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="text-sm font-medium text-white mb-3">{selectedEmail.subject}</div>
+          <div
+            className="bg-white rounded-lg p-4 max-h-80 overflow-y-auto text-sm text-slate-800"
+            dangerouslySetInnerHTML={{ __html: selectedEmail.html_body }}
+          />
         </div>
       )}
     </div>
