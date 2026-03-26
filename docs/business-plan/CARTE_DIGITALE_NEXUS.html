@@ -195,7 +195,7 @@
   .qr-frame::before {
     content: '';
     position: absolute;
-    inset: -2px;
+    top: -2px; right: -2px; bottom: -2px; left: -2px;
     border-radius: 24px;
     background: linear-gradient(135deg, rgba(212,175,55,0.3), transparent 40%, transparent 60%, rgba(212,175,55,0.3));
     z-index: -1;
@@ -279,7 +279,7 @@
 
     <div class="qr-section">
       <div class="qr-frame">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&color=0a0a0f&data=https%3A//nexus-backend-dev.onrender.com/commercial/" alt="QR">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=png&color=0a0a0f&data=https%3A//nexus-backend-dev.onrender.com/commercial/" alt="QR Code NEXUS">
       </div>
       <div class="qr-label">Scannez pour decouvrir</div>
     </div>
