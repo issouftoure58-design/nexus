@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS — Depliant A4 Tri-fold</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        body {
+            background: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+
+        .print-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #0c4a6e, #06b6d4);
+            color: white;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .print-bar h1 { font-size: 16px; font-weight: 600; }
+        .print-bar .info { font-size: 12px; opacity: 0.8; }
+        .print-btn {
+            background: white; color: #0c4a6e; border: none;
+            padding: 8px 20px; border-radius: 6px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .print-btn:hover { transform: scale(1.05); }
+
+        .spacer { height: 56px; }
+
+        .pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            padding: 20px 0 40px;
+        }
+
+        .side-label {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        /* Chaque "side" = une face A4 paysage */
+        .sheet-side {
+            width: 297mm;
+            height: 210mm;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .panel {
+            width: 99mm;
+            height: 210mm;
+            padding: 8mm;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Lignes de pliage (ecran uniquement) */
+        .fold-line {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 1px;
+            border-left: 2px dashed #d1d5db;
+            z-index: 10;
+        }
+        .fold-line:first-of-type { left: 99mm; }
+        .fold-line:last-of-type { left: 198mm; }
+
+        .fold-label {
+            position: absolute;
+            top: 4px;
+            font-size: 9px;
+            color: #9ca3af;
+            background: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            transform: translateX(-50%);
+            z-index: 11;
+        }
+
+        /* ===== PRINT ===== */
+        @media print {
+            body { background: white !important; }
+            .pages-container { padding: 0 !important; gap: 0 !important; }
+            .print-bar, .spacer, .side-label, .fold-line, .fold-label { display: none !important; }
+
+            .sheet-side {
+                box-shadow: none !important;
+                page-break-after: always;
+                page-break-inside: avoid;
+                break-after: page;
+                break-inside: avoid;
+                width: 100%;
+                height: 100vh;
+            }
+
+            .sheet-side:last-child {
+                page-break-after: avoid;
+                break-after: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="print-bar">
+        <div>
+            <h1>NEXUS — Depliant Commercial</h1>
+            <div class="info">1 feuille A4 paysage · Recto-verso · Plier en 3 volets</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">Imprimer le depliant</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="pages-container">
+
+        <!-- ============================================================ -->
+        <!-- RECTO (face exterieure) : ce qu'on voit quand le depliant    -->
+        <!-- est plie. Panneau droit = couverture visible.                -->
+        <!--                                                              -->
+        <!--  | Volet arriere | Volet interieur-gauche | COUVERTURE |     -->
+        <!-- ============================================================ -->
+        <div>
+            <div class="side-label">RECTO (face exterieure) — La couverture est a droite</div>
+            <div class="sheet-side">
+                <!-- Lignes de pliage -->
+                <div class="fold-line" style="left: 99mm;"><span class="fold-label" style="left: 99mm;">pli 1</span></div>
+                <div class="fold-line" style="left: 198mm;"><span class="fold-label" style="left: 198mm;">pli 2</span></div>
+
+                <!-- PANNEAU 1 (gauche) : DOS / 4eme de couverture -->
+                <div class="panel" style="background: linear-gradient(180deg, #0f172a 0%, #1e3a5f 100%); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+
+                    <p style="font-size: 12px; opacity: 0.6; margin-bottom: 12px;">NEXUS AI · SIRET 947 570 362</p>
+
+                    <p style="font-size: 9px; opacity: 0.6; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">Equipe commerciale</p>
+                    <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 10px; width: 90%; margin-bottom: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <div style="display: flex; align-items: center; gap: 6px; justify-content: center;">
+                                <span style="font-size: 12px;">&#128100;</span>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">Issouf</p>
+                                <p style="font-size: 9px; opacity: 0.8; margin: 0;">07 60 53 76 94</p>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; justify-content: center;">
+                                <span style="font-size: 12px;">&#128100;</span>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">Amadou</p>
+                                <p style="font-size: 9px; opacity: 0.8; margin: 0;">06 32 70 43 75</p>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; justify-content: center;">
+                                <span style="font-size: 12px;">&#128100;</span>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">Massira</p>
+                                <p style="font-size: 9px; opacity: 0.8; margin: 0;">07 69 61 55 46</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 8px; width: 90%; margin-bottom: 16px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: center;">
+                            <div>
+                                <p style="font-size: 12px; margin: 0;">&#127760;</p>
+                                <p style="font-size: 8px; font-weight: 700; margin: 0;">nexus-ai-saas.com</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 12px; margin: 0;">&#9993;</p>
+                                <p style="font-size: 7px; font-weight: 600; margin: 0;">nexussentinelai<br>@yahoo.com</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                        <div style="background: white; border-radius: 8px; padding: 6px 8px; text-align: center;">
+                            <p style="font-size: 14px; font-weight: 900; color: #059669; margin: 0;">+2 300&#8364;</p>
+                            <p style="font-size: 7px; color: #6b7280; margin: 0;">gain/mois</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px 8px; text-align: center;">
+                            <p style="font-size: 14px; font-weight: 900; color: #0891b2; margin: 0;">x20</p>
+                            <p style="font-size: 7px; color: #6b7280; margin: 0;">ROI</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px 8px; text-align: center;">
+                            <p style="font-size: 14px; font-weight: 900; color: #f59e0b; margin: 0;">114</p>
+                            <p style="font-size: 7px; color: #6b7280; margin: 0;">outils IA</p>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 9px; opacity: 0.5;">© 2026 NEXUS AI — Tous droits reserves</p>
+                </div>
+
+                <!-- PANNEAU 2 (centre) : Volet rabat interieur -->
+                <div class="panel" style="background: linear-gradient(180deg, #ecfdf5, #d1fae5); color: #0f172a; display: flex; flex-direction: column;">
+
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <p style="font-size: 20px; margin: 0;">&#128172;</p>
+                        <p style="font-size: 14px; font-weight: 900; color: #047857; margin: 0;">Widget Chat IA</p>
+                        <p style="font-size: 9px; color: #6b7280; margin: 2px 0 0;">Un chat sur votre site en 1 min</p>
+                    </div>
+
+                    <div style="background: #0f172a; border-radius: 8px; padding: 8px; margin-bottom: 8px; position: relative;">
+                        <div style="position: absolute; top: -6px; left: 8px; background: #fbbf24; color: #0f172a; font-size: 6px; font-weight: 800; padding: 1px 6px; border-radius: 3px;">COPIER-COLLER</div>
+                        <code style="font-size: 6.5px; color: #67e8f9; font-family: monospace; word-break: break-all; line-height: 1.4;">
+                            &lt;script src="https://nexus-backend-dev.onrender.com/widget.js" data-tenant-id="<span style="color: #fbbf24;">ID</span>"&gt;&lt;/script&gt;
+                        </code>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px;">
+                        <div style="background: white; border-radius: 6px; padding: 5px; border: 1px solid #d1d5db; text-align: center;">
+                            <p style="font-size: 12px; margin: 0;">&#127760;</p>
+                            <p style="font-size: 8px; font-weight: 700; margin: 0;">WordPress</p>
+                        </div>
+                        <div style="background: white; border-radius: 6px; padding: 5px; border: 1px solid #d1d5db; text-align: center;">
+                            <p style="font-size: 12px; margin: 0;">&#128312;</p>
+                            <p style="font-size: 8px; font-weight: 700; margin: 0;">Wix</p>
+                        </div>
+                        <div style="background: white; border-radius: 6px; padding: 5px; border: 1px solid #d1d5db; text-align: center;">
+                            <p style="font-size: 12px; margin: 0;">&#128717;</p>
+                            <p style="font-size: 8px; font-weight: 700; margin: 0;">Shopify</p>
+                        </div>
+                        <div style="background: white; border-radius: 6px; padding: 5px; border: 1px solid #d1d5db; text-align: center;">
+                            <p style="font-size: 12px; margin: 0;">&#128196;</p>
+                            <p style="font-size: 8px; font-weight: 700; margin: 0;">HTML</p>
+                        </div>
+                    </div>
+
+                    <!-- Mini widget preview -->
+                    <div style="display: flex; gap: 8px; align-items: flex-end; justify-content: center;">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: #0891b2; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: white; font-size: 14px;">&#128172;</span>
+                        </div>
+                        <div style="font-size: 14px; color: #0891b2;">&#10132;</div>
+                        <div style="width: 100px; border: 1px solid #0891b2; border-radius: 6px; overflow: hidden;">
+                            <div style="background: #0891b2; color: white; padding: 3px 5px;">
+                                <p style="font-size: 7px; font-weight: 700; margin: 0;">Chat avec nous</p>
+                            </div>
+                            <div style="background: white; padding: 4px;">
+                                <div style="background: #f3f4f6; border-radius: 4px; padding: 2px 4px; font-size: 5px; color: #374151; margin-bottom: 2px;">Bonjour !</div>
+                                <div style="background: #0891b2; color: white; border-radius: 4px; padding: 2px 4px; font-size: 5px; margin-left: auto; max-width: 70%;">Un RDV svp</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #047857; color: white; border-radius: 8px; padding: 6px; margin-top: 8px; text-align: center;">
+                        <p style="font-size: 8px; font-weight: 700; margin: 0;">Vos visiteurs prennent RDV sans appeler</p>
+                    </div>
+                </div>
+
+                <!-- PANNEAU 3 (droite) : COUVERTURE (visible quand plie) -->
+                <div class="panel" style="background: linear-gradient(180deg, #0c4a6e 0%, #0891b2 50%, #06b6d4 100%); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+
+                    <div style="background: white; color: #0891b2; font-size: 32px; font-weight: 900; padding: 8px 28px; border-radius: 12px; letter-spacing: -1px; margin-bottom: 14px;">NEXUS</div>
+
+                    <p style="font-size: 13px; font-weight: 300; opacity: 0.9; line-height: 1.5; max-width: 85%; margin-bottom: 20px;">
+                        L'intelligence artificielle<br>
+                        qui <strong style="font-weight: 800;">gere votre entreprise</strong><br>
+                        pendant que vous travaillez
+                    </p>
+
+                    <div style="display: flex; flex-direction: column; gap: 6px; width: 85%; margin-bottom: 20px;">
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">&#128222;</span>
+                            <p style="font-size: 9px; font-weight: 600; margin: 0;">Repond a vos appels 24h/24</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">&#128197;</span>
+                            <p style="font-size: 9px; font-weight: 600; margin: 0;">Prend vos RDV automatiquement</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">&#128172;</span>
+                            <p style="font-size: 9px; font-weight: 600; margin: 0;">WhatsApp, SMS, Chat en direct</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">&#128176;</span>
+                            <p style="font-size: 9px; font-weight: 600; margin: 0;">Factures et relances auto</p>
+                        </div>
+                    </div>
+
+                    <div style="background: #fbbf24; color: #0f172a; border-radius: 10px; padding: 8px 16px;">
+                        <p style="font-size: 11px; font-weight: 900; margin: 0;">14 jours GRATUITS</p>
+                        <p style="font-size: 8px; margin: 2px 0 0;">sans carte · sans engagement</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================================ -->
+        <!-- VERSO (face interieure) : ce qu'on voit en depliants.        -->
+        <!-- Les 3 panneaux forment une grande surface visuelle.          -->
+        <!--                                                              -->
+        <!--  | Probleme + Solution | Avant/Apres + Secteurs | Tarifs |   -->
+        <!-- ============================================================ -->
+        <div>
+            <div class="side-label">VERSO (face interieure) — Vue depliee</div>
+            <div class="sheet-side">
+                <!-- Lignes de pliage -->
+                <div class="fold-line" style="left: 99mm;"><span class="fold-label" style="left: 99mm;">pli 1</span></div>
+                <div class="fold-line" style="left: 198mm;"><span class="fold-label" style="left: 198mm;">pli 2</span></div>
+
+                <!-- PANNEAU 4 (gauche) : Le Probleme + La Solution -->
+                <div class="panel" style="background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%); color: #0f172a;">
+
+                    <!-- Le probleme -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">&#128561;</span>
+                            <p style="font-size: 14px; font-weight: 900; color: #dc2626; margin: 0;">Le probleme</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #dc2626;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>Telephone sonne</strong> pendant que vous coiffez/cuisinez/conduisez</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #dc2626;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>Appels rates</strong> = clients perdus chez le concurrent</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #dc2626;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>Factures, rappels, planning</strong> — tout a la main, le soir</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- La solution -->
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">&#128161;</span>
+                            <p style="font-size: 14px; font-weight: 900; color: #059669; margin: 0;">La solution</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #059669;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>L'IA repond</strong> a 100% des appels, 24h/24, 7j/7</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #059669;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>Prend les RDV</strong> meme la nuit + envoie le SMS de confirmation</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #059669;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>Factures auto</strong>, relances impayes, rappels clients</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 8px; border-left: 3px solid #059669;">
+                                <p style="font-size: 8px; color: #374151; margin: 0;"><strong>WhatsApp + Chat web</strong> — reponses instantanees par IA</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #059669; color: white; border-radius: 8px; padding: 6px; margin-top: 10px; text-align: center;">
+                        <p style="font-size: 8px; font-weight: 700; margin: 0;">Vous travaillez. NEXUS gere le reste.</p>
+                    </div>
+                </div>
+
+                <!-- PANNEAU 5 (centre) : Secteurs + Modules -->
+                <div class="panel" style="background: linear-gradient(180deg, #eff6ff, #dbeafe); color: #0f172a;">
+
+                    <div style="text-align: center; margin-bottom: 8px;">
+                        <p style="font-size: 14px; font-weight: 900; color: #1d4ed8; margin: 0;">S'adapte a votre metier</p>
+                        <p style="font-size: 8px; color: #6b7280; margin: 2px 0 0;">NEXUS se configure pour chaque secteur</p>
+                    </div>
+
+                    <!-- Secteurs -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 10px;">
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#128135;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Salon</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#127860;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Restaurant</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#127968;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Domicile</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#127976;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Hotel</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#128717;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Commerce</p>
+                        </div>
+                        <div style="background: white; border-radius: 8px; padding: 6px; text-align: center; border: 1px solid #e5e7eb;">
+                            <p style="font-size: 14px; margin: 0;">&#128737;</p>
+                            <p style="font-size: 7px; font-weight: 700; margin: 0;">Securite</p>
+                        </div>
+                    </div>
+
+                    <!-- Modules -->
+                    <p style="font-size: 10px; font-weight: 800; color: #1d4ed8; margin-bottom: 6px; text-align: center;">114 outils IA inclus</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px; font-size: 7px;">
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128222;</span> Voice IA telephone
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128197;</span> Planning intelligent
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128176;</span> Facturation auto
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128172;</span> Chat web + WhatsApp
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128200;</span> Dashboard temps reel
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128101;</span> Gestion clients CRM
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128233;</span> SMS + rappels auto
+                        </div>
+                        <div style="background: white; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>&#128640;</span> Marketing IA
+                        </div>
+                    </div>
+
+                    <div style="background: #1d4ed8; color: white; border-radius: 8px; padding: 6px; margin-top: 8px; text-align: center;">
+                        <p style="font-size: 8px; font-weight: 700; margin: 0;">Tout est inclus. Pas de module a part.</p>
+                    </div>
+                </div>
+
+                <!-- PANNEAU 6 (droite) : Tarifs + CTA + Demarrer -->
+                <div class="panel" style="background: linear-gradient(180deg, #0f172a 0%, #0e7490 100%); color: white; display: flex; flex-direction: column;">
+
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <p style="font-size: 24px; margin: 0;">&#128640;</p>
+                        <p style="font-size: 16px; font-weight: 900; margin: 0;">Lancez-vous !</p>
+                    </div>
+
+                    <!-- 3 etapes -->
+                    <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
+                        <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 8px; display: flex; gap: 8px; align-items: center;">
+                            <div style="background: #06b6d4; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0;">1</div>
+                            <div>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">Essai gratuit 14 jours</p>
+                                <p style="font-size: 7px; opacity: 0.7; margin: 0;">nexus-ai-saas.com</p>
+                            </div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 8px; display: flex; gap: 8px; align-items: center;">
+                            <div style="background: #06b6d4; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0;">2</div>
+                            <div>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">Configurez en 5 min</p>
+                                <p style="font-size: 7px; opacity: 0.7; margin: 0;">Secteur, services, horaires</p>
+                            </div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 8px; display: flex; gap: 8px; align-items: center;">
+                            <div style="background: #059669; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0;">3</div>
+                            <div>
+                                <p style="font-size: 9px; font-weight: 700; margin: 0;">L'IA bosse pour vous</p>
+                                <p style="font-size: 7px; opacity: 0.7; margin: 0;">Appels, RDV, factures — auto</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tarifs compacts -->
+                    <p style="font-size: 9px; text-align: center; opacity: 0.7; margin-bottom: 4px;">100 premiers clients</p>
+                    <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+                        <div style="flex: 1; background: rgba(255,255,255,0.9); border-radius: 8px; padding: 5px; text-align: center;">
+                            <p style="font-size: 7px; color: #6b7280; margin: 0;">Starter</p>
+                            <p style="font-size: 7px; color: #9ca3af; text-decoration: line-through; margin: 0;">99&#8364;</p>
+                            <p style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0;">79&#8364;</p>
+                        </div>
+                        <div style="flex: 1; background: white; border: 2px solid #fbbf24; border-radius: 8px; padding: 5px; text-align: center;">
+                            <p style="font-size: 7px; color: #0891b2; font-weight: 700; margin: 0;">Pro &#11088;</p>
+                            <p style="font-size: 7px; color: #9ca3af; text-decoration: line-through; margin: 0;">249&#8364;</p>
+                            <p style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0;">199&#8364;</p>
+                        </div>
+                        <div style="flex: 1; background: rgba(255,255,255,0.9); border-radius: 8px; padding: 5px; text-align: center;">
+                            <p style="font-size: 7px; color: #6b7280; margin: 0;">Business</p>
+                            <p style="font-size: 7px; color: #9ca3af; text-decoration: line-through; margin: 0;">499&#8364;</p>
+                            <p style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0;">399&#8364;</p>
+                        </div>
+                    </div>
+
+                    <!-- CTA -->
+                    <div style="background: #fbbf24; border-radius: 10px; padding: 10px; text-align: center; margin-top: auto;">
+                        <p style="font-size: 12px; font-weight: 900; color: #0f172a; margin: 0;">14 jours GRATUITS</p>
+                        <p style="font-size: 8px; color: #92400e; margin: 2px 0 0;">Sans carte · Sans engagement</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

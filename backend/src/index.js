@@ -11,9 +11,13 @@
 import './config/env.js';
 
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import logger from './config/logger.js';
 
 // Import des middlewares sécurité
@@ -257,6 +261,17 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// ============= STATIC FILES (widget.js, etc.) =============
+app.use(express.static(path.join(__dirname, '../public'), {
+  maxAge: '1h',
+  setHeaders: (res, filePath) => {
+    // CORS permissif pour le widget embeddable
+    if (filePath.endsWith('widget.js')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  }
+}));
 
 // ============= ROUTES =============
 

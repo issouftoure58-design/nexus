@@ -30,6 +30,20 @@ function getGreetingMessage(tenantId, salutation = 'Bonjour') {
 const router = express.Router();
 
 /**
+ * Widget CORS — Autorise les appels cross-origin depuis n'importe quel site client
+ * Necessaire car le widget chat est embarque sur des domaines tiers
+ */
+router.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Tenant-ID, X-Tenant-Slug');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+/**
  * 🔒 MIDDLEWARE MULTI-TENANT SÉCURISÉ
  * Résout le tenant depuis le domaine, header ou query param
  * JAMAIS de fallback sur un tenant par défaut!

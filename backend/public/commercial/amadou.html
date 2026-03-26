@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<meta property="og:title" content="NEXUS AI — L'IA qui gere votre entreprise">
+<meta property="og:description" content="IA telephone 24h/24, RDV automatiques, factures, WhatsApp. 14 jours gratuits.">
+<title>NEXUS AI — Amadou Meite</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: white;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(6,182,212,0.15) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .hero-brand {
+    font-size: 48px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #fff 0%, #67e8f9 50%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin: 4px 0 24px;
+    position: relative; z-index: 1;
+  }
+  .hero-tagline {
+    font-size: 20px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.4;
+    max-width: 340px;
+    margin-bottom: 32px;
+    position: relative; z-index: 1;
+  }
+  .hero-tagline strong {
+    color: #67e8f9;
+    font-weight: 800;
+  }
+  .save-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 32px;
+    background: linear-gradient(135deg, #0891b2, #06b6d4);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative; z-index: 1;
+    box-shadow: 0 4px 20px rgba(6,182,212,0.3);
+    transition: transform 0.2s;
+  }
+  .save-btn:active { transform: scale(0.96); }
+  .hero-note {
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 12px;
+    position: relative; z-index: 1;
+  }
+  .scroll-hint {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: rgba(255,255,255,0.25);
+    animation: bounce 2s infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(6px); }
+  }
+
+  /* ===== BD PAGES ===== */
+  .section-label {
+    text-align: center;
+    padding: 40px 24px 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .bd-page {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto 2px;
+    display: block;
+  }
+  .bd-page img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ===== PAGES BD HTML (recap, widget, contact) ===== */
+  .bd-html-page {
+    width: 100%;
+    max-width: 600px;
+    margin: 2px auto;
+    aspect-ratio: 210 / 297;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ===== CONTACT FOOTER ===== */
+  .contact-footer {
+    background: linear-gradient(180deg, #0f172a, #1e3a5f);
+    padding: 40px 24px 60px;
+    text-align: center;
+  }
+  .contact-footer .brand {
+    font-size: 28px;
+    font-weight: 900;
+    color: #67e8f9;
+    margin-bottom: 20px;
+  }
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 400px;
+    margin: 0 auto 24px;
+  }
+  .contact-item {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 14px;
+    text-decoration: none;
+    color: white;
+    text-align: center;
+    transition: background 0.2s;
+  }
+  .contact-item:active { background: rgba(255,255,255,0.12); }
+  .contact-item .icon { font-size: 22px; margin-bottom: 4px; }
+  .contact-item .val { font-size: 13px; font-weight: 700; }
+  .contact-item .lbl { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+
+  .final-cta {
+    display: inline-block;
+    padding: 14px 28px;
+    background: #fbbf24;
+    color: #0f172a;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .legal {
+    margin-top: 20px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===== HERO ===== -->
+  <div class="hero">
+    <div class="hero-brand">NEXUS</div>
+    <div class="hero-sub">Intelligence Artificielle</div>
+    <div class="hero-tagline">
+      L'IA qui <strong>gere votre entreprise</strong> pendant que vous travaillez
+    </div>
+    <button class="save-btn" onclick="downloadVCard()">
+      Enregistrer mon contact
+    </button>
+    <div class="hero-note">Amadou Meite · Commercial</div>
+    <div class="scroll-hint">Decouvrir NEXUS ↓</div>
+  </div>
+
+  <!-- ===== LIVRET BD (A4) ===== -->
+  <div class="section-label">Notre solution en images</div>
+
+  <div class="bd-page"><img src="bd/couverture.jpeg" alt="NEXUS — Couverture" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/1.jpeg" alt="Le probleme" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/2.jpeg" alt="La solution" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/3.jpeg" alt="Avant / Apres" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/4.jpeg" alt="Les modules" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/5.jpeg" alt="Les secteurs" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/6.jpeg" alt="Temoignages" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/7.jpeg" alt="ROI et tarifs" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/8.jpeg" alt="Pourquoi NEXUS" loading="lazy"></div>
+  <div class="bd-page"><img src="bd/4eme option 2.jpeg" alt="4eme de couverture" loading="lazy"></div>
+
+  <!-- ===== 3 PAGES BD (recap, widget, contact) ===== -->
+  <div class="section-label">L'essentiel</div>
+
+  <!-- Recap -->
+  <div class="bd-html-page" style="background: linear-gradient(160deg, #0c4a6e 0%, #0891b2 40%, #06b6d4 100%); padding: 7% 8%; color: white;">
+    <div style="text-align: center; margin-bottom: 5%;">
+      <div style="display: inline-block; background: white; color: #0891b2; font-size: 7vw; font-weight: 900; padding: 1% 5%; border-radius: 10px;">NEXUS</div>
+      <p style="font-size: 3vw; opacity: 0.9; margin: 2% 0 0;">fait tout ca pour vous</p>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2.5%;">
+      <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 4% 3%; text-align: center; border: 2px solid rgba(255,255,255,0.2);">
+        <div style="font-size: 7vw;">&#128222;</div>
+        <p style="font-size: 2.8vw; font-weight: 700;">Repond a 100%</p>
+        <p style="font-size: 2.2vw; opacity: 0.8;">de vos appels, 24h/24</p>
+      </div>
+      <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 4% 3%; text-align: center; border: 2px solid rgba(255,255,255,0.2);">
+        <div style="font-size: 7vw;">&#128197;</div>
+        <p style="font-size: 2.8vw; font-weight: 700;">Prend les RDV</p>
+        <p style="font-size: 2.2vw; opacity: 0.8;">meme la nuit et le dimanche</p>
+      </div>
+      <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 4% 3%; text-align: center; border: 2px solid rgba(255,255,255,0.2);">
+        <div style="font-size: 7vw;">&#128172;</div>
+        <p style="font-size: 2.8vw; font-weight: 700;">WhatsApp + SMS</p>
+        <p style="font-size: 2.2vw; opacity: 0.8;">reponses instantanees</p>
+      </div>
+      <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 4% 3%; text-align: center; border: 2px solid rgba(255,255,255,0.2);">
+        <div style="font-size: 7vw;">&#128176;</div>
+        <p style="font-size: 2.8vw; font-weight: 700;">Factures auto</p>
+        <p style="font-size: 2.2vw; opacity: 0.8;">+ relance impayes</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 2.5%; margin-top: 4%;">
+      <div style="flex: 1; background: white; border-radius: 10px; padding: 3%; text-align: center;">
+        <p style="font-size: 5vw; font-weight: 900; color: #059669;">+2 300&#8364;</p>
+        <p style="font-size: 2vw; color: #6b7280;">gain/mois min.</p>
+      </div>
+      <div style="flex: 1; background: white; border-radius: 10px; padding: 3%; text-align: center;">
+        <p style="font-size: 5vw; font-weight: 900; color: #0891b2;">x20</p>
+        <p style="font-size: 2vw; color: #6b7280;">ROI</p>
+      </div>
+      <div style="flex: 1; background: white; border-radius: 10px; padding: 3%; text-align: center;">
+        <p style="font-size: 5vw; font-weight: 900; color: #f59e0b;">114</p>
+        <p style="font-size: 2vw; color: #6b7280;">outils IA</p>
+      </div>
+    </div>
+    <p style="font-size: 2.5vw; text-align: center; opacity: 0.7; margin-top: 4%;">Offre 100 premiers clients</p>
+    <div style="display: flex; gap: 2.5%; margin-top: 2%;">
+      <div style="flex: 1; background: rgba(255,255,255,0.9); border-radius: 8px; padding: 2.5%; text-align: center;">
+        <p style="font-size: 2.2vw; color: #6b7280;">Starter</p>
+        <p style="font-size: 2vw; color: #9ca3af; text-decoration: line-through;">99&#8364;</p>
+        <p style="font-size: 5vw; font-weight: 900; color: #0f172a;">79&#8364;</p>
+      </div>
+      <div style="flex: 1; background: white; border: 3px solid #fbbf24; border-radius: 8px; padding: 2.5%; text-align: center;">
+        <p style="font-size: 2.2vw; color: #0891b2; font-weight: 700;">Pro &#11088;</p>
+        <p style="font-size: 2vw; color: #9ca3af; text-decoration: line-through;">249&#8364;</p>
+        <p style="font-size: 5vw; font-weight: 900; color: #0f172a;">199&#8364;</p>
+      </div>
+      <div style="flex: 1; background: rgba(255,255,255,0.9); border-radius: 8px; padding: 2.5%; text-align: center;">
+        <p style="font-size: 2.2vw; color: #6b7280;">Business</p>
+        <p style="font-size: 2vw; color: #9ca3af; text-decoration: line-through;">499&#8364;</p>
+        <p style="font-size: 5vw; font-weight: 900; color: #0f172a;">399&#8364;</p>
+      </div>
+    </div>
+    <div style="background: white; border-radius: 10px; padding: 3%; text-align: center; margin-top: 4%;">
+      <p style="font-size: 3.5vw; font-weight: 900; color: #0f172a;">14 jours GRATUITS</p>
+      <p style="font-size: 2.2vw; color: #6b7280;">sans carte bancaire · sans engagement</p>
+      <p style="font-size: 4vw; font-weight: 900; color: #0891b2; margin-top: 1%;">nexus-ai-saas.com</p>
+    </div>
+  </div>
+
+  <!-- Widget -->
+  <div class="bd-html-page" style="background: linear-gradient(160deg, #f0fdf4 0%, #ecfdf5 50%, #d1fae5 100%); padding: 7% 8%; color: #0f172a;">
+    <div style="text-align: center; margin-bottom: 5%;">
+      <p style="font-size: 8vw;">&#128172;</p>
+      <p style="font-size: 5vw; font-weight: 900; color: #047857;">Un chat IA sur votre site</p>
+      <p style="font-size: 2.5vw; color: #6b7280;">Installation en 1 minute chrono</p>
+    </div>
+    <div style="background: #0f172a; border-radius: 10px; padding: 4%; position: relative;">
+      <div style="position: absolute; top: -2.5%; left: 5%; background: #fbbf24; color: #0f172a; font-size: 2vw; font-weight: 800; padding: 0.5% 2.5%; border-radius: 4px;">COPIER-COLLER</div>
+      <code style="font-size: 2.2vw; color: #67e8f9; font-family: monospace; word-break: break-all; line-height: 1.5;">
+        &lt;script src=&quot;https://nexus-backend-dev.onrender.com/widget.js&quot; data-tenant-id=&quot;<span style="color: #fbbf24;">VOTRE-ID</span>&quot;&gt;&lt;/script&gt;
+      </code>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2.5%; margin: 5% 0;">
+      <div style="background: white; border-radius: 8px; padding: 4%; border: 2px solid #d1d5db; text-align: center;">
+        <p style="font-size: 5vw;">&#127760;</p>
+        <p style="font-size: 2.5vw; font-weight: 800;">WordPress</p>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 4%; border: 2px solid #d1d5db; text-align: center;">
+        <p style="font-size: 5vw;">&#128312;</p>
+        <p style="font-size: 2.5vw; font-weight: 800;">Wix</p>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 4%; border: 2px solid #d1d5db; text-align: center;">
+        <p style="font-size: 5vw;">&#128717;</p>
+        <p style="font-size: 2.5vw; font-weight: 800;">Shopify</p>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 4%; border: 2px solid #d1d5db; text-align: center;">
+        <p style="font-size: 5vw;">&#128196;</p>
+        <p style="font-size: 2.5vw; font-weight: 800;">HTML</p>
+      </div>
+    </div>
+    <div style="background: #047857; color: white; border-radius: 10px; padding: 3%; text-align: center;">
+      <p style="font-size: 2.8vw; font-weight: 700;">Vos visiteurs prennent RDV directement depuis votre site</p>
+    </div>
+  </div>
+
+  <!-- ===== CONTACT FOOTER ===== -->
+  <div class="contact-footer">
+    <div class="brand">NEXUS</div>
+    <div class="contact-grid">
+      <a href="tel:+33632704375" class="contact-item">
+        <div class="icon">&#128222;</div>
+        <div class="val">06 32 70 43 75</div>
+        <div class="lbl">Appeler</div>
+      </a>
+      <a href="https://wa.me/33632704375" class="contact-item">
+        <div class="icon">&#128172;</div>
+        <div class="val">WhatsApp</div>
+        <div class="lbl">Envoyer un message</div>
+      </a>
+      <a href="mailto:nexussentinelai@yahoo.com" class="contact-item">
+        <div class="icon">&#9993;</div>
+        <div class="val">Email</div>
+        <div class="lbl">nexussentinelai@yahoo.com</div>
+      </a>
+      <a href="https://nexus-ai-saas.com" target="_blank" class="contact-item">
+        <div class="icon">&#127760;</div>
+        <div class="val">Essai gratuit</div>
+        <div class="lbl">nexus-ai-saas.com</div>
+      </a>
+    </div>
+    <a href="https://nexus-ai-saas.com" target="_blank" class="final-cta">14 jours GRATUITS →</a>
+    <div class="legal">NEXUS AI · SIREN 947 570 362 · © 2026</div>
+  </div>
+
+<script>
+function downloadVCard() {
+  var vcard = 'BEGIN:VCARD\nVERSION:3.0\nN:Meite;Amadou;;;\nFN:Amadou Meite — NEXUS AI\nORG:NEXUS AI\nTITLE:Commercial\nTEL;TYPE=CELL:+33632704375\nEMAIL:nexussentinelai@yahoo.com\nURL:https://nexus-ai-saas.com\nNOTE:Plateforme SaaS IA tout-en-un - IA telephone, RDV, factures, WhatsApp - 14 jours gratuits sur nexus-ai-saas.com\nEND:VCARD';
+  var blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'Amadou_Meite_NEXUS.vcf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
