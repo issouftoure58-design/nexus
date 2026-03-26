@@ -130,7 +130,7 @@ const SECTOR_CONTEXT = {
 /**
  * Wrap le contenu genere par IA dans un template email professionnel
  */
-function wrapInTemplate({ bodyHtml, ctaText = 'Decouvrir NEXUS gratuitement', unsubscribeUrl = '{{unsubscribe_url}}' }) {
+function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsubscribeUrl = '{{unsubscribe_url}}' }) {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -217,6 +217,15 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Decouvrir NEXUS gratuitement', un
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr><td style="border-top:2px solid #f3f4f6;"></td></tr>
       </table>
+    </td>
+  </tr>
+
+  <!-- ========== A BIENTOT ========== -->
+  <tr>
+    <td align="center" style="padding:24px 40px 8px;">
+      <p style="margin:0;font-size:15px;color:#6366f1;font-weight:600;font-style:italic;">
+        &Agrave; bient&ocirc;t sur NEXUS &#x1F680;
+      </p>
     </td>
   </tr>
 
@@ -341,7 +350,7 @@ Reponds UNIQUEMENT en JSON : { "subject": "...", "body_paragraphs": "..." }
     subject: result.subject,
     html_body: wrapInTemplate({
       bodyHtml: result.body_paragraphs || result.html_body,
-      ctaText: emailType === 'followup_j14' ? 'Essayer NEXUS 14 jours gratuit' : 'Voir ce que NEXUS peut faire',
+      ctaText: emailType === 'followup_j14' ? 'Essayez NEXUS 14 jours gratuit' : 'Essayez NEXUS gratuitement',
     }),
   };
 }
@@ -381,40 +390,45 @@ async function callAI(systemPrompt, userPrompt) {
 }
 
 function buildSystemPrompt(sectorCtx, campaign = {}) {
-  return `Tu es un copywriter email B2B d'elite. Tu ecris des emails de prospection percutants pour NEXUS, une solution SaaS tout-en-un avec IA pour les TPE/PME en France.
+  return `Tu es un copywriter email B2B d'elite specialise en cold email ultra-court et impactant.
+Tu ecris pour NEXUS — la plateforme IA tout-en-un qui gere le business des TPE/PME.
 
-SECTEUR : ${sectorCtx.label} ${sectorCtx.emoji || ''}
+CE QU'EST NEXUS (a presenter dans l'email) :
+- Une IA qui repond au telephone 24/7, prend les RDV, et parle comme un humain
+- Des rappels SMS/WhatsApp automatiques qui reduisent les no-shows de 80%
+- Un planning intelligent, une facturation automatique, un CRM integre
+- 114 outils IA pilotables en langage naturel
+- Essai gratuit 14 jours, sans engagement, sans carte bancaire
+- Tarif a partir de 79€/mois (ROI x20 des le premier mois)
 
-PROBLEMES DU SECTEUR :
+SECTEUR CIBLE : ${sectorCtx.label}
+
+PROBLEMES DE CE SECTEUR :
 ${sectorCtx.painPoints.map(p => `- ${p}`).join('\n')}
 
-SOLUTIONS NEXUS :
+SOLUTIONS NEXUS POUR CE SECTEUR :
 ${sectorCtx.benefits.map(b => `- ${b}`).join('\n')}
 
-STYLE D'ECRITURE — OBLIGATOIRE :
-- Accroche CHOC en premiere phrase (chiffre, question provocante, constat dur)
-- Vouvoiement, JAMAIS de tutoiement
-- JAMAIS "Cher", "Chere", "Madame", "Monsieur", "Bonjour" en ouverture
-- Phrases COURTES (max 15 mots). Un concept par phrase.
-- Paragraphes COURTS (2-3 phrases max). Beaucoup d'espace entre les blocs.
-- Utiliser du **gras** (<strong>) pour les chiffres cles et mots-cles importants
-- Ton : confiant, moderne, direct. Comme un ami expert qui donne un bon conseil.
-- PAS de superlatifs creux ("revolutionnaire", "incroyable", "formidable")
-- MAX 100 mots pour tout le body
+STRUCTURE DE L'EMAIL — 3 BLOCS OBLIGATOIRES :
+1. ACCROCHE (1 phrase) : Chiffre choc ou question provocante sur leur probleme quotidien
+2. PITCH NEXUS (3-4 phrases) : Presenter NEXUS comme LA solution a ce probleme. Mentionner 2-3 features concretes avec des chiffres (ex: "-80% de no-shows", "24/7", "114 outils IA"). Pas de blabla, que du concret.
+3. CLOSING (1 phrase) : Terminer par "A bientot sur NEXUS !" ou "A tres vite sur NEXUS !"
 
-PERSONNALISATION — OBLIGATOIRE :
-- Mentionner le nom du commerce UNE SEULE FOIS, dans l'accroche ou la conclusion
-- NE JAMAIS dire que le commerce "utilise deja" ou "gagne deja" avec NEXUS
-- NE JAMAIS dire "${sectorCtx.label} [nom commerce] gagne du temps avec NEXUS" ou similaire
-- Le commerce est un PROSPECT, pas un client. On lui propose de decouvrir NEXUS.
+REGLES ABSOLUES :
+- MAXIMUM 80 mots. Court = impactant. Chaque mot doit compter.
+- Vouvoiement obligatoire. JAMAIS "Cher/Chere/Bonjour/Madame/Monsieur"
+- Phrases ULTRA COURTES. Un concept par phrase. Beaucoup d'air.
+- Gras (<strong>) sur les chiffres et mots-cles puissants
+- Mentionner le nom du commerce UNE SEULE FOIS dans l'accroche
+- NE JAMAIS dire que le prospect utilise deja NEXUS. C'est une decouverte.
+- Ton : confiant, direct, moderne. Comme un SMS d'un ami expert.
+- PAS de superlatifs creux ("revolutionnaire", "incroyable")
 
-FORMAT HTML — OBLIGATOIRE :
-- Chaque paragraphe dans une balise <p> avec ce style inline :
-  <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">
-- Pour le gras : <strong style="color:#111827;">
+FORMAT HTML :
+- Chaque paragraphe : <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">
+- Gras : <strong style="color:#111827;">
 - INTERDIT : <div>, <table>, <style>, <img>, <a>, <button>, <h1/h2/h3>
-- INTERDIT : generer un bouton CTA, un header, un footer, ou une signature
-- Le template email (header NEXUS, bouton CTA, signature) est gere automatiquement
+- INTERDIT : generer bouton CTA, header, footer, signature (gere par le template)
 
 ${campaign.custom_prompt ? `INSTRUCTIONS CUSTOM :\n${campaign.custom_prompt}\n` : ''}
 Reponds UNIQUEMENT en JSON valide : { "subject": "...", "body_paragraphs": "..." }`;
