@@ -445,7 +445,6 @@ function CreateCampaignForm({ onClose, onCreated }: { onClose: () => void; onCre
   const [followUp, setFollowUp] = useState(true);
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
-  const [preview, setPreview] = useState<{ subject: string; html_body: string } | null>(null);
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -467,16 +466,6 @@ function CreateCampaignForm({ onClose, onCreated }: { onClose: () => void; onCre
     }
   }
 
-  async function handlePreview() {
-    try {
-      const res = await nexusApi.post<{ data: { subject: string; html_body: string } }>('/nexus/prospection/campaigns/0/preview', {
-        prospect_name: `${SECTOR_LABELS[sector] || sector} Exemple`,
-      });
-      setPreview((res as any).data || res);
-    } catch {
-      setPreview(null);
-    }
-  }
 
   return (
     <div className="bg-slate-900 rounded-lg border border-cyan-500/30 p-4 space-y-3">
@@ -545,17 +534,6 @@ function CreateCampaignForm({ onClose, onCreated }: { onClose: () => void; onCre
         />
         Relances automatiques (J+3, J+7, J+14)
       </label>
-
-      {preview && (
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
-          <div className="text-[11px] text-slate-500 mb-1">Preview email</div>
-          <div className="text-sm font-medium text-white mb-2">{preview.subject}</div>
-          <div
-            className="text-xs text-slate-300 prose prose-invert prose-sm max-h-40 overflow-y-auto"
-            dangerouslySetInnerHTML={{ __html: preview.html_body }}
-          />
-        </div>
-      )}
 
       <div className="flex items-center gap-2 justify-end">
         <button
