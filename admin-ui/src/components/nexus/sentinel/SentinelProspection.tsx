@@ -639,6 +639,7 @@ function ProspectsSection() {
           <Globe size={14} />
           Scraper
         </button>
+        <ScrapeEmailsButton onDone={fetchProspects} />
         <button
           onClick={fetchProspects}
           className="p-2 text-slate-500 hover:text-white transition-colors"
@@ -741,6 +742,48 @@ function ProspectsSection() {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Scrape Emails Button
+// ============================================================================
+
+function ScrapeEmailsButton({ onDone }: { onDone: () => void }) {
+  const [scraping, setScraping] = useState(false);
+  const [result, setResult] = useState<{ total: number; found: number; failed: number } | null>(null);
+
+  async function handleScrape() {
+    setScraping(true);
+    setResult(null);
+    try {
+      const res = await nexusApi.post<{ data: { total: number; found: number; failed: number } }>('/nexus/prospection/scrape/emails', { limit: 50 });
+      setResult((res as any).data || res);
+      onDone();
+    } catch (err) {
+      console.error('Scrape emails error:', err);
+    } finally {
+      setScraping(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={handleScrape}
+        disabled={scraping}
+        className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/15 text-purple-300 rounded-lg text-xs hover:bg-purple-500/25 transition-colors disabled:opacity-50"
+        title="Chercher les emails sur les sites web des prospects"
+      >
+        <Mail size={14} />
+        {scraping ? 'Recherche...' : 'Trouver emails'}
+      </button>
+      {result && (
+        <div className="absolute top-full mt-1 left-0 bg-slate-800 border border-slate-700 rounded-lg p-2 text-[11px] text-white whitespace-nowrap z-10">
+          {result.found} emails trouves sur {result.total} sites visites
+        </div>
       )}
     </div>
   );

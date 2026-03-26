@@ -143,7 +143,7 @@ function extractPostalCode(components) {
 }
 
 /**
- * Scrape email depuis le site web d'un prospect via Puppeteer
+ * Scrape email depuis le site web d'un prospect via HTTP fetch (pas de Puppeteer)
  */
 export async function scrapeEmailFromWebsite(prospectId) {
   const { getProspectById, updateProspect } = await import('./prospectionService.js');
@@ -153,23 +153,36 @@ export async function scrapeEmailFromWebsite(prospectId) {
   if (prospect.email) return { success: true, email: prospect.email, reason: 'already_has_email' };
 
   try {
-    const { getBrowser, createPage } = await import('../../services/browserService.js');
-    await getBrowser();
-    const page = await createPage('prospection-scraper');
-
+    const baseUrl = prospect.website.replace(/\/$/, '');
     const urls = [
-      prospect.website,
-      `${prospect.website.replace(/\/$/, '')}/contact`,
-      `${prospect.website.replace(/\/$/, '')}/mentions-legales`,
+      baseUrl,
+      `${baseUrl}/contact`,
+      `${baseUrl}/mentions-legales`,
+      `${baseUrl}/a-propos`,
+      `${baseUrl}/about`,
     ];
 
     let foundEmail = null;
 
     for (const url of urls) {
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
-        const content = await page.content();
-        const emails = extractEmails(content);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; NexusBot/1.0)',
+            'Accept': 'text/html',
+          },
+          redirect: 'follow',
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) continue;
+
+        const html = await response.text();
+        const emails = extractEmails(html);
         if (emails.length > 0) {
           foundEmail = emails[0];
           break;
@@ -178,8 +191,6 @@ export async function scrapeEmailFromWebsite(prospectId) {
         // Page inaccessible, continuer
       }
     }
-
-    await page.close();
 
     if (foundEmail) {
       await updateProspect(prospect.id, { email: foundEmail });
