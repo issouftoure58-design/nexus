@@ -1,12 +1,15 @@
 /**
  * Email Generator Service
  * Genere des emails de prospection personnalises par secteur via Claude Haiku
+ * Template HTML premium avec header NEXUS, design moderne, signature pro
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { MODELS } from '../../services/modelRouter.js';
 
 const anthropic = new Anthropic();
+
+const LANDING_URL = 'https://nexus-ai-saas.com';
 
 // Pain points par secteur — contexte pour la generation IA
 const SECTOR_CONTEXT = {
@@ -26,6 +29,7 @@ const SECTOR_CONTEXT = {
       'Fiche client avec historique complet',
       'Campagnes fidelite automatisees',
     ],
+    emoji: '&#x1F484;',
   },
   restaurant: {
     label: 'Restaurant / Brasserie',
@@ -43,6 +47,7 @@ const SECTOR_CONTEXT = {
       'Reponse automatique aux avis Google',
       'Base clients avec preferences alimentaires',
     ],
+    emoji: '&#x1F37D;',
   },
   commerce: {
     label: 'Commerce / Boutique',
@@ -60,6 +65,7 @@ const SECTOR_CONTEXT = {
       'SEO local booste par l\'IA',
       'Programme fidelite automatique',
     ],
+    emoji: '&#x1F6CD;',
   },
   hotel: {
     label: 'Hotel / Hebergement',
@@ -77,6 +83,7 @@ const SECTOR_CONTEXT = {
       'Channel manager IA integre',
       'Upsell automatique (room upgrade, petit-dej)',
     ],
+    emoji: '&#x1F3E8;',
   },
   domicile: {
     label: 'Services a domicile',
@@ -94,6 +101,7 @@ const SECTOR_CONTEXT = {
       'Suivi client avec historique interventions',
       'Visibilite locale + prise de RDV en ligne',
     ],
+    emoji: '&#x1F527;',
   },
   securite: {
     label: 'Societe de securite',
@@ -111,8 +119,158 @@ const SECTOR_CONTEXT = {
       'Portail employe mobile pour toute l\'equipe',
       'Dashboard conformite et suivi certifications',
     ],
+    emoji: '&#x1F6E1;',
   },
 };
+
+// =============================================================================
+// TEMPLATE HTML PREMIUM
+// =============================================================================
+
+/**
+ * Wrap le contenu genere par IA dans un template email professionnel
+ */
+function wrapInTemplate({ bodyHtml, ctaText = 'Decouvrir NEXUS gratuitement', unsubscribeUrl = '{{unsubscribe_url}}' }) {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f1f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f1f3;">
+<tr><td align="center" style="padding:24px 12px;">
+
+<!-- CONTAINER -->
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.08);">
+
+  <!-- ========== HERO HEADER ========== -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#0ea5e9 0%,#4f46e5 50%,#8b5cf6 100%);padding:36px 40px 32px;text-align:center;">
+      <!-- Logo -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+        <tr>
+          <td style="background:rgba(255,255,255,0.15);border-radius:14px;padding:12px 20px;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="width:36px;height:36px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;">
+                  <span style="color:#4f46e5;font-size:22px;font-weight:900;line-height:36px;font-family:Arial,Helvetica,sans-serif;">N</span>
+                </td>
+                <td style="padding-left:12px;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:3px;font-family:Arial,Helvetica,sans-serif;">
+                  NEXUS
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      <!-- Tagline -->
+      <p style="color:rgba(255,255,255,0.85);font-size:14px;margin:14px 0 0;letter-spacing:0.5px;font-weight:400;">
+        L'IA qui fait tourner votre business pendant que vous travaillez
+      </p>
+    </td>
+  </tr>
+
+  <!-- ========== ACCENT BAR ========== -->
+  <tr>
+    <td style="height:4px;background:linear-gradient(90deg,#06b6d4,#8b5cf6,#ec4899,#06b6d4);background-size:200% 100%;"></td>
+  </tr>
+
+  <!-- ========== BODY CONTENT ========== -->
+  <tr>
+    <td style="padding:36px 40px 12px;">
+      ${bodyHtml}
+    </td>
+  </tr>
+
+  <!-- ========== CTA BUTTON ========== -->
+  <tr>
+    <td align="center" style="padding:16px 40px 12px;">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);border-radius:14px;mso-padding-alt:0;">
+            <!--[if mso]><i style="mso-font-width:300%;mso-text-raise:30pt">&nbsp;</i><![endif]-->
+            <a href="${LANDING_URL}" target="_blank" style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);border-radius:14px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;padding:16px 44px;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+              ${ctaText} &rarr;
+            </a>
+            <!--[if mso]><i style="mso-font-width:300%">&nbsp;</i><![endif]-->
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Sub-CTA -->
+  <tr>
+    <td align="center" style="padding:8px 40px 32px;">
+      <p style="margin:0;font-size:13px;color:#9ca3af;">
+        &#x2705; Gratuit &nbsp;&bull;&nbsp; &#x23F1; 15 minutes &nbsp;&bull;&nbsp; &#x1F6AB; Sans engagement
+      </p>
+    </td>
+  </tr>
+
+  <!-- ========== SEPARATOR ========== -->
+  <tr>
+    <td style="padding:0 40px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr><td style="border-top:2px solid #f3f4f6;"></td></tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- ========== SIGNATURE ========== -->
+  <tr>
+    <td style="padding:28px 40px 24px;">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="width:44px;height:44px;background:linear-gradient(135deg,#0ea5e9,#8b5cf6);border-radius:12px;text-align:center;vertical-align:middle;">
+                  <span style="color:#ffffff;font-size:22px;font-weight:900;line-height:44px;font-family:Arial,Helvetica,sans-serif;">N</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td style="padding-left:16px;vertical-align:top;">
+            <p style="margin:0;font-size:15px;font-weight:700;color:#1f2937;">L'equipe NEXUS</p>
+            <p style="margin:3px 0 0;font-size:13px;color:#6b7280;">
+              &#x1F4E7; nexussentinelai@yahoo.com<br>
+              &#x1F4F1; 07 60 53 76 94<br>
+              &#x1F310; <a href="${LANDING_URL}" style="color:#6366f1;text-decoration:none;">nexus-ai-saas.com</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- ========== FOOTER RGPD ========== -->
+  <tr>
+    <td style="background-color:#f8f9fa;padding:20px 40px;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;line-height:1.8;">
+        NEXUS Business Solutions &mdash; nexussentinelai@yahoo.com<br>
+        <a href="${LANDING_URL}" style="color:#6366f1;text-decoration:none;">nexus-ai-saas.com</a>
+        &nbsp;|&nbsp;
+        <a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Se desinscrire</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+<!-- FIN CONTAINER -->
+
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+// =============================================================================
+// GENERATION IA
+// =============================================================================
 
 /**
  * Genere un email initial de prospection
@@ -123,22 +281,27 @@ export async function generateInitialEmail(prospect, campaign = {}) {
 
   const systemPrompt = buildSystemPrompt(ctx, campaign);
   const userPrompt = `
-Genere un email de prospection B2B pour :
+Genere le CORPS d'un email de prospection B2B pour :
 - Nom du commerce : ${prospect.name}
 - Secteur : ${ctx.label}
 - Ville : ${prospect.city || 'non precisee'}
 - Note Google : ${prospect.rating || 'non disponible'}/5 (${prospect.reviews_count || 0} avis)
 - Site web : ${prospect.website || 'aucun'}
 
-L'email doit etre court (max 150 mots), percutant, et personnalise avec le nom du commerce.
-Commence par un constat de leur secteur (pas "Cher/Chere").
-Termine par une proposition de demo gratuite de 15min.
-
-Reponds UNIQUEMENT en JSON : { "subject": "...", "html_body": "..." }
-Le html_body doit etre du HTML simple avec <p>, <strong>, <br>, pas de <style> ni <div> complexe.
+Reponds UNIQUEMENT en JSON : { "subject": "...", "body_paragraphs": "..." }
+- "subject" : objet de l'email, court et percutant (max 60 caracteres)
+- "body_paragraphs" : le texte en HTML (uniquement des balises <p>)
 `;
 
-  return generateEmail(systemPrompt, userPrompt);
+  const result = await callAI(systemPrompt, userPrompt);
+
+  // Wrapper dans le template premium
+  return {
+    subject: result.subject,
+    html_body: wrapInTemplate({
+      bodyHtml: result.body_paragraphs || result.html_body,
+    }),
+  };
 }
 
 /**
@@ -149,37 +312,44 @@ export async function generateFollowUpEmail(prospect, emailType, previousSubject
   if (!ctx) throw new Error(`Secteur inconnu: ${prospect.sector}`);
 
   const angles = {
-    followup_j3: 'Angle: rappeler le benefice principal, mentionner un chiffre concret (ex: -80% de no-shows). Tres court (80 mots max).',
-    followup_j7: 'Angle: partager un temoignage client fictif mais realiste du meme secteur. Montrer un resultat concret.',
-    followup_j14: 'Angle: dernier email, ton plus direct. Proposer un essai gratuit 14 jours sans engagement. Creer l\'urgence sans agressivite.',
+    followup_j3: 'Angle: rappeler le benefice principal avec un chiffre concret. Tres court (60 mots max). Ton direct, presque complice.',
+    followup_j7: 'Angle: partager un temoignage client realiste du meme secteur. Un resultat concret avec des chiffres. Court (80 mots max).',
+    followup_j14: 'Angle: dernier message, ton sincere. Proposer un essai gratuit 14 jours. Pas d\'agressivite, juste de la franchise. Court (60 mots max).',
   };
 
   const systemPrompt = buildSystemPrompt(ctx);
   const userPrompt = `
-Genere un email de RELANCE pour :
+Genere le CORPS d'un email de RELANCE pour :
 - Nom du commerce : ${prospect.name}
 - Secteur : ${ctx.label}
 - Ville : ${prospect.city || 'non precisee'}
-- Type de relance : ${emailType}
+- Type : ${emailType}
 - Sujet du premier email : "${previousSubject}"
 
 ${angles[emailType] || angles.followup_j3}
 
-IMPORTANT : fais reference au mail precedent ("Suite a mon precedent message..." ou similaire).
-Max 100 mots. Pas de "Cher/Chere".
+Fais reference au mail precedent de maniere naturelle.
 
-Reponds UNIQUEMENT en JSON : { "subject": "...", "html_body": "..." }
-Le subject doit commencer par "Re: " suivi d'un nouveau sujet court.
-Le html_body doit etre du HTML simple.
+Reponds UNIQUEMENT en JSON : { "subject": "...", "body_paragraphs": "..." }
+- "subject" : commence par "Re: " + nouveau sujet court
+- "body_paragraphs" : le texte en HTML (uniquement des balises <p>)
 `;
 
-  return generateEmail(systemPrompt, userPrompt);
+  const result = await callAI(systemPrompt, userPrompt);
+
+  return {
+    subject: result.subject,
+    html_body: wrapInTemplate({
+      bodyHtml: result.body_paragraphs || result.html_body,
+      ctaText: emailType === 'followup_j14' ? 'Essayer NEXUS 14 jours gratuit' : 'Voir ce que NEXUS peut faire',
+    }),
+  };
 }
 
 /**
  * Appel Claude Haiku avec prompt caching
  */
-async function generateEmail(systemPrompt, userPrompt) {
+async function callAI(systemPrompt, userPrompt) {
   const response = await anthropic.messages.create({
     model: MODELS.HAIKU,
     max_tokens: 1000,
@@ -196,25 +366,24 @@ async function generateEmail(systemPrompt, userPrompt) {
   const text = response.content[0].text;
 
   try {
-    // Extraire le JSON meme si entoure de markdown
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Pas de JSON dans la reponse IA');
 
     const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.subject || !parsed.html_body) throw new Error('Champs subject/html_body manquants');
+    if (!parsed.subject) throw new Error('Champ subject manquant');
+    if (!parsed.body_paragraphs && !parsed.html_body) throw new Error('Champ body_paragraphs manquant');
 
     return parsed;
   } catch (err) {
-    console.error('[EMAIL_GEN] Parse error:', err.message, 'Raw:', text.substring(0, 200));
+    console.error('[EMAIL_GEN] Parse error:', err.message, 'Raw:', text.substring(0, 300));
     throw new Error(`Erreur generation email: ${err.message}`);
   }
 }
 
 function buildSystemPrompt(sectorCtx, campaign = {}) {
-  return `Tu es un expert en email marketing B2B pour les TPE/PME en France.
-Tu ecris des emails de prospection pour NEXUS, une solution SaaS tout-en-un avec IA integree.
+  return `Tu es un copywriter email B2B d'elite. Tu ecris des emails de prospection percutants pour NEXUS, une solution SaaS tout-en-un avec IA pour les TPE/PME en France.
 
-SECTEUR CIBLE : ${sectorCtx.label}
+SECTEUR : ${sectorCtx.label} ${sectorCtx.emoji || ''}
 
 PROBLEMES DU SECTEUR :
 ${sectorCtx.painPoints.map(p => `- ${p}`).join('\n')}
@@ -222,25 +391,33 @@ ${sectorCtx.painPoints.map(p => `- ${p}`).join('\n')}
 SOLUTIONS NEXUS :
 ${sectorCtx.benefits.map(b => `- ${b}`).join('\n')}
 
-REGLES ABSOLUES :
-- Ton professionnel mais accessible, PAS commercial agressif
-- Pas de "Cher/Chere", pas de "Madame/Monsieur"
-- Tutoiement interdit, vouvoiement obligatoire
-- Pas de superlatifs excessifs ("revolutionnaire", "incroyable")
-- Mentionner le nom du commerce dans l'email
-- Phrases courtes, paragraphes courts
-- UN seul CTA clair : "Repondez a cet email pour planifier votre demo gratuite de 15 minutes"
-- INTERDIT : liens externes (Calendly, site web, etc.). Le CTA doit etre une reponse a l'email
-- Le bouton CTA doit etre un <a href="mailto:nexussentinelai@yahoo.com?subject=Demo%20NEXUS"> style bouton vert
-- Le HTML doit inclure le footer RGPD suivant en petit :
-  <p style="font-size:11px;color:#888;margin-top:30px;">
-    NEXUS Business Solutions — nexussentinelai@yahoo.com<br>
-    <a href="{{unsubscribe_url}}">Se desinscrire</a>
-  </p>
+STYLE D'ECRITURE — OBLIGATOIRE :
+- Accroche CHOC en premiere phrase (chiffre, question provocante, constat dur)
+- Vouvoiement, JAMAIS de tutoiement
+- JAMAIS "Cher", "Chere", "Madame", "Monsieur", "Bonjour" en ouverture
+- Phrases COURTES (max 15 mots). Un concept par phrase.
+- Paragraphes COURTS (2-3 phrases max). Beaucoup d'espace entre les blocs.
+- Utiliser du **gras** (<strong>) pour les chiffres cles et mots-cles importants
+- Ton : confiant, moderne, direct. Comme un ami expert qui donne un bon conseil.
+- PAS de superlatifs creux ("revolutionnaire", "incroyable", "formidable")
+- MAX 100 mots pour tout le body
 
-${campaign.custom_prompt ? `INSTRUCTIONS SUPPLEMENTAIRES :\n${campaign.custom_prompt}` : ''}
+PERSONNALISATION — OBLIGATOIRE :
+- Mentionner le nom du commerce UNE SEULE FOIS, dans l'accroche ou la conclusion
+- NE JAMAIS dire que le commerce "utilise deja" ou "gagne deja" avec NEXUS
+- NE JAMAIS dire "${sectorCtx.label} [nom commerce] gagne du temps avec NEXUS" ou similaire
+- Le commerce est un PROSPECT, pas un client. On lui propose de decouvrir NEXUS.
 
-Reponds TOUJOURS en JSON valide : { "subject": "...", "html_body": "..." }`;
+FORMAT HTML — OBLIGATOIRE :
+- Chaque paragraphe dans une balise <p> avec ce style inline :
+  <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">
+- Pour le gras : <strong style="color:#111827;">
+- INTERDIT : <div>, <table>, <style>, <img>, <a>, <button>, <h1/h2/h3>
+- INTERDIT : generer un bouton CTA, un header, un footer, ou une signature
+- Le template email (header NEXUS, bouton CTA, signature) est gere automatiquement
+
+${campaign.custom_prompt ? `INSTRUCTIONS CUSTOM :\n${campaign.custom_prompt}\n` : ''}
+Reponds UNIQUEMENT en JSON valide : { "subject": "...", "body_paragraphs": "..." }`;
 }
 
 export default { generateInitialEmail, generateFollowUpEmail };
