@@ -117,52 +117,57 @@
   .verso {
     background: #ffffff;
     color: #1e293b;
-    padding: 5mm 6mm;
+    padding: 4mm 5mm;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
 
-  .verso-top {
-    display: flex;
-    align-items: center;
-    gap: 2.5mm;
-    margin-bottom: 3mm;
+  .verso-header {
+    margin-bottom: 2mm;
   }
 
-  .verso-logo {
-    width: 20px;
-    height: 20px;
+  .verso-title {
+    font-size: 13px;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.3px;
+  }
+
+  .verso-title span {
     background: linear-gradient(135deg, #2563eb, #7c3aed);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 10px;
-    font-weight: 800;
-    flex-shrink: 0;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  .verso-tagline {
-    font-size: 9px;
-    color: #1e3a5f;
-    font-weight: 700;
+  .verso-subtitle {
+    font-size: 7px;
+    color: #64748b;
+    font-weight: 500;
     line-height: 1.3;
+    margin-top: 0.5mm;
+  }
+
+  .verso-body {
+    display: flex;
+    gap: 3mm;
+    align-items: center;
+    flex: 1;
   }
 
   .verso-features {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5mm 3mm;
-    margin-bottom: 3mm;
+    grid-template-columns: 1fr;
+    gap: 1mm;
+    flex: 1;
   }
 
   .verso-feat {
-    font-size: 7.5px;
-    color: #475569;
-    line-height: 1.3;
-    padding-left: 3mm;
+    font-size: 7px;
+    color: #334155;
+    line-height: 1.2;
+    padding-left: 2.5mm;
     position: relative;
   }
 
@@ -172,7 +177,24 @@
     left: 0;
     color: #2563eb;
     font-weight: 700;
-    font-size: 8px;
+    font-size: 7px;
+  }
+
+  .verso-qr {
+    flex-shrink: 0;
+    width: 24mm;
+    height: 24mm;
+    border: 1px solid #e2e8f0;
+    border-radius: 2mm;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .verso-qr img {
+    width: 22mm;
+    height: 22mm;
   }
 
   .verso-bottom {
@@ -180,22 +202,23 @@
     align-items: center;
     justify-content: space-between;
     border-top: 1px solid #e2e8f0;
-    padding-top: 2mm;
+    padding-top: 1.5mm;
+    margin-top: 1.5mm;
   }
 
   .verso-url {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
     color: #2563eb;
   }
 
   .verso-trial {
-    font-size: 7px;
-    color: #64748b;
-    background: #f1f5f9;
+    font-size: 6.5px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
     padding: 1mm 2.5mm;
     border-radius: 3px;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   /* ═══════════════════════════════════════════ */
@@ -245,25 +268,28 @@
 <!-- VERSO -->
 <div class="label">Verso</div>
 <div class="card verso">
-  <div class="verso-top">
-    <div class="verso-logo">N</div>
-    <div class="verso-tagline">Plateforme SaaS IA tout-en-un<br>pour les entreprises de services</div>
+  <div class="verso-header">
+    <div class="verso-title"><span>NEXUS AI</span></div>
+    <div class="verso-subtitle">Plateforme SaaS IA tout-en-un pour les entreprises de services</div>
   </div>
-  <div class="verso-features">
-    <div class="verso-feat">IA telephone 24h/24</div>
-    <div class="verso-feat">Agenda & reservations</div>
-    <div class="verso-feat">WhatsApp & SMS auto</div>
-    <div class="verso-feat">CRM & fidelisation</div>
-    <div class="verso-feat">Comptabilite & factures</div>
-    <div class="verso-feat">Marketing & SEO</div>
-    <div class="verso-feat">Gestion RH & paie</div>
-    <div class="verso-feat">Stock & commandes</div>
+  <div class="verso-body">
+    <div class="verso-features">
+      <div class="verso-feat">IA telephone 24h/24</div>
+      <div class="verso-feat">Agenda & reservations</div>
+      <div class="verso-feat">WhatsApp & SMS auto</div>
+      <div class="verso-feat">CRM & fidelisation</div>
+      <div class="verso-feat">Comptabilite & factures</div>
+      <div class="verso-feat">Marketing & SEO</div>
+      <div class="verso-feat">Gestion RH & paie</div>
+      <div class="verso-feat">Stock & commandes</div>
+    </div>
+    <div class="verso-qr">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=svg&color=0f172a&data=https%3A//nexus-backend-dev.onrender.com/commercial/amadou.html" alt="QR">
+    </div>
   </div>
   <div class="verso-bottom">
     <div class="verso-url">nexus-ai-saas.com</div>
-    <div style="display:flex;align-items:center;gap:2mm;">
-      <div class="verso-trial">OFFRE LANCEMENT — 14 jours gratuits</div>
-    </div>
+    <div class="verso-trial">OFFRE LANCEMENT — 14 jours gratuits</div>
   </div>
 </div>
 
