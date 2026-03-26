@@ -229,7 +229,9 @@ REGLES ABSOLUES :
 - Pas de superlatifs excessifs ("revolutionnaire", "incroyable")
 - Mentionner le nom du commerce dans l'email
 - Phrases courtes, paragraphes courts
-- UN seul CTA clair (demo gratuite)
+- UN seul CTA clair : "Repondez a cet email pour planifier votre demo gratuite de 15 minutes"
+- INTERDIT : liens externes (Calendly, site web, etc.). Le CTA doit etre une reponse a l'email
+- Le bouton CTA doit etre un <a href="mailto:nexussentinelai@yahoo.com?subject=Demo%20NEXUS"> style bouton vert
 - Le HTML doit inclure le footer RGPD suivant en petit :
   <p style="font-size:11px;color:#888;margin-top:30px;">
     NEXUS Business Solutions — nexussentinelai@yahoo.com<br>
