@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS prospection_settings (
   send_window_start INT DEFAULT 9,
   send_window_end INT DEFAULT 18,
   send_days INT[] DEFAULT '{1,2,3,4,5}',
-  from_email VARCHAR(255) DEFAULT 'contact@nexus-sentinel.com',
+  from_email VARCHAR(255) DEFAULT 'contact@nexus-ai-saas.com',
   from_name VARCHAR(255) DEFAULT 'NEXUS Business',
   reply_to VARCHAR(255) DEFAULT 'nexussentinelai@yahoo.com',
   active_sectors TEXT[] DEFAULT '{salon,restaurant,commerce,hotel,domicile,securite}',
