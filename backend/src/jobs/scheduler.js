@@ -61,6 +61,7 @@ const JOBS_SCHEDULE = {
   plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
   plteE2E:     { hour: 4, minute: 0 },                 // 04h00 - PLTE E2E parcours utilisateur complet
+  prospectionFollowUp: { interval: 30 },               // Toutes les 30 min - Relances prospection (J3/J7/J14)
 };
 
 // Jobs optionnels (désactivés par défaut)
@@ -1179,6 +1180,9 @@ let lastIntelligenceMonitoringRun = 0;
 // Tracking du dernier run PLTE hourly (toutes les heures)
 let lastPlteHourlyRun = 0;
 
+// Prospection follow-up (toutes les 30 minutes)
+let lastProspectionFollowUpRun = 0;
+
 /**
  * Boucle principale du scheduler
  */
@@ -1380,6 +1384,18 @@ async function runScheduler() {
     }
   }
 
+  // Job: Prospection follow-up (toutes les 30 minutes)
+  const prospectionInterval = JOBS_SCHEDULE.prospectionFollowUp.interval * 60 * 1000;
+  if (now - lastProspectionFollowUpRun >= prospectionInterval) {
+    lastProspectionFollowUpRun = now;
+    try {
+      const { processFollowUps } = await import('../modules/prospection/followUpScheduler.js');
+      await processFollowUps();
+    } catch (err) {
+      console.error('[Scheduler] Erreur prospection follow-up:', err.message);
+    }
+  }
+
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
     const { processScheduledActions } = await import('../automation/workflowEngine.js');
@@ -1423,6 +1439,7 @@ export function startScheduler() {
   console.log(`  ✅ PLTE v2 Nightly: tous les jours a ${JOBS_SCHEDULE.plteNightly.hour}h${String(JOBS_SCHEDULE.plteNightly.minute).padStart(2, '0')} (stress tests)`);
   console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
   console.log(`  ✅ PLTE E2E: tous les jours a ${JOBS_SCHEDULE.plteE2E.hour}h${String(JOBS_SCHEDULE.plteE2E.minute).padStart(2, '0')} (10 contextes, 34 tests HTTP)`);
+  console.log(`  ✅ Prospection Follow-Up: toutes les ${JOBS_SCHEDULE.prospectionFollowUp.interval} min (relances J3/J7/J14)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis

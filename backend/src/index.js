@@ -119,6 +119,7 @@ import nexusAdminRoutes, {
   optimizationRouter
 } from './routes/nexusAdmin.js';
 import nexusAuthRoutes from './routes/nexusAuth.js';
+import nexusProspectionRoutes, { prospectionPublicRouter, prospectionWebhookRouter } from './routes/nexusProspection.js';
 import employeeAuthRoutes from './routes/employeeAuth.js';
 import employeePortalRoutes from './routes/employeePortal.js';
 import cgvRoutes from './routes/cgv.js';
@@ -381,6 +382,9 @@ app.use('/api', frontendReportRouter);
 app.use('/api/nexus/auth', nexusAuthRoutes);
 app.use('/api/nexus', errorRoutes);
 app.use('/api/nexus', nexusAdminRoutes);
+app.use('/api/nexus/prospection', nexusProspectionRoutes);
+app.use('/api/prospection', prospectionPublicRouter);
+app.use('/api/webhooks', prospectionWebhookRouter);
 app.use('/api/admin/sentinel-intelligence', sentinelIntelligenceRouter);
 app.use('/api/sentinel/autopilot', sentinelAutopilotRouter);
 app.use('/api/sentinel/live', sentinelLiveRouter);
