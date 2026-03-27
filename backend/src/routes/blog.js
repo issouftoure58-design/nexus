@@ -66,16 +66,22 @@ function formatDate(dateStr) {
 }
 
 /**
- * Charge le branding complet d'un tenant depuis Supabase
+ * Charge le branding complet d'un tenant depuis Supabase (table tenants)
  */
 async function loadBranding(tenantId) {
   const { data } = await supabase
-    .from('branding')
-    .select('company_name, logo_url, primary_color')
-    .eq('tenant_id', tenantId)
+    .from('tenants')
+    .select('name, logo_url, couleur_primaire')
+    .eq('id', tenantId)
     .single();
 
-  return data || { company_name: 'Blog', logo_url: null, primary_color: '#0891b2' };
+  if (!data) return { company_name: 'Blog', logo_url: null, primary_color: '#0891b2' };
+
+  return {
+    company_name: data.name || 'Blog',
+    logo_url: data.logo_url,
+    primary_color: data.couleur_primaire || '#0891b2'
+  };
 }
 
 // ============= MIDDLEWARE =============

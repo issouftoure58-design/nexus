@@ -26,8 +26,22 @@ const setImmutableCacheHeaders = (res) => {
 app.use(createProxyMiddleware({
   target: API_BACKEND,
   changeOrigin: true,
-  pathFilter: ['/api', '/health', '/blog'],
+  pathFilter: ['/api', '/health'],
   logLevel: 'warn',
+}));
+
+// Blog SSR proxy — forward original host for tenant resolution
+app.use('/blog', createProxyMiddleware({
+  target: API_BACKEND,
+  changeOrigin: true,
+  logLevel: 'warn',
+  on: {
+    proxyReq: (proxyReq, req) => {
+      // Le backend a besoin du domaine original pour resoudre le tenant
+      const originalHost = req.headers.host || '';
+      proxyReq.setHeader('X-Forwarded-Host', originalHost);
+    }
+  }
 }));
 
 // Serve assets with long-term caching (they have hashes in filenames)

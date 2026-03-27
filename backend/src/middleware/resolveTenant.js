@@ -38,7 +38,8 @@ export const resolveTenantByDomain = async (req, res, next) => {
     }
 
     // 3. Resolution par domaine
-    const host = req.get('host');
+    // Utiliser X-Forwarded-Host si present (requete proxifiee depuis frontend tenant)
+    const host = req.headers['x-forwarded-host'] || req.get('host');
 
     if (!host) {
       req.tenantId = null;
@@ -58,30 +59,30 @@ export const resolveTenantByDomain = async (req, res, next) => {
       return next();
     }
 
-    // 3a. Verifier si c'est un domaine custom verifie
-    const { data: branding, error } = await supabase
-      .from('branding')
-      .select('tenant_id, custom_domain_verified, company_name, logo_url, primary_color')
-      .eq('custom_domain', domain)
-      .eq('custom_domain_verified', true)
+    // 3a. Verifier si c'est un domaine custom via la table tenants
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id, name, logo_url, couleur_primaire')
+      .eq('domain', domain)
       .single();
 
-    if (!error && branding) {
-      // Domaine custom trouve
+    if (!error && tenant) {
+      const brandingData = {
+        company_name: tenant.name,
+        logo_url: tenant.logo_url,
+        primary_color: tenant.couleur_primaire || '#0891b2'
+      };
+
       domainCache.set(domain, {
-        tenantId: branding.tenant_id,
+        tenantId: tenant.id,
         source: 'custom_domain',
-        branding: {
-          company_name: branding.company_name,
-          logo_url: branding.logo_url,
-          primary_color: branding.primary_color
-        },
+        branding: brandingData,
         expiresAt: Date.now() + CACHE_TTL
       });
 
-      req.tenantId = branding.tenant_id;
+      req.tenantId = tenant.id;
       req.tenantSource = 'custom_domain';
-      req.branding = branding;
+      req.branding = brandingData;
       return next();
     }
 
