@@ -35,9 +35,11 @@ function markdownToHTML(content) {
   const escaped = escapeHTML(content);
 
   return escaped
-    // Titres
+    // Titres (ordre decroissant pour eviter que # matche avant ##)
+    .replace(/^#### (.*$)/gim, '<h4 style="font-size:1.1rem;font-weight:600;margin:1.25rem 0 0.5rem;color:#1f2937">$1</h4>')
     .replace(/^### (.*$)/gim, '<h3 style="font-size:1.25rem;font-weight:600;margin:1.5rem 0 0.75rem;color:#1f2937">$1</h3>')
     .replace(/^## (.*$)/gim, '<h2 style="font-size:1.5rem;font-weight:700;margin:2rem 0 1rem;color:#111827">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h2 style="font-size:1.75rem;font-weight:800;margin:2.5rem 0 1rem;color:#111827">$1</h2>')
     // Gras et italique
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
