@@ -34,6 +34,7 @@ import {
   GitBranch,
   AlertTriangle,
   Banknote,
+  Star,
   FileText,
   Phone,
   CalendarCheck,
@@ -175,6 +176,7 @@ const marketingNav: NavItem[] = [
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
+  { icon: Star, label: 'Avis Clients', path: '/avis-clients', requiredModule: 'marketing' },
 ];
 
 // Système

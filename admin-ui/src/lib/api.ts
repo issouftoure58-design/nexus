@@ -505,6 +505,33 @@ export const waitlistApi = {
   getStats: () => api.get('/admin/waitlist/stats') as Promise<{ stats: { waiting: number; notified: number; converted: number; expired: number; cancelled: number; total: number } }>,
 };
 
+// Reviews / Avis clients
+export const reviewsApi = {
+  list: (params?: { status?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    return api.get<{
+      reviews: Array<{
+        id: string;
+        client_prenom: string;
+        rating: number;
+        comment: string | null;
+        photo_url: string | null;
+        service_name: string | null;
+        status: 'pending' | 'approved' | 'rejected';
+        created_at: string;
+        approved_at: string | null;
+      }>;
+      pagination: { page: number; limit: number; total: number; pages: number };
+      pendingCount: number;
+    }>(`/admin/reviews?${query}`);
+  },
+  updateStatus: (id: string, status: 'approved' | 'rejected') =>
+    api.patch(`/admin/reviews/${id}`, { status }),
+};
+
 // Services
 export const servicesApi = {
   list: async (): Promise<{ services: Service[] }> => {
