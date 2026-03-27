@@ -104,10 +104,31 @@ export default function SEODashboard() {
     }
   };
 
-  const handleApplyRecommendation = async (recoId: number) => {
+  const handleApplyRecommendation = async (reco: Recommendation) => {
     try {
-      await api.patch(`/admin/seo/recommendations/${recoId}`, { statut: 'appliquee' });
+      // Marquer comme appliquee
+      await api.patch(`/admin/seo/recommendations/${reco.id}`, { statut: 'appliquee' });
       fetchDashboardData();
+
+      // Naviguer vers la page pertinente selon le type de reco
+      const titre = reco.titre.toLowerCase();
+      if (titre.includes('mots-cl') && titre.includes('non exploit')) {
+        // Mots-cles non exploites → creer un article
+        navigate('/seo/articles?action=new');
+      } else if (titre.includes('titres trop longs') || titre.includes('meta description')) {
+        // Titres longs ou meta manquantes → liste articles pour editer
+        navigate('/seo/articles');
+      } else if (titre.includes('largir') && titre.includes('mots-cl')) {
+        // Elargir suivi mots-cles → section mots-cles (scroll)
+        const keywordsSection = document.querySelector('[data-section="keywords"]');
+        if (keywordsSection) keywordsSection.scrollIntoView({ behavior: 'smooth' });
+      } else if (titre.includes('publier plus') || titre.includes('contenu')) {
+        // Publier regulierement → creer un article
+        navigate('/seo/articles?action=new');
+      } else if (titre.includes('page 2') || titre.includes('optimiser')) {
+        // Positions page 2 → articles pour optimiser
+        navigate('/seo/articles');
+      }
     } catch (err) {
       setError('Impossible d\'appliquer la recommandation. Veuillez réessayer.');
     }
@@ -196,6 +217,17 @@ export default function SEODashboard() {
 
   const hasActiveKeywordFilters = keywordFilters.search || keywordFilters.positionRange !== 'all' || keywordFilters.trend !== 'all';
   const hasActiveRecoFilters = recoFilters.priority !== 'all' || recoFilters.type !== 'all' || recoFilters.status !== 'pending';
+
+  const getRecoActionLabel = (reco: Recommendation) => {
+    const titre = reco.titre.toLowerCase();
+    if (titre.includes('mots-cl') && titre.includes('non exploit')) return 'Creer un article';
+    if (titre.includes('titres trop longs')) return 'Editer les articles';
+    if (titre.includes('meta description')) return 'Editer les articles';
+    if (titre.includes('largir') && titre.includes('mots-cl')) return 'Ajouter mots-cles';
+    if (titre.includes('publier plus')) return 'Creer un article';
+    if (titre.includes('page 2') || titre.includes('optimiser')) return 'Voir les articles';
+    return 'Appliquer';
+  };
 
   const getPriorityColor = (priorite: string) => {
     const colors: Record<string, string> = {
@@ -423,9 +455,9 @@ export default function SEODashboard() {
                       size="sm"
                       variant="outline"
                       className="text-xs"
-                      onClick={() => handleApplyRecommendation(reco.id)}
+                      onClick={() => handleApplyRecommendation(reco)}
                     >
-                      Appliquer
+                      {getRecoActionLabel(reco)}
                     </Button>
                     <Button
                       size="sm"
@@ -443,7 +475,7 @@ export default function SEODashboard() {
         </Card>
 
         {/* Top Keywords */}
-        <Card className="p-4">
+        <Card className="p-4" data-section="keywords">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Search className="w-5 h-5 text-blue-500" />
