@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /nexus
+Disallow: /mon-compte
+Disallow: /api/
+
+Sitemap: https://fatshairafro.fr/sitemap.xml
