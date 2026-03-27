@@ -346,6 +346,8 @@ export default function Subscription() {
     ? 'canceled'
     : tenantStatut === 'suspendu'
     ? 'past_due'
+    : tenantStatut === 'actif'
+    ? (subscriptionData?.status || 'active')
     : subscriptionData?.status || (subscriptionData?.has_subscription ? 'active' : 'trialing');
   const statusInfo = STATUS_MAP[subStatus] || STATUS_MAP.active;
 
