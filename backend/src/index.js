@@ -274,6 +274,10 @@ app.use(express.static(path.join(__dirname, '../public'), {
   }
 }));
 
+// ============= BLOG SSR (SEO) =============
+import blogSSRRoutes from './routes/blog.js';
+app.use('/blog', blogSSRRoutes);
+
 // ============= ROUTES =============
 
 // Health check enrichi (DB, Redis, services externes)
@@ -574,7 +578,6 @@ app.use('/api/admin/orders', adminOrdersRoutes);
 app.use('/api/orders', ordersRoutes);  // Routes publiques checkout panier
 app.use('/api/admin/disponibilites', adminDisponibilitesRoutes);
 app.use('/api/admin/parametres', adminParametresRoutes);
-app.use('/api/admin', adminApiKeysRoutes);
 app.use('/api/admin/audit-logs', adminAuditLogRoutes);
 app.use('/api/admin/invitations', adminInvitationsRoutes);
 app.use('/api/admin/team', adminTeamRoutes);
@@ -591,6 +594,10 @@ app.use('/api/admin/ia', adminIARoutes);
 app.use('/api/admin/menu', adminMenuRoutes);
 app.use('/api/admin/hotel', adminHotelRoutes);
 app.use('/api/admin/commerce/orders', adminCommerceOrdersRoutes);
+
+// ⚠️ adminApiKeysRoutes monté à /api/admin (broad) avec router.use(authenticateAdmin)
+// DOIT être APRÈS toutes les routes /api/admin/* spécifiques pour ne pas les bloquer
+app.use('/api/admin', adminApiKeysRoutes);
 app.use('/api/orders', orderTrackingRoutes);
 
 // Routes Billing (Stripe subscriptions)
