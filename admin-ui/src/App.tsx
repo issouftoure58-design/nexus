@@ -247,7 +247,7 @@ function App() {
             <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
             <Route path="/fidelite" element={<ModuleRoute moduleTitle="Programme Fidélité" moduleDescription="Gestion des points et récompenses clients"><Fidelite /></ModuleRoute>} />
             <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
-            <Route path="/avis-clients" element={<ModuleRoute module="marketing" moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
+            <Route path="/avis-clients" element={<ModuleRoute moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
             <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
             {/* Modules IA */}

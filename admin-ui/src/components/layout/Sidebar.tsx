@@ -146,6 +146,7 @@ const mainNav: NavItem[] = [
   { icon: Bed, label: 'Chambres', path: '/chambres', requiredModule: 'reservations', businessTypes: ['hotel'] },
   { icon: Banknote, label: 'Tarifs Saisons', path: '/tarifs', requiredModule: 'reservations', businessTypes: ['hotel'] },
   { icon: ShoppingBag, label: 'Commandes', path: '/commandes', requiredModule: 'ecommerce', businessTypes: ['commerce'] },
+  { icon: Star, label: 'Avis Clients', path: '/avis-clients', alwaysShow: true },
 ];
 
 // IA & Automatisation
@@ -176,7 +177,6 @@ const marketingNav: NavItem[] = [
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
-  { icon: Star, label: 'Avis Clients', path: '/avis-clients', requiredModule: 'marketing' },
 ];
 
 // Système
