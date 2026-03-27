@@ -31,9 +31,11 @@ app.use(createProxyMiddleware({
 }));
 
 // Blog SSR proxy — forward original host for tenant resolution
-app.use('/blog', createProxyMiddleware({
+// Utilise pathFilter (pas mount path) pour preserver /blog dans l'URL
+app.use(createProxyMiddleware({
   target: API_BACKEND,
   changeOrigin: true,
+  pathFilter: '/blog',
   logLevel: 'warn',
   on: {
     proxyReq: (proxyReq, req) => {

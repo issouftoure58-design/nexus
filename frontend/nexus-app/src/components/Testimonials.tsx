@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Star, ChevronLeft, ChevronRight, Quote, Sparkles, Heart, MessageCircle } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight, Quote, Sparkles, Heart, MessageCircle, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-config';
 
 interface Testimonial {
@@ -12,6 +12,7 @@ interface Testimonial {
   color: string;
   date: string;
   location: string;
+  photoUrl?: string | null;
 }
 
 const fallbackTestimonials: Testimonial[] = [
@@ -109,6 +110,7 @@ export default function Testimonials() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch('/api/reviews')
@@ -121,12 +123,13 @@ export default function Testimonials() {
               id: r.id,
               name: r.client_prenom,
               initials: getInitials(r.client_prenom),
-              service: "",
+              service: r.service_name || "",
               rating: r.rating,
               comment: r.comment,
               color: gradientColors[i % gradientColors.length],
               date: formatReviewDate(r.created_at),
               location: "",
+              photoUrl: r.photo_url || null,
             }));
           if (mapped.length > 0) {
             setTestimonials(mapped);
@@ -244,6 +247,22 @@ export default function Testimonials() {
                   <span className="text-2xl font-bold text-white">{currentTestimonial.initials}</span>
                 </div>
               </div>
+
+              {/* Photo prestation */}
+              {currentTestimonial.photoUrl && (
+                <button
+                  type="button"
+                  onClick={() => { setIsAutoPlaying(false); setLightboxUrl(currentTestimonial.photoUrl!); }}
+                  className="mb-6 rounded-xl overflow-hidden border-2 border-white/10 hover:border-amber-500/50 transition-colors cursor-zoom-in"
+                >
+                  <img
+                    src={currentTestimonial.photoUrl}
+                    alt={`Photo prestation ${currentTestimonial.name}`}
+                    className="w-64 h-40 object-cover"
+                    loading="lazy"
+                  />
+                </button>
+              )}
 
               {/* Stars */}
               <div className="flex items-center gap-1 mb-6">
@@ -365,6 +384,27 @@ export default function Testimonials() {
       <div className="absolute top-10 right-6 w-16 h-16 border-r-2 border-t-2 border-amber-500/30" />
       <div className="absolute bottom-10 left-6 w-16 h-16 border-l-2 border-b-2 border-amber-500/30" />
       <div className="absolute bottom-10 right-6 w-16 h-16 border-r-2 border-b-2 border-amber-500/30" />
+
+      {/* Lightbox photo */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Photo prestation agrandie"
+            className="max-w-full max-h-[85vh] rounded-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </section>
   );
 }

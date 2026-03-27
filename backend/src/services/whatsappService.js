@@ -2053,6 +2053,19 @@ function classifyTwilioError(statusCode, errorData) {
  * }
  */
 export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
+  // 0. Vérifier que le tenant a un vrai numéro WhatsApp en production
+  // Sans numéro dédié, on tombe sur le sandbox US qui accepte les messages
+  // mais ne les délivre jamais → retourner false pour que la cascade SMS prenne le relais
+  const fromNumber = getWhatsAppFromNumber(tenantId);
+  if (!fromNumber || fromNumber === TWILIO_WHATSAPP_NUMBER) {
+    // Pas de numéro WhatsApp dédié pour ce tenant → skip
+    return {
+      success: false,
+      error: 'WhatsApp non configuré pour ce tenant (pas de numéro dédié)',
+      skipped: true,
+    };
+  }
+
   // 1. Vérifier la configuration Twilio
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
     logEvent('WARN', ERROR_TYPES.TWILIO_NOT_CONFIGURED, 'Twilio non configuré - mode simulation', {

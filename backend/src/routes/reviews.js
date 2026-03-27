@@ -1,16 +1,28 @@
 /**
  * Routes Avis Clients — Multi-tenant
  *
- * GET  /api/reviews              - Avis approuvés (public)
- * POST /api/reviews              - Soumettre un avis (via token)
+ * GET  /api/reviews              - Avis approuvés (public, avec photo_url + service_name)
+ * GET  /api/reviews/info         - Infos réservation pour formulaire avis (via token)
+ * POST /api/reviews              - Soumettre un avis avec photo optionnelle (via token)
  * GET  /api/admin/reviews        - Tous les avis (admin)
  * PATCH /api/admin/reviews/:id   - Approuver/rejeter (admin)
  */
 
 import express from 'express';
+import multer from 'multer';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import crypto from 'crypto';
+
+// Config multer pour upload photo avis (5MB max, images uniquement)
+const uploadPhoto = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
 
 const router = express.Router();
 
@@ -66,7 +78,7 @@ router.get('/', async (req, res) => {
 
     const { data: reviews, error } = await supabase
       .from('reviews')
-      .select('id, client_prenom, rating, comment, created_at')
+      .select('id, client_prenom, rating, comment, photo_url, service_name, created_at')
       .eq('status', 'approved')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
@@ -101,8 +113,51 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/reviews - Soumettre un avis (via token)
-router.post('/', async (req, res) => {
+// GET /api/reviews/info?token=xxx - Infos réservation pour le formulaire d'avis
+router.get('/info', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token requis' });
+    }
+
+    // 🔒 TENANT ISOLATION
+    const { data: reservation, error: resErr } = await supabase
+      .from('reservations')
+      .select('id, service_nom, client_nom')
+      .eq('avis_token', token)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (resErr || !reservation) {
+      return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    }
+
+    res.json({
+      success: true,
+      service_name: reservation.service_nom || null,
+      client_name: reservation.client_nom || null
+    });
+  } catch (error) {
+    console.error('[REVIEWS] Erreur GET /info:', error.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/reviews - Soumettre un avis (via token, avec photo optionnelle)
+router.post('/', (req, res, next) => {
+  uploadPhoto.single('photo')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Photo trop volumineuse (max 5MB)' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Récupérer le tenant_id du middleware
     const tenantId = req.tenantId;
@@ -114,14 +169,15 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Token requis' });
     }
 
-    if (!rating || rating < 1 || rating > 5) {
+    const ratingNum = parseInt(rating);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
       return res.status(400).json({ error: 'Note entre 1 et 5 requise' });
     }
 
     // Vérifier le token (lié à une réservation) (🔒 TENANT ISOLATION)
     const { data: reservation, error: resErr } = await supabase
       .from('reservations')
-      .select('id, client_id, client_nom, demande_avis_envoyee')
+      .select('id, client_id, client_nom, service_nom, demande_avis_envoyee')
       .eq('avis_token', token)
       .eq('tenant_id', tenantId)
       .single();
@@ -156,6 +212,40 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Upload photo si présente
+    let photoUrl = null;
+    if (req.file) {
+      const ext = req.file.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : req.file.mimetype.split('/')[1];
+      const reviewId = crypto.randomUUID();
+      const storagePath = `${tenantId}/${reviewId}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('review-photos')
+        .upload(storagePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        // Bucket n'existe pas encore → le créer puis retry
+        if (uploadError.message?.includes('not found') || uploadError.statusCode === '404') {
+          await supabase.storage.createBucket('review-photos', { public: true, fileSizeLimit: 5242880 });
+          const { error: retryErr } = await supabase.storage
+            .from('review-photos')
+            .upload(storagePath, req.file.buffer, {
+              contentType: req.file.mimetype,
+              upsert: true,
+            });
+          if (retryErr) throw retryErr;
+        } else {
+          throw uploadError;
+        }
+      }
+
+      const { data: urlData } = supabase.storage.from('review-photos').getPublicUrl(storagePath);
+      photoUrl = urlData.publicUrl;
+    }
+
     // Créer l'avis (🔒 TENANT ISOLATION)
     const { data: review, error: insertErr } = await supabase
       .from('reviews')
@@ -164,8 +254,10 @@ router.post('/', async (req, res) => {
         client_id: reservation.client_id,
         reservation_id: reservation.id,
         client_prenom: clientPrenom,
-        rating: parseInt(rating),
+        rating: ratingNum,
         comment: comment?.trim() || null,
+        photo_url: photoUrl,
+        service_name: reservation.service_nom || null,
         status: 'pending'
       })
       .select()

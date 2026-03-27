@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Star, CheckCircle, AlertCircle } from "lucide-react";
+import { Star, CheckCircle, AlertCircle, Camera, X } from "lucide-react";
+import { apiFetch } from "@/lib/api-config";
 
 export default function AvisPage() {
   const [, navigate] = useLocation();
@@ -10,9 +11,53 @@ export default function AvisPage() {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [serviceName, setServiceName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Charger les infos de la réservation (service_name)
+  useEffect(() => {
+    if (!token) return;
+    apiFetch(`/api/reviews/info?token=${token}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.service_name) {
+          setServiceName(data.service_name);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Photo trop volumineuse (max 5MB)");
+      return;
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Format accepté : JPG, PNG ou WebP");
+      return;
+    }
+
+    setPhotoFile(file);
+    setError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   if (!token) {
     return (
@@ -65,10 +110,14 @@ export default function AvisPage() {
     setError("");
 
     try {
-      const res = await fetch(`/api/reviews?token=${token}`, {
+      const formData = new FormData();
+      formData.append("rating", String(rating));
+      formData.append("comment", comment);
+      if (photoFile) formData.append("photo", photoFile);
+
+      const res = await apiFetch(`/api/reviews?token=${token}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, comment }),
+        body: formData,
       });
 
       const data = await res.json();
@@ -94,8 +143,13 @@ export default function AvisPage() {
             Votre avis compte !
           </h1>
           <p className="text-zinc-400">
-            Comment s'est passée votre prestation chez Fat's Hair-Afro ?
+            Comment s'est passée votre prestation ?
           </p>
+          {serviceName && (
+            <p className="text-amber-400 text-sm font-medium mt-2">
+              {serviceName}
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -149,6 +203,50 @@ export default function AvisPage() {
             <p className="text-xs text-zinc-500 mt-1 text-right">
               {comment.length}/500
             </p>
+          </div>
+
+          {/* Upload photo */}
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">
+              Photo de votre prestation (optionnel)
+            </label>
+            {photoPreview ? (
+              <div className="relative rounded-lg overflow-hidden">
+                <img
+                  src={photoPreview}
+                  alt="Aperçu"
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute top-2 right-2 w-8 h-8 bg-black/70 rounded-full flex items-center justify-center hover:bg-black/90 transition"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-6 border-2 border-dashed border-zinc-700 rounded-lg flex flex-col items-center gap-2 hover:border-amber-500/50 transition-colors"
+              >
+                <Camera className="w-8 h-8 text-zinc-500" />
+                <span className="text-sm text-zinc-500">
+                  Ajouter une photo
+                </span>
+                <span className="text-xs text-zinc-600">
+                  JPG, PNG ou WebP — max 5MB
+                </span>
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoSelect}
+              className="hidden"
+            />
           </div>
 
           {error && (
