@@ -261,7 +261,7 @@ router.get('/:slug', async (req, res) => {
     const [articleResult, brandingData, relatedResult] = await Promise.all([
       supabase
         .from('seo_articles')
-        .select('id, titre, slug, contenu, meta_description, mots_cles_cibles, date_publication, lectures')
+        .select('id, titre, slug, contenu, meta_description, mots_cles_cibles, date_publication')
         .eq('tenant_id', req.tenantId)
         .eq('slug', slug)
         .eq('statut', 'publie')
@@ -302,14 +302,7 @@ router.get('/:slug', async (req, res) => {
 </html>`);
     }
 
-    // Incrementer lectures (fire-and-forget)
-    supabase
-      .from('seo_articles')
-      .update({ lectures: (article.lectures || 0) + 1 })
-      .eq('id', article.id)
-      .eq('tenant_id', req.tenantId)
-      .then(() => {})
-      .catch(err => console.error('[BLOG SSR] Erreur increment lectures:', err));
+    // TODO: Incrementer lectures quand colonne ajoutee a seo_articles
 
     const branding = brandingData;
     const companyName = escapeHTML((branding && branding.company_name) || 'Blog');
