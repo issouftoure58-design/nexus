@@ -279,7 +279,7 @@ export default function Guide() {
 
       {/* Footer */}
       <div className="text-center text-sm text-gray-400 pt-4">
-        <p>NEXUS v3.20.0 — Pour toute question, contactez support@nexus-ai-saas.com</p>
+        <p>NEXUS v3.20.0 — Pour toute question, contactez nexussentinelai@yahoo.com</p>
       </div>
     </div>
   );

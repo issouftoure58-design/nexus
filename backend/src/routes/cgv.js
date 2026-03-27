@@ -60,7 +60,7 @@ const CGV_CONTENT = {
     {
       numero: 9,
       titre: 'Contact',
-      contenu: `Pour toute question relative aux présentes CGV : Email : support@nexus-ai-saas.com. Site : https://nexus-ai-saas.com. Les présentes CGV sont consultables à tout moment sur la plateforme.`
+      contenu: `Pour toute question relative aux présentes CGV : Email : nexussentinelai@yahoo.com. Site : https://nexus-ai-saas.com. Les présentes CGV sont consultables à tout moment sur la plateforme.`
     },
     {
       numero: 10,

@@ -36,7 +36,7 @@ info:
   version: 1.0.0
   contact:
     name: NEXUS Support
-    email: support@nexus.ai
+    email: nexussentinelai@yahoo.com
 
 servers:
   - url: https://nexus-backend-dev.onrender.com/api/v1

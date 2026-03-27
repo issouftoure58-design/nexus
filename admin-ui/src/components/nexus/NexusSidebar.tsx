@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CreditCard, Settings, LogOut,
   Hexagon, ChevronDown, ChevronRight, PanelLeftClose,
   Shield, BarChart3, Bot, DollarSign,
-  ShieldCheck, Brain, HardDrive, AlertTriangle, FlaskConical, Mail,
+  ShieldCheck, Brain, HardDrive, AlertTriangle, FlaskConical, Mail, ClipboardCheck,
 } from 'lucide-react';
 import type { SidebarState } from './NexusLayout';
 
@@ -32,6 +32,7 @@ const SENTINEL_TABS = [
   { id: 'errors',       label: 'Erreurs',         icon: AlertTriangle, path: '/nexus/sentinel/errors' },
   { id: 'logic-tests',  label: 'Tests Logiques',  icon: FlaskConical,  path: '/nexus/sentinel/logic-tests' },
   { id: 'prospection',  label: 'Prospection',     icon: Mail,          path: '/nexus/sentinel/prospection' },
+  { id: 'demandes',     label: 'Demandes',        icon: ClipboardCheck, path: '/nexus/sentinel/demandes' },
 ] as const;
 
 const TOP_ITEMS: MenuItem[] = [

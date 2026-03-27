@@ -9,6 +9,7 @@
 
 import { supabase } from '../../config/supabase.js';
 import { cleanupE2ETenant } from './bootstrap.js';
+import { getFeaturesForPlan } from '../../config/planFeatures.js';
 import bcrypt from 'bcryptjs';
 
 const BASE_URL = `http://localhost:${process.env.PORT || 3001}`;
@@ -67,19 +68,19 @@ async function createDirectTenant(suffix, options = {}) {
   const statut = options.statut || 'essai';
   const essaiFin = options.essai_fin || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Insert tenant (tier + status requis par schema)
+  // Insert tenant — format aligne avec POST /api/signup
   const { error: tenantErr } = await supabase.from('tenants').insert({
     id: tenantId,
     name: `${E2E_PREFIX}${suffix}`,
-    tier: plan,
-    status: statut === 'essai' ? 'trial' : 'active',
-    domain: `${tenantId}.nexus.app`,
+    slug: tenantId,
     plan,
+    status: statut === 'essai' ? 'trial' : 'active',
     statut,
     essai_fin: essaiFin,
     onboarding_completed: true,
     structure_juridique: 'company',
-    modules_actifs: ['reservations', 'whatsapp', 'marketing', 'seo', 'comptabilite', 'fidelite', 'rh', 'stock'],
+    modules_actifs: getFeaturesForPlan(plan),
+    settings: { timezone: 'Europe/Paris', currency: 'EUR', locale: 'fr-FR' },
     created_at: new Date().toISOString(),
   });
   if (tenantErr) throw new Error(`Tenant creation failed: ${tenantErr.message}`);
@@ -411,15 +412,15 @@ async function runContext_C4_expiration() {
     const { error: tenantErr } = await supabase.from('tenants').insert({
       id: tenantId,
       name: `${E2E_PREFIX}expired`,
-      tier: 'business',
-      status: 'trial',
-      domain: `${tenantId}.nexus.app`,
+      slug: tenantId,
       plan: 'business',
+      status: 'trial',
       statut: 'essai',
       essai_fin: yesterday,
       onboarding_completed: true,
       structure_juridique: 'company',
-      modules_actifs: ['reservations'],
+      modules_actifs: getFeaturesForPlan('business'),
+      settings: { timezone: 'Europe/Paris', currency: 'EUR', locale: 'fr-FR' },
       created_at: new Date().toISOString(),
     });
     if (tenantErr) throw new Error(`Tenant insert: ${tenantErr.message}`);
@@ -599,16 +600,21 @@ async function runContext_C6_quotas(tenantId, token) {
     const { data: clientData } = await apiCall('GET', '/api/admin/clients', token);
     const clients = clientData?.clients || clientData?.data || [];
     let clientId = Array.isArray(clients) && clients.length > 0 ? clients[0].id : null;
+    let clientCreateStatus = 'existing';
 
     if (!clientId) {
-      // Create a test client
-      const { data: newClient } = await apiCall('POST', '/api/admin/clients', token, {
+      // Create a test client (telephone unique par tentative pour eviter conflit 409)
+      const phone = `06${Date.now().toString().slice(-8)}`;
+      const { status: cStatus, data: newClient } = await apiCall('POST', '/api/admin/clients', token, {
         nom: `${E2E_PREFIX}Client`,
         prenom: 'Test',
-        email: 'client-e2e@plte.internal',
-        telephone: '0600000099',
+        email: `client-e2e-${Date.now()}@plte.internal`,
+        telephone: phone,
       });
-      clientId = newClient?.client?.id || newClient?.id;
+      clientCreateStatus = `status=${cStatus}`;
+      if (cStatus === 201 || cStatus === 200) {
+        clientId = newClient?.client?.id || newClient?.id;
+      }
     }
 
     if (service && clientId) {
@@ -633,9 +639,11 @@ async function runContext_C6_quotas(tenantId, token) {
         'Creation reservation reussie', passed,
         passed ? null : `status=${status}, error=${data?.error}`));
     } else {
+      // Log detaille pour debug
+      const svcCount = Array.isArray(services) ? services.length : 0;
       results.push(makeResult('C6_03_reservation_ok', 'quotas', 'warning',
         'Creation reservation reussie', false,
-        `Missing: service=${!!service}, clientId=${clientId}`));
+        `Missing: service=${!!service}(${svcCount}), clientId=${clientId}, clientCreate=${clientCreateStatus}`));
     }
   } catch (err) {
     results.push(makeResult('C6_03_reservation_ok', 'quotas', 'warning',

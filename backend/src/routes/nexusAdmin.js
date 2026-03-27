@@ -1310,6 +1310,112 @@ sentinelIntelligenceRouter.get('/recommendations', async (req, res) => {
   }
 });
 
+// ============================================
+// DEMANDES D'ACTIVATION MODULES
+// ============================================
+
+/**
+ * GET /api/nexus/sentinel/module-requests
+ * Liste toutes les demandes d'activation modules (JOIN tenants)
+ */
+router.get('/sentinel/module-requests', async (req, res) => {
+  try {
+    const statusFilter = req.query.status;
+
+    let query = supabase
+      .from('module_activation_requests')
+      .select('id, tenant_id, module_id, status, requested_at, processed_at, notes, tenants(name, plan)')
+      .order('requested_at', { ascending: false });
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Trier: pending en premier
+    const sorted = (data || []).sort((a, b) => {
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (a.status !== 'pending' && b.status === 'pending') return 1;
+      return new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime();
+    });
+
+    res.json({ data: sorted });
+  } catch (error) {
+    console.error('[NEXUS] Module requests list error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/nexus/sentinel/module-requests/:id
+ * Approuver ou rejeter une demande
+ */
+router.patch('/sentinel/module-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, notes } = req.body;
+
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action requise: approve ou reject' });
+    }
+
+    // Recuperer la demande
+    const { data: request, error: fetchErr } = await supabase
+      .from('module_activation_requests')
+      .select('id, tenant_id, module_id, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !request) {
+      return res.status(404).json({ error: 'Demande non trouvee' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Demande deja traitee' });
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+    // Mettre a jour la demande
+    const { error: updateErr } = await supabase
+      .from('module_activation_requests')
+      .update({
+        status: newStatus,
+        processed_at: new Date().toISOString(),
+        notes: notes || null,
+      })
+      .eq('id', id);
+
+    if (updateErr) throw updateErr;
+
+    // Si approve: activer le module pour le tenant
+    if (action === 'approve') {
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('modules_actifs')
+        .eq('id', request.tenant_id)
+        .single();
+
+      const currentModules = tenant?.modules_actifs || {};
+      currentModules[request.module_id] = true;
+
+      const { error: tenantErr } = await supabase
+        .from('tenants')
+        .update({ modules_actifs: currentModules })
+        .eq('id', request.tenant_id);
+
+      if (tenantErr) throw tenantErr;
+    }
+
+    res.json({ success: true, status: newStatus });
+  } catch (error) {
+    console.error('[NEXUS] Module request action error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- /api/sentinel/autopilot/* ---
 export const sentinelAutopilotRouter = express.Router();
 sentinelAutopilotRouter.use(authenticateAdmin);

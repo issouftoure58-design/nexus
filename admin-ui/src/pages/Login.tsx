@@ -183,7 +183,7 @@ export default function Login() {
                     </a>
                   )}
                   {error.includes('suspendu') && (
-                    <a href="mailto:support@nexus-ai-saas.com" className="text-cyan-600 hover:text-cyan-700 font-medium text-xs ml-6">
+                    <a href="mailto:nexussentinelai@yahoo.com" className="text-cyan-600 hover:text-cyan-700 font-medium text-xs ml-6">
                       Contacter le support &rarr;
                     </a>
                   )}

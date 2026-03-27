@@ -16,6 +16,7 @@ const SentinelBackups = lazy(() => import('@/components/nexus/sentinel/SentinelB
 const SentinelErrors = lazy(() => import('@/components/nexus/sentinel/SentinelErrors'));
 const SentinelLogicTests = lazy(() => import('@/components/nexus/sentinel/SentinelLogicTests'));
 const SentinelProspection = lazy(() => import('@/components/nexus/sentinel/SentinelProspection'));
+const SentinelDemandes = lazy(() => import('@/components/nexus/sentinel/SentinelDemandes'));
 
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
   overview: SentinelOverview,
@@ -27,6 +28,7 @@ const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentTy
   errors: SentinelErrors,
   'logic-tests': SentinelLogicTests,
   prospection: SentinelProspection,
+  demandes: SentinelDemandes,
 };
 
 const VALID_TABS = Object.keys(TAB_COMPONENTS);
