@@ -852,7 +852,7 @@ function ScrapeEmailsButton({ onDone }: { onDone: () => void }) {
     setScraping(true);
     setResult(null);
     try {
-      const res = await nexusApi.post<{ data: { total: number; found: number; failed: number } }>('/nexus/prospection/scrape/emails', { limit: 50 });
+      const res = await nexusApi.post<{ data: { total: number; found: number; failed: number } }>('/nexus/prospection/scrape/emails', { limit: 500 });
       setResult((res as any).data || res);
       onDone();
     } catch (err) {

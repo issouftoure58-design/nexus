@@ -209,19 +209,37 @@ export async function scrapeEmailFromWebsite(prospectId) {
  */
 export async function scrapeEmailsBatch({ sector, city, limit = 20 } = {}) {
   const { getProspects } = await import('./prospectionService.js');
-  const { data: prospects } = await getProspects({ sector, city, hasEmail: false, limit });
 
-  const results = { total: prospects.length, found: 0, failed: 0 };
+  const results = { total: 0, found: 0, failed: 0 };
+  let currentPage = 1;
+  const pageSize = 50;
 
-  for (const prospect of prospects) {
-    const result = await scrapeEmailFromWebsite(prospect.id);
-    if (result.success && result.email) {
-      results.found++;
-    } else {
-      results.failed++;
+  // Parcourir TOUTES les pages de prospects sans email
+  while (true) {
+    const { data: prospects, total } = await getProspects({
+      sector, city, hasEmail: false, page: currentPage, limit: pageSize
+    });
+
+    if (!prospects || prospects.length === 0) break;
+
+    for (const prospect of prospects) {
+      results.total++;
+      const result = await scrapeEmailFromWebsite(prospect.id);
+      if (result.success && result.email) {
+        results.found++;
+      } else {
+        results.failed++;
+      }
+      // Delai entre chaque visite
+      await sleep(2000);
+
+      // Limite max pour eviter timeout (si limit specifie)
+      if (limit && results.total >= limit) break;
     }
-    // Delai entre chaque visite
-    await sleep(3000);
+
+    if (limit && results.total >= limit) break;
+    if (prospects.length < pageSize) break; // Derniere page
+    currentPage++;
   }
 
   return results;

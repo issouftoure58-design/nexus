@@ -265,37 +265,55 @@ export async function executeCampaign(campaignId) {
 
   const { getProspects, updateProspect } = await import('./prospectionService.js');
 
-  // Trouver les prospects eligibles
-  const { data: prospects } = await getProspects({
-    sector: campaign.sector,
-    hasEmail: true,
-    status: 'new',
-    limit: campaign.daily_send_limit,
-  });
-
-  // Filtrer par villes si specifiees
-  const filtered = campaign.cities?.length > 0
-    ? prospects.filter(p => campaign.cities.some(c => p.city?.toLowerCase().includes(c.toLowerCase())))
-    : prospects;
-
   const results = { sent: 0, failed: 0, skipped: 0 };
+  let currentPage = 1;
+  let stopSending = false;
 
-  for (const prospect of filtered) {
-    try {
-      const result = await sendProspectionEmail(prospect, campaign);
-      if (result.success) {
-        results.sent++;
-        await updateProspect(prospect.id, { status: 'contacted' });
-      } else if (result.reason === 'global_pause' || result.reason?.startsWith('limite') || result.reason?.startsWith('hors_fenetre')) {
+  // Parcourir toutes les pages de prospects eligibles
+  while (!stopSending) {
+    const { data: prospects } = await getProspects({
+      sector: campaign.sector,
+      hasEmail: true,
+      status: 'new',
+      page: currentPage,
+      limit: 50,
+    });
+
+    if (!prospects || prospects.length === 0) break;
+
+    // Filtrer par villes si specifiees
+    const filtered = campaign.cities?.length > 0
+      ? prospects.filter(p => campaign.cities.some(c => p.city?.toLowerCase().includes(c.toLowerCase())))
+      : prospects;
+
+    for (const prospect of filtered) {
+      // Verifier limite journaliere campagne
+      if (campaign.daily_send_limit && results.sent >= campaign.daily_send_limit) {
         results.skipped++;
-        break; // Arreter l'envoi, on a atteint une limite
-      } else {
+        stopSending = true;
+        break;
+      }
+
+      try {
+        const result = await sendProspectionEmail(prospect, campaign);
+        if (result.success) {
+          results.sent++;
+          await updateProspect(prospect.id, { status: 'contacted' });
+        } else if (result.reason === 'global_pause' || result.reason?.startsWith('limite') || result.reason?.startsWith('hors_fenetre')) {
+          results.skipped++;
+          stopSending = true;
+          break;
+        } else {
+          results.failed++;
+        }
+      } catch (err) {
+        console.error(`[PROSPECTION] Erreur envoi ${prospect.name}:`, err.message);
         results.failed++;
       }
-    } catch (err) {
-      console.error(`[PROSPECTION] Erreur envoi ${prospect.name}:`, err.message);
-      results.failed++;
     }
+
+    if (prospects.length < 50) break; // Derniere page
+    currentPage++;
   }
 
   // Mettre a jour les stats campagne
