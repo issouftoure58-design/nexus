@@ -429,4 +429,68 @@ router.get('/rendez-vous/:id', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/blog/articles
+ * Liste publique des articles SEO publiés du tenant
+ */
+router.get('/blog/articles', async (req, res) => {
+  try {
+    const { data: articles, error } = await supabase
+      .from('seo_articles')
+      .select('id, titre, slug, meta_description, mots_cles_cibles, date_publication')
+      .eq('tenant_id', req.tenantId)
+      .eq('statut', 'publie')
+      .order('date_publication', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ articles: articles || [] });
+  } catch (error) {
+    console.error('[BLOG] Erreur liste articles:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/blog/articles/:slug
+ * Article complet par slug (public)
+ */
+router.get('/blog/articles/:slug', async (req, res) => {
+  const { slug } = req.params;
+
+  if (!slug) {
+    return res.status(400).json({ error: 'Slug requis' });
+  }
+
+  try {
+    const { data: article, error } = await supabase
+      .from('seo_articles')
+      .select('id, titre, slug, contenu, meta_description, mots_cles_cibles, date_publication, lectures')
+      .eq('tenant_id', req.tenantId)
+      .eq('slug', slug)
+      .eq('statut', 'publie')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!article) {
+      return res.status(404).json({ error: 'Article non trouvé' });
+    }
+
+    // Incrémenter le compteur de lectures (fire-and-forget)
+    supabase
+      .from('seo_articles')
+      .update({ lectures: (article.lectures || 0) + 1 })
+      .eq('id', article.id)
+      .eq('tenant_id', req.tenantId)
+      .then(() => {})
+      .catch(err => console.error('[BLOG] Erreur increment lectures:', err));
+
+    res.json({ article });
+  } catch (error) {
+    console.error('[BLOG] Erreur article:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 export default router;

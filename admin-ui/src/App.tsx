@@ -75,6 +75,8 @@ const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Commandes = lazy(() => import('./pages/Commandes'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
 const Guide = lazy(() => import('./pages/Guide'));
+const Blog = lazy(() => import('./pages/Blog'));
+const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const SSOCallback = lazy(() => import('./pages/SSOCallback'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
@@ -188,6 +190,8 @@ function App() {
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/sso/callback" element={<SSOCallback />} />
             <Route path="/suivi/:token" element={<OrderTracking />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogArticle />} />
             <Route path="/onboarding" element={<Navigate to="/configuration" replace />} />
             <Route path="/configuration" element={<PrivateRoute skipOnboarding><Configuration /></PrivateRoute>} />
 
