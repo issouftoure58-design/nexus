@@ -205,44 +205,61 @@ export async function scrapeEmailFromWebsite(prospectId) {
 }
 
 /**
- * Scrape emails pour tous les prospects sans email d'une campagne
+ * Etat global du scrape emails en cours (background job)
+ */
+let emailScrapeStatus = { running: false, total: 0, found: 0, failed: 0, startedAt: null };
+
+export function getEmailScrapeStatus() {
+  return { ...emailScrapeStatus };
+}
+
+/**
+ * Scrape emails pour tous les prospects sans email
+ * Tourne en background — ne pas await dans la route HTTP
  */
 export async function scrapeEmailsBatch({ sector, city, limit = 20 } = {}) {
   const { getProspects } = await import('./prospectionService.js');
 
-  const results = { total: 0, found: 0, failed: 0 };
-  let currentPage = 1;
-  const pageSize = 50;
+  emailScrapeStatus = { running: true, total: 0, found: 0, failed: 0, startedAt: new Date().toISOString() };
 
-  // Parcourir TOUTES les pages de prospects sans email
-  while (true) {
-    const { data: prospects, total } = await getProspects({
-      sector, city, hasEmail: false, page: currentPage, limit: pageSize
-    });
+  try {
+    let currentPage = 1;
+    const pageSize = 50;
 
-    if (!prospects || prospects.length === 0) break;
+    // Parcourir TOUTES les pages de prospects sans email
+    while (true) {
+      const { data: prospects } = await getProspects({
+        sector, city, hasEmail: false, page: currentPage, limit: pageSize
+      });
 
-    for (const prospect of prospects) {
-      results.total++;
-      const result = await scrapeEmailFromWebsite(prospect.id);
-      if (result.success && result.email) {
-        results.found++;
-      } else {
-        results.failed++;
+      if (!prospects || prospects.length === 0) break;
+
+      for (const prospect of prospects) {
+        emailScrapeStatus.total++;
+        const result = await scrapeEmailFromWebsite(prospect.id);
+        if (result.success && result.email) {
+          emailScrapeStatus.found++;
+        } else {
+          emailScrapeStatus.failed++;
+        }
+        // Delai entre chaque visite
+        await sleep(1000);
+
+        // Limite max
+        if (limit && emailScrapeStatus.total >= limit) break;
       }
-      // Delai entre chaque visite
-      await sleep(2000);
 
-      // Limite max pour eviter timeout (si limit specifie)
-      if (limit && results.total >= limit) break;
+      if (limit && emailScrapeStatus.total >= limit) break;
+      if (prospects.length < pageSize) break; // Derniere page
+      currentPage++;
     }
-
-    if (limit && results.total >= limit) break;
-    if (prospects.length < pageSize) break; // Derniere page
-    currentPage++;
+  } catch (err) {
+    console.error('[SCRAPER] scrapeEmailsBatch error:', err.message);
+  } finally {
+    emailScrapeStatus.running = false;
   }
 
-  return results;
+  return { total: emailScrapeStatus.total, found: emailScrapeStatus.found, failed: emailScrapeStatus.failed };
 }
 
 function extractEmails(html) {

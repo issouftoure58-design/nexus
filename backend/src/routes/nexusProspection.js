@@ -14,7 +14,7 @@ import {
   getDashboardStats,
   getEmailByResendId, updateEmail,
 } from '../modules/prospection/prospectionService.js';
-import { scrapeProspects, scrapeEmailsBatch } from '../modules/prospection/prospectScraperService.js';
+import { scrapeProspects, scrapeEmailsBatch, getEmailScrapeStatus } from '../modules/prospection/prospectScraperService.js';
 import { generateInitialEmail } from '../modules/prospection/emailGeneratorService.js';
 import { executeCampaign } from '../modules/prospection/prospectionEmailSender.js';
 import { handleUnsubscribe, getUnsubscribeConfirmationPage, getUnsubscribeErrorPage } from '../modules/prospection/unsubscribeHandler.js';
@@ -136,12 +136,23 @@ router.post('/scrape', async (req, res) => {
 
 router.post('/scrape/emails', async (req, res) => {
   try {
+    const status = getEmailScrapeStatus();
+    if (status.running) {
+      return res.json({ success: true, message: 'Scrape deja en cours', data: status });
+    }
     const { sector, city, limit } = req.body;
-    const result = await scrapeEmailsBatch({ sector, city, limit: limit || 20 });
-    res.json({ success: true, data: result });
+    // Lancer en background — ne pas bloquer la requete HTTP
+    scrapeEmailsBatch({ sector, city, limit: limit || 500 }).catch(err =>
+      console.error('[SCRAPER] Background email scrape error:', err.message)
+    );
+    res.json({ success: true, message: 'Scrape lance en arriere-plan', data: { running: true, total: 0, found: 0, failed: 0 } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+router.get('/scrape/emails/status', async (_req, res) => {
+  res.json({ success: true, data: getEmailScrapeStatus() });
 });
 
 // ---------- CAMPAIGNS ----------

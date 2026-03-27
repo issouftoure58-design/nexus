@@ -846,18 +846,35 @@ function ProspectsSection() {
 
 function ScrapeEmailsButton({ onDone }: { onDone: () => void }) {
   const [scraping, setScraping] = useState(false);
-  const [result, setResult] = useState<{ total: number; found: number; failed: number } | null>(null);
+  const [status, setStatus] = useState<{ running: boolean; total: number; found: number; failed: number } | null>(null);
+
+  async function pollStatus() {
+    const poll = async () => {
+      try {
+        const res = await nexusApi.get<{ data: { running: boolean; total: number; found: number; failed: number } }>('/nexus/prospection/scrape/emails/status');
+        const data = (res as any).data || res;
+        setStatus(data);
+        if (data.running) {
+          setTimeout(poll, 3000);
+        } else {
+          setScraping(false);
+          onDone();
+        }
+      } catch {
+        setScraping(false);
+      }
+    };
+    setTimeout(poll, 2000);
+  }
 
   async function handleScrape() {
     setScraping(true);
-    setResult(null);
+    setStatus(null);
     try {
-      const res = await nexusApi.post<{ data: { total: number; found: number; failed: number } }>('/nexus/prospection/scrape/emails', { limit: 500 });
-      setResult((res as any).data || res);
-      onDone();
+      await nexusApi.post('/nexus/prospection/scrape/emails', { limit: 500 });
+      pollStatus();
     } catch (err) {
       console.error('Scrape emails error:', err);
-    } finally {
       setScraping(false);
     }
   }
@@ -871,11 +888,15 @@ function ScrapeEmailsButton({ onDone }: { onDone: () => void }) {
         title="Chercher les emails sur les sites web des prospects"
       >
         <Mail size={14} />
-        {scraping ? 'Recherche...' : 'Trouver emails'}
+        {scraping
+          ? status
+            ? `${status.found} emails / ${status.total} sites...`
+            : 'Lancement...'
+          : 'Trouver emails'}
       </button>
-      {result && (
+      {!scraping && status && status.total > 0 && (
         <div className="absolute top-full mt-1 left-0 bg-slate-800 border border-slate-700 rounded-lg p-2 text-[11px] text-white whitespace-nowrap z-10">
-          {result.found} emails trouves sur {result.total} sites visites
+          {status.found} emails trouves sur {status.total} sites visites
         </div>
       )}
     </div>
