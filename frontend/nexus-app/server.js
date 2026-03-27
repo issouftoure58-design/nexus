@@ -26,7 +26,7 @@ const setImmutableCacheHeaders = (res) => {
 app.use(createProxyMiddleware({
   target: API_BACKEND,
   changeOrigin: true,
-  pathFilter: ['/api', '/health'],
+  pathFilter: ['/api', '/health', '/blog'],
   logLevel: 'warn',
 }));
 
