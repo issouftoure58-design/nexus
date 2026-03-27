@@ -10,6 +10,23 @@ import { MODEL_DEFAULT } from '../services/modelRouter.js';
 const anthropic = new Anthropic();
 
 /**
+ * Appel Anthropic avec retry automatique (gère erreurs 529 surcharge)
+ */
+async function callWithRetry(params, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await anthropic.messages.create(params);
+    } catch (error) {
+      const isRetryable = error.status === 429 || error.status === 529 || error.status === 503;
+      if (!isRetryable || attempt === maxRetries) throw error;
+      const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+      console.log(`[SEO] API surcharge (${error.status}), retry ${attempt}/${maxRetries} dans ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+/**
  * Génère un article de blog SEO-optimisé
  */
 export async function generateArticle({
@@ -68,7 +85,7 @@ Format de réponse (JSON UNIQUEMENT, sans texte avant ou après):
 
 Le contenu doit être en Markdown avec headers ## et ###.`;
 
-    const message = await anthropic.messages.create({
+    const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: 4096,
       messages: [{
@@ -155,7 +172,7 @@ Pour chaque idée, fournis:
 Format: JSON array UNIQUEMENT, sans texte avant ou après
 [{\"titre\": \"...\", \"mot_cle\": \"...\", \"angle\": \"...\", \"public\": \"...\"}]`;
 
-    const message = await anthropic.messages.create({
+    const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: 2048,
       messages: [{
@@ -267,7 +284,7 @@ Retourne l'article amélioré au format JSON:
   "contenu": "..."
 }`;
 
-    const message = await anthropic.messages.create({
+    const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: 4096,
       messages: [{
