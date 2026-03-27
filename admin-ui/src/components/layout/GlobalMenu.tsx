@@ -36,6 +36,7 @@ const menuItems = [
   { icon: Clock, label: 'Disponibilités', path: '/disponibilites' },
   { icon: Star, label: 'Fidélité', path: '/fidelite' },
   { icon: ListChecks, label: 'Liste d\'attente', path: '/waitlist' },
+  { icon: Star, label: 'Avis Clients', path: '/avis-clients' },
   { type: 'separator', label: 'Business' },
   { icon: CreditCard, label: 'Facturation', path: '/facturation' },
   { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'business' },
