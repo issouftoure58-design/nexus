@@ -72,6 +72,22 @@ async function genererEcrituresDepense(tenantId, depenseId) {
     const montantTVA = depense.montant_tva || 0;
     const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
+    // Générer code auxiliaire fournisseur (401XXX)
+    // Convention : 401 + 3 premières lettres du fournisseur en majuscules (sans espaces/accents)
+    const fournisseur = depense.libelle || depense.categorie || '';
+    const codeAux = fournisseur
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // retirer accents
+      .replace(/[^a-zA-Z]/g, '') // garder que les lettres
+      .toUpperCase()
+      .slice(0, 3) || 'DIV';
+
+    // Numéro de facture (stocké dans description si extrait par IA, format "Fact. XXX - description")
+    const numFacture = depense.description?.match(/^Fact\.\s*([^\s—-]+)/)?.[1] || null;
+
+    // Libellé enrichi : fournisseur + numéro facture
+    const libelleBase = fournisseur;
+    const libelleComplet = numFacture ? `${libelleBase} — Fact. ${numFacture}` : libelleBase;
+
     // Déterminer si c'est une charge de personnel
     const isChargePersonnel = ['salaires', 'cotisations_sociales'].includes(depense.categorie);
 
@@ -87,8 +103,8 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       libelleContrepartie = 'Sécurité sociale';
     } else {
       journalCode = 'AC';
-      compteContrepartie = '401';
-      libelleContrepartie = 'Fournisseurs';
+      compteContrepartie = `401${codeAux}`;
+      libelleContrepartie = `Fournisseur ${fournisseur}`;
     }
 
     const ecritures = [];
@@ -98,10 +114,10 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       tenant_id: tenantId,
       journal_code: journalCode,
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: compteCharge.numero,
       compte_libelle: compteCharge.libelle,
-      libelle: depense.libelle || depense.categorie,
+      libelle: libelleComplet,
       debit: montantHT,
       credit: 0,
       depense_id: depenseId,
@@ -115,10 +131,10 @@ async function genererEcrituresDepense(tenantId, depenseId) {
         tenant_id: tenantId,
         journal_code: journalCode,
         date_ecriture: dateDepense,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: '44566',
         compte_libelle: 'TVA déductible',
-        libelle: `TVA ${depense.libelle || depense.categorie}`,
+        libelle: `TVA ${libelleComplet}`,
         debit: montantTVA,
         credit: 0,
         depense_id: depenseId,
@@ -127,17 +143,17 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       });
     }
 
-    // Crédit compte contrepartie (401 Fournisseurs, 421 Personnel, ou 431 Sécu)
+    // Crédit compte contrepartie (401XXX Fournisseur, 421 Personnel, ou 431 Sécu)
     ecritures.push({
       tenant_id: tenantId,
       journal_code: journalCode,
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: compteContrepartie,
       compte_libelle: libelleContrepartie,
-      libelle: depense.libelle || depense.categorie,
+      libelle: libelleComplet,
       debit: 0,
-      credit: isChargePersonnel ? montantHT : montantTTC, // Pas de TVA sur charges personnel
+      credit: isChargePersonnel ? montantHT : montantTTC,
       depense_id: depenseId,
       periode,
       exercice
@@ -167,15 +183,15 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       const montantReglement = isChargePersonnel ? montantHT : montantTTC;
 
       // Journal BQ/CA - Paiement
-      // Débit du compte tiers (421/431/401) pour solder la dette
+      // Débit du compte tiers (421/431/401XXX) pour solder la dette
       ecritures.push({
         tenant_id: tenantId,
         journal_code: journalPaiement,
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: compteContrepartie,
         compte_libelle: libelleContrepartie,
-        libelle: `Règlement ${depense.libelle || depense.categorie}`,
+        libelle: `Règlement ${libelleComplet}`,
         debit: montantReglement,
         credit: 0,
         depense_id: depenseId,
@@ -188,10 +204,10 @@ async function genererEcrituresDepense(tenantId, depenseId) {
         tenant_id: tenantId,
         journal_code: journalPaiement,
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: compteTreso,
         compte_libelle: libelleTreso,
-        libelle: `Paiement ${depense.libelle || depense.categorie}`,
+        libelle: `Paiement ${libelleComplet}`,
         debit: 0,
         credit: montantReglement,
         depense_id: depenseId,
@@ -1098,6 +1114,7 @@ IMPORTANT: Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant
 Format attendu:
 {
   "fournisseur": "nom du fournisseur/magasin",
+  "numero_facture": "FA-2026-0847",
   "date_facture": "YYYY-MM-DD",
   "date_paiement": "YYYY-MM-DD",
   "mode_paiement": "prelevement",
@@ -1108,6 +1125,8 @@ Format attendu:
 }
 
 Règles:
+- fournisseur: le nom commercial du fournisseur (ex: "Orange SA", "Beauté Pro Distribution SAS")
+- numero_facture: le numéro de facture tel qu'il apparaît sur le document. null si non visible
 - date_facture: la DATE DE FACTURE (date d'émission), PAS la période de service. Format YYYY-MM-DD
 - date_paiement: la date de paiement ou prélèvement si indiquée sur la facture. null si non visible
 - mode_paiement: "prelevement", "virement", "cb", "cheque" ou "especes". null si non visible
@@ -1180,7 +1199,9 @@ Réponds UNIQUEMENT avec le JSON, rien d'autre.`
         tenant_id: tenantId,
         categorie: categorie,
         libelle: extractedData.fournisseur || 'Facture importée',
-        description: extractedData.description || null,
+        description: extractedData.numero_facture
+          ? `Fact. ${extractedData.numero_facture} — ${extractedData.description || ''}`
+          : (extractedData.description || null),
         montant: montantHT,
         montant_ttc: montantTTC,
         montant_tva: montantTVA,
