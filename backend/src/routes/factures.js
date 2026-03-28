@@ -21,15 +21,28 @@ router.use(authenticateAdmin);
 // ============================================
 
 /**
- * Formate le compte auxiliaire client (411XXXXX)
- * @param {number} clientId - ID du client
- * @returns {string} Compte auxiliaire formaté (ex: '41100001', '41100042')
- *
- * 🔧 FIXED: Uniformisé avec journaux.js - 5 chiffres pour le suffix
+ * Génère un code auxiliaire à partir d'un nom (3 premières lettres, sans accents)
  */
-function getCompteAuxiliaireClient(clientId) {
-  if (!clientId) return '41100000'; // Compte collectif par défaut
-  // Format: 411 + ID client sur 5 chiffres (ex: 41100001)
+function genererCodeAux(nom) {
+  if (!nom) return 'DIV';
+  return nom
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z]/g, '')
+    .toUpperCase()
+    .slice(0, 3) || 'DIV';
+}
+
+/**
+ * Formate le compte auxiliaire client (411XXX)
+ * Convention : 411 + 3 premières lettres du nom client
+ * Ex: 411MAR (Martin), 411DUB (Dubois), 411PET (Petit)
+ * @param {number} clientId - ID du client (fallback numérique)
+ * @param {string} clientNom - Nom du client
+ * @returns {string} Compte auxiliaire formaté (ex: '411MAR')
+ */
+function getCompteAuxiliaireClient(clientId, clientNom) {
+  if (clientNom) return `411${genererCodeAux(clientNom)}`;
+  if (!clientId) return '411DIV';
   return `411${String(clientId).padStart(5, '0')}`;
 }
 
@@ -81,8 +94,8 @@ export async function genererEcrituresFacture(tenantId, factureId) {
     const ecritures = [];
 
     // Journal VT - Écriture de vente
-    // Débit 411XXX Client (compte auxiliaire)
-    const compteClient = getCompteAuxiliaireClient(facture.client_id);
+    // Débit 411XXX Client (compte auxiliaire alphabétique)
+    const compteClient = getCompteAuxiliaireClient(facture.client_id, facture.client_nom);
     ecritures.push({
       tenant_id: tenantId,
       journal_code: 'VT',
@@ -235,7 +248,7 @@ async function genererEcrituresAvoir(tenantId, avoir, factureOriginale) {
     const montantHT = Math.abs(avoir.montant_ht || montantTTC);
     const montantTVA = Math.abs(avoir.montant_tva || (montantTTC - montantHT));
 
-    const compteClient = getCompteAuxiliaireClient(factureOriginale.client_id);
+    const compteClient = getCompteAuxiliaireClient(factureOriginale.client_id, avoir.client_nom || factureOriginale.client_nom);
 
     const ecritures = [];
 
@@ -246,7 +259,7 @@ async function genererEcrituresAvoir(tenantId, avoir, factureOriginale) {
       date_ecriture: dateAvoir,
       numero_piece: avoir.numero,
       compte_numero: compteClient,
-      compte_libelle: `Client ${avoir.client_nom || factureOriginale.client_id}`,
+      compte_libelle: `Client ${avoir.client_nom || factureOriginale.client_nom || factureOriginale.client_id}`,
       libelle: `Avoir ${avoir.numero} (ref: ${factureOriginale.numero})`,
       debit: 0,
       credit: montantTTC,
@@ -1530,8 +1543,8 @@ export async function genererEcrituresPaiement(tenantId, facture, mode_paiement,
     const exercice = parseInt(dateEcriture?.slice(0, 4)) || new Date().getFullYear();
     const montantTTC = facture.montant_ttc || 0;
 
-    // Compte auxiliaire client (411XXX)
-    const compteClient = getCompteAuxiliaireClient(facture.client_id);
+    // Compte auxiliaire client (411XXX alphabétique)
+    const compteClient = getCompteAuxiliaireClient(facture.client_id, facture.client_nom);
 
     const ecritures = [
       // Débit Banque/Caisse

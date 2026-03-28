@@ -419,14 +419,15 @@ router.post('/generer/facture', async (req, res) => {
     const ecritures = [];
 
     // Journal VT - Écriture de vente
-    // Débit 411 Client
+    // Débit 411XXX Client (compte auxiliaire alphabétique)
+    const compteClientManuel = facture.client_id ? getCompteClient(facture.client_id, facture.client_nom) : '411';
     ecritures.push({
       tenant_id: req.admin.tenant_id,
       journal_code: 'VT',
       date_ecriture: dateFacture,
       numero_piece: facture.numero,
-      compte_numero: '411',
-      compte_libelle: 'Clients',
+      compte_numero: compteClientManuel,
+      compte_libelle: facture.client_nom ? `Client ${facture.client_nom}` : 'Clients',
       libelle: `Facture ${facture.numero} - ${facture.client_nom}`,
       debit: montantTTC,
       credit: 0,
@@ -497,14 +498,14 @@ router.post('/generer/facture', async (req, res) => {
         exercice
       });
 
-      // Crédit 411 Client
+      // Crédit 411XXX Client
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: journalCode,
         date_ecriture: datePaiement,
         numero_piece: facture.numero,
-        compte_numero: '411',
-        compte_libelle: 'Clients',
+        compte_numero: compteClientManuel,
+        compte_libelle: facture.client_nom ? `Client ${facture.client_nom}` : 'Clients',
         libelle: `Règlement ${facture.numero} - ${facture.client_nom}`,
         debit: 0,
         credit: montantTTC,
@@ -891,8 +892,8 @@ async function generateFactureEcritures(tenantId, factureId) {
   const montantHT = facture.montant_ht || montantTTC;
   const montantTVA = facture.montant_tva || 0;
 
-  // Sous-compte client (411 + client_id sur 5 chiffres)
-  const compteClient = facture.client_id ? getCompteClient(facture.client_id) : '411';
+  // Sous-compte client auxiliaire (411XXX — 3 premières lettres du nom)
+  const compteClient = facture.client_id ? getCompteClient(facture.client_id, facture.client_nom) : '411';
   const libelleClient = facture.client_nom ? `Client ${facture.client_nom}` : 'Clients';
 
   const ecritures = [
@@ -1018,9 +1019,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
   const montantTVA = depense.montant_tva || 0;
   const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
-  // Sous-compte fournisseur (401 + depense_id sur 5 chiffres)
-  const compteFournisseur = getCompteFournisseur(depenseId);
-  const libelleFournisseur = depense.fournisseur || depense.libelle || 'Fournisseur';
+  // Sous-compte fournisseur auxiliaire (401XXX — 3 premières lettres du nom)
+  const nomFournisseur = depense.fournisseur || depense.libelle || 'Fournisseur';
+  const compteFournisseur = getCompteFournisseur(depenseId, nomFournisseur);
+  const libelleFournisseur = `Fournisseur ${nomFournisseur}`;
 
   const ecritures = [
     {
@@ -1436,20 +1438,42 @@ router.get('/a-nouveaux/status', async (req, res) => {
 // ============================================
 
 /**
- * Génère un numéro de sous-compte client (411XXXXX)
- * @param {number} clientId - ID du client
- * @returns {string} - Numéro de compte (ex: 41100001)
+ * Génère un code auxiliaire à partir d'un nom (3 premières lettres, sans accents)
+ * @param {string} nom - Nom du tiers (client ou fournisseur)
+ * @returns {string} - Code auxiliaire (ex: MAR, ORA, BEA)
  */
-function getCompteClient(clientId) {
+function genererCodeAuxiliaire(nom) {
+  if (!nom) return 'DIV';
+  return nom
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // retirer accents
+    .replace(/[^a-zA-Z]/g, '') // garder que les lettres
+    .toUpperCase()
+    .slice(0, 3) || 'DIV';
+}
+
+/**
+ * Génère un numéro de sous-compte client (411XXX)
+ * Convention : 411 + 3 premières lettres du nom client
+ * Ex: 411MAR (Martin), 411DUB (Dubois)
+ * @param {number} clientId - ID du client (fallback numérique)
+ * @param {string} clientNom - Nom du client
+ * @returns {string} - Numéro de compte (ex: 411MAR)
+ */
+function getCompteClient(clientId, clientNom) {
+  if (clientNom) return `411${genererCodeAuxiliaire(clientNom)}`;
   return `411${String(clientId).padStart(5, '0')}`;
 }
 
 /**
- * Génère un numéro de sous-compte fournisseur (401XXXXX)
- * @param {number} fournisseurId - ID du fournisseur ou dépense
- * @returns {string} - Numéro de compte (ex: 40100001)
+ * Génère un numéro de sous-compte fournisseur (401XXX)
+ * Convention : 401 + 3 premières lettres du nom fournisseur
+ * Ex: 401ORA (Orange), 401BEA (Beauté Pro)
+ * @param {number} fournisseurId - ID du fournisseur (fallback numérique)
+ * @param {string} fournisseurNom - Nom du fournisseur
+ * @returns {string} - Numéro de compte (ex: 401ORA)
  */
-function getCompteFournisseur(fournisseurId) {
+function getCompteFournisseur(fournisseurId, fournisseurNom) {
+  if (fournisseurNom) return `401${genererCodeAuxiliaire(fournisseurNom)}`;
   return `401${String(fournisseurId).padStart(5, '0')}`;
 }
 
