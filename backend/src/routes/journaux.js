@@ -568,6 +568,12 @@ router.post('/generer/depense', async (req, res) => {
     const montantTVA = depense.montant_tva || 0;
     const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
+    // Numéro de facture et libellé enrichi (même logique que depenses.js)
+    const fournisseur = depense.libelle || depense.categorie || '';
+    const numFacture = depense.description?.match(/^Fact\.\s*(.+?)\s*—/)?.[1] || depense.description?.match(/^Fact\.\s*(\S+)/)?.[1] || null;
+    const libelleComplet = numFacture ? `${fournisseur} — Fact. ${numFacture}` : fournisseur;
+    const codeAux = fournisseur.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3) || 'DIV';
+
     const ecritures = [];
 
     // Journal AC - Écriture d'achat
@@ -576,10 +582,10 @@ router.post('/generer/depense', async (req, res) => {
       tenant_id: req.admin.tenant_id,
       journal_code: 'AC',
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: compteCharge.numero,
       compte_libelle: compteCharge.libelle,
-      libelle: depense.libelle || depense.categorie,
+      libelle: libelleComplet,
       debit: montantHT,
       credit: 0,
       depense_id,
@@ -593,10 +599,10 @@ router.post('/generer/depense', async (req, res) => {
         tenant_id: req.admin.tenant_id,
         journal_code: 'AC',
         date_ecriture: dateDepense,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: '44566',
         compte_libelle: 'TVA déductible',
-        libelle: `TVA ${depense.libelle || depense.categorie}`,
+        libelle: `TVA ${libelleComplet}`,
         debit: montantTVA,
         credit: 0,
         depense_id,
@@ -605,15 +611,15 @@ router.post('/generer/depense', async (req, res) => {
       });
     }
 
-    // Crédit 401 Fournisseurs
+    // Crédit 401XXX Fournisseur
     ecritures.push({
       tenant_id: req.admin.tenant_id,
       journal_code: 'AC',
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
-      compte_numero: '401',
-      compte_libelle: 'Fournisseurs',
-      libelle: depense.libelle || depense.categorie,
+      numero_piece: numFacture || `DEP-${depense.id}`,
+      compte_numero: `401${codeAux}`,
+      compte_libelle: `Fournisseur ${fournisseur}`,
+      libelle: libelleComplet,
       debit: 0,
       credit: montantTTC,
       depense_id,
@@ -627,15 +633,15 @@ router.post('/generer/depense', async (req, res) => {
       const periodePaie = datePaiement.slice(0, 7);
 
       // Journal BQ - Paiement
-      // Débit 401 Fournisseurs
+      // Débit 401XXX Fournisseur
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: 'BQ',
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
-        compte_numero: '401',
-        compte_libelle: 'Fournisseurs',
-        libelle: `Règlement ${depense.libelle || depense.categorie}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
+        compte_numero: `401${codeAux}`,
+        compte_libelle: `Fournisseur ${fournisseur}`,
+        libelle: `Règlement ${libelleComplet}`,
         debit: montantTTC,
         credit: 0,
         depense_id,
@@ -648,10 +654,10 @@ router.post('/generer/depense', async (req, res) => {
         tenant_id: req.admin.tenant_id,
         journal_code: 'BQ',
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: '512',
         compte_libelle: 'Banque',
-        libelle: `Paiement ${depense.libelle || depense.categorie}`,
+        libelle: `Paiement ${libelleComplet}`,
         debit: 0,
         credit: montantTTC,
         depense_id,
@@ -1019,20 +1025,23 @@ async function generateDepenseEcritures(tenantId, depenseId) {
   const montantTVA = depense.montant_tva || 0;
   const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
-  // Sous-compte fournisseur auxiliaire (401XXX — 3 premières lettres du nom)
-  const nomFournisseur = depense.fournisseur || depense.libelle || 'Fournisseur';
-  const compteFournisseur = getCompteFournisseur(depenseId, nomFournisseur);
-  const libelleFournisseur = `Fournisseur ${nomFournisseur}`;
+  // Numéro de facture et libellé enrichi (même logique que depenses.js)
+  const fournisseur = depense.libelle || depense.categorie || '';
+  const numFacture = depense.description?.match(/^Fact\.\s*(.+?)\s*—/)?.[1] || depense.description?.match(/^Fact\.\s*(\S+)/)?.[1] || null;
+  const libelleComplet = numFacture ? `${fournisseur} — Fact. ${numFacture}` : fournisseur;
+  const codeAux = fournisseur.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3) || 'DIV';
+  const compteFournisseur = `401${codeAux}`;
+  const libelleFournisseur = `Fournisseur ${fournisseur}`;
 
   const ecritures = [
     {
       tenant_id: tenantId,
       journal_code: 'AC',
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: compteCharge.numero,
       compte_libelle: compteCharge.libelle,
-      libelle: depense.libelle || depense.categorie,
+      libelle: libelleComplet,
       debit: montantHT,
       credit: 0,
       depense_id: depenseId,
@@ -1043,10 +1052,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
       tenant_id: tenantId,
       journal_code: 'AC',
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: compteFournisseur,
       compte_libelle: libelleFournisseur,
-      libelle: depense.libelle || depense.categorie,
+      libelle: libelleComplet,
       debit: 0,
       credit: montantTTC,
       depense_id: depenseId,
@@ -1060,10 +1069,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
       tenant_id: tenantId,
       journal_code: 'AC',
       date_ecriture: dateDepense,
-      numero_piece: `DEP-${depense.id}`,
+      numero_piece: numFacture || `DEP-${depense.id}`,
       compte_numero: '44566',
       compte_libelle: 'TVA déductible',
-      libelle: `TVA ${depense.libelle || depense.categorie}`,
+      libelle: `TVA ${libelleComplet}`,
       debit: montantTVA,
       credit: 0,
       depense_id: depenseId,
@@ -1081,10 +1090,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
         tenant_id: tenantId,
         journal_code: 'BQ',
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: compteFournisseur,
         compte_libelle: libelleFournisseur,
-        libelle: `Règlement ${depense.libelle || depense.categorie}`,
+        libelle: `Règlement ${libelleComplet}`,
         debit: montantTTC,
         credit: 0,
         depense_id: depenseId,
@@ -1095,10 +1104,10 @@ async function generateDepenseEcritures(tenantId, depenseId) {
         tenant_id: tenantId,
         journal_code: 'BQ',
         date_ecriture: datePaiement,
-        numero_piece: `DEP-${depense.id}`,
+        numero_piece: numFacture || `DEP-${depense.id}`,
         compte_numero: '512',
         compte_libelle: 'Banque',
-        libelle: `Paiement ${depense.libelle || depense.categorie}`,
+        libelle: `Paiement ${libelleComplet}`,
         debit: 0,
         credit: montantTTC,
         depense_id: depenseId,
