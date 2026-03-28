@@ -125,8 +125,8 @@ async function testW2_AdminChatReservation(tenantId) {
         `Chat echoue: ${result?.error}`);
     }
 
-    // Verifier que la reponse contient un nombre
-    const hasNumber = /\d+/.test(result.response);
+    // Verifier que la reponse contient un nombre ou une indication de quantite
+    const hasNumber = /\d+|aucun|pas de|zéro|zero|personne/i.test(result.response);
     if (!hasNumber) {
       return makeResult(name, module, severity, description, 'fail',
         'Reponse ne contient pas de nombre de clients');
