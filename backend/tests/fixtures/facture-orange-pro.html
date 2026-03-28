@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Facture Orange Pro — Mars 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #1a1a1a; padding: 40px; max-width: 800px; margin: 0 auto; background: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px; padding-bottom: 20px; border-bottom: 3px solid #FF6600; }
+  .logo { font-size: 32px; font-weight: 700; color: #FF6600; }
+  .logo span { font-size: 12px; display: block; color: #666; font-weight: 400; margin-top: 2px; }
+  .facture-badge { background: #FF6600; color: white; padding: 8px 20px; border-radius: 4px; font-weight: 600; font-size: 15px; }
+  .parties { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .partie { width: 45%; }
+  .partie h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+  .partie p { line-height: 1.6; }
+  .partie .name { font-weight: 600; font-size: 14px; }
+  .info-box { background: #FFF8F0; border: 1px solid #FFE0C0; border-radius: 6px; padding: 15px; margin-bottom: 25px; display: flex; gap: 30px; }
+  .info-box .item { }
+  .info-box .item label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #999; display: block; }
+  .info-box .item span { font-weight: 600; color: #333; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+  thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: white; background: #FF6600; padding: 10px 8px; }
+  thead th:last-child, thead th:nth-child(3) { text-align: right; }
+  tbody td { padding: 10px 8px; border-bottom: 1px solid #f0f0f0; }
+  tbody td:last-child, tbody td:nth-child(3) { text-align: right; }
+  .section-title { font-size: 12px; font-weight: 600; color: #FF6600; text-transform: uppercase; margin: 20px 0 10px; letter-spacing: 0.5px; }
+  .totaux { display: flex; justify-content: flex-end; margin-bottom: 30px; }
+  .totaux table { width: 300px; }
+  .totaux thead { display: none; }
+  .totaux td { padding: 6px 8px; border: none; }
+  .totaux td:last-child { text-align: right; font-weight: 500; }
+  .totaux .total-row { background: #FF6600; border-radius: 4px; }
+  .totaux .total-row td { color: white; font-size: 15px; font-weight: 700; padding: 10px 8px; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; font-size: 10px; color: #999; text-align: center; line-height: 1.8; }
+  .prelevement { margin-top: 25px; padding: 12px 15px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 12px; }
+  .prelevement strong { color: #166534; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">
+      orange
+      <span>pro</span>
+    </div>
+  </div>
+  <div style="text-align: right;">
+    <div class="facture-badge">FACTURE</div>
+    <p style="margin-top: 8px; color: #666;">N° FP-2026-03-4521897</p>
+  </div>
+</div>
+
+<div class="parties">
+  <div class="partie">
+    <h3>Opérateur</h3>
+    <p class="name">Orange SA</p>
+    <p>78 Rue Olivier de Serres<br>75015 Paris</p>
+    <p>SIRET : 380 129 866 04519<br>TVA : FR 44 380129866</p>
+    <p>Service client Pro : 3901</p>
+  </div>
+  <div class="partie">
+    <h3>Client</h3>
+    <p class="name">Salon Élégance Paris</p>
+    <p>42 Avenue des Champs-Élysées<br>75008 Paris</p>
+    <p>SIRET : 947 570 362 00022</p>
+    <p>N° Compte : PRO-8847521</p>
+  </div>
+</div>
+
+<div class="info-box">
+  <div class="item">
+    <label>Période</label>
+    <span>01/03/2026 — 31/03/2026</span>
+  </div>
+  <div class="item">
+    <label>Date de facture</label>
+    <span>01 avril 2026</span>
+  </div>
+  <div class="item">
+    <label>Prélèvement le</label>
+    <span>10 avril 2026</span>
+  </div>
+  <div class="item">
+    <label>Réf. contrat</label>
+    <span>FIBRE-PRO-88475</span>
+  </div>
+</div>
+
+<div class="section-title">Détail de vos services</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:55%">Désignation</th>
+      <th>Période</th>
+      <th>Montant HT</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>Fibre Pro 500 Mbps</strong><br>
+        <span style="color: #888; font-size: 11px;">Débit symétrique — IP fixe incluse — GTR 8h</span>
+      </td>
+      <td>Mars 2026</td>
+      <td>59,00 €</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Ligne fixe Pro — Appels illimités France</strong><br>
+        <span style="color: #888; font-size: 11px;">N° 01 42 89 55 10 — Fixe + Mobile France inclus</span>
+      </td>
+      <td>Mars 2026</td>
+      <td>19,00 €</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Option IP fixe supplémentaire</strong><br>
+        <span style="color: #888; font-size: 11px;">Caisse TPE — IP statique dédiée</span>
+      </td>
+      <td>Mars 2026</td>
+      <td>5,00 €</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Communications hors forfait</strong><br>
+        <span style="color: #888; font-size: 11px;">3 appels internationaux — 12 min (Maroc mobile)</span>
+      </td>
+      <td>Mars 2026</td>
+      <td>6,40 €</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="totaux">
+  <table>
+    <thead><tr><th></th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Total HT</td>
+        <td>89,40 €</td>
+      </tr>
+      <tr>
+        <td>TVA 20%</td>
+        <td>17,88 €</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total TTC</td>
+        <td>107,28 €</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="prelevement">
+  <strong>Prélèvement automatique :</strong> Le montant de <strong>107,28 €</strong> sera prélevé le <strong>10 avril 2026</strong> sur votre compte bancaire se terminant par ***845 267.
+</div>
+
+<div class="footer">
+  Orange SA — Capital 10 640 226 396 € — RCS Paris 380 129 866 — APE 6110Z<br>
+  TVA intracommunautaire : FR 44 380129866<br>
+  Centre national de recouvrement — TSA 10018 — 69947 Lyon Cedex 20<br>
+  Retrouvez toutes vos factures sur pro.orange.fr — Espace client Pro
+</div>
+
+</body>
+</html>

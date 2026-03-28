@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { comptaApi, type EcritureComptable } from '@/lib/api';
+import { api, comptaApi, type EcritureComptable } from '@/lib/api';
 import {
   Euro,
   Loader2,
@@ -187,58 +187,105 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     return (debit - credit) / 100;
   }, [ecrituresRapprochees]);
 
-  // Handler pour l'import du relevé bancaire CSV
-  const handleBankStatementImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const [releveLoading, setReleveLoading] = useState(false);
+
+  // Handler pour l'import du relevé bancaire (CSV local ou PDF/image via IA)
+  const handleBankStatementImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
+    const isCSV = file.name.endsWith('.csv') || file.name.endsWith('.txt') || file.type === 'text/csv';
 
-      const transactions: Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}> = [];
-      let totalSolde = 0;
+    if (isCSV) {
+      // Parsing CSV local (ancien comportement)
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim());
 
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(';').map(p => p.trim().replace(/"/g, ''));
-        if (parts.length >= 3) {
-          const date = parts[0];
-          const libelle = parts[1];
-          let montant = 0;
-          let type: 'credit' | 'debit' = 'credit';
+        const transactions: Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}> = [];
+        let totalSolde = 0;
 
-          if (parts.length === 3) {
-            montant = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            type = montant >= 0 ? 'credit' : 'debit';
-            montant = Math.abs(montant);
-          } else if (parts.length >= 4) {
-            const debit = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            const credit = parseFloat(parts[3].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            if (debit > 0) {
-              montant = debit;
-              type = 'debit';
-            } else {
-              montant = credit;
-              type = 'credit';
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(';').map(p => p.trim().replace(/"/g, ''));
+          if (parts.length >= 3) {
+            const date = parts[0];
+            const libelle = parts[1];
+            let montant = 0;
+            let type: 'credit' | 'debit' = 'credit';
+
+            if (parts.length === 3) {
+              montant = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+              type = montant >= 0 ? 'credit' : 'debit';
+              montant = Math.abs(montant);
+            } else if (parts.length >= 4) {
+              const debit = parseFloat(parts[2].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+              const credit = parseFloat(parts[3].replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+              if (debit > 0) {
+                montant = debit;
+                type = 'debit';
+              } else {
+                montant = credit;
+                type = 'credit';
+              }
+            }
+
+            if (date && montant > 0) {
+              transactions.push({ id: transactions.length + 1, date, libelle, montant, type, pointed: false });
+              totalSolde += type === 'credit' ? montant : -montant;
             }
           }
-
-          if (date && montant > 0) {
-            transactions.push({ id: transactions.length + 1, date, libelle, montant, type, pointed: false });
-            totalSolde += type === 'credit' ? montant : -montant;
-          }
         }
-      }
 
-      setBankTransactions(transactions);
-      if (transactions.length > 0) {
-        setSoldeBancaire(totalSolde);
-        setNotification({ type: 'success', message: `${transactions.length} transactions importées` });
-        setTimeout(() => setNotification(null), 3000);
+        setBankTransactions(transactions);
+        if (transactions.length > 0) {
+          setSoldeBancaire(totalSolde);
+          setNotification({ type: 'success', message: `${transactions.length} transactions importées (CSV)` });
+          setTimeout(() => setNotification(null), 3000);
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      // PDF ou image → envoi au backend pour analyse IA
+      setReleveLoading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const result = await api.upload<{
+          success: boolean;
+          transactions: Array<{id: number; date: string; libelle: string; debit: number; credit: number; montant: number; type: string}>;
+          solde_fin: number | null;
+          count: number;
+          banque: string | null;
+          error?: string;
+        }>('/depenses/upload-releve', formData);
+
+        if (result.success && result.transactions.length > 0) {
+          const txs = result.transactions.map((tx, i) => ({
+            id: i + 1,
+            date: tx.date,
+            libelle: tx.libelle,
+            montant: Math.abs(tx.montant),
+            type: (tx.type as 'credit' | 'debit'),
+            pointed: false
+          }));
+          setBankTransactions(txs);
+          const solde = txs.reduce((s, t) => s + (t.type === 'credit' ? t.montant : -t.montant), 0);
+          setSoldeBancaire(result.solde_fin ?? solde);
+          setNotification({ type: 'success', message: `${txs.length} transactions extraites du relevé${result.banque ? ` (${result.banque})` : ''}` });
+          setTimeout(() => setNotification(null), 5000);
+        } else {
+          setNotification({ type: 'error', message: result.error || 'Aucune transaction trouvée dans le relevé' });
+          setTimeout(() => setNotification(null), 5000);
+        }
+      } catch (err: any) {
+        setNotification({ type: 'error', message: err.message || 'Erreur lors de l\'analyse du relevé' });
+        setTimeout(() => setNotification(null), 5000);
+      } finally {
+        setReleveLoading(false);
       }
-    };
-    reader.readAsText(file);
+    }
+
     if (event.target) event.target.value = '';
   };
 
@@ -789,19 +836,19 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   Importer un relevé bancaire
                 </h3>
                 <p className="text-sm text-gray-500">
-                  Importez votre relevé CSV pour faciliter le pointage. Format: Date;Libelle;Montant ou Date;Libelle;Debit;Credit
+                  Importez votre relevé bancaire (PDF, image ou CSV). Les PDF et images sont analysés automatiquement par IA.
                 </p>
               </div>
               <input
                 type="file"
                 ref={bankFileInputRef}
-                accept=".csv,.txt"
+                accept=".csv,.txt,.pdf,image/jpeg,image/png,image/webp"
                 onChange={handleBankStatementImport}
                 className="hidden"
               />
-              <Button variant="outline" className="gap-2" onClick={() => bankFileInputRef.current?.click()}>
-                <Upload className="h-4 w-4" />
-                Choisir un fichier
+              <Button variant="outline" className="gap-2" onClick={() => bankFileInputRef.current?.click()} disabled={releveLoading}>
+                {releveLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {releveLoading ? 'Analyse en cours...' : 'Choisir un fichier'}
               </Button>
             </div>
 

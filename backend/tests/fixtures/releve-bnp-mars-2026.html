@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Relevé de compte — BNP Paribas — Mars 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 30px 40px; max-width: 800px; margin: 0 auto; background: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #00915A; }
+  .logo { font-size: 22px; font-weight: 700; color: #00915A; letter-spacing: -0.5px; }
+  .logo span { display: block; font-size: 10px; color: #666; font-weight: 400; letter-spacing: 0; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
+  .compte-info { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f8faf9; border: 1px solid #e0e8e4; border-radius: 4px; padding: 15px; }
+  .compte-info .col { }
+  .compte-info .col label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; display: block; margin-bottom: 3px; }
+  .compte-info .col span { font-weight: 600; font-size: 13px; }
+  .titre-releve { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 20px 0 5px; }
+  .sous-titre { font-size: 11px; color: #888; margin-bottom: 15px; }
+  .soldes { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .solde-box { background: #f5f5f5; border-radius: 4px; padding: 10px 15px; width: 32%; }
+  .solde-box label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; display: block; }
+  .solde-box .montant { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .solde-box .montant.positif { color: #00915A; }
+  .solde-box .montant.negatif { color: #D32F2F; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+  thead th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; padding: 8px 6px; border-bottom: 2px solid #00915A; background: #f8faf9; }
+  thead th.right { text-align: right; }
+  tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td.debit { color: #D32F2F; }
+  tbody td.credit { color: #00915A; font-weight: 500; }
+  tbody tr:hover { background: #fafafa; }
+  .date-col { width: 70px; color: #666; }
+  .ref-col { width: 65px; color: #999; font-size: 10px; }
+  .montant-col { width: 90px; }
+  .solde-col { width: 90px; color: #333; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 9px; color: #999; line-height: 1.8; }
+  .footer p { margin-bottom: 5px; }
+  .totaux-row td { border-top: 2px solid #333; font-weight: 700; padding-top: 10px; }
+  @media print {
+    body { padding: 15px; font-size: 11px; }
+    table { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">
+      BNP PARIBAS
+      <span>La banque d'un monde qui change</span>
+    </div>
+  </div>
+  <div class="header-right">
+    Agence Paris Champs-Elysees<br>
+    30 Avenue des Champs-Elysees<br>
+    75008 Paris<br>
+    Tel: 01 42 89 00 00
+  </div>
+</div>
+
+<div class="compte-info">
+  <div class="col">
+    <label>Titulaire</label>
+    <span>SALON ELEGANCE PARIS</span>
+  </div>
+  <div class="col">
+    <label>N° de compte</label>
+    <span>30004 01234 00010084526 71</span>
+  </div>
+  <div class="col">
+    <label>IBAN</label>
+    <span>FR76 3000 4012 3400 0100 0845 267</span>
+  </div>
+  <div class="col">
+    <label>BIC</label>
+    <span>BNPAFRPP</span>
+  </div>
+</div>
+
+<div class="titre-releve">Relevé de compte</div>
+<div class="sous-titre">Période du 01/03/2026 au 31/03/2026 — Édité le 01/04/2026</div>
+
+<div class="soldes">
+  <div class="solde-box">
+    <label>Solde au 28/02/2026</label>
+    <div class="montant positif">4 827,35 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Total mouvements</label>
+    <div class="montant">- 372,56 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Solde au 31/03/2026</label>
+    <div class="montant positif">4 454,79 €</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th class="date-col">Date</th>
+      <th class="ref-col">Réf.</th>
+      <th>Libellé de l'opération</th>
+      <th class="right montant-col">Débit</th>
+      <th class="right montant-col">Crédit</th>
+      <th class="right solde-col">Solde</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="date-col"></td>
+      <td class="ref-col"></td>
+      <td><strong>Solde précédent</strong></td>
+      <td class="right"></td>
+      <td class="right"></td>
+      <td class="right solde-col"><strong>4 827,35</strong></td>
+    </tr>
+    <tr>
+      <td class="date-col">01/03</td>
+      <td class="ref-col">VIR001</td>
+      <td>VIR RECU 0847521 MARTIN SOPHIE<br><span style="color:#888;font-size:10px;">Coupe + Coloration - RDV 28/02</span></td>
+      <td class="right"></td>
+      <td class="right credit">145,00</td>
+      <td class="right">4 972,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">03/03</td>
+      <td class="ref-col">CB003</td>
+      <td>CB METRO CASH&CARRY<br><span style="color:#888;font-size:10px;">METRO MONTREUIL — Fournitures salon</span></td>
+      <td class="right debit">87,50</td>
+      <td class="right"></td>
+      <td class="right">4 884,85</td>
+    </tr>
+    <tr>
+      <td class="date-col">05/03</td>
+      <td class="ref-col">VIR002</td>
+      <td>VIR RECU 0953217 DUBOIS JULIE<br><span style="color:#888;font-size:10px;">Forfait Mariee - Acompte</span></td>
+      <td class="right"></td>
+      <td class="right credit">250,00</td>
+      <td class="right">5 134,85</td>
+    </tr>
+    <tr>
+      <td class="date-col">07/03</td>
+      <td class="ref-col">PRLV01</td>
+      <td>PRELEVEMENT URSSAF IDF<br><span style="color:#888;font-size:10px;">Cotisations sociales T1 2026 — Réf. 947570362</span></td>
+      <td class="right debit">1 245,00</td>
+      <td class="right"></td>
+      <td class="right">3 889,85</td>
+    </tr>
+    <tr>
+      <td class="date-col">10/03</td>
+      <td class="ref-col">PRLV02</td>
+      <td>PRELEVEMENT ORANGE SA<br><span style="color:#888;font-size:10px;">Facture Mars 2026 — Réf. FIBRE-PRO-88475</span></td>
+      <td class="right debit">107,28</td>
+      <td class="right"></td>
+      <td class="right">3 782,57</td>
+    </tr>
+    <tr>
+      <td class="date-col">12/03</td>
+      <td class="ref-col">REM01</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">8 encaissements carte — Période 06-11/03</span></td>
+      <td class="right"></td>
+      <td class="right credit">487,60</td>
+      <td class="right">4 270,17</td>
+    </tr>
+    <tr>
+      <td class="date-col">15/03</td>
+      <td class="ref-col">VIR003</td>
+      <td>VIR EMIS BEAUTE PRO DISTRIBUTION<br><span style="color:#888;font-size:10px;">Facture FA-2026-0847 — Produits capillaires</span></td>
+      <td class="right debit">323,28</td>
+      <td class="right"></td>
+      <td class="right">3 946,89</td>
+    </tr>
+    <tr>
+      <td class="date-col">18/03</td>
+      <td class="ref-col">VIR004</td>
+      <td>VIR RECU 1204587 BERNARD MARIE<br><span style="color:#888;font-size:10px;">Balayage + Soin</span></td>
+      <td class="right"></td>
+      <td class="right credit">120,00</td>
+      <td class="right">4 066,89</td>
+    </tr>
+    <tr>
+      <td class="date-col">20/03</td>
+      <td class="ref-col">PRLV03</td>
+      <td>PRELEVEMENT AXA FRANCE IARD<br><span style="color:#888;font-size:10px;">Assurance RC Professionnelle — Contrat PRO-445821</span></td>
+      <td class="right debit">89,00</td>
+      <td class="right"></td>
+      <td class="right">3 977,89</td>
+    </tr>
+    <tr>
+      <td class="date-col">22/03</td>
+      <td class="ref-col">CB004</td>
+      <td>CB AMAZON EU SARL<br><span style="color:#888;font-size:10px;">Commande 403-7821542 — Serviettes + consommables</span></td>
+      <td class="right debit">45,90</td>
+      <td class="right"></td>
+      <td class="right">3 931,99</td>
+    </tr>
+    <tr>
+      <td class="date-col">24/03</td>
+      <td class="ref-col">VIR005</td>
+      <td>VIR RECU 0478123 PETIT THOMAS<br><span style="color:#888;font-size:10px;">Coupe Homme</span></td>
+      <td class="right"></td>
+      <td class="right credit">25,00</td>
+      <td class="right">3 956,99</td>
+    </tr>
+    <tr>
+      <td class="date-col">25/03</td>
+      <td class="ref-col">REM02</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">12 encaissements carte — Période 12-24/03</span></td>
+      <td class="right"></td>
+      <td class="right credit">652,30</td>
+      <td class="right">4 609,29</td>
+    </tr>
+    <tr>
+      <td class="date-col">27/03</td>
+      <td class="ref-col">PRLV04</td>
+      <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Electricité Mars 2026 — Réf. PDL 14578952147</span></td>
+      <td class="right debit">156,80</td>
+      <td class="right"></td>
+      <td class="right">4 452,49</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/03</td>
+      <td class="ref-col">FRS01</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait compte Pro — Mars 2026</span></td>
+      <td class="right debit">12,50</td>
+      <td class="right"></td>
+      <td class="right">4 439,99</td>
+    </tr>
+    <tr>
+      <td class="date-col">31/03</td>
+      <td class="ref-col">VIR006</td>
+      <td>VIR RECU METRO CASH&CARRY<br><span style="color:#888;font-size:10px;">Avoir N° AV-2026-112 — Retour marchandise</span></td>
+      <td class="right"></td>
+      <td class="right credit">14,80</td>
+      <td class="right">4 454,79</td>
+    </tr>
+
+    <!-- Totaux -->
+    <tr class="totaux-row">
+      <td></td>
+      <td></td>
+      <td><strong>TOTAUX DU MOIS</strong></td>
+      <td class="right debit"><strong>2 067,26</strong></td>
+      <td class="right credit"><strong>1 694,70</strong></td>
+      <td class="right"><strong>4 454,79</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <p>Ce relevé est établi sous réserve d'erreurs ou omissions. Toute réclamation doit être formulée dans un délai de 30 jours à compter de sa réception.</p>
+  <p>BNP Paribas SA au capital de 2 468 663 292 € — Siège social : 16 bd des Italiens, 75009 Paris — ORIAS n° 07 022 735 — RCS Paris 662 042 449</p>
+  <p style="margin-top: 10px; color: #00915A;">Document généré automatiquement — Ne pas répondre à cette adresse</p>
+</div>
+
+</body>
+</html>

@@ -1074,16 +1074,13 @@ router.post('/upload-facture', upload.single('file'), async (req, res) => {
     const base64Data = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype;
 
-    // Vérifier si c'est un PDF (Claude ne supporte pas directement les PDF pour vision)
-    // Pour les PDFs, on pourrait utiliser pdf-parse ou autre, mais pour l'instant on rejette
-    if (mediaType === 'application/pdf') {
-      return res.status(400).json({
-        success: false,
-        error: 'Les fichiers PDF ne sont pas encore supportés. Veuillez uploader une image (photo de la facture).'
-      });
-    }
+    // Construire le bloc document/image selon le type MIME
+    const isPdf = mediaType === 'application/pdf';
+    const documentBlock = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64Data } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } };
 
-    // Appel à Claude Vision pour analyser la facture
+    // Appel à Claude pour analyser la facture (Vision pour images, Document pour PDF)
     const response = await anthropic.messages.create({
       model: MODEL_DEFAULT,
       max_tokens: 1024,
@@ -1091,14 +1088,7 @@ router.post('/upload-facture', upload.single('file'), async (req, res) => {
         {
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Data
-              }
-            },
+            documentBlock,
             {
               type: 'text',
               text: `Analyse cette facture/ticket de caisse et extrait les informations suivantes au format JSON strict.
@@ -1214,6 +1204,132 @@ Réponds UNIQUEMENT avec le JSON, rien d'autre.`
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur lors de l\'analyse de la facture'
+    });
+  }
+});
+
+/**
+ * POST /api/depenses/upload-releve
+ * Upload un relevé bancaire (PDF ou image) et extrait les transactions via IA
+ * Retourne les transactions parsées pour le rapprochement bancaire
+ */
+router.post('/upload-releve', upload.single('file'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Aucun fichier uploadé' });
+    }
+
+    console.log('[DEPENSES] Upload relevé bancaire:', {
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
+    const base64Data = req.file.buffer.toString('base64');
+    const mediaType = req.file.mimetype;
+    const isPdf = mediaType === 'application/pdf';
+
+    const documentBlock = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64Data } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } };
+
+    const response = await anthropic.messages.create({
+      model: MODEL_DEFAULT,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            documentBlock,
+            {
+              type: 'text',
+              text: `Analyse ce relevé bancaire et extrait TOUTES les transactions au format JSON strict.
+
+IMPORTANT: Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ou après.
+
+Format attendu:
+{
+  "banque": "nom de la banque",
+  "titulaire": "nom du titulaire du compte",
+  "periode": "période couverte (ex: 01/03/2026 - 31/03/2026)",
+  "solde_debut": 1234.56,
+  "solde_fin": 2345.67,
+  "transactions": [
+    {
+      "date": "DD/MM/YYYY",
+      "libelle": "description de l'opération",
+      "debit": 0,
+      "credit": 150.00
+    }
+  ]
+}
+
+Règles:
+- Chaque transaction a soit un debit > 0, soit un credit > 0, jamais les deux
+- Les montants sont en euros, nombres décimaux (pas de symbole €)
+- date au format DD/MM/YYYY
+- libelle: reprends le libellé exact tel qu'il apparaît sur le relevé
+- solde_debut et solde_fin: soldes du compte en début et fin de période
+- Si un solde n'est pas visible, mets null
+- Inclus TOUTES les lignes, même les frais bancaires et intérêts
+
+Réponds UNIQUEMENT avec le JSON, rien d'autre.`
+            }
+          ]
+        }
+      ]
+    });
+
+    let extractedData;
+    try {
+      const text = response.content[0].text.trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      extractedData = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+    } catch (parseError) {
+      console.error('[DEPENSES] Erreur parsing JSON relevé:', parseError, 'Réponse:', response.content[0].text);
+      return res.status(422).json({
+        success: false,
+        error: 'Impossible d\'extraire les transactions du relevé. Veuillez réessayer avec un document plus lisible.',
+        raw_response: response.content[0].text
+      });
+    }
+
+    // Normaliser les transactions
+    const transactions = (extractedData.transactions || []).map((tx, index) => ({
+      id: index + 1,
+      date: tx.date || '',
+      libelle: tx.libelle || '',
+      debit: parseFloat(tx.debit) || 0,
+      credit: parseFloat(tx.credit) || 0,
+      montant: (parseFloat(tx.credit) || 0) - (parseFloat(tx.debit) || 0),
+      type: (parseFloat(tx.debit) || 0) > 0 ? 'debit' : 'credit'
+    }));
+
+    console.log('[DEPENSES] Relevé parsé:', {
+      banque: extractedData.banque,
+      transactions: transactions.length,
+      solde_debut: extractedData.solde_debut,
+      solde_fin: extractedData.solde_fin
+    });
+
+    res.json({
+      success: true,
+      banque: extractedData.banque || null,
+      titulaire: extractedData.titulaire || null,
+      periode: extractedData.periode || null,
+      solde_debut: extractedData.solde_debut ?? null,
+      solde_fin: extractedData.solde_fin ?? null,
+      transactions,
+      count: transactions.length
+    });
+
+  } catch (error) {
+    console.error('[DEPENSES] Erreur upload relevé:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur lors de l\'analyse du relevé bancaire'
     });
   }
 });
