@@ -81,8 +81,8 @@ async function genererEcrituresDepense(tenantId, depenseId) {
       .toUpperCase()
       .slice(0, 3) || 'DIV';
 
-    // Numéro de facture (stocké dans description si extrait par IA, format "Fact. XXX - description")
-    const numFacture = depense.description?.match(/^Fact\.\s*([^\s—-]+)/)?.[1] || null;
+    // Numéro de facture (stocké dans description si extrait par IA, format "Fact. XXX — description")
+    const numFacture = depense.description?.match(/^Fact\.\s*(.+?)\s*—/)?.[1] || depense.description?.match(/^Fact\.\s*(\S+)/)?.[1] || null;
 
     // Libellé enrichi : fournisseur + numéro facture
     const libelleBase = fournisseur;
@@ -745,7 +745,7 @@ router.patch('/:id/payer', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    const { payee, mode_paiement } = req.body;
+    const { payee, mode_paiement, date_paiement } = req.body;
 
     const estPayee = payee !== false;
 
@@ -766,9 +766,19 @@ router.patch('/:id/payer', async (req, res) => {
       }
     }
 
+    // Date de paiement : fournie par l'utilisateur ou aujourd'hui par défaut
+    let datePaiementFinal = null;
+    if (estPayee) {
+      if (date_paiement && /^\d{4}-\d{2}-\d{2}/.test(date_paiement)) {
+        datePaiementFinal = date_paiement;
+      } else {
+        datePaiementFinal = new Date().toISOString();
+      }
+    }
+
     const updates = {
       payee: estPayee,
-      date_paiement: estPayee ? new Date().toISOString() : null,
+      date_paiement: datePaiementFinal,
       mode_paiement: estPayee ? mode_paiement : null
     };
 
@@ -1126,7 +1136,7 @@ Format attendu:
 
 Règles:
 - fournisseur: le nom commercial du fournisseur (ex: "Orange SA", "Beauté Pro Distribution SAS")
-- numero_facture: le numéro de facture tel qu'il apparaît sur le document. null si non visible
+- numero_facture: le NUMÉRO DE FACTURE (ex: "FA-2026-001", "FP-2026-03-4521897"), PAS la référence contrat ni le numéro de compte client. Cherche un champ intitulé "N° facture", "Facture N°", "Invoice #". null si non visible
 - date_facture: la DATE DE FACTURE (date d'émission du document), PAS la date de début de période de service. Format YYYY-MM-DD
   ATTENTION: une facture peut couvrir une période de service (ex: "Période: 01/03 — 31/03") mais avoir une date d'émission différente (ex: "Date de facture: 01 avril"). C'est la DATE D'ÉMISSION qui doit être retournée, JAMAIS la date de début de période.
   Exemple: facture Orange avec "Période 01/03/2026 — 31/03/2026" et "Date de facture: 01 avril 2026" → date_facture = "2026-04-01" (PAS "2026-03-01")

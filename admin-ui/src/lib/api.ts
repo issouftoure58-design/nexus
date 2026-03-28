@@ -638,8 +638,8 @@ export const comptaApi = {
   getDepenses: () => api.get<{ depenses: Expense[] }>('/depenses'),
   getCategorieDetail: (categorie: string) => api.get<CategorieDetailResponse>(`/depenses/categories/${categorie}`),
   createDepense: (data: CreateExpenseData) => api.post<{ depense: Expense }>('/depenses', data),
-  marquerDepensePayee: (id: number, payee: boolean, mode_paiement?: string) =>
-    api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee, mode_paiement }),
+  marquerDepensePayee: (id: number, payee: boolean, mode_paiement?: string, date_paiement?: string) =>
+    api.patch<{ success: boolean; depense: Expense }>(`/depenses/${id}/payer`, { payee, mode_paiement, date_paiement }),
   getTVA: (mois?: string) => api.get<TVAData>(`/depenses/tva${mois ? `?mois=${mois}` : ''}`),
   updateFactureStatut: (id: number, statut: string, mode_paiement?: string) =>
     api.patch<{ facture: Invoice }>(`/factures/${id}/statut`, { statut, mode_paiement }),

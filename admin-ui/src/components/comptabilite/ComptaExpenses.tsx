@@ -50,6 +50,7 @@ export default function ComptaExpenses({
   const [showExpensePaymentModal, setShowExpensePaymentModal] = useState(false);
   const [pendingExpenseId, setPendingExpenseId] = useState<number | null>(null);
   const [expensePaymentMode, setExpensePaymentMode] = useState('cb');
+  const [expensePaymentDate, setExpensePaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Filter state
   const [expenseDateFilter, setExpenseDateFilter] = useState<string>('all');
@@ -63,8 +64,8 @@ export default function ComptaExpenses({
   // Mutations
   // ----------------------------------------------------------------
   const marquerDepensePayeeMutation = useMutation({
-    mutationFn: ({ id, payee, mode_paiement }: { id: number; payee: boolean; mode_paiement?: string }) =>
-      comptaApi.marquerDepensePayee(id, payee, mode_paiement),
+    mutationFn: ({ id, payee, mode_paiement, date_paiement }: { id: number; payee: boolean; mode_paiement?: string; date_paiement?: string }) =>
+      comptaApi.marquerDepensePayee(id, payee, mode_paiement, date_paiement),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       onNotify('success', variables.payee ? 'Dépense marquée comme payée' : 'Dépense marquée non payée');
@@ -331,6 +332,7 @@ export default function ComptaExpenses({
                             onClick={() => {
                               setPendingExpenseId(expense.id);
                               setExpensePaymentMode('cb');
+                              setExpensePaymentDate(new Date().toISOString().split('T')[0]);
                               setShowExpensePaymentModal(true);
                             }}
                             disabled={marquerDepensePayeeMutation.isPending}
@@ -430,6 +432,15 @@ export default function ComptaExpenses({
                   </button>
                 ))}
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date de règlement</label>
+                <input
+                  type="date"
+                  value={expensePaymentDate}
+                  onChange={(e) => setExpensePaymentDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                />
+              </div>
               <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"
@@ -439,7 +450,7 @@ export default function ComptaExpenses({
                   Annuler
                 </Button>
                 <Button
-                  onClick={() => marquerDepensePayeeMutation.mutate({ id: pendingExpenseId, payee: true, mode_paiement: expensePaymentMode })}
+                  onClick={() => marquerDepensePayeeMutation.mutate({ id: pendingExpenseId, payee: true, mode_paiement: expensePaymentMode, date_paiement: expensePaymentDate })}
                   disabled={marquerDepensePayeeMutation.isPending}
                   className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
                 >
