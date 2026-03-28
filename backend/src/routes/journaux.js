@@ -3468,4 +3468,356 @@ router.get('/analytics/tresorerie', async (req, res) => {
   }
 });
 
+// ============================================
+// RAPPROCHEMENT BANCAIRE AUTOMATIQUE
+// ============================================
+
+/**
+ * POST /api/journaux/rapprochement-auto
+ * Rapprochement automatique : matching écritures BQ ↔ transactions relevé,
+ * auto-création des dépenses manquantes, pointage automatique, rapport.
+ */
+router.post('/rapprochement-auto', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    const { transactions, solde_debut, solde_fin, banque, periode } = req.body;
+
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'Aucune transaction fournie' });
+    }
+
+    // 1. Récupérer les écritures BQ/512 non lettrees du tenant
+    const { data: ecrituresBQ, error: errBQ } = await supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('journal_code', 'BQ')
+      .eq('compte_numero', '512')
+      .is('lettrage', null)
+      .order('date_ecriture', { ascending: true });
+
+    if (errBQ) throw errBQ;
+
+    // Index pour marquer les écritures déjà matchées (1:1)
+    const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
+
+    // Helper : parser une date DD/MM/YYYY ou YYYY-MM-DD → Date
+    const parseDate = (str) => {
+      if (!str) return null;
+      const s = str.trim();
+      // DD/MM/YYYY
+      const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (dmy) return new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+      // YYYY-MM-DD
+      const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (ymd) return new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+      return new Date(s);
+    };
+
+    // Helper : diff en jours entre deux dates
+    const diffJours = (d1, d2) => {
+      if (!d1 || !d2 || isNaN(d1) || isNaN(d2)) return 999;
+      return Math.abs(Math.round((d1 - d2) / (1000 * 60 * 60 * 24)));
+    };
+
+    // Helper : score de similarité libellé (mots-clés communs)
+    const similariteLibelle = (lib1, lib2) => {
+      if (!lib1 || !lib2) return 0;
+      const mots1 = lib1.toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(/\s+/).filter(m => m.length > 2);
+      const mots2 = lib2.toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(/\s+/).filter(m => m.length > 2);
+      if (mots1.length === 0 || mots2.length === 0) return 0;
+      const communs = mots1.filter(m => mots2.includes(m)).length;
+      return communs / Math.max(mots1.length, mots2.length);
+    };
+
+    // Détection catégorie par mots-clés du libellé
+    const detecterCategorie = (libelle) => {
+      const upper = (libelle || '').toUpperCase();
+      if (/FRAIS\s*TENUE|COMMISSION|AGIOS|FRAIS\s*BANC/.test(upper)) return 'bancaire';
+      if (/EDF|ENGIE|ELECTRICITE|ELECT/.test(upper)) return 'charges';
+      if (/ORANGE|SFR|FREE|BOUYGUES|TELECOM/.test(upper)) return 'telecom';
+      if (/AXA|MAIF|ASSURANCE|MACIF|ALLIANZ/.test(upper)) return 'assurance';
+      if (/URSSAF|COTISATION/.test(upper)) return 'cotisations_sociales';
+      if (/AMAZON|METRO|FOURNITURE/.test(upper)) return 'fournitures';
+      if (/LOYER|BAIL/.test(upper)) return 'loyer';
+      if (/IMPOT|TAXE|CFE|CVAE/.test(upper)) return 'taxes';
+      return 'autre';
+    };
+
+    // 2. Matching
+    const pointees = [];
+    const creees = [];
+    const nonMatcheesReleve = [];
+    let lettrageIndex = 1;
+
+    // Extraire mois/année pour le code lettrage
+    const periodeMatch = (periode || '').match(/(\d{2})\/(\d{4})/);
+    const moisLettrage = periodeMatch ? periodeMatch[1] : String(new Date().getMonth() + 1).padStart(2, '0');
+    const anneeLettrage = periodeMatch ? periodeMatch[2] : String(new Date().getFullYear());
+
+    for (const tx of transactions) {
+      const txDate = parseDate(tx.date);
+      const txMontant = Math.round(Math.abs(tx.type === 'credit' ? (tx.credit || tx.montant || 0) : (tx.debit || tx.montant || 0)) * 100); // en centimes
+
+      if (txMontant === 0) continue;
+
+      // Transaction credit → encaissement → écriture BQ au débit (debit > 0)
+      // Transaction debit → décaissement → écriture BQ au crédit (credit > 0)
+      const isCredit = tx.type === 'credit';
+
+      // Chercher les candidats
+      let meilleurMatch = null;
+      let meilleurScore = -1;
+
+      for (const ec of ecrituresDisponibles) {
+        if (ec.matched) continue;
+
+        // Vérifier sens : crédit relevé → débit en compta, débit relevé → crédit en compta
+        const montantCompta = isCredit ? (ec.debit || 0) : (ec.credit || 0);
+        if (montantCompta !== txMontant) continue;
+
+        const ecDate = parseDate(ec.date_ecriture);
+        const jours = diffJours(txDate, ecDate);
+
+        let score = 0;
+        if (jours <= 3) score = 100; // Match fort
+        else if (jours <= 7) score = 50; // Match faible
+        else continue; // Trop éloigné
+
+        // Bonus similarité libellé
+        score += similariteLibelle(tx.libelle, ec.libelle) * 30;
+
+        if (score > meilleurScore) {
+          meilleurScore = score;
+          meilleurMatch = ec;
+        }
+      }
+
+      if (meilleurMatch) {
+        // Match trouvé → pointer
+        const codeLettrage = `RA-${moisLettrage}${anneeLettrage}-${String(lettrageIndex).padStart(3, '0')}`;
+        lettrageIndex++;
+
+        const { error: errPoint } = await supabase
+          .from('ecritures_comptables')
+          .update({
+            lettrage: codeLettrage,
+            date_lettrage: new Date().toISOString().split('T')[0]
+          })
+          .eq('id', meilleurMatch.id)
+          .eq('tenant_id', tenantId);
+
+        if (!errPoint) {
+          meilleurMatch.matched = true;
+          pointees.push({
+            date: tx.date,
+            libelle_releve: tx.libelle,
+            libelle_compta: meilleurMatch.libelle,
+            montant: txMontant / 100,
+            type: tx.type,
+            lettrage: codeLettrage
+          });
+        }
+      } else if (!isCredit) {
+        // Débit non matché → auto-créer la dépense
+        const categorie = detecterCategorie(tx.libelle);
+        const montantEuros = txMontant / 100;
+        const dateDepense = txDate ? txDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+        const { data: depense, error: errDep } = await supabase
+          .from('depenses')
+          .insert({
+            tenant_id: tenantId,
+            categorie,
+            libelle: tx.libelle,
+            description: `Auto-créé par rapprochement bancaire`,
+            montant: montantEuros,
+            montant_ttc: montantEuros,
+            taux_tva: 0,
+            deductible_tva: false,
+            date_depense: dateDepense,
+            recurrence: 'ponctuelle',
+            payee: true,
+            date_paiement: dateDepense,
+            mode_paiement: 'prelevement'
+          })
+          .select()
+          .single();
+
+        if (!errDep && depense) {
+          // Générer les écritures comptables (AC + BQ)
+          const compteCharge = COMPTE_DEPENSE[categorie] || COMPTE_DEPENSE.autre;
+          const fournisseur = tx.libelle || '';
+          const codeAux = fournisseur
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z]/g, '')
+            .toUpperCase()
+            .slice(0, 3) || 'DIV';
+          const periodeEc = dateDepense.slice(0, 7);
+          const exercice = parseInt(dateDepense.slice(0, 4)) || new Date().getFullYear();
+
+          const ecritures = [
+            // AC: Débit charge
+            {
+              tenant_id: tenantId,
+              journal_code: 'AC',
+              date_ecriture: dateDepense,
+              numero_piece: `DEP-${depense.id}`,
+              compte_numero: compteCharge.numero,
+              compte_libelle: compteCharge.libelle,
+              libelle: tx.libelle,
+              debit: txMontant,
+              credit: 0,
+              depense_id: depense.id,
+              periode: periodeEc,
+              exercice
+            },
+            // AC: Crédit fournisseur
+            {
+              tenant_id: tenantId,
+              journal_code: 'AC',
+              date_ecriture: dateDepense,
+              numero_piece: `DEP-${depense.id}`,
+              compte_numero: `401${codeAux}`,
+              compte_libelle: `Fournisseur ${fournisseur}`,
+              libelle: tx.libelle,
+              debit: 0,
+              credit: txMontant,
+              depense_id: depense.id,
+              periode: periodeEc,
+              exercice
+            },
+            // BQ: Débit fournisseur (règlement)
+            {
+              tenant_id: tenantId,
+              journal_code: 'BQ',
+              date_ecriture: dateDepense,
+              numero_piece: `DEP-${depense.id}`,
+              compte_numero: `401${codeAux}`,
+              compte_libelle: `Fournisseur ${fournisseur}`,
+              libelle: `Règlement ${tx.libelle}`,
+              debit: txMontant,
+              credit: 0,
+              depense_id: depense.id,
+              periode: periodeEc,
+              exercice
+            },
+            // BQ: Crédit banque (512)
+            {
+              tenant_id: tenantId,
+              journal_code: 'BQ',
+              date_ecriture: dateDepense,
+              numero_piece: `DEP-${depense.id}`,
+              compte_numero: '512',
+              compte_libelle: 'Banque',
+              libelle: `Paiement ${tx.libelle}`,
+              debit: 0,
+              credit: txMontant,
+              depense_id: depense.id,
+              periode: periodeEc,
+              exercice
+            }
+          ];
+
+          const { error: errInsert } = await supabase
+            .from('ecritures_comptables')
+            .insert(ecritures);
+
+          if (!errInsert) {
+            // Pointer l'écriture BQ/512 qu'on vient de créer
+            const codeLettrage = `RA-${moisLettrage}${anneeLettrage}-${String(lettrageIndex).padStart(3, '0')}`;
+            lettrageIndex++;
+
+            await supabase
+              .from('ecritures_comptables')
+              .update({
+                lettrage: codeLettrage,
+                date_lettrage: new Date().toISOString().split('T')[0]
+              })
+              .eq('tenant_id', tenantId)
+              .eq('depense_id', depense.id)
+              .eq('journal_code', 'BQ')
+              .eq('compte_numero', '512');
+
+            creees.push({
+              date: tx.date,
+              libelle: tx.libelle,
+              montant: montantEuros,
+              type: 'debit',
+              categorie,
+              depense_id: depense.id
+            });
+          }
+        }
+      } else {
+        // Crédit non matché → à vérifier manuellement
+        nonMatcheesReleve.push({
+          date: tx.date,
+          libelle: tx.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          raison: 'Aucune écriture correspondante en compta'
+        });
+      }
+    }
+
+    // 3. Écritures compta non matchées (chèques non encore présentés, etc.)
+    const nonMatcheesCompta = ecrituresDisponibles
+      .filter(e => !e.matched)
+      .map(e => ({
+        date: e.date_ecriture,
+        libelle: e.libelle,
+        montant: Math.max(e.debit || 0, e.credit || 0) / 100,
+        type: e.debit > 0 ? 'debit' : 'credit',
+        raison: e.credit > 0 ? 'Chèque/virement non encore présenté' : 'Encaissement non figurant sur relevé'
+      }));
+
+    // 4. Calcul solde comptable rapproché
+    // Récupérer le solde comptable total banque
+    const { data: toutesEcritures512 } = await supabase
+      .from('ecritures_comptables')
+      .select('debit, credit')
+      .eq('tenant_id', tenantId)
+      .eq('journal_code', 'BQ')
+      .eq('compte_numero', '512');
+
+    let soldeComptable = 0;
+    if (toutesEcritures512) {
+      const totalDebit = toutesEcritures512.reduce((s, e) => s + (e.debit || 0), 0);
+      const totalCredit = toutesEcritures512.reduce((s, e) => s + (e.credit || 0), 0);
+      soldeComptable = (totalDebit - totalCredit) / 100;
+    }
+
+    const ecart = solde_fin != null ? Math.round((solde_fin - soldeComptable) * 100) / 100 : null;
+
+    res.json({
+      success: true,
+      rapport: {
+        date_rapprochement: new Date().toISOString().split('T')[0],
+        periode: periode || '',
+        banque: banque || '',
+        solde_releve_debut: solde_debut,
+        solde_releve_fin: solde_fin,
+        solde_comptable: Math.round(soldeComptable * 100) / 100,
+        ecart,
+        pointees,
+        creees,
+        non_matchees_releve: nonMatcheesReleve,
+        non_matchees_compta: nonMatcheesCompta,
+        resume: {
+          nb_pointees: pointees.length,
+          nb_creees: creees.length,
+          nb_non_matchees_releve: nonMatcheesReleve.length,
+          nb_non_matchees_compta: nonMatcheesCompta.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur rapprochement auto:', error);
+    res.status(500).json({ error: error.message || 'Erreur rapprochement automatique' });
+  }
+});
+
 export default router;

@@ -16,6 +16,11 @@ import {
   AlertTriangle,
   Landmark,
   X,
+  Zap,
+  FileText,
+  Printer,
+  PlusCircle,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -188,6 +193,15 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   }, [ecrituresRapprochees]);
 
   const [releveLoading, setReleveLoading] = useState(false);
+  const [releveBanque, setReleveBanque] = useState<string | null>(null);
+  const [relevePeriode, setRelevePeriode] = useState<string | null>(null);
+  const [releveSoldeDebut] = useState<number | null>(null);
+
+  // Rapport rapprochement auto
+  type RapprochementRapport = Awaited<ReturnType<typeof comptaApi.rapprochementAuto>>['rapport'];
+  const [rapport, setRapport] = useState<RapprochementRapport | null>(null);
+  const [rapportTab, setRapportTab] = useState<'pointees' | 'creees' | 'a_verifier'>('pointees');
+  const [rapprochementAutoLoading, setRapprochementAutoLoading] = useState(false);
 
   // Handler pour l'import du relevé bancaire (CSV local ou PDF/image via IA)
   const handleBankStatementImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,6 +286,14 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
           setBankTransactions(txs);
           const solde = txs.reduce((s, t) => s + (t.type === 'credit' ? t.montant : -t.montant), 0);
           setSoldeBancaire(result.solde_fin ?? solde);
+          setReleveBanque(result.banque || null);
+          // Déduire la période à partir des dates des transactions
+          if (txs.length > 0) {
+            const premiereDate = txs[0].date;
+            const derniereDate = txs[txs.length - 1].date;
+            setRelevePeriode(`${premiereDate} - ${derniereDate}`);
+          }
+          setRapport(null); // Reset rapport si on re-importe
           setNotification({ type: 'success', message: `${txs.length} transactions extraites du relevé${result.banque ? ` (${result.banque})` : ''}` });
           setTimeout(() => setNotification(null), 5000);
         } else {
@@ -287,6 +309,185 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     }
 
     if (event.target) event.target.value = '';
+  };
+
+  // Lancer le rapprochement automatique
+  const lancerRapprochementAuto = async () => {
+    if (bankTransactions.length === 0) return;
+    setRapprochementAutoLoading(true);
+    try {
+      const txForApi = bankTransactions.map(tx => ({
+        date: tx.date,
+        libelle: tx.libelle,
+        debit: tx.type === 'debit' ? tx.montant : 0,
+        credit: tx.type === 'credit' ? tx.montant : 0,
+        montant: tx.montant,
+        type: tx.type,
+      }));
+      const result = await comptaApi.rapprochementAuto({
+        transactions: txForApi,
+        solde_debut: releveSoldeDebut,
+        solde_fin: soldeBancaire,
+        banque: releveBanque,
+        periode: relevePeriode,
+      });
+      if (result.success && result.rapport) {
+        setRapport(result.rapport);
+        setRapportTab('pointees');
+        queryClient.invalidateQueries({ queryKey: ['ecritures-banque'] });
+        const r = result.rapport.resume;
+        setNotification({
+          type: 'success',
+          message: `Rapprochement terminé : ${r.nb_pointees} pointée(s), ${r.nb_creees} créée(s), ${r.nb_non_matchees_releve + r.nb_non_matchees_compta} à vérifier`
+        });
+        setTimeout(() => setNotification(null), 8000);
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur rapprochement automatique' });
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setRapprochementAutoLoading(false);
+    }
+  };
+
+  // Impression état de rapprochement A4
+  const imprimerRapprochement = () => {
+    if (!rapport) return;
+    const r = rapport;
+    const fmtMontant = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n);
+    const fmtDate = (d: string) => {
+      if (!d) return '-';
+      const parts = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (parts) return `${parts[3]}/${parts[2]}/${parts[1]}`;
+      return d;
+    };
+
+    const lignesNonReleve = r.non_matchees_compta.map(e =>
+      `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
+    ).join('');
+    const totalNonReleveDeb = r.non_matchees_compta.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const totalNonReleveCred = r.non_matchees_compta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+
+    const lignesNonCompta = [...r.non_matchees_releve, ...r.creees.map(c => ({ ...c, type: 'debit' as const, raison: `Auto-créé (${c.categorie})` }))].map(e =>
+      `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
+    ).join('');
+    const totalNonComptaDeb = r.non_matchees_releve.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0) + r.creees.reduce((s, e) => s + e.montant, 0);
+    const totalNonComptaCred = r.non_matchees_releve.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>État de rapprochement bancaire</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #333; padding: 20mm; background: white; }
+  h1 { font-size: 16pt; text-align: center; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .sep { border-top: 2px solid #333; margin: 8px 0 16px; }
+  .header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 20px; font-size: 10pt; }
+  .header-info span { display: block; }
+  .header-info .label { font-weight: 600; color: #555; }
+  .section { margin-bottom: 16px; }
+  .section h2 { font-size: 11pt; font-weight: 700; margin-bottom: 6px; padding: 4px 8px; background: #f3f4f6; border-left: 3px solid #6366f1; }
+  table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 8px; }
+  th, td { padding: 4px 8px; border: 1px solid #ddd; text-align: left; }
+  th { background: #f9fafb; font-weight: 600; font-size: 9pt; text-transform: uppercase; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .total-row { font-weight: 700; background: #f3f4f6; }
+  .big-box { border: 2px solid #333; padding: 10px 16px; margin: 12px 0; display: flex; justify-content: space-between; align-items: center; }
+  .big-box .label { font-size: 11pt; font-weight: 600; }
+  .big-box .value { font-size: 14pt; font-weight: 700; }
+  .ecart-ok { color: #16a34a; }
+  .ecart-ko { color: #dc2626; }
+  .signature { margin-top: 40px; display: flex; justify-content: space-between; }
+  .signature div { width: 45%; }
+  .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; text-align: center; font-size: 9pt; color: #666; }
+  .resume-badges { display: flex; gap: 12px; margin-bottom: 16px; }
+  .badge { padding: 6px 12px; border-radius: 6px; font-size: 10pt; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-orange { background: #fef3c7; color: #92400e; }
+  @media print { body { padding: 0; } .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+  <h1>État de rapprochement bancaire</h1>
+  <div class="sep"></div>
+
+  <div class="header-info">
+    <div><span class="label">Banque :</span> ${r.banque || '—'}</div>
+    <div><span class="label">Date du rapprochement :</span> ${fmtDate(r.date_rapprochement)}</div>
+    <div><span class="label">Période :</span> ${r.periode || '—'}</div>
+    <div></div>
+  </div>
+
+  <div class="resume-badges">
+    <span class="badge badge-green">${r.resume.nb_pointees} pointée(s)</span>
+    <span class="badge badge-blue">${r.resume.nb_creees} créée(s)</span>
+    <span class="badge badge-orange">${r.resume.nb_non_matchees_releve + r.resume.nb_non_matchees_compta} à vérifier</span>
+  </div>
+
+  <div class="section">
+    <h2>1. Solde du relevé bancaire</h2>
+    <table>
+      <tr><td style="width:70%">Solde de début de période</td><td class="num">${r.solde_releve_debut != null ? fmtMontant(r.solde_releve_debut) : '—'}</td></tr>
+      <tr class="total-row"><td>Solde de fin de période</td><td class="num">${r.solde_releve_fin != null ? fmtMontant(r.solde_releve_fin) : '—'}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>2. Opérations comptabilisées non figurant sur le relevé</h2>
+    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Chèques émis non encaissés, virements en cours...)</p>
+    ${r.non_matchees_compta.length > 0 ? `
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
+      <tbody>${lignesNonReleve}</tbody>
+      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(totalNonReleveDeb)}</td><td class="num">${fmtMontant(totalNonReleveCred)}</td></tr></tfoot>
+    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+  </div>
+
+  <div class="section">
+    <h2>3. Opérations du relevé non comptabilisées</h2>
+    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Frais bancaires auto-créés, encaissements non identifiés...)</p>
+    ${(r.non_matchees_releve.length + r.creees.length) > 0 ? `
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
+      <tbody>${lignesNonCompta}</tbody>
+      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(totalNonComptaDeb)}</td><td class="num">${fmtMontant(totalNonComptaCred)}</td></tr></tfoot>
+    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+  </div>
+
+  <div class="big-box">
+    <span class="label">4. Solde comptable rapproché</span>
+    <span class="value">${fmtMontant(r.solde_comptable)}</span>
+  </div>
+
+  <div class="big-box">
+    <span class="label">ÉCART</span>
+    <span class="value ${r.ecart != null && Math.abs(r.ecart) < 0.01 ? 'ecart-ok' : 'ecart-ko'}">${r.ecart != null ? fmtMontant(r.ecart) : '—'}</span>
+  </div>
+
+  <div class="signature">
+    <div>
+      <p>Fait le ${fmtDate(r.date_rapprochement)}</p>
+      <div class="line">Signature</div>
+    </div>
+    <div>
+      <p>Visa du responsable</p>
+      <div class="line">Signature</div>
+    </div>
+  </div>
+
+  <button class="no-print" onclick="window.print()" style="margin-top:20px;padding:8px 24px;font-size:12pt;cursor:pointer;background:#6366f1;color:white;border:none;border-radius:6px">Imprimer</button>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
   };
 
   // Export rapprochement
@@ -858,10 +1059,22 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-sm font-medium text-gray-700">
                     {bankTransactions.length} transaction(s) importée(s)
+                    {releveBanque && <span className="text-gray-400 ml-2">({releveBanque})</span>}
                   </span>
-                  <Button variant="ghost" size="sm" onClick={() => setBankTransactions([])}>
-                    Effacer
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                      onClick={lancerRapprochementAuto}
+                      disabled={rapprochementAutoLoading}
+                    >
+                      {rapprochementAutoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                      {rapprochementAutoLoading ? 'Rapprochement en cours...' : 'Rapprochement automatique'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); }}>
+                      Effacer
+                    </Button>
+                  </div>
                 </div>
                 <div className="max-h-48 overflow-y-auto border rounded-lg">
                   <table className="w-full text-sm">
@@ -892,6 +1105,237 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
             )}
           </CardContent>
         </Card>
+
+        {/* Rapport de rapprochement automatique */}
+        {rapport && (
+          <Card className="border-indigo-200 bg-indigo-50/30">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4 text-indigo-500" />
+                Rapport de rapprochement automatique
+                {rapport.banque && <span className="text-xs font-normal text-gray-500">— {rapport.banque}</span>}
+              </CardTitle>
+              <Button size="sm" variant="outline" className="gap-2" onClick={imprimerRapprochement}>
+                <Printer className="h-4 w-4" />
+                Imprimer
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {/* Résumé en badges */}
+              <div className="flex flex-wrap gap-3 mb-4">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                  <CheckCircle className="h-4 w-4" />
+                  {rapport.resume.nb_pointees} pointée(s)
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+                  <PlusCircle className="h-4 w-4" />
+                  {rapport.resume.nb_creees} créée(s)
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
+                  <HelpCircle className="h-4 w-4" />
+                  {rapport.resume.nb_non_matchees_releve + rapport.resume.nb_non_matchees_compta} à vérifier
+                </span>
+                {rapport.ecart != null && (
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium",
+                    Math.abs(rapport.ecart) < 0.01 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                  )}>
+                    <Euro className="h-4 w-4" />
+                    Écart : {formatCurrency(rapport.ecart)}
+                  </span>
+                )}
+              </div>
+
+              {/* Soldes résumé */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div className="bg-white rounded-lg p-3 border">
+                  <p className="text-xs text-gray-500">Solde relevé fin</p>
+                  <p className="text-lg font-bold">{rapport.solde_releve_fin != null ? formatCurrency(rapport.solde_releve_fin) : '—'}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border">
+                  <p className="text-xs text-gray-500">Solde comptable</p>
+                  <p className="text-lg font-bold">{formatCurrency(rapport.solde_comptable)}</p>
+                </div>
+                <div className={cn("rounded-lg p-3 border", Math.abs(rapport.ecart || 0) < 0.01 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
+                  <p className="text-xs text-gray-500">Écart</p>
+                  <p className={cn("text-lg font-bold", Math.abs(rapport.ecart || 0) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                    {rapport.ecart != null ? formatCurrency(rapport.ecart) : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabs du rapport */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4">
+                <button
+                  onClick={() => setRapportTab('pointees')}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
+                    rapportTab === 'pointees' ? "bg-green-600 text-white" : "text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Pointées ({rapport.pointees.length})
+                </button>
+                <button
+                  onClick={() => setRapportTab('creees')}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
+                    rapportTab === 'creees' ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  Créées ({rapport.creees.length})
+                </button>
+                <button
+                  onClick={() => setRapportTab('a_verifier')}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
+                    rapportTab === 'a_verifier' ? "bg-orange-600 text-white" : "text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  À vérifier ({rapport.non_matchees_releve.length + rapport.non_matchees_compta.length})
+                </button>
+              </div>
+
+              {/* Tab Pointées */}
+              {rapportTab === 'pointees' && (
+                rapport.pointees.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-pointée</p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                          <th className="text-left py-2 px-3 text-gray-600">Libellé relevé</th>
+                          <th className="text-left py-2 px-3 text-gray-600">Libellé compta</th>
+                          <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                          <th className="text-center py-2 px-3 text-gray-600">Code</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rapport.pointees.map((p, i) => (
+                          <tr key={i} className="border-t hover:bg-green-50">
+                            <td className="py-2 px-3 whitespace-nowrap">{p.date}</td>
+                            <td className="py-2 px-3 text-xs">{p.libelle_releve}</td>
+                            <td className="py-2 px-3 text-xs">{p.libelle_compta}</td>
+                            <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", p.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                              {p.type === 'credit' ? '+' : '-'}{formatCurrency(p.montant)}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{p.lettrage}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+
+              {/* Tab Créées */}
+              {rapportTab === 'creees' && (
+                rapport.creees.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune dépense auto-créée</p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                          <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                          <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                          <th className="text-center py-2 px-3 text-gray-600">Catégorie</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rapport.creees.map((c, i) => (
+                          <tr key={i} className="border-t hover:bg-blue-50">
+                            <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
+                            <td className="py-2 px-3">{c.libelle}</td>
+                            <td className="py-2 px-3 text-right font-medium text-red-600 whitespace-nowrap">-{formatCurrency(c.montant)}</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">{c.categorie}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+
+              {/* Tab À vérifier */}
+              {rapportTab === 'a_verifier' && (
+                (rapport.non_matchees_releve.length + rapport.non_matchees_compta.length) === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Tout est rapproché !</p>
+                ) : (
+                  <div className="space-y-4">
+                    {rapport.non_matchees_releve.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-orange-600 mb-2">Transactions du relevé sans correspondance en compta</p>
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                                <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                                <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                                <th className="text-left py-2 px-3 text-gray-600">Raison</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rapport.non_matchees_releve.map((e, i) => (
+                                <tr key={i} className="border-t hover:bg-orange-50">
+                                  <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
+                                  <td className="py-2 px-3">{e.libelle}</td>
+                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                                    {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.montant)}
+                                  </td>
+                                  <td className="py-2 px-3 text-xs text-gray-500">{e.raison}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {rapport.non_matchees_compta.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-purple-600 mb-2">Écritures compta non figurant sur le relevé</p>
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                                <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                                <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                                <th className="text-left py-2 px-3 text-gray-600">Raison</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rapport.non_matchees_compta.map((e, i) => (
+                                <tr key={i} className="border-t hover:bg-purple-50">
+                                  <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date)}</td>
+                                  <td className="py-2 px-3">{e.libelle}</td>
+                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'debit' ? "text-green-600" : "text-red-600")}>
+                                    {e.type === 'debit' ? '+' : '-'}{formatCurrency(e.montant)}
+                                  </td>
+                                  <td className="py-2 px-3 text-xs text-gray-500">{e.raison}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

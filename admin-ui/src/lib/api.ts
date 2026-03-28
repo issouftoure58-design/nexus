@@ -693,6 +693,29 @@ export const comptaApi = {
     return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number }>(`/journaux/ecritures/banque?${query}`);
   },
   pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
+  rapprochementAuto: (data: {
+    transactions: Array<{ date: string; libelle: string; debit: number; credit: number; montant?: number; type: string }>;
+    solde_debut: number | null;
+    solde_fin: number | null;
+    banque: string | null;
+    periode: string | null;
+  }) => api.post<{
+    success: boolean;
+    rapport: {
+      date_rapprochement: string;
+      periode: string;
+      banque: string;
+      solde_releve_debut: number | null;
+      solde_releve_fin: number | null;
+      solde_comptable: number;
+      ecart: number | null;
+      pointees: Array<{ date: string; libelle_releve: string; libelle_compta: string; montant: number; type: string; lettrage: string }>;
+      creees: Array<{ date: string; libelle: string; montant: number; type: string; categorie: string; depense_id: number }>;
+      non_matchees_releve: Array<{ date: string; libelle: string; montant: number; type: string; raison: string }>;
+      non_matchees_compta: Array<{ date: string; libelle: string; montant: number; type: string; raison: string }>;
+      resume: { nb_pointees: number; nb_creees: number; nb_non_matchees_releve: number; nb_non_matchees_compta: number };
+    };
+  }>('/journaux/rapprochement-auto', data),
   genererToutesEcritures: () => api.post<{ success: boolean; message: string }>('/journaux/generer/tout'),
   // À Nouveaux
   genererANouveaux: (exercicePrecedent: number) =>

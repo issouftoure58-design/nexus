@@ -1127,7 +1127,9 @@ Format attendu:
 Règles:
 - fournisseur: le nom commercial du fournisseur (ex: "Orange SA", "Beauté Pro Distribution SAS")
 - numero_facture: le numéro de facture tel qu'il apparaît sur le document. null si non visible
-- date_facture: la DATE DE FACTURE (date d'émission), PAS la période de service. Format YYYY-MM-DD
+- date_facture: la DATE DE FACTURE (date d'émission du document), PAS la date de début de période de service. Format YYYY-MM-DD
+  ATTENTION: une facture peut couvrir une période de service (ex: "Période: 01/03 — 31/03") mais avoir une date d'émission différente (ex: "Date de facture: 01 avril"). C'est la DATE D'ÉMISSION qui doit être retournée, JAMAIS la date de début de période.
+  Exemple: facture Orange avec "Période 01/03/2026 — 31/03/2026" et "Date de facture: 01 avril 2026" → date_facture = "2026-04-01" (PAS "2026-03-01")
 - date_paiement: la date de paiement ou prélèvement si indiquée sur la facture. null si non visible
 - mode_paiement: "prelevement", "virement", "cb", "cheque" ou "especes". null si non visible
 - montant_ttc: le montant TOTAL TTC en euros (nombre décimal, pas de symbole €)
