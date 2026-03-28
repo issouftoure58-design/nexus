@@ -19,31 +19,18 @@ export async function getConfig(tenantId) {
 }
 
 export async function updateConfig(tenantId, config) {
-  // Check if config exists
-  const { data: existing } = await supabase
+  // Upsert atomique — cree la row si elle n'existe pas, update sinon
+  const { data, error } = await supabase
     .from('accounting_config')
-    .select('id')
-    .eq('tenant_id', tenantId)
+    .upsert(
+      { ...config, tenant_id: tenantId, updated_at: new Date().toISOString() },
+      { onConflict: 'tenant_id' }
+    )
+    .select()
     .single();
 
-  let result;
-  if (existing) {
-    result = await supabase
-      .from('accounting_config')
-      .update({ ...config, updated_at: new Date().toISOString() })
-      .eq('tenant_id', tenantId)
-      .select()
-      .single();
-  } else {
-    result = await supabase
-      .from('accounting_config')
-      .insert({ ...config, tenant_id: tenantId })
-      .select()
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
-  return { success: true, data: result.data };
+  if (error) return { success: false, error: error.message };
+  return { success: true, data };
 }
 
 // ==================== CATEGORIES ====================
@@ -111,16 +98,16 @@ async function getNextInvoiceNumber(tenantId) {
   const year = new Date().getFullYear();
   const number = `${prefix}-${year}-${String(nextNum).padStart(3, '0')}`;
 
-  // Increment
-  if (config) {
-    await supabase
-      .from('accounting_config')
-      .update({ invoice_next_number: nextNum + 1 })
-      .eq('tenant_id', tenantId);
-  } else {
-    await supabase
-      .from('accounting_config')
-      .insert({ tenant_id: tenantId, invoice_next_number: 2 });
+  // Increment via upsert atomique (meme pattern que updateConfig)
+  const { error } = await supabase
+    .from('accounting_config')
+    .upsert(
+      { tenant_id: tenantId, invoice_next_number: nextNum + 1, updated_at: new Date().toISOString() },
+      { onConflict: 'tenant_id' }
+    );
+
+  if (error) {
+    console.error(`[ACCOUNTING] Echec increment compteur facture tenant ${tenantId}:`, error.message);
   }
 
   return number;

@@ -315,8 +315,8 @@ async function testN3_BulletinPaie(tenantId, ctx) {
       .single();
 
     if (error) {
-      if (/PGRST205|42P01|schema cache/i.test(error.message || error.code)) {
-        return makeResult(name, module, severity, description, 'pass', 'Table rh_bulletins_paie inexistante ou schema incomplet (skip)');
+      if (/PGRST205|42P01/i.test(error.message || error.code)) {
+        return makeResult(name, module, severity, description, 'pass', 'Table rh_bulletins_paie non existante (skip)');
       }
       return makeResult(name, module, severity, description, 'fail', error.message);
     }
@@ -1170,8 +1170,8 @@ async function testN17_CRMPipeline(tenantId, client) {
     const quoteId = quote?.id || quote?.data?.id;
     if (!quoteId) {
       const qErr = quote?.error || quote?.data?.error || 'pas d\'ID';
-      if (/schema cache|PGRST205|42P01|unique/i.test(String(qErr))) {
-        return makeResult(name, module, severity, description, 'pass', `Table quotes indisponible (skip): ${qErr}`);
+      if (/PGRST205|42P01/i.test(String(qErr))) {
+        return makeResult(name, module, severity, description, 'pass', `Table quotes non existante (skip): ${qErr}`);
       }
       return makeResult(name, module, severity, description, 'fail', `createQuote echoue: ${qErr}`);
     }
@@ -1180,20 +1180,20 @@ async function testN17_CRMPipeline(tenantId, client) {
     try {
       await sendQuote(tenantId, quoteId);
     } catch (sendErr) {
-      if (!/smtp|email|config|resend|follow_up|schema cache/i.test(sendErr.message)) {
+      if (!/smtp|email|config|resend/i.test(sendErr.message)) {
         return makeResult(name, module, severity, description, 'fail', `sendQuote crash: ${sendErr.message}`);
       }
     }
 
     // Accepter devis
     const accepted = await acceptQuote(tenantId, quoteId);
-    if (accepted?.error && !/already|incompatible/i.test(accepted.error)) {
+    if (accepted?.error && !/already/i.test(accepted.error)) {
       return makeResult(name, module, severity, description, 'fail', `acceptQuote echoue: ${accepted.error}`);
     }
 
     return makeResult(name, module, severity, description, 'pass');
   } catch (err) {
-    if (/PGRST205|42P01|Cannot find module|schema cache/i.test(err.message)) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
       return makeResult(name, module, severity, description, 'pass', 'Module CRM non disponible (skip)');
     }
     return makeResult(name, module, severity, description, 'error', err.message);
@@ -1731,14 +1731,14 @@ async function testN29_PointageSync(tenantId) {
     const result = await synchroniserPointageDepuisReservations(tenantId, today);
 
     // Le resultat peut etre null/0 si aucune resa terminee — c'est OK
-    if (result?.error && !/PGRST205|42P01|aucune|schema cache|permission denied/i.test(result.error)) {
+    if (result?.error && !/PGRST205|42P01|aucune/i.test(result.error)) {
       return makeResult(name, module, severity, description, 'fail',
         `synchroniserPointage echoue: ${result.error}`);
     }
 
     return makeResult(name, module, severity, description, 'pass');
   } catch (err) {
-    if (/PGRST205|42P01|Cannot find module|schema cache/i.test(err.message)) {
+    if (/PGRST205|42P01|Cannot find module/i.test(err.message)) {
       return makeResult(name, module, severity, description, 'pass', 'Module pointage non disponible (skip)');
     }
     return makeResult(name, module, severity, description, 'error', err.message);

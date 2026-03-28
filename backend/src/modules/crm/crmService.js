@@ -123,7 +123,10 @@ async function getNextQuoteNumber(tenantId) {
   const year = new Date().getFullYear();
   const number = `${prefix}-${year}-${String(nextNum).padStart(3, '0')}`;
 
-  await updateConfig(tenantId, { next_quote_number: nextNum + 1 });
+  const updateResult = await updateConfig(tenantId, { next_quote_number: nextNum + 1 });
+  if (!updateResult.success) {
+    console.error(`[CRM] Echec increment compteur devis tenant ${tenantId}:`, updateResult.error);
+  }
   return number;
 }
 
