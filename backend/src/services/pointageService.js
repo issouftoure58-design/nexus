@@ -19,14 +19,15 @@ export async function synchroniserPointageDepuisReservations(tenantId, date = nu
   }
 
   // Récupérer les réservations terminées avec membre_id
+  // Note: la table reservations utilise 'heure' + 'duree_minutes' (pas heure_debut/heure_fin)
   const { data: reservations, error: errReservations } = await supabase
     .from('reservations')
     .select(`
       id,
       membre_id,
       date,
-      heure_debut,
-      heure_fin,
+      heure,
+      duree_minutes,
       statut
     `)
     .eq('tenant_id', tenantId)
@@ -58,11 +59,9 @@ export async function synchroniserPointageDepuisReservations(tenantId, date = nu
   const heuresParMembre = new Map();
 
   for (const resa of reservations) {
-    if (!resa.heure_debut || !resa.heure_fin) continue;
+    if (!resa.heure || !resa.duree_minutes) continue;
 
-    const debut = parseTime(resa.heure_debut);
-    const fin = parseTime(resa.heure_fin);
-    const duree = (fin - debut) / 3600; // en heures
+    const duree = resa.duree_minutes / 60; // minutes → heures
 
     if (duree <= 0) continue;
 

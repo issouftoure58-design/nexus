@@ -1148,7 +1148,7 @@ async function testN17_CRMPipeline(tenantId, client) {
       first_name: 'PLTE',
       email: `crm-n17-${Date.now()}@plte.internal`,
       phone: '0600000017',
-      source: 'plte_test',
+      source: 'website',
       status: 'lead',
     });
 
