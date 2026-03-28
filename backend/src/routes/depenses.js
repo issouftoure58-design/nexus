@@ -144,7 +144,7 @@ async function genererEcrituresDepense(tenantId, depenseId) {
     });
 
     // Si dépense payée, écriture banque ou caisse
-    if (depense.payee !== false) {
+    if (depense.payee === true) {
       const datePaiement = depense.date_paiement?.split('T')[0] || dateDepense;
       const periodePaie = datePaiement?.slice(0, 7);
 
@@ -1098,7 +1098,9 @@ IMPORTANT: Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant
 Format attendu:
 {
   "fournisseur": "nom du fournisseur/magasin",
-  "date": "YYYY-MM-DD",
+  "date_facture": "YYYY-MM-DD",
+  "date_paiement": "YYYY-MM-DD",
+  "mode_paiement": "prelevement",
   "montant_ttc": 12.50,
   "taux_tva": 20,
   "description": "description courte des achats",
@@ -1106,9 +1108,11 @@ Format attendu:
 }
 
 Règles:
+- date_facture: la DATE DE FACTURE (date d'émission), PAS la période de service. Format YYYY-MM-DD
+- date_paiement: la date de paiement ou prélèvement si indiquée sur la facture. null si non visible
+- mode_paiement: "prelevement", "virement", "cb", "cheque" ou "especes". null si non visible
 - montant_ttc: le montant TOTAL TTC en euros (nombre décimal, pas de symbole €)
 - taux_tva: le taux de TVA principal (20, 10, 5.5, 2.1 ou 0)
-- date: format ISO YYYY-MM-DD, utilise la date d'aujourd'hui si non visible
 - categorie: choisis la plus appropriée parmi la liste
 - Si une information n'est pas lisible, fais une estimation raisonnable
 
@@ -1147,11 +1151,27 @@ Réponds UNIQUEMENT avec le JSON, rien d'autre.`
       categorie = 'autre';
     }
 
-    // Valider la date
-    let dateDepense = extractedData.date;
+    // Valider la date de facture
+    let dateDepense = extractedData.date_facture || extractedData.date;
     if (!dateDepense || !/^\d{4}-\d{2}-\d{2}$/.test(dateDepense)) {
       dateDepense = new Date().toISOString().split('T')[0];
     }
+
+    // Valider la date de paiement
+    let datePaiement = extractedData.date_paiement || null;
+    if (datePaiement && !/^\d{4}-\d{2}-\d{2}$/.test(datePaiement)) {
+      datePaiement = null;
+    }
+
+    // Mode de paiement extrait
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    let modePaiement = extractedData.mode_paiement || null;
+    if (modePaiement && !modesPaiementValides.includes(modePaiement)) {
+      modePaiement = null;
+    }
+
+    // Déterminer si la dépense est payée (date paiement dans le passé ou aujourd'hui)
+    const estPayee = datePaiement ? new Date(datePaiement) <= new Date() : false;
 
     // Créer la dépense
     const { data: depense, error: insertError } = await supabase
@@ -1168,7 +1188,10 @@ Réponds UNIQUEMENT avec le JSON, rien d'autre.`
         deductible_tva: true,
         date_depense: dateDepense,
         recurrence: 'ponctuelle',
-        justificatif_url: null // TODO: on pourrait stocker le fichier dans Supabase Storage
+        justificatif_url: null,
+        payee: estPayee,
+        date_paiement: estPayee ? datePaiement : null,
+        mode_paiement: modePaiement
       })
       .select()
       .single();
@@ -1189,7 +1212,10 @@ Réponds UNIQUEMENT avec le JSON, rien d'autre.`
       depense: formatDepense(depense),
       extracted: {
         fournisseur: extractedData.fournisseur,
-        date: dateDepense,
+        date_facture: dateDepense,
+        date_paiement: datePaiement,
+        mode_paiement: modePaiement,
+        payee: estPayee,
         montant_ttc_euros: (montantTTC / 100).toFixed(2),
         montant_ht_euros: (montantHT / 100).toFixed(2),
         tva_euros: (montantTVA / 100).toFixed(2),
