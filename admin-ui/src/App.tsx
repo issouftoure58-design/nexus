@@ -76,6 +76,7 @@ const Commandes = lazy(() => import('./pages/Commandes'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
 const Guide = lazy(() => import('./pages/Guide'));
 const AvisClients = lazy(() => import('./pages/AvisClients'));
+const ReseauxSociaux = lazy(() => import('./pages/ReseauxSociaux'));
 const Blog = lazy(() => import('./pages/Blog'));
 const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const SSOCallback = lazy(() => import('./pages/SSOCallback'));
@@ -248,6 +249,7 @@ function App() {
             <Route path="/fidelite" element={<ModuleRoute moduleTitle="Programme Fidélité" moduleDescription="Gestion des points et récompenses clients"><Fidelite /></ModuleRoute>} />
             <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
             <Route path="/avis-clients" element={<ModuleRoute moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
+            <Route path="/reseaux-sociaux" element={<ModuleRoute module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
             <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
             {/* Modules IA */}

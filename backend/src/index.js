@@ -98,6 +98,7 @@ import yousignWebhookRoutes from './routes/yousignWebhook.js';
 import adminSignaturesRoutes from './routes/adminSignatures.js';
 import instagramWebhookRoutes from './routes/instagramWebhook.js';
 import adminIGSetterRoutes from './routes/adminIGSetter.js';
+import socialAuthRoutes from './routes/socialAuth.js';
 import questionnairesRoutes from './routes/questionnaires.js';
 import qualiopiRoutes from './routes/qualiopi.js';
 import satisfactionRoutes from './routes/satisfaction.js';
@@ -461,6 +462,9 @@ app.use('/api/admin/signatures', adminSignaturesRoutes);
 
 // Routes Admin Instagram Setter (Pro/Business)
 app.use('/api/admin/ig-setter', adminIGSetterRoutes);
+
+// Routes OAuth Réseaux Sociaux (Facebook/Instagram)
+app.use('/api/social/auth', socialAuthRoutes);
 
 // Routes Questionnaires Qualification (public + admin)
 app.use('/api/questionnaires', questionnairesRoutes);

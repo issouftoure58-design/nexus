@@ -54,6 +54,67 @@ export function getAvailablePlatforms() {
   return platforms.filter(p => isPlatformConfigured(p));
 }
 
+/**
+ * Cherche le token OAuth en DB pour un tenant + plateforme,
+ * avec fallback sur les variables d'environnement globales.
+ */
+export async function getAccountToken(tenantId, platform) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  try {
+    const { supabase } = await import('../config/supabase.js');
+
+    const { data } = await supabase
+      .from('social_accounts')
+      .select('access_token, page_id, ig_account_id, token_expires_at, account_name')
+      .eq('tenant_id', tenantId)
+      .eq('platform', platform)
+      .eq('is_active', true)
+      .order('connected_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (data?.access_token) {
+      // Mettre à jour last_used_at
+      await supabase
+        .from('social_accounts')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('tenant_id', tenantId)
+        .eq('platform', platform)
+        .eq('is_active', true);
+
+      return {
+        accessToken: data.access_token,
+        pageId: data.page_id,
+        igAccountId: data.ig_account_id,
+        accountName: data.account_name,
+        expiresAt: data.token_expires_at,
+        source: 'db',
+      };
+    }
+  } catch {
+    // Pas de compte en DB → fallback env vars
+  }
+
+  // Fallback : variables d'environnement globales
+  if (platform === 'facebook' && socialMediaConfig.meta.accessToken) {
+    return {
+      accessToken: socialMediaConfig.meta.accessToken,
+      pageId: socialMediaConfig.meta.facebookPageId,
+      source: 'env',
+    };
+  }
+  if (platform === 'instagram' && socialMediaConfig.meta.accessToken) {
+    return {
+      accessToken: socialMediaConfig.meta.accessToken,
+      igAccountId: socialMediaConfig.meta.instagramAccountId,
+      source: 'env',
+    };
+  }
+
+  return null;
+}
+
 // Obtenir les infos de configuration pour l'affichage
 export function getPlatformStatus() {
   const platforms = [

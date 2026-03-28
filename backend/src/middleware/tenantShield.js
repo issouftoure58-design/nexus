@@ -56,6 +56,9 @@ const SYSTEM_ROUTES = [
 
   // Provisioning (superadmin seulement, auth séparée)
   '/api/provisioning',
+
+  // OAuth callback (appelé par Facebook, tenant dans state param)
+  '/api/social/auth/facebook/callback',
 ];
 
 /**

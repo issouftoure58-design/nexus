@@ -19,7 +19,7 @@ import { supabase } from '../config/supabase.js';
 
 const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN;
 const INSTAGRAM_PAGE_ID = process.env.INSTAGRAM_PAGE_ID;
-const GRAPH_API_VERSION = 'v19.0';
+const GRAPH_API_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 // ═══════════════════════════════════════════

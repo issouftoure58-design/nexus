@@ -48,6 +48,7 @@ import {
   Zap,
   UserPlus,
   ShoppingBag,
+  Share2,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, memo } from 'react';
 import { authApi } from '@/lib/api';
@@ -177,6 +178,7 @@ const marketingNav: NavItem[] = [
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
+  { icon: Share2, label: 'Reseaux Sociaux', path: '/reseaux-sociaux', requiredModule: 'marketing' },
 ];
 
 // Système
