@@ -195,7 +195,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   const [releveLoading, setReleveLoading] = useState(false);
   const [releveBanque, setReleveBanque] = useState<string | null>(null);
   const [relevePeriode, setRelevePeriode] = useState<string | null>(null);
-  const [releveSoldeDebut] = useState<number | null>(null);
+  const [releveSoldeDebut, setReleveSoldeDebut] = useState<number | null>(null);
 
   // Rapport rapprochement auto
   type RapprochementRapport = Awaited<ReturnType<typeof comptaApi.rapprochementAuto>>['rapport'];
@@ -273,6 +273,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         if (transactions.length > 0) {
           setBankTransactions(transactions);
           setSoldeBancaire(soldeFin);
+          setReleveSoldeDebut(soldeDebut);
           setReleveBanque(titulaire ? `BNP Paribas — ${titulaire}` : 'BNP Paribas');
           if (periodeExtrait) setRelevePeriode(`${periodeExtrait[1]} - ${periodeExtrait[2]}`);
           setRapport(null);
@@ -1168,7 +1169,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                       {rapprochementAutoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                       {rapprochementAutoLoading ? 'Rapprochement en cours...' : 'Rapprochement automatique'}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); }}>
+                    <Button variant="ghost" size="sm" onClick={() => { setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); setReleveSoldeDebut(null); }}>
                       Effacer
                     </Button>
                   </div>
