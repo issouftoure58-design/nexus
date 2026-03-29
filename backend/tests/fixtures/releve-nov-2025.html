@@ -113,77 +113,85 @@
       <td class="right solde-col"><strong>0,00</strong></td>
     </tr>
 
-    <!-- A) Transactions qui MATCHENT les écritures BQ existantes -->
+    <!-- A) Transactions qui MATCHENT les écritures BQ existantes (montants = DB réelle) -->
     <tr>
-      <td class="date-col">03/11</td>
+      <td class="date-col">15/11</td>
       <td class="ref-col">VIR001</td>
-      <td>VIR RECU CLIENT DUPONT<br><span style="color:#888;font-size:10px;">Coupe + Brushing - RDV 01/11</span></td>
+      <td>VIR RECU CLIENT DUPONT<br><span style="color:#888;font-size:10px;">Coupe + Brushing - RDV 14/11</span></td>
       <td class="right"></td>
-      <td class="right credit">50,00</td>
-      <td class="right">50,00</td>
+      <td class="right credit">80,00</td>
+      <td class="right">80,00</td>
     </tr>
     <tr>
-      <td class="date-col">05/11</td>
+      <td class="date-col">17/11</td>
       <td class="ref-col">VIR002</td>
       <td>VIR RECU CLIENT MARTIN<br><span style="color:#888;font-size:10px;">Coloration complète</span></td>
       <td class="right"></td>
       <td class="right credit">85,00</td>
-      <td class="right">135,00</td>
+      <td class="right">165,00</td>
     </tr>
     <tr>
-      <td class="date-col">08/11</td>
+      <td class="date-col">19/11</td>
       <td class="ref-col">REM01</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">3 encaissements carte — Période 01-07/11</span></td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">2 encaissements carte — Période 10-18/11</span></td>
       <td class="right"></td>
-      <td class="right credit">120,00</td>
-      <td class="right">255,00</td>
+      <td class="right credit">40,00</td>
+      <td class="right">205,00</td>
     </tr>
     <tr>
-      <td class="date-col">12/11</td>
+      <td class="date-col">21/11</td>
       <td class="ref-col">VIR003</td>
-      <td>VIR RECU CLIENT BERNARD<br><span style="color:#888;font-size:10px;">Forfait Homme</span></td>
+      <td>VIR RECU CLIENT BERNARD<br><span style="color:#888;font-size:10px;">Forfait Couleur + Soin</span></td>
       <td class="right"></td>
-      <td class="right credit">35,00</td>
-      <td class="right">290,00</td>
+      <td class="right credit">150,00</td>
+      <td class="right">355,00</td>
     </tr>
     <tr>
-      <td class="date-col">18/11</td>
+      <td class="date-col">24/11</td>
       <td class="ref-col">VIR004</td>
       <td>VIR RECU CLIENT PETIT<br><span style="color:#888;font-size:10px;">Coupe Enfant + Soin</span></td>
       <td class="right"></td>
-      <td class="right credit">28,00</td>
-      <td class="right">318,00</td>
+      <td class="right credit">30,00</td>
+      <td class="right">385,00</td>
     </tr>
     <tr>
-      <td class="date-col">22/11</td>
-      <td class="ref-col">REM02</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">5 encaissements carte — Période 08-21/11</span></td>
+      <td class="date-col">27/11</td>
+      <td class="ref-col">VIR005</td>
+      <td>VIR RECU CLIENT LEROY<br><span style="color:#888;font-size:10px;">Brushing</span></td>
       <td class="right"></td>
-      <td class="right credit">155,00</td>
-      <td class="right">473,00</td>
+      <td class="right credit">18,00</td>
+      <td class="right">403,00</td>
     </tr>
 
-    <!-- B) Transaction identifiable mais absente de la compta -->
+    <!-- B) Paiement identifiable (match compta "Paiement Produits capillaires" = 420€) -->
     <tr>
-      <td class="date-col">25/11</td>
+      <td class="date-col">28/11</td>
       <td class="ref-col">PRLV01</td>
-      <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Électricité Novembre 2025 — Réf. PDL 14578952147</span></td>
-      <td class="right debit">405,00</td>
+      <td>PRELEVEMENT METRO BEAUTE PRO<br><span style="color:#888;font-size:10px;">Produits capillaires — Facture F-2025-1184</span></td>
+      <td class="right debit">420,00</td>
       <td class="right"></td>
-      <td class="right">68,00</td>
+      <td class="right">-17,00</td>
     </tr>
 
     <!-- A) Suite encaissements qui matchent -->
     <tr>
-      <td class="date-col">27/11</td>
-      <td class="ref-col">VIR005</td>
+      <td class="date-col">28/11</td>
+      <td class="ref-col">REM02</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">5 encaissements carte — Période 19-27/11</span></td>
+      <td class="right"></td>
+      <td class="right credit">85,00</td>
+      <td class="right">68,00</td>
+    </tr>
+    <tr>
+      <td class="date-col">29/11</td>
+      <td class="ref-col">VIR006</td>
       <td>VIR RECU CLIENT MOREAU<br><span style="color:#888;font-size:10px;">Mèches + Coupe</span></td>
       <td class="right"></td>
       <td class="right credit">45,00</td>
       <td class="right">113,00</td>
     </tr>
 
-    <!-- Frais bancaires (bank-only) -->
+    <!-- Frais bancaires (bank-only → 627) -->
     <tr>
       <td class="date-col">30/11</td>
       <td class="ref-col">FRS01</td>
@@ -198,8 +206,8 @@
       <td></td>
       <td></td>
       <td><strong>TOTAUX DU MOIS</strong></td>
-      <td class="right debit"><strong>414,50</strong></td>
-      <td class="right credit"><strong>518,00</strong></td>
+      <td class="right debit"><strong>429,50</strong></td>
+      <td class="right credit"><strong>533,00</strong></td>
       <td class="right"><strong>103,50</strong></td>
     </tr>
   </tbody>

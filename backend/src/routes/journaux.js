@@ -3554,6 +3554,8 @@ router.post('/rapprochement-auto', async (req, res) => {
       return res.status(400).json({ error: 'Aucune transaction fournie' });
     }
 
+    console.log(`[RAPPROCHEMENT] Début — ${transactions.length} transactions, période: ${periode || 'non spécifiée'}, tenant: ${tenantId}`);
+
     // Extraire la période au format YYYY-MM si fournie
     let periodeISO = null;
     if (periode) {
@@ -3585,6 +3587,7 @@ router.post('/rapprochement-auto', async (req, res) => {
     if (errBQ) throw errBQ;
 
     const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
+    console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées (période: ${periodeISO || 'toutes'})`);
 
     // Helpers
     const parseDate = (str) => {
@@ -3628,6 +3631,7 @@ router.post('/rapprochement-auto', async (req, res) => {
       if (txMontant === 0) continue;
 
       const isCredit = tx.type === 'credit';
+      console.log(`[RAPPROCHEMENT] Tx: ${tx.libelle?.slice(0, 40)} | ${tx.type} ${txMontant}cts | date: ${tx.date}`);
 
       // --- Étape 1 : Chercher un match dans les écritures BQ existantes ---
       let meilleurMatch = null;
@@ -3656,6 +3660,7 @@ router.post('/rapprochement-auto', async (req, res) => {
 
       if (meilleurMatch) {
         // Match trouvé → pointer
+        console.log(`[RAPPROCHEMENT]   → MATCH trouvé: écriture ${meilleurMatch.id} (score: ${meilleurScore})`);
         const codeLettrage = `RA-${moisLettrage}${anneeLettrage}-${String(lettrageIndex).padStart(3, '0')}`;
         lettrageIndex++;
 
@@ -3678,6 +3683,8 @@ router.post('/rapprochement-auto', async (req, res) => {
             type: tx.type,
             lettrage: codeLettrage
           });
+        } else {
+          console.error(`[RAPPROCHEMENT] Erreur pointage écriture ${meilleurMatch.id}:`, errPoint.message, errPoint);
         }
         continue;
       }
@@ -3690,6 +3697,7 @@ router.post('/rapprochement-auto', async (req, res) => {
       lettrageIndex++;
 
       const identification = identifierTransaction(tx.libelle);
+      console.log(`[RAPPROCHEMENT]   → Pas de match → identification: ${identification.type} (${identification.compte})`);
 
       if (identification.type === 'inconnu') {
         // --- Étape 3 : Inconnu total → compte 471 ---
@@ -3717,6 +3725,8 @@ router.post('/rapprochement-auto', async (req, res) => {
             type: tx.type,
             lettrage: codeLettrage
           });
+        } else {
+          console.error(`[RAPPROCHEMENT] Erreur insertion 471:`, err471.message, err471, JSON.stringify(ecritures471[0]));
         }
       } else if (identification.type === 'frais_bancaires') {
         // Frais bancaires → D 627 / C 512
@@ -3739,6 +3749,8 @@ router.post('/rapprochement-auto', async (req, res) => {
             compte_libelle: identification.libelle_compte,
             lettrage: codeLettrage
           });
+        } else {
+          console.error(`[RAPPROCHEMENT] Erreur insertion frais bancaires:`, errFrs.message, errFrs, JSON.stringify(ecrituresFrais[0]));
         }
       } else if (identification.type === 'fournisseur') {
         // Fournisseur identifié → D 401xxx / C 512
@@ -3761,6 +3773,8 @@ router.post('/rapprochement-auto', async (req, res) => {
             compte_libelle: identification.libelle_compte,
             lettrage: codeLettrage
           });
+        } else {
+          console.error(`[RAPPROCHEMENT] Erreur insertion fournisseur:`, errFrn.message, errFrn, JSON.stringify(ecrituresFrn[0]));
         }
       } else if (identification.type === 'client') {
         // Client identifié → D 512 / C 411xxx
@@ -3783,9 +3797,13 @@ router.post('/rapprochement-auto', async (req, res) => {
             compte_libelle: identification.libelle_compte,
             lettrage: codeLettrage
           });
+        } else {
+          console.error(`[RAPPROCHEMENT] Erreur insertion client:`, errCli.message, errCli, JSON.stringify(ecrituresCli[0]));
         }
       }
     }
+
+    console.log(`[RAPPROCHEMENT] Résultat — ${pointees.length} pointées, ${ecrituresCreees.length} créées, ${regulariser471.length} en 471`);
 
     // 3. Écritures compta non matchées
     const nonMatcheesCompta = ecrituresDisponibles
