@@ -3900,11 +3900,13 @@ router.post('/rapprochement-auto', async (req, res) => {
     const suspensComptaCredit = nonMatcheesCompta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
     const soldeRapprocheBanque = (solde_fin || 0) + suspensComptaDebit - suspensComptaCredit;
 
-    // Côté compta : solde 512 + transactions relevé pas encore en compta (créées + 471)
-    const creditsReleveHorsCompta = ecrituresCreees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
-      + regulariser471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
-    const debitsReleveHorsCompta = ecrituresCreees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
-      + regulariser471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    // Côté compta : calculer depuis proposed_ecritures sur compte 512
+    // Inclut créées + régularisations (658/758) automatiquement
+    const proposed512 = proposed_ecritures.filter(e => String(e.compte_numero) === '512');
+    // 512 debit (compta) = argent entrant = credit banque → ajouter
+    const creditsReleveHorsCompta = proposed512.reduce((s, e) => s + (Number(e.debit) || 0), 0) / 100;
+    // 512 credit (compta) = argent sortant = debit banque → soustraire
+    const debitsReleveHorsCompta = proposed512.reduce((s, e) => s + (Number(e.credit) || 0), 0) / 100;
     const soldeRapprochéCompta = solde512Cumule + creditsReleveHorsCompta - debitsReleveHorsCompta;
 
     const ecart = solde_fin != null ? Math.round((soldeRapprocheBanque - soldeRapprochéCompta) * 100) / 100 : null;

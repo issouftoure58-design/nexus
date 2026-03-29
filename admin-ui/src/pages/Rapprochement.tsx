@@ -365,19 +365,20 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     if (!rapport?.deux_tableaux) return null;
     const dt = rapport.deux_tableaux;
     const nonMatchees = rapport.non_matchees_compta || [];
-    const creees = rapport.ecritures_creees || [];
-    const r471 = rapport.regulariser_471 || [];
+    const proposed = (rapport.proposed_ecritures || []) as Array<Record<string, unknown>>;
 
     // Côté banque : solde relevé + suspens compta (non matchées)
     const suspensDebit = nonMatchees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const suspensCredit = nonMatchees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
     const soldeRapprocheBanque = dt.cote_banque.solde_releve + suspensDebit - suspensCredit;
 
-    // Côté compta : solde 512 + transactions relevé pas encore en compta (créées + 471)
-    const creditsHors = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
-      + r471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
-    const debitsHors = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
-      + r471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    // Côté compta : calculer depuis proposed_ecritures sur compte 512
+    // Inclut créées + régularisations matching forcé (658/758) automatiquement
+    const proposed512 = proposed.filter(e => String(e.compte_numero) === '512');
+    // 512 debit (compta) = argent entrant = crédit banque → ajouter au côté compta
+    const creditsHors = proposed512.reduce((s, e) => s + (Number(e.debit) || 0), 0) / 100;
+    // 512 credit (compta) = argent sortant = débit banque → soustraire du côté compta
+    const debitsHors = proposed512.reduce((s, e) => s + (Number(e.credit) || 0), 0) / 100;
     const soldeRapprochéCompta = dt.cote_compta.solde_512 + creditsHors - debitsHors;
 
     return {
@@ -797,13 +798,14 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
     // Recalcul deux tableaux pour impression (même logique que useMemo)
     const dtRaw = r.deux_tableaux;
+    const proposed = (r.proposed_ecritures || []) as Array<Record<string, unknown>>;
     const dt = dtRaw ? (() => {
       const suspD = nonMatcheesArr.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
       const suspC = nonMatcheesArr.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
-      const crH = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
-        + reg471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
-      const dbH = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
-        + reg471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+      // Côté compta : proposed_ecritures sur 512 (inclut créées + régularisations)
+      const p512 = proposed.filter(e => String(e.compte_numero) === '512');
+      const crH = p512.reduce((s, e) => s + (Number(e.debit) || 0), 0) / 100;
+      const dbH = p512.reduce((s, e) => s + (Number(e.credit) || 0), 0) / 100;
       return {
         cote_banque: { solde_releve: dtRaw.cote_banque.solde_releve, plus_debits_compta_hors_releve: Math.round(suspD * 100) / 100, moins_credits_compta_hors_releve: Math.round(suspC * 100) / 100, solde_rapproche: Math.round((dtRaw.cote_banque.solde_releve + suspD - suspC) * 100) / 100 },
         cote_compta: { solde_512: dtRaw.cote_compta.solde_512, plus_credits_releve_hors_compta: Math.round(crH * 100) / 100, moins_debits_releve_hors_compta: Math.round(dbH * 100) / 100, solde_rapproche: Math.round((dtRaw.cote_compta.solde_512 + crH - dbH) * 100) / 100 }
