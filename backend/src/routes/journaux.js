@@ -3632,24 +3632,55 @@ router.post('/rapprochement-auto', async (req, res) => {
     const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
     console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées`);
 
-    // 1b. Récupérer les écritures RA-* existantes (déjà créées par un rapprochement précédent)
-    // Pour éviter les doublons : si une transaction du relevé matche une RA-* existante → "déjà pointée"
-    let queryRA = supabase
-      .from('ecritures_comptables')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('journal_code', 'BQ')
-      .eq('compte_numero', '512')
-      .not('lettrage', 'is', null)
-      .like('numero_piece', 'RA-%');
-
+    // 1b. Récupérer TOUTES les écritures déjà traitées par un rapprochement précédent
+    // Inclut : RA-* créées (numero_piece RA-%) ET originales pointées (lettrage RA/RG du même mois)
+    // Un auto-match pointe l'écriture originale (lettrage RA...) sans créer de RA-*
+    // Un match forcé crée aussi des RG... (régularisation 658/758)
+    let ecrituresRA = [];
     if (periodeISO) {
-      queryRA = queryRA.eq('periode', periodeISO);
-    }
+      // Prefix lettrage pour cette période (ex: RA1225 pour 2025-12, RG1225 pour régul)
+      const prefixRA = `RA${periodeISO.slice(5, 7)}${periodeISO.slice(2, 4)}`;
+      const prefixRG = `RG${periodeISO.slice(5, 7)}${periodeISO.slice(2, 4)}`;
 
-    const { data: ecrituresRAData } = await queryRA;
-    const ecrituresRA = (ecrituresRAData || []).map(e => ({ ...e, matched: false }));
-    console.log(`[RAPPROCHEMENT] ${ecrituresRA.length} écritures RA-* existantes trouvées (anti-doublon)`);
+      const { data: ecrituresRAData } = await supabase
+        .from('ecritures_comptables')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .not('lettrage', 'is', null)
+        .or(`lettrage.like.${prefixRA}%,lettrage.like.${prefixRG}%`);
+
+      ecrituresRA = (ecrituresRAData || []).map(e => ({ ...e, matched: false }));
+    } else {
+      const { data: ecrituresRAData } = await supabase
+        .from('ecritures_comptables')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .not('lettrage', 'is', null)
+        .or('lettrage.like.RA%,lettrage.like.RG%');
+
+      ecrituresRA = (ecrituresRAData || []).map(e => ({ ...e, matched: false }));
+    }
+    console.log(`[RAPPROCHEMENT] ${ecrituresRA.length} écritures déjà rapprochées trouvées (anti-doublon)`);
+
+    // 1c. Charger le rapprochement sauvegardé pour anti-doublon des matchings forcés (écart montant)
+    let savedPointees = [];
+    if (periodeISO) {
+      const { data: savedRappro } = await supabase
+        .from('rapprochements_bancaires')
+        .select('rapport_json')
+        .eq('tenant_id', tenantId)
+        .eq('periode', periodeISO)
+        .maybeSingle();
+
+      if (savedRappro?.rapport_json?.pointees) {
+        savedPointees = savedRappro.rapport_json.pointees.map(p => ({ ...p, _matched: false }));
+      }
+      console.log(`[RAPPROCHEMENT] ${savedPointees.length} pointées sauvegardées chargées (anti-doublon forcé)`);
+    }
 
     // Helpers
     const parseDate = (str) => {
@@ -3770,6 +3801,29 @@ router.post('/rapprochement-auto', async (req, res) => {
             deja_pointe: true
           });
           break;
+        }
+      }
+      // --- Étape 1c : Vérifier dans le rapprochement sauvegardé (matchings forcés avec écart) ---
+      if (!dejaPointe && savedPointees.length > 0) {
+        const savedMatch = savedPointees.find(p => {
+          if (p._matched) return false;
+          // Matcher par libellé relevé + type (les montants diffèrent pour les matchings forcés)
+          return p.libelle_releve === tx.libelle && p.type === tx.type;
+        });
+        if (savedMatch) {
+          savedMatch._matched = true;
+          dejaPointe = true;
+          pointees.push({
+            date: savedMatch.date || tx.date,
+            libelle_releve: savedMatch.libelle_releve,
+            libelle_compta: savedMatch.libelle_compta || savedMatch.libelle_releve,
+            montant: savedMatch.montant || txMontant / 100,
+            type: savedMatch.type || tx.type,
+            lettrage: savedMatch.lettrage,
+            deja_pointe: true,
+            ecart_regul: savedMatch.ecart_regul
+          });
+          console.log(`[RAPPROCHEMENT]   → MATCH FORCÉ sauvegardé: ${tx.libelle} (${txMontant/100}€)`);
         }
       }
       if (dejaPointe) continue;
@@ -4048,8 +4102,14 @@ router.post('/rapprochements/sauver', async (req, res) => {
     const proposed_ecritures = rapport.proposed_ecritures || [];
     const proposed_pointages = rapport.proposed_pointages || [];
 
-    // IDEMPOTENT : supprimer les anciennes écritures RA-* de cette période avant réinsertion
-    // Évite les doublons si le rapprochement est sauvé plusieurs fois
+    console.log(`[RAPPROCHEMENT] Save — ${proposed_ecritures.length} écritures à créer, ${proposed_pointages.length} pointages à appliquer`);
+    if (proposed_ecritures.length > 0) {
+      const comptes = proposed_ecritures.map(e => e.compte_numero).filter((v, i, a) => a.indexOf(v) === i);
+      console.log(`[RAPPROCHEMENT] Comptes dans proposed_ecritures: ${comptes.join(', ')}`);
+    }
+
+    // TRANSACTIONNEL : noter les anciennes RA-* SANS les supprimer (on supprime APRÈS l'insert réussi)
+    let oldRAIds = [];
     if (proposed_ecritures.length > 0) {
       const { data: oldRA, error: errOldRA } = await supabase
         .from('ecritures_comptables')
@@ -4060,18 +4120,43 @@ router.post('/rapprochements/sauver', async (req, res) => {
         .like('numero_piece', 'RA-%');
 
       if (!errOldRA && oldRA && oldRA.length > 0) {
-        const oldIds = oldRA.map(e => e.id);
-        await supabase.from('ecritures_comptables').delete().in('id', oldIds);
-        console.log(`[RAPPROCHEMENT] ${oldIds.length} anciennes écritures RA-* supprimées (idempotent) pour ${periode}`);
+        oldRAIds = oldRA.map(e => e.id);
+        console.log(`[RAPPROCHEMENT] ${oldRAIds.length} anciennes écritures RA-* identifiées pour nettoyage`);
       }
     }
 
+    // Créer les nouvelles écritures EN PREMIER (627, 401, 411, 471, 658, 758)
+    // Si l'insert échoue, les anciennes RA-* restent intactes → pas d'état incohérent
+    if (proposed_ecritures.length > 0) {
+      const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => ({
+        ...rest,
+        tenant_id: tenantId, // Forcer tenant_id (matching forcé frontend n'en a pas)
+      }));
+
+      const { error: errInsert } = await supabase
+        .from('ecritures_comptables')
+        .insert(ecrituresClean);
+
+      if (errInsert) {
+        console.error('[RAPPROCHEMENT] Erreur insertion écritures:', errInsert);
+        throw errInsert;
+      }
+      console.log(`[RAPPROCHEMENT] ${ecrituresClean.length} écritures créées en DB pour période ${periode}`);
+
+      // Insert RÉUSSI → supprimer les anciennes RA-* en toute sécurité
+      if (oldRAIds.length > 0) {
+        await supabase.from('ecritures_comptables').delete().in('id', oldRAIds);
+        console.log(`[RAPPROCHEMENT] ${oldRAIds.length} anciennes écritures RA-* supprimées (idempotent) pour ${periode}`);
+      }
+    }
+
+    // Pointer les écritures existantes (lettrage)
     // IDEMPOTENT : réinitialiser les lettrages RA stale avant de repointer
     if (proposed_pointages.length > 0) {
       const pointageIds = new Set(proposed_pointages.map(p => p.ecriture_id));
       const newCodes = proposed_pointages.map(p => p.lettrage);
 
-      // Récupérer toutes les écritures 512 avec lettrage RA qui utilisent les mêmes codes
+      // Récupérer toutes les écritures 512 avec lettrage RA/RG qui utilisent les mêmes codes
       const { data: allRA } = await supabase
         .from('ecritures_comptables')
         .select('id, lettrage')
@@ -4093,25 +4178,7 @@ router.post('/rapprochements/sauver', async (req, res) => {
       }
     }
 
-    // Créer les nouvelles écritures (627, 401, 411, 471, 658, 758) — supprimer le champ _group avant insert
-    if (proposed_ecritures.length > 0) {
-      const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => ({
-        ...rest,
-        tenant_id: tenantId, // Forcer tenant_id (matching forcé frontend n'en a pas)
-      }));
-
-      const { error: errInsert } = await supabase
-        .from('ecritures_comptables')
-        .insert(ecrituresClean);
-
-      if (errInsert) {
-        console.error('[RAPPROCHEMENT] Erreur insertion écritures:', errInsert);
-        throw errInsert;
-      }
-      console.log(`[RAPPROCHEMENT] ${ecrituresClean.length} écritures créées en DB pour période ${periode}`);
-    }
-
-    // Pointer les écritures existantes (lettrage)
+    // Appliquer les pointages
     for (const p of proposed_pointages) {
       const { error: errPoint } = await supabase
         .from('ecritures_comptables')
@@ -4121,6 +4188,8 @@ router.post('/rapprochements/sauver', async (req, res) => {
 
       if (errPoint) {
         console.error(`[RAPPROCHEMENT] Erreur pointage écriture ${p.ecriture_id}:`, errPoint);
+      } else {
+        console.log(`[RAPPROCHEMENT] Pointage OK: écriture ${p.ecriture_id} → lettrage ${p.lettrage}`);
       }
     }
     if (proposed_pointages.length > 0) {
