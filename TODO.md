@@ -261,7 +261,12 @@ COURT TERME — Beta Patwinsserie ✅ TOUT FAIT
 MOYEN TERME (1-2 mois)
 ├── C1. Tests charge + E2E + frontend ✅
 ├── D1. Suivi financement (comité, SASU, ACRE, NACRE)
-└── Meta Business API (quand compte FB mature)
+├── Meta Business API (quand compte FB mature)
+└── Rapprochement bancaire v2+ — Group matching paiements partiels
+    ├── Sélectionner N lignes relevé pour rapprocher 1 écriture (ex: 200+200+100 = 500€)
+    ├── UI drag & drop ou checkbox multi-sélection
+    ├── Vérification somme = montant écriture avant validation
+    └── DIFFÉRENCIATEUR — aucun SaaS compta ne propose ça en auto
 
 LONG TERME (3+ mois)
 ├── C2. Blog tenant + Guide SEO

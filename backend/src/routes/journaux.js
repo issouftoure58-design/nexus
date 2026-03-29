@@ -3584,11 +3584,6 @@ router.post('/rapprochement-auto', async (req, res) => {
 
     const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
     console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées`);
-    // Debug types — Supabase peut retourner strings pour NUMERIC/DECIMAL
-    if (ecrituresDisponibles.length > 0) {
-      const s = ecrituresDisponibles[0];
-      console.log(`[RAPPROCHEMENT] DEBUG type écriture[0]: debit=${s.debit} (${typeof s.debit}), credit=${s.credit} (${typeof s.credit}), date=${s.date_ecriture}, libelle=${s.libelle?.slice(0, 40)}`);
-    }
 
     // Helpers
     const parseDate = (str) => {
@@ -3632,8 +3627,6 @@ router.post('/rapprochement-auto', async (req, res) => {
       if (txMontant === 0) continue;
 
       const isCredit = tx.type === 'credit';
-      console.log(`[RAPPROCHEMENT] Tx: ${tx.libelle?.slice(0, 40)} | ${tx.type} ${txMontant}cts | date: ${tx.date}`);
-
       // --- Étape 1 : Chercher un match dans les écritures BQ existantes ---
       let meilleurMatch = null;
       let meilleurScore = -1;
@@ -3703,7 +3696,6 @@ router.post('/rapprochement-auto', async (req, res) => {
       lettrageIndex++;
 
       const identification = identifierTransaction(tx.libelle);
-      console.log(`[RAPPROCHEMENT]   → Pas de match → identification: ${identification.type} (${identification.compte})`);
 
       if (identification.type === 'inconnu') {
         // --- Étape 3 : Inconnu total → compte 471 ---

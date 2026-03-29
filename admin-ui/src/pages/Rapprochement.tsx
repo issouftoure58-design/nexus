@@ -441,7 +441,6 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         montant: tx.montant,
         type: tx.type,
       }));
-      console.log('[RAPPROCHEMENT] Envoi API:', { nb_tx: txForApi.length, periode: periodeISO || relevePeriode, solde_fin: soldeBancaire, sample: txForApi.slice(0, 3) });
       const result = await comptaApi.rapprochementAuto({
         transactions: txForApi,
         solde_debut: releveSoldeDebut,
