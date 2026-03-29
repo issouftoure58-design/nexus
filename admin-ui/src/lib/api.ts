@@ -729,10 +729,12 @@ export const comptaApi = {
           solde_rapproche: number;
         };
       };
-      pointees: Array<{ date: string; libelle_releve: string; libelle_compta: string; montant: number; type: string; lettrage: string }>;
+      pointees: Array<{ date: string; libelle_releve: string; libelle_compta: string; montant: number; type: string; lettrage: string; deja_pointe?: boolean; ecart_regul?: string }>;
       ecritures_creees: Array<{ date: string; libelle: string; montant: number; type: string; compte: string; compte_libelle: string; lettrage: string }>;
-      regulariser_471: Array<{ date: string; libelle: string; montant: number; type: string; lettrage: string }>;
-      non_matchees_compta: Array<{ date: string; libelle: string; montant: number; type: string; raison: string }>;
+      regulariser_471: Array<{ date: string; libelle: string; montant: number; type: string; compte?: string; compte_libelle?: string; lettrage: string }>;
+      non_matchees_compta: Array<{ id: number; date: string; libelle: string; montant: number; type: string; raison: string }>;
+      proposed_pointages: Array<{ ecriture_id: number; lettrage: string; date_lettrage: string }>;
+      proposed_ecritures: Array<Record<string, unknown>>;
       resume: { nb_pointees: number; nb_ecritures_creees: number; nb_regulariser_471: number; nb_non_matchees_compta: number };
     };
   }>('/journaux/rapprochement-auto', data),

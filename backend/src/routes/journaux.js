@@ -3611,6 +3611,25 @@ router.post('/rapprochement-auto', async (req, res) => {
     const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
     console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées`);
 
+    // 1b. Récupérer les écritures RA-* existantes (déjà créées par un rapprochement précédent)
+    // Pour éviter les doublons : si une transaction du relevé matche une RA-* existante → "déjà pointée"
+    let queryRA = supabase
+      .from('ecritures_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('journal_code', 'BQ')
+      .eq('compte_numero', '512')
+      .not('lettrage', 'is', null)
+      .like('numero_piece', 'RA-%');
+
+    if (periodeISO) {
+      queryRA = queryRA.eq('periode', periodeISO);
+    }
+
+    const { data: ecrituresRAData } = await queryRA;
+    const ecrituresRA = (ecrituresRAData || []).map(e => ({ ...e, matched: false }));
+    console.log(`[RAPPROCHEMENT] ${ecrituresRA.length} écritures RA-* existantes trouvées (anti-doublon)`);
+
     // Helpers
     const parseDate = (str) => {
       if (!str) return null;
@@ -3645,6 +3664,10 @@ router.post('/rapprochement-auto', async (req, res) => {
     const periodeMatch = (periode || '').match(/(\d{2})\/(\d{4})/);
     const moisLettrage = periodeMatch ? periodeMatch[1] : String(new Date().getMonth() + 1).padStart(2, '0');
     const anneeLettrage = periodeMatch ? periodeMatch[2] : String(new Date().getFullYear());
+
+    // Collections pour le mode preview (aucune écriture n'est créée/modifiée en DB)
+    const proposed_pointages = [];
+    const proposed_ecritures = [];
 
     for (const tx of transactions) {
       const txDate = parseDate(tx.date);
@@ -3684,37 +3707,51 @@ router.post('/rapprochement-auto', async (req, res) => {
       }
 
       if (meilleurMatch) {
-        // Match trouvé → pointer
+        // Match trouvé → proposer le pointage (preview, pas d'écriture en DB)
         console.log(`[RAPPROCHEMENT]   → MATCH trouvé: écriture ${meilleurMatch.id} (score: ${meilleurScore})`);
         const codeLettrage = `RA${moisLettrage}${anneeLettrage.slice(2)}-${String(lettrageIndex).padStart(3, '0')}`;
         lettrageIndex++;
 
-        const { error: errPoint } = await supabase
-          .from('ecritures_comptables')
-          .update({
-            lettrage: codeLettrage,
-            date_lettrage: new Date().toISOString().split('T')[0]
-          })
-          .eq('id', meilleurMatch.id)
-          .eq('tenant_id', tenantId);
-
-        if (!errPoint) {
-          meilleurMatch.matched = true;
-          pointees.push({
-            date: tx.date,
-            libelle_releve: tx.libelle,
-            libelle_compta: meilleurMatch.libelle,
-            montant: txMontant / 100,
-            type: tx.type,
-            lettrage: codeLettrage
-          });
-        } else {
-          console.error(`[RAPPROCHEMENT] Erreur pointage écriture ${meilleurMatch.id}:`, errPoint.message, errPoint);
-        }
+        meilleurMatch.matched = true;
+        proposed_pointages.push({
+          ecriture_id: meilleurMatch.id,
+          lettrage: codeLettrage,
+          date_lettrage: new Date().toISOString().split('T')[0]
+        });
+        pointees.push({
+          date: tx.date,
+          libelle_releve: tx.libelle,
+          libelle_compta: meilleurMatch.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          lettrage: codeLettrage
+        });
         continue;
       }
 
-      // --- Étape 2 : Pas de match → identifier et créer écriture BQ ---
+      // --- Étape 1b : Vérifier si une écriture RA-* existe déjà (anti-doublon) ---
+      let dejaPointe = false;
+      for (const ra of ecrituresRA) {
+        if (ra.matched) continue;
+        const montantRA = Number(isCredit ? (ra.debit || 0) : (ra.credit || 0));
+        if (montantRA === txMontant) {
+          ra.matched = true;
+          dejaPointe = true;
+          pointees.push({
+            date: tx.date,
+            libelle_releve: tx.libelle,
+            libelle_compta: ra.libelle,
+            montant: txMontant / 100,
+            type: tx.type,
+            lettrage: ra.lettrage,
+            deja_pointe: true
+          });
+          break;
+        }
+      }
+      if (dejaPointe) continue;
+
+      // --- Étape 2 : Pas de match → identifier et proposer écriture BQ (preview) ---
       const dateEcriture = txDate ? txDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       const periodeEc = dateEcriture.slice(0, 7);
       const exercice = parseInt(dateEcriture.slice(0, 4)) || new Date().getFullYear();
@@ -3724,106 +3761,78 @@ router.post('/rapprochement-auto', async (req, res) => {
       const identification = identifierTransaction(tx.libelle);
 
       if (identification.type === 'inconnu') {
-        // --- Étape 3 : Inconnu total → compte 471 ---
+        // --- Inconnu total → compte 471 (preview, pas d'insertion) ---
         const ecritures471 = isCredit
           ? [
-              // D 512 / C 471
-              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: txMontant, credit: 0, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice },
-              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '471', compte_libelle: 'Compte d\'attente', libelle: tx.libelle, debit: 0, credit: txMontant, periode: periodeEc, exercice }
+              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: txMontant, credit: 0, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: codeLettrage },
+              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '471', compte_libelle: 'Compte d\'attente', libelle: tx.libelle, debit: 0, credit: txMontant, periode: periodeEc, exercice, _group: codeLettrage }
             ]
           : [
-              // D 471 / C 512
-              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '471', compte_libelle: 'Compte d\'attente', libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice },
-              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice }
+              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '471', compte_libelle: 'Compte d\'attente', libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice, _group: codeLettrage },
+              { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-471`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: codeLettrage }
             ];
 
-        const { error: err471 } = await supabase
-          .from('ecritures_comptables')
-          .insert(ecritures471);
-
-        if (!err471) {
-          regulariser471.push({
-            date: tx.date,
-            libelle: tx.libelle,
-            montant: txMontant / 100,
-            type: tx.type,
-            lettrage: codeLettrage
-          });
-        } else {
-          console.error(`[RAPPROCHEMENT] Erreur insertion 471:`, err471.message, err471, JSON.stringify(ecritures471[0]));
-        }
+        proposed_ecritures.push(...ecritures471);
+        regulariser471.push({
+          date: tx.date,
+          libelle: tx.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          compte: '471',
+          compte_libelle: 'Compte d\'attente',
+          lettrage: codeLettrage
+        });
       } else if (identification.type === 'frais_bancaires') {
-        // Frais bancaires → D 627 / C 512
+        // Frais bancaires → D 627 / C 512 (preview)
         const ecrituresFrais = [
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRS`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice },
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRS`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice }
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRS`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice, _group: codeLettrage },
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRS`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: codeLettrage }
         ];
 
-        const { error: errFrs } = await supabase
-          .from('ecritures_comptables')
-          .insert(ecrituresFrais);
-
-        if (!errFrs) {
-          ecrituresCreees.push({
-            date: tx.date,
-            libelle: tx.libelle,
-            montant: txMontant / 100,
-            type: tx.type,
-            compte: identification.compte,
-            compte_libelle: identification.libelle_compte,
-            lettrage: codeLettrage
-          });
-        } else {
-          console.error(`[RAPPROCHEMENT] Erreur insertion frais bancaires:`, errFrs.message, errFrs, JSON.stringify(ecrituresFrais[0]));
-        }
+        proposed_ecritures.push(...ecrituresFrais);
+        ecrituresCreees.push({
+          date: tx.date,
+          libelle: tx.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          compte: identification.compte,
+          compte_libelle: identification.libelle_compte,
+          lettrage: codeLettrage
+        });
       } else if (identification.type === 'fournisseur') {
-        // Fournisseur identifié → D 401xxx / C 512
+        // Fournisseur identifié → D 401xxx / C 512 (preview)
         const ecrituresFrn = [
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRN`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice },
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRN`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice }
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRN`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: txMontant, credit: 0, periode: periodeEc, exercice, _group: codeLettrage },
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-FRN`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: 0, credit: txMontant, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: codeLettrage }
         ];
 
-        const { error: errFrn } = await supabase
-          .from('ecritures_comptables')
-          .insert(ecrituresFrn);
-
-        if (!errFrn) {
-          ecrituresCreees.push({
-            date: tx.date,
-            libelle: tx.libelle,
-            montant: txMontant / 100,
-            type: tx.type,
-            compte: identification.compte,
-            compte_libelle: identification.libelle_compte,
-            lettrage: codeLettrage
-          });
-        } else {
-          console.error(`[RAPPROCHEMENT] Erreur insertion fournisseur:`, errFrn.message, errFrn, JSON.stringify(ecrituresFrn[0]));
-        }
+        proposed_ecritures.push(...ecrituresFrn);
+        ecrituresCreees.push({
+          date: tx.date,
+          libelle: tx.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          compte: identification.compte,
+          compte_libelle: identification.libelle_compte,
+          lettrage: codeLettrage
+        });
       } else if (identification.type === 'client') {
-        // Client identifié → D 512 / C 411xxx
+        // Client identifié → D 512 / C 411xxx (preview)
         const ecrituresCli = [
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-CLI`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: txMontant, credit: 0, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice },
-          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-CLI`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: 0, credit: txMontant, periode: periodeEc, exercice }
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-CLI`, compte_numero: '512', compte_libelle: 'Banque', libelle: tx.libelle, debit: txMontant, credit: 0, lettrage: codeLettrage, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: codeLettrage },
+          { tenant_id: tenantId, journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: `RA-CLI`, compte_numero: identification.compte, compte_libelle: identification.libelle_compte, libelle: tx.libelle, debit: 0, credit: txMontant, periode: periodeEc, exercice, _group: codeLettrage }
         ];
 
-        const { error: errCli } = await supabase
-          .from('ecritures_comptables')
-          .insert(ecrituresCli);
-
-        if (!errCli) {
-          ecrituresCreees.push({
-            date: tx.date,
-            libelle: tx.libelle,
-            montant: txMontant / 100,
-            type: tx.type,
-            compte: identification.compte,
-            compte_libelle: identification.libelle_compte,
-            lettrage: codeLettrage
-          });
-        } else {
-          console.error(`[RAPPROCHEMENT] Erreur insertion client:`, errCli.message, errCli, JSON.stringify(ecrituresCli[0]));
-        }
+        proposed_ecritures.push(...ecrituresCli);
+        ecrituresCreees.push({
+          date: tx.date,
+          libelle: tx.libelle,
+          montant: txMontant / 100,
+          type: tx.type,
+          compte: identification.compte,
+          compte_libelle: identification.libelle_compte,
+          lettrage: codeLettrage
+        });
       }
     }
 
@@ -3833,6 +3842,7 @@ router.post('/rapprochement-auto', async (req, res) => {
     const nonMatcheesCompta = ecrituresDisponibles
       .filter(e => !e.matched)
       .map(e => ({
+        id: e.id,
         date: e.date_ecriture,
         libelle: e.libelle,
         montant: Math.max(Number(e.debit || 0), Number(e.credit || 0)) / 100,
@@ -3904,6 +3914,8 @@ router.post('/rapprochement-auto', async (req, res) => {
         ecritures_creees: ecrituresCreees,
         regulariser_471: regulariser471,
         non_matchees_compta: nonMatcheesCompta,
+        proposed_pointages,
+        proposed_ecritures,
         resume: {
           nb_pointees: pointees.length,
           nb_ecritures_creees: ecrituresCreees.length,
@@ -3992,6 +4004,53 @@ router.post('/rapprochements/sauver', async (req, res) => {
     const { periode, rapport } = req.body;
     if (!periode || !rapport) {
       return res.status(400).json({ error: 'Période et rapport requis' });
+    }
+
+    // Vérification : période pas déjà validée (anti double-clic)
+    const { data: existing } = await supabase
+      .from('rapprochements_bancaires')
+      .select('id, valide')
+      .eq('tenant_id', tenantId)
+      .eq('periode', periode)
+      .maybeSingle();
+
+    if (existing?.valide) {
+      return res.status(409).json({ error: 'Cette période est déjà validée. Déverrouillez d\'abord.' });
+    }
+
+    // Exécuter les écritures proposées (preview → DB)
+    const proposed_ecritures = rapport.proposed_ecritures || [];
+    const proposed_pointages = rapport.proposed_pointages || [];
+
+    // Créer les nouvelles écritures (627, 401, 411, 471) — supprimer le champ _group avant insert
+    if (proposed_ecritures.length > 0) {
+      const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => rest);
+
+      const { error: errInsert } = await supabase
+        .from('ecritures_comptables')
+        .insert(ecrituresClean);
+
+      if (errInsert) {
+        console.error('[RAPPROCHEMENT] Erreur insertion écritures:', errInsert);
+        throw errInsert;
+      }
+      console.log(`[RAPPROCHEMENT] ${ecrituresClean.length} écritures créées en DB pour période ${periode}`);
+    }
+
+    // Pointer les écritures existantes (lettrage)
+    for (const p of proposed_pointages) {
+      const { error: errPoint } = await supabase
+        .from('ecritures_comptables')
+        .update({ lettrage: p.lettrage, date_lettrage: p.date_lettrage })
+        .eq('id', p.ecriture_id)
+        .eq('tenant_id', tenantId);
+
+      if (errPoint) {
+        console.error(`[RAPPROCHEMENT] Erreur pointage écriture ${p.ecriture_id}:`, errPoint);
+      }
+    }
+    if (proposed_pointages.length > 0) {
+      console.log(`[RAPPROCHEMENT] ${proposed_pointages.length} écritures pointées en DB`);
     }
 
     const row = {

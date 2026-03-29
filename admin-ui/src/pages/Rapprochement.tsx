@@ -26,6 +26,10 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  Pencil,
+  Trash2,
+  Check,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -245,6 +249,219 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   const [rapportTab, setRapportTab] = useState<'pointees' | 'creees' | 'regulariser_471' | 'non_matchees'>('pointees');
   const [rapprochementAutoLoading, setRapprochementAutoLoading] = useState(false);
 
+  // État pour l'édition inline des écritures proposées
+  const [editingEntry, setEditingEntry] = useState<{ index: number; source: 'creees' | '471' } | null>(null);
+  const [editCompte, setEditCompte] = useState('');
+  const [editCompteLibelle, setEditCompteLibelle] = useState('');
+  const [editLibelle, setEditLibelle] = useState('');
+  const [editMontant, setEditMontant] = useState('');
+  const [nbModifications, setNbModifications] = useState(0);
+  const [nbSuppressions, setNbSuppressions] = useState(0);
+
+  // Matching forcé avec écart de régularisation (658/758)
+  const [matchingEntry, setMatchingEntry] = useState<{ index: number; source: 'creees' | '471'; lettrage: string; montant: number; type: string; date: string; libelle: string } | null>(null);
+
+  // Supprimer une écriture proposée (avant validation)
+  const supprimerProposee = (lettrage: string, source: 'creees' | '471') => {
+    if (!rapport) return;
+    const newRapport = { ...rapport };
+
+    if (source === 'creees') {
+      newRapport.ecritures_creees = (newRapport.ecritures_creees || []).filter(e => e.lettrage !== lettrage);
+      newRapport.resume = { ...newRapport.resume, nb_ecritures_creees: newRapport.ecritures_creees.length };
+    } else {
+      newRapport.regulariser_471 = (newRapport.regulariser_471 || []).filter(e => e.lettrage !== lettrage);
+      newRapport.resume = { ...newRapport.resume, nb_regulariser_471: newRapport.regulariser_471.length };
+    }
+
+    // Retirer la paire d'écritures de proposed_ecritures (identifiées par _group)
+    newRapport.proposed_ecritures = (newRapport.proposed_ecritures || []).filter(
+      (e: Record<string, unknown>) => e._group !== lettrage
+    );
+
+    setRapport(newRapport);
+    setNbSuppressions(n => n + 1);
+  };
+
+  // Démarrer l'édition inline
+  const startEdit = (index: number, source: 'creees' | '471') => {
+    if (!rapport) return;
+    const entry = source === 'creees'
+      ? (rapport.ecritures_creees || [])[index]
+      : (rapport.regulariser_471 || [])[index];
+    if (!entry) return;
+
+    setEditingEntry({ index, source });
+    setEditCompte(entry.compte || '471');
+    setEditCompteLibelle(entry.compte_libelle || 'Compte d\'attente');
+    setEditLibelle(entry.libelle);
+    setEditMontant(String(entry.montant));
+  };
+
+  // Sauvegarder la modification inline
+  const saveEdit = () => {
+    if (!rapport || !editingEntry) return;
+    const { index, source } = editingEntry;
+    const newRapport = { ...rapport };
+    const newMontant = parseFloat(editMontant) || 0;
+
+    if (source === 'creees') {
+      const arr = [...(newRapport.ecritures_creees || [])];
+      const old = arr[index];
+      if (!old) return;
+      const oldLettrage = old.lettrage;
+
+      arr[index] = { ...old, compte: editCompte, compte_libelle: editCompteLibelle, libelle: editLibelle, montant: newMontant };
+      newRapport.ecritures_creees = arr;
+
+      // Mettre à jour proposed_ecritures correspondantes
+      newRapport.proposed_ecritures = (newRapport.proposed_ecritures || []).map((e: Record<string, unknown>) => {
+        if (e._group !== oldLettrage) return e;
+        if (e.compte_numero === '512') {
+          // Côté banque : mettre à jour montant et libellé
+          return { ...e, libelle: editLibelle, debit: e.debit ? Math.round(newMontant * 100) : 0, credit: e.credit ? Math.round(newMontant * 100) : 0 };
+        } else {
+          // Côté contrepartie : mettre à jour compte, libellé, montant
+          return { ...e, compte_numero: editCompte, compte_libelle: editCompteLibelle, libelle: editLibelle, debit: e.debit ? Math.round(newMontant * 100) : 0, credit: e.credit ? Math.round(newMontant * 100) : 0 };
+        }
+      });
+    } else {
+      const arr = [...(newRapport.regulariser_471 || [])];
+      const old = arr[index];
+      if (!old) return;
+      const oldLettrage = old.lettrage;
+
+      arr[index] = { ...old, compte: editCompte, compte_libelle: editCompteLibelle, libelle: editLibelle, montant: newMontant };
+      newRapport.regulariser_471 = arr;
+
+      // Mettre à jour proposed_ecritures correspondantes
+      newRapport.proposed_ecritures = (newRapport.proposed_ecritures || []).map((e: Record<string, unknown>) => {
+        if (e._group !== oldLettrage) return e;
+        if (e.compte_numero === '512') {
+          return { ...e, libelle: editLibelle, debit: e.debit ? Math.round(newMontant * 100) : 0, credit: e.credit ? Math.round(newMontant * 100) : 0 };
+        } else {
+          return { ...e, compte_numero: editCompte, compte_libelle: editCompteLibelle, libelle: editLibelle, debit: e.debit ? Math.round(newMontant * 100) : 0, credit: e.credit ? Math.round(newMontant * 100) : 0 };
+        }
+      });
+    }
+
+    setRapport(newRapport);
+    setEditingEntry(null);
+    setNbModifications(n => n + 1);
+  };
+
+  // Ouvrir le picker de matching forcé
+  const openMatchingPicker = (index: number, source: 'creees' | '471') => {
+    if (!rapport) return;
+    const entry = source === 'creees'
+      ? (rapport.ecritures_creees || [])[index]
+      : (rapport.regulariser_471 || [])[index];
+    if (!entry) return;
+    setMatchingEntry({ index, source, lettrage: entry.lettrage, montant: entry.montant, type: entry.type, date: entry.date, libelle: entry.libelle });
+  };
+
+  // Écritures compta compatibles pour le matching forcé (triées par proximité de montant)
+  const matchingCandidates = useMemo(() => {
+    if (!matchingEntry || !rapport) return [];
+    const nonMatchees = rapport.non_matchees_compta || [];
+    // Filtrer par type compatible : credit banque ↔ credit compta (déjà en 512), debit ↔ debit
+    return nonMatchees
+      .map((e, idx) => {
+        const ecart = matchingEntry.montant - e.montant;
+        // Déterminer si c'est une perte ou un gain
+        // Credit banque (argent reçu) : bank > compta → gain (758), bank < compta → perte (658)
+        // Debit banque (argent payé) : bank > compta → perte (658), bank < compta → gain (758)
+        const estPerte = matchingEntry.type === 'credit' ? ecart < 0 : ecart > 0;
+        return { ...e, originalIndex: idx, ecart, ecartAbs: Math.abs(ecart), estPerte };
+      })
+      .filter(e => e.type === matchingEntry.type) // même sens
+      .sort((a, b) => a.ecartAbs - b.ecartAbs);
+  }, [matchingEntry, rapport]);
+
+  // Forcer le match entre une entrée créée/471 et une écriture compta non matchée
+  const forcerMatch = (targetIdx: number) => {
+    if (!rapport || !matchingEntry) return;
+    const target = (rapport.non_matchees_compta || [])[targetIdx];
+    if (!target) return;
+
+    const newRapport = { ...rapport };
+    const bankMontant = matchingEntry.montant;
+    const comptaMontant = target.montant;
+    const ecart = Math.abs(bankMontant - comptaMontant);
+    const ecartCentimes = Math.round(ecart * 100);
+    const lettrage = matchingEntry.lettrage;
+
+    // Déterminer perte (658) ou gain (758)
+    const estPerte = matchingEntry.type === 'credit' ? bankMontant < comptaMontant : bankMontant > comptaMontant;
+
+    // 1. Retirer l'entrée de creees ou regulariser_471
+    if (matchingEntry.source === 'creees') {
+      newRapport.ecritures_creees = (newRapport.ecritures_creees || []).filter(e => e.lettrage !== lettrage);
+      newRapport.resume = { ...newRapport.resume, nb_ecritures_creees: newRapport.ecritures_creees.length };
+    } else {
+      newRapport.regulariser_471 = (newRapport.regulariser_471 || []).filter(e => e.lettrage !== lettrage);
+      newRapport.resume = { ...newRapport.resume, nb_regulariser_471: newRapport.regulariser_471.length };
+    }
+
+    // 2. Retirer les écritures correspondantes de proposed_ecritures (par _group)
+    newRapport.proposed_ecritures = (newRapport.proposed_ecritures || []).filter(
+      (e: Record<string, unknown>) => e._group !== lettrage
+    );
+
+    // 3. Ajouter le pointage de l'écriture compta existante
+    newRapport.proposed_pointages = [
+      ...(newRapport.proposed_pointages || []),
+      { ecriture_id: target.id, lettrage, date_lettrage: new Date().toISOString().split('T')[0] }
+    ];
+
+    // 4. Ajouter dans pointees
+    newRapport.pointees = [
+      ...(newRapport.pointees || []),
+      {
+        date: matchingEntry.date,
+        libelle_releve: matchingEntry.libelle,
+        libelle_compta: target.libelle,
+        montant: comptaMontant,
+        type: matchingEntry.type,
+        lettrage,
+        ecart_regul: ecart > 0.001 ? (estPerte ? `-${ecart.toFixed(2)}€ (658)` : `+${ecart.toFixed(2)}€ (758)`) : undefined
+      }
+    ];
+    newRapport.resume = { ...newRapport.resume, nb_pointees: (newRapport.pointees || []).length };
+
+    // 5. Si écart ≠ 0 : ajouter la paire d'écritures de régularisation
+    if (ecartCentimes > 0) {
+      const dateEcriture = matchingEntry.date.includes('/')
+        ? matchingEntry.date.split('/').reverse().join('-')
+        : matchingEntry.date;
+      const periodeEc = dateEcriture.slice(0, 7);
+      const exercice = parseInt(dateEcriture.slice(0, 4)) || new Date().getFullYear();
+      const groupRegul = `${lettrage}-R`;
+
+      const regulEntries: Record<string, unknown>[] = estPerte
+        ? [
+            { journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: 'RA-REG', compte_numero: '658', compte_libelle: 'Charges diverses gestion courante', libelle: `Écart règlement — ${matchingEntry.libelle}`, debit: ecartCentimes, credit: 0, periode: periodeEc, exercice, _group: groupRegul },
+            { journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: 'RA-REG', compte_numero: '512', compte_libelle: 'Banque', libelle: `Écart règlement — ${matchingEntry.libelle}`, debit: 0, credit: ecartCentimes, lettrage: groupRegul, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: groupRegul }
+          ]
+        : [
+            { journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: 'RA-REG', compte_numero: '512', compte_libelle: 'Banque', libelle: `Écart règlement — ${matchingEntry.libelle}`, debit: ecartCentimes, credit: 0, lettrage: groupRegul, date_lettrage: new Date().toISOString().split('T')[0], periode: periodeEc, exercice, _group: groupRegul },
+            { journal_code: 'BQ', date_ecriture: dateEcriture, numero_piece: 'RA-REG', compte_numero: '758', compte_libelle: 'Produits divers gestion courante', libelle: `Écart règlement — ${matchingEntry.libelle}`, debit: 0, credit: ecartCentimes, periode: periodeEc, exercice, _group: groupRegul }
+          ];
+
+      newRapport.proposed_ecritures = [...(newRapport.proposed_ecritures || []), ...regulEntries];
+    }
+
+    // 6. Retirer la cible de non_matchees_compta
+    newRapport.non_matchees_compta = (newRapport.non_matchees_compta || []).filter((_, i) => i !== targetIdx);
+    newRapport.resume = { ...newRapport.resume, nb_non_matchees_compta: newRapport.non_matchees_compta.length };
+
+    setRapport(newRapport);
+    setMatchingEntry(null);
+    setNbModifications(n => n + 1);
+    setNotification({ type: 'success', message: `Match forcé : ${matchingEntry.libelle} ↔ ${target.libelle}${ecart > 0.001 ? ` — Écart ${ecart.toFixed(2)}€ (${estPerte ? '658 charge' : '758 produit'})` : ''}` });
+    setTimeout(() => setNotification(null), 6000);
+  };
+
   // Handler pour l'import du relevé bancaire (CSV local ou PDF/image via IA)
   const handleBankStatementImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -451,7 +668,10 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
       if (result.success && result.rapport) {
         setRapport(result.rapport);
         setRapportTab('pointees');
-        queryClient.invalidateQueries({ queryKey: ['ecritures-banque'] });
+        setNbModifications(0);
+        setNbSuppressions(0);
+        setEditingEntry(null);
+        setMatchingEntry(null);
         const r = result.rapport.resume;
         setNotification({
           type: 'success',
@@ -474,7 +694,8 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     try {
       await comptaApi.sauverRapprochement(periodeISO, rapport as unknown as Record<string, unknown>);
       queryClient.invalidateQueries({ queryKey: ['rapprochement-sauvegarde', periodeISO] });
-      setNotification({ type: 'success', message: `Rapprochement ${periodeLabel} validé et sauvegardé` });
+      queryClient.invalidateQueries({ queryKey: ['ecritures-banque'] });
+      setNotification({ type: 'success', message: `Rapprochement ${periodeLabel} validé et sauvegardé — ${(rapport as any).proposed_ecritures?.length || 0} écritures créées` });
       setTimeout(() => setNotification(null), 5000);
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Erreur sauvegarde' });
@@ -1393,10 +1614,10 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                       size="sm"
                       className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
                       onClick={lancerRapprochementAuto}
-                      disabled={rapprochementAutoLoading}
+                      disabled={rapprochementAutoLoading || periodeVerrouillee}
                     >
-                      {rapprochementAutoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                      {rapprochementAutoLoading ? 'Rapprochement en cours...' : 'Rapprochement automatique'}
+                      {rapprochementAutoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : periodeVerrouillee ? <Lock className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                      {rapprochementAutoLoading ? 'Rapprochement en cours...' : periodeVerrouillee ? 'Période verrouillée' : 'Rapprochement automatique'}
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => { setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); setReleveSoldeDebut(null); }}>
                       Effacer
@@ -1485,6 +1706,14 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   <HelpCircle className="h-4 w-4" />
                   {rapport.resume?.nb_non_matchees_compta || 0} non matchée(s)
                 </span>
+                {(nbModifications > 0 || nbSuppressions > 0) && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
+                    <Pencil className="h-4 w-4" />
+                    {nbModifications > 0 && `${nbModifications} modifiée(s)`}
+                    {nbModifications > 0 && nbSuppressions > 0 && ', '}
+                    {nbSuppressions > 0 && `${nbSuppressions} supprimée(s)`}
+                  </span>
+                )}
                 {rapport.ecart != null && (
                   <span className={cn(
                     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium",
@@ -1629,8 +1858,13 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                             <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", p.type === 'credit' ? "text-green-600" : "text-red-600")}>
                               {p.type === 'credit' ? '+' : '-'}{formatCurrency(p.montant)}
                             </td>
-                            <td className="py-2 px-3 text-center">
+                            <td className="py-2 px-3 text-center whitespace-nowrap">
                               <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{p.lettrage}</span>
+                              {p.ecart_regul && (
+                                <span className={cn("text-xs px-1.5 py-0.5 rounded ml-1 font-medium", p.ecart_regul.startsWith('+') ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                                  {p.ecart_regul}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1640,52 +1874,15 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 )
               )}
 
-              {/* Tab Créées (401, 411, 627) */}
+              {/* Tab Créées (401, 411, 627) — éditables avant validation */}
               {rapportTab === 'creees' && (
                 (rapport.ecritures_creees || []).length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-créée</p>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                          <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                          <th className="text-right py-2 px-3 text-gray-600">Montant</th>
-                          <th className="text-center py-2 px-3 text-gray-600">Compte</th>
-                          <th className="text-center py-2 px-3 text-gray-600">Code</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(rapport.ecritures_creees || []).map((c, i) => (
-                          <tr key={i} className="border-t hover:bg-blue-50">
-                            <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
-                            <td className="py-2 px-3">{c.libelle}</td>
-                            <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", c.type === 'credit' ? "text-green-600" : "text-red-600")}>
-                              {c.type === 'credit' ? '+' : '-'}{formatCurrency(c.montant)}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">{c.compte}</span>
-                              <span className="text-xs text-gray-500 ml-1">{c.compte_libelle}</span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{c.lettrage}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              )}
-
-              {/* Tab 471 — À régulariser */}
-              {rapportTab === 'regulariser_471' && (
-                (rapport.regulariser_471 || []).length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture en compte 471</p>
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture proposée</p>
                 ) : (
                   <div>
-                    <p className="text-xs text-orange-600 mb-2">Ces transactions n'ont pas pu être identifiées. Elles sont enregistrées en compte 471 (attente) et doivent être reclassifiées dans le journal.</p>
+                    {!periodeVerrouillee && (
+                      <p className="text-xs text-blue-600 mb-2">Ces écritures seront créées uniquement à la validation. Vous pouvez les modifier ou supprimer.</p>
+                    )}
                     <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
@@ -1693,25 +1890,228 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                             <th className="text-left py-2 px-3 text-gray-600">Date</th>
                             <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
                             <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                            <th className="text-center py-2 px-3 text-gray-600">Compte</th>
                             <th className="text-center py-2 px-3 text-gray-600">Code</th>
+                            {!periodeVerrouillee && <th className="text-center py-2 px-3 text-gray-600 w-20">Actions</th>}
                           </tr>
                         </thead>
                         <tbody>
-                          {(rapport.regulariser_471 || []).map((e, i) => (
-                            <tr key={i} className="border-t hover:bg-orange-50">
-                              <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
-                              <td className="py-2 px-3">{e.libelle}</td>
-                              <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
-                                {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.montant)}
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">{e.lettrage}</span>
-                              </td>
+                          {(rapport.ecritures_creees || []).map((c, i) => (
+                            <tr key={i} className="border-t hover:bg-blue-50">
+                              {editingEntry?.source === 'creees' && editingEntry.index === i ? (
+                                <>
+                                  <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
+                                  <td className="py-1 px-2"><Input value={editLibelle} onChange={e => setEditLibelle(e.target.value)} className="h-7 text-xs" /></td>
+                                  <td className="py-1 px-2"><Input type="number" step="0.01" value={editMontant} onChange={e => setEditMontant(e.target.value)} className="h-7 text-xs text-right w-24 ml-auto" /></td>
+                                  <td className="py-1 px-2">
+                                    <Input value={editCompte} onChange={e => setEditCompte(e.target.value)} className="h-7 text-xs w-20 inline-block" placeholder="Compte" />
+                                    <Input value={editCompteLibelle} onChange={e => setEditCompteLibelle(e.target.value)} className="h-7 text-xs w-24 inline-block ml-1" placeholder="Libellé" />
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{c.lettrage}</span>
+                                  </td>
+                                  <td className="py-1 px-2 text-center">
+                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800 mr-1" title="Valider"><Check className="h-4 w-4 inline" /></button>
+                                    <button onClick={() => setEditingEntry(null)} className="text-gray-400 hover:text-gray-600" title="Annuler"><X className="h-4 w-4 inline" /></button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
+                                  <td className="py-2 px-3">{c.libelle}</td>
+                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", c.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                                    {c.type === 'credit' ? '+' : '-'}{formatCurrency(c.montant)}
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">{c.compte}</span>
+                                    <span className="text-xs text-gray-500 ml-1">{c.compte_libelle}</span>
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{c.lettrage}</span>
+                                  </td>
+                                  {!periodeVerrouillee && (
+                                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                                      <button onClick={() => openMatchingPicker(i, 'creees')} className="text-purple-500 hover:text-purple-700 mr-2" title="Matcher avec écriture existante"><Link2 className="h-3.5 w-3.5 inline" /></button>
+                                      <button onClick={() => startEdit(i, 'creees')} className="text-blue-500 hover:text-blue-700 mr-2" title="Modifier"><Pencil className="h-3.5 w-3.5 inline" /></button>
+                                      <button onClick={() => supprimerProposee(c.lettrage, 'creees')} className="text-red-400 hover:text-red-600" title="Supprimer"><Trash2 className="h-3.5 w-3.5 inline" /></button>
+                                    </td>
+                                  )}
+                                </>
+                              )}
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    {/* Picker matching forcé — Créées */}
+                    {matchingEntry && matchingEntry.source === 'creees' && (
+                      <div className="mt-2 border-2 border-purple-200 rounded-lg bg-purple-50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-purple-800">
+                            Matcher « {matchingEntry.libelle} » ({formatCurrency(matchingEntry.montant)}) avec une écriture existante :
+                          </p>
+                          <button onClick={() => setMatchingEntry(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                        </div>
+                        {matchingCandidates.length === 0 ? (
+                          <p className="text-xs text-gray-500 py-2">Aucune écriture compta compatible ({matchingEntry.type}) dans les non matchées</p>
+                        ) : (
+                          <div className="max-h-[200px] overflow-y-auto border rounded bg-white">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                  <th className="text-left py-1.5 px-2 text-gray-600">Date</th>
+                                  <th className="text-left py-1.5 px-2 text-gray-600">Libellé</th>
+                                  <th className="text-right py-1.5 px-2 text-gray-600">Montant</th>
+                                  <th className="text-right py-1.5 px-2 text-gray-600">Écart</th>
+                                  <th className="text-center py-1.5 px-2 text-gray-600">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {matchingCandidates.map((c) => (
+                                  <tr key={c.originalIndex} className="border-t hover:bg-purple-50 cursor-pointer" onClick={() => {
+                                    if (confirm(`Matcher « ${matchingEntry.libelle} » (${formatCurrency(matchingEntry.montant)}) avec « ${c.libelle} » (${formatCurrency(c.montant)}) ?\n\nÉcart : ${c.ecartAbs.toFixed(2)}€ → ${c.estPerte ? 'Charge 658' : c.ecartAbs < 0.001 ? 'Aucun écart' : 'Produit 758'}`)) {
+                                      forcerMatch(c.originalIndex);
+                                    }
+                                  }}>
+                                    <td className="py-1.5 px-2 whitespace-nowrap">{formatDate(c.date)}</td>
+                                    <td className="py-1.5 px-2">{c.libelle}</td>
+                                    <td className="py-1.5 px-2 text-right font-medium">{formatCurrency(c.montant)}</td>
+                                    <td className={cn("py-1.5 px-2 text-right font-bold", c.ecartAbs < 0.001 ? "text-green-600" : c.estPerte ? "text-red-600" : "text-green-600")}>
+                                      {c.ecartAbs < 0.001 ? '= 0' : `${c.estPerte ? '-' : '+'}${c.ecartAbs.toFixed(2)}€`}
+                                    </td>
+                                    <td className="py-1.5 px-2 text-center">
+                                      <span className="text-purple-600 hover:text-purple-800 font-medium">Matcher</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+
+              {/* Tab 471 — À régulariser — éditables avant validation */}
+              {rapportTab === 'regulariser_471' && (
+                (rapport.regulariser_471 || []).length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture en compte 471</p>
+                ) : (
+                  <div>
+                    <p className="text-xs text-orange-600 mb-2">
+                      {periodeVerrouillee
+                        ? 'Ces transactions non identifiées sont en compte 471 (attente). Reclassifiez-les dans le journal.'
+                        : 'Transactions non identifiées → 471 (attente). Vous pouvez changer le compte avant validation (ex: 471 → 401xxx).'}
+                    </p>
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                            <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                            <th className="text-center py-2 px-3 text-gray-600">Compte</th>
+                            <th className="text-center py-2 px-3 text-gray-600">Code</th>
+                            {!periodeVerrouillee && <th className="text-center py-2 px-3 text-gray-600 w-20">Actions</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(rapport.regulariser_471 || []).map((e, i) => (
+                            <tr key={i} className="border-t hover:bg-orange-50">
+                              {editingEntry?.source === '471' && editingEntry.index === i ? (
+                                <>
+                                  <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
+                                  <td className="py-1 px-2"><Input value={editLibelle} onChange={ev => setEditLibelle(ev.target.value)} className="h-7 text-xs" /></td>
+                                  <td className="py-1 px-2"><Input type="number" step="0.01" value={editMontant} onChange={ev => setEditMontant(ev.target.value)} className="h-7 text-xs text-right w-24 ml-auto" /></td>
+                                  <td className="py-1 px-2">
+                                    <Input value={editCompte} onChange={ev => setEditCompte(ev.target.value)} className="h-7 text-xs w-20 inline-block" placeholder="471" />
+                                    <Input value={editCompteLibelle} onChange={ev => setEditCompteLibelle(ev.target.value)} className="h-7 text-xs w-24 inline-block ml-1" placeholder="Libellé" />
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">{e.lettrage}</span>
+                                  </td>
+                                  <td className="py-1 px-2 text-center">
+                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800 mr-1" title="Valider"><Check className="h-4 w-4 inline" /></button>
+                                    <button onClick={() => setEditingEntry(null)} className="text-gray-400 hover:text-gray-600" title="Annuler"><X className="h-4 w-4 inline" /></button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
+                                  <td className="py-2 px-3">{e.libelle}</td>
+                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                                    {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.montant)}
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">{e.compte || '471'}</span>
+                                    <span className="text-xs text-gray-500 ml-1">{e.compte_libelle || 'Compte d\'attente'}</span>
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">{e.lettrage}</span>
+                                  </td>
+                                  {!periodeVerrouillee && (
+                                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                                      <button onClick={() => openMatchingPicker(i, '471')} className="text-purple-500 hover:text-purple-700 mr-2" title="Matcher avec écriture existante"><Link2 className="h-3.5 w-3.5 inline" /></button>
+                                      <button onClick={() => startEdit(i, '471')} className="text-blue-500 hover:text-blue-700 mr-2" title="Modifier"><Pencil className="h-3.5 w-3.5 inline" /></button>
+                                      <button onClick={() => supprimerProposee(e.lettrage, '471')} className="text-red-400 hover:text-red-600" title="Supprimer"><Trash2 className="h-3.5 w-3.5 inline" /></button>
+                                    </td>
+                                  )}
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Picker matching forcé — 471 */}
+                    {matchingEntry && matchingEntry.source === '471' && (
+                      <div className="mt-2 border-2 border-purple-200 rounded-lg bg-purple-50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-purple-800">
+                            Matcher « {matchingEntry.libelle} » ({formatCurrency(matchingEntry.montant)}) avec une écriture existante :
+                          </p>
+                          <button onClick={() => setMatchingEntry(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                        </div>
+                        {matchingCandidates.length === 0 ? (
+                          <p className="text-xs text-gray-500 py-2">Aucune écriture compta compatible ({matchingEntry.type}) dans les non matchées</p>
+                        ) : (
+                          <div className="max-h-[200px] overflow-y-auto border rounded bg-white">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                  <th className="text-left py-1.5 px-2 text-gray-600">Date</th>
+                                  <th className="text-left py-1.5 px-2 text-gray-600">Libellé</th>
+                                  <th className="text-right py-1.5 px-2 text-gray-600">Montant</th>
+                                  <th className="text-right py-1.5 px-2 text-gray-600">Écart</th>
+                                  <th className="text-center py-1.5 px-2 text-gray-600">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {matchingCandidates.map((c) => (
+                                  <tr key={c.originalIndex} className="border-t hover:bg-purple-50 cursor-pointer" onClick={() => {
+                                    if (confirm(`Matcher « ${matchingEntry.libelle} » (${formatCurrency(matchingEntry.montant)}) avec « ${c.libelle} » (${formatCurrency(c.montant)}) ?\n\nÉcart : ${c.ecartAbs.toFixed(2)}€ → ${c.estPerte ? 'Charge 658' : c.ecartAbs < 0.001 ? 'Aucun écart' : 'Produit 758'}`)) {
+                                      forcerMatch(c.originalIndex);
+                                    }
+                                  }}>
+                                    <td className="py-1.5 px-2 whitespace-nowrap">{formatDate(c.date)}</td>
+                                    <td className="py-1.5 px-2">{c.libelle}</td>
+                                    <td className="py-1.5 px-2 text-right font-medium">{formatCurrency(c.montant)}</td>
+                                    <td className={cn("py-1.5 px-2 text-right font-bold", c.ecartAbs < 0.001 ? "text-green-600" : c.estPerte ? "text-red-600" : "text-green-600")}>
+                                      {c.ecartAbs < 0.001 ? '= 0' : `${c.estPerte ? '-' : '+'}${c.ecartAbs.toFixed(2)}€`}
+                                    </td>
+                                    <td className="py-1.5 px-2 text-center">
+                                      <span className="text-purple-600 hover:text-purple-800 font-medium">Matcher</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               )}
