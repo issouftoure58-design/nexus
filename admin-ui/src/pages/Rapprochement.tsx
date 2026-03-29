@@ -1248,9 +1248,9 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="p-4">
-              <p className="text-sm text-blue-600 mb-1">Solde comptable total</p>
+              <p className="text-sm text-blue-600 mb-1">Solde 512 cumulé</p>
               <p className="text-2xl font-bold text-blue-700">{formatCurrency(soldeComptable.solde)}</p>
-              <p className="text-xs text-gray-500 mt-1">rapproché + en suspens</p>
+              <p className="text-xs text-gray-500 mt-1">toutes périodes</p>
             </CardContent>
           </Card>
         </div>
