@@ -576,71 +576,80 @@ router.post('/generer/depense', async (req, res) => {
 
     const ecritures = [];
 
-    // Journal AC - Écriture d'achat
-    // Débit compte de charge
-    ecritures.push({
-      tenant_id: req.admin.tenant_id,
-      journal_code: 'AC',
-      date_ecriture: dateDepense,
-      numero_piece: numFacture || `DEP-${depense.id}`,
-      compte_numero: compteCharge.numero,
-      compte_libelle: compteCharge.libelle,
-      libelle: libelleComplet,
-      debit: montantHT,
-      credit: 0,
-      depense_id,
-      periode,
-      exercice
-    });
+    // Les charges de personnel (salaires, cotisations) sont gérées par le journal PA
+    // On ne génère PAS d'écritures AC pour éviter les doubles charges
+    const isChargePersonnel = ['salaires', 'cotisations_sociales'].includes(depense.categorie);
 
-    // Débit 44566 TVA déductible
-    if (montantTVA > 0 && depense.deductible_tva !== false) {
+    if (!isChargePersonnel) {
+      // Journal AC - Écriture d'achat
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: 'AC',
         date_ecriture: dateDepense,
         numero_piece: numFacture || `DEP-${depense.id}`,
-        compte_numero: '44566',
-        compte_libelle: 'TVA déductible',
-        libelle: `TVA ${libelleComplet}`,
-        debit: montantTVA,
+        compte_numero: compteCharge.numero,
+        compte_libelle: compteCharge.libelle,
+        libelle: libelleComplet,
+        debit: montantHT,
         credit: 0,
+        depense_id,
+        periode,
+        exercice
+      });
+
+      if (montantTVA > 0 && depense.deductible_tva !== false) {
+        ecritures.push({
+          tenant_id: req.admin.tenant_id,
+          journal_code: 'AC',
+          date_ecriture: dateDepense,
+          numero_piece: numFacture || `DEP-${depense.id}`,
+          compte_numero: '44566',
+          compte_libelle: 'TVA déductible',
+          libelle: `TVA ${libelleComplet}`,
+          debit: montantTVA,
+          credit: 0,
+          depense_id,
+          periode,
+          exercice
+        });
+      }
+
+      ecritures.push({
+        tenant_id: req.admin.tenant_id,
+        journal_code: 'AC',
+        date_ecriture: dateDepense,
+        numero_piece: numFacture || `DEP-${depense.id}`,
+        compte_numero: `401${codeAux}`,
+        compte_libelle: `Fournisseur ${fournisseur}`,
+        libelle: libelleComplet,
+        debit: 0,
+        credit: montantTTC,
         depense_id,
         periode,
         exercice
       });
     }
 
-    // Crédit 401XXX Fournisseur
-    ecritures.push({
-      tenant_id: req.admin.tenant_id,
-      journal_code: 'AC',
-      date_ecriture: dateDepense,
-      numero_piece: numFacture || `DEP-${depense.id}`,
-      compte_numero: `401${codeAux}`,
-      compte_libelle: `Fournisseur ${fournisseur}`,
-      libelle: libelleComplet,
-      debit: 0,
-      credit: montantTTC,
-      depense_id,
-      periode,
-      exercice
-    });
-
     // Si dépense payée, écriture banque
     if (depense.payee !== false) {
       const datePaiement = depense.date_paiement?.split('T')[0] || dateDepense;
       const periodePaie = datePaiement.slice(0, 7);
 
-      // Journal BQ - Paiement
-      // Débit 401XXX Fournisseur
+      // Pour les charges de personnel, le compte tiers est 421/431 (pas 401)
+      const compteTiers = isChargePersonnel
+        ? (depense.categorie === 'salaires' ? '421' : '431')
+        : `401${codeAux}`;
+      const libelleTiers = isChargePersonnel
+        ? (depense.categorie === 'salaires' ? 'Personnel - Rémunérations dues' : 'Sécurité sociale')
+        : `Fournisseur ${fournisseur}`;
+
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: 'BQ',
         date_ecriture: datePaiement,
         numero_piece: numFacture || `DEP-${depense.id}`,
-        compte_numero: `401${codeAux}`,
-        compte_libelle: `Fournisseur ${fournisseur}`,
+        compte_numero: compteTiers,
+        compte_libelle: libelleTiers,
         libelle: `Règlement ${libelleComplet}`,
         debit: montantTTC,
         credit: 0,
@@ -649,7 +658,6 @@ router.post('/generer/depense', async (req, res) => {
         exercice
       });
 
-      // Crédit 512 Banque
       ecritures.push({
         tenant_id: req.admin.tenant_id,
         journal_code: 'BQ',
@@ -1033,57 +1041,75 @@ async function generateDepenseEcritures(tenantId, depenseId) {
   const compteFournisseur = `401${codeAux}`;
   const libelleFournisseur = `Fournisseur ${fournisseur}`;
 
-  const ecritures = [
-    {
-      tenant_id: tenantId,
-      journal_code: 'AC',
-      date_ecriture: dateDepense,
-      numero_piece: numFacture || `DEP-${depense.id}`,
-      compte_numero: compteCharge.numero,
-      compte_libelle: compteCharge.libelle,
-      libelle: libelleComplet,
-      debit: montantHT,
-      credit: 0,
-      depense_id: depenseId,
-      periode,
-      exercice
-    },
-    {
-      tenant_id: tenantId,
-      journal_code: 'AC',
-      date_ecriture: dateDepense,
-      numero_piece: numFacture || `DEP-${depense.id}`,
-      compte_numero: compteFournisseur,
-      compte_libelle: libelleFournisseur,
-      libelle: libelleComplet,
-      debit: 0,
-      credit: montantTTC,
-      depense_id: depenseId,
-      periode,
-      exercice
-    }
-  ];
+  const ecritures = [];
 
-  if (montantTVA > 0 && depense.deductible_tva !== false) {
-    ecritures.push({
-      tenant_id: tenantId,
-      journal_code: 'AC',
-      date_ecriture: dateDepense,
-      numero_piece: numFacture || `DEP-${depense.id}`,
-      compte_numero: '44566',
-      compte_libelle: 'TVA déductible',
-      libelle: `TVA ${libelleComplet}`,
-      debit: montantTVA,
-      credit: 0,
-      depense_id: depenseId,
-      periode,
-      exercice
-    });
+  // Les charges de personnel (salaires, cotisations) sont gérées par le journal PA (641/421, 645/431)
+  // On ne génère PAS d'écritures AC pour éviter les doubles charges
+  // On génère SEULEMENT les écritures BQ de paiement avec les bons comptes (421/431)
+  const isChargePersonnel = ['salaires', 'cotisations_sociales'].includes(depense.categorie);
+
+  if (!isChargePersonnel) {
+    // Écritures AC normales (charge + fournisseur 401)
+    ecritures.push(
+      {
+        tenant_id: tenantId,
+        journal_code: 'AC',
+        date_ecriture: dateDepense,
+        numero_piece: numFacture || `DEP-${depense.id}`,
+        compte_numero: compteCharge.numero,
+        compte_libelle: compteCharge.libelle,
+        libelle: libelleComplet,
+        debit: montantHT,
+        credit: 0,
+        depense_id: depenseId,
+        periode,
+        exercice
+      },
+      {
+        tenant_id: tenantId,
+        journal_code: 'AC',
+        date_ecriture: dateDepense,
+        numero_piece: numFacture || `DEP-${depense.id}`,
+        compte_numero: compteFournisseur,
+        compte_libelle: libelleFournisseur,
+        libelle: libelleComplet,
+        debit: 0,
+        credit: montantTTC,
+        depense_id: depenseId,
+        periode,
+        exercice
+      }
+    );
+
+    if (montantTVA > 0 && depense.deductible_tva !== false) {
+      ecritures.push({
+        tenant_id: tenantId,
+        journal_code: 'AC',
+        date_ecriture: dateDepense,
+        numero_piece: numFacture || `DEP-${depense.id}`,
+        compte_numero: '44566',
+        compte_libelle: 'TVA déductible',
+        libelle: `TVA ${libelleComplet}`,
+        debit: montantTVA,
+        credit: 0,
+        depense_id: depenseId,
+        periode,
+        exercice
+      });
+    }
   }
 
   if (depense.payee !== false) {
     const datePaiement = depense.date_paiement?.split('T')[0] || dateDepense;
     const periodePaie = datePaiement.slice(0, 7);
+
+    // Pour les charges de personnel, le compte tiers est 421/431 (pas 401)
+    const compteTiers = isChargePersonnel
+      ? (depense.categorie === 'salaires' ? '421' : '431')
+      : compteFournisseur;
+    const libelleTiers = isChargePersonnel
+      ? (depense.categorie === 'salaires' ? 'Personnel - Rémunérations dues' : 'Sécurité sociale')
+      : libelleFournisseur;
 
     ecritures.push(
       {
@@ -1091,8 +1117,8 @@ async function generateDepenseEcritures(tenantId, depenseId) {
         journal_code: 'BQ',
         date_ecriture: datePaiement,
         numero_piece: numFacture || `DEP-${depense.id}`,
-        compte_numero: compteFournisseur,
-        compte_libelle: libelleFournisseur,
+        compte_numero: compteTiers,
+        compte_libelle: libelleTiers,
         libelle: `Règlement ${libelleComplet}`,
         debit: montantTTC,
         credit: 0,

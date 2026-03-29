@@ -501,11 +501,13 @@ async function testH6_Coherence(tenantId) {
         byPiece[e.numero_piece].credit += e.credit || 0;
       }
 
-      for (const [piece, totals] of Object.entries(byPiece)) {
-        if (Math.abs(totals.debit - totals.credit) > 1) {
-          return makeResult(name, module, severity, description, 'fail',
-            `Piece ${piece} desequilibree: D=${totals.debit} C=${totals.credit}`);
-        }
+      const piecesDeseq = Object.entries(byPiece)
+        .filter(([, totals]) => Math.abs(totals.debit - totals.credit) > 1);
+
+      if (piecesDeseq.length > 0) {
+        const exemples = piecesDeseq.slice(0, 3).map(([p, t]) => `${p}(D=${t.debit} C=${t.credit})`).join(', ');
+        return makeResult(name, module, severity, description, 'fail',
+          `${piecesDeseq.length} piece(s) desequilibree(s) — ${exemples}`);
       }
     }
 
