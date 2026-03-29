@@ -3568,8 +3568,10 @@ router.post('/rapprochement-auto', async (req, res) => {
       else if (slashMatch) periodeISO = `${slashMatch[2]}-${slashMatch[1]}`;
     }
 
-    // 1. Récupérer les écritures BQ/512 non lettrées du tenant (filtrées par période si fournie)
-    let queryBQ = supabase
+    // 1. Récupérer TOUTES les écritures BQ/512 non lettrées du tenant (pas de filtre période)
+    // Un chèque de novembre peut être encaissé en février, un virement peut arriver des mois après.
+    // Le matching se fait sur le montant exact, pas sur la période de l'écriture.
+    const { data: ecrituresBQ, error: errBQ } = await supabase
       .from('ecritures_comptables')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -3577,12 +3579,6 @@ router.post('/rapprochement-auto', async (req, res) => {
       .eq('compte_numero', '512')
       .is('lettrage', null)
       .order('date_ecriture', { ascending: true });
-
-    if (periodeISO) {
-      queryBQ = queryBQ.eq('periode', periodeISO);
-    }
-
-    const { data: ecrituresBQ, error: errBQ } = await queryBQ;
 
     if (errBQ) throw errBQ;
 
@@ -3642,13 +3638,17 @@ router.post('/rapprochement-auto', async (req, res) => {
         const montantCompta = isCredit ? (ec.debit || 0) : (ec.credit || 0);
         if (montantCompta !== txMontant) continue;
 
+        // Montant exact trouvé → candidat. Date = scoring uniquement (jamais rejet).
+        // Un client peut payer des mois/années après la facture.
         const ecDate = parseDate(ec.date_ecriture);
         const jours = diffJours(txDate, ecDate);
 
-        let score = 0;
-        if (jours <= 3) score = 100;
-        else if (jours <= 7) score = 50;
-        else continue;
+        let score = 100; // montant exact = toujours candidat
+        if (jours <= 3) score += 50;
+        else if (jours <= 7) score += 40;
+        else if (jours <= 30) score += 20;
+        else if (jours <= 90) score += 10;
+        // > 90 jours : score reste 100 (montant seul)
 
         score += similariteLibelle(tx.libelle, ec.libelle) * 30;
 
