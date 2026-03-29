@@ -84,8 +84,8 @@ async function diagnose(tenantId, test) {
     return diagnoseFacturationFailure(tenantId, test);
   }
 
-  // === H7 — Chat IA ===
-  if (name.includes('h7') || name.includes('chat_ia') || desc.includes('chat ia') || desc.includes('assistant ia')) {
+  // === H7 / W1/W2 — Chat IA ===
+  if (name.includes('h7') || name.includes('chat_ia') || name.includes('admin_chat') || desc.includes('chat ia') || desc.includes('assistant ia') || desc.includes('admin chat')) {
     return diagnoseChatIAFailure(tenantId, test);
   }
 
@@ -127,8 +127,8 @@ async function diagnose(tenantId, test) {
     return diagnoseRGPDFailure(tenantId, test);
   }
 
-  // === N26 — Usage quotas ===
-  if (name.includes('n26') || name.includes('usage_quota')) {
+  // === N26 / W10 — Usage quotas ===
+  if (name.includes('n26') || name.includes('usage_quota') || name.includes('quota_manager')) {
     return diagnoseUsageQuota(tenantId, test);
   }
 
@@ -189,6 +189,56 @@ async function diagnose(tenantId, test) {
       test.error?.substring(0, 200),
       null,
       'Verifier les colonnes de la table loyalty_transactions (migration manquante ?)',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === W4 — WhatsApp simulation ===
+  if (name.includes('whatsapp')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Echec simulation WhatsApp',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier config Twilio (TWILIO_ACCOUNT_SID, AUTH_TOKEN) et numero WhatsApp du tenant',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === W5/W6 — Security (injection SQL, XSS) ===
+  if (name.includes('injection') || name.includes('xss')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Echec test securite',
+      test.error?.substring(0, 200),
+      null,
+      'Vulnerabilite detectee — verifier sanitization des inputs et parametres de requete',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === W7 — Yousign integration ===
+  if (name.includes('yousign')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Echec integration Yousign',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier cle API Yousign et config signature electronique',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === W8 — Onboarding check ===
+  if (name.includes('onboarding')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Echec verification onboarding',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier le flow onboarding — templates, etapes, config tenant',
+      { error: test.error?.substring(0, 100) });
+  }
+
+  // === W9 — Public API ===
+  if (name.includes('public_api')) {
+    return makeDiag('DIAGNOSED', test.name,
+      'Echec API publique',
+      test.error?.substring(0, 200),
+      null,
+      'Verifier les routes publiques (widget, booking) et CORS config',
       { error: test.error?.substring(0, 100) });
   }
 
