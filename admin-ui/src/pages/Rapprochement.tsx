@@ -472,7 +472,8 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         : matchingEntry.date;
       const periodeEc = dateEcriture.slice(0, 7);
       const exercice = parseInt(dateEcriture.slice(0, 4)) || new Date().getFullYear();
-      const groupRegul = `${lettrage}-R`;
+      // Lettrage régul : remplacer RA→RG pour rester dans VARCHAR(10)
+      const groupRegul = lettrage.replace(/^RA/, 'RG');
 
       const regulEntries: Record<string, unknown>[] = estPerte
         ? [
