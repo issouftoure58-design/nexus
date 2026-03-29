@@ -3900,10 +3900,11 @@ router.post('/rapprochement-auto', async (req, res) => {
     const suspensComptaCredit = nonMatcheesCompta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
     const soldeRapprocheBanque = (solde_fin || 0) + suspensComptaDebit - suspensComptaCredit;
 
-    // Côté compta : solde 512 + items relevé non en compta (après rapprochement auto, C et D = 0 car tout est créé)
-    // Les items relevé non matchés en compta sont = 0 après rapprochement auto (tout est créé en 627/401/411/471)
-    const creditsReleveHorsCompta = 0;
-    const debitsReleveHorsCompta = 0;
+    // Côté compta : solde 512 + transactions relevé pas encore en compta (créées + 471)
+    const creditsReleveHorsCompta = ecrituresCreees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
+      + regulariser471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const debitsReleveHorsCompta = ecrituresCreees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
+      + regulariser471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const soldeRapprochéCompta = solde512Cumule + creditsReleveHorsCompta - debitsReleveHorsCompta;
 
     const ecart = solde_fin != null ? Math.round((soldeRapprocheBanque - soldeRapprochéCompta) * 100) / 100 : null;

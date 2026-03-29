@@ -360,6 +360,42 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     setMatchingEntry({ index, source, lettrage: entry.lettrage, montant: entry.montant, type: entry.type, date: entry.date, libelle: entry.libelle });
   };
 
+  // Recalcul dynamique des deux tableaux (se met à jour quand le rapport est modifié)
+  const deuxTableaux = useMemo(() => {
+    if (!rapport?.deux_tableaux) return null;
+    const dt = rapport.deux_tableaux;
+    const nonMatchees = rapport.non_matchees_compta || [];
+    const creees = rapport.ecritures_creees || [];
+    const r471 = rapport.regulariser_471 || [];
+
+    // Côté banque : solde relevé + suspens compta (non matchées)
+    const suspensDebit = nonMatchees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const suspensCredit = nonMatchees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const soldeRapprocheBanque = dt.cote_banque.solde_releve + suspensDebit - suspensCredit;
+
+    // Côté compta : solde 512 + transactions relevé pas encore en compta (créées + 471)
+    const creditsHors = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
+      + r471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const debitsHors = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
+      + r471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const soldeRapprochéCompta = dt.cote_compta.solde_512 + creditsHors - debitsHors;
+
+    return {
+      cote_banque: {
+        solde_releve: dt.cote_banque.solde_releve,
+        plus_debits_compta_hors_releve: Math.round(suspensDebit * 100) / 100,
+        moins_credits_compta_hors_releve: Math.round(suspensCredit * 100) / 100,
+        solde_rapproche: Math.round(soldeRapprocheBanque * 100) / 100
+      },
+      cote_compta: {
+        solde_512: dt.cote_compta.solde_512,
+        plus_credits_releve_hors_compta: Math.round(creditsHors * 100) / 100,
+        moins_debits_releve_hors_compta: Math.round(debitsHors * 100) / 100,
+        solde_rapproche: Math.round(soldeRapprochéCompta * 100) / 100
+      }
+    };
+  }, [rapport]);
+
   // Écritures compta compatibles pour le matching forcé (triées par proximité de montant)
   const matchingCandidates = useMemo(() => {
     if (!matchingEntry || !rapport) return [];
@@ -757,7 +793,22 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     const creees = r.ecritures_creees || [];
     const reg471 = r.regulariser_471 || [];
     const pointeesArr = r.pointees || [];
-    const dt = r.deux_tableaux;
+    const nonMatcheesArr = r.non_matchees_compta || [];
+
+    // Recalcul deux tableaux pour impression (même logique que useMemo)
+    const dtRaw = r.deux_tableaux;
+    const dt = dtRaw ? (() => {
+      const suspD = nonMatcheesArr.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+      const suspC = nonMatcheesArr.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+      const crH = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0)
+        + reg471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+      const dbH = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0)
+        + reg471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+      return {
+        cote_banque: { solde_releve: dtRaw.cote_banque.solde_releve, plus_debits_compta_hors_releve: Math.round(suspD * 100) / 100, moins_credits_compta_hors_releve: Math.round(suspC * 100) / 100, solde_rapproche: Math.round((dtRaw.cote_banque.solde_releve + suspD - suspC) * 100) / 100 },
+        cote_compta: { solde_512: dtRaw.cote_compta.solde_512, plus_credits_releve_hors_compta: Math.round(crH * 100) / 100, moins_debits_releve_hors_compta: Math.round(dbH * 100) / 100, solde_rapproche: Math.round((dtRaw.cote_compta.solde_512 + crH - dbH) * 100) / 100 }
+      };
+    })() : null;
 
     const lignesPointees = pointeesArr.map(e =>
       `<tr><td>${e.date}</td><td>${e.libelle_releve}</td><td>${e.libelle_compta}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="code">${e.lettrage}</td></tr>`
@@ -1713,19 +1764,19 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                     {nbSuppressions > 0 && `${nbSuppressions} supprimée(s)`}
                   </span>
                 )}
-                {rapport.ecart != null && (
+                {deuxTableaux && (
                   <span className={cn(
                     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium",
-                    Math.abs(rapport.ecart) < 0.01 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                    Math.abs(deuxTableaux.cote_banque.solde_rapproche - deuxTableaux.cote_compta.solde_rapproche) < 0.01 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
                   )}>
                     <Euro className="h-4 w-4" />
-                    Écart : {formatCurrency(rapport.ecart)}
+                    Écart : {formatCurrency(Math.round((deuxTableaux.cote_banque.solde_rapproche - deuxTableaux.cote_compta.solde_rapproche) * 100) / 100)}
                   </span>
                 )}
               </div>
 
               {/* Deux tableaux — Méthode de rapprochement FR */}
-              {rapport.deux_tableaux && (
+              {deuxTableaux && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   {/* Côté Banque */}
                   <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50/30">
@@ -1733,20 +1784,20 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Solde relevé fin de période</span>
-                        <span className="font-medium">{formatCurrency(rapport.deux_tableaux.cote_banque.solde_releve)}</span>
+                        <span className="font-medium">{formatCurrency(deuxTableaux.cote_banque.solde_releve)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">+ Débits compta (512) non sur relevé</span>
-                        <span className="font-medium text-green-600">{formatCurrency(rapport.deux_tableaux.cote_banque.plus_debits_compta_hors_releve)}</span>
+                        <span className="font-medium text-green-600">{formatCurrency(deuxTableaux.cote_banque.plus_debits_compta_hors_releve)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">- Crédits compta (512) non sur relevé</span>
-                        <span className="font-medium text-red-600">{formatCurrency(rapport.deux_tableaux.cote_banque.moins_credits_compta_hors_releve)}</span>
+                        <span className="font-medium text-red-600">{formatCurrency(deuxTableaux.cote_banque.moins_credits_compta_hors_releve)}</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t-2 border-blue-300">
                         <span className="font-bold">= Solde rapproché</span>
-                        <span className={cn("text-lg font-bold", Math.abs(rapport.deux_tableaux.cote_banque.solde_rapproche - rapport.deux_tableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
-                          {formatCurrency(rapport.deux_tableaux.cote_banque.solde_rapproche)}
+                        <span className={cn("text-lg font-bold", Math.abs(deuxTableaux.cote_banque.solde_rapproche - deuxTableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                          {formatCurrency(deuxTableaux.cote_banque.solde_rapproche)}
                         </span>
                       </div>
                     </div>
@@ -1758,20 +1809,20 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Solde compte 512 fin de période</span>
-                        <span className="font-medium">{formatCurrency(rapport.deux_tableaux.cote_compta.solde_512)}</span>
+                        <span className="font-medium">{formatCurrency(deuxTableaux.cote_compta.solde_512)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">+ Crédits relevé non en compta</span>
-                        <span className="font-medium text-green-600">{formatCurrency(rapport.deux_tableaux.cote_compta.plus_credits_releve_hors_compta)}</span>
+                        <span className="font-medium text-green-600">{formatCurrency(deuxTableaux.cote_compta.plus_credits_releve_hors_compta)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">- Débits relevé non en compta</span>
-                        <span className="font-medium text-red-600">{formatCurrency(rapport.deux_tableaux.cote_compta.moins_debits_releve_hors_compta)}</span>
+                        <span className="font-medium text-red-600">{formatCurrency(deuxTableaux.cote_compta.moins_debits_releve_hors_compta)}</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t-2 border-purple-300">
                         <span className="font-bold">= Solde rapproché</span>
-                        <span className={cn("text-lg font-bold", Math.abs(rapport.deux_tableaux.cote_banque.solde_rapproche - rapport.deux_tableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
-                          {formatCurrency(rapport.deux_tableaux.cote_compta.solde_rapproche)}
+                        <span className={cn("text-lg font-bold", Math.abs(deuxTableaux.cote_banque.solde_rapproche - deuxTableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                          {formatCurrency(deuxTableaux.cote_compta.solde_rapproche)}
                         </span>
                       </div>
                     </div>
@@ -1780,13 +1831,18 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
               )}
 
               {/* Écart global */}
-              <div className={cn("rounded-lg p-3 border mb-4 text-center", Math.abs(rapport.ecart || 0) < 0.01 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
-                <p className="text-xs text-gray-500 mb-1">Écart entre les deux soldes rapprochés</p>
-                <p className={cn("text-xl font-bold", Math.abs(rapport.ecart || 0) < 0.01 ? "text-emerald-700" : "text-red-700")}>
-                  {rapport.ecart != null ? formatCurrency(rapport.ecart) : '—'}
-                  {rapport.ecart != null && Math.abs(rapport.ecart) < 0.01 && ' — Rapprochement OK'}
-                </p>
-              </div>
+              {deuxTableaux && (() => {
+                const ecartCalc = Math.round((deuxTableaux.cote_banque.solde_rapproche - deuxTableaux.cote_compta.solde_rapproche) * 100) / 100;
+                return (
+                  <div className={cn("rounded-lg p-3 border mb-4 text-center", Math.abs(ecartCalc) < 0.01 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
+                    <p className="text-xs text-gray-500 mb-1">Écart entre les deux soldes rapprochés</p>
+                    <p className={cn("text-xl font-bold", Math.abs(ecartCalc) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                      {formatCurrency(ecartCalc)}
+                      {Math.abs(ecartCalc) < 0.01 && ' — Rapprochement OK'}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Tabs du rapport */}
               <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4 flex-wrap">
