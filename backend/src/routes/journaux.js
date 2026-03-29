@@ -3661,9 +3661,11 @@ router.post('/rapprochement-auto', async (req, res) => {
     const regulariser471 = [];
     let lettrageIndex = 1;
 
-    const periodeMatch = (periode || '').match(/(\d{2})\/(\d{4})/);
-    const moisLettrage = periodeMatch ? periodeMatch[1] : String(new Date().getMonth() + 1).padStart(2, '0');
-    const anneeLettrage = periodeMatch ? periodeMatch[2] : String(new Date().getFullYear());
+    // Extraire mois/année pour le code lettrage — supporte YYYY-MM (ISO) et MM/YYYY
+    const periodeMatchISO = (periode || '').match(/(\d{4})-(\d{2})/);
+    const periodeMatchFR = (periode || '').match(/(\d{2})\/(\d{4})/);
+    const moisLettrage = periodeMatchISO ? periodeMatchISO[2] : periodeMatchFR ? periodeMatchFR[1] : String(new Date().getMonth() + 1).padStart(2, '0');
+    const anneeLettrage = periodeMatchISO ? periodeMatchISO[1] : periodeMatchFR ? periodeMatchFR[2] : String(new Date().getFullYear());
 
     // Collections pour le mode preview (aucune écriture n'est créée/modifiée en DB)
     const proposed_pointages = [];
@@ -4022,7 +4024,62 @@ router.post('/rapprochements/sauver', async (req, res) => {
     const proposed_ecritures = rapport.proposed_ecritures || [];
     const proposed_pointages = rapport.proposed_pointages || [];
 
-    // Créer les nouvelles écritures (627, 401, 411, 471) — supprimer le champ _group avant insert
+    // IDEMPOTENT : supprimer les anciennes écritures RA-* de cette période avant réinsertion
+    // Évite les doublons si le rapprochement est sauvé plusieurs fois
+    if (proposed_ecritures.length > 0) {
+      const { data: oldRA, error: errOldRA } = await supabase
+        .from('ecritures_comptables')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('journal_code', 'BQ')
+        .eq('periode', periode)
+        .like('numero_piece', 'RA-%');
+
+      if (!errOldRA && oldRA && oldRA.length > 0) {
+        const oldIds = oldRA.map(e => e.id);
+        await supabase.from('ecritures_comptables').delete().in('id', oldIds);
+        console.log(`[RAPPROCHEMENT] ${oldIds.length} anciennes écritures RA-* supprimées (idempotent) pour ${periode}`);
+      }
+    }
+
+    // IDEMPOTENT : réinitialiser les lettrages RA-* de la période avant de repointer
+    if (proposed_pointages.length > 0) {
+      const pointageIds = proposed_pointages.map(p => p.ecriture_id);
+      // Aussi nettoyer les lettrages RA-* sur les écritures de cette période (stale)
+      const { data: staleLettrage } = await supabase
+        .from('ecritures_comptables')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .like('lettrage', 'RA%')
+        .not('id', 'in', `(${pointageIds.join(',')})`);
+
+      // Ne reset que les lettrages RA qui ne font pas partie du nouveau pointage
+      if (staleLettrage && staleLettrage.length > 0) {
+        // Vérifier que ces écritures ont un lettrage RA correspondant aux codes qu'on va utiliser
+        const newCodes = proposed_pointages.map(p => p.lettrage);
+        const { data: toReset } = await supabase
+          .from('ecritures_comptables')
+          .select('id, lettrage')
+          .eq('tenant_id', tenantId)
+          .eq('journal_code', 'BQ')
+          .eq('compte_numero', '512')
+          .in('lettrage', newCodes)
+          .not('id', 'in', `(${pointageIds.join(',')})`);
+
+        if (toReset && toReset.length > 0) {
+          const resetIds = toReset.map(e => e.id);
+          await supabase
+            .from('ecritures_comptables')
+            .update({ lettrage: null, date_lettrage: null })
+            .in('id', resetIds);
+          console.log(`[RAPPROCHEMENT] ${resetIds.length} lettrages stale RA réinitialisés`);
+        }
+      }
+    }
+
+    // Créer les nouvelles écritures (627, 401, 411, 471, 658, 758) — supprimer le champ _group avant insert
     if (proposed_ecritures.length > 0) {
       const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => rest);
 
