@@ -6,27 +6,15 @@
 import { sendEmail } from '../../services/emailService.js';
 import { getSettings, createEmail, updateEmail, updateCampaign, getCampaignById } from './prospectionService.js';
 import { generateInitialEmail, generateFollowUpEmail } from './emailGeneratorService.js';
+import { supabase } from '../../config/supabase.js';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nexus-prospection-unsubscribe';
-
-// Rate limiting in-memory
-let sentThisHour = 0;
-let sentToday = 0;
-let lastHourReset = Date.now();
-let lastDayReset = Date.now();
-
-function resetCountersIfNeeded() {
-  const now = Date.now();
-  if (now - lastHourReset > 60 * 60 * 1000) {
-    sentThisHour = 0;
-    lastHourReset = now;
-  }
-  if (now - lastDayReset > 24 * 60 * 60 * 1000) {
-    sentToday = 0;
-    lastDayReset = now;
-  }
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[PROSPECTION] CRITICAL: JWT_SECRET non defini — les tokens de desinscription ne fonctionneront pas');
 }
+
+// Rate limiting via DB (persistant — voir canSendNow())
 
 /**
  * Verifie si on peut envoyer maintenant (fenetre horaire + rate limits)
@@ -50,12 +38,29 @@ async function canSendNow() {
     return { allowed: false, reason: 'jour_non_ouvrable' };
   }
 
-  // Rate limits
-  resetCountersIfNeeded();
-  if (sentToday >= settings.daily_limit) {
+  // Rate limits — compter depuis la DB (persistant meme apres redemarrage)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const { count: sentTodayCount } = await supabase
+    .from('prospection_emails')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', 'nexus-internal')
+    .gte('sent_at', `${todayStr}T00:00:00Z`)
+    .in('status', ['sent', 'delivered', 'opened', 'clicked']);
+
+  if ((sentTodayCount || 0) >= settings.daily_limit) {
     return { allowed: false, reason: `limite_jour (${settings.daily_limit})` };
   }
-  if (sentThisHour >= settings.hourly_limit) {
+
+  const { count: sentThisHourCount } = await supabase
+    .from('prospection_emails')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', 'nexus-internal')
+    .gte('sent_at', hourAgo)
+    .in('status', ['sent', 'delivered', 'opened', 'clicked']);
+
+  if ((sentThisHourCount || 0) >= settings.hourly_limit) {
     return { allowed: false, reason: `limite_heure (${settings.hourly_limit})` };
   }
 
@@ -116,9 +121,9 @@ export async function sendProspectionEmail(prospect, campaign) {
     status: 'queued',
   });
 
-  // Delai aleatoire anti-spam (2-5 min en prod, instantane en dev)
+  // Delai aleatoire anti-spam (10-30s en prod — non-bloquant dans le batch)
   if (process.env.NODE_ENV === 'production') {
-    const delay = randomInt(2 * 60 * 1000, 5 * 60 * 1000);
+    const delay = randomInt(10 * 1000, 30 * 1000);
     await sleep(delay);
   }
 
@@ -138,16 +143,17 @@ export async function sendProspectionEmail(prospect, campaign) {
   });
 
   if (result.success) {
-    // Calculer date de follow-up
+    // Calculer date de follow-up depuis maintenant (J+3)
+    const sentDate = new Date();
     let followUpDate = null;
     if (campaign.follow_up_enabled && settings.followup_j3) {
-      followUpDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      followUpDate = new Date(sentDate.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
     }
 
     await updateEmail(emailRecord.id, {
-      status: result.simulated ? 'sent' : 'sent',
+      status: 'sent',
       resend_id: result.id || null,
-      sent_at: new Date().toISOString(),
+      sent_at: sentDate.toISOString(),
       follow_up_scheduled_at: followUpDate,
     });
 
@@ -155,9 +161,6 @@ export async function sendProspectionEmail(prospect, campaign) {
     await updateCampaign(campaign.id, {
       emails_sent: (campaign.emails_sent || 0) + 1,
     });
-
-    sentThisHour++;
-    sentToday++;
 
     console.log(`[PROSPECTION] Email envoye a ${prospect.email} (${prospect.name})`);
     return { success: true, emailId: emailRecord.id, resendId: result.id };
@@ -206,7 +209,7 @@ export async function sendFollowUpEmail(originalEmail, prospect, campaign) {
 
   // Delai anti-spam
   if (process.env.NODE_ENV === 'production') {
-    await sleep(randomInt(2 * 60 * 1000, 5 * 60 * 1000));
+    await sleep(randomInt(10 * 1000, 30 * 1000));
   }
 
   const result = await sendEmail({
@@ -224,12 +227,13 @@ export async function sendFollowUpEmail(originalEmail, prospect, campaign) {
   });
 
   if (result.success) {
-    // Calculer prochaine relance
+    // Calculer prochaine relance depuis la date d'envoi initial (pas Date.now())
+    const initialSentAt = originalEmail.sent_at ? new Date(originalEmail.sent_at) : new Date();
     let nextFollowUp = null;
     if (emailType === 'followup_j3' && settings.followup_j7) {
-      nextFollowUp = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(); // J+7 total
+      nextFollowUp = new Date(initialSentAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // J+7 depuis initial
     } else if (emailType === 'followup_j7' && settings.followup_j14) {
-      nextFollowUp = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // J+14 total
+      nextFollowUp = new Date(initialSentAt.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(); // J+14 depuis initial
     }
 
     await updateEmail(emailRecord.id, {
@@ -242,9 +246,6 @@ export async function sendFollowUpEmail(originalEmail, prospect, campaign) {
     await updateCampaign(campaign.id, {
       emails_sent: (campaign.emails_sent || 0) + 1,
     });
-
-    sentThisHour++;
-    sentToday++;
 
     console.log(`[PROSPECTION] Relance ${emailType} envoyee a ${prospect.email}`);
     return { success: true, emailId: emailRecord.id, emailType };

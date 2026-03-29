@@ -8,7 +8,10 @@ import jwt from 'jsonwebtoken';
 import { updateProspect } from './prospectionService.js';
 import { supabase } from '../../config/supabase.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nexus-prospection-unsubscribe';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[UNSUBSCRIBE] CRITICAL: JWT_SECRET non defini — la desinscription ne fonctionnera pas');
+}
 const TENANT_ID = 'nexus-internal';
 
 /**
@@ -34,14 +37,13 @@ export async function handleUnsubscribe(token) {
     status: 'unsubscribed',
   });
 
-  // Annuler toutes les relances en attente pour ce prospect
+  // Annuler toutes les relances en attente pour ce prospect (sans toucher au status)
   await supabase
     .from('prospection_emails')
-    .update({ follow_up_scheduled_at: null, status: 'queued' })
+    .update({ follow_up_scheduled_at: null })
     .eq('tenant_id', TENANT_ID)
     .eq('prospect_id', decoded.prospectId)
-    .not('follow_up_scheduled_at', 'is', null)
-    .in('status', ['queued', 'sent', 'delivered']);
+    .not('follow_up_scheduled_at', 'is', null);
 
   console.log(`[UNSUBSCRIBE] Prospect ${prospect.name} (ID: ${decoded.prospectId}) desinscrit`);
 

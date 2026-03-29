@@ -51,7 +51,28 @@ router.get('/settings', async (req, res) => {
 
 router.patch('/settings', async (req, res) => {
   try {
-    const settings = await updateSettings(req.body);
+    // Validation des champs autorises
+    const allowedFields = [
+      'daily_limit', 'hourly_limit', 'send_window_start', 'send_window_end',
+      'send_days', 'global_pause', 'from_name', 'from_email', 'reply_to',
+      'followup_j3', 'followup_j7', 'followup_j14',
+    ];
+    const filtered = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) filtered[key] = req.body[key];
+    }
+    if (Object.keys(filtered).length === 0) {
+      return res.status(400).json({ success: false, error: 'Aucun champ valide fourni' });
+    }
+    // Validation types numeriques
+    if (filtered.daily_limit !== undefined && (!Number.isInteger(filtered.daily_limit) || filtered.daily_limit < 1 || filtered.daily_limit > 500)) {
+      return res.status(400).json({ success: false, error: 'daily_limit doit etre entre 1 et 500' });
+    }
+    if (filtered.hourly_limit !== undefined && (!Number.isInteger(filtered.hourly_limit) || filtered.hourly_limit < 1 || filtered.hourly_limit > 100)) {
+      return res.status(400).json({ success: false, error: 'hourly_limit doit etre entre 1 et 100' });
+    }
+
+    const settings = await updateSettings(filtered);
     res.json({ success: true, data: settings });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -209,12 +230,23 @@ router.patch('/campaigns/:id', async (req, res) => {
 router.post('/campaigns/:id/start', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const campaign = await getCampaignById(id);
+    if (!campaign) return res.status(404).json({ success: false, error: 'Campagne introuvable' });
+
     await updateCampaign(id, { status: 'active' });
 
-    // Lancer l'execution en arriere-plan
-    executeCampaign(id).catch(err => {
-      console.error(`[PROSPECTION] Erreur execution campagne ${id}:`, err.message);
-    });
+    // Lancer l'execution en arriere-plan et stocker le statut final
+    executeCampaign(id)
+      .then(async (results) => {
+        console.log(`[PROSPECTION] Campagne ${id} terminee: sent=${results.sent} failed=${results.failed}`);
+        if (results.sent === 0 && results.failed > 0) {
+          await updateCampaign(id, { status: 'paused' });
+        }
+      })
+      .catch(async (err) => {
+        console.error(`[PROSPECTION] Erreur execution campagne ${id}:`, err.message);
+        await updateCampaign(id, { status: 'paused' }).catch(() => {});
+      });
 
     res.json({ success: true, message: 'Campagne demarree' });
   } catch (error) {

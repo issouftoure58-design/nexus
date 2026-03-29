@@ -9,7 +9,7 @@ import { MODELS } from '../../services/modelRouter.js';
 
 const anthropic = new Anthropic();
 
-const LANDING_URL = 'https://nexus-ai-saas.com';
+const LANDING_URL = process.env.LANDING_URL || 'https://nexus-ai-saas.com';
 
 // Pain points par secteur — contexte pour la generation IA
 const SECTOR_CONTEXT = {

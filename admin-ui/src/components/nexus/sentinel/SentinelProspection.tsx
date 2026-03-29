@@ -516,9 +516,12 @@ function CampaignEmailsList({ emails, onClose, campaignId }: { emails: CampaignE
             </button>
           </div>
           <div className="text-sm font-medium text-white mb-3">{selectedEmail.subject}</div>
-          <div
-            className="bg-white rounded-lg p-4 max-h-80 overflow-y-auto text-sm text-slate-800"
-            dangerouslySetInnerHTML={{ __html: selectedEmail.html_body }}
+          <iframe
+            srcDoc={selectedEmail.html_body}
+            sandbox=""
+            className="bg-white rounded-lg w-full max-h-80 border-0"
+            style={{ minHeight: 200 }}
+            title="Apercu email"
           />
         </div>
       )}

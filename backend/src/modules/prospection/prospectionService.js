@@ -71,6 +71,20 @@ export async function deleteProspect(id) {
 }
 
 export async function upsertProspect(prospect) {
+  // Deduplication par email : si un prospect avec le meme email existe deja, skip
+  if (prospect.email) {
+    const { data: existing } = await supabase
+      .from('prospection_prospects')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('email', prospect.email)
+      .limit(1);
+
+    if (existing?.length > 0) {
+      return existing[0]; // Deja present avec cet email
+    }
+  }
+
   const { data, error } = await supabase
     .from('prospection_prospects')
     .upsert(
