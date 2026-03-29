@@ -364,17 +364,16 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   const matchingCandidates = useMemo(() => {
     if (!matchingEntry || !rapport) return [];
     const nonMatchees = rapport.non_matchees_compta || [];
-    // Filtrer par type compatible : credit banque ↔ credit compta (déjà en 512), debit ↔ debit
+    // Types inversés : débit banque (argent sort) = crédit 512 compta, et vice versa
     return nonMatchees
       .map((e, idx) => {
         const ecart = matchingEntry.montant - e.montant;
-        // Déterminer si c'est une perte ou un gain
         // Credit banque (argent reçu) : bank > compta → gain (758), bank < compta → perte (658)
         // Debit banque (argent payé) : bank > compta → perte (658), bank < compta → gain (758)
         const estPerte = matchingEntry.type === 'credit' ? ecart < 0 : ecart > 0;
         return { ...e, originalIndex: idx, ecart, ecartAbs: Math.abs(ecart), estPerte };
       })
-      .filter(e => e.type === matchingEntry.type) // même sens
+      .filter(e => e.type !== matchingEntry.type) // sens opposé : débit banque ↔ crédit 512
       .sort((a, b) => a.ecartAbs - b.ecartAbs);
   }, [matchingEntry, rapport]);
 
