@@ -3667,7 +3667,7 @@ router.post('/rapprochement-auto', async (req, res) => {
       if (meilleurMatch) {
         // Match trouvé → pointer
         console.log(`[RAPPROCHEMENT]   → MATCH trouvé: écriture ${meilleurMatch.id} (score: ${meilleurScore})`);
-        const codeLettrage = `RA-${moisLettrage}${anneeLettrage}-${String(lettrageIndex).padStart(3, '0')}`;
+        const codeLettrage = `RA${moisLettrage}${anneeLettrage.slice(2)}-${String(lettrageIndex).padStart(3, '0')}`;
         lettrageIndex++;
 
         const { error: errPoint } = await supabase
@@ -3699,7 +3699,7 @@ router.post('/rapprochement-auto', async (req, res) => {
       const dateEcriture = txDate ? txDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       const periodeEc = dateEcriture.slice(0, 7);
       const exercice = parseInt(dateEcriture.slice(0, 4)) || new Date().getFullYear();
-      const codeLettrage = `RA-${moisLettrage}${anneeLettrage}-${String(lettrageIndex).padStart(3, '0')}`;
+      const codeLettrage = `RA${moisLettrage}${anneeLettrage.slice(2)}-${String(lettrageIndex).padStart(3, '0')}`;
       lettrageIndex++;
 
       const identification = identifierTransaction(tx.libelle);
