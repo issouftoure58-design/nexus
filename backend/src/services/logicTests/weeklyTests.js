@@ -424,9 +424,9 @@ async function testW10_QuotaManager(tenantId) {
   const description = 'Usage: getQuotaStatus → modules + totalOverage';
 
   try {
-    const { getQuotaStatus } = await import('../../services/quotaManager.js');
+    const { quotaManager } = await import('../../services/quotaManager.js');
 
-    const status = await getQuotaStatus(tenantId);
+    const status = await quotaManager.getQuotaStatus(tenantId);
     if (!status) {
       return makeResult(name, module, severity, description, 'fail', 'getQuotaStatus retourne null');
     }
