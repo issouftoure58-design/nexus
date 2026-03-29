@@ -80,15 +80,15 @@
 <div class="soldes">
   <div class="solde-box">
     <label>Solde au 31/10/2025</label>
-    <div class="montant positif">5 000,00 €</div>
+    <div class="montant positif">0,00 €</div>
   </div>
   <div class="solde-box">
     <label>Total mouvements</label>
-    <div class="montant positif">+ 113,00 €</div>
+    <div class="montant positif">+ 103,50 €</div>
   </div>
   <div class="solde-box">
     <label>Solde au 30/11/2025</label>
-    <div class="montant positif">5 113,00 €</div>
+    <div class="montant positif">103,50 €</div>
   </div>
 </div>
 
@@ -110,7 +110,7 @@
       <td><strong>Solde précédent</strong></td>
       <td class="right"></td>
       <td class="right"></td>
-      <td class="right solde-col"><strong>5 000,00</strong></td>
+      <td class="right solde-col"><strong>0,00</strong></td>
     </tr>
 
     <!-- A) Transactions qui MATCHENT les écritures BQ existantes -->
@@ -120,7 +120,7 @@
       <td>VIR RECU CLIENT DUPONT<br><span style="color:#888;font-size:10px;">Coupe + Brushing - RDV 01/11</span></td>
       <td class="right"></td>
       <td class="right credit">50,00</td>
-      <td class="right">5 050,00</td>
+      <td class="right">50,00</td>
     </tr>
     <tr>
       <td class="date-col">05/11</td>
@@ -128,7 +128,7 @@
       <td>VIR RECU CLIENT MARTIN<br><span style="color:#888;font-size:10px;">Coloration complète</span></td>
       <td class="right"></td>
       <td class="right credit">85,00</td>
-      <td class="right">5 135,00</td>
+      <td class="right">135,00</td>
     </tr>
     <tr>
       <td class="date-col">08/11</td>
@@ -136,7 +136,7 @@
       <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">3 encaissements carte — Période 01-07/11</span></td>
       <td class="right"></td>
       <td class="right credit">120,00</td>
-      <td class="right">5 255,00</td>
+      <td class="right">255,00</td>
     </tr>
     <tr>
       <td class="date-col">12/11</td>
@@ -144,7 +144,7 @@
       <td>VIR RECU CLIENT BERNARD<br><span style="color:#888;font-size:10px;">Forfait Homme</span></td>
       <td class="right"></td>
       <td class="right credit">35,00</td>
-      <td class="right">5 290,00</td>
+      <td class="right">290,00</td>
     </tr>
     <tr>
       <td class="date-col">18/11</td>
@@ -152,7 +152,7 @@
       <td>VIR RECU CLIENT PETIT<br><span style="color:#888;font-size:10px;">Coupe Enfant + Soin</span></td>
       <td class="right"></td>
       <td class="right credit">28,00</td>
-      <td class="right">5 318,00</td>
+      <td class="right">318,00</td>
     </tr>
     <tr>
       <td class="date-col">22/11</td>
@@ -160,17 +160,17 @@
       <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">5 encaissements carte — Période 08-21/11</span></td>
       <td class="right"></td>
       <td class="right credit">155,00</td>
-      <td class="right">5 473,00</td>
+      <td class="right">473,00</td>
     </tr>
 
-    <!-- B) Transactions identifiables mais absentes de la compta -->
+    <!-- B) Transaction identifiable mais absente de la compta -->
     <tr>
       <td class="date-col">25/11</td>
       <td class="ref-col">PRLV01</td>
       <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Électricité Novembre 2025 — Réf. PDL 14578952147</span></td>
-      <td class="right debit">420,00</td>
+      <td class="right debit">405,00</td>
       <td class="right"></td>
-      <td class="right">5 053,00</td>
+      <td class="right">68,00</td>
     </tr>
 
     <!-- A) Suite encaissements qui matchent -->
@@ -180,17 +180,17 @@
       <td>VIR RECU CLIENT MOREAU<br><span style="color:#888;font-size:10px;">Mèches + Coupe</span></td>
       <td class="right"></td>
       <td class="right credit">45,00</td>
-      <td class="right">5 098,00</td>
+      <td class="right">113,00</td>
     </tr>
 
-    <!-- C) Transaction TOTALEMENT INCONNUE → 471 -->
+    <!-- Frais bancaires (bank-only) -->
     <tr>
-      <td class="date-col">29/11</td>
-      <td class="ref-col">VIR006</td>
-      <td>VIR 15,00<br><span style="color:#888;font-size:10px;">Réf. interne 9847521</span></td>
+      <td class="date-col">30/11</td>
+      <td class="ref-col">FRS01</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait mensuel compte professionnel</span></td>
+      <td class="right debit">9,50</td>
       <td class="right"></td>
-      <td class="right credit">15,00</td>
-      <td class="right">5 113,00</td>
+      <td class="right">103,50</td>
     </tr>
 
     <!-- Totaux -->
@@ -198,9 +198,9 @@
       <td></td>
       <td></td>
       <td><strong>TOTAUX DU MOIS</strong></td>
-      <td class="right debit"><strong>420,00</strong></td>
-      <td class="right credit"><strong>533,00</strong></td>
-      <td class="right"><strong>5 113,00</strong></td>
+      <td class="right debit"><strong>414,50</strong></td>
+      <td class="right credit"><strong>518,00</strong></td>
+      <td class="right"><strong>103,50</strong></td>
     </tr>
   </tbody>
 </table>

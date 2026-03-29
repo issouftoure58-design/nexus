@@ -690,11 +690,11 @@ export const comptaApi = {
     const query = new URLSearchParams();
     if (params?.periode) query.set('periode', params.periode);
     if (params?.non_pointees) query.set('non_pointees', 'true');
-    return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number }>(`/journaux/ecritures/banque?${query}`)
+    return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number; mouvement_mois?: { debit: number; credit: number; solde: number } }>(`/journaux/ecritures/banque?${query}`)
       .then(raw => {
         if (raw?.ecritures) return raw;
         const d = (raw as any)?.data;
-        return { ecritures: d?.ecritures || [], solde_comptable: d?.solde_comptable || raw?.solde_comptable || 0 };
+        return { ecritures: d?.ecritures || [], solde_comptable: d?.solde_comptable || raw?.solde_comptable || 0, mouvement_mois: d?.mouvement_mois || raw?.mouvement_mois };
       });
   },
   pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
@@ -713,7 +713,22 @@ export const comptaApi = {
       solde_releve_debut: number | null;
       solde_releve_fin: number | null;
       solde_comptable: number;
+      solde_512_cumule: number;
       ecart: number | null;
+      deux_tableaux: {
+        cote_banque: {
+          solde_releve: number;
+          plus_debits_compta_hors_releve: number;
+          moins_credits_compta_hors_releve: number;
+          solde_rapproche: number;
+        };
+        cote_compta: {
+          solde_512: number;
+          plus_credits_releve_hors_compta: number;
+          moins_debits_releve_hors_compta: number;
+          solde_rapproche: number;
+        };
+      };
       pointees: Array<{ date: string; libelle_releve: string; libelle_compta: string; montant: number; type: string; lettrage: string }>;
       ecritures_creees: Array<{ date: string; libelle: string; montant: number; type: string; compte: string; compte_libelle: string; lettrage: string }>;
       regulariser_471: Array<{ date: string; libelle: string; montant: number; type: string; lettrage: string }>;
@@ -721,6 +736,12 @@ export const comptaApi = {
       resume: { nb_pointees: number; nb_ecritures_creees: number; nb_regulariser_471: number; nb_non_matchees_compta: number };
     };
   }>('/journaux/rapprochement-auto', data),
+  sauverRapprochement: (periode: string, rapport: Record<string, unknown>) =>
+    api.post<{ success: boolean; rapprochement: Record<string, unknown> }>('/journaux/rapprochements/sauver', { periode, rapport }),
+  getRapprochement: (periode: string) =>
+    api.get<{ rapprochement: { periode: string; valide: boolean; rapport_json: Record<string, unknown>; solde_rapproche: number; nb_pointees: number; nb_non_matchees: number; solde_releve_fin: number; solde_512_cumule: number } | null }>(`/journaux/rapprochements/${periode}`),
+  annulerRapprochement: (periode: string) =>
+    api.delete<{ success: boolean }>(`/journaux/rapprochements/${periode}`),
   modifierEcriture: (id: number, data: { libelle?: string; compte_numero?: string; compte_libelle?: string; date_ecriture?: string; numero_piece?: string }) =>
     api.patch<{ success: boolean; ecriture: EcritureComptable }>(`/journaux/ecritures/${id}`, data),
   genererToutesEcritures: () => api.post<{ success: boolean; message: string }>('/journaux/generer/tout'),

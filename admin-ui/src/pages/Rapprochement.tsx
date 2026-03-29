@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,8 +21,16 @@ import {
   Printer,
   PlusCircle,
   HelpCircle,
+  Calendar,
+  Save,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const MOIS_LABELS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const DEBUT_EXERCICE = { mois: 11, annee: 2025 }; // Novembre 2025
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -72,6 +80,16 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Période sélectionnée (obligatoire avant toute action)
+  const [periodeMois, setPeriodeMois] = useState<number | null>(null);
+  const [periodeAnnee, setPeriodeAnnee] = useState<number | null>(null);
+  const periodeSelectionnee = periodeMois !== null && periodeAnnee !== null;
+  const periodeISO = periodeSelectionnee ? `${periodeAnnee}-${String(periodeMois).padStart(2, '0')}` : null;
+  const periodeLabel = periodeSelectionnee ? `${MOIS_LABELS[periodeMois! - 1]} ${periodeAnnee}` : '';
+
+  // Sauvegarde rapprochement
+  const [sauvegardePending, setSauvegardePending] = useState(false);
+
   // État pour le rapprochement bancaire
   const [soldeBancaire, setSoldeBancaire] = useState<number | null>(null);
   const [rapprochementSubTab, setRapprochementSubTab] = useState<'a_rapprocher' | 'rapprochees'>('a_rapprocher');
@@ -79,11 +97,35 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   const [bankTransactions, setBankTransactions] = useState<Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}>>([]);
   const bankFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Query pour les écritures du journal banque (BQ) pour le rapprochement
-  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number }>({
-    queryKey: ['ecritures-banque'],
-    queryFn: () => comptaApi.getEcrituresBanque(),
+  // Query pour les écritures du journal banque (BQ) filtrées par période
+  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number; mouvement_mois?: { debit: number; credit: number; solde: number } }>({
+    queryKey: ['ecritures-banque', periodeISO],
+    queryFn: () => comptaApi.getEcrituresBanque(periodeISO ? { periode: periodeISO } : undefined),
+    enabled: periodeSelectionnee,
   });
+
+  // Query rapprochement sauvegardé de la période courante
+  const { data: rapprochementSauvegarde } = useQuery({
+    queryKey: ['rapprochement-sauvegarde', periodeISO],
+    queryFn: () => comptaApi.getRapprochement(periodeISO!),
+    enabled: !!periodeISO,
+  });
+
+  // Query rapprochement du mois précédent (chaînage)
+  const periodePrecedente = useMemo(() => {
+    if (!periodeSelectionnee) return null;
+    const m = periodeMois! - 1;
+    if (m < 1) return `${periodeAnnee! - 1}-12`;
+    return `${periodeAnnee}-${String(m).padStart(2, '0')}`;
+  }, [periodeMois, periodeAnnee, periodeSelectionnee]);
+
+  const { data: rapprochementPrecedent } = useQuery({
+    queryKey: ['rapprochement-precedent', periodePrecedente],
+    queryFn: () => comptaApi.getRapprochement(periodePrecedente!),
+    enabled: !!periodePrecedente,
+  });
+
+  const periodeVerrouillee = rapprochementSauvegarde?.rapprochement?.valide === true;
 
   // Mutation pour pointer les écritures
   const pointerEcrituresMutation = useMutation({
@@ -404,7 +446,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         solde_debut: releveSoldeDebut,
         solde_fin: soldeBancaire,
         banque: releveBanque,
-        periode: relevePeriode,
+        periode: periodeISO || relevePeriode,
       });
       if (result.success && result.rapport) {
         setRapport(result.rapport);
@@ -425,7 +467,61 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     }
   };
 
-  // Impression état de rapprochement A4
+  // Sauvegarder le rapprochement
+  const sauverRapprochement = async () => {
+    if (!rapport || !periodeISO) return;
+    setSauvegardePending(true);
+    try {
+      await comptaApi.sauverRapprochement(periodeISO, rapport as unknown as Record<string, unknown>);
+      queryClient.invalidateQueries({ queryKey: ['rapprochement-sauvegarde', periodeISO] });
+      setNotification({ type: 'success', message: `Rapprochement ${periodeLabel} validé et sauvegardé` });
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur sauvegarde' });
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setSauvegardePending(false);
+    }
+  };
+
+  // Annuler un rapprochement validé
+  const annulerRapprochement = async () => {
+    if (!periodeISO) return;
+    try {
+      await comptaApi.annulerRapprochement(periodeISO);
+      queryClient.invalidateQueries({ queryKey: ['rapprochement-sauvegarde', periodeISO] });
+      setNotification({ type: 'success', message: `Rapprochement ${periodeLabel} déverrouillé` });
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Erreur annulation' });
+      setTimeout(() => setNotification(null), 5000);
+    }
+  };
+
+  // Navigation entre périodes
+  const naviguerPeriode = useCallback((direction: 'prev' | 'next') => {
+    if (!periodeSelectionnee) return;
+    let m = periodeMois!;
+    let a = periodeAnnee!;
+    if (direction === 'prev') {
+      m--;
+      if (m < 1) { m = 12; a--; }
+    } else {
+      m++;
+      if (m > 12) { m = 1; a++; }
+    }
+    setPeriodeMois(m);
+    setPeriodeAnnee(a);
+    // Reset état à chaque changement de période
+    setBankTransactions([]);
+    setRapport(null);
+    setReleveBanque(null);
+    setRelevePeriode(null);
+    setReleveSoldeDebut(null);
+    setSoldeBancaire(null);
+  }, [periodeMois, periodeAnnee, periodeSelectionnee]);
+
+  // Impression état de rapprochement A4 — Méthode des deux tableaux
   const imprimerRapprochement = () => {
     if (!rapport) return;
     const r = rapport;
@@ -440,6 +536,12 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     const nonMatchees = r.non_matchees_compta || [];
     const creees = r.ecritures_creees || [];
     const reg471 = r.regulariser_471 || [];
+    const pointeesArr = r.pointees || [];
+    const dt = r.deux_tableaux;
+
+    const lignesPointees = pointeesArr.map(e =>
+      `<tr><td>${e.date}</td><td>${e.libelle_releve}</td><td>${e.libelle_compta}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="code">${e.lettrage}</td></tr>`
+    ).join('');
 
     const lignesNonReleve = nonMatchees.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
@@ -447,54 +549,68 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     const totalNonReleveDeb = nonMatchees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const totalNonReleveCred = nonMatchees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
-    // Écritures créées (401, 411, 627)
     const lignesCreees = creees.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td>${e.compte} — ${e.compte_libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
     const totalCreeesDeb = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const totalCreeesCred = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
-    // Compte 471 — À régulariser
     const lignes471 = reg471.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
     const total471Deb = reg471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const total471Cred = reg471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
+    // Info chaînage
+    const rapproPrev = rapprochementPrecedent?.rapprochement;
+    const chainageHtml = rapproPrev
+      ? `<p style="font-size:10pt;color:#555;margin-bottom:12px">Rapprochement précédent : <strong>${rapproPrev.periode}</strong> — Solde rapproché : <strong>${fmtMontant(rapproPrev.solde_rapproche)}</strong> — ${rapproPrev.nb_non_matchees} suspens reporté(s)</p>`
+      : periodePrecedente && periodePrecedente >= '2025-11'
+        ? '<p style="font-size:10pt;color:#999;margin-bottom:12px">Aucun rapprochement précédent sauvegardé</p>'
+        : '<p style="font-size:10pt;color:#555;margin-bottom:12px">Premier mois de l\'exercice</p>';
+
     const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>État de rapprochement bancaire</title>
+<title>État de rapprochement bancaire — ${periodeLabel}</title>
 <style>
-  @page { size: A4; margin: 20mm; }
+  @page { size: A4; margin: 18mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #333; padding: 20mm; background: white; }
-  h1 { font-size: 16pt; text-align: center; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
-  .sep { border-top: 2px solid #333; margin: 8px 0 16px; }
-  .header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 20px; font-size: 10pt; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #333; padding: 18mm; background: white; }
+  h1 { font-size: 15pt; text-align: center; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .sep { border-top: 2px solid #333; margin: 8px 0 14px; }
+  .header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 16px; font-size: 10pt; }
   .header-info span { display: block; }
   .header-info .label { font-weight: 600; color: #555; }
-  .section { margin-bottom: 16px; }
-  .section h2 { font-size: 11pt; font-weight: 700; margin-bottom: 6px; padding: 4px 8px; background: #f3f4f6; border-left: 3px solid #6366f1; }
-  table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 8px; }
-  th, td { padding: 4px 8px; border: 1px solid #ddd; text-align: left; }
-  th { background: #f9fafb; font-weight: 600; font-size: 9pt; text-transform: uppercase; }
+  .section { margin-bottom: 14px; page-break-inside: avoid; }
+  .section h2 { font-size: 10pt; font-weight: 700; margin-bottom: 5px; padding: 3px 8px; background: #f3f4f6; border-left: 3px solid #6366f1; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 6px; }
+  th, td { padding: 3px 6px; border: 1px solid #ddd; text-align: left; }
+  th { background: #f9fafb; font-weight: 600; font-size: 8pt; text-transform: uppercase; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .code { text-align: center; font-family: monospace; font-size: 8pt; }
   .total-row { font-weight: 700; background: #f3f4f6; }
-  .big-box { border: 2px solid #333; padding: 10px 16px; margin: 12px 0; display: flex; justify-content: space-between; align-items: center; }
-  .big-box .label { font-size: 11pt; font-weight: 600; }
-  .big-box .value { font-size: 14pt; font-weight: 700; }
+  .deux-tableaux { display: flex; gap: 16px; margin-bottom: 16px; }
+  .deux-tableaux .tableau { flex: 1; border: 2px solid #333; border-radius: 4px; padding: 10px; }
+  .deux-tableaux .tableau h3 { font-size: 10pt; text-align: center; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #999; text-transform: uppercase; letter-spacing: 0.5px; }
+  .deux-tableaux .ligne { display: flex; justify-content: space-between; padding: 3px 0; font-size: 10pt; }
+  .deux-tableaux .ligne.total { border-top: 2px solid #333; margin-top: 6px; padding-top: 6px; font-weight: 700; font-size: 11pt; }
+  .deux-tableaux .ligne .val { font-variant-numeric: tabular-nums; }
   .ecart-ok { color: #16a34a; }
   .ecart-ko { color: #dc2626; }
-  .signature { margin-top: 40px; display: flex; justify-content: space-between; }
+  .big-box { border: 2px solid #333; padding: 8px 14px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; }
+  .big-box .label { font-size: 10pt; font-weight: 600; }
+  .big-box .value { font-size: 13pt; font-weight: 700; }
+  .signature { margin-top: 30px; display: flex; justify-content: space-between; }
   .signature div { width: 45%; }
-  .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; text-align: center; font-size: 9pt; color: #666; }
-  .resume-badges { display: flex; gap: 12px; margin-bottom: 16px; }
-  .badge { padding: 6px 12px; border-radius: 6px; font-size: 10pt; font-weight: 600; }
+  .signature .line { border-top: 1px solid #333; margin-top: 35px; padding-top: 4px; text-align: center; font-size: 9pt; color: #666; }
+  .resume-badges { display: flex; gap: 10px; margin-bottom: 14px; }
+  .badge { padding: 4px 10px; border-radius: 6px; font-size: 9pt; font-weight: 600; }
   .badge-green { background: #dcfce7; color: #166534; }
   .badge-blue { background: #dbeafe; color: #1e40af; }
   .badge-orange { background: #fef3c7; color: #92400e; }
+  .badge-gray { background: #f3f4f6; color: #374151; }
   @media print { body { padding: 0; } .no-print { display: none !important; } }
 </style>
 </head>
@@ -505,18 +621,41 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   <div class="header-info">
     <div><span class="label">Banque :</span> ${r.banque || '—'}</div>
     <div><span class="label">Date du rapprochement :</span> ${fmtDate(r.date_rapprochement)}</div>
-    <div><span class="label">Période :</span> ${r.periode || '—'}</div>
+    <div><span class="label">Période :</span> ${periodeLabel || r.periode || '—'}</div>
     <div></div>
   </div>
+
+  ${chainageHtml}
 
   <div class="resume-badges">
     <span class="badge badge-green">${r.resume?.nb_pointees || 0} pointée(s)</span>
     <span class="badge badge-blue">${r.resume?.nb_ecritures_creees || 0} créée(s)</span>
     <span class="badge badge-orange">${r.resume?.nb_regulariser_471 || 0} en 471</span>
+    <span class="badge badge-gray">${r.resume?.nb_non_matchees_compta || 0} suspens compta</span>
   </div>
 
   <div class="section">
-    <h2>1. Solde du relevé bancaire</h2>
+    <h2>1. Méthode des deux tableaux</h2>
+    <div class="deux-tableaux">
+      <div class="tableau">
+        <h3>Côté Banque</h3>
+        <div class="ligne"><span>Solde relevé fin de période</span><span class="val">${fmtMontant(dt?.cote_banque?.solde_releve || r.solde_releve_fin || 0)}</span></div>
+        <div class="ligne"><span>+ Débits compta (512) non sur relevé</span><span class="val">${fmtMontant(dt?.cote_banque?.plus_debits_compta_hors_releve || 0)}</span></div>
+        <div class="ligne"><span>- Crédits compta (512) non sur relevé</span><span class="val">${fmtMontant(dt?.cote_banque?.moins_credits_compta_hors_releve || 0)}</span></div>
+        <div class="ligne total"><span>= Solde rapproché</span><span class="val ${Math.abs((dt?.cote_banque?.solde_rapproche || 0) - (dt?.cote_compta?.solde_rapproche || 0)) < 0.01 ? 'ecart-ok' : 'ecart-ko'}">${fmtMontant(dt?.cote_banque?.solde_rapproche || 0)}</span></div>
+      </div>
+      <div class="tableau">
+        <h3>Côté Compta</h3>
+        <div class="ligne"><span>Solde compte 512 fin de période</span><span class="val">${fmtMontant(dt?.cote_compta?.solde_512 || r.solde_comptable || 0)}</span></div>
+        <div class="ligne"><span>+ Crédits relevé non en compta</span><span class="val">${fmtMontant(dt?.cote_compta?.plus_credits_releve_hors_compta || 0)}</span></div>
+        <div class="ligne"><span>- Débits relevé non en compta</span><span class="val">${fmtMontant(dt?.cote_compta?.moins_debits_releve_hors_compta || 0)}</span></div>
+        <div class="ligne total"><span>= Solde rapproché</span><span class="val ${Math.abs((dt?.cote_banque?.solde_rapproche || 0) - (dt?.cote_compta?.solde_rapproche || 0)) < 0.01 ? 'ecart-ok' : 'ecart-ko'}">${fmtMontant(dt?.cote_compta?.solde_rapproche || 0)}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>2. Soldes du relevé bancaire</h2>
     <table>
       <tr><td style="width:70%">Solde de début de période</td><td class="num">${r.solde_releve_debut != null ? fmtMontant(r.solde_releve_debut) : '—'}</td></tr>
       <tr class="total-row"><td>Solde de fin de période</td><td class="num">${r.solde_releve_fin != null ? fmtMontant(r.solde_releve_fin) : '—'}</td></tr>
@@ -524,45 +663,48 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   </div>
 
   <div class="section">
-    <h2>2. Opérations comptabilisées non figurant sur le relevé</h2>
-    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Chèques émis non encaissés, virements en cours...)</p>
-    ${(r.non_matchees_compta || []).length > 0 ? `
+    <h2>3. Écritures pointées (${pointeesArr.length})</h2>
+    ${pointeesArr.length > 0 ? `
     <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
-      <tbody>${lignesNonReleve}</tbody>
-      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(totalNonReleveDeb)}</td><td class="num">${fmtMontant(totalNonReleveCred)}</td></tr></tfoot>
-    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+      <thead><tr><th>Date</th><th>Libellé relevé</th><th>Libellé compta</th><th class="num">Crédit</th><th class="num">Débit</th><th class="code">Code</th></tr></thead>
+      <tbody>${lignesPointees}</tbody>
+    </table>` : '<p style="font-size:9pt;color:#666;font-style:italic">Aucune</p>'}
   </div>
 
   <div class="section">
-    <h2>3. Écritures créées automatiquement</h2>
-    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Frais bancaires, fournisseurs identifiés, clients identifiés)</p>
-    ${(r.ecritures_creees || []).length > 0 ? `
+    <h2>4. Écritures créées automatiquement (${creees.length})</h2>
+    <p style="font-size:8pt;color:#666;margin-bottom:4px">(Frais bancaires 627, fournisseurs 401xxx, clients 411xxx)</p>
+    ${creees.length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th>Compte</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
       <tbody>${lignesCreees}</tbody>
       <tfoot><tr class="total-row"><td colspan="3">Total</td><td class="num">${fmtMontant(totalCreeesDeb)}</td><td class="num">${fmtMontant(totalCreeesCred)}</td></tr></tfoot>
-    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+    </table>` : '<p style="font-size:9pt;color:#666;font-style:italic">Aucune</p>'}
   </div>
 
   <div class="section">
-    <h2>4. Compte 471 — À régulariser</h2>
-    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Transactions non identifiées, à reclassifier par l'expert-comptable)</p>
-    ${(r.regulariser_471 || []).length > 0 ? `
+    <h2>5. Compte 471 — À régulariser (${reg471.length})</h2>
+    ${reg471.length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
       <tbody>${lignes471}</tbody>
       <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(total471Deb)}</td><td class="num">${fmtMontant(total471Cred)}</td></tr></tfoot>
-    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+    </table>` : '<p style="font-size:9pt;color:#666;font-style:italic">Aucune</p>'}
+  </div>
+
+  <div class="section">
+    <h2>6. Suspens compta — Non figurant sur le relevé (${nonMatchees.length})</h2>
+    <p style="font-size:8pt;color:#666;margin-bottom:4px">(Chèques émis non encaissés, virements en cours...)</p>
+    ${nonMatchees.length > 0 ? `
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
+      <tbody>${lignesNonReleve}</tbody>
+      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(totalNonReleveDeb)}</td><td class="num">${fmtMontant(totalNonReleveCred)}</td></tr></tfoot>
+    </table>` : '<p style="font-size:9pt;color:#666;font-style:italic">Aucune</p>'}
   </div>
 
   <div class="big-box">
-    <span class="label">5. Solde comptable rapproché</span>
-    <span class="value">${fmtMontant(r.solde_comptable)}</span>
-  </div>
-
-  <div class="big-box">
-    <span class="label">ÉCART</span>
+    <span class="label">ÉCART entre les deux soldes rapprochés</span>
     <span class="value ${r.ecart != null && Math.abs(r.ecart) < 0.01 ? 'ecart-ok' : 'ecart-ko'}">${r.ecart != null ? fmtMontant(r.ecart) : '—'}</span>
   </div>
 
@@ -608,9 +750,96 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
       {!embedded && (
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Rapprochement Bancaire</h1>
-          <p className="text-sm text-gray-500">Pointage et réconciliation des écritures bancaires</p>
+          <p className="text-sm text-gray-500">Méthode des deux tableaux — Pointage et réconciliation</p>
         </div>
       )}
+
+      {/* Sélecteur de période obligatoire */}
+      <Card className="mb-6 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-indigo-500" />
+              <span className="font-medium text-indigo-700">Période du rapprochement</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {periodeSelectionnee && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => naviguerPeriode('prev')}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <select
+                value={periodeMois ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value ? parseInt(e.target.value) : null;
+                  setPeriodeMois(v);
+                  if (v && !periodeAnnee) setPeriodeAnnee(DEBUT_EXERCICE.annee + (v < DEBUT_EXERCICE.mois ? 1 : 0));
+                  setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); setReleveSoldeDebut(null); setSoldeBancaire(null);
+                }}
+                className="border rounded-md px-3 py-1.5 text-sm font-medium bg-white"
+              >
+                <option value="">Mois...</option>
+                {MOIS_LABELS.map((label, i) => (
+                  <option key={i} value={i + 1}>{label}</option>
+                ))}
+              </select>
+              <select
+                value={periodeAnnee ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value ? parseInt(e.target.value) : null;
+                  setPeriodeAnnee(v);
+                  setBankTransactions([]); setRapport(null); setReleveBanque(null); setRelevePeriode(null); setReleveSoldeDebut(null); setSoldeBancaire(null);
+                }}
+                className="border rounded-md px-3 py-1.5 text-sm font-medium bg-white"
+              >
+                <option value="">Année...</option>
+                {[2025, 2026, 2027].map(a => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              {periodeSelectionnee && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => naviguerPeriode('next')}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {periodeSelectionnee && (
+              <span className="text-sm text-indigo-600 font-medium">
+                01/{String(periodeMois).padStart(2, '0')}/{periodeAnnee} — {new Date(periodeAnnee!, periodeMois!, 0).getDate()}/{String(periodeMois).padStart(2, '0')}/{periodeAnnee}
+              </span>
+            )}
+            {periodeVerrouillee && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                <Lock className="h-3 w-3" />
+                Validé
+              </span>
+            )}
+            {!periodeSelectionnee && (
+              <span className="text-sm text-orange-600 italic">Sélectionnez une période pour commencer</span>
+            )}
+          </div>
+
+          {/* Chaînage visuel */}
+          {periodeSelectionnee && rapprochementPrecedent?.rapprochement && (
+            <div className="mt-3 pt-3 border-t border-indigo-200 text-sm text-gray-600">
+              Rapprochement précédent : <strong>{rapprochementPrecedent.rapprochement.periode}</strong> — Solde rapproché : <strong>{formatCurrency(rapprochementPrecedent.rapprochement.solde_rapproche)}</strong>
+              {rapprochementPrecedent.rapprochement.nb_non_matchees > 0 && (
+                <span className="text-orange-600 ml-2">({rapprochementPrecedent.rapprochement.nb_non_matchees} suspens reporté(s))</span>
+              )}
+            </div>
+          )}
+          {periodeSelectionnee && !rapprochementPrecedent?.rapprochement && periodePrecedente && periodePrecedente >= '2025-11' && (
+            <div className="mt-3 pt-3 border-t border-indigo-200 text-sm text-orange-500 italic">
+              Aucun rapprochement précédent sauvegardé pour {periodePrecedente}
+            </div>
+          )}
+          {periodeSelectionnee && periodePrecedente && periodePrecedente < '2025-11' && (
+            <div className="mt-3 pt-3 border-t border-indigo-200 text-sm text-gray-500">
+              Premier mois de l'exercice — Solde initial : 0,00 EUR
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Notification */}
       {notification && (
@@ -626,12 +855,12 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className={cn("space-y-6", !periodeSelectionnee && "opacity-50 pointer-events-none")}>
         {/* Header */}
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Landmark className="h-5 w-5 text-purple-500" />
-            Rapprochement Bancaire
+            Rapprochement Bancaire {periodeLabel && `— ${periodeLabel}`}
           </h2>
           <div className="flex gap-2">
             <Button
@@ -1213,10 +1442,29 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 Rapport de rapprochement automatique
                 {rapport.banque && <span className="text-xs font-normal text-gray-500">— {rapport.banque}</span>}
               </CardTitle>
-              <Button size="sm" variant="outline" className="gap-2" onClick={imprimerRapprochement}>
-                <Printer className="h-4 w-4" />
-                Imprimer
-              </Button>
+              <div className="flex gap-2">
+                {!periodeVerrouillee && periodeISO && (
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={sauverRapprochement}
+                    disabled={sauvegardePending}
+                  >
+                    {sauvegardePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Valider & Sauver
+                  </Button>
+                )}
+                {periodeVerrouillee && (
+                  <Button size="sm" variant="outline" className="gap-2 text-orange-600 border-orange-300" onClick={annulerRapprochement}>
+                    <Lock className="h-4 w-4" />
+                    Déverrouiller
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="gap-2" onClick={imprimerRapprochement}>
+                  <Printer className="h-4 w-4" />
+                  Imprimer
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {/* Résumé en badges */}
@@ -1248,22 +1496,68 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 )}
               </div>
 
-              {/* Soldes résumé */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div className="bg-white rounded-lg p-3 border">
-                  <p className="text-xs text-gray-500">Solde relevé fin</p>
-                  <p className="text-lg font-bold">{rapport.solde_releve_fin != null ? formatCurrency(rapport.solde_releve_fin) : '—'}</p>
+              {/* Deux tableaux — Méthode de rapprochement FR */}
+              {rapport.deux_tableaux && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* Côté Banque */}
+                  <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50/30">
+                    <h3 className="text-sm font-bold text-blue-700 text-center mb-3 pb-2 border-b border-blue-200 uppercase tracking-wide">Côté Banque</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Solde relevé fin de période</span>
+                        <span className="font-medium">{formatCurrency(rapport.deux_tableaux.cote_banque.solde_releve)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">+ Débits compta (512) non sur relevé</span>
+                        <span className="font-medium text-green-600">{formatCurrency(rapport.deux_tableaux.cote_banque.plus_debits_compta_hors_releve)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">- Crédits compta (512) non sur relevé</span>
+                        <span className="font-medium text-red-600">{formatCurrency(rapport.deux_tableaux.cote_banque.moins_credits_compta_hors_releve)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t-2 border-blue-300">
+                        <span className="font-bold">= Solde rapproché</span>
+                        <span className={cn("text-lg font-bold", Math.abs(rapport.deux_tableaux.cote_banque.solde_rapproche - rapport.deux_tableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                          {formatCurrency(rapport.deux_tableaux.cote_banque.solde_rapproche)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Côté Compta */}
+                  <div className="border-2 border-purple-300 rounded-lg p-4 bg-purple-50/30">
+                    <h3 className="text-sm font-bold text-purple-700 text-center mb-3 pb-2 border-b border-purple-200 uppercase tracking-wide">Côté Compta</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Solde compte 512 fin de période</span>
+                        <span className="font-medium">{formatCurrency(rapport.deux_tableaux.cote_compta.solde_512)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">+ Crédits relevé non en compta</span>
+                        <span className="font-medium text-green-600">{formatCurrency(rapport.deux_tableaux.cote_compta.plus_credits_releve_hors_compta)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">- Débits relevé non en compta</span>
+                        <span className="font-medium text-red-600">{formatCurrency(rapport.deux_tableaux.cote_compta.moins_debits_releve_hors_compta)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t-2 border-purple-300">
+                        <span className="font-bold">= Solde rapproché</span>
+                        <span className={cn("text-lg font-bold", Math.abs(rapport.deux_tableaux.cote_banque.solde_rapproche - rapport.deux_tableaux.cote_compta.solde_rapproche) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                          {formatCurrency(rapport.deux_tableaux.cote_compta.solde_rapproche)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 border">
-                  <p className="text-xs text-gray-500">Solde comptable</p>
-                  <p className="text-lg font-bold">{formatCurrency(rapport.solde_comptable)}</p>
-                </div>
-                <div className={cn("rounded-lg p-3 border", Math.abs(rapport.ecart || 0) < 0.01 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
-                  <p className="text-xs text-gray-500">Écart</p>
-                  <p className={cn("text-lg font-bold", Math.abs(rapport.ecart || 0) < 0.01 ? "text-emerald-700" : "text-red-700")}>
-                    {rapport.ecart != null ? formatCurrency(rapport.ecart) : '—'}
-                  </p>
-                </div>
+              )}
+
+              {/* Écart global */}
+              <div className={cn("rounded-lg p-3 border mb-4 text-center", Math.abs(rapport.ecart || 0) < 0.01 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
+                <p className="text-xs text-gray-500 mb-1">Écart entre les deux soldes rapprochés</p>
+                <p className={cn("text-xl font-bold", Math.abs(rapport.ecart || 0) < 0.01 ? "text-emerald-700" : "text-red-700")}>
+                  {rapport.ecart != null ? formatCurrency(rapport.ecart) : '—'}
+                  {rapport.ecart != null && Math.abs(rapport.ecart) < 0.01 && ' — Rapprochement OK'}
+                </p>
               </div>
 
               {/* Tabs du rapport */}

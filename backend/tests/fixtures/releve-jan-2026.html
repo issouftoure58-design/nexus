@@ -80,15 +80,15 @@
 <div class="soldes">
   <div class="solde-box">
     <label>Solde au 31/12/2025</label>
-    <div class="montant positif">2 695,40 €</div>
+    <div class="montant negatif">- 2 415,10 €</div>
   </div>
   <div class="solde-box">
     <label>Total mouvements</label>
-    <div class="montant positif">+ 447,00 €</div>
+    <div class="montant positif">+ 786,00 €</div>
   </div>
   <div class="solde-box">
     <label>Solde au 31/01/2026</label>
-    <div class="montant positif">3 142,40 €</div>
+    <div class="montant negatif">- 1 629,10 €</div>
   </div>
 </div>
 
@@ -110,249 +110,71 @@
       <td><strong>Solde précédent</strong></td>
       <td class="right"></td>
       <td class="right"></td>
-      <td class="right solde-col"><strong>2 695,40</strong></td>
+      <td class="right solde-col"><strong>-2 415,10</strong></td>
     </tr>
 
-    <!-- A) Encaissements qui MATCHENT -->
+    <!-- A) Encaissements qui MATCHENT les écritures BQ existantes (total 447,00) -->
     <tr>
-      <td class="date-col">02/01</td>
+      <td class="date-col">05/01</td>
       <td class="ref-col">VIR001</td>
-      <td>VIR RECU CLIENT DUPONT<br><span style="color:#888;font-size:10px;">Coupe + Coloration</span></td>
-      <td class="right"></td>
-      <td class="right credit">85,00</td>
-      <td class="right">2 780,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">03/01</td>
-      <td class="ref-col">VIR002</td>
-      <td>VIR RECU CLIENT MARTIN<br><span style="color:#888;font-size:10px;">Brushing + Soin</span></td>
-      <td class="right"></td>
-      <td class="right credit">55,00</td>
-      <td class="right">2 835,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">04/01</td>
-      <td class="ref-col">VIR003</td>
-      <td>VIR RECU CLIENT BERNARD<br><span style="color:#888;font-size:10px;">Forfait Homme Premium</span></td>
-      <td class="right"></td>
-      <td class="right credit">45,00</td>
-      <td class="right">2 880,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">06/01</td>
-      <td class="ref-col">REM01</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">7 encaissements carte — Période 26/12-05/01</span></td>
-      <td class="right"></td>
-      <td class="right credit">210,00</td>
-      <td class="right">3 090,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">07/01</td>
-      <td class="ref-col">VIR004</td>
-      <td>VIR RECU CLIENT PETIT<br><span style="color:#888;font-size:10px;">Coupe Enfant</span></td>
-      <td class="right"></td>
-      <td class="right credit">18,00</td>
-      <td class="right">3 108,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">08/01</td>
-      <td class="ref-col">VIR005</td>
-      <td>VIR RECU CLIENT MOREAU REF FAC-2026-001<br><span style="color:#888;font-size:10px;">Forfait Mariée — Solde</span></td>
-      <td class="right"></td>
-      <td class="right credit">180,00</td>
-      <td class="right">3 288,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">09/01</td>
-      <td class="ref-col">VIR006</td>
-      <td>VIR RECU CLIENT LEROY<br><span style="color:#888;font-size:10px;">Mèches + Coupe</span></td>
-      <td class="right"></td>
-      <td class="right credit">78,00</td>
-      <td class="right">3 366,40</td>
-    </tr>
-
-    <!-- B) Paiement identifiable — URSSAF -->
-    <tr>
-      <td class="date-col">10/01</td>
-      <td class="ref-col">PRLV01</td>
-      <td>PRELEVEMENT URSSAF IDF<br><span style="color:#888;font-size:10px;">Régularisation cotisations 2025 — Réf. 947570362</span></td>
-      <td class="right debit">450,00</td>
-      <td class="right"></td>
-      <td class="right">2 916,40</td>
-    </tr>
-
-    <!-- A) Suite encaissements -->
-    <tr>
-      <td class="date-col">11/01</td>
-      <td class="ref-col">VIR007</td>
-      <td>VIR RECU CLIENT SIMON<br><span style="color:#888;font-size:10px;">Coloration végétale</span></td>
-      <td class="right"></td>
-      <td class="right credit">65,00</td>
-      <td class="right">2 981,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">13/01</td>
-      <td class="ref-col">REM02</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">8 encaissements carte — Période 06-12/01</span></td>
-      <td class="right"></td>
-      <td class="right credit">185,00</td>
-      <td class="right">3 166,40</td>
-    </tr>
-    <tr>
-      <td class="date-col">14/01</td>
-      <td class="ref-col">VIR008</td>
-      <td>VIR RECU CLIENT GARCIA<br><span style="color:#888;font-size:10px;">Lissage brésilien</span></td>
+      <td>VIR RECU CLIENT DUPONT<br><span style="color:#888;font-size:10px;">Coupe + Coloration — RDV 03/01</span></td>
       <td class="right"></td>
       <td class="right credit">120,00</td>
-      <td class="right">3 286,40</td>
+      <td class="right">-2 295,10</td>
+    </tr>
+    <tr>
+      <td class="date-col">10/01</td>
+      <td class="ref-col">REM04</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">6 encaissements carte — Période 01-09/01</span></td>
+      <td class="right"></td>
+      <td class="right credit">92,00</td>
+      <td class="right">-2 203,10</td>
     </tr>
     <tr>
       <td class="date-col">15/01</td>
-      <td class="ref-col">VIR009</td>
-      <td>VIR RECU CLIENT THOMAS<br><span style="color:#888;font-size:10px;">Coupe + Barbe</span></td>
+      <td class="ref-col">VIR002</td>
+      <td>VIR RECU CLIENT MARTIN<br><span style="color:#888;font-size:10px;">Brushing + Soin Kératine</span></td>
       <td class="right"></td>
-      <td class="right credit">38,00</td>
-      <td class="right">3 324,40</td>
+      <td class="right credit">65,00</td>
+      <td class="right">-2 138,10</td>
     </tr>
-
-    <!-- B) Paiement identifiable — Orange -->
-    <tr>
-      <td class="date-col">16/01</td>
-      <td class="ref-col">PRLV02</td>
-      <td>PRELEVEMENT ORANGE SA<br><span style="color:#888;font-size:10px;">Facture Janvier 2026 — Réf. FIBRE-PRO-88991</span></td>
-      <td class="right debit">107,28</td>
-      <td class="right"></td>
-      <td class="right">3 217,12</td>
-    </tr>
-
-    <!-- A) Suite -->
-    <tr>
-      <td class="date-col">17/01</td>
-      <td class="ref-col">VIR010</td>
-      <td>VIR RECU CLIENT ROBERT<br><span style="color:#888;font-size:10px;">Coloration ton sur ton</span></td>
-      <td class="right"></td>
-      <td class="right credit">55,00</td>
-      <td class="right">3 272,12</td>
-    </tr>
-    <tr>
-      <td class="date-col">18/01</td>
-      <td class="ref-col">VIR011</td>
-      <td>VIR RECU CLIENT DURAND<br><span style="color:#888;font-size:10px;">Coupe Femme</span></td>
-      <td class="right"></td>
-      <td class="right credit">42,00</td>
-      <td class="right">3 314,12</td>
-    </tr>
-    <tr>
-      <td class="date-col">20/01</td>
-      <td class="ref-col">REM03</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">6 encaissements carte — Période 13-19/01</span></td>
-      <td class="right"></td>
-      <td class="right credit">145,00</td>
-      <td class="right">3 459,12</td>
-    </tr>
-    <tr>
-      <td class="date-col">21/01</td>
-      <td class="ref-col">VIR012</td>
-      <td>VIR RECU CLIENT LAMBERT<br><span style="color:#888;font-size:10px;">Forfait Soin Kératine</span></td>
-      <td class="right"></td>
-      <td class="right credit">90,00</td>
-      <td class="right">3 549,12</td>
-    </tr>
-
-    <!-- B) Paiements identifiables -->
     <tr>
       <td class="date-col">22/01</td>
-      <td class="ref-col">CB001</td>
-      <td>CB AMAZON EU SARL<br><span style="color:#888;font-size:10px;">Commande 403-9215478 — Consommables salon</span></td>
-      <td class="right debit">67,50</td>
+      <td class="ref-col">REM05</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">8 encaissements carte — Période 10-21/01</span></td>
       <td class="right"></td>
-      <td class="right">3 481,62</td>
-    </tr>
-    <tr>
-      <td class="date-col">23/01</td>
-      <td class="ref-col">VIR013</td>
-      <td>VIR EMIS BEAUTE PRO DISTRIBUTION<br><span style="color:#888;font-size:10px;">Facture FA-2026-0102 — Shampoings et soins</span></td>
-      <td class="right debit">542,00</td>
-      <td class="right"></td>
-      <td class="right">2 939,62</td>
+      <td class="right credit">170,00</td>
+      <td class="right">-1 968,10</td>
     </tr>
 
-    <!-- A) Suite -->
+    <!-- Frais bancaires (bank-only, total 8,50) -->
     <tr>
-      <td class="date-col">24/01</td>
-      <td class="ref-col">VIR014</td>
-      <td>VIR RECU CLIENT BLANC<br><span style="color:#888;font-size:10px;">Balayage + Soin</span></td>
+      <td class="date-col">28/01</td>
+      <td class="ref-col">FRS03</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait mensuel compte professionnel</span></td>
+      <td class="right debit">8,50</td>
       <td class="right"></td>
-      <td class="right credit">75,00</td>
-      <td class="right">3 014,62</td>
-    </tr>
-    <tr>
-      <td class="date-col">27/01</td>
-      <td class="ref-col">REM04</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">4 encaissements carte — Période 20-26/01</span></td>
-      <td class="right"></td>
-      <td class="right credit">102,00</td>
-      <td class="right">3 116,62</td>
+      <td class="right">-1 976,60</td>
     </tr>
 
-    <!-- B) Frais bancaires → 627 -->
-    <tr>
-      <td class="date-col">29/01</td>
-      <td class="ref-col">FRS01</td>
-      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait compte Pro — Janvier 2026</span></td>
-      <td class="right debit">9,50</td>
-      <td class="right"></td>
-      <td class="right">3 107,12</td>
-    </tr>
-
-    <!-- C) Transaction INCONNUE → 471 (crédit) -->
+    <!-- C) Transaction TOTALEMENT INCONNUE → 471 (crédit) -->
     <tr>
       <td class="date-col">30/01</td>
-      <td class="ref-col">VIR015</td>
-      <td>VIR 347,50<br><span style="color:#888;font-size:10px;">Réf. interne 7841250</span></td>
+      <td class="ref-col">VIR003</td>
+      <td>VIR RECU 347,50<br><span style="color:#888;font-size:10px;">Réf. interne 7841250 — Donneur d'ordre non identifié</span></td>
       <td class="right"></td>
       <td class="right credit">347,50</td>
-      <td class="right">3 454,62</td>
+      <td class="right">-1 629,10</td>
     </tr>
 
-    <!-- B) Paiement EDF -->
-    <tr>
-      <td class="date-col">30/01</td>
-      <td class="ref-col">PRLV03</td>
-      <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Électricité Janvier 2026 — Réf. PDL 14578952147</span></td>
-      <td class="right debit">167,72</td>
-      <td class="right"></td>
-      <td class="right">3 286,90</td>
-    </tr>
-
-    <!-- C) Transaction INCONNUE → 471 (débit) -->
-    <tr>
-      <td class="date-col">31/01</td>
-      <td class="ref-col">PRLV04</td>
-      <td>PRELEVEMENT SEPA 182,00<br><span style="color:#888;font-size:10px;">Réf. mandataire inconnu MDT-47821</span></td>
-      <td class="right debit">182,00</td>
-      <td class="right"></td>
-      <td class="right">3 104,90</td>
-    </tr>
-
-    <!-- A) Dernier encaissement -->
-    <tr>
-      <td class="date-col">31/01</td>
-      <td class="ref-col">VIR016</td>
-      <td>VIR RECU CLIENT FAURE<br><span style="color:#888;font-size:10px;">Coupe + Brushing</span></td>
-      <td class="right"></td>
-      <td class="right credit">37,50</td>
-      <td class="right">3 142,40</td>
-    </tr>
-
-    <!-- Totaux: débit=450+107.28+67.50+542+9.50+167.72+182=1526 / crédit=85+55+45+210+18+180+78+65+185+120+38+55+42+145+90+75+102+347.50+37.50=1973 -->
+    <!-- Totaux : débits = 8,50 / crédits = 120+92+65+170+347,50 = 794,50 -->
     <tr class="totaux-row">
       <td></td>
       <td></td>
       <td><strong>TOTAUX DU MOIS</strong></td>
-      <td class="right debit"><strong>1 526,00</strong></td>
-      <td class="right credit"><strong>1 973,00</strong></td>
-      <td class="right"><strong>3 142,40</strong></td>
+      <td class="right debit"><strong>8,50</strong></td>
+      <td class="right credit"><strong>794,50</strong></td>
+      <td class="right"><strong>-1 629,10</strong></td>
     </tr>
   </tbody>
 </table>

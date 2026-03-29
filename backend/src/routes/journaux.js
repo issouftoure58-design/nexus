@@ -3554,8 +3554,20 @@ router.post('/rapprochement-auto', async (req, res) => {
       return res.status(400).json({ error: 'Aucune transaction fournie' });
     }
 
-    // 1. Récupérer les écritures BQ/512 non lettrées du tenant
-    const { data: ecrituresBQ, error: errBQ } = await supabase
+    // Extraire la période au format YYYY-MM si fournie
+    let periodeISO = null;
+    if (periode) {
+      // Accepte "2025-11" ou "01/11/2025 - 30/11/2025" ou "11/2025"
+      const isoMatch = periode.match(/^(\d{4})-(\d{2})$/);
+      const slashMatch = periode.match(/(\d{2})\/(\d{4})/);
+      const rangeMatch = periode.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (isoMatch) periodeISO = periode;
+      else if (rangeMatch) periodeISO = `${rangeMatch[3]}-${rangeMatch[2]}`;
+      else if (slashMatch) periodeISO = `${slashMatch[2]}-${slashMatch[1]}`;
+    }
+
+    // 1. Récupérer les écritures BQ/512 non lettrées du tenant (filtrées par période si fournie)
+    let queryBQ = supabase
       .from('ecritures_comptables')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -3563,6 +3575,12 @@ router.post('/rapprochement-auto', async (req, res) => {
       .eq('compte_numero', '512')
       .is('lettrage', null)
       .order('date_ecriture', { ascending: true });
+
+    if (periodeISO) {
+      queryBQ = queryBQ.eq('periode', periodeISO);
+    }
+
+    const { data: ecrituresBQ, error: errBQ } = await queryBQ;
 
     if (errBQ) throw errBQ;
 
@@ -3780,33 +3798,66 @@ router.post('/rapprochement-auto', async (req, res) => {
         raison: e.credit > 0 ? 'Chèque/virement non encore présenté' : 'Encaissement non figurant sur relevé'
       }));
 
-    // 4. Calcul solde comptable rapproché
-    const { data: toutesEcritures512 } = await supabase
+    // 4. Calcul solde comptable rapproché (cumulé jusqu'à fin de période)
+    let querySolde512 = supabase
       .from('ecritures_comptables')
       .select('debit, credit')
       .eq('tenant_id', tenantId)
       .eq('journal_code', 'BQ')
       .eq('compte_numero', '512');
 
-    let soldeComptable = 0;
+    if (periodeISO) {
+      querySolde512 = querySolde512.lte('periode', periodeISO);
+    }
+
+    const { data: toutesEcritures512 } = await querySolde512;
+
+    let solde512Cumule = 0;
     if (toutesEcritures512) {
       const totalDebit = toutesEcritures512.reduce((s, e) => s + (e.debit || 0), 0);
       const totalCredit = toutesEcritures512.reduce((s, e) => s + (e.credit || 0), 0);
-      soldeComptable = (totalDebit - totalCredit) / 100;
+      solde512Cumule = (totalDebit - totalCredit) / 100;
     }
 
-    const ecart = solde_fin != null ? Math.round((solde_fin - soldeComptable) * 100) / 100 : null;
+    // 5. Calcul méthode des deux tableaux
+    // Côté banque : solde relevé + suspens compta (non matchées)
+    const suspensComptaDebit = nonMatcheesCompta.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const suspensComptaCredit = nonMatcheesCompta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const soldeRapprocheBanque = (solde_fin || 0) + suspensComptaDebit - suspensComptaCredit;
+
+    // Côté compta : solde 512 + items relevé non en compta (après rapprochement auto, C et D = 0 car tout est créé)
+    // Les items relevé non matchés en compta sont = 0 après rapprochement auto (tout est créé en 627/401/411/471)
+    const creditsReleveHorsCompta = 0;
+    const debitsReleveHorsCompta = 0;
+    const soldeRapprochéCompta = solde512Cumule + creditsReleveHorsCompta - debitsReleveHorsCompta;
+
+    const ecart = solde_fin != null ? Math.round((soldeRapprocheBanque - soldeRapprochéCompta) * 100) / 100 : null;
 
     res.json({
       success: true,
       rapport: {
         date_rapprochement: new Date().toISOString().split('T')[0],
-        periode: periode || '',
+        periode: periodeISO || periode || '',
         banque: banque || '',
         solde_releve_debut: solde_debut,
         solde_releve_fin: solde_fin,
-        solde_comptable: Math.round(soldeComptable * 100) / 100,
+        solde_comptable: Math.round(solde512Cumule * 100) / 100,
+        solde_512_cumule: Math.round(solde512Cumule * 100) / 100,
         ecart,
+        deux_tableaux: {
+          cote_banque: {
+            solde_releve: solde_fin || 0,
+            plus_debits_compta_hors_releve: Math.round(suspensComptaDebit * 100) / 100,
+            moins_credits_compta_hors_releve: Math.round(suspensComptaCredit * 100) / 100,
+            solde_rapproche: Math.round(soldeRapprocheBanque * 100) / 100
+          },
+          cote_compta: {
+            solde_512: Math.round(solde512Cumule * 100) / 100,
+            plus_credits_releve_hors_compta: creditsReleveHorsCompta,
+            moins_debits_releve_hors_compta: debitsReleveHorsCompta,
+            solde_rapproche: Math.round(soldeRapprochéCompta * 100) / 100
+          }
+        },
         pointees,
         ecritures_creees: ecrituresCreees,
         regulariser_471: regulariser471,
@@ -3884,6 +3935,107 @@ router.patch('/ecritures/:id', async (req, res) => {
   } catch (error) {
     console.error('[JOURNAUX] Erreur modification écriture:', error);
     res.status(500).json({ error: error.message || 'Erreur modification écriture' });
+  }
+});
+
+/**
+ * POST /api/journaux/rapprochements/sauver
+ * Sauvegarder un rapprochement bancaire validé (chaînage mois par mois)
+ */
+router.post('/rapprochements/sauver', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    const { periode, rapport } = req.body;
+    if (!periode || !rapport) {
+      return res.status(400).json({ error: 'Période et rapport requis' });
+    }
+
+    const row = {
+      tenant_id: tenantId,
+      periode,
+      date_rapprochement: rapport.date_rapprochement || new Date().toISOString().split('T')[0],
+      solde_releve_debut: rapport.solde_releve_debut,
+      solde_releve_fin: rapport.solde_releve_fin,
+      solde_512_cumule: rapport.solde_512_cumule || rapport.solde_comptable,
+      solde_rapproche: rapport.deux_tableaux?.cote_banque?.solde_rapproche || rapport.solde_comptable,
+      ecart: rapport.ecart || 0,
+      nb_pointees: rapport.resume?.nb_pointees || 0,
+      nb_creees: rapport.resume?.nb_ecritures_creees || 0,
+      nb_471: rapport.resume?.nb_regulariser_471 || 0,
+      nb_non_matchees: rapport.resume?.nb_non_matchees_compta || 0,
+      rapport_json: rapport,
+      valide: true
+    };
+
+    const { data, error } = await supabase
+      .from('rapprochements_bancaires')
+      .upsert(row, { onConflict: 'tenant_id,periode' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, rapprochement: data });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur sauvegarde rapprochement:', error);
+    res.status(500).json({ error: error.message || 'Erreur sauvegarde rapprochement' });
+  }
+});
+
+/**
+ * GET /api/journaux/rapprochements/:periode
+ * Récupérer le rapprochement sauvegardé pour une période donnée
+ */
+router.get('/rapprochements/:periode', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    const { periode } = req.params;
+    if (!periode) return res.status(400).json({ error: 'Période requise' });
+
+    const { data, error } = await supabase
+      .from('rapprochements_bancaires')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('periode', periode)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ rapprochement: data || null });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur récupération rapprochement:', error);
+    res.status(500).json({ error: error.message || 'Erreur récupération rapprochement' });
+  }
+});
+
+/**
+ * DELETE /api/journaux/rapprochements/:periode
+ * Annuler un rapprochement sauvegardé (déverrouiller la période)
+ */
+router.delete('/rapprochements/:periode', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });
+
+    const { periode } = req.params;
+    if (!periode) return res.status(400).json({ error: 'Période requise' });
+
+    const { error } = await supabase
+      .from('rapprochements_bancaires')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('periode', periode);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur suppression rapprochement:', error);
+    res.status(500).json({ error: error.message || 'Erreur suppression rapprochement' });
   }
 });
 

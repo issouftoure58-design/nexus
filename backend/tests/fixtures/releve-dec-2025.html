@@ -75,20 +75,20 @@
 </div>
 
 <div class="titre-releve">Relevé de compte</div>
-<div class="sous-titre">Période du 01/12/2025 au 31/12/2025 — Édité le 01/01/2026</div>
+<div class="sous-titre">Période du 01/12/2025 au 31/12/2025 — Édité le 02/01/2026</div>
 
 <div class="soldes">
   <div class="solde-box">
     <label>Solde au 30/11/2025</label>
-    <div class="montant positif">5 113,00 €</div>
+    <div class="montant positif">103,50 €</div>
   </div>
   <div class="solde-box">
     <label>Total mouvements</label>
-    <div class="montant negatif">- 2 417,60 €</div>
+    <div class="montant negatif">- 2 518,60 €</div>
   </div>
   <div class="solde-box">
     <label>Solde au 31/12/2025</label>
-    <div class="montant positif">2 695,40 €</div>
+    <div class="montant negatif">- 2 415,10 €</div>
   </div>
 </div>
 
@@ -110,171 +110,105 @@
       <td><strong>Solde précédent</strong></td>
       <td class="right"></td>
       <td class="right"></td>
-      <td class="right solde-col"><strong>5 113,00</strong></td>
+      <td class="right solde-col"><strong>103,50</strong></td>
     </tr>
 
-    <!-- A) Encaissements qui MATCHENT -->
+    <!-- A) Encaissements qui MATCHENT les écritures BQ existantes (total 243,00) -->
     <tr>
-      <td class="date-col">01/12</td>
-      <td class="ref-col">VIR001</td>
-      <td>VIR RECU CLIENT DURAND<br><span style="color:#888;font-size:10px;">Coupe + Brushing</span></td>
+      <td class="date-col">02/12</td>
+      <td class="ref-col">VIR006</td>
+      <td>VIR RECU CLIENT LAURENT<br><span style="color:#888;font-size:10px;">Coupe + Barbe - RDV 30/11</span></td>
       <td class="right"></td>
       <td class="right credit">40,00</td>
-      <td class="right">5 153,00</td>
+      <td class="right">143,50</td>
     </tr>
     <tr>
-      <td class="date-col">03/12</td>
-      <td class="ref-col">VIR002</td>
-      <td>VIR RECU CLIENT LEROY<br><span style="color:#888;font-size:10px;">Coloration + Mèches</span></td>
+      <td class="date-col">06/12</td>
+      <td class="ref-col">REM03</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">4 encaissements carte — Période 22/11-05/12</span></td>
       <td class="right"></td>
       <td class="right credit">95,00</td>
-      <td class="right">5 248,00</td>
-    </tr>
-    <tr>
-      <td class="date-col">05/12</td>
-      <td class="ref-col">REM01</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">4 encaissements carte — Période 25/11-04/12</span></td>
-      <td class="right"></td>
-      <td class="right credit">78,00</td>
-      <td class="right">5 326,00</td>
-    </tr>
-    <tr>
-      <td class="date-col">08/12</td>
-      <td class="ref-col">VIR003</td>
-      <td>VIR RECU CLIENT SIMON<br><span style="color:#888;font-size:10px;">Forfait Homme</span></td>
-      <td class="right"></td>
-      <td class="right credit">30,00</td>
-      <td class="right">5 356,00</td>
-    </tr>
-
-    <!-- B) Paiements identifiables -->
-    <tr>
-      <td class="date-col">10/12</td>
-      <td class="ref-col">PRLV01</td>
-      <td>PRELEVEMENT URSSAF IDF<br><span style="color:#888;font-size:10px;">Cotisations sociales T4 2025 — Réf. 947570362</span></td>
-      <td class="right debit">1 245,00</td>
-      <td class="right"></td>
-      <td class="right">4 111,00</td>
+      <td class="right">238,50</td>
     </tr>
     <tr>
       <td class="date-col">12/12</td>
-      <td class="ref-col">PRLV02</td>
-      <td>PRELEVEMENT ORANGE SA<br><span style="color:#888;font-size:10px;">Facture Décembre 2025 — Réf. FIBRE-PRO-87421</span></td>
-      <td class="right debit">107,28</td>
+      <td class="ref-col">VIR007</td>
+      <td>VIR RECU CLIENT GARCIA<br><span style="color:#888;font-size:10px;">Coloration + Balayage</span></td>
       <td class="right"></td>
-      <td class="right">4 003,72</td>
-    </tr>
-
-    <!-- A) Suite encaissements -->
-    <tr>
-      <td class="date-col">13/12</td>
-      <td class="ref-col">VIR004</td>
-      <td>VIR RECU CLIENT GARCIA<br><span style="color:#888;font-size:10px;">Lissage brésilien</span></td>
-      <td class="right"></td>
-      <td class="right credit">65,00</td>
-      <td class="right">4 068,72</td>
-    </tr>
-    <tr>
-      <td class="date-col">15/12</td>
-      <td class="ref-col">REM02</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">6 encaissements carte — Période 05-14/12</span></td>
-      <td class="right"></td>
-      <td class="right credit">92,00</td>
-      <td class="right">4 160,72</td>
-    </tr>
-
-    <!-- B) Paiements identifiables (suite) -->
-    <tr>
-      <td class="date-col">16/12</td>
-      <td class="ref-col">VIR005</td>
-      <td>VIR EMIS BEAUTE PRO DISTRIBUTION<br><span style="color:#888;font-size:10px;">Facture FA-2025-1247 — Produits capillaires</span></td>
-      <td class="right debit">856,00</td>
-      <td class="right"></td>
-      <td class="right">3 304,72</td>
+      <td class="right credit">78,00</td>
+      <td class="right">316,50</td>
     </tr>
     <tr>
       <td class="date-col">18/12</td>
-      <td class="ref-col">PRLV03</td>
-      <td>PRELEVEMENT AXA FRANCE IARD<br><span style="color:#888;font-size:10px;">Assurance RC Professionnelle — Contrat PRO-445821</span></td>
-      <td class="right debit">89,00</td>
-      <td class="right"></td>
-      <td class="right">3 215,72</td>
-    </tr>
-
-    <!-- A) Suite encaissements -->
-    <tr>
-      <td class="date-col">19/12</td>
-      <td class="ref-col">VIR006</td>
-      <td>VIR RECU CLIENT THOMAS<br><span style="color:#888;font-size:10px;">Coupe Enfant</span></td>
-      <td class="right"></td>
-      <td class="right credit">18,00</td>
-      <td class="right">3 233,72</td>
-    </tr>
-    <tr>
-      <td class="date-col">20/12</td>
-      <td class="ref-col">VIR007</td>
-      <td>VIR RECU CLIENT ROBERT<br><span style="color:#888;font-size:10px;">Coloration végétale</span></td>
-      <td class="right"></td>
-      <td class="right credit">42,00</td>
-      <td class="right">3 275,72</td>
-    </tr>
-
-    <!-- B) Paiement identifiable -->
-    <tr>
-      <td class="date-col">22/12</td>
-      <td class="ref-col">PRLV04</td>
-      <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Électricité Décembre 2025 — Réf. PDL 14578952147</span></td>
-      <td class="right debit">178,50</td>
-      <td class="right"></td>
-      <td class="right">3 097,22</td>
-    </tr>
-
-    <!-- A) Suite encaissements -->
-    <tr>
-      <td class="date-col">23/12</td>
-      <td class="ref-col">REM03</td>
-      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">5 encaissements carte — Période 15-22/12</span></td>
+      <td class="ref-col">VIR008</td>
+      <td>VIR RECU CLIENT ROUX<br><span style="color:#888;font-size:10px;">Coupe Femme</span></td>
       <td class="right"></td>
       <td class="right credit">30,00</td>
-      <td class="right">3 127,22</td>
+      <td class="right">346,50</td>
     </tr>
 
-    <!-- B) Frais bancaires → 627 -->
+    <!-- B) Paiements identifiables (matchés compta, total 2 660,60) -->
     <tr>
-      <td class="date-col">28/12</td>
-      <td class="ref-col">FRS01</td>
-      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait compte Pro — Décembre 2025</span></td>
-      <td class="right debit">9,50</td>
+      <td class="date-col">10/12</td>
+      <td class="ref-col">PRLV02</td>
+      <td>PRELEVEMENT URSSAF ILE DE FRANCE<br><span style="color:#888;font-size:10px;">Cotisations sociales T4 2025 — Réf. 751-847596321</span></td>
+      <td class="right debit">1 245,00</td>
       <td class="right"></td>
-      <td class="right">3 117,72</td>
+      <td class="right">-898,50</td>
     </tr>
     <tr>
-      <td class="date-col">28/12</td>
+      <td class="date-col">15/12</td>
+      <td class="ref-col">PRLV03</td>
+      <td>PRELEVEMENT SFR PRO<br><span style="color:#888;font-size:10px;">Abonnement Internet + Téléphonie — Réf. CLI 9584712</span></td>
+      <td class="right debit">125,60</td>
+      <td class="right"></td>
+      <td class="right">-1 024,10</td>
+    </tr>
+    <tr>
+      <td class="date-col">22/12</td>
+      <td class="ref-col">VIR009</td>
+      <td>VIR EMIS LOYER DECEMBRE<br><span style="color:#888;font-size:10px;">SCI PARIS COMMERCE — Bail local 42 rue Faubourg</span></td>
+      <td class="right debit">1 290,00</td>
+      <td class="right"></td>
+      <td class="right">-2 314,10</td>
+    </tr>
+
+    <!-- C) Transaction TOTALEMENT INCONNUE → 471 (débit) -->
+    <tr>
+      <td class="date-col">23/12</td>
+      <td class="ref-col">VIR010</td>
+      <td>VIR EMIS 89,00<br><span style="color:#888;font-size:10px;">Réf. interne 6625410 — Motif non renseigné</span></td>
+      <td class="right debit">89,00</td>
+      <td class="right"></td>
+      <td class="right">-2 403,10</td>
+    </tr>
+
+    <!-- Frais bancaires (bank-only, total 12,00) -->
+    <tr>
+      <td class="date-col">31/12</td>
       <td class="ref-col">FRS02</td>
-      <td>COMMISSION MOUVEMENT<br><span style="color:#888;font-size:10px;">Commission trimestrielle T4 2025</span></td>
-      <td class="right debit">12,32</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait mensuel compte professionnel</span></td>
+      <td class="right debit">8,00</td>
       <td class="right"></td>
-      <td class="right">3 105,40</td>
+      <td class="right">-2 411,10</td>
     </tr>
-
-    <!-- B) Loyer identifiable -->
     <tr>
-      <td class="date-col">30/12</td>
-      <td class="ref-col">PRLV05</td>
-      <td>PRELEVEMENT FONCIERE SAINT-HONORE<br><span style="color:#888;font-size:10px;">Loyer local commercial Janvier 2026 — Bail n° 2024-847</span></td>
-      <td class="right debit">410,00</td>
+      <td class="date-col">31/12</td>
+      <td class="ref-col">COM01</td>
+      <td>COMMISSION CARTE BANCAIRE<br><span style="color:#888;font-size:10px;">Commission encaissements CB décembre</span></td>
+      <td class="right debit">4,00</td>
       <td class="right"></td>
-      <td class="right">2 695,40</td>
+      <td class="right">-2 415,10</td>
     </tr>
 
-    <!-- Totaux : débit = 1245+107.28+856+89+178.50+9.50+12.32+410 = 2907.60 / crédit = 40+95+78+30+65+92+18+42+30 = 490 -->
+    <!-- Totaux : débits = 1245+125,60+1290+89+8+4 = 2761,60 / crédits = 40+95+78+30 = 243 -->
     <tr class="totaux-row">
       <td></td>
       <td></td>
       <td><strong>TOTAUX DU MOIS</strong></td>
-      <td class="right debit"><strong>2 907,60</strong></td>
-      <td class="right credit"><strong>490,00</strong></td>
-      <td class="right"><strong>2 695,40</strong></td>
+      <td class="right debit"><strong>2 761,60</strong></td>
+      <td class="right credit"><strong>243,00</strong></td>
+      <td class="right"><strong>-2 415,10</strong></td>
     </tr>
   </tbody>
 </table>
