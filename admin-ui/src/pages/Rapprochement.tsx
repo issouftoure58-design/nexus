@@ -436,25 +436,29 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
       return d;
     };
 
-    const lignesNonReleve = r.non_matchees_compta.map(e =>
+    const nonMatchees = r.non_matchees_compta || [];
+    const creees = r.ecritures_creees || [];
+    const reg471 = r.regulariser_471 || [];
+
+    const lignesNonReleve = nonMatchees.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
-    const totalNonReleveDeb = r.non_matchees_compta.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
-    const totalNonReleveCred = r.non_matchees_compta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const totalNonReleveDeb = nonMatchees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const totalNonReleveCred = nonMatchees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
     // Écritures créées (401, 411, 627)
-    const lignesCreees = r.ecritures_creees.map(e =>
+    const lignesCreees = creees.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td>${e.compte} — ${e.compte_libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
-    const totalCreeesDeb = r.ecritures_creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
-    const totalCreeesCred = r.ecritures_creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const totalCreeesDeb = creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const totalCreeesCred = creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
     // Compte 471 — À régulariser
-    const lignes471 = r.regulariser_471.map(e =>
+    const lignes471 = reg471.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
-    const total471Deb = r.regulariser_471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
-    const total471Cred = r.regulariser_471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const total471Deb = reg471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const total471Cred = reg471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -505,9 +509,9 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   </div>
 
   <div class="resume-badges">
-    <span class="badge badge-green">${r.resume.nb_pointees} pointée(s)</span>
-    <span class="badge badge-blue">${r.resume.nb_ecritures_creees} créée(s)</span>
-    <span class="badge badge-orange">${r.resume.nb_regulariser_471} en 471</span>
+    <span class="badge badge-green">${r.resume?.nb_pointees || 0} pointée(s)</span>
+    <span class="badge badge-blue">${r.resume?.nb_ecritures_creees || 0} créée(s)</span>
+    <span class="badge badge-orange">${r.resume?.nb_regulariser_471 || 0} en 471</span>
   </div>
 
   <div class="section">
@@ -521,7 +525,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   <div class="section">
     <h2>2. Opérations comptabilisées non figurant sur le relevé</h2>
     <p style="font-size:9pt;color:#666;margin-bottom:6px">(Chèques émis non encaissés, virements en cours...)</p>
-    ${r.non_matchees_compta.length > 0 ? `
+    ${(r.non_matchees_compta || []).length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
       <tbody>${lignesNonReleve}</tbody>
@@ -532,7 +536,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   <div class="section">
     <h2>3. Écritures créées automatiquement</h2>
     <p style="font-size:9pt;color:#666;margin-bottom:6px">(Frais bancaires, fournisseurs identifiés, clients identifiés)</p>
-    ${r.ecritures_creees.length > 0 ? `
+    ${(r.ecritures_creees || []).length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th>Compte</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
       <tbody>${lignesCreees}</tbody>
@@ -543,7 +547,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   <div class="section">
     <h2>4. Compte 471 — À régulariser</h2>
     <p style="font-size:9pt;color:#666;margin-bottom:6px">(Transactions non identifiées, à reclassifier par l'expert-comptable)</p>
-    ${r.regulariser_471.length > 0 ? `
+    ${(r.regulariser_471 || []).length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
       <tbody>${lignes471}</tbody>
@@ -1218,19 +1222,19 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
               <div className="flex flex-wrap gap-3 mb-4">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
                   <CheckCircle className="h-4 w-4" />
-                  {rapport.resume.nb_pointees} pointée(s)
+                  {rapport.resume?.nb_pointees || 0} pointée(s)
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
                   <PlusCircle className="h-4 w-4" />
-                  {rapport.resume.nb_ecritures_creees} créée(s)
+                  {rapport.resume?.nb_ecritures_creees || 0} créée(s)
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
                   <AlertTriangle className="h-4 w-4" />
-                  {rapport.resume.nb_regulariser_471} en 471
+                  {rapport.resume?.nb_regulariser_471 || 0} en 471
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
                   <HelpCircle className="h-4 w-4" />
-                  {rapport.resume.nb_non_matchees_compta} non matchée(s)
+                  {rapport.resume?.nb_non_matchees_compta || 0} non matchée(s)
                 </span>
                 {rapport.ecart != null && (
                   <span className={cn(
@@ -1271,7 +1275,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 >
                   <CheckCircle className="h-3.5 w-3.5" />
-                  Pointées ({rapport.pointees.length})
+                  Pointées ({(rapport.pointees || []).length})
                 </button>
                 <button
                   onClick={() => setRapportTab('creees')}
@@ -1281,7 +1285,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 >
                   <PlusCircle className="h-3.5 w-3.5" />
-                  Créées ({rapport.ecritures_creees.length})
+                  Créées ({(rapport.ecritures_creees || []).length})
                 </button>
                 <button
                   onClick={() => setRapportTab('regulariser_471')}
@@ -1291,7 +1295,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 >
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  471 ({rapport.regulariser_471.length})
+                  471 ({(rapport.regulariser_471 || []).length})
                 </button>
                 <button
                   onClick={() => setRapportTab('non_matchees')}
@@ -1301,13 +1305,13 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 >
                   <HelpCircle className="h-3.5 w-3.5" />
-                  Non matchées ({rapport.non_matchees_compta.length})
+                  Non matchées ({(rapport.non_matchees_compta || []).length})
                 </button>
               </div>
 
               {/* Tab Pointées */}
               {rapportTab === 'pointees' && (
-                rapport.pointees.length === 0 ? (
+                (rapport.pointees || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-pointée</p>
                 ) : (
                   <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
@@ -1322,7 +1326,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         </tr>
                       </thead>
                       <tbody>
-                        {rapport.pointees.map((p, i) => (
+                        {(rapport.pointees || []).map((p, i) => (
                           <tr key={i} className="border-t hover:bg-green-50">
                             <td className="py-2 px-3 whitespace-nowrap">{p.date}</td>
                             <td className="py-2 px-3 text-xs">{p.libelle_releve}</td>
@@ -1343,7 +1347,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
               {/* Tab Créées (401, 411, 627) */}
               {rapportTab === 'creees' && (
-                rapport.ecritures_creees.length === 0 ? (
+                (rapport.ecritures_creees || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-créée</p>
                 ) : (
                   <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
@@ -1358,7 +1362,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         </tr>
                       </thead>
                       <tbody>
-                        {rapport.ecritures_creees.map((c, i) => (
+                        {(rapport.ecritures_creees || []).map((c, i) => (
                           <tr key={i} className="border-t hover:bg-blue-50">
                             <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
                             <td className="py-2 px-3">{c.libelle}</td>
@@ -1382,7 +1386,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
               {/* Tab 471 — À régulariser */}
               {rapportTab === 'regulariser_471' && (
-                rapport.regulariser_471.length === 0 ? (
+                (rapport.regulariser_471 || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture en compte 471</p>
                 ) : (
                   <div>
@@ -1398,7 +1402,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                           </tr>
                         </thead>
                         <tbody>
-                          {rapport.regulariser_471.map((e, i) => (
+                          {(rapport.regulariser_471 || []).map((e, i) => (
                             <tr key={i} className="border-t hover:bg-orange-50">
                               <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
                               <td className="py-2 px-3">{e.libelle}</td>
@@ -1419,7 +1423,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
               {/* Tab Non matchées compta */}
               {rapportTab === 'non_matchees' && (
-                rapport.non_matchees_compta.length === 0 ? (
+                (rapport.non_matchees_compta || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Toutes les écritures compta ont une correspondance</p>
                 ) : (
                   <div>
@@ -1435,7 +1439,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                           </tr>
                         </thead>
                         <tbody>
-                          {rapport.non_matchees_compta.map((e, i) => (
+                          {(rapport.non_matchees_compta || []).map((e, i) => (
                             <tr key={i} className="border-t hover:bg-gray-50">
                               <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date)}</td>
                               <td className="py-2 px-3">{e.libelle}</td>

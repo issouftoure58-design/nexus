@@ -690,7 +690,12 @@ export const comptaApi = {
     const query = new URLSearchParams();
     if (params?.periode) query.set('periode', params.periode);
     if (params?.non_pointees) query.set('non_pointees', 'true');
-    return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number }>(`/journaux/ecritures/banque?${query}`);
+    return api.get<{ ecritures: EcritureComptable[]; solde_comptable: number }>(`/journaux/ecritures/banque?${query}`)
+      .then(raw => {
+        if (raw?.ecritures) return raw;
+        const d = (raw as any)?.data;
+        return { ecritures: d?.ecritures || [], solde_comptable: d?.solde_comptable || raw?.solde_comptable || 0 };
+      });
   },
   pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
   rapprochementAuto: (data: {
