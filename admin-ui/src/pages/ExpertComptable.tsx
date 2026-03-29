@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ import {
   Share2,
   Users,
   Mail,
+  Edit3,
+  Save,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -118,6 +120,60 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
   const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Modal édition écriture
+  const [editEcriture, setEditEcriture] = useState<EcritureComptable | null>(null);
+  const [editForm, setEditForm] = useState<{
+    date_ecriture: string;
+    numero_piece: string;
+    compte_numero: string;
+    compte_libelle: string;
+    libelle: string;
+  }>({ date_ecriture: '', numero_piece: '', compte_numero: '', compte_libelle: '', libelle: '' });
+
+  const queryClient = useQueryClient();
+
+  const modifierEcritureMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof comptaApi.modifierEcriture>[1] }) =>
+      comptaApi.modifierEcriture(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ecritures-journal'] });
+      queryClient.invalidateQueries({ queryKey: ['ecritures-banque'] });
+      setEditEcriture(null);
+      setNotification({ type: 'success', message: 'Écriture modifiée avec succès' });
+      setTimeout(() => setNotification(null), 3000);
+    },
+    onError: (err: Error) => {
+      setNotification({ type: 'error', message: err.message });
+      setTimeout(() => setNotification(null), 5000);
+    }
+  });
+
+  const ouvrirEditionEcriture = (e: EcritureComptable) => {
+    setEditEcriture(e);
+    setEditForm({
+      date_ecriture: e.date_ecriture || '',
+      numero_piece: e.numero_piece || '',
+      compte_numero: e.compte_numero || '',
+      compte_libelle: e.compte_libelle || '',
+      libelle: e.libelle || '',
+    });
+  };
+
+  const sauvegarderEcriture = () => {
+    if (!editEcriture) return;
+    const changes: Record<string, string> = {};
+    if (editForm.date_ecriture !== editEcriture.date_ecriture) changes.date_ecriture = editForm.date_ecriture;
+    if (editForm.numero_piece !== (editEcriture.numero_piece || '')) changes.numero_piece = editForm.numero_piece;
+    if (editForm.compte_numero !== editEcriture.compte_numero) changes.compte_numero = editForm.compte_numero;
+    if (editForm.compte_libelle !== editEcriture.compte_libelle) changes.compte_libelle = editForm.compte_libelle;
+    if (editForm.libelle !== editEcriture.libelle) changes.libelle = editForm.libelle;
+    if (Object.keys(changes).length === 0) {
+      setEditEcriture(null);
+      return;
+    }
+    modifierEcritureMutation.mutate({ id: editEcriture.id, data: changes });
+  };
 
   // Queries pour les documents comptables
   const { data: ecrituresJournalData, isLoading: ecrituresJournalLoading } = useQuery<{ ecritures: EcritureComptable[]; totaux: { debit: number; credit: number; solde: number; solde_banque?: number; solde_caisse?: number } }>({
@@ -981,11 +1037,16 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                             </thead>
                             <tbody>
                               {ecrituresJournalData.ecritures.map((e) => (
-                                <tr key={e.id} className="border-t hover:bg-gray-50">
+                                <tr
+                                  key={e.id}
+                                  className="border-t hover:bg-blue-50 cursor-pointer transition-colors"
+                                  onClick={() => ouvrirEditionEcriture(e)}
+                                  title="Cliquer pour modifier"
+                                >
                                   <td className="py-1.5 px-3">{formatDate(e.date_ecriture)}</td>
                                   <td className="py-1.5 px-3 text-xs text-gray-500">{e.numero_piece}</td>
                                   <td className="py-1.5 px-3">
-                                    <span className="font-mono text-xs bg-gray-100 px-1 rounded">{e.compte_numero}</span>
+                                    <span className={cn("font-mono text-xs px-1 rounded", e.compte_numero === '471' ? "bg-orange-100 text-orange-700" : "bg-gray-100")}>{e.compte_numero}</span>
                                   </td>
                                   <td className="py-1.5 px-3">{e.libelle}</td>
                                   <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit / 100) : ''}</td>
@@ -1337,6 +1398,147 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal édition écriture */}
+      {editEcriture && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditEcriture(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Edit3 className="h-4 w-4 text-indigo-500" />
+                Modifier l'écriture
+              </h3>
+              <button onClick={() => setEditEcriture(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              {/* Montants en lecture seule */}
+              <div className="flex gap-4 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Débit</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {editEcriture.debit > 0 ? formatCurrency(editEcriture.debit / 100) : '—'}
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Crédit</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {editEcriture.credit > 0 ? formatCurrency(editEcriture.credit / 100) : '—'}
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Journal</p>
+                  <p className="text-lg font-bold text-gray-700">{editEcriture.journal_code}</p>
+                </div>
+              </div>
+
+              {/* Champs modifiables */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Date</label>
+                  <Input
+                    type="date"
+                    value={editForm.date_ecriture}
+                    onChange={e => setEditForm(prev => ({ ...prev, date_ecriture: e.target.value }))}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">N° Pièce</label>
+                  <Input
+                    value={editForm.numero_piece}
+                    onChange={e => setEditForm(prev => ({ ...prev, numero_piece: e.target.value }))}
+                    className="text-sm"
+                    placeholder="DEP-123"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Compte</label>
+                  <Input
+                    value={editForm.compte_numero}
+                    onChange={e => setEditForm(prev => ({ ...prev, compte_numero: e.target.value }))}
+                    className={cn("text-sm font-mono", editForm.compte_numero === '471' && "border-orange-300 bg-orange-50")}
+                    placeholder="627"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Libellé compte</label>
+                  <Input
+                    value={editForm.compte_libelle}
+                    onChange={e => setEditForm(prev => ({ ...prev, compte_libelle: e.target.value }))}
+                    className="text-sm"
+                    placeholder="Services bancaires"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Libellé écriture</label>
+                <Input
+                  value={editForm.libelle}
+                  onChange={e => setEditForm(prev => ({ ...prev, libelle: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+
+              {/* Aide rapide pour reclassification 471 */}
+              {editEcriture.compte_numero === '471' && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-xs font-medium text-orange-700 mb-2">Reclassification rapide :</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { compte: '627', libelle: 'Services bancaires' },
+                      { compte: '401EDF', libelle: 'EDF/Engie' },
+                      { compte: '401TEL', libelle: 'Télécom' },
+                      { compte: '401ASS', libelle: 'Assurance' },
+                      { compte: '401URS', libelle: 'URSSAF' },
+                      { compte: '401LOY', libelle: 'Bailleur' },
+                      { compte: '658', libelle: 'Charges diverses' },
+                    ].map(({ compte, libelle }) => (
+                      <button
+                        key={compte}
+                        onClick={() => setEditForm(prev => ({ ...prev, compte_numero: compte, compte_libelle: libelle }))}
+                        className={cn(
+                          "px-2 py-1 text-xs rounded border transition-colors",
+                          editForm.compte_numero === compte
+                            ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        {compte} — {libelle}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+              <Button variant="outline" size="sm" onClick={() => setEditEcriture(null)}>
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                onClick={sauvegarderEcriture}
+                disabled={modifierEcritureMutation.isPending}
+              >
+                {modifierEcritureMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

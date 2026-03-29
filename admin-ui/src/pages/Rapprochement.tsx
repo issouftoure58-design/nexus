@@ -200,7 +200,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   // Rapport rapprochement auto
   type RapprochementRapport = Awaited<ReturnType<typeof comptaApi.rapprochementAuto>>['rapport'];
   const [rapport, setRapport] = useState<RapprochementRapport | null>(null);
-  const [rapportTab, setRapportTab] = useState<'pointees' | 'creees' | 'a_verifier'>('pointees');
+  const [rapportTab, setRapportTab] = useState<'pointees' | 'creees' | 'regulariser_471' | 'non_matchees'>('pointees');
   const [rapprochementAutoLoading, setRapprochementAutoLoading] = useState(false);
 
   // Handler pour l'import du relevé bancaire (CSV local ou PDF/image via IA)
@@ -209,8 +209,82 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     if (!file) return;
 
     const isCSV = file.name.endsWith('.csv') || file.name.endsWith('.txt') || file.type === 'text/csv';
+    const isHTML = file.name.endsWith('.html') || file.name.endsWith('.htm') || file.type === 'text/html';
 
-    if (isCSV) {
+    if (isHTML) {
+      // Parsing HTML local avec DOMParser
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const htmlText = e.target?.result as string;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+
+        // Extraire métadonnées depuis l'en-tête
+        const titulaire = doc.querySelector('.compte-info .col span')?.textContent?.trim() || '';
+        const sousTitre = doc.querySelector('.sous-titre')?.textContent || '';
+        const periodeExtrait = sousTitre.match(/Période du (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})/);
+
+        // Extraire soldes
+        const soldeBoxes = doc.querySelectorAll('.solde-box .montant');
+        let soldeDebut: number | null = null;
+        let soldeFin: number | null = null;
+        if (soldeBoxes.length >= 3) {
+          const parseMontant = (el: Element) => {
+            const txt = el.textContent?.replace(/[^\d,.-]/g, '').replace(',', '.') || '0';
+            const val = parseFloat(txt);
+            return isNaN(val) ? 0 : val;
+          };
+          soldeDebut = parseMontant(soldeBoxes[0]);
+          soldeFin = parseMontant(soldeBoxes[2]);
+        }
+
+        // Extraire transactions depuis le tableau
+        const rows = doc.querySelectorAll('table tbody tr');
+        const transactions: Array<{id: number; date: string; libelle: string; montant: number; type: 'credit' | 'debit'; pointed: boolean}> = [];
+        const annee = periodeExtrait ? periodeExtrait[2].slice(6) : String(new Date().getFullYear());
+
+        rows.forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 5) return;
+          // Ignorer "Solde précédent" et "TOTAUX"
+          if (row.classList.contains('totaux-row')) return;
+          const dateCell = cells[0]?.textContent?.trim();
+          if (!dateCell || dateCell === '') return;
+
+          // Date format "DD/MM" → "DD/MM/YYYY"
+          const dateStr = dateCell.includes('/') && dateCell.length <= 5 ? `${dateCell}/${annee}` : dateCell;
+          const libelleEl = cells[2] || cells[1];
+          // Prendre uniquement le texte principal, pas le span détail
+          const libelleNode = libelleEl?.childNodes[0];
+          const libelle = (libelleNode?.textContent || libelleEl?.textContent || '').trim();
+
+          const debitText = cells[3]?.textContent?.replace(/[^\d,.-]/g, '').replace(',', '.') || '';
+          const creditText = cells[4]?.textContent?.replace(/[^\d,.-]/g, '').replace(',', '.') || '';
+          const debitVal = parseFloat(debitText) || 0;
+          const creditVal = parseFloat(creditText) || 0;
+
+          if (debitVal > 0) {
+            transactions.push({ id: transactions.length + 1, date: dateStr, libelle, montant: debitVal, type: 'debit', pointed: false });
+          } else if (creditVal > 0) {
+            transactions.push({ id: transactions.length + 1, date: dateStr, libelle, montant: creditVal, type: 'credit', pointed: false });
+          }
+        });
+
+        if (transactions.length > 0) {
+          setBankTransactions(transactions);
+          setSoldeBancaire(soldeFin);
+          setReleveBanque(titulaire ? `BNP Paribas — ${titulaire}` : 'BNP Paribas');
+          if (periodeExtrait) setRelevePeriode(`${periodeExtrait[1]} - ${periodeExtrait[2]}`);
+          setRapport(null);
+          setNotification({ type: 'success', message: `${transactions.length} transactions importées (HTML)${soldeFin != null ? ` — Solde fin: ${formatCurrency(soldeFin)}` : ''}` });
+          setTimeout(() => setNotification(null), 5000);
+        } else {
+          setNotification({ type: 'error', message: 'Aucune transaction trouvée dans le fichier HTML' });
+          setTimeout(() => setNotification(null), 5000);
+        }
+      };
+      reader.readAsText(file);
+    } else if (isCSV) {
       // Parsing CSV local (ancien comportement)
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -338,7 +412,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
         const r = result.rapport.resume;
         setNotification({
           type: 'success',
-          message: `Rapprochement terminé : ${r.nb_pointees} pointée(s), ${r.nb_creees} créée(s), ${r.nb_non_matchees_releve + r.nb_non_matchees_compta} à vérifier`
+          message: `Rapprochement terminé : ${r.nb_pointees} pointée(s), ${r.nb_ecritures_creees} créée(s), ${r.nb_regulariser_471} en 471, ${r.nb_non_matchees_compta} non matchée(s)`
         });
         setTimeout(() => setNotification(null), 8000);
       }
@@ -368,11 +442,19 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     const totalNonReleveDeb = r.non_matchees_compta.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
     const totalNonReleveCred = r.non_matchees_compta.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
-    const lignesNonCompta = [...r.non_matchees_releve, ...r.creees.map(c => ({ ...c, type: 'debit' as const, raison: `Auto-créé (${c.categorie})` }))].map(e =>
+    // Écritures créées (401, 411, 627)
+    const lignesCreees = r.ecritures_creees.map(e =>
+      `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td>${e.compte} — ${e.compte_libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
+    ).join('');
+    const totalCreeesDeb = r.ecritures_creees.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const totalCreeesCred = r.ecritures_creees.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+
+    // Compte 471 — À régulariser
+    const lignes471 = r.regulariser_471.map(e =>
       `<tr><td>${fmtDate(e.date)}</td><td>${e.libelle}</td><td class="num">${e.type === 'debit' ? fmtMontant(e.montant) : ''}</td><td class="num">${e.type === 'credit' ? fmtMontant(e.montant) : ''}</td></tr>`
     ).join('');
-    const totalNonComptaDeb = r.non_matchees_releve.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0) + r.creees.reduce((s, e) => s + e.montant, 0);
-    const totalNonComptaCred = r.non_matchees_releve.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
+    const total471Deb = r.regulariser_471.filter(e => e.type === 'debit').reduce((s, e) => s + e.montant, 0);
+    const total471Cred = r.regulariser_471.filter(e => e.type === 'credit').reduce((s, e) => s + e.montant, 0);
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -424,8 +506,8 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
   <div class="resume-badges">
     <span class="badge badge-green">${r.resume.nb_pointees} pointée(s)</span>
-    <span class="badge badge-blue">${r.resume.nb_creees} créée(s)</span>
-    <span class="badge badge-orange">${r.resume.nb_non_matchees_releve + r.resume.nb_non_matchees_compta} à vérifier</span>
+    <span class="badge badge-blue">${r.resume.nb_ecritures_creees} créée(s)</span>
+    <span class="badge badge-orange">${r.resume.nb_regulariser_471} en 471</span>
   </div>
 
   <div class="section">
@@ -448,18 +530,29 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   </div>
 
   <div class="section">
-    <h2>3. Opérations du relevé non comptabilisées</h2>
-    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Frais bancaires auto-créés, encaissements non identifiés...)</p>
-    ${(r.non_matchees_releve.length + r.creees.length) > 0 ? `
+    <h2>3. Écritures créées automatiquement</h2>
+    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Frais bancaires, fournisseurs identifiés, clients identifiés)</p>
+    ${r.ecritures_creees.length > 0 ? `
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Compte</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
+      <tbody>${lignesCreees}</tbody>
+      <tfoot><tr class="total-row"><td colspan="3">Total</td><td class="num">${fmtMontant(totalCreeesDeb)}</td><td class="num">${fmtMontant(totalCreeesCred)}</td></tr></tfoot>
+    </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
+  </div>
+
+  <div class="section">
+    <h2>4. Compte 471 — À régulariser</h2>
+    <p style="font-size:9pt;color:#666;margin-bottom:6px">(Transactions non identifiées, à reclassifier par l'expert-comptable)</p>
+    ${r.regulariser_471.length > 0 ? `
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead>
-      <tbody>${lignesNonCompta}</tbody>
-      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(totalNonComptaDeb)}</td><td class="num">${fmtMontant(totalNonComptaCred)}</td></tr></tfoot>
+      <tbody>${lignes471}</tbody>
+      <tfoot><tr class="total-row"><td colspan="2">Total</td><td class="num">${fmtMontant(total471Deb)}</td><td class="num">${fmtMontant(total471Cred)}</td></tr></tfoot>
     </table>` : '<p style="font-size:10pt;color:#666;font-style:italic">Aucune</p>'}
   </div>
 
   <div class="big-box">
-    <span class="label">4. Solde comptable rapproché</span>
+    <span class="label">5. Solde comptable rapproché</span>
     <span class="value">${fmtMontant(r.solde_comptable)}</span>
   </div>
 
@@ -1037,13 +1130,13 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   Importer un relevé bancaire
                 </h3>
                 <p className="text-sm text-gray-500">
-                  Importez votre relevé bancaire (PDF, image ou CSV). Les PDF et images sont analysés automatiquement par IA.
+                  Importez votre relevé bancaire (HTML, PDF, image ou CSV). Les PDF et images sont analysés par IA, les HTML sont parsés localement.
                 </p>
               </div>
               <input
                 type="file"
                 ref={bankFileInputRef}
-                accept=".csv,.txt,.pdf,image/jpeg,image/png,image/webp"
+                accept=".csv,.txt,.html,.htm,.pdf,image/jpeg,image/png,image/webp"
                 onChange={handleBankStatementImport}
                 className="hidden"
               />
@@ -1129,11 +1222,15 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
                   <PlusCircle className="h-4 w-4" />
-                  {rapport.resume.nb_creees} créée(s)
+                  {rapport.resume.nb_ecritures_creees} créée(s)
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  {rapport.resume.nb_regulariser_471} en 471
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
                   <HelpCircle className="h-4 w-4" />
-                  {rapport.resume.nb_non_matchees_releve + rapport.resume.nb_non_matchees_compta} à vérifier
+                  {rapport.resume.nb_non_matchees_compta} non matchée(s)
                 </span>
                 {rapport.ecart != null && (
                   <span className={cn(
@@ -1165,7 +1262,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
               </div>
 
               {/* Tabs du rapport */}
-              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4">
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4 flex-wrap">
                 <button
                   onClick={() => setRapportTab('pointees')}
                   className={cn(
@@ -1184,17 +1281,27 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 >
                   <PlusCircle className="h-3.5 w-3.5" />
-                  Créées ({rapport.creees.length})
+                  Créées ({rapport.ecritures_creees.length})
                 </button>
                 <button
-                  onClick={() => setRapportTab('a_verifier')}
+                  onClick={() => setRapportTab('regulariser_471')}
                   className={cn(
                     "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
-                    rapportTab === 'a_verifier' ? "bg-orange-600 text-white" : "text-gray-600 hover:bg-gray-200"
+                    rapportTab === 'regulariser_471' ? "bg-orange-600 text-white" : "text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  471 ({rapport.regulariser_471.length})
+                </button>
+                <button
+                  onClick={() => setRapportTab('non_matchees')}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
+                    rapportTab === 'non_matchees' ? "bg-gray-600 text-white" : "text-gray-600 hover:bg-gray-200"
                   )}
                 >
                   <HelpCircle className="h-3.5 w-3.5" />
-                  À vérifier ({rapport.non_matchees_releve.length + rapport.non_matchees_compta.length})
+                  Non matchées ({rapport.non_matchees_compta.length})
                 </button>
               </div>
 
@@ -1234,10 +1341,10 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 )
               )}
 
-              {/* Tab Créées */}
+              {/* Tab Créées (401, 411, 627) */}
               {rapportTab === 'creees' && (
-                rapport.creees.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">Aucune dépense auto-créée</p>
+                rapport.ecritures_creees.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-créée</p>
                 ) : (
                   <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
                     <table className="w-full text-sm">
@@ -1246,17 +1353,24 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                           <th className="text-left py-2 px-3 text-gray-600">Date</th>
                           <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
                           <th className="text-right py-2 px-3 text-gray-600">Montant</th>
-                          <th className="text-center py-2 px-3 text-gray-600">Catégorie</th>
+                          <th className="text-center py-2 px-3 text-gray-600">Compte</th>
+                          <th className="text-center py-2 px-3 text-gray-600">Code</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rapport.creees.map((c, i) => (
+                        {rapport.ecritures_creees.map((c, i) => (
                           <tr key={i} className="border-t hover:bg-blue-50">
                             <td className="py-2 px-3 whitespace-nowrap">{c.date}</td>
                             <td className="py-2 px-3">{c.libelle}</td>
-                            <td className="py-2 px-3 text-right font-medium text-red-600 whitespace-nowrap">-{formatCurrency(c.montant)}</td>
+                            <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", c.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                              {c.type === 'credit' ? '+' : '-'}{formatCurrency(c.montant)}
+                            </td>
                             <td className="py-2 px-3 text-center">
-                              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">{c.categorie}</span>
+                              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">{c.compte}</span>
+                              <span className="text-xs text-gray-500 ml-1">{c.compte_libelle}</span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-mono">{c.lettrage}</span>
                             </td>
                           </tr>
                         ))}
@@ -1266,70 +1380,74 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 )
               )}
 
-              {/* Tab À vérifier */}
-              {rapportTab === 'a_verifier' && (
-                (rapport.non_matchees_releve.length + rapport.non_matchees_compta.length) === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">Tout est rapproché !</p>
+              {/* Tab 471 — À régulariser */}
+              {rapportTab === 'regulariser_471' && (
+                rapport.regulariser_471.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture en compte 471</p>
                 ) : (
-                  <div className="space-y-4">
-                    {rapport.non_matchees_releve.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-orange-600 mb-2">Transactions du relevé sans correspondance en compta</p>
-                        <div className="border rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                                <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                                <th className="text-right py-2 px-3 text-gray-600">Montant</th>
-                                <th className="text-left py-2 px-3 text-gray-600">Raison</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rapport.non_matchees_releve.map((e, i) => (
-                                <tr key={i} className="border-t hover:bg-orange-50">
-                                  <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
-                                  <td className="py-2 px-3">{e.libelle}</td>
-                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
-                                    {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.montant)}
-                                  </td>
-                                  <td className="py-2 px-3 text-xs text-gray-500">{e.raison}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                    {rapport.non_matchees_compta.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-purple-600 mb-2">Écritures compta non figurant sur le relevé</p>
-                        <div className="border rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="text-left py-2 px-3 text-gray-600">Date</th>
-                                <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
-                                <th className="text-right py-2 px-3 text-gray-600">Montant</th>
-                                <th className="text-left py-2 px-3 text-gray-600">Raison</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rapport.non_matchees_compta.map((e, i) => (
-                                <tr key={i} className="border-t hover:bg-purple-50">
-                                  <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date)}</td>
-                                  <td className="py-2 px-3">{e.libelle}</td>
-                                  <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'debit' ? "text-green-600" : "text-red-600")}>
-                                    {e.type === 'debit' ? '+' : '-'}{formatCurrency(e.montant)}
-                                  </td>
-                                  <td className="py-2 px-3 text-xs text-gray-500">{e.raison}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+                  <div>
+                    <p className="text-xs text-orange-600 mb-2">Ces transactions n'ont pas pu être identifiées. Elles sont enregistrées en compte 471 (attente) et doivent être reclassifiées dans le journal.</p>
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                            <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                            <th className="text-center py-2 px-3 text-gray-600">Code</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rapport.regulariser_471.map((e, i) => (
+                            <tr key={i} className="border-t hover:bg-orange-50">
+                              <td className="py-2 px-3 whitespace-nowrap">{e.date}</td>
+                              <td className="py-2 px-3">{e.libelle}</td>
+                              <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
+                                {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.montant)}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">{e.lettrage}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Tab Non matchées compta */}
+              {rapportTab === 'non_matchees' && (
+                rapport.non_matchees_compta.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Toutes les écritures compta ont une correspondance</p>
+                ) : (
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-2">Écritures compta non figurant sur le relevé</p>
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="text-left py-2 px-3 text-gray-600">Date</th>
+                            <th className="text-left py-2 px-3 text-gray-600">Libellé</th>
+                            <th className="text-right py-2 px-3 text-gray-600">Montant</th>
+                            <th className="text-left py-2 px-3 text-gray-600">Raison</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rapport.non_matchees_compta.map((e, i) => (
+                            <tr key={i} className="border-t hover:bg-gray-50">
+                              <td className="py-2 px-3 whitespace-nowrap">{formatDate(e.date)}</td>
+                              <td className="py-2 px-3">{e.libelle}</td>
+                              <td className={cn("py-2 px-3 text-right font-medium whitespace-nowrap", e.type === 'debit' ? "text-green-600" : "text-red-600")}>
+                                {e.type === 'debit' ? '+' : '-'}{formatCurrency(e.montant)}
+                              </td>
+                              <td className="py-2 px-3 text-xs text-gray-500">{e.raison}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )
               )}

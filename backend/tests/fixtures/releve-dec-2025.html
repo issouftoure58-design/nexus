@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Relevé de compte — BNP Paribas — Décembre 2025</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 30px 40px; max-width: 800px; margin: 0 auto; background: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #00915A; }
+  .logo { font-size: 22px; font-weight: 700; color: #00915A; letter-spacing: -0.5px; }
+  .logo span { display: block; font-size: 10px; color: #666; font-weight: 400; letter-spacing: 0; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
+  .compte-info { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f8faf9; border: 1px solid #e0e8e4; border-radius: 4px; padding: 15px; }
+  .compte-info .col label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; display: block; margin-bottom: 3px; }
+  .compte-info .col span { font-weight: 600; font-size: 13px; }
+  .titre-releve { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 20px 0 5px; }
+  .sous-titre { font-size: 11px; color: #888; margin-bottom: 15px; }
+  .soldes { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .solde-box { background: #f5f5f5; border-radius: 4px; padding: 10px 15px; width: 32%; }
+  .solde-box label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; display: block; }
+  .solde-box .montant { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .solde-box .montant.positif { color: #00915A; }
+  .solde-box .montant.negatif { color: #D32F2F; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+  thead th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; padding: 8px 6px; border-bottom: 2px solid #00915A; background: #f8faf9; }
+  thead th.right { text-align: right; }
+  tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td.debit { color: #D32F2F; }
+  tbody td.credit { color: #00915A; font-weight: 500; }
+  tbody tr:hover { background: #fafafa; }
+  .date-col { width: 70px; color: #666; }
+  .ref-col { width: 65px; color: #999; font-size: 10px; }
+  .montant-col { width: 90px; }
+  .solde-col { width: 90px; color: #333; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 9px; color: #999; line-height: 1.8; }
+  .totaux-row td { border-top: 2px solid #333; font-weight: 700; padding-top: 10px; }
+  @media print { body { padding: 15px; font-size: 11px; } table { font-size: 10px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">
+      BNP PARIBAS
+      <span>La banque d'un monde qui change</span>
+    </div>
+  </div>
+  <div class="header-right">
+    Agence Paris Champs-Elysées<br>
+    30 Avenue des Champs-Elysées<br>
+    75008 Paris<br>
+    Tél: 01 42 89 00 00
+  </div>
+</div>
+
+<div class="compte-info">
+  <div class="col">
+    <label>Titulaire</label>
+    <span>SALON ELEGANCE PARIS</span>
+  </div>
+  <div class="col">
+    <label>N° de compte</label>
+    <span>30004 01234 00010084526 71</span>
+  </div>
+  <div class="col">
+    <label>IBAN</label>
+    <span>FR76 3000 4012 3400 0100 0845 267</span>
+  </div>
+  <div class="col">
+    <label>BIC</label>
+    <span>BNPAFRPP</span>
+  </div>
+</div>
+
+<div class="titre-releve">Relevé de compte</div>
+<div class="sous-titre">Période du 01/12/2025 au 31/12/2025 — Édité le 01/01/2026</div>
+
+<div class="soldes">
+  <div class="solde-box">
+    <label>Solde au 30/11/2025</label>
+    <div class="montant positif">5 113,00 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Total mouvements</label>
+    <div class="montant negatif">- 2 417,60 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Solde au 31/12/2025</label>
+    <div class="montant positif">2 695,40 €</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th class="date-col">Date</th>
+      <th class="ref-col">Réf.</th>
+      <th>Libellé de l'opération</th>
+      <th class="right montant-col">Débit</th>
+      <th class="right montant-col">Crédit</th>
+      <th class="right solde-col">Solde</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="date-col"></td>
+      <td class="ref-col"></td>
+      <td><strong>Solde précédent</strong></td>
+      <td class="right"></td>
+      <td class="right"></td>
+      <td class="right solde-col"><strong>5 113,00</strong></td>
+    </tr>
+
+    <!-- A) Encaissements qui MATCHENT -->
+    <tr>
+      <td class="date-col">01/12</td>
+      <td class="ref-col">VIR001</td>
+      <td>VIR RECU CLIENT DURAND<br><span style="color:#888;font-size:10px;">Coupe + Brushing</span></td>
+      <td class="right"></td>
+      <td class="right credit">40,00</td>
+      <td class="right">5 153,00</td>
+    </tr>
+    <tr>
+      <td class="date-col">03/12</td>
+      <td class="ref-col">VIR002</td>
+      <td>VIR RECU CLIENT LEROY<br><span style="color:#888;font-size:10px;">Coloration + Mèches</span></td>
+      <td class="right"></td>
+      <td class="right credit">95,00</td>
+      <td class="right">5 248,00</td>
+    </tr>
+    <tr>
+      <td class="date-col">05/12</td>
+      <td class="ref-col">REM01</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">4 encaissements carte — Période 25/11-04/12</span></td>
+      <td class="right"></td>
+      <td class="right credit">78,00</td>
+      <td class="right">5 326,00</td>
+    </tr>
+    <tr>
+      <td class="date-col">08/12</td>
+      <td class="ref-col">VIR003</td>
+      <td>VIR RECU CLIENT SIMON<br><span style="color:#888;font-size:10px;">Forfait Homme</span></td>
+      <td class="right"></td>
+      <td class="right credit">30,00</td>
+      <td class="right">5 356,00</td>
+    </tr>
+
+    <!-- B) Paiements identifiables -->
+    <tr>
+      <td class="date-col">10/12</td>
+      <td class="ref-col">PRLV01</td>
+      <td>PRELEVEMENT URSSAF IDF<br><span style="color:#888;font-size:10px;">Cotisations sociales T4 2025 — Réf. 947570362</span></td>
+      <td class="right debit">1 245,00</td>
+      <td class="right"></td>
+      <td class="right">4 111,00</td>
+    </tr>
+    <tr>
+      <td class="date-col">12/12</td>
+      <td class="ref-col">PRLV02</td>
+      <td>PRELEVEMENT ORANGE SA<br><span style="color:#888;font-size:10px;">Facture Décembre 2025 — Réf. FIBRE-PRO-87421</span></td>
+      <td class="right debit">107,28</td>
+      <td class="right"></td>
+      <td class="right">4 003,72</td>
+    </tr>
+
+    <!-- A) Suite encaissements -->
+    <tr>
+      <td class="date-col">13/12</td>
+      <td class="ref-col">VIR004</td>
+      <td>VIR RECU CLIENT GARCIA<br><span style="color:#888;font-size:10px;">Lissage brésilien</span></td>
+      <td class="right"></td>
+      <td class="right credit">65,00</td>
+      <td class="right">4 068,72</td>
+    </tr>
+    <tr>
+      <td class="date-col">15/12</td>
+      <td class="ref-col">REM02</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">6 encaissements carte — Période 05-14/12</span></td>
+      <td class="right"></td>
+      <td class="right credit">92,00</td>
+      <td class="right">4 160,72</td>
+    </tr>
+
+    <!-- B) Paiements identifiables (suite) -->
+    <tr>
+      <td class="date-col">16/12</td>
+      <td class="ref-col">VIR005</td>
+      <td>VIR EMIS BEAUTE PRO DISTRIBUTION<br><span style="color:#888;font-size:10px;">Facture FA-2025-1247 — Produits capillaires</span></td>
+      <td class="right debit">856,00</td>
+      <td class="right"></td>
+      <td class="right">3 304,72</td>
+    </tr>
+    <tr>
+      <td class="date-col">18/12</td>
+      <td class="ref-col">PRLV03</td>
+      <td>PRELEVEMENT AXA FRANCE IARD<br><span style="color:#888;font-size:10px;">Assurance RC Professionnelle — Contrat PRO-445821</span></td>
+      <td class="right debit">89,00</td>
+      <td class="right"></td>
+      <td class="right">3 215,72</td>
+    </tr>
+
+    <!-- A) Suite encaissements -->
+    <tr>
+      <td class="date-col">19/12</td>
+      <td class="ref-col">VIR006</td>
+      <td>VIR RECU CLIENT THOMAS<br><span style="color:#888;font-size:10px;">Coupe Enfant</span></td>
+      <td class="right"></td>
+      <td class="right credit">18,00</td>
+      <td class="right">3 233,72</td>
+    </tr>
+    <tr>
+      <td class="date-col">20/12</td>
+      <td class="ref-col">VIR007</td>
+      <td>VIR RECU CLIENT ROBERT<br><span style="color:#888;font-size:10px;">Coloration végétale</span></td>
+      <td class="right"></td>
+      <td class="right credit">42,00</td>
+      <td class="right">3 275,72</td>
+    </tr>
+
+    <!-- B) Paiement identifiable -->
+    <tr>
+      <td class="date-col">22/12</td>
+      <td class="ref-col">PRLV04</td>
+      <td>PRELEVEMENT EDF PRO<br><span style="color:#888;font-size:10px;">Électricité Décembre 2025 — Réf. PDL 14578952147</span></td>
+      <td class="right debit">178,50</td>
+      <td class="right"></td>
+      <td class="right">3 097,22</td>
+    </tr>
+
+    <!-- A) Suite encaissements -->
+    <tr>
+      <td class="date-col">23/12</td>
+      <td class="ref-col">REM03</td>
+      <td>REMISE CB SUMUP *8847<br><span style="color:#888;font-size:10px;">5 encaissements carte — Période 15-22/12</span></td>
+      <td class="right"></td>
+      <td class="right credit">30,00</td>
+      <td class="right">3 127,22</td>
+    </tr>
+
+    <!-- B) Frais bancaires → 627 -->
+    <tr>
+      <td class="date-col">28/12</td>
+      <td class="ref-col">FRS01</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait compte Pro — Décembre 2025</span></td>
+      <td class="right debit">9,50</td>
+      <td class="right"></td>
+      <td class="right">3 117,72</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/12</td>
+      <td class="ref-col">FRS02</td>
+      <td>COMMISSION MOUVEMENT<br><span style="color:#888;font-size:10px;">Commission trimestrielle T4 2025</span></td>
+      <td class="right debit">12,32</td>
+      <td class="right"></td>
+      <td class="right">3 105,40</td>
+    </tr>
+
+    <!-- B) Loyer identifiable -->
+    <tr>
+      <td class="date-col">30/12</td>
+      <td class="ref-col">PRLV05</td>
+      <td>PRELEVEMENT FONCIERE SAINT-HONORE<br><span style="color:#888;font-size:10px;">Loyer local commercial Janvier 2026 — Bail n° 2024-847</span></td>
+      <td class="right debit">410,00</td>
+      <td class="right"></td>
+      <td class="right">2 695,40</td>
+    </tr>
+
+    <!-- Totaux : débit = 1245+107.28+856+89+178.50+9.50+12.32+410 = 2907.60 / crédit = 40+95+78+30+65+92+18+42+30 = 490 -->
+    <tr class="totaux-row">
+      <td></td>
+      <td></td>
+      <td><strong>TOTAUX DU MOIS</strong></td>
+      <td class="right debit"><strong>2 907,60</strong></td>
+      <td class="right credit"><strong>490,00</strong></td>
+      <td class="right"><strong>2 695,40</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <p>Ce relevé est établi sous réserve d'erreurs ou omissions. Toute réclamation doit être formulée dans un délai de 30 jours à compter de sa réception.</p>
+  <p>BNP Paribas SA au capital de 2 468 663 292 € — Siège social : 16 bd des Italiens, 75009 Paris — ORIAS n° 07 022 735 — RCS Paris 662 042 449</p>
+  <p style="margin-top: 10px; color: #00915A;">Document généré automatiquement — Ne pas répondre à cette adresse</p>
+</div>
+
+</body>
+</html>

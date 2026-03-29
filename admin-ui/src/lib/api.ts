@@ -710,12 +710,14 @@ export const comptaApi = {
       solde_comptable: number;
       ecart: number | null;
       pointees: Array<{ date: string; libelle_releve: string; libelle_compta: string; montant: number; type: string; lettrage: string }>;
-      creees: Array<{ date: string; libelle: string; montant: number; type: string; categorie: string; depense_id: number }>;
-      non_matchees_releve: Array<{ date: string; libelle: string; montant: number; type: string; raison: string }>;
+      ecritures_creees: Array<{ date: string; libelle: string; montant: number; type: string; compte: string; compte_libelle: string; lettrage: string }>;
+      regulariser_471: Array<{ date: string; libelle: string; montant: number; type: string; lettrage: string }>;
       non_matchees_compta: Array<{ date: string; libelle: string; montant: number; type: string; raison: string }>;
-      resume: { nb_pointees: number; nb_creees: number; nb_non_matchees_releve: number; nb_non_matchees_compta: number };
+      resume: { nb_pointees: number; nb_ecritures_creees: number; nb_regulariser_471: number; nb_non_matchees_compta: number };
     };
   }>('/journaux/rapprochement-auto', data),
+  modifierEcriture: (id: number, data: { libelle?: string; compte_numero?: string; compte_libelle?: string; date_ecriture?: string; numero_piece?: string }) =>
+    api.patch<{ success: boolean; ecriture: EcritureComptable }>(`/journaux/ecritures/${id}`, data),
   genererToutesEcritures: () => api.post<{ success: boolean; message: string }>('/journaux/generer/tout'),
   // À Nouveaux
   genererANouveaux: (exercicePrecedent: number) =>
