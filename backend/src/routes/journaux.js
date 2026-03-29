@@ -3521,16 +3521,23 @@ const IDENTIFICATION_RELEVE = {
     compte: '627', libelle_compte: 'Services bancaires',
     mots_cles: ['FRAIS', 'COMMISSION', 'AGIOS', 'COTIS CARTE', 'ABONNEMENT BQ', 'FRAIS TENUE']
   },
+  // Organismes sociaux → 431
+  organismes_sociaux: [
+    { mots_cles: ['URSSAF'], code_aux: '431', libelle: 'Sécurité sociale' },
+    { mots_cles: ['RETRAITE', 'AGIRC', 'ARRCO', 'CIPAV', 'RSI'], code_aux: '437', libelle: 'Autres organismes sociaux' },
+  ],
+  // Fisc → 447
+  fisc: [
+    { mots_cles: ['IMPOT', 'TAXE', 'CFE', 'CVAE', 'DGFIP', 'TRESOR PUBLIC'], code_aux: '447', libelle: 'État — Impôts et taxes' },
+  ],
   // Fournisseurs connus → 401xxx
   fournisseurs: [
     { mots_cles: ['EDF', 'ENGIE', 'ELECTRICITE'], code_aux: '401EDF', libelle: 'EDF/Engie' },
     { mots_cles: ['ORANGE', 'SFR', 'BOUYGUES TEL', 'FREE MOBILE'], code_aux: '401TEL', libelle: 'Télécom' },
-    { mots_cles: ['URSSAF'], code_aux: '401URS', libelle: 'URSSAF' },
     { mots_cles: ['AXA', 'MAIF', 'ALLIANZ', 'GENERALI', 'MACIF'], code_aux: '401ASS', libelle: 'Assurance' },
     { mots_cles: ['AMAZON'], code_aux: '401AMA', libelle: 'Amazon' },
     { mots_cles: ['LOYER', 'BAILLEUR', 'FONCIERE'], code_aux: '401LOY', libelle: 'Bailleur' },
     { mots_cles: ['METRO', 'BEAUTE PRO'], code_aux: '401FOU', libelle: 'Fournisseur produits' },
-    { mots_cles: ['IMPOT', 'TAXE', 'CFE', 'CVAE'], code_aux: '401FIS', libelle: 'Fisc' },
   ],
   // Patterns client → 411xxx
   clients: {
@@ -3548,14 +3555,28 @@ function identifierTransaction(libelle) {
     return { type: 'frais_bancaires', compte: fb.compte, libelle_compte: fb.libelle_compte };
   }
 
-  // 2. Fournisseur connu ?
+  // 2. Organismes sociaux (431/437) ?
+  for (const o of IDENTIFICATION_RELEVE.organismes_sociaux) {
+    if (o.mots_cles.some(mc => upper.includes(mc))) {
+      return { type: 'fournisseur', compte: o.code_aux, libelle_compte: o.libelle };
+    }
+  }
+
+  // 3. Fisc (447) ?
+  for (const f of IDENTIFICATION_RELEVE.fisc) {
+    if (f.mots_cles.some(mc => upper.includes(mc))) {
+      return { type: 'fournisseur', compte: f.code_aux, libelle_compte: f.libelle };
+    }
+  }
+
+  // 4. Fournisseur connu ?
   for (const f of IDENTIFICATION_RELEVE.fournisseurs) {
     if (f.mots_cles.some(mc => upper.includes(mc))) {
       return { type: 'fournisseur', compte: f.code_aux, libelle_compte: f.libelle };
     }
   }
 
-  // 3. Client identifiable ?
+  // 5. Client identifiable ?
   for (const pattern of IDENTIFICATION_RELEVE.clients.patterns) {
     const m = libelle.match(pattern);
     if (m) {
@@ -3565,7 +3586,7 @@ function identifierTransaction(libelle) {
     }
   }
 
-  // 4. Inconnu total → 471
+  // 6. Inconnu total → 471
   return { type: 'inconnu', compte: '471', libelle_compte: 'Compte d\'attente' };
 }
 
