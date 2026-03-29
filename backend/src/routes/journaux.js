@@ -565,7 +565,7 @@ router.post('/generer/depense', async (req, res) => {
     const exercice = parseInt(dateDepense.slice(0, 4));
     const montantTTC = depense.montant_ttc || depense.montant || 0;
     const montantHT = depense.montant || montantTTC;
-    const montantTVA = depense.montant_tva || 0;
+    const montantTVA = depense.montant_tva || (montantTTC > montantHT ? montantTTC - montantHT : 0);
     const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
     // Numéro de facture et libellé enrichi (même logique que depenses.js)
@@ -1030,7 +1030,7 @@ async function generateDepenseEcritures(tenantId, depenseId) {
   const exercice = parseInt(dateDepense.slice(0, 4));
   const montantTTC = depense.montant_ttc || depense.montant || 0;
   const montantHT = depense.montant || montantTTC;
-  const montantTVA = depense.montant_tva || 0;
+  const montantTVA = depense.montant_tva || (montantTTC > montantHT ? montantTTC - montantHT : 0);
   const compteCharge = COMPTE_DEPENSE[depense.categorie] || COMPTE_DEPENSE.autre;
 
   // Numéro de facture et libellé enrichi (même logique que depenses.js)
