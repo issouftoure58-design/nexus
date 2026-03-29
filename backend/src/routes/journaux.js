@@ -4105,7 +4105,10 @@ router.post('/rapprochements/sauver', async (req, res) => {
 
     // Créer les nouvelles écritures (627, 401, 411, 471, 658, 758) — supprimer le champ _group avant insert
     if (proposed_ecritures.length > 0) {
-      const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => rest);
+      const ecrituresClean = proposed_ecritures.map(({ _group, ...rest }) => ({
+        ...rest,
+        tenant_id: tenantId, // Forcer tenant_id (matching forcé frontend n'en a pas)
+      }));
 
       const { error: errInsert } = await supabase
         .from('ecritures_comptables')
