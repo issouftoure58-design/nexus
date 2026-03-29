@@ -3583,7 +3583,12 @@ router.post('/rapprochement-auto', async (req, res) => {
     if (errBQ) throw errBQ;
 
     const ecrituresDisponibles = (ecrituresBQ || []).map(e => ({ ...e, matched: false }));
-    console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées (période: ${periodeISO || 'toutes'})`);
+    console.log(`[RAPPROCHEMENT] ${ecrituresDisponibles.length} écritures BQ/512 non lettrées trouvées`);
+    // Debug types — Supabase peut retourner strings pour NUMERIC/DECIMAL
+    if (ecrituresDisponibles.length > 0) {
+      const s = ecrituresDisponibles[0];
+      console.log(`[RAPPROCHEMENT] DEBUG type écriture[0]: debit=${s.debit} (${typeof s.debit}), credit=${s.credit} (${typeof s.credit}), date=${s.date_ecriture}, libelle=${s.libelle?.slice(0, 40)}`);
+    }
 
     // Helpers
     const parseDate = (str) => {
@@ -3635,7 +3640,8 @@ router.post('/rapprochement-auto', async (req, res) => {
 
       for (const ec of ecrituresDisponibles) {
         if (ec.matched) continue;
-        const montantCompta = isCredit ? (ec.debit || 0) : (ec.credit || 0);
+        // Number() obligatoire : Supabase retourne les colonnes NUMERIC/DECIMAL comme des strings
+        const montantCompta = Number(isCredit ? (ec.debit || 0) : (ec.credit || 0));
         if (montantCompta !== txMontant) continue;
 
         // Montant exact trouvé → candidat. Date = scoring uniquement (jamais rejet).
@@ -3811,9 +3817,9 @@ router.post('/rapprochement-auto', async (req, res) => {
       .map(e => ({
         date: e.date_ecriture,
         libelle: e.libelle,
-        montant: Math.max(e.debit || 0, e.credit || 0) / 100,
-        type: e.debit > 0 ? 'debit' : 'credit',
-        raison: e.credit > 0 ? 'Chèque/virement non encore présenté' : 'Encaissement non figurant sur relevé'
+        montant: Math.max(Number(e.debit || 0), Number(e.credit || 0)) / 100,
+        type: Number(e.debit) > 0 ? 'debit' : 'credit',
+        raison: Number(e.credit) > 0 ? 'Chèque/virement non encore présenté' : 'Encaissement non figurant sur relevé'
       }));
 
     // 4. Calcul solde comptable rapproché (cumulé jusqu'à fin de période)
@@ -3832,8 +3838,8 @@ router.post('/rapprochement-auto', async (req, res) => {
 
     let solde512Cumule = 0;
     if (toutesEcritures512) {
-      const totalDebit = toutesEcritures512.reduce((s, e) => s + (e.debit || 0), 0);
-      const totalCredit = toutesEcritures512.reduce((s, e) => s + (e.credit || 0), 0);
+      const totalDebit = toutesEcritures512.reduce((s, e) => s + Number(e.debit || 0), 0);
+      const totalCredit = toutesEcritures512.reduce((s, e) => s + Number(e.credit || 0), 0);
       solde512Cumule = (totalDebit - totalCredit) / 100;
     }
 
