@@ -4066,40 +4066,30 @@ router.post('/rapprochements/sauver', async (req, res) => {
       }
     }
 
-    // IDEMPOTENT : réinitialiser les lettrages RA-* de la période avant de repointer
+    // IDEMPOTENT : réinitialiser les lettrages RA stale avant de repointer
     if (proposed_pointages.length > 0) {
-      const pointageIds = proposed_pointages.map(p => p.ecriture_id);
-      // Aussi nettoyer les lettrages RA-* sur les écritures de cette période (stale)
-      const { data: staleLettrage } = await supabase
+      const pointageIds = new Set(proposed_pointages.map(p => p.ecriture_id));
+      const newCodes = proposed_pointages.map(p => p.lettrage);
+
+      // Récupérer toutes les écritures 512 avec lettrage RA qui utilisent les mêmes codes
+      const { data: allRA } = await supabase
         .from('ecritures_comptables')
-        .select('id')
+        .select('id, lettrage')
         .eq('tenant_id', tenantId)
         .eq('journal_code', 'BQ')
         .eq('compte_numero', '512')
-        .like('lettrage', 'RA%')
-        .not('id', 'in', `(${pointageIds.join(',')})`);
+        .in('lettrage', newCodes);
 
-      // Ne reset que les lettrages RA qui ne font pas partie du nouveau pointage
-      if (staleLettrage && staleLettrage.length > 0) {
-        // Vérifier que ces écritures ont un lettrage RA correspondant aux codes qu'on va utiliser
-        const newCodes = proposed_pointages.map(p => p.lettrage);
-        const { data: toReset } = await supabase
+      // Filtrer en JS : reset celles qui ne font PAS partie du nouveau pointage
+      const toReset = (allRA || []).filter(e => !pointageIds.has(e.id));
+
+      if (toReset.length > 0) {
+        const resetIds = toReset.map(e => e.id);
+        await supabase
           .from('ecritures_comptables')
-          .select('id, lettrage')
-          .eq('tenant_id', tenantId)
-          .eq('journal_code', 'BQ')
-          .eq('compte_numero', '512')
-          .in('lettrage', newCodes)
-          .not('id', 'in', `(${pointageIds.join(',')})`);
-
-        if (toReset && toReset.length > 0) {
-          const resetIds = toReset.map(e => e.id);
-          await supabase
-            .from('ecritures_comptables')
-            .update({ lettrage: null, date_lettrage: null })
-            .in('id', resetIds);
-          console.log(`[RAPPROCHEMENT] ${resetIds.length} lettrages stale RA réinitialisés`);
-        }
+          .update({ lettrage: null, date_lettrage: null })
+          .in('id', resetIds);
+        console.log(`[RAPPROCHEMENT] ${resetIds.length} lettrages stale RA réinitialisés`);
       }
     }
 
