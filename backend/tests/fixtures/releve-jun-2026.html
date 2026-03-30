@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Relevé de compte — BNP Paribas — Juin 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 30px 40px; max-width: 800px; margin: 0 auto; background: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #00915A; }
+  .logo { font-size: 22px; font-weight: 700; color: #00915A; letter-spacing: -0.5px; }
+  .logo span { display: block; font-size: 10px; color: #666; font-weight: 400; letter-spacing: 0; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
+  .compte-info { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f8faf9; border: 1px solid #e0e8e4; border-radius: 4px; padding: 15px; }
+  .compte-info .col label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; display: block; margin-bottom: 3px; }
+  .compte-info .col span { font-weight: 600; font-size: 13px; }
+  .titre-releve { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 20px 0 5px; }
+  .sous-titre { font-size: 11px; color: #888; margin-bottom: 15px; }
+  .soldes { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .solde-box { background: #f5f5f5; border-radius: 4px; padding: 10px 15px; width: 32%; }
+  .solde-box label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; display: block; }
+  .solde-box .montant { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .solde-box .montant.positif { color: #00915A; }
+  .solde-box .montant.negatif { color: #D32F2F; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+  thead th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; padding: 8px 6px; border-bottom: 2px solid #00915A; background: #f8faf9; }
+  thead th.right { text-align: right; }
+  tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td.debit { color: #D32F2F; }
+  tbody td.credit { color: #00915A; font-weight: 500; }
+  tbody tr:hover { background: #fafafa; }
+  .date-col { width: 70px; color: #666; }
+  .ref-col { width: 65px; color: #999; font-size: 10px; }
+  .montant-col { width: 90px; }
+  .solde-col { width: 90px; color: #333; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 9px; color: #999; line-height: 1.8; }
+  .totaux-row td { border-top: 2px solid #333; font-weight: 700; padding-top: 10px; }
+  @media print { body { padding: 15px; font-size: 11px; } table { font-size: 10px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">
+      BNP PARIBAS
+      <span>La banque d'un monde qui change</span>
+    </div>
+  </div>
+  <div class="header-right">
+    Agence Paris Champs-Elysées<br>
+    30 Avenue des Champs-Elysées<br>
+    75008 Paris<br>
+    Tél: 01 42 89 00 00
+  </div>
+</div>
+
+<div class="compte-info">
+  <div class="col">
+    <label>Titulaire</label>
+    <span>SALON ELEGANCE PARIS</span>
+  </div>
+  <div class="col">
+    <label>N° de compte</label>
+    <span>30004 01234 00010084526 71</span>
+  </div>
+  <div class="col">
+    <label>IBAN</label>
+    <span>FR76 3000 4012 3400 0100 0845 267</span>
+  </div>
+  <div class="col">
+    <label>BIC</label>
+    <span>BNPAFRPP</span>
+  </div>
+</div>
+
+<div class="titre-releve">Relevé de compte</div>
+<div class="sous-titre">Période du 01/06/2026 au 30/06/2026 — Édité le 01/07/2026</div>
+
+<div class="soldes">
+  <div class="solde-box">
+    <label>Solde au 31/05/2026</label>
+    <div class="montant negatif">- 22 357,90 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Total mouvements</label>
+    <div class="montant negatif">- 6 103,55 €</div>
+  </div>
+  <div class="solde-box">
+    <label>Solde au 30/06/2026</label>
+    <div class="montant negatif">- 28 461,45 €</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th class="date-col">Date</th>
+      <th class="ref-col">Réf.</th>
+      <th>Libellé de l'opération</th>
+      <th class="right montant-col">Débit</th>
+      <th class="right montant-col">Crédit</th>
+      <th class="right solde-col">Solde</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="date-col"></td>
+      <td class="ref-col"></td>
+      <td><strong>Solde précédent</strong></td>
+      <td class="right"></td>
+      <td class="right"></td>
+      <td class="right solde-col"><strong>- 22 357,90</strong></td>
+    </tr>
+
+    <tr>
+      <td class="date-col">01/06</td>
+      <td class="ref-col">REM01</td>
+      <td>REMISE CB SUMUP *2061<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">58,00</td>
+      <td class="right">- 22 299,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">01/06</td>
+      <td class="ref-col">VIR02</td>
+      <td>VIR EMIS SCI HAUSSMANN<br><span style="color:#888;font-size:10px;">Loyer local</span></td>
+      <td class="right debit">1 200,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 499,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">01/06</td>
+      <td class="ref-col">PRL03</td>
+      <td>PRLV NEXUS SAS<br><span style="color:#888;font-size:10px;">Abonnement</span></td>
+      <td class="right debit">99,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 598,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">02/06</td>
+      <td class="ref-col">REM04</td>
+      <td>REMISE CB SUMUP *9843<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">46,00</td>
+      <td class="right">- 23 552,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">04/06</td>
+      <td class="ref-col">REM05</td>
+      <td>REMISE CB SUMUP *2534<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">28,00</td>
+      <td class="right">- 23 524,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">05/06</td>
+      <td class="ref-col">PRL06</td>
+      <td>PRLV EDF ENTREPRISES<br><span style="color:#888;font-size:10px;">Électricité</span></td>
+      <td class="right debit">180,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 704,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">05/06</td>
+      <td class="ref-col">PRL07</td>
+      <td>PRLV SFR PRO<br><span style="color:#888;font-size:10px;">Télécom</span></td>
+      <td class="right debit">96,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 800,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">07/06</td>
+      <td class="ref-col">REM08</td>
+      <td>REMISE CB SUMUP *1856<br><span style="color:#888;font-size:10px;">Encaissements carte — 3 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">190,00</td>
+      <td class="right">- 23 610,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">10/06</td>
+      <td class="ref-col">REM09</td>
+      <td>REMISE CB SUMUP *4435<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">25,00</td>
+      <td class="right">- 23 585,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">10/06</td>
+      <td class="ref-col">PRL10</td>
+      <td>PRLV AXA PROTECTION PRO<br><span style="color:#888;font-size:10px;">Assurance</span></td>
+      <td class="right debit">250,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 835,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">11/06</td>
+      <td class="ref-col">REM11</td>
+      <td>REMISE CB SUMUP *7463<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">90,00</td>
+      <td class="right">- 23 745,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">12/06</td>
+      <td class="ref-col">PRL12</td>
+      <td>PRLV META PLATFORMS<br><span style="color:#888;font-size:10px;">Publicité</span></td>
+      <td class="right debit">144,00</td>
+      <td class="right"></td>
+      <td class="right">- 23 889,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">14/06</td>
+      <td class="ref-col">REM13</td>
+      <td>REMISE CB SUMUP *4007<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">43,00</td>
+      <td class="right">- 23 846,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">15/06</td>
+      <td class="ref-col">VIR14</td>
+      <td>VIR EMIS BEAUTE PRO<br><span style="color:#888;font-size:10px;">Fournitures</span></td>
+      <td class="right debit">480,00</td>
+      <td class="right"></td>
+      <td class="right">- 24 326,90</td>
+    </tr>
+    <tr>
+      <td class="date-col">15/06</td>
+      <td class="ref-col">VIR15</td>
+      <td>VIR EMIS URSSAF<br><span style="color:#888;font-size:10px;">Cotisations</span></td>
+      <td class="right debit">2 165,45</td>
+      <td class="right"></td>
+      <td class="right">- 26 492,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">16/06</td>
+      <td class="ref-col">REM16</td>
+      <td>REMISE CB SUMUP *7041<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">42,00</td>
+      <td class="right">- 26 450,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">18/06</td>
+      <td class="ref-col">REM17</td>
+      <td>REMISE CB SUMUP *9048<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">76,00</td>
+      <td class="right">- 26 374,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">19/06</td>
+      <td class="ref-col">REM18</td>
+      <td>REMISE CB SUMUP *2569<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">132,00</td>
+      <td class="right">- 26 242,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">20/06</td>
+      <td class="ref-col">REM19</td>
+      <td>REMISE CB SUMUP *2590<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">148,00</td>
+      <td class="right">- 26 094,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">20/06</td>
+      <td class="ref-col">VIR20</td>
+      <td>VIR RECU CREDIT DIVERS REF77</td>
+      <td class="right"></td>
+      <td class="right credit">185,00</td>
+      <td class="right">- 25 909,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">22/06</td>
+      <td class="ref-col">REM21</td>
+      <td>REMISE CB SUMUP *4872<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">58,00</td>
+      <td class="right">- 25 851,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">23/06</td>
+      <td class="ref-col">REM22</td>
+      <td>REMISE CB SUMUP *7909<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">65,00</td>
+      <td class="right">- 25 786,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">24/06</td>
+      <td class="ref-col">REM23</td>
+      <td>REMISE CB SUMUP *9681<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">42,00</td>
+      <td class="right">- 25 744,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">26/06</td>
+      <td class="ref-col">REM24</td>
+      <td>REMISE CB SUMUP *9001<br><span style="color:#888;font-size:10px;">Encaissements carte — 2 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">70,00</td>
+      <td class="right">- 25 674,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">27/06</td>
+      <td class="ref-col">REM25</td>
+      <td>REMISE CB SUMUP *4192<br><span style="color:#888;font-size:10px;">Encaissements carte — 1 opérations</span></td>
+      <td class="right"></td>
+      <td class="right credit">28,00</td>
+      <td class="right">- 25 646,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/06</td>
+      <td class="ref-col">FRS26</td>
+      <td>COMMISSION MOUVEMENT<br><span style="color:#888;font-size:10px;">Frais bancaires</span></td>
+      <td class="right debit">30,00</td>
+      <td class="right"></td>
+      <td class="right">- 25 676,35</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/06</td>
+      <td class="ref-col">VIR27</td>
+      <td>VIR EMIS SALAIRES<br><span style="color:#888;font-size:10px;">Paie employés</span></td>
+      <td class="right debit">2 770,60</td>
+      <td class="right"></td>
+      <td class="right">- 28 446,95</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/06</td>
+      <td class="ref-col">FRS28</td>
+      <td>FRAIS TENUE DE COMPTE<br><span style="color:#888;font-size:10px;">Forfait mensuel</span></td>
+      <td class="right debit">8,50</td>
+      <td class="right"></td>
+      <td class="right">- 28 455,45</td>
+    </tr>
+    <tr>
+      <td class="date-col">28/06</td>
+      <td class="ref-col">FRS29</td>
+      <td>COMMISSION CB<br><span style="color:#888;font-size:10px;">Frais terminaux</span></td>
+      <td class="right debit">6,00</td>
+      <td class="right"></td>
+      <td class="right">- 28 461,45</td>
+    </tr>
+
+    <tr class="totaux-row">
+      <td></td>
+      <td></td>
+      <td><strong>TOTAUX DU MOIS</strong></td>
+      <td class="right debit"><strong>7 429,55</strong></td>
+      <td class="right credit"><strong>1 326,00</strong></td>
+      <td class="right"><strong>- 28 461,45</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <p>Ce relevé est établi sous réserve d'erreurs ou omissions. Toute réclamation doit être formulée dans un délai de 30 jours à compter de sa réception.</p>
+  <p>BNP Paribas SA au capital de 2 468 663 292 € — Siège social : 16 bd des Italiens, 75009 Paris — ORIAS n° 07 022 735 — RCS Paris 662 042 449</p>
+  <p style="margin-top: 10px; color: #00915A;">Document généré automatiquement — Ne pas répondre à cette adresse</p>
+</div>
+
+</body>
+</html>
