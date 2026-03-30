@@ -19,6 +19,7 @@ import PlanningEmploye from '@/components/rh/PlanningEmploye';
 import PerformanceReviews from '@/components/rh/PerformanceReviews';
 import OnboardingChecklist from '@/components/rh/OnboardingChecklist';
 import OrgChart from '@/components/rh/OrgChart';
+import ClotureAnnuelleRH from '@/components/rh/ClotureAnnuelleRH';
 import {
   Users,
   UserPlus,
@@ -170,7 +171,7 @@ interface Candidature {
   created_at: string;
 }
 
-type TabType = 'equipe' | 'planning' | 'absences' | 'paie' | 'performances' | 'dsn' | 'recrutement' | 'documents' | 'onboarding' | 'organigramme' | 'parametres';
+type TabType = 'equipe' | 'planning' | 'absences' | 'paie' | 'performances' | 'dsn' | 'recrutement' | 'documents' | 'onboarding' | 'organigramme' | 'cloture' | 'parametres';
 
 export default function RH() {
   const [tab, setTab] = useState<TabType>('equipe');
@@ -692,6 +693,13 @@ export default function RH() {
         >
           <Users className="w-4 h-4 inline mr-2" />
           Organigramme
+        </button>
+        <button
+          className={`px-4 py-2 -mb-px ${tab === 'cloture' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          onClick={() => setTab('cloture')}
+        >
+          <FileText className="w-4 h-4 inline mr-2" />
+          Cloture annuelle
         </button>
         <button
           className={`px-4 py-2 -mb-px ${tab === 'parametres' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
@@ -1399,6 +1407,9 @@ export default function RH() {
 
       {/* Tab Organigramme */}
       {tab === 'organigramme' && <OrgChart membres={membres} />}
+
+      {/* Tab Cloture annuelle */}
+      {tab === 'cloture' && <ClotureAnnuelleRH />}
 
       {tab === 'parametres' && <ParametresSociaux />}
     </div>

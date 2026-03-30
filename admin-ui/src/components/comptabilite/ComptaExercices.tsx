@@ -3,54 +3,65 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { comptaApi, type ExerciceComptable, type PeriodeComptable } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
-  Calendar, Lock, Unlock, CheckCircle, AlertCircle, AlertTriangle,
-  Plus, ChevronDown, ChevronRight, Loader2, FileCheck, Shield
+  Lock, Unlock, CheckCircle, AlertCircle, AlertTriangle,
+  ChevronDown, ChevronRight, Loader2, FileCheck, Shield,
+  RotateCcw, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const STATUT_CONFIG = {
-  ouvert: { label: 'Ouvert', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-  cloture_provisoire: { label: 'Clôture provisoire', color: 'bg-yellow-100 text-yellow-700', icon: AlertTriangle },
-  cloture: { label: 'Clôturé', color: 'bg-gray-100 text-gray-600', icon: Lock },
-};
+const MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('fr-FR');
+}
+
+function formatEuros(centimes: number) {
+  return (centimes / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+}
 
 export default function ComptaExercices() {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [newExercice, setNewExercice] = useState({ code: '', date_debut: '', date_fin: '' });
-  const [preCloture, setPreCloture] = useState<{ ok: boolean; warnings: string[]; errors: string[] } | null>(null);
+  const [expandedHistorique, setExpandedHistorique] = useState<number | null>(null);
+  const [preCloture, setPreCloture] = useState<{ ok: boolean; warnings: string[]; errors: string[]; stats?: { nb_ecritures: number; nb_non_lettrees: number; nb_periodes_ouvertes: number } } | null>(null);
 
+  // ─── Queries ───
   const { data: exercicesData, isLoading } = useQuery({
     queryKey: ['exercices'],
     queryFn: () => comptaApi.getExercices(),
   });
 
+  const exercices = exercicesData?.exercices || [];
+  const exerciceCourant = exercices.find((e: ExerciceComptable) => e.statut === 'ouvert') || null;
+  const exercicesClotures = exercices.filter((e: ExerciceComptable) => e.statut === 'cloture');
+
   const { data: periodesData } = useQuery({
-    queryKey: ['periodes', expanded],
-    queryFn: () => comptaApi.getPeriodesExercice(expanded!),
-    enabled: !!expanded,
+    queryKey: ['periodes', exerciceCourant?.id],
+    queryFn: () => comptaApi.getPeriodesExercice(exerciceCourant!.id),
+    enabled: !!exerciceCourant,
   });
 
-  const creerMutation = useMutation({
-    mutationFn: (data: { date_debut: string; date_fin: string; code: string }) => comptaApi.creerExercice(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercices'] });
-      setShowCreate(false);
-      setNewExercice({ code: '', date_debut: '', date_fin: '' });
-    },
+  const { data: periodesHistorique } = useQuery({
+    queryKey: ['periodes', expandedHistorique],
+    queryFn: () => comptaApi.getPeriodesExercice(expandedHistorique!),
+    enabled: !!expandedHistorique,
   });
+
+  // ─── Mutations ───
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['exercices'] });
+    queryClient.invalidateQueries({ queryKey: ['periodes'] });
+  };
 
   const verrouillerMutation = useMutation({
     mutationFn: ({ exerciceId, periode }: { exerciceId: number; periode: string }) =>
       comptaApi.verrouillerPeriode(exerciceId, periode),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['periodes'] }),
+    onSuccess: invalidateAll,
   });
 
   const deverrouillerMutation = useMutation({
     mutationFn: ({ exerciceId, periode }: { exerciceId: number; periode: string }) =>
       comptaApi.deverrouillerPeriode(exerciceId, periode),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['periodes'] }),
+    onSuccess: invalidateAll,
   });
 
   const preClotMutation = useMutation({
@@ -58,23 +69,19 @@ export default function ComptaExercices() {
     onSuccess: (data) => setPreCloture(data),
   });
 
-  const clotProvMutation = useMutation({
-    mutationFn: (exerciceId: number) => comptaApi.clotureProvisoire(exerciceId),
+  const cloturerMutation = useMutation({
+    mutationFn: (exerciceId: number) => comptaApi.cloturerExercice(exerciceId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercices'] });
+      invalidateAll();
       setPreCloture(null);
     },
   });
 
-  const clotDefMutation = useMutation({
-    mutationFn: (exerciceId: number) => comptaApi.clotureDefinitive(exerciceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercices'] });
-      setPreCloture(null);
-    },
+  const rouvrirMutation = useMutation({
+    mutationFn: (exerciceId: number) => comptaApi.rouvrirExercice(exerciceId),
+    onSuccess: invalidateAll,
   });
 
-  const exercices = exercicesData?.exercices || [];
   const periodes = periodesData?.periodes || [];
 
   if (isLoading) {
@@ -84,209 +91,224 @@ export default function ComptaExercices() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Exercices Comptables</h2>
-          <p className="text-sm text-gray-500">Gestion des exercices, périodes et clôtures</p>
-        </div>
-        <Button onClick={() => setShowCreate(!showCreate)} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> Nouvel exercice
-        </Button>
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Clôture annuelle</h2>
+        <p className="text-sm text-gray-500">Clôturez l'exercice terminé pour archiver et ouvrir le suivant</p>
       </div>
 
-      {/* Formulaire création */}
-      {showCreate && (
-        <div className="bg-white border rounded-lg p-4 space-y-3">
-          <h3 className="text-sm font-medium">Créer un exercice</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Code</label>
-              <input
-                type="text"
-                value={newExercice.code}
-                onChange={e => setNewExercice({ ...newExercice, code: e.target.value })}
-                placeholder="EX-2026"
-                className="w-full px-3 py-2 border rounded text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Date début</label>
-              <input
-                type="date"
-                value={newExercice.date_debut}
-                onChange={e => setNewExercice({ ...newExercice, date_debut: e.target.value })}
-                className="w-full px-3 py-2 border rounded text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Date fin</label>
-              <input
-                type="date"
-                value={newExercice.date_fin}
-                onChange={e => setNewExercice({ ...newExercice, date_fin: e.target.value })}
-                className="w-full px-3 py-2 border rounded text-sm"
-              />
+      {/* ═══ EXERCICE COURANT ═══ */}
+      {exerciceCourant ? (
+        <div className="bg-white border-2 border-purple-200 rounded-xl overflow-hidden">
+          {/* Header courant */}
+          <div className="bg-gradient-to-r from-purple-50 to-white px-5 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-gray-900">{exerciceCourant.code}</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    <CheckCircle className="h-3 w-3 inline mr-1" />Ouvert
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {formatDate(exerciceCourant.date_debut)} — {formatDate(exerciceCourant.date_fin)}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
+
+          {/* Grille 12 périodes */}
+          <div className="px-5 py-4 border-b">
+            <h4 className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wide">Périodes</h4>
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5">
+              {periodes.map((p: PeriodeComptable) => {
+                const mois = parseInt(p.periode.split('-')[1]) - 1;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      if (p.verrouillee) {
+                        if (confirm(`Déverrouiller ${MOIS_LABELS[mois]} ?`)) {
+                          deverrouillerMutation.mutate({ exerciceId: exerciceCourant.id, periode: p.periode });
+                        }
+                      } else {
+                        if (confirm(`Verrouiller ${MOIS_LABELS[mois]} ?`)) {
+                          verrouillerMutation.mutate({ exerciceId: exerciceCourant.id, periode: p.periode });
+                        }
+                      }
+                    }}
+                    className={cn(
+                      'px-2 py-2 rounded-lg text-xs font-medium text-center transition-colors',
+                      p.verrouillee
+                        ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                    )}
+                    title={p.verrouillee ? `Verrouillée le ${p.date_verrouillage?.slice(0, 10) || ''}` : 'Cliquer pour verrouiller'}
+                  >
+                    {p.verrouillee ? <Lock className="h-3 w-3 inline mr-0.5" /> : <Unlock className="h-3 w-3 inline mr-0.5" />}
+                    {MOIS_LABELS[mois]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Rapport pré-clôture */}
+          {preCloture && (
+            <div className="px-5 py-3 border-b">
+              <div className={cn('p-3 rounded-lg border', preCloture.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
+                <p className={cn('text-sm font-medium', preCloture.ok ? 'text-green-700' : 'text-red-700')}>
+                  {preCloture.ok ? 'Prêt pour la clôture' : 'Problèmes détectés'}
+                </p>
+                {preCloture.stats && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {preCloture.stats.nb_ecritures} écritures — {preCloture.stats.nb_non_lettrees} non lettrées — {preCloture.stats.nb_periodes_ouvertes} période(s) ouverte(s)
+                  </p>
+                )}
+                {preCloture.errors.map((e, i) => (
+                  <p key={`e-${i}`} className="text-xs text-red-600 mt-1"><AlertCircle className="h-3 w-3 inline mr-1" />{e}</p>
+                ))}
+                {preCloture.warnings.map((w, i) => (
+                  <p key={`w-${i}`} className="text-xs text-yellow-600 mt-1"><AlertTriangle className="h-3 w-3 inline mr-1" />{w}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="px-5 py-4 bg-gray-50 flex items-center gap-3">
             <Button
               size="sm"
-              onClick={() => creerMutation.mutate(newExercice)}
-              disabled={creerMutation.isPending || !newExercice.code || !newExercice.date_debut || !newExercice.date_fin}
+              variant="outline"
+              onClick={() => preClotMutation.mutate(exerciceCourant.id)}
+              disabled={preClotMutation.isPending}
             >
-              {creerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              Créer
+              {preClotMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+              <FileCheck className="h-3.5 w-3.5 mr-1" />
+              Vérifier
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)}>Annuler</Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (confirm(`Clôturer l'exercice ${exerciceCourant.code} ?\n\nCette action va :\n— Verrouiller toutes les périodes\n— Calculer le résultat\n— Générer les à-nouveaux sur l'exercice suivant\n\nVous pourrez rouvrir l'exercice si nécessaire.`)) {
+                  cloturerMutation.mutate(exerciceCourant.id);
+                }
+              }}
+              disabled={cloturerMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {cloturerMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+              <Shield className="h-3.5 w-3.5 mr-1" />
+              Clôturer l'exercice {exerciceCourant.code}
+            </Button>
+            {cloturerMutation.isError && (
+              <span className="text-xs text-red-600">{(cloturerMutation.error as Error).message}</span>
+            )}
           </div>
-          {creerMutation.isError && (
-            <p className="text-xs text-red-600">{(creerMutation.error as Error).message}</p>
-          )}
-        </div>
-      )}
-
-      {/* Timeline exercices */}
-      {exercices.length === 0 ? (
-        <div className="bg-gray-50 border rounded-lg p-8 text-center">
-          <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">Aucun exercice comptable créé</p>
-          <p className="text-sm text-gray-400 mt-1">Créez votre premier exercice pour commencer</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {exercices.map((ex: ExerciceComptable) => {
-            const config = STATUT_CONFIG[ex.statut] || STATUT_CONFIG.ouvert;
-            const StatusIcon = config.icon;
-            const isExpanded = expanded === ex.id;
+        /* Pas d'exercice ouvert — tous clôturés */
+        exercicesClotures.length > 0 && (
+          <div className="bg-gray-50 border rounded-lg p-6 text-center">
+            <Lock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+            <p className="text-gray-600 font-medium">Tous les exercices sont clôturés</p>
+            <p className="text-sm text-gray-400 mt-1">Rouvrez un exercice ci-dessous ou attendez la clôture qui créera le suivant automatiquement</p>
+          </div>
+        )
+      )}
 
-            return (
-              <div key={ex.id} className="bg-white border rounded-lg overflow-hidden">
-                {/* Header exercice */}
-                <div
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-                  onClick={() => setExpanded(isExpanded ? null : ex.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{ex.code}</span>
-                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', config.color)}>
-                          <StatusIcon className="h-3 w-3 inline mr-1" />{config.label}
-                        </span>
+      {/* ═══ HISTORIQUE EXERCICES CLÔTURÉS ═══ */}
+      {exercicesClotures.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Historique</h3>
+          <div className="space-y-2">
+            {exercicesClotures.map((ex: ExerciceComptable) => {
+              const isExpanded = expandedHistorique === ex.id;
+              const pHistorique = isExpanded ? (periodesHistorique?.periodes || []) : [];
+              const isBenefice = ex.resultat_type === 'benefice';
+
+              return (
+                <div key={ex.id} className="bg-white border rounded-lg overflow-hidden">
+                  {/* Ligne compacte */}
+                  <div
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                    onClick={() => setExpandedHistorique(isExpanded ? null : ex.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{ex.code}</span>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            <Lock className="h-3 w-3 inline mr-0.5" />Clôturé
+                          </span>
+                          {ex.resultat_net != null && (
+                            <span className={cn(
+                              'px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1',
+                              isBenefice ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                            )}>
+                              {isBenefice ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                              {formatEuros(ex.resultat_net)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {formatDate(ex.date_debut)} — {formatDate(ex.date_fin)}
+                          {ex.date_cloture && ` — clôturé le ${formatDate(ex.date_cloture)}`}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {new Date(ex.date_debut).toLocaleDateString('fr-FR')} → {new Date(ex.date_fin).toLocaleDateString('fr-FR')}
-                        {ex.resultat_net ? ` • Résultat: ${(ex.resultat_net / 100).toFixed(2)}€ (${ex.resultat_type})` : ''}
-                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm(`Rouvrir l'exercice ${ex.code} ?\n\nLes périodes seront déverrouillées et l'écriture de clôture supprimée.\nLes à-nouveaux de l'exercice suivant seront recalculés à la re-clôture.`)) {
+                            rouvrirMutation.mutate(ex.id);
+                          }
+                        }}
+                        disabled={rouvrirMutation.isPending}
+                      >
+                        {rouvrirMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        Rouvrir
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  {ex.statut === 'ouvert' && (
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => preClotMutation.mutate(ex.id)}
-                        disabled={preClotMutation.isPending}
-                      >
-                        <FileCheck className="h-3.5 w-3.5 mr-1" />
-                        Vérifier
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (confirm('Clôture provisoire ? Les périodes seront verrouillées.')) {
-                            clotProvMutation.mutate(ex.id);
-                          }
-                        }}
-                        disabled={clotProvMutation.isPending}
-                      >
-                        Clôture provisoire
-                      </Button>
-                    </div>
-                  )}
-                  {ex.statut === 'cloture_provisoire' && (
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          if (confirm('⚠️ Clôture DÉFINITIVE ? Cette action est irréversible. Les à-nouveaux seront générés.')) {
-                            clotDefMutation.mutate(ex.id);
-                          }
-                        }}
-                        disabled={clotDefMutation.isPending}
-                      >
-                        <Shield className="h-3.5 w-3.5 mr-1" />
-                        Clôture définitive
-                      </Button>
+                  {/* Détail expandable */}
+                  {isExpanded && (
+                    <div className="border-t px-4 py-3 bg-gray-50">
+                      {/* Grille périodes (read-only) */}
+                      <h4 className="text-xs font-medium text-gray-500 mb-2">Périodes</h4>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1 mb-3">
+                        {pHistorique.map((p: PeriodeComptable) => {
+                          const mois = parseInt(p.periode.split('-')[1]) - 1;
+                          return (
+                            <div
+                              key={p.id}
+                              className="px-2 py-1.5 rounded text-xs font-medium text-center bg-gray-200 text-gray-500 cursor-default"
+                            >
+                              <Lock className="h-3 w-3 inline mr-0.5" />
+                              {MOIS_LABELS[mois]}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Détail résultat + AN */}
+                      <div className="flex gap-4 text-xs text-gray-600">
+                        {ex.resultat_net != null && (
+                          <span>Résultat : <strong className={isBenefice ? 'text-green-700' : 'text-red-700'}>{formatEuros(ex.resultat_net)}</strong> ({ex.resultat_type})</span>
+                        )}
+                        {ex.an_generes && <span className="text-purple-600">AN générés</span>}
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {/* Rapport pré-clôture */}
-                {preCloture && expanded === ex.id && (
-                  <div className="px-4 pb-3">
-                    <div className={cn('p-3 rounded-lg border', preCloture.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
-                      <p className={cn('text-sm font-medium', preCloture.ok ? 'text-green-700' : 'text-red-700')}>
-                        {preCloture.ok ? '✓ Prêt pour la clôture' : '✗ Problèmes détectés'}
-                      </p>
-                      {preCloture.errors.map((e, i) => (
-                        <p key={i} className="text-xs text-red-600 mt-1"><AlertCircle className="h-3 w-3 inline mr-1" />{e}</p>
-                      ))}
-                      {preCloture.warnings.map((w, i) => (
-                        <p key={i} className="text-xs text-yellow-600 mt-1"><AlertTriangle className="h-3 w-3 inline mr-1" />{w}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Grille périodes */}
-                {isExpanded && (
-                  <div className="border-t px-4 py-3">
-                    <h4 className="text-xs font-medium text-gray-500 mb-2">Périodes ({periodes.length})</h4>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1">
-                      {periodes.map((p: PeriodeComptable) => {
-                        const mois = parseInt(p.periode.split('-')[1]);
-                        const moisLabel = new Date(2000, mois - 1).toLocaleDateString('fr-FR', { month: 'short' });
-
-                        return (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              if (ex.statut === 'cloture') return;
-                              if (p.verrouillee) {
-                                if (confirm(`Déverrouiller ${p.periode} ?`)) {
-                                  deverrouillerMutation.mutate({ exerciceId: ex.id, periode: p.periode });
-                                }
-                              } else {
-                                if (confirm(`Verrouiller ${p.periode} ?`)) {
-                                  verrouillerMutation.mutate({ exerciceId: ex.id, periode: p.periode });
-                                }
-                              }
-                            }}
-                            className={cn(
-                              'px-2 py-1.5 rounded text-xs font-medium text-center transition-colors',
-                              p.verrouillee
-                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                : 'bg-green-100 text-green-700 hover:bg-green-200',
-                              ex.statut === 'cloture' && 'cursor-default opacity-60'
-                            )}
-                            title={p.verrouillee ? `Verrouillée le ${p.date_verrouillage?.slice(0, 10) || ''}` : 'Cliquer pour verrouiller'}
-                          >
-                            {p.verrouillee ? <Lock className="h-3 w-3 inline mr-0.5" /> : <Unlock className="h-3 w-3 inline mr-0.5" />}
-                            {moisLabel}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

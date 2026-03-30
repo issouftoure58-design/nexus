@@ -1,32 +1,39 @@
 /**
  * Routes Exercices Comptables
- * Gestion exercices, périodes, clôtures
+ * Gestion exercices, périodes, clôture et réouverture
  */
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import {
-  createExercice,
   listExercices,
+  getOuCreerExerciceCourant,
   getExerciceOuvert,
   isPeriodeVerrouillee,
   verrouillerPeriode,
   deverrouillerPeriode,
   listPeriodes,
   verifierPreCloture,
-  clotureProvisoire,
-  clotureDefinitive
+  cloturerExercice,
+  rouvrirExercice
 } from '../services/exerciceService.js';
 
 const router = express.Router();
 router.use(authenticateAdmin);
 
 /**
- * GET /api/exercices — Liste des exercices
+ * GET /api/exercices — Liste des exercices (auto-init si vide)
  */
 router.get('/', async (req, res) => {
   try {
-    const exercices = await listExercices(req.admin.tenant_id);
+    let exercices = await listExercices(req.admin.tenant_id);
+
+    // Auto-init : si aucun exercice, en créer un pour l'année courante
+    if (exercices.length === 0) {
+      await getOuCreerExerciceCourant(req.admin.tenant_id);
+      exercices = await listExercices(req.admin.tenant_id);
+    }
+
     res.json({ exercices });
   } catch (error) {
     console.error('[EXERCICES] Erreur liste:', error);
@@ -35,34 +42,15 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/exercices/courant — Exercice ouvert
+ * GET /api/exercices/courant — Exercice ouvert (avec auto-init)
  */
 router.get('/courant', async (req, res) => {
   try {
-    const exercice = await getExerciceOuvert(req.admin.tenant_id);
+    const exercice = await getOuCreerExerciceCourant(req.admin.tenant_id);
     res.json({ exercice });
   } catch (error) {
     console.error('[EXERCICES] Erreur exercice courant:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/exercices — Créer un exercice
- */
-router.post('/', async (req, res) => {
-  try {
-    const { date_debut, date_fin, code } = req.body;
-
-    if (!date_debut || !date_fin || !code) {
-      return res.status(400).json({ error: 'date_debut, date_fin et code sont requis' });
-    }
-
-    const result = await createExercice(req.admin.tenant_id, { date_debut, date_fin, code });
-    res.json({ success: true, ...result });
-  } catch (error) {
-    console.error('[EXERCICES] Erreur création:', error);
-    res.status(400).json({ error: error.message });
   }
 });
 
@@ -125,28 +113,28 @@ router.get('/:id/pre-cloture', async (req, res) => {
 });
 
 /**
- * POST /api/exercices/:id/cloture-provisoire
+ * POST /api/exercices/:id/cloturer — Clôture de l'exercice
  */
-router.post('/:id/cloture-provisoire', async (req, res) => {
+router.post('/:id/cloturer', async (req, res) => {
   try {
-    const result = await clotureProvisoire(req.admin.tenant_id, parseInt(req.params.id), req.admin.id);
+    const result = await cloturerExercice(req.admin.tenant_id, parseInt(req.params.id), req.admin.id);
     res.json(result);
   } catch (error) {
-    console.error('[EXERCICES] Erreur clôture provisoire:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[EXERCICES] Erreur clôture:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 
 /**
- * POST /api/exercices/:id/cloture-definitive
+ * POST /api/exercices/:id/rouvrir — Réouverture de l'exercice
  */
-router.post('/:id/cloture-definitive', async (req, res) => {
+router.post('/:id/rouvrir', async (req, res) => {
   try {
-    const result = await clotureDefinitive(req.admin.tenant_id, parseInt(req.params.id), req.admin.id);
+    const result = await rouvrirExercice(req.admin.tenant_id, parseInt(req.params.id), req.admin.id);
     res.json(result);
   } catch (error) {
-    console.error('[EXERCICES] Erreur clôture définitive:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[EXERCICES] Erreur réouverture:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 

@@ -1,6 +1,6 @@
 /**
  * Service Exercices Comptables
- * Gestion exercices, périodes, clôtures provisoire/définitive
+ * Gestion exercices, périodes, clôture et réouverture
  */
 
 import { supabase } from '../config/supabase.js';
@@ -65,6 +65,48 @@ export async function createExercice(tenantId, { date_debut, date_fin, code }) {
   }
 
   return { exercice, nb_periodes: periodes.length };
+}
+
+/**
+ * Auto-init : retourne l'exercice courant ou en crée un pour l'année en cours
+ */
+export async function getOuCreerExerciceCourant(tenantId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  // Chercher exercice ouvert
+  const { data: ouvert } = await supabase
+    .from('exercices_comptables')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('statut', 'ouvert')
+    .order('date_debut', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (ouvert) return ouvert;
+
+  // Aucun exercice ouvert — vérifier s'il en existe au moins un
+  const { data: tous } = await supabase
+    .from('exercices_comptables')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .limit(1);
+
+  if (tous && tous.length > 0) {
+    // Des exercices existent mais tous clôturés — pas d'auto-création
+    return null;
+  }
+
+  // Aucun exercice du tout → créer EX-{année courante}
+  const annee = new Date().getFullYear();
+  const code = `EX-${annee}`;
+  const { exercice } = await createExercice(tenantId, {
+    date_debut: `${annee}-01-01`,
+    date_fin: `${annee}-12-31`,
+    code
+  });
+
+  return exercice;
 }
 
 /**
@@ -143,7 +185,7 @@ export async function verrouillerPeriode(tenantId, periode, adminId) {
 }
 
 /**
- * Déverrouille une période comptable (super-admin uniquement)
+ * Déverrouille une période comptable
  */
 export async function deverrouillerPeriode(tenantId, periode, adminId) {
   if (!tenantId) throw new Error('tenant_id requis');
@@ -205,7 +247,7 @@ export async function verifierPreCloture(tenantId, exerciceId) {
   }
 
   if (exercice.statut === 'cloture') {
-    errors.push('Exercice déjà clôturé définitivement');
+    errors.push('Exercice déjà clôturé');
     return { ok: false, warnings, errors };
   }
 
@@ -269,6 +311,69 @@ export async function verifierPreCloture(tenantId, exerciceId) {
     warnings.push(`${periodesOuvertes.length} période(s) non verrouillée(s): ${periodesOuvertes.map(p => p.periode).join(', ')}`);
   }
 
+  // Vérifier clôture RH (provisions CP)
+  const { data: clotureRH } = await supabase
+    .from('rh_cloture_annuelle')
+    .select('statut')
+    .eq('tenant_id', tenantId)
+    .eq('annee', annee)
+    .eq('statut', 'cloturee')
+    .single();
+
+  if (!clotureRH) {
+    warnings.push('Clôture RH non effectuée — provisions CP non comptabilisées');
+  }
+
+  // Vérifier facturation
+  const { data: facturesBrouillon } = await supabase
+    .from('factures')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .gte('date_facture', `${annee}-01-01`)
+    .lte('date_facture', `${annee}-12-31`)
+    .eq('statut', 'brouillon');
+
+  if (facturesBrouillon && facturesBrouillon.length > 0) {
+    warnings.push(`${facturesBrouillon.length} facture(s) en brouillon sur ${annee}`);
+  }
+
+  // Vérifier trous de numérotation (obligation légale)
+  const { data: facturesEmises } = await supabase
+    .from('factures')
+    .select('numero')
+    .eq('tenant_id', tenantId)
+    .gte('date_facture', `${annee}-01-01`)
+    .lte('date_facture', `${annee}-12-31`)
+    .neq('statut', 'brouillon')
+    .order('numero', { ascending: true });
+
+  if (facturesEmises && facturesEmises.length > 1) {
+    const numeros = facturesEmises
+      .map(f => parseInt(f.numero?.replace(/\D/g, '') || '0'))
+      .filter(n => n > 0)
+      .sort((a, b) => a - b);
+
+    for (let i = 1; i < numeros.length; i++) {
+      if (numeros[i] - numeros[i - 1] > 1) {
+        warnings.push(`Trou de numérotation factures détecté entre ${numeros[i - 1]} et ${numeros[i]}`);
+        break;
+      }
+    }
+  }
+
+  // Vérifier factures impayées (créances douteuses)
+  const { data: facturesImpayees } = await supabase
+    .from('factures')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .gte('date_facture', `${annee}-01-01`)
+    .lte('date_facture', `${annee}-12-31`)
+    .in('statut', ['generee', 'envoyee']);
+
+  if (facturesImpayees && facturesImpayees.length > 0) {
+    warnings.push(`${facturesImpayees.length} facture(s) impayée(s) sur ${annee} — vérifier provisions créances douteuses`);
+  }
+
   return {
     ok: errors.length === 0,
     warnings,
@@ -282,9 +387,9 @@ export async function verifierPreCloture(tenantId, exerciceId) {
 }
 
 /**
- * Clôture provisoire — verrouille toutes les périodes, calcule le résultat
+ * Clôturer un exercice — verrouille, calcule résultat, écriture OD, crée N+1, génère AN
  */
-export async function clotureProvisoire(tenantId, exerciceId, adminId) {
+export async function cloturerExercice(tenantId, exerciceId, adminId) {
   if (!tenantId) throw new Error('tenant_id requis');
 
   const { data: exercice } = await supabase
@@ -295,72 +400,18 @@ export async function clotureProvisoire(tenantId, exerciceId, adminId) {
     .single();
 
   if (!exercice) throw new Error('Exercice introuvable');
-  if (exercice.statut === 'cloture') throw new Error('Exercice déjà clôturé définitivement');
-
-  const annee = new Date(exercice.date_debut).getFullYear();
-
-  // Verrouiller toutes les périodes
-  await supabase
-    .from('periodes_comptables')
-    .update({
-      verrouillee: true,
-      date_verrouillage: new Date().toISOString(),
-      verrouille_par: adminId
-    })
-    .eq('tenant_id', tenantId)
-    .eq('exercice_id', exerciceId)
-    .eq('verrouillee', false);
-
-  // Calculer résultat (produits classe 7 - charges classe 6)
-  const resultat = await calculerResultat(tenantId, annee);
-
-  // Mettre à jour l'exercice
-  const { data: updated, error } = await supabase
-    .from('exercices_comptables')
-    .update({
-      statut: 'cloture_provisoire',
-      resultat_net: resultat.montant,
-      resultat_type: resultat.type,
-      updated_at: new Date().toISOString()
-    })
-    .eq('tenant_id', tenantId)
-    .eq('id', exerciceId)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  return {
-    success: true,
-    exercice: updated,
-    resultat: {
-      montant_centimes: resultat.montant,
-      montant_euros: (resultat.montant / 100).toFixed(2),
-      type: resultat.type
-    }
-  };
-}
-
-/**
- * Clôture définitive — génère écriture résultat + à-nouveaux + crée exercice suivant
- */
-export async function clotureDefinitive(tenantId, exerciceId, adminId) {
-  if (!tenantId) throw new Error('tenant_id requis');
-
-  const { data: exercice } = await supabase
-    .from('exercices_comptables')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .eq('id', exerciceId)
-    .single();
-
-  if (!exercice) throw new Error('Exercice introuvable');
-  if (exercice.statut === 'cloture') throw new Error('Exercice déjà clôturé définitivement');
+  if (exercice.statut === 'cloture') throw new Error('Exercice déjà clôturé');
 
   const annee = new Date(exercice.date_debut).getFullYear();
   const dateFinExercice = exercice.date_fin;
 
-  // 1. Verrouiller toutes les périodes
+  // 1. Pré-vérification (écritures équilibrées)
+  const verif = await verifierPreCloture(tenantId, exerciceId);
+  if (!verif.ok) {
+    throw new Error(`Impossible de clôturer : ${verif.errors.join(', ')}`);
+  }
+
+  // 2. Verrouiller toutes les périodes
   await supabase
     .from('periodes_comptables')
     .update({
@@ -372,29 +423,26 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
     .eq('exercice_id', exerciceId)
     .eq('verrouillee', false);
 
-  // 2. Calculer résultat
+  // 3. Calculer résultat (produits classe 7 - charges classe 6)
   const resultat = await calculerResultat(tenantId, annee);
 
-  // 3. Écriture d'affectation du résultat dans journal OD
+  // 4. Écriture OD de clôture (890/120 ou 890/129)
   if (resultat.montant !== 0) {
     const ecritureResultat = [];
     if (resultat.type === 'benefice') {
-      ecritureResultat.push(
-        {
-          tenant_id: tenantId,
-          journal_code: 'OD',
-          date_ecriture: dateFinExercice,
-          numero_piece: `CLOTURE-${annee}`,
-          compte_numero: '120',
-          compte_libelle: 'Résultat de l\'exercice (bénéfice)',
-          libelle: `Affectation résultat exercice ${annee}`,
-          debit: 0,
-          credit: resultat.montant,
-          periode: `${annee}-12`,
-          exercice: annee
-        }
-      );
-      // Contrepartie : solde résultat (somme inversée classes 6+7)
+      ecritureResultat.push({
+        tenant_id: tenantId,
+        journal_code: 'OD',
+        date_ecriture: dateFinExercice,
+        numero_piece: `CLOTURE-${annee}`,
+        compte_numero: '120',
+        compte_libelle: 'Résultat de l\'exercice (bénéfice)',
+        libelle: `Affectation résultat exercice ${annee}`,
+        debit: 0,
+        credit: resultat.montant,
+        periode: `${annee}-12`,
+        exercice: annee
+      });
       ecritureResultat.push({
         tenant_id: tenantId,
         journal_code: 'OD',
@@ -409,21 +457,19 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
         exercice: annee
       });
     } else {
-      ecritureResultat.push(
-        {
-          tenant_id: tenantId,
-          journal_code: 'OD',
-          date_ecriture: dateFinExercice,
-          numero_piece: `CLOTURE-${annee}`,
-          compte_numero: '129',
-          compte_libelle: 'Résultat de l\'exercice (perte)',
-          libelle: `Affectation résultat exercice ${annee}`,
-          debit: Math.abs(resultat.montant),
-          credit: 0,
-          periode: `${annee}-12`,
-          exercice: annee
-        }
-      );
+      ecritureResultat.push({
+        tenant_id: tenantId,
+        journal_code: 'OD',
+        date_ecriture: dateFinExercice,
+        numero_piece: `CLOTURE-${annee}`,
+        compte_numero: '129',
+        compte_libelle: 'Résultat de l\'exercice (perte)',
+        libelle: `Affectation résultat exercice ${annee}`,
+        debit: Math.abs(resultat.montant),
+        credit: 0,
+        periode: `${annee}-12`,
+        exercice: annee
+      });
       ecritureResultat.push({
         tenant_id: tenantId,
         journal_code: 'OD',
@@ -444,7 +490,7 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
       .insert(ecritureResultat);
   }
 
-  // 4. Mettre à jour exercice → clôturé
+  // 5. Mettre à jour exercice → clôturé
   const { data: updated, error } = await supabase
     .from('exercices_comptables')
     .update({
@@ -462,7 +508,7 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
 
   if (error) throw error;
 
-  // 5. Créer exercice suivant s'il n'existe pas
+  // 6. Créer exercice N+1 s'il n'existe pas
   const nextYear = annee + 1;
   const nextCode = `EX-${nextYear}`;
   let exerciceSuivant = null;
@@ -485,9 +531,25 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
     } catch (err) {
       console.error('[EXERCICE] Erreur création exercice suivant:', err.message);
     }
+  } else {
+    // Récupérer l'exercice suivant existant pour le retourner
+    const { data: suivant } = await supabase
+      .from('exercices_comptables')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('id', existant.id)
+      .single();
+    exerciceSuivant = suivant;
   }
 
-  // 6. Générer les à-nouveaux (comptes bilan classes 1-5)
+  // 7. Supprimer les anciens AN de N+1 (idempotent) puis regénérer
+  await supabase
+    .from('ecritures_comptables')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('journal_code', 'AN')
+    .eq('exercice', nextYear);
+
   const anResult = await genererANouveaux(tenantId, annee, nextYear);
 
   // Marquer AN comme générés
@@ -507,6 +569,70 @@ export async function clotureDefinitive(tenantId, exerciceId, adminId) {
     },
     exercice_suivant: exerciceSuivant,
     a_nouveaux: anResult
+  };
+}
+
+/**
+ * Rouvrir un exercice clôturé — déverrouille périodes, supprime écriture OD, remet statut ouvert
+ */
+export async function rouvrirExercice(tenantId, exerciceId, adminId) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  const { data: exercice } = await supabase
+    .from('exercices_comptables')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('id', exerciceId)
+    .single();
+
+  if (!exercice) throw new Error('Exercice introuvable');
+  if (exercice.statut !== 'cloture') throw new Error('Seul un exercice clôturé peut être rouvert');
+
+  const annee = new Date(exercice.date_debut).getFullYear();
+
+  // 1. Déverrouiller toutes les périodes
+  await supabase
+    .from('periodes_comptables')
+    .update({
+      verrouillee: false,
+      date_verrouillage: null,
+      verrouille_par: null
+    })
+    .eq('tenant_id', tenantId)
+    .eq('exercice_id', exerciceId);
+
+  // 2. Supprimer l'écriture OD de clôture (CLOTURE-{annee})
+  await supabase
+    .from('ecritures_comptables')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('numero_piece', `CLOTURE-${annee}`)
+    .eq('exercice', annee);
+
+  // 3. Remettre statut ouvert + reset résultat
+  const { data: updated, error } = await supabase
+    .from('exercices_comptables')
+    .update({
+      statut: 'ouvert',
+      date_cloture: null,
+      cloture_par: null,
+      resultat_net: null,
+      resultat_type: null,
+      an_generes: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('tenant_id', tenantId)
+    .eq('id', exerciceId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Note: on ne touche PAS aux AN de N+1 — ils seront écrasés à la re-clôture
+
+  return {
+    success: true,
+    exercice: updated
   };
 }
 
@@ -544,24 +670,12 @@ async function calculerResultat(tenantId, annee) {
 }
 
 /**
- * Génère les à-nouveaux pour le nouvel exercice
+ * Génère les à-nouveaux pour le nouvel exercice (comptes bilan classes 1-5)
+ * Note: les anciens AN doivent être supprimés AVANT d'appeler cette fonction
  */
 async function genererANouveaux(tenantId, exercicePrecedent, nouvelExercice) {
   const dateAN = `${nouvelExercice}-01-01`;
   const periodeAN = `${nouvelExercice}-01`;
-
-  // Vérifier si déjà générés
-  const { data: existants } = await supabase
-    .from('ecritures_comptables')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('journal_code', 'AN')
-    .eq('exercice', nouvelExercice)
-    .limit(1);
-
-  if (existants && existants.length > 0) {
-    return { nb_ecritures: 0, message: 'À-nouveaux déjà générés' };
-  }
 
   // Agréger par compte
   const { data: ecritures } = await supabase
@@ -611,15 +725,11 @@ async function genererANouveaux(tenantId, exercicePrecedent, nouvelExercice) {
     }
   });
 
-  // Note: le résultat est déjà comptabilisé via l'écriture de clôture (120/129)
-  // Les AN des comptes 120/129 seront repris par les comptes bilan
-
-  // Vérifier équilibre
+  // Vérifier équilibre et ajuster
   const totalDebit = ecrituresAN.reduce((s, e) => s + e.debit, 0);
   const totalCredit = ecrituresAN.reduce((s, e) => s + e.credit, 0);
 
   if (totalDebit !== totalCredit) {
-    // Ajuster par le résultat pour équilibrer
     const diff = totalDebit - totalCredit;
     if (diff > 0) {
       ecrituresAN.push({
@@ -665,6 +775,7 @@ async function genererANouveaux(tenantId, exercicePrecedent, nouvelExercice) {
 
 export default {
   createExercice,
+  getOuCreerExerciceCourant,
   listExercices,
   getExerciceOuvert,
   isPeriodeVerrouillee,
@@ -672,6 +783,6 @@ export default {
   deverrouillerPeriode,
   listPeriodes,
   verifierPreCloture,
-  clotureProvisoire,
-  clotureDefinitive
+  cloturerExercice,
+  rouvrirExercice
 };

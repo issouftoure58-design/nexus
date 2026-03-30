@@ -22,6 +22,12 @@ import { streamPayslipPDF } from '../services/payslipPdfGenerator.js';
 import conventionService from '../services/conventionService.js';
 import regularisationService from '../services/regularisationService.js';
 import dsnWorkflowService from '../services/dsnWorkflowService.js';
+import {
+  verifierPreClotureRH,
+  cloturerRH,
+  rouvrirClotureRH,
+  getStatutClotureRH
+} from '../services/clotureRHService.js';
 
 const router = express.Router();
 
@@ -6189,6 +6195,72 @@ router.post('/membres/:id/disable-portal', authenticateAdmin, async (req, res) =
   } catch (error) {
     console.error('[RH PORTAL] Erreur desactivation:', error);
     res.status(500).json({ error: 'Erreur desactivation portail' });
+  }
+});
+
+// ===== CLOTURE ANNUELLE RH =====
+
+// Statut clôture RH pour une année
+router.get('/cloture/:annee/status', async (req, res) => {
+  try {
+    const { tenantId } = req;
+    const annee = parseInt(req.params.annee);
+    if (!annee || annee < 2020 || annee > 2100) {
+      return res.status(400).json({ error: 'Année invalide' });
+    }
+    const data = await getStatutClotureRH(tenantId, annee);
+    res.json({ cloture: data });
+  } catch (error) {
+    console.error('[RH CLOTURE] Erreur status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Pré-vérifications avant clôture
+router.get('/cloture/:annee/verifications', async (req, res) => {
+  try {
+    const { tenantId } = req;
+    const annee = parseInt(req.params.annee);
+    if (!annee || annee < 2020 || annee > 2100) {
+      return res.status(400).json({ error: 'Année invalide' });
+    }
+    const result = await verifierPreClotureRH(tenantId, annee);
+    res.json(result);
+  } catch (error) {
+    console.error('[RH CLOTURE] Erreur vérifications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Exécuter la clôture RH
+router.post('/cloture/:annee/executer', async (req, res) => {
+  try {
+    const { tenantId, adminId } = req;
+    const annee = parseInt(req.params.annee);
+    if (!annee || annee < 2020 || annee > 2100) {
+      return res.status(400).json({ error: 'Année invalide' });
+    }
+    const result = await cloturerRH(tenantId, annee, adminId);
+    res.json(result);
+  } catch (error) {
+    console.error('[RH CLOTURE] Erreur clôture:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Rouvrir une clôture RH
+router.post('/cloture/:annee/rouvrir', async (req, res) => {
+  try {
+    const { tenantId, adminId } = req;
+    const annee = parseInt(req.params.annee);
+    if (!annee || annee < 2020 || annee > 2100) {
+      return res.status(400).json({ error: 'Année invalide' });
+    }
+    const result = await rouvrirClotureRH(tenantId, annee, adminId);
+    res.json(result);
+  } catch (error) {
+    console.error('[RH CLOTURE] Erreur réouverture:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 

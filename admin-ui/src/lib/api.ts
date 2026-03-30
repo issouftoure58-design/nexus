@@ -893,9 +893,6 @@ export const comptaApi = {
   getExerciceCourant: () =>
     api.get<{ exercice: ExerciceComptable | null }>('/exercices/courant'),
 
-  creerExercice: (data: { date_debut: string; date_fin: string; code: string }) =>
-    api.post<{ success: boolean; exercice: ExerciceComptable; nb_periodes: number }>('/exercices', data),
-
   getPeriodesExercice: (exerciceId: number) =>
     api.get<{ periodes: PeriodeComptable[] }>(`/exercices/${exerciceId}/periodes`),
 
@@ -908,11 +905,11 @@ export const comptaApi = {
   verifierPreCloture: (exerciceId: number) =>
     api.get<PreClotureResult>(`/exercices/${exerciceId}/pre-cloture`),
 
-  clotureProvisoire: (exerciceId: number) =>
-    api.post<ClotureResult>(`/exercices/${exerciceId}/cloture-provisoire`),
+  cloturerExercice: (exerciceId: number) =>
+    api.post<ClotureResult>(`/exercices/${exerciceId}/cloturer`),
 
-  clotureDefinitive: (exerciceId: number) =>
-    api.post<ClotureResult>(`/exercices/${exerciceId}/cloture-definitive`),
+  rouvrirExercice: (exerciceId: number) =>
+    api.post<{ success: boolean; exercice: ExerciceComptable }>(`/exercices/${exerciceId}/rouvrir`),
 
   // Import comptable
   importFEC: (file: File) => {
@@ -1041,7 +1038,7 @@ export interface ExerciceComptable {
   code: string;
   date_debut: string;
   date_fin: string;
-  statut: 'ouvert' | 'cloture_provisoire' | 'cloture';
+  statut: 'ouvert' | 'cloture';
   date_cloture?: string;
   cloture_par?: string;
   resultat_net: number;
