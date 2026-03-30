@@ -57,7 +57,7 @@ const formatMoney = (centimes: number) =>
 
 export default function ClotureAnnuelleRH() {
   const currentYear = new Date().getFullYear();
-  const [annee, setAnnee] = useState(currentYear - 1);
+  const [annee, setAnnee] = useState(currentYear);
   const [step, setStep] = useState(0); // 0=verif, 1=apercu, 2=execution, 3=termine
   const [confirmed, setConfirmed] = useState(false);
   const queryClient = useQueryClient();
@@ -110,7 +110,7 @@ export default function ClotureAnnuelleRH() {
   });
 
   const cloture = statusData?.cloture;
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 1 - i);
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   if (loadingStatus) {
     return (

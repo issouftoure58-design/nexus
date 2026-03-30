@@ -34,6 +34,17 @@
 ║      → Relis-le à chaque nouvelle session                                   ║
 ║      → Ces règles sont non-négociables                                      ║
 ║                                                                              ║
+║   6. MÉMOIRE CONTINUE — LOI ABSOLUE                                         ║
+║      → EN DEBUT DE SESSION : lire memory/roadmap-features.md                ║
+║      → Quand l'utilisateur mentionne une feature future, un plan,          ║
+║        une idée, un module à faire → ÉCRIRE IMMÉDIATEMENT dans             ║
+║        memory/roadmap-features.md AVANT de répondre                         ║
+║      → Quand on termine une feature planifiée → la cocher [x]              ║
+║      → JAMAIS remettre l'écriture mémoire à plus tard                      ║
+║      → JAMAIS attendre la fin de session pour noter                         ║
+║      → Si l'utilisateur dit "note ça" → écrire + confirmer                 ║
+║      → En cas de doute, NOTER QUAND MÊME (mieux vaut trop que pas assez)   ║
+║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
