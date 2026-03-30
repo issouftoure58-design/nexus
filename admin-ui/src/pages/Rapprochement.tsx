@@ -102,7 +102,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
   const bankFileInputRef = useRef<HTMLInputElement>(null);
 
   // Query pour les écritures du journal banque (BQ) filtrées par période
-  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number; mouvement_mois?: { debit: number; credit: number; solde: number } }>({
+  const { data: ecrituresBanqueData, isLoading: ecrituresBanqueLoading, isFetching: ecrituresBanqueFetching, refetch: refetchEcrituresBanque } = useQuery<{ ecritures: EcritureComptable[]; solde_comptable: number; solde_non_rapproche_cumul?: number; mouvement_mois?: { debit: number; credit: number; solde: number } }>({
     queryKey: ['ecritures-banque', periodeISO],
     queryFn: () => comptaApi.getEcrituresBanque(periodeISO ? { periode: periodeISO } : undefined),
     enabled: periodeSelectionnee,
@@ -231,12 +231,12 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
     return (debit - credit) / 100;
   }, [ecrituresNonRapprochees]);
 
-  // Solde des écritures rapprochées
+  // Solde rapproché = Solde 512 cumulé − Non rapproché cumulé (toutes périodes)
+  // Le non rapproché des mois précédents se reporte → solde rapproché = solde relevé bancaire
+  const soldeNonRapprocheCumul = ecrituresBanqueData?.solde_non_rapproche_cumul ?? soldeNonRapproche;
   const soldeRapproche = useMemo(() => {
-    const debit = ecrituresRapprochees.reduce((s, e) => s + (e.debit || 0), 0);
-    const credit = ecrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0);
-    return (debit - credit) / 100;
-  }, [ecrituresRapprochees]);
+    return Math.round((soldeComptable.solde - soldeNonRapprocheCumul) * 100) / 100;
+  }, [soldeComptable, soldeNonRapprocheCumul]);
 
   const [releveLoading, setReleveLoading] = useState(false);
   const [releveBanque, setReleveBanque] = useState<string | null>(null);
@@ -1177,9 +1177,10 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 <p className="text-2xl font-bold text-green-700">{formatCurrency(soldeRapproche)}</p>
               </div>
               <div className="text-center px-6 border-l border-blue-200">
-                <p className="text-xs text-gray-500 mb-2">Relevé − Rapproché</p>
-                {soldeBancaire !== null ? (
-                  Math.abs(soldeBancaire - soldeRapproche) < 0.01 ? (
+                <p className="text-xs text-gray-500 mb-2">Relevé – Rapproché</p>
+                {soldeBancaire !== null ? (() => {
+                  const ecart = Math.round((soldeBancaire - soldeRapproche) * 100) / 100;
+                  return Math.abs(ecart) < 0.01 ? (
                     <div className="text-emerald-600">
                       <CheckCircle className="h-6 w-6 mx-auto mb-1" />
                       <p className="text-lg font-bold">0,00 €</p>
@@ -1188,11 +1189,11 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   ) : (
                     <div className="text-orange-600">
                       <AlertTriangle className="h-6 w-6 mx-auto mb-1" />
-                      <p className="text-lg font-bold">{formatCurrency(soldeBancaire - soldeRapproche)}</p>
+                      <p className="text-lg font-bold">{formatCurrency(ecart)}</p>
                       <p className="text-xs">Écart à justifier</p>
                     </div>
-                  )
-                ) : (
+                  );
+                })() : (
                   <div className="text-gray-400">
                     <p className="text-lg font-bold">—</p>
                     <p className="text-xs">En attente du relevé</p>

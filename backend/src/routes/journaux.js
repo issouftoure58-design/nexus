@@ -264,6 +264,26 @@ router.get('/ecritures/banque', async (req, res) => {
     const mouvementDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
     const mouvementCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
 
+    // Solde non rapproché cumulatif (toutes écritures 512/BQ sans lettrage, toutes périodes ≤ courante)
+    // Le non rapproché des mois précédents se reporte sur le mois suivant
+    let soldeNonRapprocheCumul = 0;
+    if (periode) {
+      const { data: nonRapproCumul, error: errNR } = await supabase
+        .from('ecritures_comptables')
+        .select('debit, credit')
+        .eq('tenant_id', req.admin.tenant_id)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .is('lettrage', null)
+        .lte('periode', periode);
+
+      if (!errNR && nonRapproCumul) {
+        const nrDebit = nonRapproCumul.reduce((s, e) => s + (e.debit || 0), 0);
+        const nrCredit = nonRapproCumul.reduce((s, e) => s + (e.credit || 0), 0);
+        soldeNonRapprocheCumul = (nrDebit - nrCredit) / 100;
+      }
+    }
+
     res.json({
       ecritures: ecritures?.map(e => ({
         ...e,
@@ -271,6 +291,7 @@ router.get('/ecritures/banque', async (req, res) => {
         credit_euros: (e.credit / 100).toFixed(2)
       })) || [],
       solde_comptable: soldeCumulatif, // Solde cumulatif
+      solde_non_rapproche_cumul: soldeNonRapprocheCumul, // Non rapproché cumulé (report mois précédents)
       mouvement_mois: {
         debit: mouvementDebit / 100,
         credit: mouvementCredit / 100,
@@ -3615,10 +3636,10 @@ router.post('/rapprochement-auto', async (req, res) => {
       else if (slashMatch) periodeISO = `${slashMatch[2]}-${slashMatch[1]}`;
     }
 
-    // 1. Récupérer TOUTES les écritures BQ/512 non lettrées du tenant (pas de filtre période)
-    // Un chèque de novembre peut être encaissé en février, un virement peut arriver des mois après.
-    // Le matching se fait sur le montant exact, pas sur la période de l'écriture.
-    const { data: ecrituresBQ, error: errBQ } = await supabase
+    // 1. Récupérer les écritures BQ/512 non lettrées du tenant (périodes ≤ courante)
+    // Un chèque de novembre peut être encaissé en décembre → pas de filtre période basse.
+    // Mais on ne peut pas voir les écritures FUTURES (janvier ne peut pas apparaître en décembre).
+    let queryBQ = supabase
       .from('ecritures_comptables')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -3626,6 +3647,12 @@ router.post('/rapprochement-auto', async (req, res) => {
       .eq('compte_numero', '512')
       .is('lettrage', null)
       .order('date_ecriture', { ascending: true });
+
+    if (periodeISO) {
+      queryBQ = queryBQ.lte('periode', periodeISO);
+    }
+
+    const { data: ecrituresBQ, error: errBQ } = await queryBQ;
 
     if (errBQ) throw errBQ;
 
