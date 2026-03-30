@@ -3740,9 +3740,17 @@ router.post('/rapprochement-auto', async (req, res) => {
         const montantCompta = Number(isCredit ? (ec.debit || 0) : (ec.credit || 0));
         if (montantCompta !== txMontant) continue;
 
-        // Montant exact trouvé → candidat. Date = scoring uniquement (jamais rejet).
-        // Un client peut payer des mois/années après la facture.
+        // Rejet des écritures FUTURES : une écriture compta ne peut pas être pointée
+        // avec une transaction bancaire antérieure (la facture n'existait pas encore)
         const ecDate = parseDate(ec.date_ecriture);
+        if (txDate && ecDate && ecDate > txDate) {
+          // Tolérance de 3 jours (décalage week-end/jours fériés)
+          const joursAvance = Math.round((ecDate - txDate) / (1000 * 60 * 60 * 24));
+          if (joursAvance > 3) continue;
+        }
+
+        // Montant exact + date compta ≤ date relevé → candidat.
+        // Un client peut payer des mois/années après la facture (passé OK, futur NON).
         const jours = diffJours(txDate, ecDate);
 
         let score = 100; // montant exact = toujours candidat
