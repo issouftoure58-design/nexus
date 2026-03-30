@@ -418,6 +418,33 @@ router.post('/ecritures/pointer', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/journaux/ecritures/depointage
+ * Dérapprocher des écritures (supprimer le lettrage)
+ */
+router.post('/ecritures/depointage', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || ids.length === 0) {
+      return res.status(400).json({ error: 'Aucune écriture sélectionnée' });
+    }
+
+    const { error } = await supabase
+      .from('ecritures_comptables')
+      .update({ lettrage: null, date_lettrage: null })
+      .in('id', ids)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+
+    res.json({ success: true, count: ids.length });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur dépointage:', error);
+    res.status(500).json({ error: 'Erreur dépointage écritures' });
+  }
+});
+
 // ============================================
 // GÉNÉRATION AUTOMATIQUE DES ÉCRITURES
 // ============================================

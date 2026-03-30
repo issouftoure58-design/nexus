@@ -1586,6 +1586,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                           </select>
                         </th>
                         <th className="text-center py-2 px-3 text-gray-600">Code</th>
+                        <th className="text-center py-2 px-3 text-gray-600 w-10"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1605,6 +1606,25 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                               {e.lettrage}
                             </span>
                           </td>
+                          <td className="py-1 px-2 text-center">
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Dérapprocher « ${e.libelle} » ?`)) return;
+                                try {
+                                  await comptaApi.depointerEcritures([e.id]);
+                                  refetchEcrituresBanque();
+                                } catch (err) {
+                                  console.error('Erreur dépointage:', err);
+                                  alert('Erreur lors du dépointage');
+                                }
+                              }}
+                              className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50"
+                              title="Dérapprocher cette écriture"
+                              aria-label="Dérapprocher cette écriture"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1619,6 +1639,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         <td className="py-2 px-3 text-right text-red-600">
                           {formatCurrency(filteredEcrituresRapprochees.reduce((s, e) => s + (e.credit || 0), 0) / 100)}
                         </td>
+                        <td></td>
                         <td></td>
                       </tr>
                     </tfoot>

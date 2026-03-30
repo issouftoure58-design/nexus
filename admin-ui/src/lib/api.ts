@@ -698,6 +698,7 @@ export const comptaApi = {
       });
   },
   pointerEcritures: (ids: number[], lettrage?: string) => api.post<{ success: boolean }>('/journaux/ecritures/pointer', { ids, lettrage }),
+  depointerEcritures: (ids: number[]) => api.post<{ success: boolean; count: number }>('/journaux/ecritures/depointage', { ids }),
   rapprochementAuto: (data: {
     transactions: Array<{ date: string; libelle: string; debit: number; credit: number; montant?: number; type: string }>;
     solde_debut: number | null;
