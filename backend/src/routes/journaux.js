@@ -220,24 +220,60 @@ router.get('/ecritures/banque', async (req, res) => {
   try {
     const { periode, non_pointees } = req.query;
 
-    let query = supabase
-      .from('ecritures_comptables')
-      .select('*')
-      .eq('tenant_id', req.admin.tenant_id)
-      .eq('journal_code', 'BQ')
-      .eq('compte_numero', '512')
-      .order('date_ecriture', { ascending: false });
+    // Écritures rapprochées (avec lettrage) : période courante seulement
+    // Écritures à rapprocher (sans lettrage) : toutes périodes ≤ courante (report suspens)
+    let ecritures = [];
 
     if (periode) {
-      query = query.eq('periode', periode);
-    }
-    if (non_pointees === 'true') {
-      query = query.is('lettrage', null);
-    }
+      // 1. Rapprochées du mois courant
+      const { data: rapprochees, error: err1 } = await supabase
+        .from('ecritures_comptables')
+        .select('*')
+        .eq('tenant_id', req.admin.tenant_id)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .eq('periode', periode)
+        .not('lettrage', 'is', null)
+        .order('date_ecriture', { ascending: false });
+      if (err1) throw err1;
 
-    const { data: ecritures, error } = await query;
+      // 2. Non rapprochées de toutes périodes ≤ courante (suspens cumulés)
+      let queryNR = supabase
+        .from('ecritures_comptables')
+        .select('*')
+        .eq('tenant_id', req.admin.tenant_id)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .is('lettrage', null)
+        .lte('periode', periode)
+        .order('date_ecriture', { ascending: false });
 
-    if (error) throw error;
+      if (non_pointees === 'true') {
+        // Déjà filtré par lettrage null ci-dessus
+      }
+
+      const { data: nonRapprochees, error: err2 } = await queryNR;
+      if (err2) throw err2;
+
+      ecritures = [...(rapprochees || []), ...(nonRapprochees || [])];
+    } else {
+      // Sans période : tout retourner
+      let query = supabase
+        .from('ecritures_comptables')
+        .select('*')
+        .eq('tenant_id', req.admin.tenant_id)
+        .eq('journal_code', 'BQ')
+        .eq('compte_numero', '512')
+        .order('date_ecriture', { ascending: false });
+
+      if (non_pointees === 'true') {
+        query = query.is('lettrage', null);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      ecritures = data || [];
+    }
 
     // Calculer le solde CUMULATIF (toutes les écritures jusqu'à la période incluse)
     let queryCumulatif = supabase
@@ -260,29 +296,16 @@ router.get('/ecritures/banque', async (req, res) => {
       soldeCumulatif = (totalDebit - totalCredit) / 100;
     }
 
-    // Calculer le mouvement du mois (pour info)
-    const mouvementDebit = ecritures?.reduce((s, e) => s + (e.debit || 0), 0) || 0;
-    const mouvementCredit = ecritures?.reduce((s, e) => s + (e.credit || 0), 0) || 0;
+    // Calculer le mouvement du mois (seulement les écritures de la période courante)
+    const ecrituresMois = periode ? ecritures.filter(e => e.periode === periode) : ecritures;
+    const mouvementDebit = ecrituresMois.reduce((s, e) => s + (e.debit || 0), 0);
+    const mouvementCredit = ecrituresMois.reduce((s, e) => s + (e.credit || 0), 0);
 
-    // Solde non rapproché cumulatif (toutes écritures 512/BQ sans lettrage, toutes périodes ≤ courante)
-    // Le non rapproché des mois précédents se reporte sur le mois suivant
-    let soldeNonRapprocheCumul = 0;
-    if (periode) {
-      const { data: nonRapproCumul, error: errNR } = await supabase
-        .from('ecritures_comptables')
-        .select('debit, credit')
-        .eq('tenant_id', req.admin.tenant_id)
-        .eq('journal_code', 'BQ')
-        .eq('compte_numero', '512')
-        .is('lettrage', null)
-        .lte('periode', periode);
-
-      if (!errNR && nonRapproCumul) {
-        const nrDebit = nonRapproCumul.reduce((s, e) => s + (e.debit || 0), 0);
-        const nrCredit = nonRapproCumul.reduce((s, e) => s + (e.credit || 0), 0);
-        soldeNonRapprocheCumul = (nrDebit - nrCredit) / 100;
-      }
-    }
+    // Solde non rapproché cumulatif — calculé directement depuis les écritures déjà récupérées
+    const ecrituresNonRapprochees = ecritures.filter(e => !e.lettrage);
+    const nrDebit = ecrituresNonRapprochees.reduce((s, e) => s + (e.debit || 0), 0);
+    const nrCredit = ecrituresNonRapprochees.reduce((s, e) => s + (e.credit || 0), 0);
+    const soldeNonRapprocheCumul = (nrDebit - nrCredit) / 100;
 
     res.json({
       ecritures: ecritures?.map(e => ({
