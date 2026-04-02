@@ -264,13 +264,13 @@ export const TOOLS_CLIENT = [
   },
   {
     name: "get_upcoming_days",
-    description: "OBLIGATOIRE pour les disponibilités : Retourne les prochains jours avec leurs dates EXACTES et horaires. Utilise cet outil AVANT de parler des disponibilités.",
+    description: "OBLIGATOIRE pour les disponibilités : Retourne les prochains jours avec leurs dates EXACTES et horaires. Utilise cet outil AVANT de parler des disponibilités. IMPORTANT : si le client demande une date dans plus de 2 semaines (mois prochain, juin, juillet...), utilise nb_jours=60 pour voir plus loin.",
     input_schema: {
       type: "object",
       properties: {
         nb_jours: {
           type: "integer",
-          description: "Nombre de jours à retourner (défaut: 14, max: 60)"
+          description: "Nombre de jours à retourner (défaut: 14, max: 60). Utiliser 30 pour le mois en cours, 60 pour le mois suivant ou dates éloignées."
         }
       },
       required: []
