@@ -2444,7 +2444,17 @@ async function enrichTenantWithAgent(tenantId, tenantConfig) {
       .eq('agent_type', 'reception')
       .eq('active', true)
       .single();
-    if (agent?.custom_name) tenantConfig.assistantName = agent.custom_name;
+    // Seul un custom_name explicite (non-générique) override le nom statique du tenant.
+    // Si ai_agents.custom_name est le défaut 'Nexus' et que le tenant a déjà un nom spécifique
+    // (ex: 'Halimah' dans fatshairafro.js), on conserve le nom du tenant.
+    if (agent?.custom_name) {
+      const hasSpecificName = tenantConfig.assistantName && tenantConfig.assistantName !== 'Nexus';
+      const isGenericDefault = agent.custom_name === 'Nexus';
+      if (!isGenericDefault || !hasSpecificName) {
+        tenantConfig.assistantName = agent.custom_name;
+        tenantConfig.assistant_name = agent.custom_name; // Also set snake_case for getEffectiveConfig()
+      }
+    }
     if (agent?.greeting_message) tenantConfig.greetingMessage = agent.greeting_message;
     if (agent?.tone) tenantConfig.agentTone = agent.tone;
   } catch (_) { /* fallback to static config */ }

@@ -129,7 +129,7 @@ export async function getEffectiveConfig(tenantConfig) {
     name: tenantConfig.name,
     slug: tenantConfig.slug,
     domain: tenantConfig.domain,
-    assistantName: tenantConfig.assistant_name || tenantConfig.assistantName || 'Nexus',
+    assistantName: tenantConfig.assistantName || (tenantConfig.assistant_name !== 'Nexus' && tenantConfig.assistant_name) || 'Nexus',
     assistantGender: tenantConfig.assistant_gender || 'F', // F = feminine, M = masculine
     gerante: tenantConfig.gerante,
     telephone: tenantConfig.telephone,

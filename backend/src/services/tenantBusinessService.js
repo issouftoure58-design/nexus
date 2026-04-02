@@ -170,7 +170,7 @@ export async function getBusinessInfo(tenantId) {
 
     // Assistant IA
     assistant: {
-      name: dbConfig?.assistant_name || assistantConfig?.name || 'Nexus',
+      name: dbConfig?.assistant_name || staticConfig?.assistantName || assistantConfig?.name || 'Nexus',
       voiceId: assistantConfig?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
       personality: assistantConfig?.personality || 'friendly',
       language: assistantConfig?.language || 'fr'
@@ -252,7 +252,7 @@ export function getBusinessInfoSync(tenantId) {
       reviews: urlsConfig?.reviews || '/avis'
     },
     assistant: {
-      name: dbConfig?.assistant_name || assistantConfig?.name || 'Nexus',
+      name: dbConfig?.assistant_name || staticConfig?.assistantName || assistantConfig?.name || 'Nexus',
       voiceId: assistantConfig?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
       personality: assistantConfig?.personality || 'friendly',
       language: assistantConfig?.language || 'fr'

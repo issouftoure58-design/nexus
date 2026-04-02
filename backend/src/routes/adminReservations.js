@@ -1116,6 +1116,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     const { lignes } = req.body;
     let updatedLignes = [];
     let prixTotalRecalcule = 0;
+    let priceWasRecalculated = false;
 
     if (lignes && Array.isArray(lignes) && lignes.length > 0) {
       console.log(`[ADMIN EDIT] Mise à jour de ${lignes.length} lignes pour réservation ${req.params.id}`);
@@ -1149,7 +1150,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           continue;
         }
 
-        console.log(`[ADMIN EDIT] Ligne ${ligne.id} (${currentLigne.service_nom}): prix_unitaire=${currentLigne.prix_unitaire/100}€/h`);
+        console.log(`[ADMIN EDIT] Ligne ${ligne.id} (${currentLigne.service_nom}): prix_unitaire=${currentLigne.prix_unitaire/100}€`);
 
         const ligneUpdate = {};
 
@@ -1162,7 +1163,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           ligneUpdate.heure_fin = ligne.heure_fin ? ligne.heure_fin.slice(0, 5) : null;
         }
 
-        // Recalculer la durée et le prix si les deux heures sont fournies
+        // Recalculer la durée si les deux heures sont fournies
         const heureDebut = ligneUpdate.heure_debut || currentLigne.heure_debut;
         const heureFin = ligneUpdate.heure_fin || currentLigne.heure_fin;
 
@@ -1173,16 +1174,33 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           if (dureeMins < 0) dureeMins += 24 * 60; // Passage minuit
           ligneUpdate.duree_minutes = dureeMins;
 
-          // Recalculer le prix : prix_unitaire = taux horaire
-          // nouveau_prix_total = prix_unitaire × nouvelles_heures
-          const quantite = currentLigne.quantite || 1;
-          const heures = dureeMins / 60;
-          const tauxHoraire = currentLigne.prix_unitaire; // Le taux horaire en centimes
+          // Recalculer le prix UNIQUEMENT pour les services en tarification horaire
+          // Pour les services à prix fixe, prix_total = prix_unitaire × quantite (pas × heures)
+          let isHourlyService = false;
+          if (currentLigne.service_id) {
+            const { data: svcInfo } = await supabase
+              .from('services')
+              .select('pricing_mode, taux_horaire')
+              .eq('id', currentLigne.service_id)
+              .eq('tenant_id', tenantId)
+              .single();
+            isHourlyService = svcInfo?.pricing_mode === 'hourly' || (svcInfo?.taux_horaire > 0);
+          }
+          // Services from businessRules.js (service_id = null) are always fixed-price
 
-          if (tauxHoraire) {
-            const nouveauPrix = Math.round(tauxHoraire * heures);
-            ligneUpdate.prix_total = nouveauPrix * quantite;
-            console.log(`[ADMIN EDIT] Ligne ${ligne.id}: ${heures}h x ${tauxHoraire/100}€/h = ${ligneUpdate.prix_total/100}€`);
+          if (isHourlyService) {
+            const quantite = currentLigne.quantite || 1;
+            const heures = dureeMins / 60;
+            const tauxHoraire = currentLigne.prix_unitaire; // Taux horaire en centimes
+
+            if (tauxHoraire) {
+              const nouveauPrix = Math.round(tauxHoraire * heures);
+              ligneUpdate.prix_total = nouveauPrix * quantite;
+              priceWasRecalculated = true;
+              console.log(`[ADMIN EDIT] Ligne ${ligne.id} (horaire): ${heures}h x ${tauxHoraire/100}€/h = ${ligneUpdate.prix_total/100}€`);
+            }
+          } else {
+            console.log(`[ADMIN EDIT] Ligne ${ligne.id} (prix fixe): prix_total inchangé (${currentLigne.prix_total/100}€)`);
           }
         }
 
@@ -1206,7 +1224,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         }
       }
 
-      // Recalculer la durée totale et le prix total de la réservation
+      // Recalculer la durée totale et le prix total UNIQUEMENT si un prix a changé
       const { data: allLignes } = await supabase
         .from('reservation_lignes')
         .select('duree_minutes, quantite, prix_total')
@@ -1214,60 +1232,74 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         .eq('tenant_id', tenantId);
 
       if (allLignes && allLignes.length > 0) {
+        // Toujours mettre à jour la durée totale
         const dureeTotale = allLignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0);
-        prixTotalRecalcule = allLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
 
-        // Ajouter les frais de déplacement existants
-        const fraisDeplacement = currentRdv.frais_deplacement || 0;
-        const prixHT = prixTotalRecalcule + fraisDeplacement;
-        const prixTTC = Math.round(prixHT * 1.2); // TVA 20%
+        if (priceWasRecalculated) {
+          // Recalculer le prix total seulement si des lignes horaires ont changé
+          prixTotalRecalcule = allLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
+          const fraisDeplacement = currentRdv.frais_deplacement || 0;
+          const prixHT = prixTotalRecalcule + fraisDeplacement;
+          const prixTTC = Math.round(prixHT * 1.2); // TVA 20% (mode horaire)
 
-        await supabase
-          .from('reservations')
-          .update({
-            duree_minutes: dureeTotale,
-            prix_total: prixTTC // Stocker le TTC
-          })
-          .eq('id', req.params.id)
-          .eq('tenant_id', tenantId);
+          await supabase
+            .from('reservations')
+            .update({
+              duree_minutes: dureeTotale,
+              prix_total: prixTTC
+            })
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId);
 
-        console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
+          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
+        } else {
+          // Prix fixe: mettre à jour seulement la durée, pas le prix
+          await supabase
+            .from('reservations')
+            .update({ duree_minutes: dureeTotale })
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId);
 
-        // Auto-ajustement facture si prix a changé
-        const { data: factureAjust } = await supabase
-          .from('factures')
-          .select('id, numero, statut, montant_ttc, type, avoir_emis')
-          .eq('reservation_id', req.params.id)
-          .eq('tenant_id', tenantId)
-          .eq('type', 'facture')
-          .eq('avoir_emis', false)
-          .single();
+          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min (prix inchangé — tarification fixe)`);
+        }
 
-        if (factureAjust && ['generee', 'envoyee', 'payee'].includes(factureAjust.statut)) {
-          const oldTTC = factureAjust.montant_ttc;
-          if (prixTTC !== oldTTC && prixTTC > 0) {
-            if (prixTTC < oldTTC) {
-              // Baisse de prix → avoir partiel automatique
-              const diff = oldTTC - prixTTC;
-              const result = await createAvoirPartiel(tenantId, factureAjust.id, diff,
-                `Correction prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTTC/100).toFixed(2)}€`);
-              if (result.success) {
-                facture = { ...factureAjust, avoirPartiel: result.avoir };
-                console.log(`[ADMIN EDIT] Avoir partiel auto: ${result.avoir.numero} (-${(diff/100).toFixed(2)}€)`);
-              }
-            } else {
-              // Hausse de prix → facture complémentaire automatique
-              const diff = prixTTC - oldTTC;
-              const result = await createFactureComplementaire(tenantId, factureAjust.id, diff,
-                `Augmentation prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTTC/100).toFixed(2)}€`);
-              if (result.success) {
-                facture = { ...factureAjust, complement: result.facture };
-                console.log(`[ADMIN EDIT] Facture complémentaire auto: ${result.facture.numero} (+${(diff/100).toFixed(2)}€)`);
+        // Auto-ajustement facture si prix a changé (seulement en mode horaire)
+        if (priceWasRecalculated) {
+          const { data: factureAjust } = await supabase
+            .from('factures')
+            .select('id, numero, statut, montant_ttc, type, avoir_emis')
+            .eq('reservation_id', req.params.id)
+            .eq('tenant_id', tenantId)
+            .eq('type', 'facture')
+            .eq('avoir_emis', false)
+            .single();
+
+          if (factureAjust && ['generee', 'envoyee', 'payee'].includes(factureAjust.statut)) {
+            const oldTTC = factureAjust.montant_ttc;
+            if (prixTotalRecalcule !== oldTTC && prixTotalRecalcule > 0) {
+              if (prixTotalRecalcule < oldTTC) {
+                // Baisse de prix → avoir partiel automatique
+                const diff = oldTTC - prixTotalRecalcule;
+                const result = await createAvoirPartiel(tenantId, factureAjust.id, diff,
+                  `Correction prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTotalRecalcule/100).toFixed(2)}€`);
+                if (result.success) {
+                  facture = { ...factureAjust, avoirPartiel: result.avoir };
+                  console.log(`[ADMIN EDIT] Avoir partiel auto: ${result.avoir.numero} (-${(diff/100).toFixed(2)}€)`);
+                }
+              } else {
+                // Hausse de prix → facture complémentaire automatique
+                const diff = prixTotalRecalcule - oldTTC;
+                const result = await createFactureComplementaire(tenantId, factureAjust.id, diff,
+                  `Augmentation prix: ${(oldTTC/100).toFixed(2)}€ → ${(prixTotalRecalcule/100).toFixed(2)}€`);
+                if (result.success) {
+                  facture = { ...factureAjust, complement: result.facture };
+                  console.log(`[ADMIN EDIT] Facture complémentaire auto: ${result.facture.numero} (+${(diff/100).toFixed(2)}€)`);
+                }
               }
             }
+          } else {
+            console.log(`[ADMIN EDIT] Pas de facture émise à ajuster`);
           }
-        } else {
-          console.log(`[ADMIN EDIT] Pas de facture émise à ajuster`);
         }
       }
     }

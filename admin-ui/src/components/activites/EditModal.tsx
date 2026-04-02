@@ -340,6 +340,12 @@ export default function EditModal({
                       onChange={(e) => onEditFormChange({ ...editForm, service_nom: e.target.value })}
                       className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     >
+                      {/* Include current service_nom if it doesn't match any DB service (IA-created reservations) */}
+                      {editForm.service_nom && !services.some(s => s.nom === editForm.service_nom) && (
+                        <option value={editForm.service_nom}>
+                          {editForm.service_nom} (actuel)
+                        </option>
+                      )}
                       {services.filter(s => s.actif !== false).map((s) => (
                         <option key={s.id} value={s.nom}>
                           {s.nom} — {(s.prix / 100).toFixed(0)}€ ({s.duree_minutes}min)
