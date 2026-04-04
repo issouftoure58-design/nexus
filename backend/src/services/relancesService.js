@@ -391,7 +391,7 @@ export async function envoyerRelance(facture, niveau, tenantId) {
   if (config.canaux.includes('email') && facture.client_email && resend) {
     try {
       const { subject, html } = genererEmailRelance(facture, niveau, tenantConfig);
-      const fromEmail = tenantConfig.email || `noreply@${tenantConfig.domain || 'nexus.app'}`;
+      const fromEmail = tenantConfig.email || `noreply@nexus-ai-saas.com`;
 
       await resend.emails.send({
         from: `${tenantConfig.businessName} <${fromEmail}>`,

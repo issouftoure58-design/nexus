@@ -191,7 +191,7 @@ router.post('/delete-request', async (req, res) => {
       if (insertError.message.includes('does not exist')) {
         return res.status(503).json({
           success: false,
-          error: 'Service temporairement indisponible. Contactez support@nexus.app'
+          error: 'Service temporairement indisponible. Contactez contact@nexus-ai-saas.com'
         });
       }
       throw insertError;

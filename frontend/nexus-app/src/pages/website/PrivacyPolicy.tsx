@@ -233,8 +233,8 @@ export default function PrivacyPolicyPage() {
               <p>SIRET : 947 570 362 00022</p>
               <p className="mt-2">8 rue des Monts Rouges</p>
               <p>95130 Franconville, France</p>
-              <p className="mt-2">Email général : contact@nexus.app</p>
-              <p>Protection des données : privacy@nexus.app</p>
+              <p className="mt-2">Email général : contact@nexus-ai-saas.com</p>
+              <p>Protection des données : contact@nexus-ai-saas.com</p>
               <p>Téléphone : +33 7 60 53 76 94</p>
             </div>
           </section>

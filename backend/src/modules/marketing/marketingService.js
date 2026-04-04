@@ -141,7 +141,7 @@ export async function sendCampaign(tenantId, id) {
     const results = await Promise.allSettled(
       recipients.map(async (r) => {
         const sendResult = await resendClient.emails.send({
-          from: data.from_email || 'noreply@nexus-platform.com',
+          from: data.from_email || 'NEXUS <noreply@nexus-ai-saas.com>',
           to: r.email,
           subject: data.subject || data.name,
           html: data.html_content || data.content || `<p>${data.name}</p>`,

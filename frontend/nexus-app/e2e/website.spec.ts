@@ -143,7 +143,7 @@ test.describe('Site Vitrine NEXUS', () => {
       await page.goto('/website/contact');
 
       // Verifier les infos de contact
-      await expect(page.locator('text=contact@nexus.app')).toBeVisible();
+      await expect(page.locator('text=contact@nexus-ai-saas.com')).toBeVisible();
       await expect(page.locator('text=Franconville')).toBeVisible();
     });
   });

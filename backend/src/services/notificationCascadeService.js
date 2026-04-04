@@ -23,7 +23,7 @@ import { sendWhatsAppNotification } from './whatsappService.js';
 
 // Config
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'NEXUS <notifications@nexus.io>';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'NEXUS <noreply@nexus-ai-saas.com>';
 
 let resend = null;
 if (RESEND_API_KEY) {

@@ -110,7 +110,7 @@ export default function WebsiteLayout({ children }: { children: React.ReactNode 
             <div>
               <h3 className="font-semibold mb-4">Contact</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="mailto:contact@nexus.app" className="hover:text-white">contact@nexus.app</a></li>
+                <li><a href="mailto:contact@nexus-ai-saas.com" className="hover:text-white">contact@nexus-ai-saas.com</a></li>
                 <li><a href="tel:+33760537694" className="hover:text-white">+33 7 60 53 76 94</a></li>
                 <li>Franconville, France</li>
                 <li><Link to="/website/contact" className="hover:text-white">Formulaire de contact</Link></li>
