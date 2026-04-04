@@ -32,8 +32,8 @@ export default function PrivacyPolicyPage() {
               <p>SIRET : 947 570 362 00022</p>
               <p className="mt-2">8 rue des Monts Rouges</p>
               <p>95130 Franconville, France</p>
-              <p className="mt-2">Email : privacy@nexus.app</p>
-              <p>DPO : dpo@nexus.app</p>
+              <p className="mt-2">Email : contact@nexus-ai-saas.com</p>
+              <p>DPO : contact@nexus-ai-saas.com</p>
             </div>
           </section>
 
@@ -160,7 +160,7 @@ export default function PrivacyPolicyPage() {
               <p>
                 Via votre espace admin : <strong>Paramètres → Données personnelles → Export/Suppression</strong>
               </p>
-              <p>Ou par email : <strong>privacy@nexus.app</strong></p>
+              <p>Ou par email : <strong>contact@nexus-ai-saas.com</strong></p>
               <p className="text-sm text-gray-600 mt-2">
                 Délai de réponse : 30 jours maximum
               </p>

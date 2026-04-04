@@ -99,7 +99,7 @@ export function getUnsubscribeConfirmationPage(prospectName) {
       Vous ne recevrez plus d'emails de notre part.
     </p>
     <div class="footer">
-      NEXUS Business Solutions — nexussentinelai@yahoo.com
+      NEXUS Business Solutions — contact@nexus-ai-saas.com
     </div>
   </div>
 </body>
@@ -148,7 +148,7 @@ export function getUnsubscribeErrorPage(errorMessage) {
     <h1>Lien invalide</h1>
     <p>${escapeHtml(errorMessage || 'Ce lien de desinscription est invalide ou expire.')}</p>
     <p style="margin-top: 12px;">
-      Pour vous desinscrire, contactez-nous a nexussentinelai@yahoo.com
+      Pour vous desinscrire, contactez-nous a contact@nexus-ai-saas.com
     </p>
     <div class="footer">
       NEXUS Business Solutions

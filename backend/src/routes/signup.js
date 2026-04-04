@@ -337,7 +337,7 @@ router.post('/', signupLimiter, async (req, res) => {
         name: company_name,
         tier: plan_id, // Required field
         status: 'trial',
-        domain: `${tenant_id}.nexus.app`,
+        domain: `${tenant_id}.nexus-ai-saas.com`,
         plan: plan_id,
         secteur_id,
         modules_actifs,
@@ -432,8 +432,8 @@ router.post('/', signupLimiter, async (req, res) => {
                 periode
               }
             },
-            success_url: `${process.env.FRONTEND_URL || 'https://nexus.app'}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.FRONTEND_URL || 'https://nexus.app'}/signup?plan=${plan_id}`,
+            success_url: `${process.env.FRONTEND_URL || 'https://nexus-ai-saas.com'}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${process.env.FRONTEND_URL || 'https://nexus-ai-saas.com'}/signup?plan=${plan_id}`,
             metadata: {
               tenant_id,
               admin_email: email
@@ -726,7 +726,7 @@ router.post('/', signupLimiter, async (req, res) => {
       },
       essai_fin: essai_fin.toISOString(),
       checkout_url: checkoutUrl,
-      dashboard_url: `https://${tenant_id}.nexus.app/admin`,
+      dashboard_url: `https://app.nexus-ai-saas.com/admin`,
       onboarding: {
         completed: allStepsOk,
         steps: onboardingSteps,
@@ -803,13 +803,13 @@ router.post('/check-company', checkLimiter, async (req, res) => {
     res.json({
       available: !existing,
       tenant_id,
-      suggested_domain: `${tenant_id}.nexus.app`
+      suggested_domain: `${tenant_id}.nexus-ai-saas.com`
     });
   } catch (err) {
     res.json({
       available: true,
       tenant_id,
-      suggested_domain: `${tenant_id}.nexus.app`
+      suggested_domain: `${tenant_id}.nexus-ai-saas.com`
     });
   }
 });

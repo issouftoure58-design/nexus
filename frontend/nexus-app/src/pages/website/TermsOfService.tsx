@@ -30,7 +30,7 @@ export default function TermsOfServicePage() {
           <section className="mb-12">
             <h2 className="text-2xl font-semibold mb-4">2. Définitions</h2>
             <ul>
-              <li><strong>Plateforme</strong> : Le service NEXUS accessible via nexus.app</li>
+              <li><strong>Plateforme</strong> : Le service NEXUS accessible via nexus-ai-saas.com</li>
               <li><strong>Utilisateur</strong> : Toute personne utilisant la Plateforme</li>
               <li><strong>Tenant</strong> : Entreprise cliente ayant souscrit un abonnement</li>
               <li><strong>Client Final</strong> : Client du Tenant utilisant l'interface publique</li>

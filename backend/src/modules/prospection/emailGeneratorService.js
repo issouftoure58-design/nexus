@@ -270,7 +270,7 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
           <td style="padding-left:16px;vertical-align:top;">
             <p style="margin:0;font-size:15px;font-weight:700;color:#ffffff;font-family:'Poppins',Arial,sans-serif;">L'&eacute;quipe NEXUS</p>
             <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.5);font-family:'Poppins',Arial,sans-serif;">
-              &#x1F4E7; nexussentinelai@yahoo.com<br>
+              &#x1F4E7; contact@nexus-ai-saas.com<br>
               &#x1F4F1; 07 60 53 76 94<br>
               &#x1F310; <a href="${LANDING_URL}" style="color:#06b6d4;text-decoration:none;">nexus-ai-saas.com</a>
             </p>
@@ -284,7 +284,7 @@ function wrapInTemplate({ bodyHtml, ctaText = 'Essayez NEXUS gratuitement', unsu
   <tr>
     <td style="padding:18px 40px;border-top:1px solid rgba(255,255,255,0.04);">
       <p style="margin:0;font-size:10px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.8;font-family:'Poppins',Arial,sans-serif;">
-        NEXUS Business Solutions &mdash; nexussentinelai@yahoo.com<br>
+        NEXUS Business Solutions &mdash; contact@nexus-ai-saas.com<br>
         <a href="${LANDING_URL}" style="color:rgba(6,182,212,0.6);text-decoration:none;">nexus-ai-saas.com</a>
         &nbsp;|&nbsp;
         <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.3);text-decoration:underline;">Se d&eacute;sinscrire</a>

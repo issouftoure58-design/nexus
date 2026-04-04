@@ -82,7 +82,7 @@ export async function getOrCreateCustomer(tenantId) {
   // Creer un nouveau customer
   const customer = await stripe.customers.create({
     name: tenant.name,
-    email: tenant.email || `${tenantId}@nexus.app`,
+    email: tenant.email || `${tenantId}@nexus-ai-saas.com`,
     metadata: {
       tenant_id: tenantId,
       source: 'nexus'

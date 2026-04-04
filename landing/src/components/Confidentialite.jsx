@@ -9,7 +9,7 @@ export default function Confidentialite() {
           NEXUS AI — SASU au capital de 1€<br />
           SIRET : 947 570 362 00022<br />
           8 Rue des Monts Rouges, 95130 Franconville<br />
-          Email : <a href="mailto:nexussentinelai@yahoo.com" className="text-neon-cyan hover:underline">nexussentinelai@yahoo.com</a>
+          Email : <a href="mailto:contact@nexus-ai-saas.com" className="text-neon-cyan hover:underline">contact@nexus-ai-saas.com</a>
         </p>
       </section>
 
@@ -82,7 +82,7 @@ export default function Confidentialite() {
         </ul>
         <p className="mt-2">
           Pour exercer ces droits, envoyez un email a{' '}
-          <a href="mailto:nexussentinelai@yahoo.com" className="text-neon-cyan hover:underline">nexussentinelai@yahoo.com</a>.
+          <a href="mailto:contact@nexus-ai-saas.com" className="text-neon-cyan hover:underline">contact@nexus-ai-saas.com</a>.
           Vous pouvez egalement introduire une reclamation aupres de la CNIL (
           <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer" className="text-neon-cyan hover:underline">www.cnil.fr</a>).
         </p>

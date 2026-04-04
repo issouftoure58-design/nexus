@@ -9,7 +9,7 @@ export default function MentionsLegales() {
           NEXUS AI — SASU au capital de 1€ (en cours d'immatriculation)<br />
           SIRET : 947 570 362 00022<br />
           Siege social : 8 Rue des Monts Rouges, 95130 Franconville, France<br />
-          Email : <a href="mailto:nexussentinelai@yahoo.com" className="text-neon-cyan hover:underline">nexussentinelai@yahoo.com</a><br />
+          Email : <a href="mailto:contact@nexus-ai-saas.com" className="text-neon-cyan hover:underline">contact@nexus-ai-saas.com</a><br />
           Site web : <a href="https://nexus-ai-saas.com" className="text-neon-cyan hover:underline">https://nexus-ai-saas.com</a>
         </p>
       </section>
@@ -66,7 +66,7 @@ export default function MentionsLegales() {
           Conformement au Reglement General sur la Protection des Donnees (RGPD), vous disposez
           d'un droit d'acces, de rectification, de suppression et de portabilite de vos donnees.
           Pour exercer ces droits, contactez-nous a{' '}
-          <a href="mailto:nexussentinelai@yahoo.com" className="text-neon-cyan hover:underline">nexussentinelai@yahoo.com</a>.
+          <a href="mailto:contact@nexus-ai-saas.com" className="text-neon-cyan hover:underline">contact@nexus-ai-saas.com</a>.
         </p>
       </section>
 

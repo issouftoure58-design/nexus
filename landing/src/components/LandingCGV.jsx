@@ -29,7 +29,7 @@ export default function LandingCGV() {
       <div className="text-center py-12 text-gray-400">
         <p>Impossible de charger les CGV. Veuillez reessayer plus tard.</p>
         <p className="text-sm mt-2">
-          Contact : <a href="mailto:nexussentinelai@yahoo.com" className="text-neon-cyan hover:underline">nexussentinelai@yahoo.com</a>
+          Contact : <a href="mailto:contact@nexus-ai-saas.com" className="text-neon-cyan hover:underline">contact@nexus-ai-saas.com</a>
         </p>
       </div>
     )

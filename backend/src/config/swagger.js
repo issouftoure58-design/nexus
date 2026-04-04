@@ -45,7 +45,7 @@ Toutes les requetes necessitent un tenant_id. Le tenant est resolu via:
       `,
       contact: {
         name: 'NEXUS Support',
-        email: 'nexussentinelai@yahoo.com',
+        email: 'contact@nexus-ai-saas.com',
         url: 'https://nexus.ai'
       },
       license: {
