@@ -82,6 +82,7 @@ const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const SSOCallback = lazy(() => import('./pages/SSOCallback'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
+const OnboardingSequences = lazy(() => import('./pages/OnboardingSequences'));
 
 // Employee Portal (lazy)
 const EmployeeLogin = lazy(() => import('./pages/employee/EmployeeLogin'));
@@ -250,6 +251,7 @@ function App() {
             <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
             <Route path="/avis-clients" element={<ModuleRoute moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
             <Route path="/reseaux-sociaux" element={<ModuleRoute module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
+            <Route path="/onboarding-sequences" element={<ModuleRoute module="marketing" moduleTitle="Onboarding" moduleDescription="Suivi des sequences d'onboarding post-paiement"><OnboardingSequences /></ModuleRoute>} />
             <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
             {/* Modules IA */}

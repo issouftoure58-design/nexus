@@ -935,7 +935,7 @@ async function handleInvoicePaid(invoice, stripeEventId = null) {
   // Trouver le tenant
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, plan, payment_failures_count, statut')
+    .select('id, nom, email, plan, payment_failures_count, statut')
     .eq('stripe_customer_id', customerId)
     .single();
 
@@ -976,6 +976,25 @@ async function handleInvoicePaid(invoice, stripeEventId = null) {
   }).catch(err => console.error('[Stripe Webhook] Erreur email facture:', err));
 
   console.log(`[Stripe Webhook] Facture payee: ${invoice.id} - ${invoice.amount_paid/100}${invoice.currency.toUpperCase()}`);
+
+  // Declencher les workflows post-paiement (non-bloquant)
+  try {
+    const { triggerWorkflows } = await import('../automation/workflowEngine.js');
+    await triggerWorkflows('payment_received', {
+      tenant_id: tenant.id,
+      entity: {
+        email: tenant.email || invoice.customer_email,
+        nom: tenant.nom || tenant.id,
+        invoice_id: invoice.id,
+        amount: invoice.amount_paid / 100,
+        currency: invoice.currency,
+        plan: tenant.plan,
+        type: 'payment',
+      }
+    });
+  } catch (wfErr) {
+    console.warn('[BILLING] Workflow trigger error (non-blocking)', { error: wfErr.message });
+  }
 }
 
 async function handleInvoicePaymentFailed(invoice, stripeEventId = null) {

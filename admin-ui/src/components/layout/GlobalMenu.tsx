@@ -8,7 +8,8 @@ import {
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
   Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
-  ShoppingBag, LayoutGrid, Bed, Banknote, Phone, MessageSquare, Share2
+  ShoppingBag, LayoutGrid, Bed, Banknote, Phone, MessageSquare, Share2,
+  UserCheck
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -52,6 +53,7 @@ const menuItems = [
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', plan: 'business' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'business' },
   { icon: Share2, label: 'Réseaux Sociaux', path: '/reseaux-sociaux', plan: 'business' },
+  { icon: UserCheck, label: 'Onboarding', path: '/onboarding-sequences', plan: 'business' },
   { type: 'separator', label: 'Système' },
   { icon: Bot, label: 'Agent IA Web', path: '/ia-admin' },
   { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', plan: 'pro' },

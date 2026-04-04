@@ -112,6 +112,7 @@ import agendaRoutes from './routes/agenda.js';
 import landingAgentRoutes from './routes/landingAgent.js';
 import rgpdRoutes from './routes/rgpd.js';
 import onboardingRoutes from './routes/onboarding.js';
+import onboardingSequencesRoutes from './routes/adminOnboardingSequences.js';
 import publicPaymentRoutes from './routes/publicPayment.js';
 import nexusAdminRoutes, {
   sentinelIntelligenceRouter,
@@ -622,6 +623,7 @@ app.use('/api/admin/documents', adminDocumentsRoutes);
 app.use('/api/admin/referrals', adminReferralsRoutes);
 app.use('/api/admin/sso', adminSSORoutes);
 app.use('/api/admin/onboarding', onboardingRoutes);
+app.use('/api/admin/onboarding-sequences', onboardingSequencesRoutes);
 
 // Routes Admin IA Config (Telephone & WhatsApp)
 app.use('/api/admin/ia', adminIARoutes);

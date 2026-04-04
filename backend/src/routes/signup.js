@@ -11,7 +11,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
 import Stripe from 'stripe';
-import { BUSINESS_TEMPLATES } from '../data/businessTemplates.js';
+import { BUSINESS_TEMPLATES, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE } from '../data/businessTemplates.js';
 import { sendWelcomeEmail } from '../services/tenantEmailService.js';
 import { applyReferralCode } from '../services/referralService.js';
 import { signupLimiter, checkLimiter } from '../middleware/rateLimiter.js';
@@ -508,11 +508,15 @@ router.post('/', signupLimiter, async (req, res) => {
     };
     const dbTemplateId = dbTemplateMap[templateKey] || 'generic';
 
-    // Mettre à jour tenant avec template_id
+    // Déterminer business_profile depuis le template
+    const businessProfile = TEMPLATE_TO_PROFILE[templateKey] || 'service';
+
+    // Mettre à jour tenant avec template_id + business_profile
     await supabase
       .from('tenants')
       .update({
         template_id: dbTemplateId,
+        business_profile: businessProfile,
         assistant_name: 'l\'assistant',
         assistant_gender: 'F',
         onboarding_completed: false, // Sera marqué true après config complète

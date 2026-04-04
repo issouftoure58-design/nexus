@@ -388,6 +388,60 @@ export const BUSINESS_TYPES = {
     pricingModesAllowed: ['hourly', 'daily', 'fixed', 'package'],
     durationMode: 'range',
     allowMultiDay: true
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // SERVICE / CONSEIL / FORMATION (cabinet, consultant, formation, etc.)
+  // ═══════════════════════════════════════════════════════════════
+  service: {
+    id: 'service',
+    label: 'Service & Conseil',
+    description: 'Prestations de service, conseil, formation ou activité libérale',
+    icon: 'Briefcase',
+
+    terminology: {
+      reservation: { singular: 'RDV', plural: 'RDV' },
+      service: { singular: 'Prestation', plural: 'Prestations' },
+      client: { singular: 'Client', plural: 'Clients' },
+      employee: { singular: 'Collaborateur', plural: 'Collaborateurs' },
+      location: 'Lieu',
+      duration: 'Durée',
+      quantity: 'Quantité'
+    },
+
+    features: {
+      travelFees: false,
+      clientAddress: false,
+      multiStaff: true,
+      onlineBooking: true,
+      deposits: true,
+      tableManagement: false,
+      roomInventory: false,
+      checkinCheckout: false
+    },
+
+    fieldConfig: {
+      service: {
+        required: ['nom', 'prix', 'duree_minutes'],
+        optional: ['description', 'categorie_id'],
+        forbidden: ['capacite_max', 'taux_journalier']
+      },
+      reservation: {
+        required: ['date', 'heure', 'service_id', 'client_id'],
+        optional: ['lieu', 'notes', 'heure_fin'],
+        forbidden: ['table_id', 'chambre_id', 'nb_couverts', 'nb_agents']
+      }
+    },
+
+    businessRules: {
+      allowDomicile: false,
+      requireClientAddress: false,
+      defaultLocation: 'bureau'
+    },
+
+    pricingMode: 'fixed',
+    pricingModesAllowed: ['fixed', 'hourly', 'package'],
+    durationMode: 'fixed'
   }
 };
 

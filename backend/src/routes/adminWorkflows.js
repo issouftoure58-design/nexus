@@ -41,7 +41,8 @@ const ACTION_TYPES = [
   { id: 'webhook', label: 'Appeler un webhook', icon: 'globe' },
   { id: 'send_to_segment', label: 'Envoyer au segment', icon: 'users' },
   { id: 'move_pipeline', label: 'Déplacer dans le pipeline', icon: 'git-branch' },
-  { id: 'send_discord_invite', label: 'Invitation Discord', icon: 'message-circle' }
+  { id: 'send_discord_invite', label: 'Invitation Discord', icon: 'message-circle' },
+  { id: 'create_signature', label: 'Créer une signature électronique', icon: 'file-signature' }
 ];
 
 // Templates de workflows prédéfinis
@@ -175,17 +176,24 @@ const WORKFLOW_TEMPLATES = [
   },
   {
     id: 'closing_sequence',
-    nom: 'Séquence closing post-paiement',
-    description: 'Envoie 3 emails après encaissement : contrat + programme, accès plateforme, communauté',
+    nom: 'Séquence onboarding post-paiement',
+    description: 'Contrat Yousign + emails programmés + accès plateforme après encaissement',
     trigger_type: 'payment_received',
     config: {
       conditions: [],
       actions: [
         {
+          type: 'create_signature',
+          document_template: 'contrat_standard',
+          signer_email_field: 'email',
+          signer_name_field: 'nom',
+          delay_minutes: 0
+        },
+        {
           type: 'send_email',
           template: 'closing_contrat',
           to_field: 'email',
-          delay_minutes: 0
+          delay_minutes: 5
         },
         {
           type: 'send_email',

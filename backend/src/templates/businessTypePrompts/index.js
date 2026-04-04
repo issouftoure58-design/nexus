@@ -119,6 +119,19 @@ export const BUSINESS_CONTEXTS = {
       staff: 'agent',
     },
   },
+  service: {
+    description: 'prestataire de services, conseil ou formation',
+    actions: [
+      'Gère les rendez-vous et prestations',
+      'Suivi client et facturation',
+      'Pas de frais de déplacement par défaut',
+    ],
+    terminology: {
+      booking: 'rendez-vous',
+      client: 'client',
+      staff: 'collaborateur',
+    },
+  },
 };
 
 export default {

@@ -867,13 +867,29 @@ export const TEMPLATE_TO_PROFILE = {
   salon_coiffure: 'salon',
   institut_beaute: 'salon',
   restaurant: 'restaurant',
-  medical: 'salon',
-  garage: 'salon',
+  medical: 'service',
+  garage: 'service',
   artisan: 'service_domicile',
   hotel: 'hotel',
   commerce: 'commerce',
   security: 'security',
-  autre: 'salon',
+  autre: 'service',
+};
+
+// Professions qui overrident le template → profile mapping
+// Quand la profession indique clairement un type different du template
+export const PROFESSION_TO_PROFILE = {
+  coach_sportif: 'service_domicile',
+  photographe: 'service',
+  formation: 'service',
+  consultant: 'service',
+  avocat: 'service',
+  comptable: 'service',
+  agent_immobilier: 'service',
+  architecte: 'service',
+  assurance: 'service',
+  agence_web: 'service',
+  evenementiel: 'service',
 };
 
 // ============================================

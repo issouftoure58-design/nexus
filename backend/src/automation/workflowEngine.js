@@ -327,6 +327,9 @@ async function executeAction(action, entity, tenant_id) {
     case 'send_discord_invite':
       return await executeSendDiscordInvite(action, entity, tenant_id);
 
+    case 'create_signature':
+      return await executeCreateSignature(action, entity, tenant_id);
+
     default:
       throw new Error(`Action type inconnu: ${type}`);
   }
@@ -715,6 +718,40 @@ async function executeSendDiscordInvite(action, entity, tenant_id) {
   );
 
   return { action: 'send_discord_invite', ...result, success: true };
+}
+
+/**
+ * Action: Creer une signature electronique via Yousign
+ */
+async function executeCreateSignature(action, entity, tenant_id) {
+  const signerEmail = getNestedValue(entity, action.signer_email_field || 'email');
+  const signerName = getNestedValue(entity, action.signer_name_field || 'nom');
+
+  if (!signerEmail) {
+    throw new Error('Email signataire manquant pour create_signature');
+  }
+
+  try {
+    const { createSignatureRequest } = await import('../services/yousignService.js');
+
+    const result = await createSignatureRequest(tenant_id, {
+      name: action.document_template || 'Contrat onboarding',
+      signerEmail,
+      signerFirstName: entity.prenom || signerName || 'Client',
+      signerLastName: entity.nom || '',
+      signerPhone: entity.telephone || undefined,
+      fileContent: action.file_content || null,
+      fileName: action.file_name || 'contrat.pdf',
+      clientId: entity.id || undefined,
+      metadata: { workflow_action: 'create_signature', document_template: action.document_template },
+    });
+
+    console.log(`[WORKFLOWS] create_signature: signature creee pour ${signerEmail}`);
+    return { action: 'create_signature', signer_email: signerEmail, success: true, ...result };
+  } catch (err) {
+    console.error(`[WORKFLOWS] create_signature error:`, err.message);
+    return { action: 'create_signature', success: false, error: err.message };
+  }
 }
 
 /**

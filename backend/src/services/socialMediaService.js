@@ -508,14 +508,43 @@ const BUSINESS_HASHTAGS = {
     inspiration: ['#inspiration', '#securiteprivee', '#innovation'],
     coulisses: ['#behindthescenes', '#coulisses', '#metier'],
     temoignage: ['#avis', '#temoignage', '#clientsatisfait']
+  },
+  service: {
+    base: ['#business', '#professionnel', '#expertise', '#qualite'],
+    promo: ['#promo', '#offrespeciale', '#bonplan'],
+    conseil: ['#conseil', '#astuce', '#expertise'],
+    avant_apres: ['#avantapres', '#transformation', '#resultat'],
+    inspiration: ['#inspiration', '#motivation', '#tendance'],
+    coulisses: ['#behindthescenes', '#coulisses', '#monquotidien'],
+    temoignage: ['#avis', '#temoignage', '#clientsatisfait']
   }
+};
+
+// Hashtags generiques pour activites non-standard (formation, consulting, etc.)
+const GENERIC_HASHTAGS = {
+  base: ['#business', '#professionnel', '#expertise', '#qualite'],
+  promo: ['#promo', '#offrespeciale', '#bonplan'],
+  conseil: ['#conseil', '#astuce', '#expertise'],
+  avant_apres: ['#avantapres', '#transformation', '#resultat'],
+  inspiration: ['#inspiration', '#motivation', '#tendance'],
+  coulisses: ['#behindthescenes', '#coulisses', '#monquotidien'],
+  temoignage: ['#avis', '#temoignage', '#clientsatisfait']
 };
 
 /**
  * Retourne les hashtags pour un business type et un type de contenu.
+ * Si le tenant a une description qui ne match pas le business type standard,
+ * utilise des hashtags generiques.
  */
-function getHashtags(businessType, contentType) {
-  const tags = BUSINESS_HASHTAGS[businessType] || BUSINESS_HASHTAGS.salon;
+function getHashtags(businessType, businessDescription, contentType) {
+  // Si la description indique une activite differente du type par defaut, utiliser generique
+  const descLower = (businessDescription || '').toLowerCase();
+  const isNonStandard = businessType === 'salon' && descLower &&
+    !descLower.includes('coiffure') && !descLower.includes('beaute') &&
+    !descLower.includes('salon') && !descLower.includes('barbier') &&
+    !descLower.includes('esthetique') && !descLower.includes('onglerie');
+
+  const tags = isNonStandard ? GENERIC_HASHTAGS : (BUSINESS_HASHTAGS[businessType] || BUSINESS_HASHTAGS.salon);
   const baseTags = tags.base || [];
   const typeTags = tags[contentType] || tags.promo || [];
   return [...typeTags, ...baseTags].slice(0, 8).join(' ');
@@ -531,10 +560,12 @@ export function generateSocialContent(sujet, type, platforms = ['instagram', 'fa
   const telephone = info.telephone || '';
   const adresse = info.adresse || '';
   const businessType = info.businessType || 'salon';
+  const businessDescription = info.description || '';
 
   // Build contact lines dynamically (only show if data exists)
   const phoneLine = telephone ? `📞 ${telephone}` : '';
   const addressLine = adresse ? `📍 ${adresse}` : '';
+  const descLine = businessDescription ? `${nom} — ${businessDescription}` : `${nom} — à votre service !`;
 
   const templates = {
     instagram: {
@@ -546,7 +577,7 @@ ${addressLine}
 ${phoneLine}
 🌐 Lien en bio
 
-${getHashtags(businessType, 'promo')}`.trim(),
+${getHashtags(businessType, businessDescription,'promo')}`.trim(),
 
       conseil: `💡 CONSEIL PRO 💡
 
@@ -556,7 +587,7 @@ Un conseil de ${gerant} pour vous ! 💜
 
 Tu as des questions ? Demande en commentaire !
 
-${getHashtags(businessType, 'conseil')}`.trim(),
+${getHashtags(businessType, businessDescription,'conseil')}`.trim(),
 
       avant_apres: `✨ TRANSFORMATION ✨
 
@@ -568,7 +599,7 @@ Tu veux le même résultat ?
 ${phoneLine}
 ${addressLine}
 
-${getHashtags(businessType, 'avant_apres')}`.trim(),
+${getHashtags(businessType, businessDescription,'avant_apres')}`.trim(),
 
       inspiration: `✨ INSPIRATION DU JOUR ✨
 
@@ -578,7 +609,7 @@ Qu'est-ce qui vous inspire ? Dites-le en commentaire ! 💜
 
 ${phoneLine}
 
-${getHashtags(businessType, 'inspiration')}`.trim(),
+${getHashtags(businessType, businessDescription,'inspiration')}`.trim(),
 
       coulisses: `🎬 BEHIND THE SCENES 🎬
 
@@ -586,7 +617,7 @@ ${sujet}
 
 Un aperçu du quotidien chez ${nom} 💜
 
-${getHashtags(businessType, 'coulisses')}`.trim(),
+${getHashtags(businessType, businessDescription,'coulisses')}`.trim(),
 
       temoignage: `⭐ AVIS CLIENT ⭐
 
@@ -597,7 +628,7 @@ Merci pour votre confiance ! 💜
 Vous aussi, faites-nous confiance !
 ${phoneLine}
 
-${getHashtags(businessType, 'temoignage')}`.trim()
+${getHashtags(businessType, businessDescription,'temoignage')}`.trim()
     },
 
     facebook: {
@@ -605,7 +636,7 @@ ${getHashtags(businessType, 'temoignage')}`.trim()
 
 ${sujet}
 
-${nom} — à votre service !
+${descLine}
 
 ${addressLine}
 ${phoneLine}
@@ -661,13 +692,13 @@ La passion du métier, c'est ça qui fait la différence ! 💜`.trim()
 ${addressLine}
 ${phoneLine}
 
-${getHashtags(businessType, 'promo')}`.trim(),
+${getHashtags(businessType, businessDescription,'promo')}`.trim(),
 
       conseil: `💡 Conseil pro :
 
 ${sujet}
 
-${getHashtags(businessType, 'conseil')}`.trim(),
+${getHashtags(businessType, businessDescription,'conseil')}`.trim(),
 
       avant_apres: `✨ Avant ➡️ Après
 
@@ -675,23 +706,23 @@ ${sujet}
 
 ${phoneLine}
 
-${getHashtags(businessType, 'avant_apres')}`.trim(),
+${getHashtags(businessType, businessDescription,'avant_apres')}`.trim(),
 
       inspiration: `✨ ${sujet}
 
 Découvrez ${nom} ! 💜
 
-${getHashtags(businessType, 'inspiration')}`.trim(),
+${getHashtags(businessType, businessDescription,'inspiration')}`.trim(),
 
       temoignage: `⭐ "${sujet}"
 
 Merci pour la confiance !
 
-${getHashtags(businessType, 'temoignage')}`.trim(),
+${getHashtags(businessType, businessDescription,'temoignage')}`.trim(),
 
       coulisses: `🎬 ${sujet}
 
-${getHashtags(businessType, 'coulisses')}`.trim()
+${getHashtags(businessType, businessDescription,'coulisses')}`.trim()
     },
 
     linkedin: {
@@ -704,7 +735,7 @@ Notre engagement : vous offrir un service de qualité. Découvrez notre offre !
 ${nom} — ${adresse || 'Contactez-nous'}
 ${phoneLine}
 
-#entrepreneuriat #business #serviceclient ${getHashtags(businessType, 'promo')}`.trim(),
+#entrepreneuriat #business #serviceclient ${getHashtags(businessType, businessDescription,'promo')}`.trim(),
 
       conseil: `💡 Conseil d'expert
 
@@ -712,7 +743,7 @@ ${sujet}
 
 L'expertise de ${gerant} au service de la qualité.
 
-#expertise #conseil ${getHashtags(businessType, 'conseil')}`.trim(),
+#expertise #conseil ${getHashtags(businessType, businessDescription,'conseil')}`.trim(),
 
       avant_apres: `✨ Transformation
 
@@ -721,7 +752,7 @@ ${sujet}
 La qualité fait la différence.
 
 ${nom}
-#transformation #qualite ${getHashtags(businessType, 'avant_apres')}`.trim(),
+#transformation #qualite ${getHashtags(businessType, businessDescription,'avant_apres')}`.trim(),
 
       coulisses: `📸 Un jour dans la vie de ${nom}
 
@@ -729,7 +760,7 @@ ${sujet}
 
 La passion du métier, c'est ce qui fait la différence.
 
-#entrepreneuriat #passionmetier ${getHashtags(businessType, 'coulisses')}`.trim(),
+#entrepreneuriat #passionmetier ${getHashtags(businessType, businessDescription,'coulisses')}`.trim(),
 
       temoignage: `⭐ Témoignage client
 
@@ -737,7 +768,7 @@ La passion du métier, c'est ce qui fait la différence.
 
 Ces retours nous motivent chaque jour à donner le meilleur.
 
-#satisfaction #qualite ${getHashtags(businessType, 'temoignage')}`.trim(),
+#satisfaction #qualite ${getHashtags(businessType, businessDescription,'temoignage')}`.trim(),
 
       inspiration: `💜 Inspiration
 
@@ -745,16 +776,16 @@ ${sujet}
 
 Découvrez l'univers de ${nom}.
 
-#inspiration ${getHashtags(businessType, 'inspiration')}`.trim()
+#inspiration ${getHashtags(businessType, businessDescription,'inspiration')}`.trim()
     },
 
     tiktok: {
-      promo: `${sujet} ✨ ${getHashtags(businessType, 'promo')} #fyp #pourtoi`,
-      conseil: `Conseil pro 💡 ${sujet} ${getHashtags(businessType, 'conseil')} #fyp`,
-      avant_apres: `Transformation incroyable ✨ ${sujet} ${getHashtags(businessType, 'avant_apres')} #fyp`,
-      coulisses: `POV: Coulisses de ${nom} 🎬 ${sujet} ${getHashtags(businessType, 'coulisses')} #fyp`,
-      inspiration: `Inspo du jour 💜 ${sujet} ${getHashtags(businessType, 'inspiration')} #fyp`,
-      temoignage: `Client satisfait 🥹 ${sujet} ${getHashtags(businessType, 'temoignage')} #fyp`
+      promo: `${sujet} ✨ ${getHashtags(businessType, businessDescription,'promo')} #fyp #pourtoi`,
+      conseil: `Conseil pro 💡 ${sujet} ${getHashtags(businessType, businessDescription,'conseil')} #fyp`,
+      avant_apres: `Transformation incroyable ✨ ${sujet} ${getHashtags(businessType, businessDescription,'avant_apres')} #fyp`,
+      coulisses: `POV: Coulisses de ${nom} 🎬 ${sujet} ${getHashtags(businessType, businessDescription,'coulisses')} #fyp`,
+      inspiration: `Inspo du jour 💜 ${sujet} ${getHashtags(businessType, businessDescription,'inspiration')} #fyp`,
+      temoignage: `Client satisfait 🥹 ${sujet} ${getHashtags(businessType, businessDescription,'temoignage')} #fyp`
     }
   };
 

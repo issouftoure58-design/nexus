@@ -49,6 +49,8 @@ async function loadTenantBusinessConfig(tenantId) {
       .select(`
         id,
         name,
+        description,
+        concept,
         business_profile,
         template_id,
         config,
@@ -231,6 +233,7 @@ export function getBusinessInfoSync(tenantId) {
   return {
     id: tenantId,
     nom: dbConfig?.nom || dbConfig?.name || staticConfig?.name || tenantId,
+    description: dbConfig?.description || dbConfig?.concept || staticConfig?.description || '',
     businessType: businessType,
     businessTypeLabel: typeConfig?.label || businessType,
     gerant: staticConfig?.gerante || staticConfig?.manager || dbConfig?.assistant_name || 'Nexus',

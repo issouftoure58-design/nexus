@@ -120,9 +120,15 @@ function getBusinessInstructions(profile) {
       'Indique le temps estimé pour chaque prestation',
       'Suggère des services complémentaires quand pertinent',
       'Vérifie la disponibilité des membres de l\'équipe'
+    ],
+    service: [
+      'Adapte ton discours au secteur décrit dans la description du business',
+      'Propose les créneaux disponibles',
+      'Ne fais AUCUNE supposition sur le secteur — utilise uniquement la description fournie',
+      'Vérifie la disponibilité avant de confirmer un rendez-vous'
     ]
   };
-  return instructions[profile] || instructions.salon;
+  return instructions[profile] || instructions.service;
 }
 
 /**
@@ -164,7 +170,8 @@ function getPlanCapabilities(plan) {
  * Construit le prompt système pour Claude
  */
 export function buildSystemPrompt(tenant) {
-  const businessName = tenant?.name || 'NEXUS';
+  const businessName = tenant?.name || tenant?.nom || 'NEXUS';
+  const businessDescription = tenant?.description || '';
   const businessProfile = tenant?.business_profile || 'salon';
   const plan = (tenant?.plan || 'starter').toLowerCase();
   const credits = tenant?.ai_credits_remaining ?? 1000;
@@ -239,9 +246,13 @@ Quand l'utilisateur demande d'ajouter un événement à une date :
 
 ## CONTEXTE BUSINESS
 - Entreprise : ${businessName}
-- Type : ${context.description}
+- Type : ${context.description}${businessDescription ? `\n- Description : ${businessDescription}` : ''}
 - Plan : ${plan}
 - Crédits IA : ${credits}
+
+## RÈGLE CRITIQUE - IDENTITÉ BUSINESS
+Tu dois TOUJOURS te baser sur le nom, la description et le type ci-dessus pour parler de l'activité du client.
+Ne JAMAIS inventer ou supposer le secteur d'activité. Utilise UNIQUEMENT les informations fournies ci-dessus.
 
 ## TERMINOLOGIE MÉTIER
 ${termsSection}

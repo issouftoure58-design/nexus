@@ -7,7 +7,7 @@ import { POLICY, validatePasswordStrength } from '../sentinel/security/passwordP
 import { loginLimiter, signupLimiter } from '../middleware/rateLimiter.js';
 import logger from '../config/logger.js';
 import { totpService } from '../services/totpService.js';
-import { getBusinessTemplate, TEMPLATE_TO_PROFILE, generateIaConfig } from '../data/businessTemplates.js';
+import { getBusinessTemplate, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE, PROFESSIONS, generateIaConfig } from '../data/businessTemplates.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
 import { getFeaturesForPlan } from '../config/planFeatures.js';
 
@@ -425,8 +425,15 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const finalSlug = existingTenant ? `${slug}-${Date.now()}` : slug;
 
     // Déterminer le template et business_profile
+    // Priorité : profession_id → template_type → fallback 'service'
     const effectiveTemplate = template_type || 'autre';
-    const businessProfile = TEMPLATE_TO_PROFILE[effectiveTemplate] || 'salon';
+    const businessProfile = (profession_id && PROFESSION_TO_PROFILE[profession_id])
+      || TEMPLATE_TO_PROFILE[effectiveTemplate]
+      || 'service';
+
+    // Description auto depuis la profession choisie (pour que l'IA connaisse l'activité)
+    const professionInfo = profession_id ? PROFESSIONS.find(p => p.id === profession_id) : null;
+    const autoDescription = professionInfo ? `${professionInfo.label} — ${professionInfo.description}` : '';
 
     // ═══ ESSAI: toujours Starter — le plan choisi est mémorisé dans tenant.plan ═══
     // Le client doit souscrire pour débloquer Pro/Business (WhatsApp, Téléphone, etc.)
@@ -445,6 +452,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
         essai_fin: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         template_id: effectiveTemplate,
         business_profile: businessProfile,
+        description: autoDescription || null,
         onboarding_step: 0,
         modules_actifs: modulesActifs,
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
