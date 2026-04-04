@@ -454,6 +454,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
         business_profile: businessProfile,
         description: autoDescription || null,
         onboarding_step: 0,
+        onboarding_completed: false,
         modules_actifs: modulesActifs,
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
         ...(adresse ? { adresse } : {}),

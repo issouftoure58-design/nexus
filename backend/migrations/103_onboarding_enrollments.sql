@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS onboarding_enrollments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
   workflow_id UUID REFERENCES workflows(id),
   client_email VARCHAR(255) NOT NULL,
   client_name VARCHAR(255),
@@ -23,4 +23,4 @@ CREATE INDEX idx_onboarding_enrollments_status ON onboarding_enrollments(tenant_
 
 ALTER TABLE onboarding_enrollments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation_onboarding_enrollments ON onboarding_enrollments
-  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+  USING (tenant_id = current_setting('app.tenant_id')::text);
