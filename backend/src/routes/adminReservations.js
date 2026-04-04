@@ -23,6 +23,9 @@ import { sendSMS } from '../services/smsService.js';
 import { sendEmail } from '../services/emailService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
+import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+
+const RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'service_nom', 'updated_at'];
 
 const createReservationSchema = z.object({
   client_id: z.union([z.string().uuid(), z.number().int(), z.string().regex(/^\d+$/)]),
@@ -96,21 +99,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const {
-      statut,
-      date_debut,
-      date_fin,
-      client_id,
-      service,
-      page = 1,
-      limit = 20,
-      sort = 'date',
-      order = 'desc'
-    } = req.query;
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const offset = (pageNum - 1) * limitNum;
+    const { statut, date_debut, date_fin, client_id, service } = req.query;
+    const sort = validateSort(req.query.sort, RESERVATIONS_SORT_FIELDS, 'date');
+    const order = validateOrder(req.query.order);
+    const { page: pageNum, limit: limitNum, offset } = validatePagination(req.query.page, req.query.limit);
 
     // Query de base avec jointures (🔒 TENANT ISOLATION)
     let query = supabase

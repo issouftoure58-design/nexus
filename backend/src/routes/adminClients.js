@@ -9,6 +9,9 @@ import logger from '../config/logger.js';
 import multer from 'multer';
 import { validate } from '../middleware/validate.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
+import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+
+const CLIENTS_SORT_FIELDS = ['created_at', 'nom', 'prenom', 'email', 'telephone', 'updated_at'];
 
 const createClientSchema = z.object({
   prenom: z.string().max(100).optional(),
@@ -38,17 +41,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const {
-      search = '',
-      sort = 'created_at',
-      order = 'desc',
-      page = 1,
-      limit = 20
-    } = req.query;
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const offset = (pageNum - 1) * limitNum;
+    const { search = '' } = req.query;
+    const sort = validateSort(req.query.sort, CLIENTS_SORT_FIELDS);
+    const order = validateOrder(req.query.order);
+    const { page: pageNum, limit: limitNum, offset } = validatePagination(req.query.page, req.query.limit);
 
     // Query de base (🔒 TENANT ISOLATION)
     let query = supabase

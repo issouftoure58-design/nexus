@@ -2,6 +2,9 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
+import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+
+const ORDERS_SORT_FIELDS = ['created_at', 'updated_at', 'montant_total', 'statut', 'client_nom'];
 
 const router = express.Router();
 
@@ -22,19 +25,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;
 
-    const {
-      statut,
-      paiement,
-      periode = 'semaine',
-      page = 1,
-      limit = 20,
-      sort = 'created_at',
-      order = 'desc'
-    } = req.query;
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const offset = (pageNum - 1) * limitNum;
+    const { statut, paiement, periode = 'semaine' } = req.query;
+    const sort = validateSort(req.query.sort, ORDERS_SORT_FIELDS);
+    const order = validateOrder(req.query.order);
+    const { page: pageNum, limit: limitNum, offset } = validatePagination(req.query.page, req.query.limit);
 
     // Calculer les dates selon la période
     const now = new Date();

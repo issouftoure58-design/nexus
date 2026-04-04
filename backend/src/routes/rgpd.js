@@ -11,6 +11,7 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { grantConsent, revokeConsent, getClientConsents } from '../services/consentService.js';
@@ -167,6 +168,9 @@ router.post('/delete-request', async (req, res) => {
       });
     }
 
+    // Generer un token de confirmation unique (pour annulation securisee)
+    const confirmationToken = crypto.randomBytes(32).toString('hex');
+
     // Créer la demande de suppression
     const { data: request, error: insertError } = await supabase
       .from('rgpd_requests')
@@ -176,7 +180,8 @@ router.post('/delete-request', async (req, res) => {
         status: 'pending',
         requested_by: req.admin.id,
         reason: reason || 'Non spécifié',
-        scheduled_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 jours
+        scheduled_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 jours
+        metadata: { confirmation_token: confirmationToken }
       })
       .select()
       .single();
@@ -205,8 +210,9 @@ router.post('/delete-request', async (req, res) => {
       success: true,
       message: 'Demande de suppression enregistrée',
       request_id: request.id,
+      confirmation_token: confirmationToken,
       scheduled_deletion: request.scheduled_at,
-      info: 'La suppression sera effectuée dans 30 jours. Vous pouvez annuler cette demande avant cette date.'
+      info: 'La suppression sera effectuée dans 30 jours. Conservez le token de confirmation pour annuler cette demande.'
     });
 
   } catch (error) {

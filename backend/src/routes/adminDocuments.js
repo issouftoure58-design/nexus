@@ -13,10 +13,12 @@
 import express from 'express';
 import multer from 'multer';
 import crypto from 'crypto';
+import path from 'path';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireStorageQuota, checkStorageQuota, getTenantPlan } from '../middleware/quotas.js';
 import logger from '../config/logger.js';
+import { validatePagination } from '../utils/queryValidation.js';
 
 const router = express.Router();
 
@@ -31,6 +33,9 @@ const ALLOWED_TYPES = [
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// Whitelist d'extensions autorisees (bloque .exe, .bat, .sh, .cmd, .ps1, etc.)
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.csv', '.txt', '.xlsx', '.docx', '.json'];
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -82,10 +87,16 @@ router.post('/upload', (req, res, next) => {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
 
+    // Re-valider l'extension (bloque double extensions comme .pdf.exe)
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(fileExt)) {
+      return res.status(400).json({ error: `Extension de fichier non autorisée: ${fileExt}` });
+    }
+
     const { category = 'general', entity_type, entity_id } = req.body;
 
     // Generer un nom unique
-    const ext = file.originalname.split('.').pop() || 'bin';
+    const ext = fileExt.slice(1) || 'bin';
     const uniqueName = `${crypto.randomUUID()}.${ext}`;
     const storagePath = `${tenantId}/${category}/${uniqueName}`;
 
@@ -180,15 +191,15 @@ router.get('/quota', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { tenantId } = req;
-    const { category, entity_type, entity_id, page = 1, limit = 20 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const { category, entity_type, entity_id } = req.query;
+    const { page, limit, offset } = validatePagination(req.query.page, req.query.limit);
 
     let query = supabase
       .from('documents')
       .select('id, original_name, mime_type, file_size, category, entity_type, entity_id, created_at, admin_id', { count: 'exact' })
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
-      .range(offset, offset + parseInt(limit) - 1);
+      .range(offset, offset + limit - 1);
 
     if (category) query = query.eq('category', category);
     if (entity_type) query = query.eq('entity_type', entity_type);
@@ -204,9 +215,9 @@ router.get('/', async (req, res) => {
     res.json({
       documents: data || [],
       total: count || 0,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil((count || 0) / parseInt(limit))
+      page,
+      limit,
+      pages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
     logger.error('Erreur liste documents', { error: error.message });

@@ -157,6 +157,22 @@ import { shutdownAllIntervals } from './utils/intervalRegistry.js';
 import { WebSocketServer } from 'ws';
 import { handleMediaStream, closeAllSessions as closeRealtimeSessions } from './services/realtimeVoiceHandler.js';
 
+// ============= VALIDATION ENV VARS =============
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET'];
+const WARN_ENV = ['STRIPE_SECRET_KEY', 'TWILIO_ACCOUNT_SID', 'RESEND_API_KEY', 'OPENAI_API_KEY'];
+
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    logger.error(`[BOOT] Variable d'environnement requise manquante: ${key}`);
+    process.exit(1);
+  }
+}
+for (const key of WARN_ENV) {
+  if (!process.env[key]) {
+    logger.warn(`[BOOT] Variable d'environnement optionnelle manquante: ${key}`);
+  }
+}
+
 // Création de l'application Express
 const app = express();
 app.set('trust proxy', 1);
@@ -224,8 +240,13 @@ app.use(cors({
   origin: function(origin, callback) {
     // En dev sans CORS_ORIGIN: tout autoriser
     if (corsIsOpen) return callback(null, true);
-    // Pas d'origin (curl, server-to-server): autoriser
-    if (!origin) return callback(null, true);
+    // Pas d'origin (curl, server-to-server): autoriser mais logger en prod
+    if (!origin) {
+      if (process.env.NODE_ENV === 'production') {
+        logger.debug('[CORS] Requete sans origin', { ip: 'server-to-server' });
+      }
+      return callback(null, true);
+    }
     // Verifier la whitelist
     if (corsAllowedOrigins.includes(origin)) return callback(null, true);
     // Bloque — callback(null, false) = pas de header CORS
@@ -248,9 +269,9 @@ app.use('/api/webhooks/yousign', yousignWebhookRoutes);
 // Instagram Webhook (Setter IA DMs)
 app.use('/api/webhooks/instagram', instagramWebhookRoutes);
 
-// JSON body parser
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// JSON body parser (limit explicite pour prevenir les gros payloads)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Logger des requêtes
 app.use((req, res, next) => {
@@ -281,40 +302,13 @@ app.use('/blog', blogSSRRoutes);
 
 // ============= ROUTES =============
 
-// Health check enrichi (DB, Redis, services externes)
-app.get('/health', async (req, res) => {
-  const checks = { db: 'unknown', redis: 'unknown' };
-  let healthy = true;
-
-  // Database
-  try {
-    const start = Date.now();
-    const { supabase } = await import('./config/supabase.js');
-    const { error } = await supabase.from('tenants').select('id').limit(1);
-    checks.db = error ? 'error' : 'ok';
-    checks.db_latency = Date.now() - start;
-    if (error) healthy = false;
-  } catch { checks.db = 'error'; healthy = false; }
-
-  // Redis
-  try {
-    const { isAvailable } = await import('./config/redis.js');
-    checks.redis = isAvailable() ? 'ok' : 'not_configured';
-  } catch { checks.redis = 'not_configured'; }
-
-  // Services externes (config check, pas d'appel)
-  checks.stripe = !!process.env.STRIPE_SECRET_KEY;
-  checks.twilio = !!process.env.TWILIO_ACCOUNT_SID;
-  checks.error_tracking = 'sentinel'; // SENTINEL replaces Sentry
-  checks.sentinel = sentinel.getStatus().status;
-
-  const status = healthy ? 'ok' : 'degraded';
-  res.status(healthy ? 200 : 503).json({
-    status,
+// Health check public — minimal, ne revele pas les integrations
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
-    memory: Math.round(process.memoryUsage().rss / 1024 / 1024),
-    checks
+    version: process.env.npm_package_version || '3.24.0'
   });
 });
 
@@ -383,6 +377,41 @@ app.use('/api/cgv', cgvRoutes);
 app.use('/api', frontendReportRouter);
 
 // ============= NEXUS SUPER-ADMIN (cross-tenant, avant tenant shield) =============
+// Health check detaille — superadmin uniquement (revele DB, Redis, integrations)
+app.get('/api/nexus/health', async (req, res) => {
+  const checks = { db: 'unknown', redis: 'unknown' };
+  let healthy = true;
+
+  try {
+    const start = Date.now();
+    const { supabase: sb } = await import('./config/supabase.js');
+    const { error } = await sb.from('tenants').select('id').limit(1);
+    checks.db = error ? 'error' : 'ok';
+    checks.db_latency = Date.now() - start;
+    if (error) healthy = false;
+  } catch { checks.db = 'error'; healthy = false; }
+
+  try {
+    const { isAvailable } = await import('./config/redis.js');
+    checks.redis = isAvailable() ? 'ok' : 'not_configured';
+  } catch { checks.redis = 'not_configured'; }
+
+  checks.stripe = !!process.env.STRIPE_SECRET_KEY;
+  checks.twilio = !!process.env.TWILIO_ACCOUNT_SID;
+  checks.resend = !!process.env.RESEND_API_KEY;
+  checks.error_tracking = 'sentinel';
+  checks.sentinel = sentinel.getStatus().status;
+
+  const status = healthy ? 'ok' : 'degraded';
+  res.status(healthy ? 200 : 503).json({
+    status,
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    checks
+  });
+});
+
 // Panel opérateur NEXUS — auth via JWT super_admin, pas besoin de tenant resolution
 app.use('/api/nexus/auth', nexusAuthRoutes);
 app.use('/api/nexus', errorRoutes);
@@ -413,8 +442,9 @@ app.use('/api', resolveTenantByDomain);
 app.use('/api', tenantShield({ strict: true, logViolations: true }));
 app.use('/api', validateBodyTenant());
 
-// ============= ROUTES PUBLIQUES (sans auth) =============
+// ============= ROUTES PUBLIQUES (sans auth, rate limited) =============
 // Services, Chat, Rendez-vous pour les clients
+app.use('/api/public', apiLimiter);
 app.use('/api', publicRoutes);
 
 // Reviews/Avis clients (public GET + admin routes)

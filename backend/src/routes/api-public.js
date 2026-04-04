@@ -14,6 +14,10 @@ import {
   API_SCOPES
 } from '../middleware/apiAuth.js';
 import { requireClientsQuota, requireReservationsQuota } from '../middleware/quotas.js';
+import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+
+const API_CLIENTS_SORT_FIELDS = ['created_at', 'nom', 'prenom', 'email', 'telephone', 'updated_at'];
+const API_RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'updated_at'];
 
 const router = express.Router();
 
@@ -129,22 +133,17 @@ router.post('/auth/token', async (req, res) => {
  */
 router.get('/clients', requireScope('read:clients'), async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      search,
-      sort_by = 'created_at',
-      sort_order = 'desc'
-    } = req.query;
-
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const { search } = req.query;
+    const sort_by = validateSort(req.query.sort_by, API_CLIENTS_SORT_FIELDS);
+    const sort_order = validateOrder(req.query.sort_order);
+    const { page, limit, offset } = validatePagination(req.query.page, req.query.limit);
 
     let query = supabase
       .from('clients')
       .select('*', { count: 'exact' })
       .eq('tenant_id', req.tenantId)
       .order(sort_by, { ascending: sort_order === 'asc' })
-      .range(offset, offset + parseInt(limit) - 1);
+      .range(offset, offset + limit - 1);
 
     // Filtre recherche
     if (search) {
@@ -159,10 +158,10 @@ router.get('/clients', requireScope('read:clients'), async (req, res) => {
       success: true,
       data: clients,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: count,
-        total_pages: Math.ceil(count / parseInt(limit))
+        total_pages: Math.ceil(count / limit)
       }
     });
 
@@ -323,18 +322,10 @@ router.delete('/clients/:id', requireScope('delete:clients'), async (req, res) =
  */
 router.get('/reservations', requireScope('read:reservations'), async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      status,
-      date_from,
-      date_to,
-      client_id,
-      sort_by = 'date',
-      sort_order = 'desc'
-    } = req.query;
-
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const { status, date_from, date_to, client_id } = req.query;
+    const sort_by = validateSort(req.query.sort_by, API_RESERVATIONS_SORT_FIELDS, 'date');
+    const sort_order = validateOrder(req.query.sort_order);
+    const { page, limit, offset } = validatePagination(req.query.page, req.query.limit);
 
     let query = supabase
       .from('rendezvous')
@@ -344,7 +335,7 @@ router.get('/reservations', requireScope('read:reservations'), async (req, res) 
       `, { count: 'exact' })
       .eq('tenant_id', req.tenantId)
       .order(sort_by, { ascending: sort_order === 'asc' })
-      .range(offset, offset + parseInt(limit) - 1);
+      .range(offset, offset + limit - 1);
 
     // Filtres
     if (status) query = query.eq('statut', status);
@@ -360,10 +351,10 @@ router.get('/reservations', requireScope('read:reservations'), async (req, res) 
       success: true,
       data: reservations,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: count,
-        total_pages: Math.ceil(count / parseInt(limit))
+        total_pages: Math.ceil(count / limit)
       }
     });
 

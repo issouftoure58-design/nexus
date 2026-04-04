@@ -79,6 +79,40 @@ export function auditLogMiddleware() {
       res.end = originalEnd;
       res.end(...args);
 
+      const ip = req.ip || req.connection?.remoteAddress;
+      const userAgent = req.get('user-agent')?.substring(0, 200);
+
+      // Logger les echecs d'authentification (401/403) si un tenant est identifie
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        const failTenantId = req.admin?.tenant_id || req.tenantId;
+        if (failTenantId) {
+          const failEntry = {
+            tenant_id: failTenantId,
+            admin_id: req.admin?.id || null,
+            action: res.statusCode === 401 ? 'auth_failure' : 'access_denied',
+            entite: 'security',
+            details: {
+              method: req.method,
+              path: fullPath.split('?')[0],
+              status: res.statusCode,
+              ip,
+              user_agent: userAgent,
+              duration_ms: Date.now() - startTime,
+            },
+          };
+
+          supabase
+            .from('historique_admin')
+            .insert(failEntry)
+            .then(({ error }) => {
+              if (error) logger.warn('[AUDIT] Erreur insert fail log:', error.message);
+            });
+        } else {
+          logger.warn('[AUDIT] Auth failure sans tenant', { status: res.statusCode, path: fullPath.split('?')[0], ip });
+        }
+        return;
+      }
+
       // Logger seulement si un admin est authentifié et la réponse est un succès (2xx)
       if (!req.admin?.id || !req.admin?.tenant_id) return;
       if (res.statusCode < 200 || res.statusCode >= 300) return;
@@ -95,8 +129,8 @@ export function auditLogMiddleware() {
           method: req.method,
           path: fullPath.split('?')[0],
           status: res.statusCode,
-          ip: req.ip || req.connection?.remoteAddress,
-          user_agent: req.get('user-agent')?.substring(0, 200),
+          ip,
+          user_agent: userAgent,
           duration_ms: Date.now() - startTime,
         },
       };

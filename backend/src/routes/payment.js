@@ -66,7 +66,7 @@ async function calculerAcompte(rdvId, tenantId, prixTotal) {
   if (devis?.montant_acompte && devis.montant_acompte > 0) {
     // montant_acompte est en centimes dans la DB, convertir en euros
     const montantEuros = devis.montant_acompte / 100;
-    console.log(`[Payment] Acompte devis: ${montantEuros}€ (${devis.acompte_pourcentage}%)`);
+    logger.debug(`[Payment] Acompte devis: ${montantEuros}€ (${devis.acompte_pourcentage}%)`);
     return montantEuros;
   }
 
@@ -80,7 +80,7 @@ async function calculerAcompte(rdvId, tenantId, prixTotal) {
   const depositPct = tenant?.profile_config?.deposit_percentage;
   if (depositPct && prixTotal && prixTotal > 0) {
     const montant = Math.round(prixTotal * depositPct / 100 * 100) / 100;
-    console.log(`[Payment] Acompte template ${depositPct}%: ${montant}€`);
+    logger.debug(`[Payment] Acompte template ${depositPct}%: ${montant}€`);
     return montant;
   }
 
@@ -120,7 +120,7 @@ async function calculerMontantTotal(prixService, adresseClient, tenantId) {
 async function saveTransaction(data) {
   const db = getSupabase();
   if (!db) {
-    console.error('[Payment] Supabase non configuré');
+    logger.error('[Payment] Supabase non configuré');
     return { id: null, ...data };
   }
 
@@ -144,11 +144,11 @@ async function saveTransaction(data) {
     .single();
 
   if (error) {
-    console.error('[Payment] Erreur saveTransaction:', error);
+    logger.error('[Payment] Erreur saveTransaction:', { error: error.message });
     return { id: null, ...data };
   }
 
-  console.log(`[Payment] Transaction #${inserted.id} sauvegardée (${data.provider} - ${data.amount}€)`);
+  logger.info(`[Payment] Transaction #${inserted.id} sauvegardée (${data.provider} - ${data.amount}€)`);
   return inserted;
 }
 
@@ -158,7 +158,7 @@ async function saveTransaction(data) {
  */
 async function getRdvById(rdvId, tenantId) {
   if (!tenantId) {
-    console.error('[Payment] SECURITY: getRdvById called without tenantId!');
+    logger.error('[Payment] SECURITY: getRdvById called without tenantId!');
     return null;
   }
 
@@ -179,7 +179,7 @@ async function getRdvById(rdvId, tenantId) {
     .single();
 
   if (error) {
-    console.error('[Payment] Erreur getRdvById:', error);
+    logger.error('[Payment] Erreur getRdvById:', { error: error.message });
     return null;
   }
 
@@ -192,7 +192,7 @@ async function getRdvById(rdvId, tenantId) {
  */
 async function updateRdv(rdvId, tenantId, data) {
   if (!tenantId) {
-    console.error('[Payment] SECURITY: updateRdv called without tenantId!');
+    logger.error('[Payment] SECURITY: updateRdv called without tenantId!');
     return { id: rdvId, error: 'TENANT_REQUIRED' };
   }
 
@@ -214,7 +214,7 @@ async function updateRdv(rdvId, tenantId, data) {
       .eq('tenant_id', tenantId);
 
     if (rdvError) {
-      console.error('[Payment] Erreur updateRdv reservations:', rdvError);
+      logger.error('[Payment] Erreur updateRdv reservations:', { error: rdvError.message });
     }
   }
 
@@ -241,11 +241,11 @@ async function updateRdv(rdvId, tenantId, data) {
       .limit(1);
 
     if (payError) {
-      console.error('[Payment] Erreur updateRdv payments:', payError);
+      logger.error('[Payment] Erreur updateRdv payments:', { error: payError.message });
     }
   }
 
-  console.log(`[Payment] RDV #${rdvId} (tenant: ${tenantId}) mis à jour:`, data.statut || 'pas de changement statut');
+  logger.info(`[Payment] RDV #${rdvId} (tenant: ${tenantId}) mis à jour: ${data.statut || 'pas de changement statut'}`);
   return { id: rdvId, ...data };
 }
 
@@ -255,7 +255,7 @@ async function updateRdv(rdvId, tenantId, data) {
  */
 async function getPaymentInfoByRdvId(rdvId, tenantId) {
   if (!tenantId) {
-    console.error('[Payment] SECURITY: getPaymentInfoByRdvId called without tenantId!');
+    logger.error('[Payment] SECURITY: getPaymentInfoByRdvId called without tenantId!');
     return null;
   }
 
@@ -273,7 +273,7 @@ async function getPaymentInfoByRdvId(rdvId, tenantId) {
 
   if (error) {
     if (error.code === 'PGRST116') return null; // No rows found
-    console.error('[Payment] Erreur getPaymentInfoByRdvId:', error);
+    logger.error('[Payment] Erreur getPaymentInfoByRdvId:', { error: error.message });
     return null;
   }
 
@@ -286,7 +286,7 @@ async function getPaymentInfoByRdvId(rdvId, tenantId) {
 async function sendConfirmationEmail(rdvId, tenantId, paymentInfo) {
   const rdv = await getRdvById(rdvId, tenantId);
   if (!rdv) {
-    console.error(`[Payment] RDV #${rdvId} introuvable pour envoi confirmation`);
+    logger.error(`[Payment] RDV #${rdvId} introuvable pour envoi confirmation`);
     return;
   }
 
@@ -308,9 +308,9 @@ async function sendConfirmationEmail(rdvId, tenantId, paymentInfo) {
 
   try {
     const result = await sendConfirmation(rdvData, acompte);
-    console.log(`[Payment] Confirmation envoyée pour RDV #${rdvId}:`, result);
+    logger.info(`[Payment] Confirmation envoyée pour RDV #${rdvId}`);
   } catch (err) {
-    console.error(`[Payment] Erreur envoi confirmation RDV #${rdvId}:`, err.message);
+    logger.error(`[Payment] Erreur envoi confirmation RDV #${rdvId}:`, { error: err.message });
   }
 }
 
@@ -320,7 +320,7 @@ async function sendConfirmationEmail(rdvId, tenantId, paymentInfo) {
 async function sendCancellationEmail(rdvId, tenantId, refundInfo) {
   const rdv = await getRdvById(rdvId, tenantId);
   if (!rdv) {
-    console.error(`[Payment] RDV #${rdvId} introuvable pour envoi annulation`);
+    logger.error(`[Payment] RDV #${rdvId} introuvable pour envoi annulation`);
     return;
   }
 
@@ -336,9 +336,9 @@ async function sendCancellationEmail(rdvId, tenantId, refundInfo) {
 
   try {
     const result = await sendAnnulation(rdvData, refundInfo.montant_rembourse || 0);
-    console.log(`[Payment] Annulation envoyée pour RDV #${rdvId}:`, result);
+    logger.info(`[Payment] Annulation envoyée pour RDV #${rdvId}`);
   } catch (err) {
-    console.error(`[Payment] Erreur envoi annulation RDV #${rdvId}:`, err.message);
+    logger.error(`[Payment] Erreur envoi annulation RDV #${rdvId}:`, { error: err.message });
   }
 }
 
@@ -440,7 +440,7 @@ router.post('/create-intent', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur create-intent:', error);
+    logger.error('[Payment] Erreur create-intent:', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Erreur création paiement',
@@ -523,7 +523,7 @@ router.post('/confirm-stripe', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur confirm-stripe:', error);
+    logger.error('[Payment] Erreur confirm-stripe:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur confirmation paiement',
@@ -621,7 +621,7 @@ router.post('/create-paypal-order', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur create-paypal-order:', error);
+    logger.error('[Payment] Erreur create-paypal-order:', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Erreur création commande PayPal',
@@ -710,7 +710,7 @@ router.post('/capture-paypal', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur capture-paypal:', error);
+    logger.error('[Payment] Erreur capture-paypal:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur capture PayPal',
@@ -838,7 +838,7 @@ router.post('/refund', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur refund:', error);
+    logger.error('[Payment] Erreur refund:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur remboursement',
@@ -886,7 +886,7 @@ router.get('/status/:rdv_id', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur status:', error);
+    logger.error('[Payment] Erreur status:', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Erreur récupération statut',
@@ -935,7 +935,7 @@ router.post('/order/create-intent', authenticateAdmin, async (req, res) => {
       type: 'order',
     });
 
-    console.log(`[Payment] PaymentIntent créé pour commande: ${paymentIntent.payment_intent_id} - ${amount / 100}€`);
+    logger.info(`[Payment] PaymentIntent créé pour commande: ${paymentIntent.payment_intent_id} - ${amount / 100}€`);
 
     res.json({
       success: true,
@@ -945,7 +945,7 @@ router.post('/order/create-intent', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur order/create-intent:', error);
+    logger.error('[Payment] Erreur order/create-intent:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur création paiement',
@@ -985,7 +985,7 @@ router.post('/order/confirm', authenticateAdmin, async (req, res) => {
       });
     }
 
-    console.log(`[Payment] Paiement confirmé: ${paymentIntentId} (tenant: ${tenantId})`);
+    logger.info(`[Payment] Paiement confirmé: ${paymentIntentId} (tenant: ${tenantId})`);
 
     res.json({
       success: true,
@@ -998,7 +998,7 @@ router.post('/order/confirm', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur order/confirm:', error);
+    logger.error('[Payment] Erreur order/confirm:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur confirmation paiement',
@@ -1057,7 +1057,7 @@ router.post('/order/create-paypal', authenticateAdmin, async (req, res) => {
       cancel_url: `${process.env.APP_URL || 'http://localhost:5000'}/panier?paypal=cancel`,
     });
 
-    console.log(`[Payment] PayPal Order créé: ${order.order_id} - ${amountEuros}€`);
+    logger.info(`[Payment] PayPal Order créé: ${order.order_id} - ${amountEuros}€`);
 
     res.json({
       success: true,
@@ -1067,7 +1067,7 @@ router.post('/order/create-paypal', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur order/create-paypal:', error);
+    logger.error('[Payment] Erreur order/create-paypal:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur création commande PayPal',
@@ -1107,7 +1107,7 @@ router.post('/order/capture-paypal', authenticateAdmin, async (req, res) => {
       });
     }
 
-    console.log(`[Payment] PayPal capturé: ${orderId} - ${capture.amount}€ (tenant: ${tenantId})`);
+    logger.info(`[Payment] PayPal capturé: ${orderId} - ${capture.amount}€ (tenant: ${tenantId})`);
 
     res.json({
       success: true,
@@ -1122,7 +1122,7 @@ router.post('/order/capture-paypal', authenticateAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Payment] Erreur order/capture-paypal:', error);
+    logger.error('[Payment] Erreur order/capture-paypal:', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur capture PayPal',
