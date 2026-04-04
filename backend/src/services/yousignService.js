@@ -45,7 +45,7 @@ async function yousignFetch(path, options = {}) {
 }
 
 /**
- * Crée une demande de signature
+ * Crée une demande de signature (supporte multi-documents)
  * @param {string} tenantId
  * @param {object} params
  * @param {string} params.name — nom de la procédure (ex: "Contrat Formation")
@@ -53,11 +53,12 @@ async function yousignFetch(path, options = {}) {
  * @param {string} params.signerFirstName
  * @param {string} params.signerLastName
  * @param {string} params.signerPhone — format +33...
- * @param {Buffer} params.fileContent — contenu PDF du document
- * @param {string} params.fileName — nom du fichier
+ * @param {Buffer} [params.fileContent] — contenu PDF (retro-compat single doc)
+ * @param {string} [params.fileName] — nom du fichier (retro-compat single doc)
+ * @param {Array<{name: string, fileName: string, fileContent: Buffer}>} [params.documents] — multi-documents
  * @param {string} [params.clientId] — ID client NEXUS pour traçabilité
  * @param {object} [params.metadata] — métadonnées additionnelles
- * @returns {object} { signatureRequestId, signerId, documentId }
+ * @returns {object} { signatureRequestId, signerId, documentIds }
  */
 export async function createSignatureRequest(tenantId, params) {
   if (!tenantId) throw new Error('tenant_id requis');
@@ -70,12 +71,22 @@ export async function createSignatureRequest(tenantId, params) {
     signerPhone,
     fileContent,
     fileName,
+    documents: rawDocuments,
     clientId,
     metadata = {}
   } = params;
 
   if (!signerEmail) throw new Error('signerEmail requis');
-  if (!fileContent) throw new Error('fileContent requis');
+
+  // Normaliser: retro-compat single fileContent → documents[]
+  let documents = rawDocuments || [];
+  if (documents.length === 0 && fileContent) {
+    documents = [{ name: name || 'Document', fileName: fileName || 'document.pdf', fileContent }];
+  }
+
+  if (documents.length === 0) {
+    throw new Error('Au moins un document requis (documents[] ou fileContent)');
+  }
 
   // 1. Créer la signature request
   const signatureRequest = await yousignFetch('/signature_requests', {
@@ -93,31 +104,46 @@ export async function createSignatureRequest(tenantId, params) {
     await saveSignatureRecord(tenantId, {
       yousign_request_id: simId,
       client_id: clientId,
-      document_name: fileName || name,
+      document_name: documents.map(d => d.fileName || d.name).join(', '),
       signer_email: signerEmail,
       status: 'draft',
-      metadata: { ...metadata, simulated: true },
+      metadata: { ...metadata, simulated: true, document_count: documents.length },
     });
     return { signatureRequestId: simId, simulated: true };
   }
 
   const requestId = signatureRequest.id;
 
-  // 2. Uploader le document
-  const formData = new FormData();
-  formData.append('file', new Blob([fileContent], { type: 'application/pdf' }), fileName || 'document.pdf');
-  formData.append('nature', 'signable_document');
+  // 2. Uploader N documents
+  const uploadedDocs = [];
+  for (const doc of documents) {
+    const formData = new FormData();
+    formData.append('file', new Blob([doc.fileContent], { type: 'application/pdf' }), doc.fileName || 'document.pdf');
+    formData.append('nature', 'signable_document');
 
-  const document = await fetch(`${BASE_URL}/signature_requests/${requestId}/documents`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${YOUSIGN_API_KEY}` },
-    body: formData,
-  }).then(r => {
-    if (!r.ok) throw new Error(`Yousign upload ${r.status}`);
-    return r.json();
-  });
+    const uploaded = await fetch(`${BASE_URL}/signature_requests/${requestId}/documents`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${YOUSIGN_API_KEY}` },
+      body: formData,
+    }).then(r => {
+      if (!r.ok) throw new Error(`Yousign upload ${r.status}: ${doc.fileName}`);
+      return r.json();
+    });
 
-  // 3. Ajouter le signataire
+    uploadedDocs.push(uploaded);
+  }
+
+  // 3. Ajouter le signataire avec champs signature sur chaque document
+  const fields = uploadedDocs.map(doc => ({
+    type: 'signature',
+    document_id: doc.id,
+    page: 1,
+    x: 77,
+    y: 581,
+    width: 228,
+    height: 68,
+  }));
+
   const signer = await yousignFetch(`/signature_requests/${requestId}/signers`, {
     method: 'POST',
     body: JSON.stringify({
@@ -130,17 +156,7 @@ export async function createSignatureRequest(tenantId, params) {
       },
       signature_level: 'electronic_signature',
       signature_authentication_mode: signerPhone ? 'otp_sms' : 'no_otp',
-      fields: [
-        {
-          type: 'signature',
-          document_id: document.id,
-          page: 1,
-          x: 77,
-          y: 581,
-          width: 228,
-          height: 68,
-        }
-      ]
+      fields,
     }),
   });
 
@@ -150,23 +166,24 @@ export async function createSignatureRequest(tenantId, params) {
   });
 
   // 5. Sauvegarder en DB
+  const documentIds = uploadedDocs.map(d => d.id);
   await saveSignatureRecord(tenantId, {
     yousign_request_id: requestId,
-    yousign_document_id: document.id,
+    yousign_document_id: documentIds[0],
     yousign_signer_id: signer.id,
     client_id: clientId,
-    document_name: fileName || name,
+    document_name: documents.map(d => d.fileName || d.name).join(', '),
     signer_email: signerEmail,
     status: 'ongoing',
-    metadata,
+    metadata: { ...metadata, document_count: documents.length, document_ids: documentIds },
   });
 
-  console.log(`[YOUSIGN] Signature request créée: ${requestId} pour ${signerEmail} (tenant: ${tenantId})`);
+  console.log(`[YOUSIGN] Signature request créée: ${requestId} — ${documents.length} doc(s) pour ${signerEmail} (tenant: ${tenantId})`);
 
   return {
     signatureRequestId: requestId,
     signerId: signer.id,
-    documentId: document.id,
+    documentIds,
   };
 }
 

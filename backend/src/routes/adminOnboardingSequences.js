@@ -17,11 +17,61 @@ import {
   getEnrollmentStats,
   cancelEnrollment,
   retryEnrollment,
+  createEnrollment,
 } from '../services/onboardingEnrollmentService.js';
+import { triggerWorkflows } from '../automation/workflowEngine.js';
 
 const router = express.Router();
 
 router.use(authenticateAdmin, requireModule('marketing'));
+
+/**
+ * POST / — Declenchement manuel "Paiement recu"
+ * Body: { client_email, client_name?, amount?, notes? }
+ */
+router.post('/', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { client_email, client_name, amount, notes } = req.body;
+
+    if (!client_email) {
+      return res.status(400).json({ error: 'client_email requis' });
+    }
+
+    // Creer l'enrollment
+    const enrollment = await createEnrollment(tenantId, {
+      clientEmail: client_email,
+      clientName: client_name || null,
+      metadata: {
+        trigger: 'manual_payment',
+        amount: amount || null,
+        notes: notes || null,
+        triggered_by: req.admin.email,
+        triggered_at: new Date().toISOString(),
+      },
+    });
+
+    // Declencher les workflows payment_received
+    await triggerWorkflows('payment_received', {
+      tenant_id: tenantId,
+      entity: {
+        type: 'client',
+        id: enrollment.id,
+        email: client_email,
+        nom: client_name || '',
+        prenom: client_name?.split(' ')[0] || '',
+        amount: amount || null,
+        notes: notes || null,
+      },
+    });
+
+    console.log(`[ONBOARDING-SEQ] Paiement manuel declenche pour ${client_email} (tenant: ${tenantId})`);
+    res.json({ success: true, enrollment });
+  } catch (error) {
+    console.error('[ONBOARDING-SEQ] Erreur paiement manuel:', error);
+    res.status(500).json({ error: error.message || 'Erreur declenchement paiement' });
+  }
+});
 
 /**
  * GET / — Liste paginee des enrollments

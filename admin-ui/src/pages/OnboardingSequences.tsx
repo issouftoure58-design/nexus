@@ -16,6 +16,7 @@ import {
   Ban,
   ChevronRight,
   X,
+  CreditCard,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -55,6 +56,8 @@ export default function OnboardingSequences() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ client_email: '', client_name: '', amount: '', notes: '' });
 
   const { data: stats } = useQuery({
     queryKey: ['onboarding-stats'],
@@ -93,6 +96,27 @@ export default function OnboardingSequences() {
     },
   });
 
+  const paymentMutation = useMutation({
+    mutationFn: (data: { client_email: string; client_name?: string; amount?: number; notes?: string }) =>
+      api.post('/api/admin/onboarding-sequences', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['onboarding-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['onboarding-stats'] });
+      setShowPaymentModal(false);
+      setPaymentForm({ client_email: '', client_name: '', amount: '', notes: '' });
+    },
+  });
+
+  const handlePaymentSubmit = () => {
+    if (!paymentForm.client_email) return;
+    paymentMutation.mutate({
+      client_email: paymentForm.client_email,
+      client_name: paymentForm.client_name || undefined,
+      amount: paymentForm.amount ? parseFloat(paymentForm.amount) : undefined,
+      notes: paymentForm.notes || undefined,
+    });
+  };
+
   const enrollments = listData?.data || [];
   const pagination = listData?.pagination;
 
@@ -108,6 +132,18 @@ export default function OnboardingSequences() {
 
   return (
     <div className="space-y-6">
+      {/* Header + Bouton Paiement recu */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Onboarding Sequences</h2>
+          <p className="text-sm text-muted-foreground">Suivi des enrollments post-paiement</p>
+        </div>
+        <Button onClick={() => setShowPaymentModal(true)} className="gap-2">
+          <CreditCard className="h-4 w-4" />
+          Paiement recu
+        </Button>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -274,6 +310,87 @@ export default function OnboardingSequences() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal Paiement recu */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowPaymentModal(false)} />
+          <div className="relative w-full max-w-md bg-background rounded-xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Paiement recu</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowPaymentModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Declencher manuellement le processus d'onboarding pour un client ayant paye.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">Email *</label>
+                <input
+                  type="email"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-background text-sm"
+                  placeholder="client@email.com"
+                  value={paymentForm.client_email}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, client_email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Nom du client</label>
+                <input
+                  type="text"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-background text-sm"
+                  placeholder="Jean Dupont"
+                  value={paymentForm.client_name}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, client_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Montant</label>
+                <input
+                  type="number"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-background text-sm"
+                  placeholder="0.00"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Notes</label>
+                <textarea
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-background text-sm"
+                  rows={2}
+                  placeholder="Notes internes..."
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+            {paymentMutation.isError && (
+              <p className="text-sm text-red-500 mt-3">
+                {(paymentMutation.error as Error)?.message || 'Erreur lors du declenchement'}
+              </p>
+            )}
+            <div className="flex gap-2 mt-4 justify-end">
+              <Button variant="outline" onClick={() => setShowPaymentModal(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handlePaymentSubmit}
+                disabled={!paymentForm.client_email || paymentMutation.isPending}
+              >
+                {paymentMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
+                Confirmer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail Slide-over */}
       {selectedId && detail && (

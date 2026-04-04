@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   Plus, Play, Pause, Trash2, Settings,
-  Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle, X
+  Zap, Mail, MessageSquare, Tag, CheckSquare, Eye, Clock, AlertCircle, X,
+  Upload, FileText, XCircle,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useBusinessTypeChecks } from '@/contexts/ProfileContext';
@@ -42,6 +43,24 @@ interface WorkflowStats {
   success_rate: number;
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]); // Remove data:...;base64, prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
 function getTriggerLabels(isCommerce: boolean, isSecurity: boolean, isHotel: boolean, isRestaurant: boolean): Record<string, string> {
   const completedLabel = isCommerce ? 'Commande complétée' : isSecurity ? 'Mission terminée' : isHotel ? 'Check-out effectué' : isRestaurant ? 'Service terminé' : 'Prestation terminée';
   const cancelledLabel = isCommerce ? 'Commande annulée' : isSecurity ? 'Mission annulée' : 'Prestation annulée';
@@ -64,6 +83,13 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   remove_tag: <Tag className="h-4 w-4" />,
   create_task: <CheckSquare className="h-4 w-4" />,
 };
+
+interface WorkflowDocument {
+  name: string;
+  fileName: string;
+  fileBase64: string;
+  size: number;
+}
 
 interface WorkflowExecution {
   id: number;
@@ -165,6 +191,61 @@ export default function WorkflowsPage() {
     },
     onError: (err: Error) => setMutationError(err.message),
   });
+
+  // Update workflow config mutation (for PDF upload)
+  const updateConfigMutation = useMutation({
+    mutationFn: async ({ id, config }: { id: number; config: Workflow['config'] }) => {
+      return api.put(`/admin/workflows/${id}`, { config });
+    },
+    onSuccess: () => {
+      setMutationError(null);
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      queryClient.invalidateQueries({ queryKey: ['workflow-detail', selectedWorkflowId] });
+    },
+    onError: (err: Error) => setMutationError(err.message),
+  });
+
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 Mo
+  const MAX_FILES = 5;
+
+  const handlePdfUpload = async (workflow: Workflow, actionIndex: number, files: FileList) => {
+    const actions = [...(workflow.config.actions || [])];
+    const action = { ...actions[actionIndex] };
+    const currentDocs = (action.documents as WorkflowDocument[] || []);
+
+    if (currentDocs.length + files.length > MAX_FILES) {
+      setMutationError(`Maximum ${MAX_FILES} fichiers par action`);
+      return;
+    }
+
+    const newDocs: WorkflowDocument[] = [...currentDocs];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_SIZE) {
+        setMutationError(`${file.name} depasse la limite de 2 Mo`);
+        return;
+      }
+      if (file.type !== 'application/pdf') {
+        setMutationError(`${file.name} n'est pas un PDF`);
+        return;
+      }
+      const base64 = await fileToBase64(file);
+      newDocs.push({ name: file.name.replace('.pdf', ''), fileName: file.name, fileBase64: base64, size: file.size });
+    }
+
+    action.documents = newDocs;
+    actions[actionIndex] = action;
+    updateConfigMutation.mutate({ id: workflow.id, config: { ...workflow.config, actions } });
+  };
+
+  const handleRemoveDoc = (workflow: Workflow, actionIndex: number, docIndex: number) => {
+    const actions = [...(workflow.config.actions || [])];
+    const action = { ...actions[actionIndex] };
+    const docs = [...(action.documents as WorkflowDocument[] || [])];
+    docs.splice(docIndex, 1);
+    action.documents = docs;
+    actions[actionIndex] = action;
+    updateConfigMutation.mutate({ id: workflow.id, config: { ...workflow.config, actions } });
+  };
 
   if (isLoading) {
     return (
@@ -450,6 +531,72 @@ export default function WorkflowsPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Upload PDF pour actions create_signature */}
+                {workflowDetail.workflow.config.actions?.map((action, actionIdx) => {
+                  if (action.type !== 'create_signature') return null;
+                  const docs = (action.documents as WorkflowDocument[]) || [];
+                  return (
+                    <div key={actionIdx} className="mb-6">
+                      <h3 className="text-sm font-medium text-white/70 mb-2">
+                        Documents a signer (action #{actionIdx + 1})
+                      </h3>
+                      <div className="bg-zinc-800/50 rounded-lg p-4">
+                        {/* Liste des documents uploades */}
+                        {docs.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {docs.map((doc, docIdx) => (
+                              <div key={docIdx} className="flex items-center justify-between bg-zinc-700/50 rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-red-400" />
+                                  <span className="text-sm text-white">{doc.fileName}</span>
+                                  <span className="text-xs text-white/40">{formatFileSize(doc.size)}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveDoc(workflowDetail.workflow, actionIdx, docIdx)}
+                                  className="text-white/40 hover:text-red-400"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Zone upload */}
+                        {docs.length < MAX_FILES && (
+                          <label className="flex flex-col items-center justify-center border-2 border-dashed border-white/20 rounded-lg p-4 cursor-pointer hover:border-white/40 transition-colors">
+                            <Upload className="h-6 w-6 text-white/40 mb-1" />
+                            <span className="text-sm text-white/60">
+                              Glissez ou cliquez pour ajouter des PDF
+                            </span>
+                            <span className="text-xs text-white/30 mt-1">
+                              Max {MAX_FILES} fichiers, 2 Mo chacun
+                            </span>
+                            <input
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files?.length) {
+                                  handlePdfUpload(workflowDetail.workflow, actionIdx, e.target.files);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+
+                        {docs.length === 0 && (
+                          <p className="text-xs text-white/40 mt-2">
+                            Uploadez les contrats/documents que le client devra signer.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
 
                 <div>
                   <h3 className="text-sm font-medium text-white/70 mb-2">

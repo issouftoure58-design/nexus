@@ -734,19 +734,31 @@ async function executeCreateSignature(action, entity, tenant_id) {
   try {
     const { createSignatureRequest } = await import('../services/yousignService.js');
 
+    // Convertir documents[] base64 → Buffer pour Yousign
+    let documents = [];
+    if (action.documents && Array.isArray(action.documents) && action.documents.length > 0) {
+      documents = action.documents.map(doc => ({
+        name: doc.name || 'Document',
+        fileName: doc.fileName || 'document.pdf',
+        fileContent: Buffer.from(doc.fileBase64, 'base64'),
+      }));
+    }
+
     const result = await createSignatureRequest(tenant_id, {
       name: action.document_template || 'Contrat onboarding',
       signerEmail,
       signerFirstName: entity.prenom || signerName || 'Client',
       signerLastName: entity.nom || '',
       signerPhone: entity.telephone || undefined,
-      fileContent: action.file_content || null,
-      fileName: action.file_name || 'contrat.pdf',
+      // Retro-compat: fileContent si pas de documents[]
+      fileContent: documents.length === 0 ? (action.file_content || null) : undefined,
+      fileName: documents.length === 0 ? (action.file_name || 'contrat.pdf') : undefined,
+      documents: documents.length > 0 ? documents : undefined,
       clientId: entity.id || undefined,
       metadata: { workflow_action: 'create_signature', document_template: action.document_template },
     });
 
-    console.log(`[WORKFLOWS] create_signature: signature creee pour ${signerEmail}`);
+    console.log(`[WORKFLOWS] create_signature: ${documents.length || 1} doc(s), signature creee pour ${signerEmail}`);
     return { action: 'create_signature', signer_email: signerEmail, success: true, ...result };
   } catch (err) {
     console.error(`[WORKFLOWS] create_signature error:`, err.message);
