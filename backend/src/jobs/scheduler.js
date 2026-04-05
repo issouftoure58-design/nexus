@@ -1342,50 +1342,14 @@ async function runScheduler() {
     }
   }
 
-  // Job: PLTE v2 hourly — 8 tenants vie quotidienne (toutes les heures)
-  const plteInterval = JOBS_SCHEDULE.plteHourly.interval * 60 * 1000;
-  if (now - lastPlteHourlyRun >= plteInterval) {
-    lastPlteHourlyRun = now;
-    try {
-      const { logicTestEngine } = await import('../services/logicTestEngine.js');
-      await logicTestEngine.runHourly();
-    } catch (err) {
-      console.error('[Scheduler] Erreur PLTE hourly:', err.message);
-    }
-  }
-
-  // Job: PLTE v2 nightly — stress tests (02h00)
-  if (shouldRunJob('plteNightly', JOBS_SCHEDULE.plteNightly)) {
-    markJobExecuted('plteNightly');
-    try {
-      const { logicTestEngine } = await import('../services/logicTestEngine.js');
-      await logicTestEngine.runNightly();
-    } catch (err) {
-      console.error('[Scheduler] Erreur PLTE nightly:', err.message);
-    }
-  }
-
-  // Job: PLTE v2 weekly — IA deep tests (lundi 03h00)
-  if (shouldRunWeeklyJob('plteWeekly', JOBS_SCHEDULE.plteWeekly)) {
-    markJobExecuted('plteWeekly');
-    try {
-      const { logicTestEngine } = await import('../services/logicTestEngine.js');
-      await logicTestEngine.runWeekly();
-    } catch (err) {
-      console.error('[Scheduler] Erreur PLTE weekly:', err.message);
-    }
-  }
-
-  // Job: PLTE E2E — tests parcours utilisateur complet via HTTP (04h00)
-  if (shouldRunJob('plteE2E', JOBS_SCHEDULE.plteE2E)) {
-    markJobExecuted('plteE2E');
-    try {
-      const { logicTestEngine } = await import('../services/logicTestEngine.js');
-      await logicTestEngine.runE2E();
-    } catch (err) {
-      console.error('[Scheduler] Erreur PLTE E2E:', err.message);
-    }
-  }
+  // ===== PLTE TESTS DÉSACTIVÉS — économie tokens IA (5 avril 2026) =====
+  // Réactiver quand nécessaire en décommentant les blocs ci-dessous
+  //
+  // Job: PLTE v2 hourly — DÉSACTIVÉ
+  // Job: PLTE v2 nightly — DÉSACTIVÉ
+  // Job: PLTE v2 weekly — DÉSACTIVÉ
+  // Job: PLTE E2E — DÉSACTIVÉ (consommait ~10 requêtes Sonnet/jour à 04h00)
+  // ===== FIN PLTE DÉSACTIVÉ =====
 
   // Job: Prospection follow-up (toutes les 30 minutes)
   const prospectionInterval = JOBS_SCHEDULE.prospectionFollowUp.interval * 60 * 1000;
@@ -1471,10 +1435,10 @@ export function startScheduler() {
   console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
   console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
   console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
-  console.log(`  ✅ PLTE v2 Hourly: toutes les ${JOBS_SCHEDULE.plteHourly.interval} min (8 tenants, H1-H6 sans IA)`);
-  console.log(`  ✅ PLTE v2 Nightly: tous les jours a ${JOBS_SCHEDULE.plteNightly.hour}h${String(JOBS_SCHEDULE.plteNightly.minute).padStart(2, '0')} (stress tests)`);
-  console.log(`  ✅ PLTE v2 Weekly: lundi ${JOBS_SCHEDULE.plteWeekly.hour}h${String(JOBS_SCHEDULE.plteWeekly.minute).padStart(2, '0')} (IA deep + securite)`);
-  console.log(`  ✅ PLTE E2E: tous les jours a ${JOBS_SCHEDULE.plteE2E.hour}h${String(JOBS_SCHEDULE.plteE2E.minute).padStart(2, '0')} (10 contextes, 34 tests HTTP)`);
+  console.log(`  ⏸️  PLTE v2 Hourly: DÉSACTIVÉ (économie tokens)`);
+  console.log(`  ⏸️  PLTE v2 Nightly: DÉSACTIVÉ`);
+  console.log(`  ⏸️  PLTE v2 Weekly: DÉSACTIVÉ`);
+  console.log(`  ⏸️  PLTE E2E: DÉSACTIVÉ`);
   console.log(`  ✅ Prospection Follow-Up: toutes les ${JOBS_SCHEDULE.prospectionFollowUp.interval} min (relances J3/J7/J14)`);
   console.log(`  ✅ Prospection Auto-Scrape: lundi ${JOBS_SCHEDULE.prospectionAutoScrape.hour}h (Google Places)`);
   console.log(`  ✅ Prospection Auto-Emails: lundi ${JOBS_SCHEDULE.prospectionAutoEmails.hour}h (recherche emails)`);
