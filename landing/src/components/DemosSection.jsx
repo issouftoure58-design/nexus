@@ -9,46 +9,50 @@ const DEMOS = [
   {
     id: 'whatsapp',
     title: 'WhatsApp IA',
-    description: 'Réponses automatiques intelligentes sur WhatsApp',
+    description: 'Reponses automatiques intelligentes sur WhatsApp',
     icon: MessageCircle,
     iconColor: 'text-green-400',
     bgColor: 'from-green-500/20 to-green-600/20',
     borderColor: 'border-green-500/30',
     src: '/demos/demo-whatsapp.mp4',
-    type: 'video'
+    type: 'video',
+    longDescription: "L'assistant WhatsApp IA de NEXUS repond instantanement a vos clients sur leur messagerie preferee. Il gere les demandes de rendez-vous, les questions sur vos tarifs et horaires, les confirmations automatiques et les rappels. Chaque conversation est personnalisee grace au contexte client stocke dans votre CRM. Vos clients obtiennent une reponse en quelques secondes, meme la nuit ou le week-end."
   },
   {
     id: 'chat-web',
     title: 'Chat Web',
-    description: 'Assistant virtuel intégré à votre site',
+    description: 'Assistant virtuel integre a votre site',
     icon: Monitor,
     iconColor: 'text-neon-cyan',
     bgColor: 'from-neon-cyan/20 to-primary-500/20',
     borderColor: 'border-neon-cyan/30',
     src: '/demos/demo-chat-web.mp4',
-    type: 'video'
+    type: 'video',
+    longDescription: "Le chatbot web NEXUS s'integre directement sur votre site internet pour accueillir vos visiteurs. Il repond aux questions frequentes, guide les prospects vers la reservation en ligne et qualifie les demandes avant de les transmettre. L'assistant comprend le contexte de votre activite et adapte ses reponses a votre metier — salon, restaurant, hotel ou commerce."
   },
   {
-    id: 'chat-2',
-    title: 'Chat Avancé',
-    description: 'Conversation fluide et naturelle',
+    id: 'plateforme',
+    title: 'Tour de NEXUS',
+    description: 'Decouvrez la plateforme en 2 minutes',
     icon: Sparkles,
     iconColor: 'text-purple-400',
     bgColor: 'from-purple-500/20 to-pink-500/20',
     borderColor: 'border-purple-500/30',
     src: '/demos/demo-chat-2.mp4',
-    type: 'video'
+    type: 'video',
+    longDescription: "Decouvrez l'interface complete de NEXUS en quelques minutes. Ce tour guide vous presente le tableau de bord, la gestion des reservations, le CRM client, les outils marketing et la comptabilite. Vous verrez comment chaque module s'integre naturellement pour former une plateforme unifiee, concue pour simplifier le quotidien des PME."
   },
   {
     id: 'telephone',
-    title: 'Téléphone IA',
-    description: 'Réservation complète par téléphone',
+    title: 'Telephone IA',
+    description: 'Reservation complete par telephone',
     icon: Phone,
     iconColor: 'text-orange-400',
     bgColor: 'from-orange-500/20 to-red-500/20',
     borderColor: 'border-orange-500/30',
-    src: '/demos/demo-telephone.m4a',
-    type: 'audio'
+    src: '/demos/demo-telephone.mp4',
+    type: 'video',
+    longDescription: "L'assistant telephone IA de NEXUS decroche automatiquement vos appels et mene la conversation naturellement en francais. Il prend les reservations, repond aux questions sur vos services et horaires, et gere les modifications de rendez-vous. Ecoutez cette demo reelle : un client appelle pour reserver, et l'IA gere l'ensemble du processus sans intervention humaine."
   }
 ]
 
@@ -337,6 +341,12 @@ export default function DemosSection() {
         <div className="flex justify-center">
           <div className="w-28 h-2 bg-dark-700 rounded-full" />
         </div>
+      </div>
+
+      {/* Demo Description */}
+      <div className="mt-8 max-w-3xl mx-auto">
+        <h3 className="text-lg font-semibold mb-2">{activeDemo.title} — {activeDemo.description}</h3>
+        <p className="text-gray-400 text-sm leading-relaxed">{activeDemo.longDescription}</p>
       </div>
     </div>
   )

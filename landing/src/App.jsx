@@ -8,7 +8,8 @@ import { useState, useEffect } from 'react'
 import {
   Phone, MessageCircle, Calendar,
   Sparkles, ChevronRight, Play, Menu, X,
-  Volume2, VolumeX, Image as ImageIcon, Film
+  Volume2, VolumeX, Image as ImageIcon, Film,
+  Users, Receipt, Megaphone
 } from 'lucide-react'
 
 // Components
@@ -274,6 +275,7 @@ function App() {
       <div className="relative z-10">
 
       {/* Navigation */}
+      <header>
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-950/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -324,7 +326,9 @@ function App() {
           </div>
         )}
       </nav>
+      </header>
 
+      <main>
       {/* Hero Section - Robot + Chat Central */}
       <section className="min-h-screen flex flex-col items-center pt-20 pb-8 px-4 relative">
         <div className="text-center mb-4 animate-fade-in">
@@ -338,6 +342,9 @@ function App() {
           </h1>
           <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
             Votre assistant IA qui automatise tout votre business
+          </p>
+          <p className="text-gray-500 text-sm md:text-base max-w-2xl mx-auto mt-3">
+            NEXUS est le logiciel de gestion tout-en-un propulse par l'intelligence artificielle pour les PME francaises. Telephone IA, WhatsApp automatise, reservations en ligne, CRM client et comptabilite — remplacez 6 outils par une seule plateforme. Adapte aux salons de coiffure, restaurants, hotels, commerces et services.
           </p>
         </div>
 
@@ -387,29 +394,67 @@ function App() {
       </section>
 
       {/* Features highlight */}
-      <section className="py-16 px-4 bg-dark-900/50">
+      <section className="py-16 px-4 bg-dark-900/50" id="features">
         <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Tout ce dont votre{' '}
+              <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
+                PME a besoin
+              </span>
+            </h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              NEXUS regroupe tous les outils dont votre PME a besoin en une seule plateforme propulsee par l'intelligence artificielle. Plus besoin de jongler entre 6 logiciels differents — tout est integre, automatise et adapte a votre metier.
+            </p>
+          </div>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
               <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-primary-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Phone className="w-7 h-7 text-neon-cyan" />
               </div>
               <h3 className="text-xl font-bold mb-2">Telephone IA</h3>
-              <p className="text-gray-400">Repondez a 100% de vos appels, meme a 3h du matin</p>
+              <p className="text-sm text-neon-cyan mb-2">Repondez a 100% de vos appels</p>
+              <p className="text-gray-400 text-sm">L'assistant vocal IA decroche automatiquement vos appels 24h/24, prend les reservations, repond aux questions et gere les modifications. Vos clients sont toujours accueillis, meme a 3h du matin ou pendant vos rendez-vous.</p>
             </div>
             <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
               <div className="w-14 h-14 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="w-7 h-7 text-green-400" />
               </div>
               <h3 className="text-xl font-bold mb-2">WhatsApp IA</h3>
-              <p className="text-gray-400">Reponses instantanees sur le canal prefere de vos clients</p>
+              <p className="text-sm text-green-400 mb-2">Reponses instantanees sur WhatsApp</p>
+              <p className="text-gray-400 text-sm">Connectez votre WhatsApp Business et laissez l'IA repondre automatiquement. Prise de rendez-vous, informations tarifaires, confirmations et rappels — tout est gere sans intervention manuelle sur le canal prefere de vos clients.</p>
             </div>
             <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
               <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-orange-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Calendar className="w-7 h-7 text-orange-400" />
               </div>
-              <h3 className="text-xl font-bold mb-2">Reservations</h3>
-              <p className="text-gray-400">Vos clients reservent 24/7, vous ne ratez plus rien</p>
+              <h3 className="text-xl font-bold mb-2">Reservations en ligne</h3>
+              <p className="text-sm text-orange-400 mb-2">Vos clients reservent 24/7</p>
+              <p className="text-gray-400 text-sm">Systeme de reservation adapte a votre metier : rendez-vous pour salons, tables pour restaurants, chambres pour hotels. Gestion de la disponibilite en temps reel, confirmations automatiques et rappels SMS pour prevenir les no-shows.</p>
+            </div>
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-7 h-7 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">CRM client integre</h3>
+              <p className="text-sm text-blue-400 mb-2">Connaissez chaque client</p>
+              <p className="text-gray-400 text-sm">Centralisez toutes les interactions client : reservations, appels, messages WhatsApp, preferences et historique des visites. Segmentez votre base et envoyez des campagnes ciblees pour fideliser et augmenter votre chiffre d'affaires.</p>
+            </div>
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Receipt className="w-7 h-7 text-purple-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Comptabilite automatisee</h3>
+              <p className="text-sm text-purple-400 mb-2">Finances claires et a jour</p>
+              <p className="text-gray-400 text-sm">Suivez vos revenus et depenses en temps reel, generez des exports comptables pour votre expert-comptable et visualisez vos indicateurs financiers. La facturation et le suivi des paiements sont automatises, sans saisie manuelle.</p>
+            </div>
+            <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
+              <div className="w-14 h-14 bg-gradient-to-br from-pink-500/20 to-pink-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Megaphone className="w-7 h-7 text-pink-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Marketing IA</h3>
+              <p className="text-sm text-pink-400 mb-2">Attirez et fidelisez vos clients</p>
+              <p className="text-gray-400 text-sm">Generez du contenu marketing avec l'IA : posts reseaux sociaux, campagnes email, articles SEO. Programmez vos publications, analysez les performances et boostez votre visibilite en ligne sans effort.</p>
             </div>
           </div>
         </div>
@@ -464,6 +509,11 @@ function App() {
       </section>
 
       {/* Pricing */}
+      <section className="text-center px-4 pt-16 -mb-8">
+        <p className="text-gray-400 max-w-2xl mx-auto text-sm">
+          Choisissez le plan adapte a la taille de votre entreprise. Tous les plans incluent un essai gratuit de 14 jours sans carte bancaire. Passez d'un plan a l'autre a tout moment, sans engagement ni frais caches. Tarifs annuels disponibles avec jusqu'a 20% de reduction.
+        </p>
+      </section>
       <PricingSection />
 
       {/* Testimonials */}
@@ -512,6 +562,8 @@ function App() {
           </div>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="py-12 px-4 border-t border-white/5">

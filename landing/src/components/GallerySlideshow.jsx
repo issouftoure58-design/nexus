@@ -2,11 +2,33 @@ import { useState, useEffect, useRef } from 'react'
 import { Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 
+const SCREENSHOT_ALTS = [
+  'Tableau de bord NEXUS avec indicateurs de performance et reservations du jour',
+  'Page de gestion des reservations en ligne avec calendrier interactif',
+  'CRM client NEXUS avec historique des visites et preferences',
+  'Assistant WhatsApp IA repondant automatiquement a un client',
+  'Interface de configuration du chatbot IA conversationnel',
+  'Page comptabilite avec suivi des revenus et depenses mensuels',
+  'Gestion des equipes et planning des collaborateurs',
+  'Campagne marketing automatisee avec segmentation clients',
+  'Parametres de l\'activite avec horaires et services personnalises',
+  'Dashboard analytique avec statistiques de frequentation',
+  'Page de gestion des services et tarifs du salon',
+  'Interface de reservation en ligne vue client mobile',
+  'Gestion des avis clients et reputation en ligne',
+  'Configuration du telephone IA avec scenarios de reponse',
+  'Suivi des workflows automatises et actions programmees',
+  'Export comptable et rapports financiers detailles',
+  'Page de gestion des disponibilites et conges',
+  'Interface Sentinel de monitoring et alertes en temps reel',
+  'Page de parametrage general avec personnalisation du compte',
+]
+
 const SCREENSHOTS = Array.from({ length: 19 }, (_, i) => ({
   id: i + 1,
   src: `/gallery/screenshot-${String(i + 1).padStart(2, '0')}.png`,
   webp: `/gallery/screenshot-${String(i + 1).padStart(2, '0')}.webp`,
-  alt: `NEXUS Interface ${i + 1}`
+  alt: SCREENSHOT_ALTS[i] || `Capture d'ecran de l'interface NEXUS - fonctionnalite ${i + 1}`
 }))
 
 export default function GallerySlideshow() {
