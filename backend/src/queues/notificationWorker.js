@@ -41,7 +41,7 @@ async function sendEmail(job) {
   }
 
   const result = await resend.emails.send({
-    from: 'NEXUS <notifications@nexus.ai>',
+    from: process.env.EMAIL_FROM || 'NEXUS <noreply@nexus-ai-saas.com>',
     to,
     subject,
     html

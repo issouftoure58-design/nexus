@@ -693,7 +693,8 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
     // ════════════════════════════════════════════════════════════════
     if (!canPlanAccessModule(tenantPlan, moduleId)) {
       const requiredPlan = getMinimumPlanForModule(moduleId);
-      const planPrices = { starter: 99, pro: 249, business: 499 };
+      const { PLAN_PRICES } = await import('../config/pricing.js');
+      const planPrices = { starter: PLAN_PRICES.starter.monthly, pro: PLAN_PRICES.pro.monthly, business: PLAN_PRICES.business.monthly };
 
       console.log(`[MODULES] ⛔ Accès refusé: ${moduleId} nécessite ${requiredPlan}, tenant a ${tenantPlan}`);
 

@@ -247,7 +247,7 @@ router.get('/tenants', paginate(), async (req, res) => {
     const tenantsResult = (tenants || []).map(t => {
       const plan = (t.plan || 'starter').toLowerCase();
       const cost = costByTenant[t.id] || 0;
-      const planPrice = PLAN_PRICES[plan]?.monthly || 99;
+      const planPrice = PLAN_PRICES[plan]?.monthly || 0;
       const costPercentage = planPrice > 0 ? Math.round((cost / planPrice) * 100) : 0;
 
       return {

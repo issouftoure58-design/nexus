@@ -12,9 +12,7 @@ if (resendApiKey) {
   resend = new Resend(resendApiKey);
 }
 
-// En dev/test sans domaine verifie, Resend exige onboarding@resend.dev
-// En production avec domaine verifie, utiliser EMAIL_FROM=NEXUS <noreply@votredomaine.com>
-const DEFAULT_FROM = process.env.EMAIL_FROM || 'NEXUS <onboarding@resend.dev>';
+const DEFAULT_FROM = process.env.EMAIL_FROM || 'NEXUS <noreply@nexus-ai-saas.com>';
 
 /**
  * Envoie un email avec bonnes pratiques deliverability

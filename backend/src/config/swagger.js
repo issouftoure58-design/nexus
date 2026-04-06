@@ -46,11 +46,11 @@ Toutes les requetes necessitent un tenant_id. Le tenant est resolu via:
       contact: {
         name: 'NEXUS Support',
         email: 'contact@nexus-ai-saas.com',
-        url: 'https://nexus.ai'
+        url: 'https://nexus-ai-saas.com'
       },
       license: {
         name: 'Proprietary',
-        url: 'https://nexus.ai/terms'
+        url: 'https://nexus-ai-saas.com/terms'
       }
     },
     servers: [
