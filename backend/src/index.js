@@ -83,6 +83,7 @@ import adminTeamRoutes from './routes/adminTeam.js';
 import adminAgentsRoutes from './routes/adminAgents.js';
 import adminStockRoutes from './routes/adminStock.js';
 import adminNotificationsRoutes from './routes/adminNotifications.js';
+import adminPushSubscriptionsRoutes from './routes/adminPushSubscriptions.js';
 import adminDocumentsRoutes from './routes/adminDocuments.js';
 import adminReferralsRoutes from './routes/adminReferrals.js';
 import adminSSORoutes from './routes/adminSSO.js';
@@ -160,7 +161,7 @@ import { handleMediaStream, closeAllSessions as closeRealtimeSessions } from './
 
 // ============= VALIDATION ENV VARS =============
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET'];
-const WARN_ENV = ['STRIPE_SECRET_KEY', 'TWILIO_ACCOUNT_SID', 'RESEND_API_KEY', 'OPENAI_API_KEY'];
+const WARN_ENV = ['STRIPE_SECRET_KEY', 'TWILIO_ACCOUNT_SID', 'RESEND_API_KEY', 'OPENAI_API_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY'];
 
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
@@ -619,6 +620,7 @@ app.use('/api/admin/team', adminTeamRoutes);
 app.use('/api/admin/agents', adminAgentsRoutes);
 app.use('/api/admin/stock', adminStockRoutes);
 app.use('/api/admin/notifications', adminNotificationsRoutes);
+app.use('/api/admin/push-subscriptions', adminPushSubscriptionsRoutes);
 app.use('/api/admin/documents', adminDocumentsRoutes);
 app.use('/api/admin/referrals', adminReferralsRoutes);
 app.use('/api/admin/sso', adminSSORoutes);

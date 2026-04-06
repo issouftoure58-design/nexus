@@ -5,6 +5,7 @@
 
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
+import { sendPushToUser, sendPushToAllAdmins } from './pushNotificationService.js';
 
 /**
  * Crée une notification pour un admin spécifique
@@ -32,6 +33,13 @@ export async function createNotification(tenantId, { adminId, type = 'info', tit
   if (error) {
     logger.error('[Inbox] Erreur création:', { error: error.message });
     return null;
+  }
+
+  // Envoyer le push en parallèle (fire-and-forget)
+  if (adminId) {
+    sendPushToUser(tenantId, adminId, { title, body: message, link, icon }).catch(() => {});
+  } else {
+    sendPushToAllAdmins(tenantId, { title, body: message, link, icon }).catch(() => {});
   }
 
   return data.id;
@@ -67,6 +75,9 @@ export async function notifyAllAdmins(tenantId, { type = 'info', title, message,
   if (error) {
     logger.error('[Inbox] Erreur bulk:', { error: error.message });
   }
+
+  // Envoyer les pushs à tous les admins (fire-and-forget)
+  sendPushToAllAdmins(tenantId, { title, body: message, link, icon }).catch(() => {});
 }
 
 export default { createNotification, notifyAllAdmins };

@@ -11,11 +11,12 @@ import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlobalMenu } from './GlobalMenu';
-import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
+import { Menu, Search, Bell, BellRing, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
 import { api, notificationsApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
 import { applyTenantTheme } from '@/lib/themeColors';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -92,6 +93,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const unreadCount = notifData?.unread_count || 0;
   const notifications = notifData?.notifications || [];
+
+  // Push notifications
+  const push = usePushNotifications();
 
   function timeAgo(dateStr: string) {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -196,6 +200,34 @@ export function AppLayout({ children }: AppLayoutProps) {
                       ))
                     )}
                   </div>
+                  {/* Push notifications toggle */}
+                  {push.supported && (
+                    <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+                      {push.permission === 'denied' ? (
+                        <p className="text-xs text-gray-400 text-center">
+                          Notifications bloquées dans le navigateur
+                        </p>
+                      ) : push.subscribed ? (
+                        <button
+                          onClick={() => push.unsubscribe()}
+                          disabled={push.loading}
+                          className="w-full flex items-center justify-center gap-2 text-xs text-green-600 hover:text-red-500 transition-colors py-1"
+                        >
+                          <BellRing className="w-3.5 h-3.5" />
+                          {push.loading ? 'Chargement...' : 'Notifications push activées'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => push.subscribe()}
+                          disabled={push.loading}
+                          className="w-full flex items-center justify-center gap-2 text-xs text-cyan-600 hover:text-cyan-700 transition-colors py-1"
+                        >
+                          <Bell className="w-3.5 h-3.5" />
+                          {push.loading ? 'Chargement...' : 'Activer les notifications push'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {notifications.length > 0 && (
                     <div
                       onClick={() => { navigate('/audit-log'); setNotifOpen(false); }}
