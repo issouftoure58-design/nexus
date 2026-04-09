@@ -118,7 +118,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
 // POST /api/admin/clients
 // Créer un nouveau client
-// 🔒 TRIAL CHECK: Vérifie limite trial (50 clients)
+// 🔒 TRIAL CHECK: Vérifie limite trial (30 clients)
 // 🔒 QUOTA CHECK: Vérifie limite clients selon plan (Starter: 1000, Pro: 3000, Business: illimité)
 router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClientsQuota, validate(createClientSchema), async (req, res) => {
   try {

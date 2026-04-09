@@ -4,7 +4,7 @@
  * Modèle 2026 (révision finale 9 avril 2026) :
  *   • 1,5€ = 100 crédits (0,015€/crédit — taux base)
  *   • Free     : 0 crédit inclus (IA bloquée)
- *   • Basic    : 500 crédits inclus / mois (valeur 7,50€)
+ *   • Basic    : 1 000 crédits inclus / mois (valeur 15€)
  *   • Business : 10 000 crédits inclus / mois (valeur 150€)
  *
  * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 crédits (0% bonus, taux base)
@@ -302,14 +302,14 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
                   Combien coûte chaque action IA ?
                 </summary>
                 <div className="px-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-600">
-                  <div className="flex justify-between"><span>Question chat IA admin</span><span className="font-semibold">1 cr</span></div>
-                  <div className="flex justify-between"><span>Message WhatsApp IA</span><span className="font-semibold">1 cr</span></div>
-                  <div className="flex justify-between"><span>Devis IA</span><span className="font-semibold">2 cr</span></div>
-                  <div className="flex justify-between"><span>Email IA</span><span className="font-semibold">3 cr</span></div>
-                  <div className="flex justify-between"><span>Conversation chat web</span><span className="font-semibold">5 cr</span></div>
-                  <div className="flex justify-between"><span>Post réseaux généré</span><span className="font-semibold">5 cr</span></div>
-                  <div className="flex justify-between"><span>Minute téléphone IA</span><span className="font-semibold">8 cr</span></div>
-                  <div className="flex justify-between"><span>Article SEO complet</span><span className="font-semibold">50 cr</span></div>
+                  <div className="flex justify-between"><span>Question chat IA admin</span><span className="font-semibold">4 cr</span></div>
+                  <div className="flex justify-between"><span>Message WhatsApp IA</span><span className="font-semibold">4 cr</span></div>
+                  <div className="flex justify-between"><span>Devis IA</span><span className="font-semibold">6 cr</span></div>
+                  <div className="flex justify-between"><span>Email IA</span><span className="font-semibold">6 cr</span></div>
+                  <div className="flex justify-between"><span>Conversation chat web</span><span className="font-semibold">9 cr</span></div>
+                  <div className="flex justify-between"><span>Post réseaux généré</span><span className="font-semibold">9 cr</span></div>
+                  <div className="flex justify-between"><span>Minute téléphone IA</span><span className="font-semibold">15 cr</span></div>
+                  <div className="flex justify-between"><span>Article SEO complet</span><span className="font-semibold">66 cr</span></div>
                 </div>
               </details>
             </div>

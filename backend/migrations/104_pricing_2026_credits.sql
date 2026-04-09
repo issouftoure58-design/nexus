@@ -4,7 +4,7 @@
 -- ════════════════════════════════════════════════════════════════════
 --
 -- Nouveau modèle (validé 8 avril 2026 — voir memory/business-model-2026.md):
---   • Free  : freemium à vie (50 clients, 30 RDV/mois, 20 factures/mois, IA bloquée)
+--   • Free  : freemium à vie (50 clients, 10 RDV/mois, 20 factures/mois, IA bloquée)
 --   • Basic : 29€/mois — tout illimité non-IA, IA via crédits pay-as-you-go
 --   • Business : 129€/mois — Basic + multi-site/whitelabel/api/sso + 3500 crédits IA inclus
 --

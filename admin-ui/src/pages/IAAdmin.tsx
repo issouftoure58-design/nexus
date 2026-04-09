@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { useTenant } from '@/hooks/useTenant';
 import {
   Bot,
   Phone,
@@ -19,7 +20,12 @@ import {
   Check,
   Play,
   Save,
-  Mic
+  Mic,
+  Copy,
+  CheckCircle,
+  Globe,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface Agent {
@@ -72,6 +78,7 @@ export default function IAAdmin() {
   const [playingVoice, setPlayingVoice] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Agent>>({});
   const audioUrlRef = useRef<string | null>(null);
+  const { tenant } = useTenant();
 
   useEffect(() => {
     fetchAgents();
@@ -438,6 +445,11 @@ export default function IAAdmin() {
               </div>
             </Card>
 
+            {/* Widget Install Guide (for web agent) */}
+            {selectedAgent.agent_type === 'web' && tenant?.id && (
+              <WidgetInstallGuide tenantId={String(tenant.id)} />
+            )}
+
             {/* Voice Preview (for phone agent) */}
             {selectedAgent.agent_type === 'phone' && selectedAgent.voice_id && (
               <Card className="p-6">
@@ -473,5 +485,208 @@ export default function IAAdmin() {
         )}
       </div>
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WIDGET INSTALL GUIDE — Guide d'installation pas-à-pas pour les non-techniques
+// ══════════════════════════════════════════════════════════════════════════════
+
+const WIDGET_BASE_URL = 'https://nexus-backend-dev.onrender.com';
+
+const PLATFORMS = [
+  {
+    id: 'wordpress',
+    name: 'WordPress',
+    icon: '🔵',
+    steps: [
+      'Connectez-vous a votre tableau de bord WordPress',
+      'Allez dans Apparence > Editeur de theme (ou utilisez un plugin comme "Insert Headers and Footers")',
+      'Collez le code ci-dessus juste AVANT la balise </body>',
+      'Cliquez sur "Mettre a jour le fichier" ou "Enregistrer"',
+      'Visitez votre site — la bulle de chat apparait en bas a droite',
+    ],
+  },
+  {
+    id: 'wix',
+    name: 'Wix',
+    icon: '🟡',
+    steps: [
+      'Connectez-vous a votre editeur Wix',
+      'Cliquez sur Parametres (icone engrenage) dans le menu gauche',
+      'Allez dans "Code personnalise" (ou "Custom Code")',
+      'Cliquez sur "+ Ajouter du code"',
+      'Collez le code, choisissez "Corps - Fin" comme emplacement',
+      'Selectionnez "Toutes les pages" et cliquez sur "Appliquer"',
+    ],
+  },
+  {
+    id: 'shopify',
+    name: 'Shopify',
+    icon: '🟢',
+    steps: [
+      'Connectez-vous a votre admin Shopify',
+      'Allez dans Boutique en ligne > Themes',
+      'Cliquez sur "..." puis "Modifier le code"',
+      'Ouvrez le fichier theme.liquid',
+      'Collez le code juste AVANT la balise </body>',
+      'Cliquez sur "Enregistrer"',
+    ],
+  },
+  {
+    id: 'other',
+    name: 'Autre site',
+    icon: '🌐',
+    steps: [
+      'Ouvrez le fichier HTML principal de votre site (souvent index.html)',
+      'Trouvez la balise </body> (tout en bas du fichier)',
+      'Collez le code juste AVANT cette balise </body>',
+      'Enregistrez le fichier et publiez-le',
+      'La bulle de chat apparaitra automatiquement sur toutes les pages',
+    ],
+  },
+];
+
+function WidgetInstallGuide({ tenantId }: { tenantId: string }) {
+  const [copied, setCopied] = useState(false);
+  const [openPlatform, setOpenPlatform] = useState<string | null>(null);
+
+  const embedCode = `<script src="${WIDGET_BASE_URL}/widget.js" data-tenant-id="${tenantId}"></script>`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(embedCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = embedCode;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30">
+          <Globe className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            Installer le chat sur votre site
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Ajoutez votre assistant IA en 2 minutes
+          </p>
+        </div>
+      </div>
+
+      {/* Step 1: Copy code */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold dark:bg-cyan-900/30 dark:text-cyan-400">1</span>
+          <span className="font-medium text-gray-900 dark:text-white">Copiez ce code</span>
+        </div>
+
+        <div className="relative">
+          <div className="bg-gray-900 rounded-lg p-4 pr-14 overflow-x-auto">
+            <code className="text-sm text-green-400 font-mono break-all">
+              {embedCode}
+            </code>
+          </div>
+          <button
+            onClick={handleCopy}
+            className={`absolute top-3 right-3 p-2 rounded-md transition-all ${
+              copied
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            title="Copier le code"
+          >
+            {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          </button>
+        </div>
+        {copied && (
+          <p className="text-sm text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+            <CheckCircle className="w-4 h-4" />
+            Code copie dans le presse-papier !
+          </p>
+        )}
+      </div>
+
+      {/* Step 2: Choose platform */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold dark:bg-cyan-900/30 dark:text-cyan-400">2</span>
+          <span className="font-medium text-gray-900 dark:text-white">Collez-le sur votre site</span>
+        </div>
+
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Selectionnez votre plateforme pour voir les instructions :
+        </p>
+
+        <div className="space-y-2">
+          {PLATFORMS.map((platform) => (
+            <div key={platform.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setOpenPlatform(openPlatform === platform.id ? null : platform.id)}
+                className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{platform.icon}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{platform.name}</span>
+                </div>
+                {openPlatform === platform.id ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+
+              {openPlatform === platform.id && (
+                <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+                  <ol className="mt-3 space-y-2">
+                    {platform.steps.map((step, i) => (
+                      <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 flex items-center justify-center text-xs font-medium">
+                          {i + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Step 3: Verify */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold dark:bg-cyan-900/30 dark:text-cyan-400">3</span>
+          <span className="font-medium text-gray-900 dark:text-white">Verifiez</span>
+        </div>
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            Visitez votre site web. Vous devriez voir une bulle de chat en bas a droite.
+            Cliquez dessus et envoyez un message pour tester que tout fonctionne.
+          </p>
+          <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+            Besoin d'aide ? Contactez-nous a{' '}
+            <a href="mailto:contact@nexus-ai-saas.com" className="underline font-medium">
+              contact@nexus-ai-saas.com
+            </a>
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }

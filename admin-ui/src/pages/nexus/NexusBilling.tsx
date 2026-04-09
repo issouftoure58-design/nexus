@@ -12,7 +12,7 @@ interface TenantInfo {
 }
 
 // Modèle pricing 2026 — révision finale 9 avril 2026 — Free / Basic / Business + crédits IA
-// Basic 29€/mois (500 cr inclus) / Business 149€/mois (10 000 cr inclus)
+// Basic 29€/mois (1 000 cr inclus) / Business 149€/mois (10 000 cr inclus)
 const PLAN_PRICES: Record<string, number> = { free: 0, basic: 29, business: 149 };
 const PLAN_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
   free: { bar: 'bg-slate-500', text: 'text-slate-400', bg: 'bg-slate-950/30 border-slate-800' },

@@ -33,9 +33,10 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                '30 reservations / mois',
-                '20 factures / mois (avec watermark)',
-                '50 clients max dans le CRM',
+                '10 reservations / mois',
+                '10 factures / mois (avec watermark)',
+                '30 clients max dans le CRM',
+                '3 prestations max',
                 'Tous les modules visibles',
                 'Fonctions IA bloquees',
                 'Support email',
@@ -72,7 +73,7 @@ export default function PricingSection() {
               {[
                 'Reservations illimitees',
                 'Facturation illimitee (sans watermark)',
-                '500 credits IA inclus / mois (valeur 7,50€)',
+                '1 000 credits IA inclus / mois (valeur 15€)',
                 'CRM, Equipe, Fidelite illimites',
                 'Comptabilite, RH, Stock complets',
                 'Workflows, Pipeline, Devis, SEO',
@@ -142,7 +143,7 @@ export default function PricingSection() {
               Credits IA inclus dans chaque plan
             </h3>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              Basic inclut 500 credits/mois, Business inclut 10 000 credits/mois. Si vous avez besoin de plus,
+              Basic inclut 1 000 credits/mois, Business inclut 10 000 credits/mois. Si vous avez besoin de plus,
               un pack unique additionnel est disponible. Simple, sans bonus degressifs, au taux base.
             </p>
           </div>
@@ -159,9 +160,9 @@ export default function PricingSection() {
               <div className="text-gray-300 text-lg mb-3">1 000 credits</div>
               <div className="text-xs text-gray-500 mb-4">Taux base 0,015€/credit — sans bonus, sans surprise</div>
               <ul className="text-sm text-gray-300 space-y-1 text-left">
-                <li>≈ 1 000 messages WhatsApp IA</li>
-                <li>≈ 125 minutes de Telephone IA</li>
-                <li>≈ 20 articles SEO complets</li>
+                <li>≈ 250 messages WhatsApp IA</li>
+                <li>≈ 66 minutes de Telephone IA</li>
+                <li>≈ 15 articles SEO complets</li>
               </ul>
             </div>
           </div>

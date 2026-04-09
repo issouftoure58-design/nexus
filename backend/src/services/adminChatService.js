@@ -135,15 +135,15 @@ function getBusinessInstructions(profile) {
  * Fonctionnalités disponibles selon le plan (modele 2026 — revision finale 9 avril 2026)
  *
  * - Free    : gestion de base uniquement, IA bloquee (0 credit)
- * - Basic   : 29€/mois, tout illimite, 500 credits IA inclus/mois (valeur 7,50€)
+ * - Basic   : 29€/mois, tout illimite, 1 000 credits IA inclus/mois (valeur 15€)
  * - Business: 149€/mois, Basic + multi-sites + white-label + 10 000 credits IA inclus/mois (valeur 150€)
  */
 function getPlanCapabilities(plan) {
   const freeCaps = [
     'Gestion clients et réservations (30/mois)',
-    'Devis et facturation (20/mois, watermark)',
+    'Devis et facturation (10/mois, watermark)',
     'Agenda et planification',
-    '50 clients max dans le CRM'
+    '30 clients max dans le CRM'
   ];
   const basicCaps = [
     'Tout illimité (réservations, factures, clients)',
@@ -151,7 +151,7 @@ function getPlanCapabilities(plan) {
     'Workflows, Pipeline, Devis, SEO',
     'Marketing email/SMS/réseaux sociaux',
     'WhatsApp IA, Téléphone IA, Agent web',
-    '500 crédits IA inclus chaque mois (valeur 7,50€)',
+    '1 000 crédits IA inclus chaque mois (valeur 15€)',
     'Analytics et tableaux de bord'
   ];
   const businessCaps = [

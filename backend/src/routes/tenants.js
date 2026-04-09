@@ -30,15 +30,15 @@ const router = express.Router();
 
 // Modèle 2026 — révision finale 9 avril 2026 (voir memory/business-model-2026.md)
 // Free    : quotas stricts + IA bloquée (0 crédit)
-// Basic   : 29€/mois, tout illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+// Basic   : 29€/mois, tout illimité non-IA + 1 000 crédits IA inclus/mois (valeur 15€)
 // Business: 149€/mois, Basic + premium + 10 000 crédits IA inclus/mois (valeur 150€)
 const FREE_QUOTAS = {
-  clients_max: 50,
+  clients_max: 30,
   storage_gb: 1,
   posts_ia_month: 0, // IA bloquée en Free
   images_ia_month: 0,
-  reservations_month: 30,
-  factures_month: 20,
+  reservations_month: 10,
+  factures_month: 10,
   messages_ia_month: 0,
   credits_ia_inclus_mois: 0,
 };
@@ -50,7 +50,7 @@ const BASIC_QUOTAS = {
   reservations_month: -1,
   factures_month: -1,
   messages_ia_month: -1,
-  credits_ia_inclus_mois: 500,
+  credits_ia_inclus_mois: 1000,
 };
 const BUSINESS_QUOTAS = {
   clients_max: -1,

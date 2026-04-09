@@ -12,7 +12,7 @@
  *
  * Ce script :
  *   1) Désactive le flag legacy_pricing pour tous les tenants Business/Basic
- *   2) Met à jour ai_credits.monthly_included (10000 Business / 500 Basic)
+ *   2) Met à jour ai_credits.monthly_included (10000 Business / 1000 Basic)
  *   3) Crédite le différentiel (top-up immédiat)
  *   4) Insère une trace dans ai_credits_transactions
  *
@@ -94,7 +94,7 @@ try {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // BASIC : legacy → FALSE, monthly_included → 500, top-up balance
+  // BASIC : legacy → FALSE, monthly_included → 1000, top-up balance
   // ──────────────────────────────────────────────────────────────────────
   const b1 = await client.query(`
     UPDATE tenants
@@ -107,30 +107,30 @@ try {
 
   const b2 = await client.query(`
     UPDATE ai_credits ac
-       SET monthly_included = 500,
-           balance = ac.balance + GREATEST(0, 500 - ac.monthly_included),
+       SET monthly_included = 1000,
+           balance = ac.balance + GREATEST(0, 1000 - ac.monthly_included),
            updated_at = NOW()
       FROM tenants t
      WHERE ac.tenant_id = t.id
        AND LOWER(COALESCE(t.plan, '')) = 'basic'
-       AND ac.monthly_included < 500
+       AND ac.monthly_included < 1000
   `);
-  console.log(`✓ Basic : ${b2.rowCount} ai_credits.monthly_included → 500 (avec top-up)`);
+  console.log(`✓ Basic : ${b2.rowCount} ai_credits.monthly_included → 1000 (avec top-up)`);
 
   if (b2.rowCount > 0) {
     const b3 = await client.query(`
       INSERT INTO ai_credits_transactions (tenant_id, type, amount, balance_after, source, description, metadata)
       SELECT ac.tenant_id,
              'bonus',
-             500,
+             1000,
              ac.balance,
              'migration_107_backfill',
-             'Backfill révision 9 avril 2026 : Basic passe à 500 crédits inclus/mois',
+             'Backfill révision 9 avril 2026 : Basic passe à 1 000 crédits inclus/mois',
              '{"migration": "107_backfill", "plan": "basic"}'::jsonb
         FROM ai_credits ac
         JOIN tenants t ON t.id = ac.tenant_id
        WHERE LOWER(COALESCE(t.plan, '')) = 'basic'
-         AND ac.monthly_included = 500
+         AND ac.monthly_included = 1000
     `);
     console.log(`✓ Basic : ${b3.rowCount} transactions de bonus créées`);
   }

@@ -90,7 +90,7 @@ const PLAN_NAMES: Record<string, string> = {
 };
 
 // Mapping modules vers plans requis (modele 2026 — revision finale 9 avril 2026)
-// Free : modules de base visibles. Basic : tout illimite + 500 credits IA inclus. Business : multi-site + 10 000 credits IA inclus.
+// Free : modules de base visibles. Basic : tout illimite + 1 000 credits IA inclus. Business : multi-site + 10 000 credits IA inclus.
 const MODULE_TO_PLAN: Record<string, PlanType> = {
   // Free (modules de base, accessibles meme en gratuit avec quotas)
   'reservations': 'free',
@@ -506,7 +506,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
                 <p className="text-sm text-gray-500">
                   {upgradeModal.requiredPlan === 'business'
                     ? 'Multi-sites, white-label, API + 10 000 credits IA inclus / mois (valeur 150€)'
-                    : 'Tout illimite (RDV, factures, CRM, comptabilite) + 500 credits IA inclus / mois'}
+                    : 'Tout illimite (RDV, factures, CRM, comptabilite) + 1 000 credits IA inclus / mois'}
                 </p>
               </div>
 

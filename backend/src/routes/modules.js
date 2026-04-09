@@ -30,8 +30,8 @@ const router = express.Router();
  * IMPORTANT: Synchronisé avec checkPlan.js et moduleProtection.js
  *
  * Grille tarifaire 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
- * - Free (0€): Dashboard, 30 RDV/mois, 20 factures/mois, 50 clients (modules visibles, IA bloquee)
- * - Basic (29€/mois): Tout illimite non-IA + 500 credits IA inclus/mois (valeur 7,50€)
+ * - Free (0€): Dashboard, 10 RDV/mois, 10 factures/mois, 30 clients (modules visibles, IA bloquee)
+ * - Basic (29€/mois): Tout illimite non-IA + 1 000 credits IA inclus/mois (valeur 15€)
  * - Business (149€/mois): Basic + multi-sites, white-label, API, SSO + 10 000 credits IA inclus/mois (valeur 150€)
  *
  * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat (mappes en interne)

@@ -8,7 +8,7 @@
 --
 --   • Business : 129€/mois → **149€/mois**
 --   • Business crédits inclus : 3 500 → **10 000 crédits/mois**
---   • Basic    : 0 crédit inclus → **500 crédits/mois**
+--   • Basic    : 0 crédit inclus → **1 000 crédits/mois**
 --   • Packs S/M/L → **un seul pack** : Pack 1000 (15€ → 1 000 crédits, 0% bonus)
 --
 -- Aucun tenant legacy_pricing n'est affecté (ils gardent leur plan & tarif).
@@ -30,12 +30,12 @@ WHERE id = 'business';
 
 
 -- ════════════════════════════════════════════════════════════════════
--- 2. Mise à jour du plan BASIC (500 crédits inclus)
+-- 2. Mise à jour du plan BASIC (1 000 crédits inclus)
 -- ════════════════════════════════════════════════════════════════════
 
 UPDATE plans SET
   credits_ia_inclus   = 500,
-  description         = 'Tout illimité — 500 crédits IA inclus/mois + pack additionnel',
+  description         = 'Tout illimité — 1 000 crédits IA inclus/mois + pack additionnel',
   updated_at          = NOW()
 WHERE id = 'basic';
 
@@ -105,7 +105,7 @@ UPDATE stripe_products SET
 --    (tenants NON legacy uniquement — les grandfathered restent intacts)
 -- ════════════════════════════════════════════════════════════════════
 
--- Basic : 0 → 500 crédits/mois
+-- Basic : 0 → 1 000 crédits/mois
 UPDATE ai_credits ac
    SET monthly_included = 500,
        balance          = ac.balance + GREATEST(0, 500 - ac.monthly_included),
@@ -130,7 +130,7 @@ UPDATE ai_credits ac
 -- 7. Transactions de grandfathering (trace auditable du complément)
 -- ════════════════════════════════════════════════════════════════════
 
--- Basic : +500 crédits bonus (trace)
+-- Basic : +1 000 crédits bonus (trace)
 INSERT INTO ai_credits_transactions (tenant_id, type, amount, balance_after, source, description, metadata)
 SELECT
   ac.tenant_id,
@@ -138,7 +138,7 @@ SELECT
   500,
   ac.balance,
   'migration_107_revision',
-  'Révision pricing 9 avril 2026 : Basic passe à 500 crédits inclus/mois',
+  'Révision pricing 9 avril 2026 : Basic passe à 1 000 crédits inclus/mois',
   '{"migration": "107", "plan": "basic"}'::jsonb
   FROM ai_credits ac
   JOIN tenants t ON t.id = ac.tenant_id

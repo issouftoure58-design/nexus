@@ -61,14 +61,14 @@ export default function TermsOfServicePage() {
             <h2 className="text-2xl font-semibold mb-4">4. Abonnements et Tarifs</h2>
             <h3 className="text-xl font-medium mb-3">4.1 Plans Disponibles</h3>
             <ul>
-              <li><strong>Free (0€)</strong> : gratuit à vie, sans carte bancaire — 30 réservations/mois, 20 factures/mois, 50 clients max, modules visibles, IA bloquée (0 crédit)</li>
-              <li><strong>Basic (29€/mois)</strong> : tout illimité non-IA + 500 crédits IA inclus chaque mois (valeur 7,50€)</li>
+              <li><strong>Free (0€)</strong> : gratuit à vie, sans carte bancaire — 10 réservations/mois, 10 factures/mois, 30 clients max, modules visibles, IA bloquée (0 crédit)</li>
+              <li><strong>Basic (29€/mois)</strong> : tout illimité non-IA + 1 000 crédits IA inclus chaque mois (valeur 15€)</li>
               <li><strong>Business (149€/mois)</strong> : Basic + multi-sites, white-label, API, SSO, 10 000 crédits IA inclus chaque mois (valeur 150€)</li>
             </ul>
             <h3 className="text-xl font-medium mb-3">4.2 Crédits IA (inclus et rechargeables)</h3>
             <p>
               Les fonctions IA fonctionnent avec un système de crédits universels. Taux base : 1,5€ = 100 crédits (0,015€/crédit).
-              Chaque plan payant inclut déjà des crédits mensuels (Basic 500, Business 10 000). Si le client a besoin de plus,
+              Chaque plan payant inclut déjà des crédits mensuels (Basic 1 000, Business 10 000). Si le client a besoin de plus,
               un pack unique additionnel est disponible : Pack 1000 à 15€ pour 1 000 crédits au taux base (0% bonus).
               L'utilisateur paie uniquement ce qu'il consomme au-delà des crédits inclus.
             </p>

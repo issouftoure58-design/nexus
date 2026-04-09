@@ -300,13 +300,18 @@ router.post('/', signupLimiter, async (req, res) => {
     // Verification SMS (anti-abuse Free tier)
     sms_verified_token,
 
-    // Plan
-    plan_id,
+    // Plan (ignored — forced to 'free' below for security)
+    plan_id: _ignored_plan_id,
     periode, // 'monthly' ou 'yearly'
 
     // Parrainage (optionnel)
     referral_code
   } = req.body;
+
+  // 🔒 SECURITY: Always force plan to 'free' — never trust client-supplied plan_id.
+  // Prevents plan spoofing where a malicious client could send plan_id='business'
+  // to get premium features for free. Upgrades happen only via Stripe checkout.
+  const plan_id = 'free';
 
   try {
     // ═══════════════════════════════════════════════════

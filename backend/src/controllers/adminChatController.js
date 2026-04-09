@@ -20,6 +20,7 @@ import {
   chat,
   verifyConversationOwnership,
 } from '../services/adminChatService.js';
+import { hasCredits, consume } from '../services/creditsService.js';
 import logger from '../config/logger.js';
 
 // Validation des entrees
@@ -220,6 +221,20 @@ export async function sendMessageStream(req, res) {
       return res.status(400).json({ success: false, error: validation.error });
     }
 
+    // 🔒 Credits check: verify tenant has enough credits before calling AI
+    const creditCheck = await hasCredits(tenantId, 'chat_admin_question');
+    if (!creditCheck.ok) {
+      return res.status(402).json({
+        success: false,
+        error: 'Crédits IA insuffisants',
+        code: 'INSUFFICIENT_CREDITS',
+        required: creditCheck.cost,
+        available: creditCheck.balance,
+        action: 'purchase_credits',
+        redirect: '/admin/subscription',
+      });
+    }
+
     await saveMessage(id, 'user', validation.content, null, tenantId);
 
     const history = await getMessages(id, tenantId);
@@ -229,6 +244,21 @@ export async function sendMessageStream(req, res) {
     }));
 
     await chatStream(tenantId, messages, res, id, adminId);
+
+    // Consume credits after successful AI response (stream completed)
+    try {
+      await consume(tenantId, 'chat_admin_question', {
+        refId: id,
+        description: 'Chat IA admin (stream)',
+      });
+    } catch (creditErr) {
+      // Non-blocking: the AI response was already sent, log the error
+      logger.warn('Credits consumption failed after stream', {
+        tag: 'ADMIN CHAT CTRL',
+        tenantId,
+        error: creditErr.message,
+      });
+    }
 
   } catch (error) {
     logger.error('sendMessageStream error', { tag: 'ADMIN CHAT CTRL', error: error.message });
@@ -261,6 +291,20 @@ export async function sendMessage(req, res) {
       return res.status(400).json({ success: false, error: validation.error });
     }
 
+    // 🔒 Credits check: verify tenant has enough credits before calling AI
+    const creditCheck = await hasCredits(tenantId, 'chat_admin_question');
+    if (!creditCheck.ok) {
+      return res.status(402).json({
+        success: false,
+        error: 'Crédits IA insuffisants',
+        code: 'INSUFFICIENT_CREDITS',
+        required: creditCheck.cost,
+        available: creditCheck.balance,
+        action: 'purchase_credits',
+        redirect: '/admin/subscription',
+      });
+    }
+
     await saveMessage(id, 'user', validation.content, null, tenantId);
 
     const history = await getMessages(id, tenantId);
@@ -275,12 +319,29 @@ export async function sendMessage(req, res) {
       return res.status(500).json({ success: false, error: result.error });
     }
 
+    // Consume credits after successful AI response
+    let creditsConsumed = null;
+    try {
+      creditsConsumed = await consume(tenantId, 'chat_admin_question', {
+        refId: id,
+        description: 'Chat IA admin',
+      });
+    } catch (creditErr) {
+      // Non-blocking: the AI response was already generated, log the error
+      logger.warn('Credits consumption failed after chat', {
+        tag: 'ADMIN CHAT CTRL',
+        tenantId,
+        error: creditErr.message,
+      });
+    }
+
     await saveMessage(id, 'assistant', result.response, null, tenantId);
 
     res.json({
       success: true,
       response: result.response,
       usage: result.usage,
+      credits: creditsConsumed ? { consumed: creditsConsumed.consumed, balance: creditsConsumed.balance } : undefined,
     });
 
   } catch (error) {

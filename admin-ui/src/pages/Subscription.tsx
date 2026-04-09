@@ -75,7 +75,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 // Plans NEXUS officiels — Modèle 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimité non-IA + 500 crédits IA / Business 149€ multi-sites + 10 000 crédits IA inclus
+// Free freemium / Basic 29€ illimité non-IA + 1 000 crédits IA / Business 149€ multi-sites + 10 000 crédits IA inclus
 const PROMO_ACTIVE = false; // Plus de promo : prix bas en permanence
 const PLANS = [
   {
@@ -88,10 +88,10 @@ const PLANS = [
     description: 'Gratuit à vie, sans carte bancaire',
     color: 'from-gray-500 to-gray-600',
     features: [
-      { text: '30 réservations / mois', icon: Clock },
-      { text: '20 factures / mois (avec watermark)', icon: FileText },
-      { text: '50 clients max dans le CRM', icon: Users },
-      { text: '5 prestations max', icon: Sparkles },
+      { text: '10 réservations / mois', icon: Clock },
+      { text: '10 factures / mois (avec watermark)', icon: FileText },
+      { text: '30 clients max dans le CRM', icon: Users },
+      { text: '3 prestations max', icon: Sparkles },
       { text: '1 utilisateur', icon: Users },
       { text: 'Tous les modules visibles', icon: Globe },
       { text: 'Fonctions IA bloquées', icon: Shield },
@@ -105,7 +105,7 @@ const PLANS = [
     promoPrice: 29,
     yearlyPrice: 290,
     promoYearlyPrice: 290,
-    description: 'Tout illimité non-IA + 500 crédits IA inclus / mois',
+    description: 'Tout illimité non-IA + 1 000 crédits IA inclus / mois',
     popular: true,
     color: 'from-cyan-500 to-blue-600',
     features: [
@@ -115,7 +115,7 @@ const PLANS = [
       { text: 'Comptabilité, RH, Stock complets', icon: BarChart3 },
       { text: 'Workflows, Pipeline, Devis, SEO', icon: Sparkles },
       { text: 'WhatsApp IA, Téléphone IA, Marketing IA', icon: Phone },
-      { text: '500 crédits IA inclus / mois (valeur 7,50€)', icon: Zap },
+      { text: '1 000 crédits IA inclus / mois (valeur 15€)', icon: Zap },
       { text: 'Support email prioritaire', icon: CheckCircle },
     ],
   },

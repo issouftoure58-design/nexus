@@ -3,7 +3,7 @@
  *
  * Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
  * - free     : freemium a vie, quotas mensuels stricts, IA bloquee (0 credit)
- * - basic    : 29€/mois, tout illimite non-IA, 500 credits IA inclus / mois (valeur 7,50€)
+ * - basic    : 29€/mois, tout illimite non-IA, 1 000 credits IA inclus / mois (valeur 15€)
  * - business : 149€/mois, Basic + multi-sites + white-label + API + SSO + 10 000 credits IA inclus / mois (valeur 150€)
  */
 
@@ -14,7 +14,7 @@ export const PLANS = {
     price: 0, // EUR/mois
     limits: {
       users: 1,
-      reservationsPerMonth: 30,
+      reservationsPerMonth: 10,
       facturesPerMonth: 20,
       clientsMax: 50,
       smsPerMonth: 0,        // pas d'IA
@@ -31,8 +31,8 @@ export const PLANS = {
       facturesPerMonth: -1,
       clientsMax: -1,
       smsPerMonth: -1,       // via credits IA
-      costPerMonth: 7.5,     // 500 credits inclus = ~7,50€ valeur au taux base (0,015€/credit)
-      creditsIncluded: 500,  // credits IA inclus chaque mois
+      costPerMonth: 15,      // 1 000 credits inclus = ~15€ valeur au taux base (0,015€/credit)
+      creditsIncluded: 1000, // credits IA inclus chaque mois
       apiCallsPerDay: 5000,
     },
   },
@@ -54,7 +54,7 @@ export const PLANS = {
   starter: {
     name: 'Free (legacy starter)',
     price: 0,
-    limits: { users: 1, reservationsPerMonth: 30, facturesPerMonth: 20, clientsMax: 50, smsPerMonth: 0, costPerMonth: 0, apiCallsPerDay: 200 },
+    limits: { users: 1, reservationsPerMonth: 10, facturesPerMonth: 20, clientsMax: 50, smsPerMonth: 0, costPerMonth: 0, apiCallsPerDay: 200 },
   },
   pro: {
     name: 'Basic (legacy pro)',

@@ -4,7 +4,7 @@
  * Modèle :
  *   • 1,5€ = 100 crédits (taux interne de référence — 0,015€/crédit)
  *   • Free     : 0 crédit (IA bloquée)
- *   • Basic    : 500 crédits inclus/mois (valeur 7,50€) + pack additionnel
+ *   • Basic    : 1 000 crédits inclus/mois (valeur 15€) + pack additionnel
  *   • Business : 10 000 crédits inclus/mois (valeur 150€) + pack additionnel
  *
  * Pack unique disponible :
@@ -21,16 +21,16 @@ import logger from '../config/logger.js';
 // ════════════════════════════════════════════════════════════════════
 
 export const CREDIT_COSTS = {
-  chat_admin_question: 1,    // 1 question chat IA admin (Haiku 4.5)
-  whatsapp_message: 1,       // 1 message WhatsApp IA répondu
-  web_chat_conversation: 5,  // 1 conversation Agent IA Web (~5 messages Sonnet)
-  phone_minute: 8,           // 1 minute appel Téléphone IA
-  social_post_generated: 5,  // 1 post réseaux généré (Sonnet + image)
-  email_ia_sent: 3,          // 1 email IA généré + envoi
-  antichurn_whatsapp: 2,     // 1 message Anti-Churn WhatsApp
-  antichurn_sms_fr: 10,      // 1 message Anti-Churn SMS FR (cher)
-  seo_article: 50,           // 1 article SEO complet (1500 mots)
-  devis_ia: 2,               // 1 devis IA généré
+  chat_admin_question: 4,    // 1 question chat IA admin
+  whatsapp_message: 4,       // 1 message WhatsApp IA répondu
+  devis_ia: 6,               // 1 devis IA généré
+  antichurn_whatsapp: 6,     // 1 message Anti-Churn WhatsApp
+  email_ia_sent: 6,          // 1 email IA généré + envoi
+  web_chat_conversation: 9,  // 1 conversation Agent IA Web (~5 messages Sonnet)
+  social_post_generated: 9,  // 1 post réseaux généré (Sonnet + image)
+  phone_minute: 15,          // 1 minute appel Téléphone IA
+  antichurn_sms_fr: 16,      // 1 message Anti-Churn SMS FR (cher)
+  seo_article: 66,           // 1 article SEO complet (1500 mots)
 };
 
 // Pack unique disponible (taux base, sans bonus)
@@ -41,7 +41,7 @@ export const CREDIT_PACKS = {
 // Crédits inclus mensuels par plan
 export const MONTHLY_INCLUDED = {
   free: 0,
-  basic: 500,
+  basic: 1000,
   business: 10000,
 };
 

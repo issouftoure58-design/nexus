@@ -303,6 +303,143 @@ export async function requireReservationsQuota(req, res, next) {
 }
 
 /**
+ * Vérifie quota factures du mois
+ * @param {string} tenant_id - ID du tenant
+ * @param {string} plan - Plan du tenant
+ * @returns {Promise<Object>} Résultat de la vérification
+ */
+export async function checkFacturesQuota(tenant_id, plan) {
+  const limit = PLAN_LIMITS[plan]?.factures_mois ?? PLAN_LIMITS.free.factures_mois ?? 10;
+  if (limit === -1) return { ok: true, current: 0, limit: -1 };
+
+  const firstDay = new Date();
+  firstDay.setDate(1);
+  firstDay.setHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from('factures')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenant_id)
+    .gte('created_at', firstDay.toISOString());
+
+  if (error) {
+    logger.error('Erreur comptage factures', { tag: 'QUOTAS', error: error.message });
+    return { ok: true, current: 0, limit, message: 'Erreur comptage' };
+  }
+
+  const currentCount = count || 0;
+
+  return {
+    ok: currentCount < limit,
+    current: currentCount,
+    limit,
+    percentage: Math.round((currentCount / limit) * 100),
+    message: currentCount >= limit ? `Limite de ${limit} factures/mois atteinte` : null
+  };
+}
+
+/**
+ * Middleware : vérifie quota factures avant création
+ */
+export async function requireFacturesQuota(req, res, next) {
+  try {
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
+    if (!tenant_id) {
+      return res.status(401).json({ error: 'Tenant non identifié' });
+    }
+
+    const plan = await getTenantPlan(tenant_id);
+    const check = await checkFacturesQuota(tenant_id, plan);
+
+    if (!check.ok) {
+      captureMessage(`Quota factures exceeded: ${tenant_id}`, 'warning', { tags: { type: 'quota_exceeded', quota: 'factures' }, extra: { tenant_id, plan, current: check.current, limit: check.limit } });
+      return res.status(403).json({
+        error: check.message,
+        code: 'QUOTA_EXCEEDED',
+        upgrade_required: true,
+        current_plan: plan,
+        quota: 'factures',
+        current: check.current,
+        limit: check.limit,
+        redirect: '/admin/billing/upgrade'
+      });
+    }
+
+    req.quota_factures = check;
+    next();
+  } catch (error) {
+    logger.error('Erreur middleware factures', { tag: 'QUOTAS', error: error.message });
+    res.status(500).json({ error: 'Erreur vérification quota' });
+  }
+}
+
+/**
+ * Vérifie quota prestations (services) — compteur global, pas mensuel
+ * @param {string} tenant_id - ID du tenant
+ * @param {string} plan - Plan du tenant
+ * @returns {Promise<Object>} Résultat de la vérification
+ */
+export async function checkPrestationsQuota(tenant_id, plan) {
+  const limit = PLAN_LIMITS[plan]?.prestations_max ?? PLAN_LIMITS.free.prestations_max ?? 3;
+  if (limit === -1) return { ok: true, current: 0, limit: -1 };
+
+  const { count, error } = await supabase
+    .from('services')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenant_id);
+
+  if (error) {
+    logger.error('Erreur comptage prestations', { tag: 'QUOTAS', error: error.message });
+    return { ok: true, current: 0, limit, message: 'Erreur comptage' };
+  }
+
+  const currentCount = count || 0;
+
+  return {
+    ok: currentCount < limit,
+    current: currentCount,
+    limit,
+    percentage: Math.round((currentCount / limit) * 100),
+    message: currentCount >= limit ? `Limite de ${limit} prestations atteinte` : null
+  };
+}
+
+/**
+ * Middleware : vérifie quota prestations (services) avant création
+ */
+export async function requirePrestationsQuota(req, res, next) {
+  try {
+    const tenant_id = req.admin?.tenant_id || req.tenant_id || req.tenantId;
+    if (!tenant_id) {
+      return res.status(401).json({ error: 'Tenant non identifié' });
+    }
+
+    const plan = await getTenantPlan(tenant_id);
+    const check = await checkPrestationsQuota(tenant_id, plan);
+
+    if (!check.ok) {
+      captureMessage(`Quota prestations exceeded: ${tenant_id}`, 'warning', { tags: { type: 'quota_exceeded', quota: 'prestations' }, extra: { tenant_id, plan, current: check.current, limit: check.limit } });
+      return res.status(403).json({
+        error: check.message,
+        code: 'QUOTA_EXCEEDED',
+        upgrade_required: true,
+        current_plan: plan,
+        quota: 'prestations',
+        current: check.current,
+        limit: check.limit,
+        redirect: '/admin/billing/upgrade'
+      });
+    }
+
+    req.quota_prestations = check;
+    next();
+  } catch (error) {
+    logger.error('Erreur middleware prestations', { tag: 'QUOTAS', error: error.message });
+    res.status(500).json({ error: 'Erreur vérification quota' });
+  }
+}
+
+/**
  * Middleware : vérifie quota stockage avant upload
  */
 export async function requireStorageQuota(req, res, next) {
@@ -421,11 +558,15 @@ export default {
   getTenantPlan,
   checkClientsQuota,
   checkReservationsQuota,
+  checkFacturesQuota,
+  checkPrestationsQuota,
   checkStorageQuota,
   checkSocialQuota,
   getQuotaUsage,
   requireClientsQuota,
   requireReservationsQuota,
+  requireFacturesQuota,
+  requirePrestationsQuota,
   requireStorageQuota,
   requirePostsQuota,
   requireImagesQuota

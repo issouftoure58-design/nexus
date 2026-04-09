@@ -2,7 +2,7 @@
  * NEXUS AI — Simulateur de cout credits IA (révisé 9 avril 2026)
  *
  * Permet aux visiteurs de la landing d'estimer leur consommation mensuelle
- * de credits IA et de choisir entre Basic (500 cr inclus), Business (10 000 cr inclus),
+ * de credits IA et de choisir entre Basic (1 000 cr inclus), Business (10 000 cr inclus),
  * et un pack additionnel unique Pack 1000 (15€/1000cr).
  */
 
@@ -11,16 +11,16 @@ import { Calculator, Phone, MessageCircle, Globe, Megaphone, FileText, Sparkles,
 
 // Couts en credits — alignés avec backend/src/config/pricing.js (modele 2026)
 const CREDIT_COSTS = {
-  whatsapp: 1,        // 1 message WhatsApp IA = 1 credit
-  webChat: 5,         // 1 conversation chat web = 5 credits (~5 messages)
-  phoneMin: 8,        // 1 minute telephone IA = 8 credits
-  socialPost: 5,      // 1 post reseaux sociaux genere = 5 credits
-  email: 3,           // 1 email IA personnalise = 3 credits
-  seoArticle: 50,     // 1 article SEO complet (1500 mots) = 50 credits
+  whatsapp: 4,        // 1 message WhatsApp IA = 4 credits
+  webChat: 9,         // 1 conversation chat web = 9 credits (~5 messages)
+  phoneMin: 15,       // 1 minute telephone IA = 15 credits
+  socialPost: 9,      // 1 post reseaux sociaux genere = 9 credits
+  email: 6,           // 1 email IA personnalise = 6 credits
+  seoArticle: 66,     // 1 article SEO complet (1500 mots) = 66 credits
 }
 
 // Credits inclus par plan (source de verite : creditsService.js)
-const BASIC_INCLUDED = 500
+const BASIC_INCLUDED = 1000
 const BUSINESS_INCLUDED = 10000
 
 // Pack unique additionnel
@@ -52,12 +52,12 @@ const USAGE_PRESETS = [
 ]
 
 const ITEMS = [
-  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois', cost: CREDIT_COSTS.whatsapp, costLabel: '1 cr / msg' },
-  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois', cost: CREDIT_COSTS.webChat, costLabel: '5 cr / conv' },
-  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois', cost: CREDIT_COSTS.phoneMin, costLabel: '8 cr / min' },
-  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois', cost: CREDIT_COSTS.socialPost, costLabel: '5 cr / post' },
-  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois', cost: CREDIT_COSTS.email, costLabel: '3 cr / email' },
-  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois', cost: CREDIT_COSTS.seoArticle, costLabel: '50 cr / article' },
+  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois', cost: CREDIT_COSTS.whatsapp, costLabel: '4 cr / msg' },
+  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois', cost: CREDIT_COSTS.webChat, costLabel: '9 cr / conv' },
+  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois', cost: CREDIT_COSTS.phoneMin, costLabel: '15 cr / min' },
+  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois', cost: CREDIT_COSTS.socialPost, costLabel: '9 cr / post' },
+  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois', cost: CREDIT_COSTS.email, costLabel: '6 cr / email' },
+  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois', cost: CREDIT_COSTS.seoArticle, costLabel: '66 cr / article' },
 ]
 
 export default function CreditsSimulator() {
@@ -69,7 +69,7 @@ export default function CreditsSimulator() {
   }, [usage])
 
   // Recommandation :
-  //   • ≤ 500 cr      → Basic suffit (aucun pack nécessaire)
+  //   • ≤ 1 000 cr    → Basic suffit (aucun pack nécessaire)
   //   • ≤ 10 000 cr   → Basic + n packs additionnels OU Business selon rentabilité
   //   • > 10 000 cr   → Business + packs 1000 pour le surplus
   const recommendation = useMemo(() => {
@@ -129,7 +129,7 @@ export default function CreditsSimulator() {
             </span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Basic inclut 500 credits/mois, Business inclut 10 000 credits/mois.
+            Basic inclut 1 000 credits/mois, Business inclut 10 000 credits/mois.
             Estimez votre consommation et nous vous dirons quel plan est le plus avantageux.
           </p>
         </div>

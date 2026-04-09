@@ -362,7 +362,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Megaphone,
     title: 'Marketing & CRM',
     path: '/segments',
-    badge: 'Business',
+    badge: 'Basic',
     condition: always,
     content: (t) => [
       `Segmentez vos ${t.client}s avec le CRM : par CA, frequence, anciennete ou tags personnalises.`,
@@ -376,7 +376,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: TrendingUp,
     title: 'Pipeline Commercial',
     path: '/pipeline',
-    badge: 'Business',
+    badge: 'Basic',
     condition: always,
     content: () => [
       `Suivez vos opportunites de vente avec un pipeline visuel : prospection → contact → devis → negociation → gagne/perdu.`,
@@ -389,7 +389,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Share2,
     title: 'Reseaux Sociaux',
     path: '/reseaux-sociaux',
-    badge: 'Business',
+    badge: 'Basic',
     condition: always,
     content: () => [
       `Planifiez et publiez vos posts sur vos reseaux sociaux directement depuis NEXUS.`,
@@ -402,7 +402,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: UserCog,
     title: 'RH & Planning',
     path: '/rh',
-    badge: 'Business',
+    badge: 'Basic',
     condition: always,
     content: (t) => [
       `Gerez votre equipe : fiches ${t.staff}s, planning, conges et absences.`,
@@ -416,7 +416,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: PieChart,
     title: 'Analytics & SEO',
     path: '/seo',
-    badge: 'Business',
+    badge: 'Basic',
     condition: always,
     content: () => [
       `L'Analytics affiche votre rentabilite par service, marges et seuil de rentabilite.`,
@@ -448,7 +448,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     content: (t) => [
       `Gerez votre profil, mot de passe et authentification a deux facteurs (2FA).`,
       `La section Equipe permet d'inviter des ${t.staff}s avec des roles et permissions personnalises.`,
-      `Consultez et gerez votre abonnement (Free, Basic 29€/mois avec 500 credits IA inclus, Business 149€/mois avec 10 000 credits IA inclus) dans "Mon abonnement". L'essai Basic gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
+      `Consultez et gerez votre abonnement (Free, Basic 29€/mois avec 1 000 credits IA inclus, Business 149€/mois avec 10 000 credits IA inclus) dans "Mon abonnement". L'essai Basic gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
       `La section Activite permet de decrire votre etablissement — ces informations sont utilisees par l'IA pour renseigner vos ${t.client}s.`,
     ],
   },
@@ -604,7 +604,7 @@ export default function Guide() {
 
       {/* Footer */}
       <div className="text-center text-sm text-gray-400 pt-4">
-        <p>NEXUS v3.25.0 — Pour toute question, contactez noreply@nexus-ai-saas.com</p>
+        <p>NEXUS v3.25.0 — Pour toute question, contactez contact@nexus-ai-saas.com</p>
       </div>
     </div>
   );

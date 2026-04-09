@@ -1,7 +1,7 @@
 /**
  * Billing & Payment Unit Tests — Modèle pricing 2026 (révisé 9 avril 2026)
  *
- * Plans : Free 0€ / Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus)
+ * Plans : Free 0€ / Basic 29€ (1 000 cr inclus) / Business 149€ (10 000 cr inclus)
  * Pack unique additionnel : Pack 1000 (15€ → 1 000 crédits, 0% bonus)
  */
 
@@ -108,23 +108,23 @@ describe('Plan Limits — Free quotas', () => {
   // Doit refleter planFeatures.js FREE_LIMITS
   const FREE_LIMITS = {
     clients_max:        50,
-    reservations_mois:  30,
+    reservations_mois:  10,
     factures_mois:      20,
     prestations_max:    5,
     users_max:          1,
     chat_admin_questions_mois: 5,
   };
 
-  test('Free = 30 RDV/mois', () => {
-    expect(FREE_LIMITS.reservations_mois).toBe(30);
+  test('Free = 10 RDV/mois', () => {
+    expect(FREE_LIMITS.reservations_mois).toBe(10);
   });
 
-  test('Free = 20 factures/mois (avec watermark)', () => {
-    expect(FREE_LIMITS.factures_mois).toBe(20);
+  test('Free = 10 factures/mois (avec watermark)', () => {
+    expect(FREE_LIMITS.factures_mois).toBe(10);
   });
 
-  test('Free = 50 clients max', () => {
-    expect(FREE_LIMITS.clients_max).toBe(50);
+  test('Free = 30 clients max', () => {
+    expect(FREE_LIMITS.clients_max).toBe(30);
   });
 
   test('Free = 1 utilisateur uniquement', () => {
@@ -142,7 +142,7 @@ describe('Plan Limits — Basic & Business (révision 9 avril 2026)', () => {
     reservations_mois:  -1,
     factures_mois:      -1,
     users_max:          -1,
-    credits_ia_inclus_mois: 500,
+    credits_ia_inclus_mois: 1000,
   };
 
   const BUSINESS_LIMITS = {
@@ -158,16 +158,16 @@ describe('Plan Limits — Basic & Business (révision 9 avril 2026)', () => {
     expect(BASIC_LIMITS.users_max).toBe(-1);
   });
 
-  test('Basic inclut 500 crédits IA mensuels', () => {
-    expect(BASIC_LIMITS.credits_ia_inclus_mois).toBe(500);
+  test('Basic inclut 1 000 crédits IA mensuels', () => {
+    expect(BASIC_LIMITS.credits_ia_inclus_mois).toBe(1000);
   });
 
   test('Business inclut 10 000 crédits IA mensuels', () => {
     expect(BUSINESS_LIMITS.credits_ia_inclus_mois).toBe(10000);
   });
 
-  test('Business = 20x plus de crédits que Basic', () => {
-    expect(BUSINESS_LIMITS.credits_ia_inclus_mois / BASIC_LIMITS.credits_ia_inclus_mois).toBe(20);
+  test('Business = 10x plus de crédits que Basic', () => {
+    expect(BUSINESS_LIMITS.credits_ia_inclus_mois / BASIC_LIMITS.credits_ia_inclus_mois).toBe(10);
   });
 
   test('Business hérite des illimités Basic', () => {

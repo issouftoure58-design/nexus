@@ -12,6 +12,7 @@ import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { computeHash, recordHash, auditLog, verifyChain, getAuditTrail } from '../services/iscaService.js';
 import { generateCIIXml, validateCIIXml } from '../services/facturXService.js';
 import { isPeriodeVerrouillee } from '../services/exerciceService.js';
+import { requireFacturesQuota } from '../middleware/quotas.js';
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -914,7 +915,7 @@ export async function cancelFactureFromReservation(reservationId, tenantId, dele
  * POST /api/factures
  * Création d'une facture manuelle (hors réservation)
  */
-router.post('/', async (req, res) => {
+router.post('/', requireFacturesQuota, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     if (!tenantId) return res.status(403).json({ error: 'TENANT_REQUIRED' });

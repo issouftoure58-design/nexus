@@ -6,6 +6,7 @@ import logger from '../config/logger.js';
 import { validate } from '../middleware/validate.js';
 import { paginate } from '../middleware/paginate.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
+import { requirePrestationsQuota } from '../middleware/quotas.js';
 
 const updateServiceSchema = z.object({
   nom: z.string().min(1).max(200).optional(),
@@ -402,7 +403,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/services - Créer service
-router.post('/', authenticateAdmin, async (req, res) => {
+router.post('/', authenticateAdmin, requirePrestationsQuota, async (req, res) => {
   try {
     // 🔒 TENANT ISOLATION: Utiliser tenant_id de l'admin
     const tenantId = req.admin.tenant_id;

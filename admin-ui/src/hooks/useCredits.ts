@@ -4,7 +4,7 @@
  * Modèle 2026 (révision finale 9 avril 2026) :
  *   • 1,5€ = 100 crédits (0,015€/crédit — taux base)
  *   • Free     : 0 crédit inclus (IA bloquée)
- *   • Basic    : 500 crédits inclus / mois (valeur 7,50€)
+ *   • Basic    : 1 000 crédits inclus / mois (valeur 15€)
  *   • Business : 10 000 crédits inclus / mois (valeur 150€)
  *
  * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 crédits (0% bonus)
@@ -41,16 +41,16 @@ export interface CreditTransaction {
  * Coûts par action IA — doit rester synchronisé avec backend creditsService.CREDIT_COSTS
  */
 export const CREDIT_COSTS = {
-  chat_admin_question: 1,
-  whatsapp_message: 1,
-  web_chat_conversation: 5,
-  phone_minute: 8,
-  social_post_generated: 5,
-  email_ia_sent: 3,
-  antichurn_whatsapp: 2,
-  antichurn_sms_fr: 10,
-  seo_article: 50,
-  devis_ia: 2,
+  chat_admin_question: 4,
+  whatsapp_message: 4,
+  devis_ia: 6,
+  antichurn_whatsapp: 6,
+  email_ia_sent: 6,
+  web_chat_conversation: 9,
+  social_post_generated: 9,
+  phone_minute: 15,
+  antichurn_sms_fr: 16,
+  seo_article: 66,
 } as const;
 
 export type CreditAction = keyof typeof CREDIT_COSTS;

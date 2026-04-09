@@ -7,7 +7,7 @@ import {
   FileText, CreditCard, Settings, Sparkles
 } from "lucide-react";
 
-// Feature categories — Modèle pricing 2026 révision finale 9 avril 2026 : Free / Basic 29€ (500 cr) / Business 149€ (10 000 cr)
+// Feature categories — Modèle pricing 2026 révision finale 9 avril 2026 : Free / Basic 29€ (1 000 cr) / Business 149€ (10 000 cr)
 const FEATURE_CATEGORIES = [
   {
     id: "free",
@@ -22,12 +22,12 @@ const FEATURE_CATEGORIES = [
         icon: Calendar,
       },
       {
-        name: "Facturation (20/mois)",
+        name: "Facturation (10/mois)",
         description: "Creation et envoi de factures avec watermark NEXUS, export comptable basique",
         icon: FileText,
       },
       {
-        name: "CRM jusqu'a 50 clients",
+        name: "CRM jusqu'a 30 clients",
         description: "Gestion clients basique avec historique et preferences",
         icon: Users,
       },

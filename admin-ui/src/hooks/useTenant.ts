@@ -17,7 +17,7 @@ import { api } from '@/lib/api';
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Modele 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
+// Free freemium / Basic 29€ illimite non-IA + 1 000 credits IA / Business 149€ multi-sites + 10 000 credits IA
 // 'starter' et 'pro' sont DEPRECATED — gardes pour retro-compat consumer
 export type PlanType = 'free' | 'basic' | 'business' | 'starter' | 'pro';
 
@@ -212,25 +212,25 @@ function hasPlanAccess(currentPlan: PlanType, requiredPlan: PlanType): boolean {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Quotas par defaut (modele 2026 — revision finale 9 avril 2026)
-// Free     : freemium strict (30 RDV/mois, 50 clients), IA bloquee (0 credit)
-// Basic    : tout illimite non-IA + 500 credits IA inclus / mois (valeur 7,50€)
+// Free     : freemium strict (10 RDV/mois, 30 clients), IA bloquee (0 credit)
+// Basic    : tout illimite non-IA + 1 000 credits IA inclus / mois (valeur 15€)
 // Business : Basic + multi-sites + 10 000 credits IA inclus / mois (valeur 150€)
 const DEFAULT_QUOTAS: Record<'free' | 'basic' | 'business', TenantQuotas> = {
   free: {
-    clients_max: 50,
+    clients_max: 30,
     storage_gb: 1,
     posts_ia_month: 0,
     images_ia_month: 0,
-    reservations_month: 30,
+    reservations_month: 10,
     messages_ia_month: 0,
   },
   basic: {
     clients_max: -1, // Illimite
-    storage_gb: 10,
-    posts_ia_month: 0, // 500 credits IA inclus (gere via ai_credits)
+    storage_gb: 50,
+    posts_ia_month: 0, // 1 000 credits IA inclus (gere via ai_credits)
     images_ia_month: 0,
     reservations_month: -1, // Illimite
-    messages_ia_month: 0, // 500 credits IA inclus (gere via ai_credits)
+    messages_ia_month: 0, // 1 000 credits IA inclus (gere via ai_credits)
   },
   business: {
     clients_max: -1, // Illimite

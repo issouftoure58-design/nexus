@@ -13,7 +13,7 @@ import { Link } from 'wouter';
 import './Pricing.css';
 
 // Plans principaux — Modele 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
+// Free freemium / Basic 29€ illimite non-IA + 1 000 credits IA / Business 149€ multi-sites + 10 000 credits IA
 const PLANS = [
   {
     id: 'free',
@@ -26,10 +26,10 @@ const PLANS = [
     icon: Zap,
     color: 'from-gray-500 to-gray-600',
     features: [
-      { text: '30 reservations / mois', included: true },
-      { text: '20 factures / mois (avec watermark)', included: true },
-      { text: '50 clients max dans le CRM', included: true },
-      { text: '5 prestations max', included: true },
+      { text: '10 reservations / mois', included: true },
+      { text: '10 factures / mois (avec watermark)', included: true },
+      { text: '30 clients max dans le CRM', included: true },
+      { text: '3 prestations max', included: true },
       { text: '1 utilisateur', included: true },
       { text: 'Tous les modules visibles', included: true },
       { text: 'Support email', included: true },
@@ -46,7 +46,7 @@ const PLANS = [
     price: 29,
     originalPrice: 29,
     yearlyPrice: 290,
-    launchOffer: '500 credits IA inclus / mois (valeur 7,50€)',
+    launchOffer: '1 000 credits IA inclus / mois (valeur 15€)',
     description: 'Tout illimite non-IA + credits IA inclus',
     icon: Crown,
     color: 'from-cyan-500 to-blue-600',
@@ -57,7 +57,7 @@ const PLANS = [
       { text: 'CRM, Equipe, Fidelite illimites', included: true },
       { text: 'Comptabilite, RH, Stock complets', included: true },
       { text: 'Workflows, Pipeline, Devis, SEO', included: true },
-      { text: '500 credits IA inclus chaque mois', included: true },
+      { text: '1 000 credits IA inclus chaque mois', included: true },
       { text: 'WhatsApp IA, Telephone IA, Marketing IA', included: true },
       { text: 'Support email prioritaire', included: true },
       { text: 'Multi-sites', included: false },
@@ -106,14 +106,14 @@ const CREDIT_PACKS = [
 
 // Cout en credits par action IA (pay-as-you-go)
 const CREDIT_COSTS = [
-  { action: '1 question chat IA admin', cost: '1 credit' },
-  { action: '1 message WhatsApp IA repondu', cost: '1 credit' },
-  { action: '1 conversation Agent IA Web', cost: '5 credits' },
-  { action: '1 minute Telephone IA', cost: '8 credits' },
-  { action: '1 post reseaux sociaux genere', cost: '5 credits' },
-  { action: '1 email IA envoye', cost: '3 credits' },
-  { action: '1 article SEO (1500 mots)', cost: '50 credits' },
-  { action: '1 devis IA', cost: '2 credits' },
+  { action: '1 question chat IA admin', cost: '4 credits' },
+  { action: '1 message WhatsApp IA repondu', cost: '4 credits' },
+  { action: '1 devis IA', cost: '6 credits' },
+  { action: '1 email IA envoye', cost: '6 credits' },
+  { action: '1 conversation Agent IA Web', cost: '9 credits' },
+  { action: '1 post reseaux sociaux genere', cost: '9 credits' },
+  { action: '1 minute Telephone IA', cost: '15 credits' },
+  { action: '1 article SEO (1500 mots)', cost: '66 credits' },
 ];
 
 // Exemples de configurations (modele 2026 — revision finale 9 avril 2026)
@@ -130,7 +130,7 @@ const EXAMPLES = [
     name: 'Salon de coiffure',
     emoji: '✂️',
     plan: 'Basic',
-    modules: ['500 credits IA inclus'],
+    modules: ['1 000 credits IA inclus'],
     total: 29,
     featured: true,
     subtitle: '29€/mois credits IA inclus',
@@ -139,7 +139,7 @@ const EXAMPLES = [
     name: 'Restaurant',
     emoji: '🍽️',
     plan: 'Basic',
-    modules: ['500 credits IA inclus'],
+    modules: ['1 000 credits IA inclus'],
     total: 29,
     subtitle: 'Tables, menus, services midi/soir',
   },
@@ -147,7 +147,7 @@ const EXAMPLES = [
     name: 'Petit hotel',
     emoji: '🏨',
     plan: 'Basic',
-    modules: ['500 credits IA inclus'],
+    modules: ['1 000 credits IA inclus'],
     total: 29,
     subtitle: 'Chambres, tarifs, check-in/out',
   },
@@ -155,7 +155,7 @@ const EXAMPLES = [
     name: 'Artisan a domicile',
     emoji: '🔧',
     plan: 'Basic',
-    modules: ['500 credits IA inclus'],
+    modules: ['1 000 credits IA inclus'],
     total: 29,
     subtitle: 'Plombier, electricien, plaquiste...',
   },
@@ -177,15 +177,15 @@ const FAQS = [
   },
   {
     q: 'Puis-je essayer NEXUS gratuitement ?',
-    a: "Oui, le plan Free est gratuit a vie, sans carte bancaire. Vous avez 30 reservations/mois, 20 factures/mois et 50 clients dans le CRM. Tous les modules sont visibles pour decouvrir la plateforme.",
+    a: "Oui, le plan Free est gratuit a vie, sans carte bancaire. Vous avez 10 reservations/mois, 10 factures/mois et 30 clients dans le CRM. Tous les modules sont visibles pour decouvrir la plateforme.",
   },
   {
     q: 'Quelle est la difference entre Free, Basic et Business ?',
-    a: "Free (0€) : pour decouvrir, quotas mensuels stricts, IA bloquee. Basic (29€/mois) : tout illimite non-IA + 500 credits IA inclus chaque mois (valeur 7,50€). Business (149€/mois) : Basic + multi-sites, white-label, API, SSO et 10 000 credits IA inclus chaque mois (valeur 150€).",
+    a: "Free (0€) : pour decouvrir, quotas mensuels stricts, IA bloquee. Basic (29€/mois) : tout illimite non-IA + 1 000 credits IA inclus chaque mois (valeur 15€). Business (149€/mois) : Basic + multi-sites, white-label, API, SSO et 10 000 credits IA inclus chaque mois (valeur 150€).",
   },
   {
     q: 'Comment fonctionnent les credits IA ?',
-    a: "1,5 euro = 100 credits (0,015€/credit — taux base). Chaque plan payant inclut deja des credits : Basic 500 credits/mois, Business 10 000 credits/mois. Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits au taux base (sans bonus). 1 message WhatsApp IA = 1 credit, 1 minute Telephone IA = 8 credits, 1 article SEO = 50 credits.",
+    a: "1,5 euro = 100 credits (0,015€/credit — taux base). Chaque plan payant inclut deja des credits : Basic 1 000 credits/mois, Business 10 000 credits/mois. Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits au taux base (sans bonus). 1 message WhatsApp IA = 4 credits, 1 minute Telephone IA = 15 credits, 1 article SEO = 66 credits.",
   },
   {
     q: 'Puis-je changer de plan en cours de mois ?',
@@ -333,7 +333,7 @@ export default function Pricing() {
           <div className="section-header">
             <h2>Pack additionnel de credits IA</h2>
             <p>
-              Basic inclut 500 credits/mois, Business inclut 10 000 credits/mois. Si vous avez besoin de plus,
+              Basic inclut 1 000 credits/mois, Business inclut 10 000 credits/mois. Si vous avez besoin de plus,
               un pack unique additionnel est disponible — au taux base, sans bonus, sans surprise.
               <br />
               <strong>1,5 euro = 100 credits</strong> (0,015€/credit).
@@ -471,19 +471,19 @@ export default function Pricing() {
                 </tr>
                 <tr>
                   <td>Reservations / mois</td>
-                  <td>30</td>
+                  <td>10</td>
                   <td>Illimitees</td>
                   <td>Illimitees</td>
                 </tr>
                 <tr>
                   <td>Factures / mois</td>
-                  <td>20 (avec watermark)</td>
+                  <td>10 (avec watermark)</td>
                   <td>Illimitees</td>
                   <td>Illimitees</td>
                 </tr>
                 <tr>
                   <td>Clients max</td>
-                  <td>50</td>
+                  <td>30</td>
                   <td>Illimite</td>
                   <td>Illimite</td>
                 </tr>
@@ -508,20 +508,20 @@ export default function Pricing() {
                 <tr>
                   <td>Fonctions IA</td>
                   <td>Bloquees</td>
-                  <td>500 credits inclus / mois</td>
+                  <td>1 000 credits inclus / mois</td>
                   <td>10 000 credits inclus / mois</td>
                 </tr>
                 <tr>
                   <td>WhatsApp IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td>1 credit / message</td>
-                  <td>1 credit / message</td>
+                  <td>4 credits / message</td>
+                  <td>4 credits / message</td>
                 </tr>
                 <tr>
                   <td>Telephone IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td>8 credits / minute</td>
-                  <td>8 credits / minute</td>
+                  <td>15 credits / minute</td>
+                  <td>15 credits / minute</td>
                 </tr>
                 <tr>
                   <td>Marketing IA, SEO IA</td>

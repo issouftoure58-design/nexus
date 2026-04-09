@@ -145,15 +145,15 @@ const CATEGORIES: Record<string, { label: string; emoji: string }> = {
 };
 
 // Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
+// Free freemium / Basic 29€ illimite non-IA + 1 000 credits IA / Business 149€ multi-sites + 10 000 credits IA
 const PLANS = {
   free: {
     name: 'Free', price: 0, originalPrice: 0,
-    features: ['30 réservations / mois', '20 factures / mois', '50 clients max', 'Tous les modules visibles', 'Support email'],
+    features: ['10 réservations / mois', '10 factures / mois', '30 clients max', 'Tous les modules visibles', 'Support email'],
   },
   basic: {
     name: 'Basic', price: 29, originalPrice: 29, popular: true,
-    features: ['Tout illimité (réservations, factures, clients)', 'CRM, Comptabilité, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '500 crédits IA inclus / mois (valeur 7,50€)', 'Support email prioritaire'],
+    features: ['Tout illimité (réservations, factures, clients)', 'CRM, Comptabilité, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '1 000 crédits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
   },
   business: {
     name: 'Business', price: 149, originalPrice: 149,

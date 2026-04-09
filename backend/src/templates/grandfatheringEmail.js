@@ -77,12 +77,12 @@ export function buildGrandfatheringEmail({ firstName = '', tenantName, currentPl
               <td style="padding:12px;border:1px solid #e5e7eb;border-radius:6px;width:33%;vertical-align:top;">
                 <strong style="color:#6b7280;font-size:13px;">FREE</strong><br>
                 <span style="font-size:20px;font-weight:700;color:#111827;">0€</span><br>
-                <span style="font-size:12px;color:#6b7280;line-height:1.4;">30 RDV/mois<br>20 factures (avec watermark)<br>50 clients max</span>
+                <span style="font-size:12px;color:#6b7280;line-height:1.4;">10 RDV/mois<br>10 factures (avec watermark)<br>30 clients max</span>
               </td>
               <td style="padding:12px;border:1px solid #06b6d4;border-radius:6px;width:33%;vertical-align:top;background:#f0fdff;">
                 <strong style="color:#0891b2;font-size:13px;">BASIC ★</strong><br>
                 <span style="font-size:20px;font-weight:700;color:#0891b2;">29€</span><span style="font-size:13px;color:#6b7280;">/mois</span><br>
-                <span style="font-size:12px;color:#0e7490;line-height:1.4;">Tout illimité<br>500 crédits IA inclus/mois<br>Pack 15€/1 000 cr additionnel</span>
+                <span style="font-size:12px;color:#0e7490;line-height:1.4;">Tout illimité<br>1 000 crédits IA inclus/mois<br>Pack 15€/1 000 cr additionnel</span>
               </td>
               <td style="padding:12px;border:1px solid #e5e7eb;border-radius:6px;width:33%;vertical-align:top;">
                 <strong style="color:#7c3aed;font-size:13px;">BUSINESS</strong><br>
@@ -104,7 +104,7 @@ export function buildGrandfatheringEmail({ firstName = '', tenantName, currentPl
             <li><strong>1 article SEO complet</strong> = 50 crédits</li>
           </ul>
           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
-            Chaque plan payant inclut déjà des crédits : <strong>Basic 500 crédits/mois</strong> · <strong>Business 10 000 crédits/mois</strong>.
+            Chaque plan payant inclut déjà des crédits : <strong>Basic 1 000 crédits/mois</strong> · <strong>Business 10 000 crédits/mois</strong>.
             Pour aller plus loin, un pack additionnel unique : <strong>Pack 1000 — 15€ → 1 000 crédits</strong> (simple et transparent, au taux base).
           </p>
 
@@ -155,8 +155,8 @@ En tant que client historique, vous conservez votre plan ${planLabel} a ${curren
 Aucun changement automatique, aucune action requise.
 
 LE NOUVEAU MODELE 2026
-- FREE (0€/mois) : 30 RDV/mois, 20 factures (watermark), 50 clients max
-- BASIC (29€/mois) : Tout illimite + 500 credits IA inclus/mois (valeur 7,50€)
+- FREE (0€/mois) : 10 RDV/mois, 10 factures (watermark), 30 clients max
+- BASIC (29€/mois) : Tout illimite + 1 000 credits IA inclus/mois (valeur 15€)
 - BUSINESS (149€/mois) : Multi-sites, white-label, API, SSO + 10 000 credits IA inclus/mois (valeur 150€)
 
 LES CREDITS IA

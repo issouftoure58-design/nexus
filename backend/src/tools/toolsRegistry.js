@@ -1882,7 +1882,7 @@ export const TOOLS_ADMIN = [
  * Retourne les outils disponibles selon le plan du tenant
  * Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
  * - Free    : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees, 0 credit)
- * - Basic   : 29€/mois, TOUS les outils, 500 credits IA inclus/mois (valeur 7,50€)
+ * - Basic   : 29€/mois, TOUS les outils, 1 000 credits IA inclus/mois (valeur 15€)
  * - Business: 149€/mois, TOUS les outils, 10 000 credits IA inclus/mois (valeur 150€)
  *
  * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat
@@ -1909,7 +1909,7 @@ export function getToolsForPlan(plan) {
   }
 
   // Plan Basic (29€) ET Business (149€): TOUS les outils
-  // Difference : Basic = 500 credits inclus/mois, Business = 10 000 credits inclus/mois
+  // Difference : Basic = 1 000 credits inclus/mois, Business = 10 000 credits inclus/mois
   if (basePlan === 'basic' || basePlan === 'business' || basePlan === 'enterprise') {
     return TOOLS_ADMIN;
   }

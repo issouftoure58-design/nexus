@@ -454,9 +454,14 @@ router.post('/signup/sms/verify', async (req, res) => {
 router.post('/signup', signupLimiter, async (req, res) => {
   try {
     const {
-      entreprise, nom, email: rawEmail, telephone, password, plan = 'free', accept_cgv,
+      entreprise, nom, email: rawEmail, telephone, password, accept_cgv,
       template_type, profession_id, adresse, siret, sms_verified_token,
     } = req.body;
+
+    // 🔒 SECURITY: Always force plan to 'free' — never trust client-supplied plan.
+    // Prevents plan spoofing where a malicious client could send plan='business'
+    // to get premium features for free. Upgrades happen only via Stripe checkout.
+    const plan = 'free';
 
     // Normaliser l'email en minuscules (évite les doublons par casse)
     const email = rawEmail?.trim().toLowerCase();
@@ -588,7 +593,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const autoDescription = professionInfo ? `${professionInfo.label} — ${professionInfo.description}` : '';
 
     // ═══ Modèle 2026 (révision finale 9 avril 2026) : tous les nouveaux comptes démarrent en Free (gratuit à vie) ═══
-    // Le client doit upgrader vers Basic (29€, 500 crédits IA inclus) ou Business (149€, 10 000 crédits IA inclus) pour débloquer l'IA et les modules avancés
+    // Le client doit upgrader vers Basic (29€, 1 000 crédits IA inclus) ou Business (149€, 10 000 crédits IA inclus) pour débloquer l'IA et les modules avancés
     const modulesActifs = getFeaturesForPlan('free');
 
     // Créer le tenant avec template + business_profile + modules

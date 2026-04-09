@@ -12,7 +12,7 @@
  *
  * Modèle 2026 (révisé 9 avril 2026 — voir memory/business-model-2026.md):
  * - FREE (0€/mois)         : Freemium à vie, quotas stricts, IA bloquée
- * - BASIC (29€/mois)       : Accès illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+ * - BASIC (29€/mois)       : Accès illimité non-IA + 1 000 crédits IA inclus/mois (valeur 15€)
  * - BUSINESS (149€/mois)   : Tout Basic + multi-sites, white-label, API, SSO, 10 000 crédits IA inclus (valeur 150€)
  *
  * Les fonctions IA (chat IA admin, WhatsApp IA, téléphone IA, marketing IA, SEO IA)
@@ -32,9 +32,9 @@
 const FREE_FEATURES = {
   // Core CRUD (avec quotas — voir PLAN_LIMITS)
   dashboard: true,
-  clients: true,           // max 50
-  reservations: true,      // max 30/mois
-  facturation: true,       // max 20/mois + watermark "Propulse par NEXUS"
+  clients: true,           // max 30
+  reservations: true,      // max 10/mois
+  facturation: true,       // max 10/mois + watermark "Propulse par NEXUS"
   documents: true,
   paiements: true,
   ecommerce: true,
@@ -193,16 +193,16 @@ export const ROUTE_MODULES = {
  */
 // Quotas dimensionnels du nouveau modele 2026
 const FREE_LIMITS = {
-  clients_max:        50,
-  reservations_mois:  30,
-  factures_mois:      20,
-  prestations_max:    5,
+  clients_max:        30,
+  reservations_mois:  10,
+  factures_mois:      10,
+  prestations_max:    3,
   users_max:          1,
   chat_admin_questions_mois: 5,  // 5 questions decouverte/mois
 
   // ⚠️ DEPRECATED — alias des champs historiques (pour retro-compat consommateurs)
-  clients:                50,
-  reservations_per_month: 30,
+  clients:                30,
+  reservations_per_month: 10,
   storage_gb:             1,
   posts_per_month:        0,   // IA bloquee en Free
   images_per_month:       0,
@@ -215,7 +215,7 @@ const BASIC_LIMITS = {
   prestations_max:    -1,
   users_max:          -1,
   chat_admin_questions_mois: -1, // illimite (consomme credits)
-  credits_ia_inclus_mois: 500,   // 500 crédits IA inclus par mois (valeur 7,50€)
+  credits_ia_inclus_mois: 1000,  // 1 000 crédits IA inclus par mois (valeur 15€)
 
   // ⚠️ DEPRECATED — alias des champs historiques
   clients:                -1,

@@ -93,12 +93,12 @@ try {
   // 5. Met à jour le plan Basic — credits inclus
   const basicPlan = await client.query(
     `UPDATE plans
-        SET credits_ia_inclus = 500,
-            description = 'Tout illimité — 500 crédits IA inclus/mois + pack additionnel',
+        SET credits_ia_inclus = 1000,
+            description = 'Tout illimité — 1 000 crédits IA inclus/mois + pack additionnel',
             updated_at = NOW()
       WHERE id = 'basic'`
   );
-  console.log(`✓ ${basicPlan.rowCount} ligne plans.basic mise à jour (credits 0 → 500)`);
+  console.log(`✓ ${basicPlan.rowCount} ligne plans.basic mise à jour (credits 0 → 1000)`);
 
   await client.query('COMMIT');
 } catch (e) {

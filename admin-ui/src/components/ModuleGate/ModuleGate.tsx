@@ -11,9 +11,11 @@
  *   </ModuleGate>
  */
 
+import { useState } from 'react';
 import { useTenant, PlanType, normalizePlan } from '@/hooks/useTenant';
-import { Lock, Zap, Crown, Sparkles, ArrowRight } from 'lucide-react';
+import { Lock, Zap, Crown, Sparkles, ArrowRight, Send, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { api } from '@/lib/api';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -45,9 +47,9 @@ const PLAN_INFO: Record<'free' | 'basic' | 'business', { name: string; color: st
 
 const PLAN_FEATURES: Record<'free' | 'basic' | 'business', string[]> = {
   free: [
-    '30 réservations / mois',
-    '20 factures / mois (avec watermark)',
-    '50 clients max dans le CRM',
+    '10 réservations / mois',
+    '10 factures / mois (avec watermark)',
+    '30 clients max dans le CRM',
     'Tous les modules visibles (lecture)',
     'Support email',
   ],
@@ -56,7 +58,7 @@ const PLAN_FEATURES: Record<'free' | 'basic' | 'business', string[]> = {
     'Facturation illimitée (sans watermark)',
     'CRM, Équipe, Fidélité, Comptabilité, RH, Stock',
     'Workflows, Pipeline, Devis, SEO',
-    '500 crédits IA inclus chaque mois (valeur 7,50€)',
+    '1 000 crédits IA inclus chaque mois (valeur 15€)',
     'Support email prioritaire',
   ],
   business: [
@@ -176,6 +178,33 @@ export function ModuleGate({
 
   // Vérif module optionnel activé
   if (module && !hasModule(module)) {
+    const hasRequiredPlan = hasPlan('basic');
+
+    // Modules self-service (pas de numéro OVH nécessaire) → activation directe
+    const SELF_SERVICE_MODULES = ['agent_ia_web'];
+    const isSelfService = SELF_SERVICE_MODULES.includes(module);
+
+    if (hasRequiredPlan && isSelfService) {
+      return (
+        <SelfServiceActivation
+          module={module}
+          moduleTitle={moduleTitle}
+          plan={plan}
+        />
+      );
+    }
+
+    // Modules nécessitant un numéro OVH → demande d'activation manuelle
+    if (hasRequiredPlan) {
+      return (
+        <ModuleActivationRequest
+          module={module}
+          moduleTitle={moduleTitle}
+          plan={plan}
+        />
+      );
+    }
+
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-8">
         <div className="max-w-lg w-full text-center">
@@ -188,15 +217,15 @@ export function ModuleGate({
           </h2>
 
           <p className="text-xl text-gray-600 mb-8">
-            {moduleDescription || "Ce module n'est pas activé pour votre compte"}
+            {moduleDescription || "Ce module nécessite un plan Basic ou Business"}
           </p>
 
           <Link
             to="/subscription"
             className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
           >
-            <Zap className="w-6 h-6" />
-            Activer ce module
+            <Crown className="w-6 h-6" />
+            Passer en Basic — 29€/mois
           </Link>
 
           <p className="mt-6 text-sm text-gray-500">
@@ -209,6 +238,267 @@ export function ModuleGate({
 
   // Accès autorisé
   return <>{children}</>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SELF-SERVICE ACTIVATION — Pour modules sans provisioning (Web Chat)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function SelfServiceActivation({
+  module,
+  moduleTitle,
+  plan,
+}: {
+  module: string;
+  moduleTitle?: string;
+  plan: PlanType;
+}) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const { refetch } = useTenant();
+
+  const handleActivate = async () => {
+    setStatus('loading');
+    try {
+      await api.post(`/modules/${module}/activate`);
+      await refetch();
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setErrorMsg(error.message || "Erreur lors de l'activation");
+      setStatus('error');
+    }
+  };
+
+  const info = MODULE_LABELS[module] || {
+    name: moduleTitle || module,
+    description: 'Module IA disponible immédiatement.',
+    icon: '⚡',
+  };
+
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center p-8">
+      <div className="max-w-lg w-full">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 px-8 py-10 text-center">
+            <div className="text-5xl mb-4">{info.icon}</div>
+            <h2 className="text-2xl font-bold text-white mb-2">{info.name}</h2>
+            <p className="text-white/80">{info.description}</p>
+          </div>
+
+          <div className="p-8 text-center">
+            {status === 'idle' && (
+              <>
+                <p className="text-gray-600 mb-6">
+                  Ce module est disponible avec votre plan {PLAN_INFO[normalizePlan(plan)].name}. Activez-le en un clic.
+                </p>
+                <button
+                  onClick={handleActivate}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white text-lg font-semibold rounded-xl hover:from-emerald-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Zap className="w-5 h-5" />
+                  Activer maintenant
+                </button>
+                <p className="text-sm text-gray-500 mt-3">Activation instantanée — consomme des crédits IA</p>
+              </>
+            )}
+
+            {status === 'loading' && (
+              <div className="py-8">
+                <Loader2 className="w-10 h-10 text-cyan-600 animate-spin mx-auto mb-4" />
+                <p className="text-gray-600">Activation en cours...</p>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <>
+                <p className="text-red-600 mb-4">{errorMsg}</p>
+                <button onClick={() => setStatus('idle')} className="text-cyan-600 font-medium hover:underline">
+                  Réessayer
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE ACTIVATION REQUEST — Formulaire de demande pour tenants Basic/Business
+// ══════════════════════════════════════════════════════════════════════════════
+
+const MODULE_LABELS: Record<string, { name: string; description: string; icon: string }> = {
+  agent_ia_web: {
+    name: 'Agent IA Web',
+    description: 'Chatbot IA sur votre site web qui répond à vos clients 24/7, prend des RDV et répond aux questions.',
+    icon: '💬',
+  },
+  agent_ia_whatsapp: {
+    name: 'Agent IA WhatsApp',
+    description: 'Assistant WhatsApp IA qui répond instantanément à vos clients, prend des RDV et envoie des confirmations.',
+    icon: '📱',
+  },
+  agent_ia_telephone: {
+    name: 'Agent IA Téléphone',
+    description: 'Standard téléphonique IA qui répond à vos appels 24/7, prend des RDV et transfère vers un humain si nécessaire.',
+    icon: '📞',
+  },
+  whatsapp: {
+    name: 'WhatsApp IA',
+    description: 'Assistant WhatsApp IA pour vos clients.',
+    icon: '📱',
+  },
+  telephone: {
+    name: 'Téléphone IA',
+    description: 'Standard téléphonique IA 24/7.',
+    icon: '📞',
+  },
+};
+
+// Map module names to API module IDs
+const MODULE_TO_API_ID: Record<string, string> = {
+  agent_ia_web: 'web_chat_ia',
+  agent_ia_whatsapp: 'whatsapp_ia',
+  agent_ia_telephone: 'telephone_ia',
+  whatsapp: 'whatsapp_ia',
+  telephone: 'telephone_ia',
+};
+
+function ModuleActivationRequest({
+  module,
+  moduleTitle,
+  plan,
+}: {
+  module: string;
+  moduleTitle?: string;
+  plan: PlanType;
+}) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'already' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const info = MODULE_LABELS[module] || {
+    name: moduleTitle || module.charAt(0).toUpperCase() + module.slice(1),
+    description: "Ce module nécessite une activation par l'équipe NEXUS.",
+    icon: '⚡',
+  };
+
+  const handleRequest = async () => {
+    setStatus('loading');
+    try {
+      const apiModuleId = MODULE_TO_API_ID[module] || module;
+      await api.post('/quotas/request-activation', { moduleId: apiModuleId });
+      setStatus('sent');
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      if (error.status === 409) {
+        setStatus('already');
+      } else {
+        setErrorMsg(error.message || 'Erreur lors de la demande');
+        setStatus('error');
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center p-8">
+      <div className="max-w-lg w-full">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-cyan-600 to-blue-700 px-8 py-10 text-center">
+            <div className="text-5xl mb-4">{info.icon}</div>
+            <h2 className="text-2xl font-bold text-white mb-2">{info.name}</h2>
+            <p className="text-white/80">{info.description}</p>
+          </div>
+
+          {/* Content */}
+          <div className="p-8">
+            {status === 'idle' && (
+              <>
+                <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold text-blue-900 mb-2">Comment ça marche ?</h3>
+                  <ol className="text-sm text-blue-800 space-y-2">
+                    <li className="flex gap-2">
+                      <span className="font-bold text-blue-600">1.</span>
+                      Vous cliquez sur "Demander l'activation"
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-blue-600">2.</span>
+                      Notre équipe configure votre numéro dédié (06/07)
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-blue-600">3.</span>
+                      Vous recevez une notification quand c'est prêt
+                    </li>
+                  </ol>
+                  <p className="text-xs text-blue-600 mt-3">Délai habituel : 24-48h ouvrées</p>
+                </div>
+
+                <button
+                  onClick={handleRequest}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-lg font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Send className="w-5 h-5" />
+                  Demander l'activation
+                </button>
+              </>
+            )}
+
+            {status === 'loading' && (
+              <div className="text-center py-8">
+                <Loader2 className="w-10 h-10 text-cyan-600 animate-spin mx-auto mb-4" />
+                <p className="text-gray-600">Envoi de la demande...</p>
+              </div>
+            )}
+
+            {status === 'sent' && (
+              <div className="text-center py-4">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Demande envoyée !</h3>
+                <p className="text-gray-600 mb-4">
+                  Notre équipe a été notifiée. Nous configurons votre {info.name} dans les plus brefs délais.
+                </p>
+                <div className="bg-green-50 rounded-lg p-3 text-sm text-green-800">
+                  Vous recevrez un email de confirmation une fois le module activé.
+                </div>
+              </div>
+            )}
+
+            {status === 'already' && (
+              <div className="text-center py-4">
+                <Clock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Demande déjà en cours</h3>
+                <p className="text-gray-600">
+                  Votre demande d'activation pour {info.name} est en cours de traitement. Notre équipe s'en occupe.
+                </p>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Zap className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Erreur</h3>
+                <p className="text-gray-600 mb-4">{errorMsg}</p>
+                <button
+                  onClick={() => setStatus('idle')}
+                  className="text-cyan-600 font-medium hover:underline"
+                >
+                  Réessayer
+                </button>
+              </div>
+            )}
+
+            <p className="text-center text-sm text-gray-500 mt-6">
+              Plan actuel : <span className="font-semibold">{PLAN_INFO[normalizePlan(plan)].name}</span>
+              {' · '}Consomme des crédits IA
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default ModuleGate;

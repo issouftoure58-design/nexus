@@ -4,7 +4,7 @@
  *
  * ⚠️ DEPRECATED (révision finale 9 avril 2026) ⚠️
  * Ce script applique l'ANCIEN modèle de pricing (Starter 99€/Pro 249€/Business 499€).
- * Il a été remplacé par le modèle 2026 final: Free / Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus).
+ * Il a été remplacé par le modèle 2026 final: Free / Basic 29€ (1 000 cr inclus) / Business 149€ (10 000 cr inclus).
  * NE PAS exécuter ce script — il recréerait les anciens plans.
  * Voir migrations 104 / 107 pour le schéma plans + tables ai_credits à jour.
  */

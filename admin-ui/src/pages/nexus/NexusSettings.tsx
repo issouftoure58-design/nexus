@@ -13,11 +13,11 @@ interface SystemStatus {
 const PLANS = [
   {
     name: 'Free', price: 0, color: 'gray',
-    features: ['30 reservations / mois', '20 factures / mois', '50 clients max', 'Tous les modules visibles', 'Support email'],
+    features: ['10 reservations / mois', '10 factures / mois', '30 clients max', 'Tous les modules visibles', 'Support email'],
   },
   {
     name: 'Basic', price: 29, color: 'cyan', popular: true,
-    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '500 credits IA inclus / mois (valeur 7,50€)', 'Support email prioritaire'],
+    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '1 000 credits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
   },
   {
     name: 'Business', price: 149, color: 'purple',

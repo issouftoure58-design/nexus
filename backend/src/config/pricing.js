@@ -47,24 +47,24 @@ export const PRICING = {
  *
  * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
  * - free : aucun acces IA (bloque)
- * - basic : 500 credits IA inclus (~7,50€ valeur) + IA additionnelle via pack unique
+ * - basic : 1 000 credits IA inclus (~15€ valeur) + IA additionnelle via pack unique
  * - business : 10 000 credits IA inclus (~150€ valeur) + IA additionnelle via pack unique
  */
 export const PLAN_BUDGETS = {
   free:     { ai: 0,   sms: 0,  voice: 0,  total: 0 },
-  basic:    { ai: 7.5, sms: 0,  voice: 0,  total: 7.5 },  // 500 credits IA inclus
+  basic:    { ai: 15, sms: 0,  voice: 0,  total: 15 },  // 1 000 credits IA inclus
   business: { ai: 150, sms: 0,  voice: 0,  total: 150 },  // 10 000 credits IA inclus
   // ⚠️ DEPRECATED — Aliases retro-compat (a supprimer apres migration consommateurs)
   starter:  { ai: 0,   sms: 0,  voice: 0,  total: 0 },
-  pro:      { ai: 7.5, sms: 0,  voice: 0,  total: 7.5 },
+  pro:      { ai: 15, sms: 0,  voice: 0,  total: 15 },
 };
 
 /**
  * Prix des abonnements (EUR)
  *
  * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
- * - Free 0€ (freemium a vie, 30 RDV/mois, 20 factures/mois)
- * - Basic 29€/mois (acces illimite non-IA + 500 credits IA inclus)
+ * - Free 0€ (freemium a vie, 10 RDV/mois, 10 factures/mois)
+ * - Basic 29€/mois (acces illimite non-IA + 1 000 credits IA inclus)
  * - Business 149€/mois (Basic + multi-site + white-label + API + SSO + 10 000 credits IA inclus)
  */
 export const PLAN_PRICES = {
@@ -89,16 +89,16 @@ export const CREDIT_PACKS = {
  * Cout en credits IA par action (voir business-model-2026.md pour le detail des marges)
  */
 export const CREDIT_COSTS = {
-  chat_admin_haiku:        1,   // 1 question chat IA admin (Haiku 4.5)
-  whatsapp_message:        1,   // 1 message WhatsApp IA repondu
-  agent_web_conversation:  5,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
-  phone_minute:            8,   // 1 minute appel Telephone IA
-  social_post_generated:   5,   // 1 post reseaux genere (Sonnet + image)
-  email_ia_sent:           3,   // 1 email IA genere + envoi Resend
-  anti_churn_whatsapp:     2,   // 1 message Anti-Churn WhatsApp
-  anti_churn_sms_fr:      10,   // 1 message Anti-Churn SMS FR (cher)
-  seo_article_full:       50,   // 1 article SEO complet (1500 mots, Sonnet)
-  devis_ia:                2,   // 1 devis IA
+  chat_admin_haiku:        4,   // 1 question chat IA admin
+  whatsapp_message:        4,   // 1 message WhatsApp IA repondu
+  devis_ia:                6,   // 1 devis IA
+  anti_churn_whatsapp:     6,   // 1 message Anti-Churn WhatsApp
+  email_ia_sent:           6,   // 1 email IA genere + envoi Resend
+  agent_web_conversation:  9,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
+  social_post_generated:   9,   // 1 post reseaux genere (Sonnet + image)
+  phone_minute:           15,   // 1 minute appel Telephone IA
+  anti_churn_sms_fr:      16,   // 1 message Anti-Churn SMS FR (cher)
+  seo_article_full:       66,   // 1 article SEO complet (1500 mots, Sonnet)
 };
 
 /**

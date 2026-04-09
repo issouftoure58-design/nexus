@@ -35,7 +35,7 @@ interface QuotasResponse {
 }
 
 // Modèle pricing 2026 — révision finale 9 avril 2026 — Free / Basic / Business + crédits IA
-// Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus)
+// Basic 29€ (1 000 cr inclus) / Business 149€ (10 000 cr inclus)
 const PLAN_PRICES: Record<string, string> = {
   free: '0',
   basic: '29',

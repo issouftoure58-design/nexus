@@ -2,10 +2,10 @@
  * Quota Service — Gestion des quotas mensuels Free tier (modèle 2026)
  *
  * Quotas Free :
- *   • 30 réservations / mois
- *   • 20 factures / mois
- *   • 50 clients max (compteur global, pas mensuel)
- *   • 5 prestations max
+ *   • 10 réservations / mois
+ *   • 10 factures / mois
+ *   • 30 clients max (compteur global, pas mensuel)
+ *   • 3 prestations max
  *   • 5 questions chat IA admin / mois
  *   • 1 utilisateur (équipe désactivée)
  *
@@ -23,10 +23,10 @@ import logger from '../config/logger.js';
 
 export const PLAN_QUOTAS = {
   free: {
-    reservations_max_mois: 30,
-    factures_max_mois: 20,
-    clients_max: 50,
-    prestations_max: 5,
+    reservations_max_mois: 10,
+    factures_max_mois: 10,
+    clients_max: 30,
+    prestations_max: 3,
     chat_admin_questions_mois: 5,
     storage_mb: 1024,
     utilisateurs_max: 1,

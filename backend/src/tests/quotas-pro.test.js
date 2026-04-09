@@ -3,8 +3,8 @@
  * Vérifie que les limites Basic sont correctement appliquées
  *
  * Modèle 2026:
- * - Free: 50 clients max, 1 GB, 30 RDV/mois, IA bloquée (0 crédit)
- * - Basic 29€/mois: tout illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+ * - Free: 30 clients max, 1 GB, 10 RDV/mois, IA bloquée (0 crédit)
+ * - Basic 29€/mois: tout illimité non-IA + 1 000 crédits IA inclus/mois (valeur 15€)
  * - Business 149€/mois: Basic + 10 000 crédits IA inclus/mois (valeur 150€) + premium features
  */
 
