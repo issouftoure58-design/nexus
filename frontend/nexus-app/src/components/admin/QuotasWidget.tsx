@@ -34,10 +34,19 @@ interface QuotasResponse {
   reset_in_days: number;
 }
 
+// Modèle pricing 2026 — révision finale 9 avril 2026 — Free / Basic / Business + crédits IA
+// Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus)
 const PLAN_PRICES: Record<string, string> = {
-  starter: '99',
-  pro: '249',
-  business: '499'
+  free: '0',
+  basic: '29',
+  business: '149'
+};
+
+// Retro-compat : starter→free, pro→basic
+const normalizePlan = (plan: string): string => {
+  if (plan === 'starter') return 'free';
+  if (plan === 'pro') return 'basic';
+  return plan;
 };
 
 export default function QuotasWidget() {
@@ -224,12 +233,12 @@ export default function QuotasWidget() {
           </Alert>
         )}
 
-        {/* Message Pro → Business */}
-        {plan === 'pro' && (
+        {/* Message Basic → Business */}
+        {normalizePlan(plan) === 'basic' && (
           <Alert className="border-purple-200 bg-purple-50">
             <TrendingUp className="h-4 w-4 text-purple-600" />
             <AlertDescription className="text-purple-800">
-              <span className="font-semibold">Besoin de plus ?</span> Passez au plan Business pour des quotas illimites + SEO + RH + API.
+              <span className="font-semibold">Besoin de plus ?</span> Passez au plan Business 149€/mois pour multi-sites, white-label, API, SSO et 10 000 credits IA inclus chaque mois (valeur 150€).
               <Button
                 variant="ghost"
                 className="text-purple-700 underline p-0 h-auto ml-1"
@@ -241,15 +250,15 @@ export default function QuotasWidget() {
           </Alert>
         )}
 
-        {/* Message Starter → Pro */}
-        {plan === 'starter' && (
-          <Alert className="border-blue-200 bg-blue-50">
-            <TrendingUp className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <span className="font-semibold">Passez au plan Pro !</span> 3x plus de clients, 5x plus de stockage, 5x plus de posts IA.
+        {/* Message Free → Basic */}
+        {normalizePlan(plan) === 'free' && (
+          <Alert className="border-cyan-200 bg-cyan-50">
+            <TrendingUp className="h-4 w-4 text-cyan-600" />
+            <AlertDescription className="text-cyan-800">
+              <span className="font-semibold">Passez au plan Basic — 29€/mois !</span> Tout illimite (RDV, factures, clients, comptabilite) + IA debloquee via credits pay-as-you-go.
               <Button
                 variant="ghost"
-                className="text-blue-700 underline p-0 h-auto ml-1"
+                className="text-cyan-700 underline p-0 h-auto ml-1"
                 onClick={() => window.location.href = '/admin/billing/upgrade'}
               >
                 Voir les avantages

@@ -1,6 +1,11 @@
 /**
- * Tests Quotas Plan Pro
- * Vérifie que les limites Pro sont correctement appliquées
+ * Tests Quotas Plan Basic (modèle 2026 — révision finale 9 avril 2026)
+ * Vérifie que les limites Basic sont correctement appliquées
+ *
+ * Modèle 2026:
+ * - Free: 50 clients max, 1 GB, 30 RDV/mois, IA bloquée (0 crédit)
+ * - Basic 29€/mois: tout illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+ * - Business 149€/mois: Basic + 10 000 crédits IA inclus/mois (valeur 150€) + premium features
  */
 
 import {
@@ -11,24 +16,24 @@ import {
 } from '../middleware/quotas.js';
 
 // Configuration test
-const TEST_TENANT_ID = 'test-pro-tenant';
-const PLAN = 'pro';
+const TEST_TENANT_ID = 'test-basic-tenant';
+const PLAN = 'basic';
 
 console.log('='.repeat(50));
-console.log('TESTS QUOTAS PLAN PRO');
+console.log('TESTS QUOTAS PLAN BASIC (modèle 2026)');
 console.log('='.repeat(50));
 console.log('');
 
-// Test 1: Vérifier les limites définies
-console.log('TEST 1: Limites PLAN_LIMITS définies correctement');
+// Test 1: Vérifier les limites définies (-1 = illimité)
+console.log('TEST 1: Limites PLAN_LIMITS.basic définies correctement');
 console.log('-'.repeat(40));
 
-const proLimits = PLAN_LIMITS.pro;
+const basicLimits = PLAN_LIMITS.basic;
 const tests = [
-  { name: 'Clients', expected: 3000, actual: proLimits.clients },
-  { name: 'Stockage (GB)', expected: 10, actual: proLimits.storage_gb },
-  { name: 'Posts/mois', expected: 500, actual: proLimits.posts_per_month },
-  { name: 'Images/mois', expected: 500, actual: proLimits.images_per_month }
+  { name: 'Clients (illimité)', expected: -1, actual: basicLimits.clients },
+  { name: 'Stockage (GB)', expected: 50, actual: basicLimits.storage_gb },
+  { name: 'Posts/mois (illimité)', expected: -1, actual: basicLimits.posts_per_month },
+  { name: 'Images/mois (illimité)', expected: -1, actual: basicLimits.images_per_month }
 ];
 
 let allPassed = true;
@@ -40,106 +45,105 @@ tests.forEach(test => {
 
 console.log('');
 
-// Test 2: Vérifier checkClientsQuota retourne la bonne limite
-console.log('TEST 2: checkClientsQuota avec plan Pro');
+// Test 2: Vérifier checkClientsQuota retourne illimité
+console.log('TEST 2: checkClientsQuota avec plan Basic');
 console.log('-'.repeat(40));
 
 async function testCheckClientsQuota() {
   try {
     const result = await checkClientsQuota(TEST_TENANT_ID, PLAN);
-    const passed = result.limit === 3000;
-    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit} (attendu: 3000)`);
+    const passed = result.limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit} (attendu: -1 illimité)`);
     console.log(`  ℹ️  Current: ${result.current}, OK: ${result.ok}`);
     return passed;
   } catch (error) {
     console.log(`  ⚠️  Erreur (normal si DB non connectée): ${error.message}`);
-    // Vérifier via PLAN_LIMITS directement
-    const limit = PLAN_LIMITS.pro.clients;
-    const passed = limit === 3000;
-    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit} (attendu: 3000)`);
+    const limit = PLAN_LIMITS.basic.clients;
+    const passed = limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit} (attendu: -1)`);
     return passed;
   }
 }
 
-// Test 3: Vérifier checkStorageQuota retourne la bonne limite
+// Test 3: Vérifier checkStorageQuota = 50 GB
 console.log('');
-console.log('TEST 3: checkStorageQuota avec plan Pro');
+console.log('TEST 3: checkStorageQuota avec plan Basic');
 console.log('-'.repeat(40));
 
 async function testCheckStorageQuota() {
   try {
     const result = await checkStorageQuota(TEST_TENANT_ID, PLAN);
-    const passed = result.limit_gb === 10;
-    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit_gb} GB (attendu: 10 GB)`);
+    const passed = result.limit_gb === 50;
+    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit_gb} GB (attendu: 50 GB)`);
     console.log(`  ℹ️  Current: ${result.current_gb} GB, OK: ${result.ok}`);
     return passed;
   } catch (error) {
     console.log(`  ⚠️  Erreur (normal si DB non connectée): ${error.message}`);
-    const limit = PLAN_LIMITS.pro.storage_gb;
-    const passed = limit === 10;
-    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit} GB (attendu: 10 GB)`);
+    const limit = PLAN_LIMITS.basic.storage_gb;
+    const passed = limit === 50;
+    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit} GB (attendu: 50 GB)`);
     return passed;
   }
 }
 
-// Test 4: Vérifier checkSocialQuota pour posts
+// Test 4: Vérifier checkSocialQuota pour posts (illimité)
 console.log('');
-console.log('TEST 4: checkSocialQuota (posts) avec plan Pro');
+console.log('TEST 4: checkSocialQuota (posts) avec plan Basic');
 console.log('-'.repeat(40));
 
 async function testCheckPostsQuota() {
   try {
     const result = await checkSocialQuota(TEST_TENANT_ID, PLAN, 'post');
-    const passed = result.limit === 500;
-    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit}/mois (attendu: 500/mois)`);
+    const passed = result.limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit}/mois (attendu: -1 illimité)`);
     console.log(`  ℹ️  Current: ${result.current}, OK: ${result.ok}`);
     return passed;
   } catch (error) {
     console.log(`  ⚠️  Erreur (normal si DB non connectée): ${error.message}`);
-    const limit = PLAN_LIMITS.pro.posts_per_month;
-    const passed = limit === 500;
-    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit}/mois (attendu: 500/mois)`);
+    const limit = PLAN_LIMITS.basic.posts_per_month;
+    const passed = limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit}/mois (attendu: -1)`);
     return passed;
   }
 }
 
-// Test 5: Vérifier checkSocialQuota pour images
+// Test 5: Vérifier checkSocialQuota pour images (illimité)
 console.log('');
-console.log('TEST 5: checkSocialQuota (images) avec plan Pro');
+console.log('TEST 5: checkSocialQuota (images) avec plan Basic');
 console.log('-'.repeat(40));
 
 async function testCheckImagesQuota() {
   try {
     const result = await checkSocialQuota(TEST_TENANT_ID, PLAN, 'image');
-    const passed = result.limit === 500;
-    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit}/mois (attendu: 500/mois)`);
+    const passed = result.limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite retournée: ${result.limit}/mois (attendu: -1 illimité)`);
     console.log(`  ℹ️  Current: ${result.current}, OK: ${result.ok}`);
     return passed;
   } catch (error) {
     console.log(`  ⚠️  Erreur (normal si DB non connectée): ${error.message}`);
-    const limit = PLAN_LIMITS.pro.images_per_month;
-    const passed = limit === 500;
-    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit}/mois (attendu: 500/mois)`);
+    const limit = PLAN_LIMITS.basic.images_per_month;
+    const passed = limit === -1;
+    console.log(`  ${passed ? '✅' : '❌'} Limite via PLAN_LIMITS: ${limit}/mois (attendu: -1)`);
     return passed;
   }
 }
 
-// Test 6: Comparer avec Starter
+// Test 6: Comparer Basic vs Free (Free = freemium très limité)
 console.log('');
-console.log('TEST 6: Comparaison Pro vs Starter');
+console.log('TEST 6: Comparaison Basic vs Free');
 console.log('-'.repeat(40));
 
-const starterLimits = PLAN_LIMITS.starter;
+const freeLimits = PLAN_LIMITS.free;
 const comparisons = [
-  { name: 'Clients', starter: starterLimits.clients, pro: proLimits.clients, expectedRatio: 3 },
-  { name: 'Stockage', starter: starterLimits.storage_gb, pro: proLimits.storage_gb, expectedRatio: 5 },
-  { name: 'Posts', starter: starterLimits.posts_per_month, pro: proLimits.posts_per_month, expectedRatio: 5 },
-  { name: 'Images', starter: starterLimits.images_per_month, pro: proLimits.images_per_month, expectedRatio: 5 }
+  { name: 'Clients', free: freeLimits.clients, basic: basicLimits.clients },
+  { name: 'Stockage GB', free: freeLimits.storage_gb, basic: basicLimits.storage_gb },
+  { name: 'Posts/mois', free: freeLimits.posts_per_month, basic: basicLimits.posts_per_month },
+  { name: 'Images/mois', free: freeLimits.images_per_month, basic: basicLimits.images_per_month }
 ];
 
 comparisons.forEach(c => {
-  const ratio = c.pro / c.starter;
-  console.log(`  ${c.name}: Starter=${c.starter}, Pro=${c.pro} (x${ratio})`);
+  const display = (v) => v === -1 ? '∞' : v;
+  console.log(`  ${c.name}: Free=${display(c.free)}, Basic=${display(c.basic)}`);
 });
 
 // Exécuter tous les tests
@@ -166,7 +170,7 @@ async function runAllTests() {
 
   if (passedCount === totalCount) {
     console.log('');
-    console.log('✅ TOUS LES TESTS QUOTAS PRO PASSENT !');
+    console.log('✅ TOUS LES TESTS QUOTAS BASIC PASSENT !');
   } else {
     console.log('');
     console.log('❌ Certains tests ont échoué.');

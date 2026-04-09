@@ -11,7 +11,7 @@ const FAQS = [
   },
   {
     q: 'Puis-je essayer NEXUS gratuitement ?',
-    a: "Oui, NEXUS propose un essai gratuit de 14 jours sans carte bancaire requise. Vous avez acces a toutes les fonctionnalites de votre plan pour tester la plateforme en conditions reelles. A la fin de l'essai, vous pouvez choisir le plan qui vous convient ou simplement arreter sans engagement."
+    a: "Oui, NEXUS propose une offre Free 100% gratuite a vie, sans carte bancaire. Elle inclut jusqu'a 30 reservations par mois, 20 factures, un CRM jusqu'a 50 clients et l'acces a tous les modules en lecture / decouverte. Vous pouvez passer a Basic 29€/mois quand vous etes pret, sans interruption de service et sans perdre vos donnees."
   },
   {
     q: "Comment fonctionne l'assistant telephone IA ?",
@@ -23,11 +23,15 @@ const FAQS = [
   },
   {
     q: 'Combien coute NEXUS ?',
-    a: "NEXUS propose 3 plans adaptes a chaque taille d'entreprise : Starter a 99 euros par mois (ideal pour les independants), Pro a 249 euros par mois (pour les equipes en croissance avec WhatsApp IA et telephone IA inclus), et Business a 499 euros par mois (pour les multi-sites avec support dedie et fonctionnalites avancees). Des tarifs annuels avec reduction sont disponibles."
+    a: "NEXUS propose 3 niveaux d'acces : Free gratuit a vie (30 reservations et 20 factures par mois), Basic a 29 euros par mois pour un acces illimite a toutes les fonctions non-IA avec 500 credits IA inclus chaque mois, et Business a 149 euros par mois pour les multi-sites avec white-label, API et 10 000 credits IA inclus chaque mois (valeur 150 euros). Les fonctions IA (telephone IA, WhatsApp IA, marketing IA, articles SEO) consomment des credits. Vous ne payez que ce que vous consommez au-dela des credits inclus."
   },
   {
-    q: 'Quelle est la difference entre les plans Starter, Pro et Business ?',
-    a: "Le plan Starter inclut le chatbot web IA, les reservations en ligne et le CRM de base. Le plan Pro ajoute l'assistant WhatsApp IA, le telephone IA, la comptabilite automatisee et les outils marketing. Le plan Business offre tout le Pro plus le support dedie, les integrations avancees, la gestion multi-sites et un account manager personnel."
+    q: 'Quelle est la difference entre les plans Free, Basic et Business ?',
+    a: "Le plan Free est gratuit a vie et permet de decouvrir NEXUS avec 30 reservations et 20 factures par mois — ideal pour demarrer. Le plan Basic a 29 euros par mois debloque l'acces illimite a toutes les fonctions non-IA (reservations, facturation, CRM, comptabilite, RH, equipe, fidelite, workflows, devis, SEO) et inclut 500 credits IA chaque mois (valeur 7,50 euros). Le plan Business a 149 euros par mois ajoute la gestion multi-sites illimitee, le white-label avec votre propre domaine, l'API et les webhooks, le SSO entreprise, le support prioritaire 1 heure, un account manager dedie et 10 000 credits IA inclus chaque mois (valeur 150 euros)."
+  },
+  {
+    q: 'Comment fonctionnent les credits IA NEXUS ?',
+    a: "NEXUS utilise un systeme de credits universels pour toutes les fonctions IA, similaire a Twilio ou OpenAI. 1,5 euro = 100 credits. Chaque plan payant inclut deja des credits : Basic 500 credits par mois (valeur 7,50 euros), Business 10 000 credits par mois (valeur 150 euros). Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15 euros pour 1 000 credits (taux base, sans bonus). Exemples de consommation : 1 question chat IA = 1 credit, 1 message WhatsApp IA = 1 credit, 1 minute de telephone IA = 8 credits, 1 post reseaux sociaux = 5 credits, 1 article SEO complet = 50 credits. Mode degrade gracieux a 0 credit (aucune surprise)."
   },
   {
     q: "L'assistant IA comprend-il le francais ?",
@@ -59,7 +63,7 @@ const FAQS = [
   },
   {
     q: 'Comment fonctionne le support client NEXUS ?',
-    a: "Tous les plans incluent le support par email avec reponse sous 24 heures. Le plan Pro ajoute le support prioritaire avec un temps de reponse reduit. Le plan Business beneficie d'un account manager dedie, de sessions de formation personnalisees et d'un support telephonique direct. Notre equipe est basee en France."
+    a: "Le plan Free et le plan Basic incluent le support par email avec reponse sous 24 heures. Le plan Business beneficie d'un support prioritaire avec premiere reponse en 1 heure, d'un account manager dedie, de sessions de formation personnalisees et d'un support telephonique direct. Notre equipe est basee en France et communique en francais."
   },
 ]
 

@@ -132,38 +132,48 @@ function getBusinessInstructions(profile) {
 }
 
 /**
- * Fonctionnalités disponibles selon le plan
+ * Fonctionnalités disponibles selon le plan (modele 2026 — revision finale 9 avril 2026)
+ *
+ * - Free    : gestion de base uniquement, IA bloquee (0 credit)
+ * - Basic   : 29€/mois, tout illimite, 500 credits IA inclus/mois (valeur 7,50€)
+ * - Business: 149€/mois, Basic + multi-sites + white-label + 10 000 credits IA inclus/mois (valeur 150€)
  */
 function getPlanCapabilities(plan) {
-  const starter = [
-    'Gestion clients et réservations',
-    'Devis et facturation',
-    'Marketing email basique',
+  const freeCaps = [
+    'Gestion clients et réservations (30/mois)',
+    'Devis et facturation (20/mois, watermark)',
     'Agenda et planification',
-    'Contenu et mémoire IA'
+    '50 clients max dans le CRM'
   ];
-  const pro = [
-    'SEO et référencement',
-    'Réseaux sociaux',
-    'RH de base (équipe, heures, absences)',
-    'Analytics KPI'
+  const basicCaps = [
+    'Tout illimité (réservations, factures, clients)',
+    'CRM complet, Comptabilité, RH, Stock',
+    'Workflows, Pipeline, Devis, SEO',
+    'Marketing email/SMS/réseaux sociaux',
+    'WhatsApp IA, Téléphone IA, Agent web',
+    '500 crédits IA inclus chaque mois (valeur 7,50€)',
+    'Analytics et tableaux de bord'
   ];
-  const business = [
-    'Stratégie et recommandations avancées',
-    'Analytics avancé et rapports',
-    'RH complet (recrutement, performance)',
-    'Agent IA autonome',
-    'Recherche web en temps réel',
-    'Outils Pro avancés'
+  const businessCaps = [
+    'Multi-sites illimités',
+    'White-label (logo + domaine custom)',
+    'API + Webhooks + SSO entreprise',
+    '10 000 crédits IA inclus chaque mois (valeur 150€)',
+    'Account Manager dédié + support prioritaire 1h'
   ];
 
-  if (plan === 'business' || plan === 'enterprise') {
-    return { included: [...starter, ...pro, ...business], locked: [] };
+  // Normalisation legacy
+  const normalized = plan === 'starter' ? 'free'
+                   : plan === 'pro' ? 'basic'
+                   : plan;
+
+  if (normalized === 'business' || normalized === 'enterprise') {
+    return { included: [...freeCaps, ...basicCaps, ...businessCaps], locked: [] };
   }
-  if (plan === 'pro') {
-    return { included: [...starter, ...pro], locked: business };
+  if (normalized === 'basic') {
+    return { included: [...freeCaps, ...basicCaps], locked: businessCaps };
   }
-  return { included: starter, locked: [...pro, ...business] };
+  return { included: freeCaps, locked: [...basicCaps, ...businessCaps] };
 }
 
 /**
@@ -173,7 +183,7 @@ export function buildSystemPrompt(tenant) {
   const businessName = tenant?.name || tenant?.nom || 'NEXUS';
   const businessDescription = tenant?.description || '';
   const businessProfile = tenant?.business_profile || 'salon';
-  const plan = (tenant?.plan || 'starter').toLowerCase();
+  const plan = (tenant?.plan || 'free').toLowerCase();
   const credits = tenant?.ai_credits_remaining ?? 1000;
 
   // Contexte métier depuis systemPrompt.js et businessTypes.js
@@ -293,7 +303,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
-  const tenantPlan = (tenant?.plan || 'starter').toLowerCase();
+  const tenantPlan = (tenant?.plan || 'free').toLowerCase();
   const businessProfile = tenant?.business_profile || 'salon';
   const availableTools = getToolsForPlanAndBusiness(tenantPlan, businessProfile);
 
@@ -394,7 +404,7 @@ export async function chat(tenantId, messages, adminId = null) {
   const tenant = await getTenant(tenantId);
 
   // Récupérer les outils disponibles selon le plan ET le type de business
-  const tenantPlan = (tenant?.plan || 'starter').toLowerCase();
+  const tenantPlan = (tenant?.plan || 'free').toLowerCase();
   const businessProfile = tenant?.business_profile || 'salon';
   const availableTools = getToolsForPlanAndBusiness(tenantPlan, businessProfile);
 

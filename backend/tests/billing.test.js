@@ -1,124 +1,223 @@
 /**
- * Billing & Payment Unit Tests
- * Tests for Stripe integration and plan management
+ * Billing & Payment Unit Tests — Modèle pricing 2026 (révisé 9 avril 2026)
+ *
+ * Plans : Free 0€ / Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus)
+ * Pack unique additionnel : Pack 1000 (15€ → 1 000 crédits, 0% bonus)
  */
 
 import { jest } from '@jest/globals';
 
-describe('Plan Pricing', () => {
+describe('Plan Pricing 2026', () => {
   const PLANS = {
-    starter: { monthly: 9900, yearly: 95000 },
-    pro: { monthly: 24900, yearly: 239000 },
-    business: { monthly: 49900, yearly: 479000 }
+    free:     { monthly: 0,     yearly: 0     },
+    basic:    { monthly: 2900,  yearly: 29000 },  // 29€ mensuel / 290€ annuel (2 mois offerts)
+    business: { monthly: 14900, yearly: 149000 }, // 149€ mensuel / 1490€ annuel (2 mois offerts)
   };
 
-  test('should have correct monthly prices in cents', () => {
-    expect(PLANS.starter.monthly).toBe(9900); // 99€
-    expect(PLANS.pro.monthly).toBe(24900); // 249€
-    expect(PLANS.business.monthly).toBe(49900); // 499€
+  test('Free is 0€', () => {
+    expect(PLANS.free.monthly).toBe(0);
+    expect(PLANS.free.yearly).toBe(0);
   });
 
-  test('should have ~20% discount for yearly plans', () => {
-    const starterDiscount = 1 - (PLANS.starter.yearly / (PLANS.starter.monthly * 12));
-    const proDiscount = 1 - (PLANS.pro.yearly / (PLANS.pro.monthly * 12));
-    const businessDiscount = 1 - (PLANS.business.yearly / (PLANS.business.monthly * 12));
-
-    expect(starterDiscount).toBeGreaterThan(0.19);
-    expect(proDiscount).toBeGreaterThan(0.19);
-    expect(businessDiscount).toBeGreaterThan(0.19);
+  test('Basic monthly is 29€ (2900 cents)', () => {
+    expect(PLANS.basic.monthly).toBe(2900);
   });
-});
 
-describe('SMS Packs', () => {
-  const SMS_PACKS = [
-    { qty: 100, price: 1500 },
-    { qty: 500, price: 6500 },
-    { qty: 1000, price: 11000 },
-    { qty: 5000, price: 45000 }
-  ];
+  test('Business monthly is 149€ (14900 cents)', () => {
+    expect(PLANS.business.monthly).toBe(14900);
+  });
 
-  test('should have decreasing price per SMS for larger packs', () => {
-    const pricePerSms = SMS_PACKS.map(p => p.price / p.qty);
+  test('paid plans have 2 months offered yearly (yearly = monthly × 10)', () => {
+    expect(PLANS.basic.yearly).toBe(PLANS.basic.monthly * 10);
+    expect(PLANS.business.yearly).toBe(PLANS.business.monthly * 10);
+  });
 
-    for (let i = 1; i < pricePerSms.length; i++) {
-      expect(pricePerSms[i]).toBeLessThan(pricePerSms[i - 1]);
-    }
+  test('Basic is cheaper than Business', () => {
+    expect(PLANS.basic.monthly).toBeLessThan(PLANS.business.monthly);
+  });
+
+  test('Business costs ~5x more than Basic (149 vs 29)', () => {
+    const ratio = PLANS.business.monthly / PLANS.basic.monthly;
+    expect(ratio).toBeGreaterThan(5);
+    expect(ratio).toBeLessThan(5.5);
   });
 });
 
-describe('Voice Packs', () => {
-  const VOICE_PACKS = [
-    { mins: 30, price: 1500 },
-    { mins: 60, price: 2500 },
-    { mins: 120, price: 4500 },
-    { mins: 300, price: 9900 }
+describe('AI Credit Pack (pack unique — révision 9 avril 2026)', () => {
+  // Doit refléter creditsService.js CREDIT_PACKS
+  // Base : 1,5€ = 100 crédits (0,015€/crédit)
+  const CREDIT_PACKS = [
+    { code: 'pack_1000', credits: 1000, price_cents: 1500, bonus_pct: 0 },
   ];
 
-  test('should have decreasing price per minute for larger packs', () => {
-    const pricePerMin = VOICE_PACKS.map(p => p.price / p.mins);
+  test('Un seul pack disponible (plus de S/M/L)', () => {
+    expect(CREDIT_PACKS.length).toBe(1);
+    expect(CREDIT_PACKS[0].code).toBe('pack_1000');
+  });
 
-    for (let i = 1; i < pricePerMin.length; i++) {
-      expect(pricePerMin[i]).toBeLessThan(pricePerMin[i - 1]);
-    }
+  test('Pack 1000 = 15€ pour 1 000 crédits (0% bonus, taux base)', () => {
+    expect(CREDIT_PACKS[0].price_cents).toBe(1500);
+    expect(CREDIT_PACKS[0].credits).toBe(1000);
+    expect(CREDIT_PACKS[0].bonus_pct).toBe(0);
+  });
+
+  test('Pack 1000 respecte le taux base : 1,5€ = 100 crédits', () => {
+    const euroPerCredit = CREDIT_PACKS[0].price_cents / 100 / CREDIT_PACKS[0].credits;
+    expect(euroPerCredit).toBeCloseTo(0.015, 4);
   });
 });
 
 describe('Plan Features', () => {
+  // Doit refleter planFeatures.js
   const PLAN_FEATURES = {
-    starter: ['dashboard', 'clients', 'reservations', 'facturation', 'agent_ia_web'],
-    pro: ['whatsapp', 'telephone', 'comptabilite', 'crm_avance', 'marketing', 'pipeline', 'stock', 'analytics', 'devis'],
-    business: ['rh', 'seo', 'api', 'sentinel', 'whitelabel']
+    free: ['dashboard', 'clients', 'reservations', 'facturation', 'documents', 'paiements', 'ecommerce'],
+    basic: ['equipe', 'comptabilite', 'stock', 'rh', 'crm_avance', 'devis', 'marketing', 'pipeline', 'analytics', 'seo', 'workflows', 'agent_ia_web', 'whatsapp', 'telephone'],
+    business: ['multi_site', 'whitelabel', 'api', 'sso', 'support_prioritaire', 'account_manager'],
   };
 
-  test('starter features should be available to all plans', () => {
-    const starterFeatures = PLAN_FEATURES.starter;
-    expect(starterFeatures).toContain('dashboard');
-    expect(starterFeatures).toContain('clients');
-    expect(starterFeatures).toContain('reservations');
+  test('Free contient les modules CRUD core', () => {
+    expect(PLAN_FEATURES.free).toContain('dashboard');
+    expect(PLAN_FEATURES.free).toContain('clients');
+    expect(PLAN_FEATURES.free).toContain('reservations');
+    expect(PLAN_FEATURES.free).toContain('facturation');
   });
 
-  test('pro features should include whatsapp and telephone', () => {
-    const proFeatures = PLAN_FEATURES.pro;
-    expect(proFeatures).toContain('whatsapp');
-    expect(proFeatures).toContain('telephone');
+  test('Free ne contient AUCUNE fonction IA', () => {
+    expect(PLAN_FEATURES.free).not.toContain('agent_ia_web');
+    expect(PLAN_FEATURES.free).not.toContain('whatsapp');
+    expect(PLAN_FEATURES.free).not.toContain('telephone');
   });
 
-  test('business features should include API and SENTINEL', () => {
-    const businessFeatures = PLAN_FEATURES.business;
-    expect(businessFeatures).toContain('api');
-    expect(businessFeatures).toContain('sentinel');
+  test('Basic débloque les fonctions IA et modules avancés', () => {
+    expect(PLAN_FEATURES.basic).toContain('agent_ia_web');
+    expect(PLAN_FEATURES.basic).toContain('whatsapp');
+    expect(PLAN_FEATURES.basic).toContain('telephone');
+    expect(PLAN_FEATURES.basic).toContain('comptabilite');
+    expect(PLAN_FEATURES.basic).toContain('marketing');
+  });
+
+  test('Business ajoute les features premium', () => {
+    expect(PLAN_FEATURES.business).toContain('multi_site');
+    expect(PLAN_FEATURES.business).toContain('whitelabel');
+    expect(PLAN_FEATURES.business).toContain('api');
+    expect(PLAN_FEATURES.business).toContain('sso');
   });
 });
 
-describe('User Limits', () => {
-  const USER_LIMITS = {
-    starter: 1,
-    pro: 5,
-    business: 20
+describe('Plan Limits — Free quotas', () => {
+  // Doit refleter planFeatures.js FREE_LIMITS
+  const FREE_LIMITS = {
+    clients_max:        50,
+    reservations_mois:  30,
+    factures_mois:      20,
+    prestations_max:    5,
+    users_max:          1,
+    chat_admin_questions_mois: 5,
   };
 
-  test('should have correct user limits per plan', () => {
-    expect(USER_LIMITS.starter).toBe(1);
-    expect(USER_LIMITS.pro).toBe(5);
-    expect(USER_LIMITS.business).toBe(20);
+  test('Free = 30 RDV/mois', () => {
+    expect(FREE_LIMITS.reservations_mois).toBe(30);
+  });
+
+  test('Free = 20 factures/mois (avec watermark)', () => {
+    expect(FREE_LIMITS.factures_mois).toBe(20);
+  });
+
+  test('Free = 50 clients max', () => {
+    expect(FREE_LIMITS.clients_max).toBe(50);
+  });
+
+  test('Free = 1 utilisateur uniquement', () => {
+    expect(FREE_LIMITS.users_max).toBe(1);
+  });
+
+  test('Free = 5 questions chat IA admin/mois (essai)', () => {
+    expect(FREE_LIMITS.chat_admin_questions_mois).toBe(5);
+  });
+});
+
+describe('Plan Limits — Basic & Business (révision 9 avril 2026)', () => {
+  const BASIC_LIMITS = {
+    clients_max:        -1,
+    reservations_mois:  -1,
+    factures_mois:      -1,
+    users_max:          -1,
+    credits_ia_inclus_mois: 500,
+  };
+
+  const BUSINESS_LIMITS = {
+    ...BASIC_LIMITS,
+    multi_site_max:     -1,
+    credits_ia_inclus_mois: 10000,
+  };
+
+  test('Basic = tout illimité non-IA', () => {
+    expect(BASIC_LIMITS.clients_max).toBe(-1);
+    expect(BASIC_LIMITS.reservations_mois).toBe(-1);
+    expect(BASIC_LIMITS.factures_mois).toBe(-1);
+    expect(BASIC_LIMITS.users_max).toBe(-1);
+  });
+
+  test('Basic inclut 500 crédits IA mensuels', () => {
+    expect(BASIC_LIMITS.credits_ia_inclus_mois).toBe(500);
+  });
+
+  test('Business inclut 10 000 crédits IA mensuels', () => {
+    expect(BUSINESS_LIMITS.credits_ia_inclus_mois).toBe(10000);
+  });
+
+  test('Business = 20x plus de crédits que Basic', () => {
+    expect(BUSINESS_LIMITS.credits_ia_inclus_mois / BASIC_LIMITS.credits_ia_inclus_mois).toBe(20);
+  });
+
+  test('Business hérite des illimités Basic', () => {
+    expect(BUSINESS_LIMITS.clients_max).toBe(-1);
+    expect(BUSINESS_LIMITS.multi_site_max).toBe(-1);
   });
 });
 
 describe('Trial Period', () => {
-  test('should have 14-day trial period', () => {
+  test('14 jours d\'essai Basic', () => {
     const TRIAL_DAYS = 14;
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
-
     const daysRemaining = Math.ceil((trialEndDate - new Date()) / (1000 * 60 * 60 * 24));
     expect(daysRemaining).toBe(14);
   });
 
-  test('should correctly detect expired trial', () => {
+  test('Détection essai expiré', () => {
     const expiredTrialEnd = new Date();
     expiredTrialEnd.setDate(expiredTrialEnd.getDate() - 1);
+    expect(expiredTrialEnd < new Date()).toBe(true);
+  });
 
-    const isExpired = expiredTrialEnd < new Date();
-    expect(isExpired).toBe(true);
+  test('Après expiration → bascule Free (pas blocage)', () => {
+    // Nouvelle UX 2026 : expiration trial = downgrade vers Free, JAMAIS blocage
+    const POST_TRIAL_PLAN = 'free';
+    expect(POST_TRIAL_PLAN).toBe('free');
+    expect(POST_TRIAL_PLAN).not.toBe('expired');
+  });
+});
+
+describe('Retro-compatibilité legacy plans', () => {
+  // Helper de normalisation utilisé partout dans le code
+  const normalizePlan = (plan) => {
+    if (plan === 'starter') return 'free';
+    if (plan === 'pro') return 'basic';
+    return plan;
+  };
+
+  test('starter → free', () => {
+    expect(normalizePlan('starter')).toBe('free');
+  });
+
+  test('pro → basic', () => {
+    expect(normalizePlan('pro')).toBe('basic');
+  });
+
+  test('plans 2026 inchangés', () => {
+    expect(normalizePlan('free')).toBe('free');
+    expect(normalizePlan('basic')).toBe('basic');
+    expect(normalizePlan('business')).toBe('business');
   });
 });

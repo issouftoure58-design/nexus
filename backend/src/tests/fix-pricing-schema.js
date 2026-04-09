@@ -1,8 +1,18 @@
 /**
  * CORRECTION PRICING - Mise à jour schéma avec pricing correct
  * Date: 10 février 2026
+ *
+ * ⚠️ DEPRECATED (révision finale 9 avril 2026) ⚠️
+ * Ce script applique l'ANCIEN modèle de pricing (Starter 99€/Pro 249€/Business 499€).
+ * Il a été remplacé par le modèle 2026 final: Free / Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus).
+ * NE PAS exécuter ce script — il recréerait les anciens plans.
+ * Voir migrations 104 / 107 pour le schéma plans + tables ai_credits à jour.
  */
 
+console.error('⛔ Ce script est DÉPRÉCIÉ (modèle 2026). Voir migration 105 pour le nouveau schéma.');
+process.exit(1);
+
+// eslint-disable-next-line no-unreachable
 import '../config/env.js';
 import pg from 'pg';
 

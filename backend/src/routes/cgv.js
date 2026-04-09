@@ -11,11 +11,11 @@ import express from 'express';
 
 const router = express.Router();
 
-const CGV_VERSION = '1.1';
+const CGV_VERSION = '1.2';
 
 const CGV_CONTENT = {
   version: CGV_VERSION,
-  updated_at: '2026-03-22',
+  updated_at: '2026-04-09',
   articles: [
     {
       numero: 1,
@@ -25,12 +25,12 @@ const CGV_CONTENT = {
     {
       numero: 2,
       titre: 'Services proposés',
-      contenu: `NEXUS propose une suite d'outils de gestion incluant : gestion de rendez-vous et réservations, CRM et fichier clients, facturation et comptabilité, marketing automatisé (email, SMS, campagnes), agents IA (web, téléphone, WhatsApp), gestion des stocks, RH et planning, SEO et visibilité en ligne, monitoring et analytics (SENTINEL). Les fonctionnalités disponibles dépendent du plan souscrit (Starter, Pro, Business).`
+      contenu: `NEXUS propose une suite d'outils de gestion incluant : gestion de rendez-vous et réservations, CRM et fichier clients, facturation et comptabilité, marketing automatisé (email, SMS, campagnes), agents IA (web, téléphone, WhatsApp), gestion des stocks, RH et planning, SEO et visibilité en ligne, monitoring et analytics (SENTINEL). Les fonctionnalités disponibles dépendent du plan souscrit (Free, Basic, Business). Les fonctions IA sont accessibles via un système de crédits universels (pay-as-you-go).`
     },
     {
       numero: 3,
       titre: 'Tarifs et paiement',
-      contenu: `Les tarifs sont exprimés en euros HT. Starter : 99€/mois ou 950€/an. Pro : 249€/mois ou 2 390€/an. Business : 499€/mois ou 4 790€/an. Le paiement s'effectue par carte bancaire via Stripe. La facturation est mensuelle ou annuelle selon le choix de l'utilisateur. En cas de non-paiement, le compte est suspendu après 3 échecs consécutifs. Un essai gratuit de 14 jours est proposé sans engagement.`
+      contenu: `Les tarifs sont exprimés en euros TTC. Free : 0€ (gratuit à vie, sans carte bancaire, quotas mensuels stricts). Basic : 29€/mois ou 290€/an (2 mois offerts en annuel), incluant 500 crédits IA chaque mois (valeur 7,50€). Business : 149€/mois ou 1 490€/an, incluant 10 000 crédits IA chaque mois (valeur 150€). Les fonctions IA consomment des crédits universels (1,5€ = 100 crédits, soit 0,015€/crédit). Pour aller au-delà des crédits inclus, un pack unique additionnel est disponible : Pack 1000 — 15€ pour 1 000 crédits (taux base, sans bonus). Le paiement s'effectue par carte bancaire via Stripe. La facturation est mensuelle ou annuelle selon le choix de l'utilisateur. En cas de non-paiement, le compte est suspendu après 3 échecs consécutifs. L'utilisateur peut démarrer gratuitement avec le plan Free, sans engagement ni carte bancaire.`
     },
     {
       numero: 4,

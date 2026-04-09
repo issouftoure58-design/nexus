@@ -325,7 +325,7 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['reservations', 'telephone'],
-    suggestedPlan: 'starter',
+    suggestedPlan: 'basic',
     specialNotes: [
       'Tarifs secteur 1 convention 2026 (30€ consultation générale)',
       'Ajustez les tarifs selon votre secteur (1 ou 2) dans Paramètres',
@@ -471,7 +471,7 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['whatsapp', 'stock', 'marketing'],
-    suggestedPlan: 'starter',
+    suggestedPlan: 'basic',
   },
 
   // ============================================
@@ -747,59 +747,63 @@ export const BUSINESS_TEMPLATES = {
     },
 
     recommendedModules: ['whatsapp'],
-    suggestedPlan: 'starter',
+    suggestedPlan: 'basic',
   },
 };
 
 // ============================================
-// PLANS NEXUS
+// PLANS NEXUS — Modèle 2026 (voir memory/business-model-2026.md)
 // ============================================
 export const NEXUS_PLANS = {
-  starter: {
-    id: 'starter',
-    name: 'Starter',
-    price: 99,
-    description: 'Pour démarrer avec l\'IA',
+  free: {
+    id: 'free',
+    name: 'Free',
+    price: 0,
+    description: 'Freemium à vie — pour découvrir NEXUS',
     includes: [
-      'Dashboard & Réservations',
-      'Facturation & Documents',
-      'Agent IA Web',
-      'Support email',
+      'Dashboard & 30 réservations/mois',
+      '20 factures/mois (avec watermark)',
+      '50 clients max',
+      'Support communautaire',
     ],
     modules: ['base', 'reservations'],
-    maxIaModules: 1,
+    maxIaModules: 0, // IA bloquée en Free
   },
-  pro: {
-    id: 'pro',
-    name: 'Pro',
-    price: 249,
-    description: 'Pour les professionnels actifs',
+  basic: {
+    id: 'basic',
+    name: 'Basic',
+    price: 29,
+    description: 'Tout débloqué + 500 crédits IA inclus/mois',
     popular: true,
     includes: [
-      'Tout Starter +',
-      'WhatsApp & Téléphone IA',
-      'Comptabilité complète',
-      'CRM avancé & Stock',
-      'Support prioritaire',
+      'Tout illimité (clients, factures, RDV)',
+      '500 crédits IA inclus/mois (valeur 7,50€)',
+      'IA Web, WhatsApp & Téléphone (via crédits)',
+      'Comptabilité, CRM, Stock, Marketing',
+      'Analytics & SEO',
+      'Support email',
     ],
-    modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone'],
-    maxIaModules: 3,
+    modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone', 'crm', 'marketing', 'analytics', 'seo'],
+    maxIaModules: -1,
   },
   business: {
     id: 'business',
     name: 'Business',
-    price: 499,
-    description: 'Pour les entreprises exigeantes',
+    price: 149,
+    description: 'Multi-sites + 10 000 crédits IA inclus/mois',
     includes: [
-      'Tout Pro +',
-      'Marketing & Pipeline',
-      'Analytics & SEO',
-      'RH & Planning',
-      'API & Account manager',
+      'Tout Basic +',
+      'Multi-sites illimités',
+      'White-label & API',
+      'SSO & Account manager dédié',
+      '10 000 crédits IA inclus/mois (valeur 150€)',
     ],
-    modules: ['base', 'reservations', 'rh_avance', 'comptabilite', 'stock', 'marketing', 'analytics', 'seo', 'sentinel', 'whatsapp', 'telephone'],
-    maxIaModules: -1, // Illimité
+    modules: ['base', 'reservations', 'rh_avance', 'comptabilite', 'stock', 'marketing', 'analytics', 'seo', 'sentinel', 'whatsapp', 'telephone', 'api', 'multi_site', 'whitelabel'],
+    maxIaModules: -1,
   },
+  // ⚠️ DEPRECATED — alias retro-compat
+  starter: { id: 'free', name: 'Free', price: 0, modules: ['base', 'reservations'], maxIaModules: 0 },
+  pro: { id: 'basic', name: 'Basic', price: 29, popular: true, modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone'], maxIaModules: -1 },
 };
 
 // ============================================
@@ -824,7 +828,7 @@ export function getAllBusinessTemplates() {
  * Récupère un plan par son ID
  */
 export function getPlan(planId) {
-  return NEXUS_PLANS[planId] || NEXUS_PLANS.starter;
+  return NEXUS_PLANS[planId] || NEXUS_PLANS.free;
 }
 
 /**

@@ -160,14 +160,21 @@ interface ModuleRouteProps {
   module?: string;
   moduleTitle?: string;
   moduleDescription?: string;
+  /** Plan minimum requis (free | basic | business) — bloque les Free sur les features IA/avancees */
+  requiredPlan?: 'free' | 'basic' | 'business';
 }
 
-function ModuleRoute({ children, module, moduleTitle, moduleDescription }: ModuleRouteProps) {
+function ModuleRoute({ children, module, moduleTitle, moduleDescription, requiredPlan }: ModuleRouteProps) {
   return (
     <PrivateRoute>
       <AppLayout>
-        {module ? (
-          <ModuleGate module={module} moduleTitle={moduleTitle} moduleDescription={moduleDescription}>
+        {(module || requiredPlan) ? (
+          <ModuleGate
+            module={module}
+            requiredPlan={requiredPlan}
+            moduleTitle={moduleTitle}
+            moduleDescription={moduleDescription}
+          >
             {children}
           </ModuleGate>
         ) : (
@@ -237,36 +244,36 @@ function App() {
             <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
             <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
-            {/* Modules Marketing */}
-            <Route path="/segments" element={<ModuleRoute module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
-            <Route path="/workflows" element={<ModuleRoute module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
-            <Route path="/pipeline" element={<ModuleRoute module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
-            <Route path="/devis" element={<ModuleRoute module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
+            {/* Modules Marketing — verrouilles Basic+ (Free tier bloque sur features IA) */}
+            <Route path="/segments" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
+            <Route path="/workflows" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
+            <Route path="/pipeline" element={<ModuleRoute requiredPlan="basic" module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
+            <Route path="/devis" element={<ModuleRoute requiredPlan="basic" module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
-            <Route path="/campagnes" element={<ModuleRoute module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
-            <Route path="/email-templates" element={<ModuleRoute module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
-            <Route path="/marketing-analytics" element={<ModuleRoute module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
-            <Route path="/churn" element={<ModuleRoute module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
+            <Route path="/campagnes" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
+            <Route path="/email-templates" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
+            <Route path="/marketing-analytics" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
+            <Route path="/churn" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
             <Route path="/fidelite" element={<ModuleRoute moduleTitle="Programme Fidélité" moduleDescription="Gestion des points et récompenses clients"><Fidelite /></ModuleRoute>} />
             <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
             <Route path="/avis-clients" element={<ModuleRoute moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
-            <Route path="/reseaux-sociaux" element={<ModuleRoute module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
-            <Route path="/onboarding-sequences" element={<ModuleRoute module="marketing" moduleTitle="Onboarding" moduleDescription="Suivi des sequences d'onboarding post-paiement"><OnboardingSequences /></ModuleRoute>} />
+            <Route path="/reseaux-sociaux" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
+            <Route path="/onboarding-sequences" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Onboarding" moduleDescription="Suivi des sequences d'onboarding post-paiement"><OnboardingSequences /></ModuleRoute>} />
             <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
-            {/* Modules IA */}
-            <Route path="/ia-admin" element={<ModuleRoute module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
-            <Route path="/ia-telephone" element={<ModuleRoute module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
-            <Route path="/ia-whatsapp" element={<ModuleRoute module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
-            <Route path="/signatures" element={<ModuleRoute module="pipeline" moduleTitle="Signatures" moduleDescription="Signatures électroniques Yousign"><SignaturesPage /></ModuleRoute>} />
-            <Route path="/instagram-setter" element={<ModuleRoute module="marketing" moduleTitle="Setter IA Instagram" moduleDescription="Qualification automatique via DMs Instagram"><InstagramSetterPage /></ModuleRoute>} />
-            <Route path="/questionnaires" element={<ModuleRoute module="marketing" moduleTitle="Questionnaires" moduleDescription="Formulaires de qualification avec scoring"><QuestionnairesPage /></ModuleRoute>} />
-            <Route path="/qualiopi" element={<ModuleRoute module="pipeline" moduleTitle="Conformite Qualiopi" moduleDescription="Checklist documentaire par apprenant"><QualiopiPage /></ModuleRoute>} />
-            <Route path="/satisfaction" element={<ModuleRoute module="pipeline" moduleTitle="Satisfaction" moduleDescription="Enquetes a chaud et a froid"><SatisfactionPage /></ModuleRoute>} />
+            {/* Modules IA — verrouilles Basic+ (necessitent des credits) */}
+            <Route path="/ia-admin" element={<ModuleRoute requiredPlan="basic" module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
+            <Route path="/ia-telephone" element={<ModuleRoute requiredPlan="basic" module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
+            <Route path="/ia-whatsapp" element={<ModuleRoute requiredPlan="basic" module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
+            <Route path="/signatures" element={<ModuleRoute requiredPlan="basic" module="pipeline" moduleTitle="Signatures" moduleDescription="Signatures électroniques Yousign"><SignaturesPage /></ModuleRoute>} />
+            <Route path="/instagram-setter" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Setter IA Instagram" moduleDescription="Qualification automatique via DMs Instagram"><InstagramSetterPage /></ModuleRoute>} />
+            <Route path="/questionnaires" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Questionnaires" moduleDescription="Formulaires de qualification avec scoring"><QuestionnairesPage /></ModuleRoute>} />
+            <Route path="/qualiopi" element={<ModuleRoute requiredPlan="basic" module="pipeline" moduleTitle="Conformite Qualiopi" moduleDescription="Checklist documentaire par apprenant"><QualiopiPage /></ModuleRoute>} />
+            <Route path="/satisfaction" element={<ModuleRoute requiredPlan="basic" module="pipeline" moduleTitle="Satisfaction" moduleDescription="Enquetes a chaud et a froid"><SatisfactionPage /></ModuleRoute>} />
 
-            {/* Modules SEO & Système */}
-            <Route path="/seo" element={<ModuleRoute module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
-            <Route path="/seo/articles" element={<ModuleRoute module="seo"><SEOArticles /></ModuleRoute>} />
+            {/* Modules SEO & Système — verrouilles Basic+ */}
+            <Route path="/seo" element={<ModuleRoute requiredPlan="basic" module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
+            <Route path="/seo/articles" element={<ModuleRoute requiredPlan="basic" module="seo"><SEOArticles /></ModuleRoute>} />
             <Route path="/sentinel" element={<ModuleRoute module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
 
             {/* Superadmin NEXUS routes */}

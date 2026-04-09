@@ -23,7 +23,7 @@ async function getTenantConfig(tenantId) {
 
   const { data: tenant, error } = await supabase
     .from('tenants')
-    .select('id, name, slug, settings, adresse, telephone')
+    .select('id, name, slug, settings, adresse, telephone, plan')
     .eq('id', tenantId)
     .single();
 
@@ -33,11 +33,45 @@ async function getTenantConfig(tenantId) {
     return {
       name: 'NEXUS',
       slug: 'nexus',
-      settings: {}
+      settings: {},
+      plan: 'free'
     };
   }
 
   return tenant;
+}
+
+/**
+ * Draws a diagonal "GENERE AVEC NEXUS FREE" watermark across the page.
+ * Used to brand documents emitted by Free tier tenants (anti-abuse + upsell).
+ * @param {PDFDocument} doc - The pdfkit document
+ */
+function drawFreeWatermark(doc) {
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const centerX = pageWidth / 2;
+  const centerY = pageHeight / 2;
+
+  doc.save();
+  // Translate origin to page center, then rotate -45deg
+  doc.translate(centerX, centerY);
+  doc.rotate(-30);
+
+  // Big faded watermark text
+  doc.fontSize(60)
+    .fillColor('#e5e7eb')
+    .opacity(0.55)
+    .text('NEXUS FREE', -200, -30, { width: 400, align: 'center' });
+
+  doc.fontSize(14)
+    .fillColor('#9ca3af')
+    .opacity(0.75)
+    .text('Passez au plan Basic 29EUR/mois pour retirer ce filigrane', -250, 50, {
+      width: 500,
+      align: 'center'
+    });
+
+  doc.opacity(1).restore();
 }
 
 /**
@@ -126,6 +160,18 @@ export async function generateFacture(tenantId, data) {
     tenant: tenantInfo
   } = data;
 
+  // Resolve plan for watermark — fetch DB if not in tenantInfo
+  let tenantPlan = tenantInfo?.plan;
+  if (!tenantPlan) {
+    try {
+      const cfg = await getTenantConfig(tenantId);
+      tenantPlan = cfg.plan || 'free';
+    } catch {
+      tenantPlan = 'free';
+    }
+  }
+  const isFreeTier = tenantPlan === 'free';
+
   const filename = `facture_${numero || Date.now()}.pdf`;
 
   return new Promise((resolve, reject) => {
@@ -148,6 +194,11 @@ export async function generateFacture(tenantId, data) {
         logger.error('PDF stream error', { tenantId, error: err.message });
         reject({ success: false, error: err.message });
       });
+
+      // Free tier watermark — anti-abuse + upsell
+      if (isFreeTier) {
+        drawFreeWatermark(doc);
+      }
 
       // Header
       const businessName = tenantInfo?.name || 'NEXUS';
@@ -270,6 +321,18 @@ export async function generateDevis(tenantId, data) {
     tenant: tenantInfo
   } = data;
 
+  // Resolve plan for watermark — fetch DB if not in tenantInfo
+  let tenantPlan = tenantInfo?.plan;
+  if (!tenantPlan) {
+    try {
+      const cfg = await getTenantConfig(tenantId);
+      tenantPlan = cfg.plan || 'free';
+    } catch {
+      tenantPlan = 'free';
+    }
+  }
+  const isFreeTier = tenantPlan === 'free';
+
   const filename = `devis_${numero || Date.now()}.pdf`;
 
   return new Promise((resolve, reject) => {
@@ -292,6 +355,11 @@ export async function generateDevis(tenantId, data) {
         logger.error('PDF stream error', { tenantId, error: err.message });
         reject({ success: false, error: err.message });
       });
+
+      // Free tier watermark — anti-abuse + upsell
+      if (isFreeTier) {
+        drawFreeWatermark(doc);
+      }
 
       // Header
       const businessName = tenantInfo?.name || 'NEXUS';
@@ -533,6 +601,12 @@ export async function generateInvoicePDF(tenantId, factureId) {
           reject({ success: false, error: err.message });
         });
 
+        // Free tier watermark — anti-abuse + upsell
+        const isFreeTier = (tenant.plan || 'free') === 'free';
+        if (isFreeTier) {
+          drawFreeWatermark(doc);
+        }
+
         // Header
         doc.fontSize(24).fillColor('#0891b2').text(tenant.name, { align: 'center' });
         doc.moveDown(2);
@@ -772,6 +846,12 @@ export async function generateQuotePDF(tenantId, devisId) {
           logger.error('PDF stream error', { tenantId, devisId, error: err.message });
           reject({ success: false, error: err.message });
         });
+
+        // Free tier watermark — anti-abuse + upsell
+        const isFreeTier = (tenant.plan || 'free') === 'free';
+        if (isFreeTier) {
+          drawFreeWatermark(doc);
+        }
 
         // Header
         doc.fontSize(24).fillColor('#0891b2').text(tenant.name, { align: 'center' });

@@ -53,8 +53,11 @@ router.get('/', async (req, res) => {
       .select('plan, modules_actifs, statut')
       .eq('id', tenantId)
       .single();
-    // ═══ ESSAI: quotas Starter (pas ceux du plan choisi) ═══
-    const plan = tenantRow?.statut === 'essai' ? 'starter' : (tenantRow?.plan || 'starter');
+    // ═══ Modèle 2026 : Free / Basic / Business ═══
+    // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+    const rawPlan = (tenantRow?.plan || 'free').toLowerCase();
+    const normalizedPlan = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
+    const plan = tenantRow?.statut === 'essai' ? 'basic' : normalizedPlan;
 
     // Récupérer les demandes d'activation en cours
     const { data: pendingReqs } = await supabase
@@ -88,11 +91,17 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Modules accessibles par plan (pour vérifier l'éligibilité)
+// Modules accessibles par plan (modèle 2026 : Free / Basic / Business)
+// Free : aucun module IA (sera bloqué par le check ci-dessous)
+// Basic : tous les canaux IA débloqués (pay-as-you-go via crédits)
+// Business : Basic + marketing email + tout
 const PLAN_MODULES = {
-  starter: ['sms_rdv', 'web_chat_ia'],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia'],
+  free: ['sms_rdv'], // Free : seulement les SMS de RDV (pas d'IA)
+  basic: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
   business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  // ⚠️ DEPRECATED — alias retro-compat
+  starter: ['sms_rdv'],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
 };
 
 /**
@@ -133,10 +142,11 @@ router.post('/request-activation', async (req, res) => {
       });
     }
 
-    const plan = tenantRow?.plan || 'starter';
+    const rawPlan2 = (tenantRow?.plan || 'free').toLowerCase();
+    const plan = rawPlan2 === 'starter' ? 'free' : rawPlan2 === 'pro' ? 'basic' : rawPlan2;
 
     // Vérifier que le module est inclus dans le plan
-    const allowedModules = PLAN_MODULES[plan] || PLAN_MODULES.starter;
+    const allowedModules = PLAN_MODULES[plan] || PLAN_MODULES.free;
     if (!allowedModules.includes(moduleId)) {
       return res.status(403).json({
         success: false,

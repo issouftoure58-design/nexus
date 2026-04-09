@@ -44,20 +44,61 @@ export const PRICING = {
 
 /**
  * Budgets mensuels par plan (EUR/mois par tenant)
+ *
+ * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
+ * - free : aucun acces IA (bloque)
+ * - basic : 500 credits IA inclus (~7,50€ valeur) + IA additionnelle via pack unique
+ * - business : 10 000 credits IA inclus (~150€ valeur) + IA additionnelle via pack unique
  */
 export const PLAN_BUDGETS = {
-  starter:  { ai: 5,  sms: 8,  voice: 3,  total: 16 },
-  pro:      { ai: 15, sms: 20, voice: 8,  total: 43 },
-  business: { ai: 30, sms: 40, voice: 15, total: 85 },
+  free:     { ai: 0,   sms: 0,  voice: 0,  total: 0 },
+  basic:    { ai: 7.5, sms: 0,  voice: 0,  total: 7.5 },  // 500 credits IA inclus
+  business: { ai: 150, sms: 0,  voice: 0,  total: 150 },  // 10 000 credits IA inclus
+  // ⚠️ DEPRECATED — Aliases retro-compat (a supprimer apres migration consommateurs)
+  starter:  { ai: 0,   sms: 0,  voice: 0,  total: 0 },
+  pro:      { ai: 7.5, sms: 0,  voice: 0,  total: 7.5 },
 };
 
 /**
  * Prix des abonnements (EUR)
+ *
+ * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
+ * - Free 0€ (freemium a vie, 30 RDV/mois, 20 factures/mois)
+ * - Basic 29€/mois (acces illimite non-IA + 500 credits IA inclus)
+ * - Business 149€/mois (Basic + multi-site + white-label + API + SSO + 10 000 credits IA inclus)
  */
 export const PLAN_PRICES = {
-  starter:  { monthly: 99,  yearly: 950 },
-  pro:      { monthly: 249, yearly: 2390 },
-  business: { monthly: 499, yearly: 4790 },
+  free:     { monthly: 0,   yearly: 0 },
+  basic:    { monthly: 29,  yearly: 290 },   // 2 mois offerts en annuel
+  business: { monthly: 149, yearly: 1490 },  // 2 mois offerts en annuel
+  // ⚠️ DEPRECATED — Aliases retro-compat (a supprimer apres migration consommateurs)
+  starter:  { monthly: 0,   yearly: 0 },     // alias de free
+  pro:      { monthly: 29,  yearly: 290 },   // alias de basic
+};
+
+/**
+ * Pack de credits IA additionnel (one-shot) — UN SEUL pack depuis la revision du 9 avril 2026.
+ *
+ * Base : 1,5€ = 100 credits (0,015€/credit). Voir memory/business-model-2026.md.
+ */
+export const CREDIT_PACKS = {
+  pack_1000: { price: 15, credits: 1000, bonus: 0, label: 'Pack 1000 crédits', code: 'nexus_credits_1000' },
+};
+
+/**
+ * Cout en credits IA par action (voir business-model-2026.md pour le detail des marges)
+ */
+export const CREDIT_COSTS = {
+  chat_admin_haiku:        1,   // 1 question chat IA admin (Haiku 4.5)
+  whatsapp_message:        1,   // 1 message WhatsApp IA repondu
+  agent_web_conversation:  5,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
+  phone_minute:            8,   // 1 minute appel Telephone IA
+  social_post_generated:   5,   // 1 post reseaux genere (Sonnet + image)
+  email_ia_sent:           3,   // 1 email IA genere + envoi Resend
+  anti_churn_whatsapp:     2,   // 1 message Anti-Churn WhatsApp
+  anti_churn_sms_fr:      10,   // 1 message Anti-Churn SMS FR (cher)
+  seo_article_full:       50,   // 1 article SEO complet (1500 mots, Sonnet)
+  devis_ia:                2,   // 1 devis IA
 };
 
 /**

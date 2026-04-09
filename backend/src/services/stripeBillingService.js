@@ -16,6 +16,7 @@ import {
   sendAccountSuspendedEmail
 } from './tenantEmailService.js';
 import { captureException, captureMessage } from '../config/sentry.js';
+import creditsService, { CREDIT_PACKS, MONTHLY_INCLUDED } from './creditsService.js';
 
 // Configuration Stripe
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -757,8 +758,70 @@ export async function handleWebhookEvent(event) {
       await handleTrialWillEnd(event.data.object);
       break;
 
+    case 'checkout.session.completed':
+      await handleCheckoutCompleted(event.data.object);
+      break;
+
     default:
       console.log(`[Stripe Webhook] Event non gere: ${event.type}`);
+  }
+}
+
+/**
+ * Traite un checkout.session.completed
+ * Sert principalement aux achats one-time (packs de credits IA).
+ * Les abonnements sont gérés via customer.subscription.created.
+ */
+async function handleCheckoutCompleted(session) {
+  // Seuls les paiements one-time nous intéressent ici (mode='payment')
+  if (session.mode !== 'payment') {
+    console.log(`[Stripe Webhook] checkout.session.completed mode=${session.mode}, skip (handled by subscription events)`);
+    return;
+  }
+
+  const tenantId = session.metadata?.tenant_id;
+  const productCode = session.metadata?.product_code;
+
+  if (!tenantId) {
+    console.warn('[Stripe Webhook] checkout.session.completed sans tenant_id:', session.id);
+    return;
+  }
+
+  if (!productCode) {
+    console.warn('[Stripe Webhook] checkout.session.completed sans product_code:', session.id);
+    return;
+  }
+
+  // Identifier le pack de credits depuis le product_code
+  const packEntry = Object.entries(CREDIT_PACKS).find(
+    ([, pack]) => pack.code === productCode
+  );
+
+  if (!packEntry) {
+    console.log(`[Stripe Webhook] product_code "${productCode}" non reconnu comme pack credits, skip`);
+    return;
+  }
+
+  const [packId, pack] = packEntry;
+
+  try {
+    const result = await creditsService.purchasePack(tenantId, packId, {
+      stripeInvoiceId: session.invoice || session.id,
+      metadata: {
+        stripe_session_id: session.id,
+        amount_paid: session.amount_total,
+        currency: session.currency,
+      },
+    });
+
+    console.log(`[Stripe Webhook] Pack ${packId} crédité pour ${tenantId}: +${pack.credits} crédits → solde ${result.balance}`);
+  } catch (err) {
+    captureException(err, {
+      tags: { service: 'stripe', operation: 'purchase_credits_pack' },
+      extra: { tenantId, packId, sessionId: session.id },
+    });
+    console.error(`[Stripe Webhook] Erreur achat pack ${packId} pour ${tenantId}:`, err.message);
+    throw err;
   }
 }
 
@@ -804,101 +867,158 @@ async function handleSubscriptionUpdate(subscription) {
     .eq('id', tenantId);
 
   console.log(`[Stripe Webhook] Subscription ${subscription.id} mise a jour pour ${tenantId}: status=${subscription.status}, plan=${planId}`);
+
+  // 💳 Octroi des crédits IA mensuels Business à chaque renouvellement de période
+  // Détection : on grant uniquement quand on entre dans une nouvelle période active
+  // Pour éviter les doublons, on vérifie le marqueur monthly_reset_at dans ai_credits.
+  if (planId === 'business' && (subscription.status === 'active' || subscription.status === 'trialing')) {
+    try {
+      const monthlyAmount = MONTHLY_INCLUDED.business || 0;
+      if (monthlyAmount > 0) {
+        const balance = await creditsService.getBalance(tenantId);
+        const now = new Date();
+        const lastReset = balance.monthly_reset_at ? new Date(balance.monthly_reset_at) : null;
+
+        // Grant si jamais grant ou si la période de reset est passée
+        const shouldGrant = !lastReset || lastReset <= now;
+
+        if (shouldGrant) {
+          await creditsService.grantMonthlyIncluded(tenantId, monthlyAmount);
+
+          // Programmer le prochain reset au mois suivant
+          const nextReset = new Date(now);
+          nextReset.setMonth(nextReset.getMonth() + 1);
+          nextReset.setDate(1);
+          nextReset.setHours(0, 0, 0, 0);
+
+          await supabase
+            .from('ai_credits')
+            .update({
+              monthly_reset_at: nextReset.toISOString(),
+              monthly_used: 0,
+            })
+            .eq('tenant_id', tenantId);
+
+          console.log(`[Stripe Webhook] Grant mensuel Business: +${monthlyAmount} crédits à ${tenantId}`);
+        }
+      }
+    } catch (err) {
+      captureException(err, {
+        tags: { service: 'stripe', operation: 'grant_monthly_credits' },
+        extra: { tenantId, planId },
+      });
+      console.error(`[Stripe Webhook] Erreur grant mensuel Business pour ${tenantId}:`, err.message);
+      // Non-bloquant
+    }
+  }
 }
 
 /**
  * Extrait le plan_id depuis les items de la subscription Stripe
+ * Modèle 2026 : Free / Basic / Business
+ * Aliases retro-compat : 'starter' → 'free', 'pro' → 'basic'
  */
 function extractPlanFromSubscription(subscription) {
   const items = subscription.items?.data || [];
 
-  for (const item of items) {
-    const productCode = item.price?.metadata?.product_code || '';
+  const normalize = (raw) => {
+    if (raw.includes('business')) return 'business';
+    if (raw.includes('basic')) return 'basic';
+    if (raw.includes('free')) return 'free';
+    // Legacy aliases
+    if (raw.includes('starter')) return 'free';
+    if (raw.includes('pro')) return 'basic';
+    return null;
+  };
 
-    // Detecter le plan principal depuis le product_code
-    if (productCode.includes('starter')) return 'starter';
-    if (productCode.includes('business')) return 'business';
-    if (productCode.includes('pro')) return 'pro';
+  for (const item of items) {
+    const productCode = (item.price?.metadata?.product_code || '').toLowerCase();
+    const found = normalize(productCode);
+    if (found) return found;
   }
 
   // Fallback: verifier le nom du produit
   for (const item of items) {
-    const productName = item.price?.product?.name?.toLowerCase() || '';
-    if (productName.includes('business')) return 'business';
-    if (productName.includes('pro')) return 'pro';
-    if (productName.includes('starter')) return 'starter';
+    const productName = (item.price?.product?.name || '').toLowerCase();
+    const found = normalize(productName);
+    if (found) return found;
   }
 
-  return 'starter'; // Default
+  return 'free'; // Default
 }
 
 /**
  * Calcule les modules actifs selon le plan
+ * Modèle 2026 : Free (limité) / Basic (tout débloqué + IA pay-as-you-go) / Business (Basic + premium)
  */
 function computeModulesFromPlan(planId) {
-  const PLAN_MODULES = {
-    starter: {
-      dashboard: true,
-      clients: true,
-      reservations: true,
-      facturation: true,
-      agent_ia_web: true,
-      documents: true,
-      paiements: true,
-      ecommerce: true
-    },
-    pro: {
-      dashboard: true,
-      clients: true,
-      reservations: true,
-      facturation: true,
-      agent_ia_web: true,
-      documents: true,
-      paiements: true,
-      ecommerce: true,
-      whatsapp: true,
-      telephone: true,
-      agent_ia_whatsapp: true,
-      agent_ia_telephone: true,
-      comptabilite: true,
-      crm_avance: true,
-      marketing: true,
-      pipeline: true,
-      commercial: true,
-      stock: true,
-      analytics: true,
-      devis: true
-    },
-    business: {
-      dashboard: true,
-      clients: true,
-      reservations: true,
-      facturation: true,
-      agent_ia_web: true,
-      documents: true,
-      paiements: true,
-      ecommerce: true,
-      whatsapp: true,
-      telephone: true,
-      agent_ia_whatsapp: true,
-      agent_ia_telephone: true,
-      comptabilite: true,
-      crm_avance: true,
-      marketing: true,
-      pipeline: true,
-      commercial: true,
-      stock: true,
-      analytics: true,
-      devis: true,
-      rh: true,
-      seo: true,
-      api: true,
-      sentinel: true,
-      whitelabel: true
-    }
+  const FREE_MODULES = {
+    dashboard: true,
+    clients: true,
+    reservations: true,
+    facturation: true,
+    documents: true,
+    paiements: true,
+    ecommerce: true,
+    reviews: true,
+    waitlist: true,
+    // ⛔ IA bloquée en Free
+    agent_ia_web: false,
+    whatsapp: false,
+    telephone: false,
   };
 
-  return PLAN_MODULES[planId] || PLAN_MODULES.starter;
+  const BASIC_MODULES = {
+    dashboard: true,
+    clients: true,
+    reservations: true,
+    facturation: true,
+    documents: true,
+    paiements: true,
+    ecommerce: true,
+    reviews: true,
+    waitlist: true,
+    // ✨ IA débloquée (consomme des crédits)
+    agent_ia_web: true,
+    whatsapp: true,
+    telephone: true,
+    agent_ia_whatsapp: true,
+    agent_ia_telephone: true,
+    // Modules avancés débloqués
+    comptabilite: true,
+    crm_avance: true,
+    marketing: true,
+    pipeline: true,
+    commercial: true,
+    stock: true,
+    analytics: true,
+    devis: true,
+    equipe: true,
+    fidelite: true,
+    rh: true,
+    seo: true,
+    workflows: true,
+    sentinel: true,
+  };
+
+  const BUSINESS_MODULES = {
+    ...BASIC_MODULES,
+    api: true,
+    multi_site: true,
+    whitelabel: true,
+    sso: true,
+  };
+
+  const PLAN_MODULES = {
+    free: FREE_MODULES,
+    basic: BASIC_MODULES,
+    business: BUSINESS_MODULES,
+    // ⚠️ DEPRECATED — alias retro-compat
+    starter: FREE_MODULES,
+    pro: BASIC_MODULES,
+  };
+
+  return PLAN_MODULES[planId] || PLAN_MODULES.free;
 }
 
 async function handleSubscriptionDeleted(subscription) {

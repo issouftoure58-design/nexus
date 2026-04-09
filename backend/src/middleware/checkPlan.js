@@ -50,12 +50,16 @@ export function requireModule(moduleName) {
       }
 
       // PLAN_FEATURES et PLAN_LIMITS importés depuis config/planFeatures.js (source unique de vérité)
-      // ═══ ESSAI: forcer Starter pour le contrôle d'accès modules ═══
-      const planName = tenant.statut === 'essai' ? 'starter' : (tenant.plan || 'starter');
+      // ═══ Modèle 2026 : Free / Basic / Business ═══
+      // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+      const rawPlan = (tenant.plan || 'free').toLowerCase();
+      // Aliases retro-compat : starter→free, pro→basic
+      const normalized = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
+      const planName = tenant.statut === 'essai' ? 'basic' : normalized;
       const plan = {
         nom: planName,
-        modules: PLAN_FEATURES[planName] || PLAN_FEATURES.starter,
-        limites: PLAN_LIMITS[planName] || PLAN_LIMITS.starter
+        modules: PLAN_FEATURES[planName] || PLAN_FEATURES.free,
+        limites: PLAN_LIMITS[planName] || PLAN_LIMITS.free
       };
 
       // ═══════════════════════════════════════════════════
@@ -84,17 +88,17 @@ export function requireModule(moduleName) {
 
       // Verifier si essai expire
       if (tenant.statut === 'essai' && tenant.essai_fin && new Date(tenant.essai_fin) < new Date()) {
-        // Marquer comme expire
+        // Bascule automatique vers le plan Free (pas de coupure brutale)
         await supabase
           .from('tenants')
-          .update({ statut: 'expire' })
+          .update({ statut: 'actif', plan: 'free' })
           .eq('id', tenantId);
 
         return res.status(402).json({
-          error: 'Essai expire',
-          message: 'Votre periode d\'essai de 14 jours est terminee. Passez a un plan payant pour continuer.',
-          code: 'TRIAL_EXPIRED',
-          action: 'subscribe',
+          error: 'Essai termine',
+          message: 'Votre periode d\'essai est terminee. Vous etes basculé sur le plan Free (gratuit a vie). Passez en Basic pour debloquer toutes les fonctions.',
+          code: 'TRIAL_ENDED',
+          action: 'upgrade',
           redirect: '/admin/billing/upgrade'
         });
       }
@@ -169,7 +173,7 @@ export function checkUsageLimit(resource) {
         return res.status(404).json({ error: 'Tenant non trouve' });
       }
 
-      const limites = PLAN_LIMITS[tenant.plan] || PLAN_LIMITS.starter;
+      const limites = PLAN_LIMITS[tenant.plan] || PLAN_LIMITS.free;
 
       // Recuperer usage du mois
       const firstDayOfMonth = new Date();
@@ -352,7 +356,7 @@ export async function getTenantPlanInfo(tenantId) {
 
     return {
       tenant,
-      plan: { nom: tenant.plan || 'starter' },
+      plan: { nom: tenant.plan || 'free' },
       isActive: tenant.statut === 'actif' || tenant.statut === 'essai',
       isTrial: tenant.statut === 'essai',
       trialEndsAt: tenant.essai_fin

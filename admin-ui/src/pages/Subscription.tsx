@@ -31,10 +31,10 @@ import {
   X,
   AlertTriangle,
   Mail,
-  Package,
   Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CreditsBalanceCard } from '@/components/CreditsBalanceCard';
 
 interface PaymentMethod {
   id: string;
@@ -106,75 +106,69 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   unpaid: { label: 'Impayé', color: 'bg-red-100 text-red-700' },
 };
 
-// Plans NEXUS officiels - Grille tarifaire 2026
-// Promo 100 premiers clients: prix réduits
-const PROMO_ACTIVE = true; // Désactiver quand les 100 premiers clients sont atteints
+// Plans NEXUS officiels — Modèle 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Basic 29€ illimité non-IA + 500 crédits IA / Business 149€ multi-sites + 10 000 crédits IA inclus
+const PROMO_ACTIVE = false; // Plus de promo : prix bas en permanence
 const PLANS = [
   {
-    id: 'starter',
-    name: 'Starter',
-    price: 99,
-    promoPrice: 79,
-    yearlyPrice: 950,
-    promoYearlyPrice: 758,
-    description: 'Pour démarrer votre activité',
+    id: 'free',
+    name: 'Free',
+    price: 0,
+    promoPrice: 0,
+    yearlyPrice: 0,
+    promoYearlyPrice: 0,
+    description: 'Gratuit à vie, sans carte bancaire',
     color: 'from-gray-500 to-gray-600',
     features: [
+      { text: '30 réservations / mois', icon: Clock },
+      { text: '20 factures / mois (avec watermark)', icon: FileText },
+      { text: '50 clients max dans le CRM', icon: Users },
+      { text: '5 prestations max', icon: Sparkles },
       { text: '1 utilisateur', icon: Users },
-      { text: '200 clients max', icon: Users },
-      { text: '200 SMS/mois', icon: MessageSquare },
-      { text: 'Dashboard & CRM basique', icon: BarChart3 },
-      { text: 'Réservations en ligne', icon: Clock },
-      { text: 'Facturation & Documents', icon: FileText },
-      { text: 'Agent IA Web', icon: Globe },
-      { text: 'Support email (48h)', icon: Clock },
+      { text: 'Tous les modules visibles', icon: Globe },
+      { text: 'Fonctions IA bloquées', icon: Shield },
+      { text: 'Support email', icon: Clock },
     ],
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: 249,
-    promoPrice: 199,
-    yearlyPrice: 2390,
-    promoYearlyPrice: 1910,
-    description: 'Pour les équipes en croissance',
+    id: 'basic',
+    name: 'Basic',
+    price: 29,
+    promoPrice: 29,
+    yearlyPrice: 290,
+    promoYearlyPrice: 290,
+    description: 'Tout illimité non-IA + 500 crédits IA inclus / mois',
     popular: true,
-    color: 'from-purple-500 to-indigo-600',
+    color: 'from-cyan-500 to-blue-600',
     features: [
-      { text: '5 utilisateurs inclus', icon: Users },
-      { text: '2 000 clients max', icon: Users },
-      { text: '500 SMS/mois', icon: MessageSquare },
-      { text: '60 min voix IA/mois', icon: Phone },
-      { text: 'Tout Starter +', icon: CheckCircle },
-      { text: 'WhatsApp IA', icon: MessageSquare },
-      { text: 'Téléphone IA', icon: Phone },
-      { text: 'Comptabilité & Devis', icon: FileText },
-      { text: 'Stock & Inventaire', icon: Sparkles },
-      { text: 'CRM avancé', icon: BarChart3 },
-      { text: 'Support prioritaire (24h)', icon: Zap },
+      { text: 'Réservations illimitées', icon: Clock },
+      { text: 'Facturation illimitée (sans watermark)', icon: FileText },
+      { text: 'CRM, Équipe, Fidélité illimités', icon: Users },
+      { text: 'Comptabilité, RH, Stock complets', icon: BarChart3 },
+      { text: 'Workflows, Pipeline, Devis, SEO', icon: Sparkles },
+      { text: 'WhatsApp IA, Téléphone IA, Marketing IA', icon: Phone },
+      { text: '500 crédits IA inclus / mois (valeur 7,50€)', icon: Zap },
+      { text: 'Support email prioritaire', icon: CheckCircle },
     ],
   },
   {
     id: 'business',
     name: 'Business',
-    price: 499,
-    promoPrice: 399,
-    yearlyPrice: 4790,
-    promoYearlyPrice: 3830,
-    description: 'Pour les entreprises structurées',
-    color: 'from-cyan-500 to-blue-600',
+    price: 149,
+    promoPrice: 149,
+    yearlyPrice: 1490,
+    promoYearlyPrice: 1490,
+    description: 'Multi-sites, white-label, API, 10 000 crédits IA inclus',
+    color: 'from-purple-500 to-indigo-600',
     features: [
-      { text: '20 utilisateurs inclus', icon: Users },
-      { text: 'Clients illimités', icon: Users },
-      { text: '2 000 SMS/mois', icon: MessageSquare },
-      { text: '300 min voix IA/mois', icon: Phone },
-      { text: 'Tout Pro +', icon: CheckCircle },
-      { text: 'Marketing automatisé', icon: Sparkles },
-      { text: 'Pipeline commercial', icon: BarChart3 },
-      { text: 'Analytics avancés & SEO', icon: Star },
-      { text: 'RH & Planning complet', icon: Shield },
-      { text: 'API & Intégrations', icon: Shield },
+      { text: 'Tout Basic +', icon: CheckCircle },
+      { text: 'Multi-sites illimités', icon: Globe },
+      { text: 'White-label (logo + domaine custom)', icon: Star },
+      { text: 'API + Webhooks', icon: Shield },
+      { text: 'SSO entreprise', icon: Shield },
+      { text: 'Support prioritaire 1h', icon: Zap },
       { text: 'Account Manager dédié', icon: Crown },
+      { text: '10 000 crédits IA inclus / mois (valeur 150€)', icon: Sparkles },
     ],
   },
 ];
@@ -196,27 +190,15 @@ const QUOTA_MODULE_CONFIG: Record<string, { icon: typeof Phone; label: string; u
   marketing_email: { icon: Mail, label: 'Email Marketing', unit: 'emails', color: 'text-orange-600' },
 };
 
-// Packs supplémentaires disponibles à l'achat
-const ADDON_PACKS = {
-  voix: [
-    { amount: 30, price: 15, unit: 'min', code: 'nexus_voix_30', unitPrice: '0,50€' },
-    { amount: 60, price: 25, unit: 'min', code: 'nexus_voix_60', unitPrice: '0,42€' },
-    { amount: 120, price: 45, unit: 'min', code: 'nexus_voix_120', unitPrice: '0,38€' },
-    { amount: 300, price: 99, unit: 'min', code: 'nexus_voix_300', unitPrice: '0,33€' },
-  ],
-  sms: [
-    { amount: 100, price: 15, unit: 'SMS', code: 'nexus_sms_100', unitPrice: '0,15€' },
-    { amount: 500, price: 65, unit: 'SMS', code: 'nexus_sms_500', unitPrice: '0,13€' },
-    { amount: 1000, price: 110, unit: 'SMS', code: 'nexus_sms_1000', unitPrice: '0,11€' },
-    { amount: 5000, price: 450, unit: 'SMS', code: 'nexus_sms_5000', unitPrice: '0,09€' },
-  ],
-};
-
-// Modules avec quotas visibles par plan
+// Modules avec quotas visibles par plan (modèle 2026)
+// Free: aucun module IA accessible. Basic et Business: tous les modules IA via crédits.
 const PLAN_MODULES: Record<string, string[]> = {
-  starter: ['sms_rdv', 'web_chat_ia'],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia'],
+  free: [],
+  basic: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
   business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  // ⚠️ DEPRECATED — Aliases retro-compat
+  starter: [],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
 };
 
 // Mapping quotaModuleId → clé dans modules_actifs
@@ -236,7 +218,7 @@ const getBarColor = (pct: number) =>
 
 export default function Subscription() {
   const queryClient = useQueryClient();
-  const { plan: currentPlan, chosenPlan, tenant, isLoading: loadingTenant } = useTenant();
+  const { plan: currentPlan, tenant, isLoading: loadingTenant } = useTenant();
   const isOnTrial = tenant?.statut === 'essai';
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [error, setError] = useState<string | null>(null);
@@ -266,7 +248,7 @@ export default function Subscription() {
     queryFn: () => api.get<{ invoices: Invoice[] }>('/billing/invoices'),
   });
 
-  // Mutation pour ouvrir le portail Stripe
+  // Mutation pour ouvrir le portail Stripe (gestion d'un abonnement existant)
   const portalMutation = useMutation({
     mutationFn: () => api.post<{ url: string }>('/billing/portal', {
       returnUrl: window.location.href
@@ -281,21 +263,42 @@ export default function Subscription() {
     },
   });
 
-  // Mutation pour acheter un pack add-on
-  const packCheckoutMutation = useMutation({
-    mutationFn: (priceId: string) => api.post<{ url: string }>('/billing/checkout/pack', {
-      priceId,
-      quantity: 1,
-      successUrl: window.location.href,
-      cancelUrl: window.location.href,
-    }),
+  // Mutation pour creer une Checkout Session (upgrade Free → Basic / Basic → Business)
+  const checkoutMutation = useMutation({
+    mutationFn: (planId: 'basic' | 'business') => {
+      const productCode = `nexus_${planId}_${billingCycle === 'yearly' ? 'yearly' : 'monthly'}`;
+      return api.post<{ url: string }>('/billing/checkout', {
+        priceId: productCode,
+        successUrl: `${window.location.origin}/subscription?checkout=success`,
+        cancelUrl: `${window.location.origin}/subscription?checkout=cancelled`,
+      });
+    },
     onSuccess: (data) => {
-      if (data.url) window.location.href = data.url;
+      if (data.url) {
+        window.location.href = data.url;
+      }
     },
     onError: (err: Error) => {
-      setError(err.message || 'Impossible de procéder à l\'achat');
+      setError(err.message || 'Impossible de creer la session de paiement');
     },
   });
+
+  // Decide si on doit utiliser checkout (pas d'abo Stripe) ou portal (deja abo)
+  const handleSelectPlan = (planId: string) => {
+    if (planId === currentPlan) return;
+    if (planId === 'free') {
+      // Downgrade vers Free → portal pour annuler l'abo existant
+      portalMutation.mutate();
+      return;
+    }
+    if (subscriptionData?.has_subscription) {
+      // Deja un abo actif → portal pour switcher
+      portalMutation.mutate();
+      return;
+    }
+    // Sinon checkout direct (premier abo)
+    checkoutMutation.mutate(planId as 'basic' | 'business');
+  };
 
   // Mutation pour supprimer une carte
   const deleteCardMutation = useMutation({
@@ -388,27 +391,33 @@ export default function Subscription() {
         <p className="text-gray-500">Gérez votre plan et votre facturation</p>
       </div>
 
-      {/* Bannière essai gratuit */}
+      {/* Bannière essai gratuit (14 jours Basic, puis bascule Free automatique) */}
       {isOnTrial && (
         <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl">
           <div className="flex items-start gap-3">
-            <Clock className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-gray-900">Essai gratuit — Plan Starter</p>
+            <Sparkles className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">Essai Basic en cours</p>
               <p className="text-sm text-gray-600 mt-1">
-                Pendant votre essai, vous avez acces aux fonctionnalites Starter.
-                {chosenPlan !== 'starter' && (
-                  <> Souscrivez au plan <span className="font-semibold capitalize">{chosenPlan}</span> pour debloquer toutes ses fonctionnalites (WhatsApp IA, Telephone IA, etc.).</>
-                )}
+                Vous profitez de toutes les fonctionnalités du plan <strong>Basic</strong> gratuitement pendant 14 jours
+                (réservations illimitées, facturation sans watermark, IA via crédits). À la fin de l'essai, votre compte
+                bascule automatiquement sur le plan <strong>Free</strong> sans frais.
               </p>
               {tenant?.essai_fin && (
                 <p className="text-sm text-blue-700 font-medium mt-2">
                   {(() => {
                     const days = Math.max(0, Math.ceil((new Date(tenant.essai_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-                    return days > 0 ? `${days} jour${days > 1 ? 's' : ''} restant${days > 1 ? 's' : ''}` : 'Essai expire';
+                    return days > 0 ? `${days} jour${days > 1 ? 's' : ''} restant${days > 1 ? 's' : ''} avant la bascule sur Free` : 'Essai expiré';
                   })()}
                 </p>
               )}
+              <button
+                onClick={() => handleSelectPlan('basic')}
+                disabled={checkoutMutation.isPending}
+                className="mt-3 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all shadow-sm disabled:opacity-60"
+              >
+                {checkoutMutation.isPending ? 'Redirection...' : 'Conserver Basic après l\'essai'}
+              </button>
             </div>
           </div>
         </div>
@@ -482,7 +491,7 @@ export default function Subscription() {
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               {PLANS.map((plan) => {
                 const isCurrentPlan = plan.id === currentPlan;
-                const Icon = plan.id === 'business' ? Crown : plan.id === 'pro' ? Star : Zap;
+                const Icon = plan.id === 'business' ? Crown : plan.id === 'basic' ? Sparkles : Zap;
                 const originalPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
                 const promoPrice = billingCycle === 'yearly' ? plan.promoYearlyPrice : plan.promoPrice;
                 const displayPrice = PROMO_ACTIVE ? promoPrice : originalPrice;
@@ -563,15 +572,20 @@ export default function Subscription() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => portalMutation.mutate()}
+                        onClick={() => handleSelectPlan(plan.id)}
+                        disabled={checkoutMutation.isPending || portalMutation.isPending}
                         className={cn(
-                          'w-full py-2.5 px-4 rounded-lg font-medium transition-colors',
+                          'w-full py-2.5 px-4 rounded-lg font-medium transition-colors disabled:opacity-60',
                           plan.id === 'business'
+                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
+                            : plan.id === 'basic'
                             ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700'
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                         )}
                       >
-                        {PLANS.findIndex(p => p.id === plan.id) > PLANS.findIndex(p => p.id === currentPlan)
+                        {(checkoutMutation.isPending || portalMutation.isPending)
+                          ? 'Redirection...'
+                          : PLANS.findIndex(p => p.id === plan.id) > PLANS.findIndex(p => p.id === currentPlan)
                           ? 'Passer à ce plan'
                           : 'Rétrograder'}
                       </button>
@@ -603,7 +617,7 @@ export default function Subscription() {
                 </div>
               ) : quotaData?.modules ? (
                 <>
-                  {(PLAN_MODULES[currentPlan || 'starter'] || PLAN_MODULES.starter).map((moduleId: string) => {
+                  {(PLAN_MODULES[currentPlan || 'free'] || PLAN_MODULES.free).map((moduleId: string) => {
                     const mod = quotaData.modules[moduleId];
                     const config = QUOTA_MODULE_CONFIG[moduleId];
                     if (!mod || !config) return null;
@@ -706,94 +720,30 @@ export default function Subscription() {
             </div>
           </div>
 
-          {/* Forfaits supplémentaires */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Package className="w-5 h-5 text-gray-400" />
-                Forfaits supplémentaires
-              </h2>
-              <p className="text-sm text-gray-500">Achetez des packs pour compléter vos quotas</p>
-            </div>
-
-            <div className="p-6 space-y-8">
-              {/* Packs Voix IA */}
-              {(currentPlan === 'pro' || currentPlan === 'business') ? (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-purple-600" />
-                    Packs Voix IA
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {ADDON_PACKS.voix.map((pack) => (
-                      <div
-                        key={pack.code}
-                        className="border border-gray-200 rounded-lg p-4 hover:border-cyan-300 transition-colors text-center"
-                      >
-                        <p className="text-2xl font-bold text-gray-900">{pack.amount}</p>
-                        <p className="text-xs text-gray-500 mb-2">{pack.unit}</p>
-                        <p className="text-lg font-semibold text-gray-900">{pack.price}€</p>
-                        <p className="text-xs text-gray-400 mb-3">{pack.unitPrice}/{pack.unit}</p>
-                        <button
-                          onClick={() => packCheckoutMutation.mutate(pack.code)}
-                          disabled={packCheckoutMutation.isPending}
-                          className="w-full py-1.5 px-3 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-                        >
-                          Ajouter
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 p-5">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-gray-900">Débloquez la Voix IA et WhatsApp</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Passez au plan Pro pour accéder au téléphone IA, WhatsApp IA et bien plus.
-                      </p>
-                      <button
-                        onClick={() => portalMutation.mutate()}
-                        className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-colors"
-                      >
-                        Découvrir Pro
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Packs SMS */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-cyan-600" />
-                  Packs SMS
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {ADDON_PACKS.sms.map((pack) => (
-                    <div
-                      key={pack.code}
-                      className="border border-gray-200 rounded-lg p-4 hover:border-cyan-300 transition-colors text-center"
-                    >
-                      <p className="text-2xl font-bold text-gray-900">{pack.amount}</p>
-                      <p className="text-xs text-gray-500 mb-2">{pack.unit}</p>
-                      <p className="text-lg font-semibold text-gray-900">{pack.price}€</p>
-                      <p className="text-xs text-gray-400 mb-3">{pack.unitPrice}/{pack.unit}</p>
-                      <button
-                        onClick={() => packCheckoutMutation.mutate(pack.code)}
-                        disabled={packCheckoutMutation.isPending}
-                        className="w-full py-1.5 px-3 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-                      >
-                        Ajouter
-                      </button>
-                    </div>
-                  ))}
+          {/* Crédits IA — Solde + packs d'achat (modèle 2026) */}
+          {currentPlan === 'free' ? (
+            <div className="rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-6 h-6 text-purple-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 text-lg">Débloquez l'IA NEXUS</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Les fonctions IA (chat admin, WhatsApp, téléphone, marketing, posts, SEO) sont bloquées sur le plan Free.
+                    Passez au plan <strong>Basic 29€/mois</strong> pour accéder à toute l'IA en pay-as-you-go via crédits.
+                  </p>
+                  <button
+                    onClick={() => handleSelectPlan('basic')}
+                    disabled={checkoutMutation.isPending}
+                    className="mt-4 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all shadow-sm disabled:opacity-60"
+                  >
+                    {checkoutMutation.isPending ? 'Redirection...' : 'Passer au plan Basic'}
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <CreditsBalanceCard showPacks={true} />
+          )}
 
           {/* Factures */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">

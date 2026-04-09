@@ -321,21 +321,21 @@ async function runContext_C2_onboarding(tenantId, token) {
 async function runContext_C3_restrictions(tenantId, token) {
   const results = [];
   if (!tenantId || !token) {
-    return [makeResult('C3_01_plan_starter', 'plan', 'critical',
-      'Plan effectif = starter en mode essai', false, 'No tenant/token')];
+    return [makeResult('C3_01_plan_basic', 'plan', 'critical',
+      'Plan effectif = basic en mode essai (modèle 2026)', false, 'No tenant/token')];
   }
 
-  // C3_01: Plan effectif = starter en essai
+  // C3_01: Plan effectif = basic en essai (modèle 2026 : essai déverrouille comme Basic)
   try {
     const { status, data } = await apiCall('GET', '/api/tenants/me', token);
     const tenant = data?.tenant;
-    const passed = status === 200 && tenant?.plan === 'starter' && tenant?.plan_choisi === 'business';
-    results.push(makeResult('C3_01_plan_starter', 'plan', 'critical',
-      'plan=starter, plan_choisi=business en mode essai', passed,
+    const passed = status === 200 && tenant?.plan === 'basic' && tenant?.plan_choisi === 'business';
+    results.push(makeResult('C3_01_plan_basic', 'plan', 'critical',
+      'plan=basic, plan_choisi=business en mode essai', passed,
       passed ? null : `plan=${tenant?.plan}, plan_choisi=${tenant?.plan_choisi}, statut=${tenant?.statut}`));
   } catch (err) {
-    results.push(makeResult('C3_01_plan_starter', 'plan', 'critical',
-      'plan=starter, plan_choisi=business en mode essai', false, err.message));
+    results.push(makeResult('C3_01_plan_basic', 'plan', 'critical',
+      'plan=basic, plan_choisi=business en mode essai', false, err.message));
   }
 
   // C3_02: WhatsApp bloqué en essai
@@ -673,18 +673,18 @@ async function runContext_C7_downgrade(tenantId, token) {
   const results = [];
   if (!tenantId || !token) {
     return [makeResult('C7_01_downgrade', 'plan', 'critical',
-      'Downgrade business -> starter', false, 'No tenant/token')];
+      'Downgrade business -> free (modèle 2026)', false, 'No tenant/token')];
   }
 
-  // C7_01: Downgrade to starter
+  // C7_01: Downgrade to free (modèle 2026: Free est le tier minimum)
   try {
     const { error } = await supabase
       .from('tenants')
-      .update({ plan: 'starter' })
+      .update({ plan: 'free' })
       .eq('id', tenantId);
     const passed = !error;
     results.push(makeResult('C7_01_downgrade', 'plan', 'critical',
-      'UPDATE plan=starter', passed,
+      'UPDATE plan=free', passed,
       passed ? null : error?.message));
   } catch (err) {
     results.push(makeResult('C7_01_downgrade', 'plan', 'critical',

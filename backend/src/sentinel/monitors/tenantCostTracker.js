@@ -87,7 +87,7 @@ export async function trackTenantCall(tenantId, model, tokensIn, tokensOut) {
   // Vérifier quota et alerter si nécessaire
   try {
     const tenantConfig = getTenantConfig(tenantId);
-    const planId = tenantConfig.plan || 'starter';
+    const planId = tenantConfig.plan || 'free';
     const quotaCheck = checkQuota(tenantUsage[tenantId], planId);
 
     if (quotaCheck.usage.percentage >= 80) {

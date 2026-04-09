@@ -15,6 +15,12 @@ import { BUSINESS_TEMPLATES, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE } from '
 import { sendWelcomeEmail } from '../services/tenantEmailService.js';
 import { applyReferralCode } from '../services/referralService.js';
 import { signupLimiter, checkLimiter } from '../middleware/rateLimiter.js';
+import {
+  validateSiret,
+  createPhoneVerification,
+  verifyPhoneCode,
+  consumePhoneToken,
+} from '../services/signupVerificationService.js';
 
 const router = express.Router();
 
@@ -46,11 +52,11 @@ router.get('/plans', async (req, res) => {
 
     if (error) throw error;
 
-    // Transformer pour le frontend
+    // Transformer pour le frontend (modèle 2026 : Free / Basic / Business)
     const formattedPlans = plans.map(plan => ({
       ...plan,
       prix_annuel: Math.round(plan.prix_mensuel * 10), // -17% annuel
-      populaire: plan.id === 'pro',
+      populaire: plan.id === 'basic',
       features: [
         `${plan.clients_max} clients max`,
         `${plan.stockage_mb} MB stockage`,
@@ -157,10 +163,121 @@ router.get('/business-types', (req, res) => {
   res.json({ success: true, businessTypes: structures, taxStatuses: [] });
 });
 
+// ════════════════════════════════════════════════════════════════════
+// ANTI-ABUSE FREE TIER : verification SIRET + SMS
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/signup/validate-siret
+ * Valide le format Luhn d'un SIRET, et optionnellement son existence INSEE.
+ * Body : { siret: "12345678901234" }
+ */
+router.post('/validate-siret', checkLimiter, async (req, res) => {
+  const { siret } = req.body;
+
+  if (!siret) {
+    return res.status(400).json({ error: 'SIRET requis' });
+  }
+
+  const result = await validateSiret(siret);
+
+  if (!result.valid) {
+    return res.status(400).json({ valid: false, error: result.error });
+  }
+
+  // Verifie aussi l'unicite (deja inscrit ?)
+  const normalized = String(siret).replace(/\s/g, '');
+  const { data: existing } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('siret', normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return res.status(400).json({
+      valid: false,
+      error: 'Ce SIRET est deja associe a un compte NEXUS',
+      code: 'SIRET_EXISTS',
+    });
+  }
+
+  res.json({ valid: true, company: result.company || null });
+});
+
+/**
+ * POST /api/signup/sms/send
+ * Envoie un code SMS 6 chiffres au numero indique.
+ * Rate limit : 5 envois/heure par IP, cooldown 60s par numero.
+ * Body : { phone: "0612345678" }
+ */
+router.post('/sms/send', signupLimiter, async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ error: 'Numero de telephone requis' });
+  }
+
+  // Verifie unicite avant d'envoyer un SMS
+  const normalizedPhone = String(phone).replace(/[\s\-.()]/g, '');
+  const { data: existingPhone } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('telephone', normalizedPhone)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingPhone) {
+    return res.status(400).json({
+      error: 'Ce numero est deja associe a un compte NEXUS',
+      code: 'PHONE_EXISTS',
+    });
+  }
+
+  const ip = req.ip || req.headers['x-forwarded-for'] || null;
+  const result = await createPhoneVerification(phone, ip);
+
+  if (!result.success) {
+    return res.status(result.code === 'RATE_LIMITED' ? 429 : 400).json({
+      error: result.error,
+      code: result.code,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Code envoye par SMS',
+    simulated: result.simulated || false,
+  });
+});
+
+/**
+ * POST /api/signup/sms/verify
+ * Verifie le code SMS et retourne un verified_token a usage unique.
+ * Body : { phone, code }
+ */
+router.post('/sms/verify', checkLimiter, async (req, res) => {
+  const { phone, code } = req.body;
+
+  if (!phone || !code) {
+    return res.status(400).json({ error: 'Telephone et code requis' });
+  }
+
+  const result = await verifyPhoneCode(phone, code);
+
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  res.json({ success: true, verified_token: result.token });
+});
+
 /**
  * POST /api/signup
  * Creer nouveau tenant + admin + abonnement
  * 🔒 Rate limited: 3 inscriptions/heure par IP (anti-abus trial)
+ * 🔒 Verification SMS obligatoire (verified_token requis)
+ * 🔒 SIRET obligatoire pour structure_juridique='company'
  */
 router.post('/', signupLimiter, async (req, res) => {
   const {
@@ -171,7 +288,7 @@ router.post('/', signupLimiter, async (req, res) => {
     // Structure juridique
     structure_juridique,  // 'independent' ou 'company'
     tax_status,     // 'franchise_tva' ou 'assujetti_tva'
-    siret,          // Optionnel
+    siret,          // Obligatoire pour 'company', optionnel pour 'independent'
 
     // Admin
     email,
@@ -179,6 +296,9 @@ router.post('/', signupLimiter, async (req, res) => {
     prenom,
     nom,
     telephone,
+
+    // Verification SMS (anti-abuse Free tier)
+    sms_verified_token,
 
     // Plan
     plan_id,
@@ -200,6 +320,49 @@ router.post('/', signupLimiter, async (req, res) => {
       });
     }
 
+    // 🔒 Anti-abuse: telephone obligatoire + verifie par SMS
+    if (!telephone) {
+      return res.status(400).json({
+        error: 'Numero de telephone requis',
+        code: 'PHONE_REQUIRED',
+      });
+    }
+
+    if (!sms_verified_token) {
+      return res.status(400).json({
+        error: 'Verification SMS requise. Demandez un code via /api/signup/sms/send.',
+        code: 'SMS_VERIFICATION_REQUIRED',
+      });
+    }
+
+    // Verifie le token SMS (et l'invalide)
+    const tokenCheck = await consumePhoneToken(telephone, sms_verified_token);
+    if (!tokenCheck.valid) {
+      return res.status(400).json({
+        error: tokenCheck.error,
+        code: 'SMS_TOKEN_INVALID',
+      });
+    }
+
+    // 🔒 SIRET obligatoire pour les societes (anti-abuse Free tier)
+    if (structure_juridique === 'company' && !siret) {
+      return res.status(400).json({
+        error: 'SIRET obligatoire pour une societe',
+        code: 'SIRET_REQUIRED',
+      });
+    }
+
+    // 🔒 Validation Luhn + format si SIRET fourni
+    if (siret) {
+      const siretCheck = await validateSiret(siret);
+      if (!siretCheck.valid) {
+        return res.status(400).json({
+          error: siretCheck.error,
+          code: 'SIRET_INVALID',
+        });
+      }
+    }
+
     // Verifier email unique
     const { data: existingAdmin } = await supabase
       .from('admin_users')
@@ -215,7 +378,7 @@ router.post('/', signupLimiter, async (req, res) => {
     }
 
     // 🔒 Anti-fraude: vérifier téléphone unique (empêche multi-comptes trial)
-    if (telephone) {
+    {
       const normalizedPhone = telephone.replace(/[\s\-.()]/g, '');
       const { data: existingPhone } = await supabase
         .from('admin_users')

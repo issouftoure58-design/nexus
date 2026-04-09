@@ -2647,7 +2647,7 @@ export async function processMessage(message, channel, context = {}) {
 
     // 🔧 Filtrage outils par business type + plan
     const businessType = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
-    const tenantPlan = tenantConfig.plan || 'starter';
+    const tenantPlan = tenantConfig.plan || 'free';
     let filteredTools = getToolsForPlanAndBusiness(tenantPlan, businessType);
 
     // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)
@@ -3206,7 +3206,7 @@ export async function* processMessageStreaming(message, channel, context = {}) {
 
     // 🔧 Filtrage outils par business type + plan
     const businessTypeStream = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
-    const tenantPlanStream = tenantConfig.plan || 'starter';
+    const tenantPlanStream = tenantConfig.plan || 'free';
     let filteredToolsStream = getToolsForPlanAndBusiness(tenantPlanStream, businessTypeStream);
 
     // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)

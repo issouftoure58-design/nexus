@@ -47,7 +47,7 @@ export class TenantContext {
 
   // Getters pour les propriétés courantes
   get name() { return this.data.nom || this.data.name || this.id; }
-  get plan() { return this.data.plan || this.data.plan_id || 'starter'; }
+  get plan() { return this.data.plan || this.data.plan_id || 'free'; }
   get isActive() { return this.data.actif !== false; }
   get isFrozen() { return this.data.frozen === true; }
 

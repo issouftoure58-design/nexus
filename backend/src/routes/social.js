@@ -76,7 +76,7 @@ async function getQuotaInfo(tenantId) {
     .eq('id', tenantId)
     .single();
 
-  const planId = tenant?.plan || 'starter';
+  const planId = tenant?.plan || 'free';
 
   // Récupérer les limites du plan
   const { data: plan } = await supabase

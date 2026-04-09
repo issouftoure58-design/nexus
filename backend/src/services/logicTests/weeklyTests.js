@@ -392,7 +392,8 @@ async function testW9_PublicAPI(tenantId) {
           return makeResult(name, module, severity, description, 'fail', 'Pas de plan defini pour ce tenant');
         }
 
-        const validPlans = ['starter', 'pro', 'business', 'enterprise', 'trial'];
+        // Modèle 2026: free/basic/business + retro-compat starter/pro
+        const validPlans = ['free', 'basic', 'business', 'enterprise', 'trial', 'starter', 'pro'];
         if (!validPlans.includes(tenant.plan)) {
           return makeResult(name, module, severity, description, 'fail',
             `Plan invalide: ${tenant.plan}`);

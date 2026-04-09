@@ -22,7 +22,14 @@ const router = express.Router();
  * Récupère le plan depuis le tenant de l'admin
  */
 const requireAdminPlan = (minPlan) => {
-  const planOrder = ['starter', 'pro', 'business', 'enterprise'];
+  // Modèle 2026 : Free / Basic / Business
+  const planOrder = ['free', 'basic', 'business', 'enterprise'];
+  const normalize = (p) => {
+    const x = (p || 'free').toLowerCase();
+    if (x === 'starter') return 'free';
+    if (x === 'pro') return 'basic';
+    return x;
+  };
 
   return async (req, res, next) => {
     if (!req.admin?.tenant_id) {
@@ -49,9 +56,9 @@ const requireAdminPlan = (minPlan) => {
         });
       }
 
-      const plan = (tenant.plan || 'starter').toLowerCase();
+      const plan = normalize(tenant.plan);
       const userPlanIndex = planOrder.indexOf(plan);
-      const requiredPlanIndex = planOrder.indexOf(minPlan);
+      const requiredPlanIndex = planOrder.indexOf(normalize(minPlan));
 
       if (userPlanIndex < requiredPlanIndex) {
         return res.status(403).json({

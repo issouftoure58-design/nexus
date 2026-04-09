@@ -9,18 +9,19 @@ interface SystemStatus {
   tenants?: number;
 }
 
+// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
 const PLANS = [
   {
-    name: 'Starter', price: 99, color: 'cyan',
-    features: ['Reservations multi-canal', 'IA assistant web', 'Dashboard admin', 'Notifications SMS', 'Rappels J-1'],
+    name: 'Free', price: 0, color: 'gray',
+    features: ['30 reservations / mois', '20 factures / mois', '50 clients max', 'Tous les modules visibles', 'Support email'],
   },
   {
-    name: 'Pro', price: 249, color: 'blue', popular: true,
-    features: ['Tout Starter +', 'Comptabilite', 'Marketing SMS/Email', 'IA telephone & WhatsApp', 'Reseaux sociaux'],
+    name: 'Basic', price: 29, color: 'cyan', popular: true,
+    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '500 credits IA inclus / mois (valeur 7,50€)', 'Support email prioritaire'],
   },
   {
-    name: 'Business', price: 499, color: 'purple',
-    features: ['Tout Pro +', 'SEO', 'Gestion RH', 'Sentinel', 'Support prioritaire'],
+    name: 'Business', price: 149, color: 'purple',
+    features: ['Tout Basic +', 'Multi-sites illimites', 'White-label + API + SSO', '10 000 credits IA inclus / mois (valeur 150€)', 'Account Manager dedie'],
   },
 ];
 

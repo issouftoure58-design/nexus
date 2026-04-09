@@ -17,12 +17,24 @@ const router = express.Router();
 const INVITE_EXPIRY_HOURS = 72;
 const VALID_ROLES = ['admin', 'manager', 'viewer', 'comptable'];
 
-// Limites utilisateurs par plan
+// Limites utilisateurs par plan (modèle 2026 — révision finale 9 avril 2026)
 const PLAN_USER_LIMITS = {
-  starter: { max: 1, extraPrice: 1900 },   // +19€/user
-  pro: { max: 5, extraPrice: 1500 },        // +15€/user
-  business: { max: 20, extraPrice: 1200 },  // +12€/user
+  free: { max: 1, extraPrice: 0 },          // Free: 1 user (pas d'ajout possible)
+  basic: { max: 5, extraPrice: 1500 },      // Basic 29€: 5 users (+15€/user)
+  business: { max: 20, extraPrice: 1200 },  // Business 149€: 20 users (+12€/user)
+  // DEPRECATED aliases (retro-compat anciens tenants)
+  starter: { max: 1, extraPrice: 0 },
+  pro: { max: 5, extraPrice: 1500 },
 };
+
+// Normalise plan legacy → nouveau modèle
+function normalizePlan(plan) {
+  const p = (plan || '').toLowerCase();
+  if (p === 'starter') return 'free';
+  if (p === 'pro') return 'basic';
+  if (p === 'free' || p === 'basic' || p === 'business') return p;
+  return 'free';
+}
 
 // GET /api/admin/invitations/limits — Limites du plan
 router.get('/limits', authenticateAdmin, async (req, res) => {
@@ -36,10 +48,10 @@ router.get('/limits', authenticateAdmin, async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    // En mode essai, forcer le plan Starter (même si plan choisi = business)
-    const storedPlan = tenant?.plan || 'starter';
-    const plan = tenant?.statut === 'essai' ? 'starter' : storedPlan;
-    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
+    // En mode essai, déverrouiller comme Basic (5 seats) pour tester pleinement
+    const storedPlan = normalizePlan(tenant?.plan);
+    const plan = tenant?.statut === 'essai' ? 'basic' : storedPlan;
+    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.free;
 
     const { count: currentUsers } = await supabase
       .from('admin_users')
@@ -114,10 +126,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    // En mode essai, forcer le plan Starter
-    const storedPlan = tenantData?.plan || 'starter';
-    const plan = tenantData?.statut === 'essai' ? 'starter' : storedPlan;
-    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.starter;
+    // En mode essai, déverrouiller comme Basic pour tester pleinement
+    const storedPlan = normalizePlan(tenantData?.plan);
+    const plan = tenantData?.statut === 'essai' ? 'basic' : storedPlan;
+    const limit = PLAN_USER_LIMITS[plan] || PLAN_USER_LIMITS.free;
 
     const { count: currentUsers } = await supabase
       .from('admin_users')

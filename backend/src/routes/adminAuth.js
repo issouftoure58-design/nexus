@@ -10,6 +10,12 @@ import { totpService } from '../services/totpService.js';
 import { getBusinessTemplate, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE, PROFESSIONS, generateIaConfig } from '../data/businessTemplates.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
 import { getFeaturesForPlan } from '../config/planFeatures.js';
+import {
+  validateSiret,
+  createPhoneVerification,
+  verifyPhoneCode,
+  consumePhoneToken,
+} from '../services/signupVerificationService.js';
 
 const router = express.Router();
 
@@ -348,12 +354,108 @@ router.post('/unlock-account', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════
+// ANTI-ABUSE SIGNUP : SIRET + verification SMS
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/admin/auth/signup/validate-siret
+ * Body : { siret }
+ */
+router.post('/signup/validate-siret', async (req, res) => {
+  const { siret } = req.body;
+  if (!siret) return res.status(400).json({ error: 'SIRET requis' });
+
+  const result = await validateSiret(siret);
+  if (!result.valid) {
+    return res.status(400).json({ valid: false, error: result.error });
+  }
+
+  // Verifie l'unicite (deja inscrit ?)
+  const normalized = String(siret).replace(/\s/g, '');
+  const { data: existing } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('siret', normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return res.status(400).json({
+      valid: false,
+      error: 'Ce SIRET est deja associe a un compte NEXUS',
+      code: 'SIRET_EXISTS',
+    });
+  }
+
+  res.json({ valid: true, company: result.company || null });
+});
+
+/**
+ * POST /api/admin/auth/signup/sms/send
+ * Body : { phone }
+ */
+router.post('/signup/sms/send', signupLimiter, async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Numero de telephone requis' });
+
+  // Verifie unicite avant d'envoyer un SMS (sur tenants ET admin_users)
+  const normalizedPhone = String(phone).replace(/[\s\-.()]/g, '');
+
+  const { data: existingTenant } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('telephone', normalizedPhone)
+    .neq('statut', 'annule')
+    .limit(1)
+    .maybeSingle();
+
+  if (existingTenant) {
+    return res.status(400).json({
+      error: 'Ce numero est deja associe a un compte NEXUS',
+      code: 'PHONE_EXISTS',
+    });
+  }
+
+  const ip = req.ip || req.headers['x-forwarded-for'] || null;
+  const result = await createPhoneVerification(phone, ip);
+
+  if (!result.success) {
+    return res.status(result.code === 'RATE_LIMITED' ? 429 : 400).json({
+      error: result.error,
+      code: result.code,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Code envoye par SMS',
+    simulated: result.simulated || false,
+  });
+});
+
+/**
+ * POST /api/admin/auth/signup/sms/verify
+ * Body : { phone, code }
+ */
+router.post('/signup/sms/verify', async (req, res) => {
+  const { phone, code } = req.body;
+  if (!phone || !code) return res.status(400).json({ error: 'Telephone et code requis' });
+
+  const result = await verifyPhoneCode(phone, code);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  res.json({ success: true, verified_token: result.token });
+});
+
 // POST /api/admin/auth/signup (créer un compte)
 router.post('/signup', signupLimiter, async (req, res) => {
   try {
     const {
-      entreprise, nom, email: rawEmail, telephone, password, plan = 'starter', accept_cgv,
-      template_type, profession_id, adresse,
+      entreprise, nom, email: rawEmail, telephone, password, plan = 'free', accept_cgv,
+      template_type, profession_id, adresse, siret, sms_verified_token,
     } = req.body;
 
     // Normaliser l'email en minuscules (évite les doublons par casse)
@@ -376,6 +478,56 @@ router.post('/signup', signupLimiter, async (req, res) => {
         error: 'Mot de passe trop faible',
         details: passwordValidation.errors
       });
+    }
+
+    // 🔒 Anti-abuse Free tier : telephone obligatoire et verifie SMS
+    if (!telephone) {
+      return res.status(400).json({
+        error: 'Numero de telephone requis',
+        code: 'PHONE_REQUIRED',
+      });
+    }
+
+    if (!sms_verified_token) {
+      return res.status(400).json({
+        error: 'Verification SMS requise. Demandez un code via /api/admin/auth/signup/sms/send.',
+        code: 'SMS_VERIFICATION_REQUIRED',
+      });
+    }
+
+    const tokenCheck = await consumePhoneToken(telephone, sms_verified_token);
+    if (!tokenCheck.valid) {
+      return res.status(400).json({
+        error: tokenCheck.error,
+        code: 'SMS_TOKEN_INVALID',
+      });
+    }
+
+    // 🔒 Validation Luhn du SIRET (optionnel, mais format strict si fourni)
+    if (siret) {
+      const siretCheck = await validateSiret(siret);
+      if (!siretCheck.valid) {
+        return res.status(400).json({
+          error: siretCheck.error,
+          code: 'SIRET_INVALID',
+        });
+      }
+
+      // Anti-fraude : SIRET unique
+      const normalizedSiret = String(siret).replace(/\s/g, '');
+      const { data: existingSiret } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('siret', normalizedSiret)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingSiret) {
+        return res.status(400).json({
+          error: 'Ce SIRET est deja associe a un compte NEXUS',
+          code: 'SIRET_EXISTS',
+        });
+      }
     }
 
     // Vérifier si l'email existe déjà
@@ -435,9 +587,9 @@ router.post('/signup', signupLimiter, async (req, res) => {
     const professionInfo = profession_id ? PROFESSIONS.find(p => p.id === profession_id) : null;
     const autoDescription = professionInfo ? `${professionInfo.label} — ${professionInfo.description}` : '';
 
-    // ═══ ESSAI: toujours Starter — le plan choisi est mémorisé dans tenant.plan ═══
-    // Le client doit souscrire pour débloquer Pro/Business (WhatsApp, Téléphone, etc.)
-    const modulesActifs = getFeaturesForPlan('starter');
+    // ═══ Modèle 2026 (révision finale 9 avril 2026) : tous les nouveaux comptes démarrent en Free (gratuit à vie) ═══
+    // Le client doit upgrader vers Basic (29€, 500 crédits IA inclus) ou Business (149€, 10 000 crédits IA inclus) pour débloquer l'IA et les modules avancés
+    const modulesActifs = getFeaturesForPlan('free');
 
     // Créer le tenant avec template + business_profile + modules
     const { data: tenant, error: tenantError } = await supabase
@@ -459,6 +611,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
         ...(adresse ? { adresse } : {}),
         ...(profession_id ? { profession_id } : {}),
+        ...(siret ? { siret: String(siret).replace(/\s/g, '') } : {}),
         settings: {
           timezone: 'Europe/Paris',
           currency: 'EUR',

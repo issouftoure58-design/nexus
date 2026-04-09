@@ -15,35 +15,35 @@ interface Props {
   onChange: (channels: IAChannelConfig) => void;
 }
 
-type PlanType = 'starter' | 'pro' | 'business';
+type PlanType = 'free' | 'basic' | 'business';
 
 const CHANNELS = [
   {
     key: 'web' as const,
     label: 'Agent IA Web',
-    description: 'Chatbot IA 24/7 intégré sur votre site web',
+    description: 'Chatbot IA 24/7 intégré sur votre site web (consomme des crédits)',
     emoji: '🌐',
-    plan: 'starter' as PlanType,
+    plan: 'basic' as PlanType,
   },
   {
     key: 'whatsapp' as const,
     label: 'Agent IA WhatsApp',
-    description: 'Assistant IA sur WhatsApp pour vos clients',
+    description: 'Assistant IA sur WhatsApp pour vos clients (consomme des crédits)',
     emoji: '📱',
-    plan: 'pro' as PlanType,
+    plan: 'basic' as PlanType,
   },
   {
     key: 'telephone' as const,
     label: 'Agent IA Téléphone',
-    description: 'Assistant vocal IA pour les appels entrants',
+    description: 'Assistant vocal IA pour les appels entrants (consomme des crédits)',
     emoji: '📞',
-    plan: 'pro' as PlanType,
+    plan: 'basic' as PlanType,
   },
 ];
 
 const PLAN_LABELS: Record<PlanType, string> = {
-  starter: 'Starter',
-  pro: 'Pro',
+  free: 'Free',
+  basic: 'Basic',
   business: 'Business',
 };
 

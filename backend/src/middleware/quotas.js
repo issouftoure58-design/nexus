@@ -1,6 +1,6 @@
 /**
  * Middleware de gestion des quotas NEXUS
- * Gère les limites par plan : Starter, Pro, Business
+ * Modèle 2026 : Free / Basic / Business (voir memory/business-model-2026.md)
  *
  * @module middleware/quotas
  */
@@ -8,39 +8,30 @@
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 import { captureMessage } from '../config/sentry.js';
+import { PLAN_LIMITS as CANONICAL_PLAN_LIMITS } from '../config/planFeatures.js';
 
 /**
- * Limites par plan tarifaire
- * Conforme au pricing NEXUS du 12 février 2026
+ * Limites par plan tarifaire — re-exporte la source unique de vérité (planFeatures.js)
+ * pour garder les imports historiques (`import { PLAN_LIMITS } from 'middleware/quotas.js'`)
  */
-export const PLAN_LIMITS = {
-  starter: {
-    clients: 200,
-    reservations_per_month: 500,
-    storage_gb: 2,
-    posts_per_month: 0,
-    images_per_month: 100
-  },
-  pro: {
-    clients: 2000,
-    reservations_per_month: 5000,
-    storage_gb: 10,
-    posts_per_month: 0,
-    images_per_month: 500
-  },
-  business: {
-    clients: -1, // illimité
-    reservations_per_month: -1, // illimité
-    storage_gb: -1, // illimité
-    posts_per_month: 1000,
-    images_per_month: 1000
-  }
-};
+export const PLAN_LIMITS = CANONICAL_PLAN_LIMITS;
+
+/**
+ * Normalise un nom de plan vers les noms canoniques (free|basic|business)
+ * Mappe les anciens noms 'starter'→'free' et 'pro'→'basic' pour rétrocompat.
+ */
+function normalizePlan(plan) {
+  const p = (plan || '').toLowerCase();
+  if (p === 'starter') return 'free';
+  if (p === 'pro') return 'basic';
+  if (p === 'free' || p === 'basic' || p === 'business') return p;
+  return 'free';
+}
 
 /**
  * Récupère le plan du tenant
  * @param {string} tenant_id - ID du tenant
- * @returns {Promise<string>} Plan (starter, pro, business)
+ * @returns {Promise<string>} Plan canonique (free, basic, business)
  */
 export async function getTenantPlan(tenant_id) {
   const { data, error } = await supabase
@@ -51,10 +42,10 @@ export async function getTenantPlan(tenant_id) {
 
   if (error) {
     logger.error('Erreur récupération plan', { tag: 'QUOTAS', error: error.message });
-    return 'starter'; // défaut si erreur
+    return 'free'; // défaut si erreur
   }
 
-  return data?.plan || 'starter';
+  return normalizePlan(data?.plan);
 }
 
 /**

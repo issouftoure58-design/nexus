@@ -49,9 +49,12 @@ router.get('/dashboard', async (req, res) => {
 
     // 2. Calcul MRR
     let mrr = 0;
-    const planDistribution = { starter: 0, pro: 0, business: 0 };
+    // Modèle 2026 : Free / Basic / Business
+    const planDistribution = { free: 0, basic: 0, business: 0 };
     for (const t of activeTenants) {
-      const plan = (t.plan || 'starter').toLowerCase();
+      const raw = (t.plan || 'free').toLowerCase();
+      // Normalise les anciens noms (starter→free, pro→basic)
+      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
       mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }
@@ -245,7 +248,8 @@ router.get('/tenants', paginate(), async (req, res) => {
 
     // Construire la réponse
     const tenantsResult = (tenants || []).map(t => {
-      const plan = (t.plan || 'starter').toLowerCase();
+      const raw = (t.plan || 'free').toLowerCase();
+      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
       const cost = costByTenant[t.id] || 0;
       const planPrice = PLAN_PRICES[plan]?.monthly || 0;
       const costPercentage = planPrice > 0 ? Math.round((cost / planPrice) * 100) : 0;
@@ -349,7 +353,8 @@ router.patch('/tenants/:id', async (req, res) => {
     }
 
     const updates = { updated_at: new Date().toISOString() };
-    if (plan && ['starter', 'pro', 'business'].includes(plan)) updates.plan = plan;
+    // Modèle 2026 : free / basic / business — alias retro-compat starter/pro tolerés
+    if (plan && ['free', 'basic', 'business', 'starter', 'pro'].includes(plan)) updates.plan = plan;
     if (statut) updates.statut = statut;
     if (frozen !== undefined) updates.frozen = frozen;
 
@@ -583,10 +588,12 @@ router.get('/billing', async (req, res) => {
     if (error) throw error;
 
     let mrr = 0;
-    const planDistribution = { starter: 0, pro: 0, business: 0 };
+    // Modèle 2026 : Free / Basic / Business
+    const planDistribution = { free: 0, basic: 0, business: 0 };
 
     for (const t of (tenants || [])) {
-      const plan = (t.plan || 'starter').toLowerCase();
+      const raw = (t.plan || 'free').toLowerCase();
+      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
       mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }

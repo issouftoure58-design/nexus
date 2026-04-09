@@ -67,7 +67,7 @@ const MODULE_TYPES = {
  * Fallback quand options_canaux_actifs n'est pas encore écrit en DB
  */
 function extractCanauxFromPlan(planId) {
-  const features = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
+  const features = PLAN_FEATURES[planId] || PLAN_FEATURES.free;
   const canaux = {};
   for (const [key, type] of Object.entries(MODULE_TYPES)) {
     if (type === 'canal' && features[key]) canaux[key] = true;
@@ -104,16 +104,19 @@ async function getTenantConfig(tenantId) {
     return null;
   }
 
-  // ═══ ESSAI: forcer Starter pour le contrôle d'accès ═══
-  const planId = tenant.statut === 'essai' ? 'starter' : (tenant.plan || 'starter');
-  const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.starter;
+  // ═══ Modèle 2026 : Free / Basic / Business ═══
+  // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+  const rawPlan = (tenant.plan || 'free').toLowerCase();
+  const normalizedPlan = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
+  const planId = tenant.statut === 'essai' ? 'basic' : normalizedPlan;
+  const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.free;
 
   const config = {
     plan_id: planId,
     plan: planFeatures,
-    // Pendant l'essai: canaux Starter uniquement (pas WhatsApp/Telephone)
+    // Pendant l'essai: canaux Basic (toutes fonctions IA débloquées, soumises aux crédits)
     options_canaux: tenant.statut === 'essai'
-      ? extractCanauxFromPlan('starter')
+      ? extractCanauxFromPlan('basic')
       : (tenant.options_canaux_actifs || extractCanauxFromPlan(planId)),
     module_metier_id: tenant.module_metier_id,
     module_metier_paye: tenant.module_metier_paye

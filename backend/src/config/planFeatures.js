@@ -10,60 +10,128 @@
  * ║                                                                      ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  *
- * Grille tarifaire 2026:
- * - STARTER (99€/mois): Fonctionnalités de base
- * - PRO (249€/mois): Fonctionnalités avancées + canaux IA
- * - BUSINESS (499€/mois): Tout inclus + premium
+ * Modèle 2026 (révisé 9 avril 2026 — voir memory/business-model-2026.md):
+ * - FREE (0€/mois)         : Freemium à vie, quotas stricts, IA bloquée
+ * - BASIC (29€/mois)       : Accès illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+ * - BUSINESS (149€/mois)   : Tout Basic + multi-sites, white-label, API, SSO, 10 000 crédits IA inclus (valeur 150€)
+ *
+ * Les fonctions IA (chat IA admin, WhatsApp IA, téléphone IA, marketing IA, SEO IA)
+ * consomment des crédits (1,5€ = 100 crédits). Un pack unique additionnel est
+ * disponible : Pack 1000 — 15€ pour 1 000 crédits (sans bonus).
  */
 
 // ═══════════════════════════════════════════════════════════════
 // FEATURES PAR PLAN — Noms canoniques (pas d'alias)
 // ═══════════════════════════════════════════════════════════════
 
-const STARTER_FEATURES = {
+/**
+ * FREE — Freemium à vie
+ * Tous les modules sont VISIBLES dans le menu (effet WOW Notion/Figma)
+ * mais limités par des quotas, et toutes les fonctions IA sont BLOQUÉES.
+ */
+const FREE_FEATURES = {
+  // Core CRUD (avec quotas — voir PLAN_LIMITS)
   dashboard: true,
-  clients: true,
-  reservations: true,
-  facturation: true,
-  agent_ia_web: true,
+  clients: true,           // max 50
+  reservations: true,      // max 30/mois
+  facturation: true,       // max 20/mois + watermark "Propulse par NEXUS"
   documents: true,
   paiements: true,
   ecommerce: true,
+  reviews: true,
+  waitlist: true,
+
+  // Lecture seule sur les modules avancés
+  comptabilite_readonly: true,
+  stock_readonly: true,
+  rh_readonly: true,
+
+  // ⛔ TOUTES les fonctions IA bloquées (visibles mais non-cliquables)
+  agent_ia_web: false,
+  whatsapp: false,
+  telephone: false,
+
+  // ⛔ Modules avancés bloqués
+  equipe: false,
+  fidelite: false,
+  comptabilite: false,
+  stock: false,
+  rh: false,
+  crm_avance: false,
+  devis: false,
+  marketing: false,
+  pipeline: false,
+  commercial: false,
+  analytics: false,
+  seo: false,
+  workflows: false,
+  sentinel: false,
 };
 
-const PRO_FEATURES = {
-  ...STARTER_FEATURES,
-  // Canaux IA
-  whatsapp: true,
-  telephone: true,
-  // Modules Pro
+/**
+ * BASIC — 29€/mois — Le plan principal
+ * Acces illimité à TOUTES les fonctions non-IA.
+ * Fonctions IA disponibles mais nécessitent des crédits (pay-as-you-go).
+ */
+const BASIC_FEATURES = {
+  // Tout ce qui est dans Free, sans quota
+  dashboard: true,
+  clients: true,
+  reservations: true,
+  facturation: true,       // sans watermark
+  documents: true,
+  paiements: true,
+  ecommerce: true,
+  reviews: true,
+  waitlist: true,
+
+  // Modules avancés débloqués (lecture + écriture)
+  equipe: true,
+  fidelite: true,
   comptabilite: true,
+  stock: true,
+  rh: true,
   crm_avance: true,
   devis: true,
-  stock: true,
-};
-
-const BUSINESS_FEATURES = {
-  ...PRO_FEATURES,
-  // Marketing & Commercial
   marketing: true,
   pipeline: true,
   commercial: true,
-  // Analytics & SEO
   analytics: true,
   seo: true,
-  // RH
-  rh: true,
-  // Technique
-  api: true,
+  workflows: true,
   sentinel: true,
+
+  // ✨ IA débloquée (mais consomme des crédits)
+  agent_ia_web: true,
+  whatsapp: true,
+  telephone: true,
+};
+
+/**
+ * BUSINESS — 149€/mois — Multi-sites & premium
+ * Tout Basic + multi-sites illimités, white-label, API, SSO, account manager
+ * + 10 000 crédits IA inclus chaque mois (valeur ~150€).
+ */
+const BUSINESS_FEATURES = {
+  ...BASIC_FEATURES,
+  // Premium
+  multi_site: true,
   whitelabel: true,
+  api: true,
+  sso: true,
+  support_prioritaire: true,
+  account_manager: true,
 };
 
 export const PLAN_FEATURES = {
-  starter: STARTER_FEATURES,
-  pro: PRO_FEATURES,
+  free: FREE_FEATURES,
+  basic: BASIC_FEATURES,
   business: BUSINESS_FEATURES,
+  // ⚠️ DEPRECATED — Aliases pour retro-compatibilite pendant la migration
+  // A SUPPRIMER une fois tous les consommateurs migres vers free/basic/business.
+  // Voir memory/business-model-2026.md
+  starter: FREE_FEATURES,
+  pro: BASIC_FEATURES,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -71,7 +139,7 @@ export const PLAN_FEATURES = {
 // ═══════════════════════════════════════════════════════════════
 
 export const ROUTE_MODULES = {
-  // Toujours disponible (Starter+)
+  // Toujours disponible (Free+)
   '/api/rendez-vous': 'reservations',
   '/api/admin/reservations': 'reservations',
   '/api/admin/disponibilites': 'reservations',
@@ -80,40 +148,108 @@ export const ROUTE_MODULES = {
   '/api/payment': 'paiements',
   '/api/orders': 'ecommerce',
   '/api/admin/orders': 'ecommerce',
+
+  // Canaux IA (Basic+, consomme des crédits)
   '/api/chat': 'agent_ia_web',
   '/api/admin/agents': 'agent_ia_web',
-
-  // Canaux IA (Pro+)
   '/api/whatsapp': 'whatsapp',
   '/api/twilio/whatsapp': 'whatsapp',
   '/api/voice': 'telephone',
   '/api/twilio/voice': 'telephone',
 
-  // Modules Pro
+  // Modules Basic+
   '/api/admin/comptabilite': 'comptabilite',
   '/api/admin/compta': 'comptabilite',
   '/api/admin/crm': 'crm_avance',
   '/api/admin/devis': 'devis',
   '/api/admin/stock': 'stock',
-
-  // Modules Business
   '/api/admin/marketing': 'marketing',
   '/api/admin/pipeline': 'pipeline',
   '/api/admin/analytics': 'analytics',
   '/api/admin/seo': 'seo',
   '/api/admin/rh': 'rh',
+  '/api/admin/equipe': 'equipe',
+  '/api/admin/fidelite': 'fidelite',
+  '/api/admin/workflows': 'workflows',
+
+  // Business uniquement
   '/api/admin/api-keys': 'api',
   '/api/admin/webhooks': 'api',
+  '/api/admin/multi-site': 'multi_site',
+  '/api/admin/whitelabel': 'whitelabel',
 };
 
 // ═══════════════════════════════════════════════════════════════
-// LIMITES PAR PLAN
+// QUOTAS PAR PLAN
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Quotas mensuels stricts par plan.
+ * -1 = illimité.
+ *
+ * Les quotas Free appliquent un blocage dur côté backend (middleware enforceQuota).
+ * Pour Basic et Business, les quotas non-IA sont illimités ; la consommation IA
+ * est gérée par le solde de crédits du tenant (table ai_credits).
+ */
+// Quotas dimensionnels du nouveau modele 2026
+const FREE_LIMITS = {
+  clients_max:        50,
+  reservations_mois:  30,
+  factures_mois:      20,
+  prestations_max:    5,
+  users_max:          1,
+  chat_admin_questions_mois: 5,  // 5 questions decouverte/mois
+
+  // ⚠️ DEPRECATED — alias des champs historiques (pour retro-compat consommateurs)
+  clients:                50,
+  reservations_per_month: 30,
+  storage_gb:             1,
+  posts_per_month:        0,   // IA bloquee en Free
+  images_per_month:       0,
+};
+
+const BASIC_LIMITS = {
+  clients_max:        -1,
+  reservations_mois:  -1,
+  factures_mois:      -1,
+  prestations_max:    -1,
+  users_max:          -1,
+  chat_admin_questions_mois: -1, // illimite (consomme credits)
+  credits_ia_inclus_mois: 500,   // 500 crédits IA inclus par mois (valeur 7,50€)
+
+  // ⚠️ DEPRECATED — alias des champs historiques
+  clients:                -1,
+  reservations_per_month: -1,
+  storage_gb:             50,
+  posts_per_month:        -1,  // gere par credits IA
+  images_per_month:       -1,
+};
+
+const BUSINESS_LIMITS = {
+  clients_max:        -1,
+  reservations_mois:  -1,
+  factures_mois:      -1,
+  prestations_max:    -1,
+  users_max:          -1,
+  chat_admin_questions_mois: -1,
+  multi_site_max:     -1,
+  credits_ia_inclus_mois: 10000, // 10 000 crédits IA inclus par mois (valeur 150€)
+
+  // ⚠️ DEPRECATED — alias des champs historiques
+  clients:                -1,
+  reservations_per_month: -1,
+  storage_gb:             500,
+  posts_per_month:        -1,
+  images_per_month:       -1,
+};
+
 export const PLAN_LIMITS = {
-  starter: { clients_max: 200, reservations_mois: 500 },
-  pro: { clients_max: 2000, reservations_mois: 5000 },
-  business: { clients_max: -1, reservations_mois: -1 },
+  free: FREE_LIMITS,
+  basic: BASIC_LIMITS,
+  business: BUSINESS_LIMITS,
+  // ⚠️ DEPRECATED — Aliases retro-compat
+  starter: FREE_LIMITS,
+  pro: BASIC_LIMITS,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -121,10 +257,10 @@ export const PLAN_LIMITS = {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Retourne les features pour un plan donné (fallback starter)
+ * Retourne les features pour un plan donné (fallback free)
  */
 export function getFeaturesForPlan(plan) {
-  return PLAN_FEATURES[plan?.toLowerCase()] || PLAN_FEATURES.starter;
+  return PLAN_FEATURES[plan?.toLowerCase()] || PLAN_FEATURES.free;
 }
 
 /**
@@ -152,9 +288,9 @@ export function getPlansForFeature(feature) {
  * Plan minimum requis pour une feature
  */
 export function getMinPlanForFeature(feature) {
-  if (STARTER_FEATURES[feature]) return 'starter';
-  if (PRO_FEATURES[feature]) return 'pro';
-  if (BUSINESS_FEATURES[feature]) return 'business';
+  if (FREE_FEATURES[feature] === true) return 'free';
+  if (BASIC_FEATURES[feature] === true) return 'basic';
+  if (BUSINESS_FEATURES[feature] === true) return 'business';
   return null;
 }
 

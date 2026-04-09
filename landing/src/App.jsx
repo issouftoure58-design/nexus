@@ -19,6 +19,7 @@ import DemosSection from './components/DemosSection'
 import NexusRobot from './components/NexusRobot'
 import NexusChat from './components/NexusChat'
 import PricingSection from './components/PricingSection'
+import CreditsSimulator from './components/CreditsSimulator'
 import TestimonialsSection from './components/TestimonialsSection'
 import TrustBadges from './components/TrustBadges'
 import FAQSection from './components/FAQSection'
@@ -511,10 +512,13 @@ function App() {
       {/* Pricing */}
       <section className="text-center px-4 pt-16 -mb-8">
         <p className="text-gray-400 max-w-2xl mx-auto text-sm">
-          Choisissez le plan adapte a la taille de votre entreprise. Tous les plans incluent un essai gratuit de 14 jours sans carte bancaire. Passez d'un plan a l'autre a tout moment, sans engagement ni frais caches. Tarifs annuels disponibles avec jusqu'a 20% de reduction.
+          Demarrez gratuitement avec le plan Free, sans carte bancaire. Passez a Basic 29€/mois quand vous etes pret pour debloquer toutes les fonctions illimitees. Les fonctions IA sont en pay-as-you-go via des credits universels — vous ne payez que ce que vous consommez. Aucun engagement, aucun frais cache.
         </p>
       </section>
       <PricingSection />
+
+      {/* Credits IA Simulator */}
+      <CreditsSimulator />
 
       {/* Testimonials */}
       <TestimonialsSection />

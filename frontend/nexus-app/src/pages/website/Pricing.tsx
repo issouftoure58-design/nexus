@@ -3,188 +3,169 @@ import {
   Check,
   X,
   ArrowRight,
-  Phone,
-  MessageCircle,
-  Users,
   HelpCircle,
   Sparkles,
   Crown,
   Zap,
   Building2,
-  ChefHat,
-  Hotel,
-  Car,
 } from 'lucide-react';
 import { Link } from 'wouter';
 import './Pricing.css';
 
-// Plans principaux - Grille tarifaire 2026
+// Plans principaux — Modele 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
 const PLANS = [
   {
-    id: 'starter',
-    name: 'Starter',
-    price: 79,
-    originalPrice: 99,
-    yearlyPrice: 790,
-    launchOffer: 'Offre de lancement — 100 premiers clients',
-    description: 'Pour demarrer votre activite',
+    id: 'free',
+    name: 'Free',
+    price: 0,
+    originalPrice: 0,
+    yearlyPrice: 0,
+    launchOffer: 'Gratuit a vie, sans carte bancaire',
+    description: 'Pour decouvrir NEXUS',
     icon: Zap,
     color: 'from-gray-500 to-gray-600',
     features: [
+      { text: '30 reservations / mois', included: true },
+      { text: '20 factures / mois (avec watermark)', included: true },
+      { text: '50 clients max dans le CRM', included: true },
+      { text: '5 prestations max', included: true },
       { text: '1 utilisateur', included: true },
-      { text: '200 clients max', included: true },
-      { text: '200 SMS/mois', included: true },
-      { text: 'Dashboard', included: true },
-      { text: 'Reservations en ligne', included: true },
-      { text: 'Agent IA Web (chatbot)', included: true },
-      { text: 'Facturation & Documents', included: true },
-      { text: 'Support email (48h)', included: true },
-      { text: 'WhatsApp IA', included: false },
-      { text: 'Telephone IA', included: false },
+      { text: 'Tous les modules visibles', included: true },
+      { text: 'Support email', included: true },
+      { text: 'Reservations illimitees', included: false },
+      { text: 'Facturation illimitee', included: false },
+      { text: 'WhatsApp IA, Telephone IA', included: false },
       { text: 'Marketing automatise', included: false },
     ],
-    cta: 'Commencer',
+    cta: 'Demarrer gratuitement',
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: 199,
-    originalPrice: 249,
-    yearlyPrice: 1990,
-    launchOffer: 'Offre de lancement — 100 premiers clients',
-    description: 'Le plus populaire',
+    id: 'basic',
+    name: 'Basic',
+    price: 29,
+    originalPrice: 29,
+    yearlyPrice: 290,
+    launchOffer: '500 credits IA inclus / mois (valeur 7,50€)',
+    description: 'Tout illimite non-IA + credits IA inclus',
     icon: Crown,
-    color: 'from-purple-500 to-indigo-600',
+    color: 'from-cyan-500 to-blue-600',
     popular: true,
     features: [
-      { text: '5 utilisateurs inclus', included: true },
-      { text: '2 000 clients max', included: true },
-      { text: '500 SMS/mois', included: true },
-      { text: '60 min voix IA/mois', included: true },
-      { text: 'Tout Starter +', included: true },
-      { text: 'WhatsApp IA', included: true },
-      { text: 'Telephone IA', included: true },
-      { text: 'Comptabilite & Devis', included: true },
-      { text: 'CRM avance', included: true },
-      { text: 'Stock & Inventaire', included: true },
-      { text: 'Support prioritaire (24h)', included: true },
-      { text: 'Marketing automatise', included: false },
-      { text: 'Analytics avances', included: false },
+      { text: 'Reservations illimitees', included: true },
+      { text: 'Facturation illimitee (sans watermark)', included: true },
+      { text: 'CRM, Equipe, Fidelite illimites', included: true },
+      { text: 'Comptabilite, RH, Stock complets', included: true },
+      { text: 'Workflows, Pipeline, Devis, SEO', included: true },
+      { text: '500 credits IA inclus chaque mois', included: true },
+      { text: 'WhatsApp IA, Telephone IA, Marketing IA', included: true },
+      { text: 'Support email prioritaire', included: true },
+      { text: 'Multi-sites', included: false },
+      { text: 'White-label + API', included: false },
+      { text: 'Account manager dedie', included: false },
     ],
-    cta: 'Essai gratuit 14 jours',
+    cta: 'Choisir Basic',
   },
   {
     id: 'business',
     name: 'Business',
-    price: 399,
-    originalPrice: 499,
-    yearlyPrice: 3990,
-    launchOffer: 'Offre de lancement — 100 premiers clients',
-    description: 'Pour les entreprises',
+    price: 149,
+    originalPrice: 149,
+    yearlyPrice: 1490,
+    launchOffer: '10 000 credits IA inclus chaque mois (valeur 150€)',
+    description: 'Multi-sites, white-label, premium',
     icon: Building2,
-    color: 'from-cyan-500 to-blue-600',
+    color: 'from-purple-500 to-indigo-600',
     features: [
-      { text: '20 utilisateurs inclus', included: true },
-      { text: 'Clients illimites', included: true },
-      { text: '2 000 SMS/mois', included: true },
-      { text: '300 min voix IA/mois', included: true },
-      { text: 'Tout Pro +', included: true },
-      { text: 'Marketing automatise', included: true },
-      { text: 'Pipeline commercial', included: true },
-      { text: 'Analytics avances & SEO', included: true },
-      { text: 'RH & Planning complet', included: true },
-      { text: 'API & Integrations', included: true },
+      { text: 'Tout Basic +', included: true },
+      { text: 'Multi-sites illimites', included: true },
+      { text: 'White-label (logo + domaine)', included: true },
+      { text: 'API + Webhooks', included: true },
+      { text: 'SSO entreprise', included: true },
+      { text: 'Support prioritaire 1h', included: true },
       { text: 'Account Manager dedie', included: true },
-      { text: 'Support 24/7', included: true },
+      { text: '10 000 credits IA inclus / mois (valeur 150€)', included: true },
+      { text: 'Formation personnalisee', included: true },
     ],
-    cta: 'Contacter les ventes',
+    cta: 'Choisir Business',
   },
 ];
 
-// Modules metier optionnels
-const MODULES_METIER = [
+// Pack unique additionnel (one-shot, 1,5€ = 100 credits, taux base, sans bonus)
+const CREDIT_PACKS = [
   {
-    id: 'restaurant',
-    name: 'Restaurant Pro',
-    price: 39,
-    icon: ChefHat,
-    description: 'Gestion tables, menus digitaux, services midi/soir',
-  },
-  {
-    id: 'hotel',
-    name: 'Hotel Pro',
-    price: 69,
-    icon: Hotel,
-    description: 'Chambres, tarifs saisonniers, check-in/out automatise',
-  },
-  {
-    id: 'domicile',
-    name: 'Domicile Pro',
-    price: 29,
-    icon: Car,
-    description: 'Zones de couverture, tournees, GPS, frais deplacement',
+    id: '1000',
+    label: 'Pack 1000',
+    price: 15,
+    credits: 1000,
+    bonus: '',
+    description: 'Pack unique additionnel au taux base',
+    featured: true,
   },
 ];
 
-// Packs recharges
-const PACKS = {
-  sms: [
-    { qty: 100, price: 15 },
-    { qty: 500, price: 65 },
-    { qty: 1000, price: 110 },
-  ],
-  voice: [
-    { minutes: 30, price: 15 },
-    { minutes: 60, price: 25 },
-    { minutes: 120, price: 45 },
-  ],
-};
+// Cout en credits par action IA (pay-as-you-go)
+const CREDIT_COSTS = [
+  { action: '1 question chat IA admin', cost: '1 credit' },
+  { action: '1 message WhatsApp IA repondu', cost: '1 credit' },
+  { action: '1 conversation Agent IA Web', cost: '5 credits' },
+  { action: '1 minute Telephone IA', cost: '8 credits' },
+  { action: '1 post reseaux sociaux genere', cost: '5 credits' },
+  { action: '1 email IA envoye', cost: '3 credits' },
+  { action: '1 article SEO (1500 mots)', cost: '50 credits' },
+  { action: '1 devis IA', cost: '2 credits' },
+];
 
-// Exemples de configurations
+// Exemples de configurations (modele 2026 — revision finale 9 avril 2026)
 const EXAMPLES = [
   {
-    name: 'Coiffeur solo',
+    name: 'Coiffeur solo qui demarre',
     emoji: '💇',
-    plan: 'Starter',
+    plan: 'Free',
     modules: [],
-    total: 99,
+    total: 0,
+    subtitle: 'Gratuit a vie',
   },
   {
     name: 'Salon de coiffure',
     emoji: '✂️',
-    plan: 'Pro',
-    modules: [],
-    total: 249,
+    plan: 'Basic',
+    modules: ['500 credits IA inclus'],
+    total: 29,
     featured: true,
+    subtitle: '29€/mois credits IA inclus',
   },
   {
     name: 'Restaurant',
     emoji: '🍽️',
-    plan: 'Pro',
-    modules: ['Restaurant Pro'],
-    total: 288,
+    plan: 'Basic',
+    modules: ['500 credits IA inclus'],
+    total: 29,
+    subtitle: 'Tables, menus, services midi/soir',
   },
   {
-    name: 'Hotel boutique',
+    name: 'Petit hotel',
     emoji: '🏨',
-    plan: 'Pro',
-    modules: ['Hotel Pro'],
-    total: 318,
+    plan: 'Basic',
+    modules: ['500 credits IA inclus'],
+    total: 29,
+    subtitle: 'Chambres, tarifs, check-in/out',
   },
   {
     name: 'Artisan a domicile',
     emoji: '🔧',
-    plan: 'Pro',
-    modules: ['Domicile Pro'],
-    total: 278,
-    subtitle: 'Plombier, Electricien...',
+    plan: 'Basic',
+    modules: ['500 credits IA inclus'],
+    total: 29,
+    subtitle: 'Plombier, electricien, plaquiste...',
   },
   {
     name: 'Groupe multi-sites',
     emoji: '🏢',
     plan: 'Business',
-    modules: [],
-    total: 499,
+    modules: ['10 000 credits IA inclus'],
+    total: 149,
+    subtitle: 'Chaines, franchises',
   },
 ];
 
@@ -192,23 +173,27 @@ const EXAMPLES = [
 const FAQS = [
   {
     q: 'Y a-t-il un engagement minimum ?',
-    a: 'Non, aucun engagement. Vous pouvez annuler a tout moment. Nous facturons mois par mois.',
+    a: 'Aucun engagement. Vous pouvez annuler a tout moment. Nous facturons mois par mois.',
   },
   {
-    q: "Comment fonctionne l'essai gratuit ?",
-    a: "14 jours d'essai complet sur le plan Pro, sans carte bancaire. Vous testez toutes les fonctionnalites.",
+    q: 'Puis-je essayer NEXUS gratuitement ?',
+    a: "Oui, le plan Free est gratuit a vie, sans carte bancaire. Vous avez 30 reservations/mois, 20 factures/mois et 50 clients dans le CRM. Tous les modules sont visibles pour decouvrir la plateforme.",
+  },
+  {
+    q: 'Quelle est la difference entre Free, Basic et Business ?',
+    a: "Free (0€) : pour decouvrir, quotas mensuels stricts, IA bloquee. Basic (29€/mois) : tout illimite non-IA + 500 credits IA inclus chaque mois (valeur 7,50€). Business (149€/mois) : Basic + multi-sites, white-label, API, SSO et 10 000 credits IA inclus chaque mois (valeur 150€).",
+  },
+  {
+    q: 'Comment fonctionnent les credits IA ?',
+    a: "1,5 euro = 100 credits (0,015€/credit — taux base). Chaque plan payant inclut deja des credits : Basic 500 credits/mois, Business 10 000 credits/mois. Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits au taux base (sans bonus). 1 message WhatsApp IA = 1 credit, 1 minute Telephone IA = 8 credits, 1 article SEO = 50 credits.",
   },
   {
     q: 'Puis-je changer de plan en cours de mois ?',
     a: 'Oui, les changements sont effectifs immediatement et factures au prorata.',
   },
   {
-    q: 'Que se passe-t-il si je depasse mes quotas SMS/Voix ?',
-    a: 'Vous pouvez acheter des packs recharges a tout moment. Pas de surfacturation surprise.',
-  },
-  {
-    q: 'Les modules metier sont-ils obligatoires ?',
-    a: 'Non, ils sont optionnels. Ajoutez-les uniquement si votre secteur le necessite.',
+    q: 'Que se passe-t-il si je tombe a 0 credit IA ?',
+    a: "Mode degrade gracieux : l'IA bascule sur un message humain, jamais de surprise. Vous pouvez recharger avec le Pack 1000 a 15€ pour ajouter 1 000 credits additionnels.",
   },
   {
     q: 'Le setup est-il inclus ?',
@@ -262,15 +247,15 @@ export default function Pricing() {
           <div className="pricing-badges">
             <span className="pricing-badge">
               <Check className="w-4 h-4" />
-              Essai gratuit 14 jours
+              Plan Free gratuit a vie
+            </span>
+            <span className="pricing-badge">
+              <Check className="w-4 h-4" />
+              Sans carte bancaire
             </span>
             <span className="pricing-badge">
               <Check className="w-4 h-4" />
               Sans engagement
-            </span>
-            <span className="pricing-badge">
-              <Check className="w-4 h-4" />
-              Setup inclus
             </span>
           </div>
         </div>
@@ -303,10 +288,7 @@ export default function Pricing() {
 
                   <div className="plan-price">
                     <span className="price-amount">{displayPrice}</span>
-                    <span className="price-period">/mois</span>
-                    {(plan as any).originalPrice && billingPeriod === 'monthly' && (
-                      <span className="price-original" style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.9rem', marginLeft: '0.5rem' }}>{(plan as any).originalPrice}€</span>
-                    )}
+                    <span className="price-period">€/mois</span>
                   </div>
                   {(plan as any).launchOffer && (
                     <p style={{ color: '#e65100', fontSize: '0.75rem', fontWeight: 600, marginTop: '-0.5rem', marginBottom: '0.5rem' }}>{(plan as any).launchOffer}</p>
@@ -345,74 +327,79 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* Modules Metier */}
-      <section className="modules-section">
-        <div className="modules-container">
-          <div className="section-header">
-            <h2>Modules metier optionnels</h2>
-            <p>Ajoutez des fonctionnalites specifiques a votre secteur</p>
-          </div>
-
-          <div className="modules-grid">
-            {MODULES_METIER.map((mod) => {
-              const Icon = mod.icon;
-              return (
-                <div key={mod.id} className="module-card">
-                  <div className="module-icon">
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="module-info">
-                    <h4 className="module-name">{mod.name}</h4>
-                    <p className="module-description">{mod.description}</p>
-                  </div>
-                  <div className="module-price">
-                    +{mod.price}
-                    <span>/mois</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Packs Recharges */}
+      {/* Pack unique additionnel */}
       <section className="packs-section">
         <div className="packs-container">
           <div className="section-header">
-            <h2>Packs recharges</h2>
-            <p>Besoin de plus de SMS ou de minutes voix IA ?</p>
+            <h2>Pack additionnel de credits IA</h2>
+            <p>
+              Basic inclut 500 credits/mois, Business inclut 10 000 credits/mois. Si vous avez besoin de plus,
+              un pack unique additionnel est disponible — au taux base, sans bonus, sans surprise.
+              <br />
+              <strong>1,5 euro = 100 credits</strong> (0,015€/credit).
+            </p>
           </div>
 
-          <div className="packs-grid">
-            <div className="pack-category">
-              <h3>
-                <MessageCircle className="w-5 h-5" />
-                Packs SMS
-              </h3>
-              <div className="pack-items">
-                {PACKS.sms.map((pack, idx) => (
-                  <div key={idx} className="pack-item">
-                    <span className="pack-qty">{pack.qty} SMS</span>
-                    <span className="pack-price">{pack.price} EUR</span>
-                  </div>
-                ))}
+          <div className="plans-grid" style={{ justifyContent: 'center', maxWidth: '420px', margin: '0 auto' }}>
+            {CREDIT_PACKS.map((pack) => (
+              <div
+                key={pack.id}
+                className={`plan-card ${pack.featured ? 'plan-popular' : ''}`}
+              >
+                {pack.featured && <div className="plan-badge">Pack unique</div>}
+                <div className="plan-icon bg-gradient-to-br from-orange-500 to-pink-600">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="plan-name">{pack.label}</h3>
+                <p className="plan-description">{pack.description}</p>
+                <div className="plan-price">
+                  <span className="price-amount">{pack.price}</span>
+                  <span className="price-period"> EUR</span>
+                </div>
+                <p style={{ color: '#0891b2', fontSize: '0.875rem', fontWeight: 600, marginTop: '-0.25rem', marginBottom: '0.5rem' }}>
+                  {pack.credits.toLocaleString('fr-FR')} credits (taux base)
+                </p>
+                <ul className="plan-features">
+                  <li>
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>{pack.credits.toLocaleString('fr-FR')} credits IA additionnels</span>
+                  </li>
+                  <li>
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Taux base 0,015€/credit</span>
+                  </li>
+                  <li>
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Mode degrade gracieux a 0</span>
+                  </li>
+                  <li>
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Sans engagement</span>
+                  </li>
+                </ul>
               </div>
-            </div>
+            ))}
+          </div>
 
-            <div className="pack-category">
-              <h3>
-                <Phone className="w-5 h-5" />
-                Packs Voix IA
-              </h3>
-              <div className="pack-items">
-                {PACKS.voice.map((pack, idx) => (
-                  <div key={idx} className="pack-item">
-                    <span className="pack-qty">{pack.minutes} min</span>
-                    <span className="pack-price">{pack.price} EUR</span>
+          <div className="modules-container" style={{ marginTop: '3rem' }}>
+            <div className="section-header">
+              <h3>Cout par action IA</h3>
+              <p>Pas de forfait inutilise — vous payez a la consommation</p>
+            </div>
+            <div className="modules-grid">
+              {CREDIT_COSTS.map((item, i) => (
+                <div key={i} className="module-card">
+                  <div className="module-icon">
+                    <Sparkles className="w-5 h-5" />
                   </div>
-                ))}
-              </div>
+                  <div className="module-info">
+                    <h4 className="module-name">{item.action}</h4>
+                  </div>
+                  <div className="module-price" style={{ fontSize: '1rem' }}>
+                    {item.cost}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -464,83 +451,113 @@ export default function Pricing() {
               <thead>
                 <tr>
                   <th>Fonctionnalite</th>
-                  <th>Starter</th>
-                  <th>Pro</th>
+                  <th>Free</th>
+                  <th>Basic</th>
                   <th>Business</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>Utilisateurs inclus</td>
-                  <td>1</td>
-                  <td>5</td>
-                  <td>20</td>
+                  <td>Prix</td>
+                  <td>0 EUR</td>
+                  <td>29 EUR/mois</td>
+                  <td>149 EUR/mois</td>
                 </tr>
                 <tr>
-                  <td>Clients max</td>
-                  <td>1 000</td>
-                  <td>5 000</td>
+                  <td>Utilisateurs</td>
+                  <td>1</td>
+                  <td>Illimite</td>
                   <td>Illimite</td>
                 </tr>
                 <tr>
-                  <td>SMS/mois</td>
-                  <td>200</td>
-                  <td>500</td>
-                  <td>2 000</td>
+                  <td>Reservations / mois</td>
+                  <td>30</td>
+                  <td>Illimitees</td>
+                  <td>Illimitees</td>
                 </tr>
                 <tr>
-                  <td>Voix IA/mois</td>
-                  <td>-</td>
-                  <td>60 min</td>
-                  <td>300 min</td>
+                  <td>Factures / mois</td>
+                  <td>20 (avec watermark)</td>
+                  <td>Illimitees</td>
+                  <td>Illimitees</td>
                 </tr>
                 <tr>
-                  <td>Agent IA Web</td>
+                  <td>Clients max</td>
+                  <td>50</td>
+                  <td>Illimite</td>
+                  <td>Illimite</td>
+                </tr>
+                <tr>
+                  <td>CRM, Equipe, Fidelite</td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>Comptabilite, RH, Stock</td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>Workflows, Pipeline, Devis</td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>Fonctions IA</td>
+                  <td>Bloquees</td>
+                  <td>500 credits inclus / mois</td>
+                  <td>10 000 credits inclus / mois</td>
                 </tr>
                 <tr>
                   <td>WhatsApp IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td>1 credit / message</td>
+                  <td>1 credit / message</td>
                 </tr>
                 <tr>
                   <td>Telephone IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td>8 credits / minute</td>
+                  <td>8 credits / minute</td>
                 </tr>
                 <tr>
-                  <td>Marketing auto</td>
+                  <td>Marketing IA, SEO IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td>Via credits</td>
+                  <td>Via credits</td>
                 </tr>
                 <tr>
-                  <td>RH complet</td>
-                  <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td><Check className="w-4 h-4 text-green-500" /></td>
-                </tr>
-                <tr>
-                  <td>SEO IA</td>
+                  <td>Multi-sites</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                 </tr>
                 <tr>
-                  <td>API</td>
+                  <td>White-label (logo + domaine)</td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>API + Webhooks</td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>SSO entreprise</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                 </tr>
                 <tr>
                   <td>Support</td>
-                  <td>Email 48h</td>
-                  <td>Prioritaire 24h</td>
-                  <td>24/7 + AM dedie</td>
+                  <td>Email</td>
+                  <td>Email prioritaire</td>
+                  <td>Prioritaire 1h + Account Manager</td>
                 </tr>
               </tbody>
             </table>
@@ -574,11 +591,11 @@ export default function Pricing() {
         <div className="cta-container">
           <h2 className="cta-title">Pret a automatiser votre business ?</h2>
           <p className="cta-subtitle">
-            Essai gratuit 14 jours - Sans carte bancaire - Setup en 30 min
+            Plan Free gratuit a vie - Sans carte bancaire - Setup en 30 min
           </p>
           <div className="cta-buttons">
             <Link to="/website/contact" className="cta-button primary">
-              Demarrer l'essai gratuit
+              Demarrer gratuitement
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link to="/website/contact" className="cta-button secondary">

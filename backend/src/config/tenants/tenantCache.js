@@ -65,7 +65,7 @@ export async function loadAllTenants() {
         features: { ...(baseConfig.features || {}), ...(row.features || {}) },
         limits: { ...(baseConfig.limits || {}), ...(row.limits_config || {}) },
         branding: { ...(baseConfig.branding || {}), ...(row.branding || {}) },
-        plan: row.tier || baseConfig.plan || 'starter',
+        plan: row.tier || baseConfig.plan || 'free',
         status: row.status,
         business_profile: row.business_profile || baseConfig.business_profile || null,
         nom_commercial: row.nom_commercial || baseConfig.nom_commercial || null,

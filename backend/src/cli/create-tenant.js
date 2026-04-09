@@ -44,7 +44,7 @@ async function main() {
     id: tenantId,
     name: businessName,
     domain: domain,
-    plan: 'starter',
+    plan: 'free',
     status: 'active',
     settings: {},
   }).select().single();

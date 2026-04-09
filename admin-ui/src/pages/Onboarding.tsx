@@ -83,25 +83,25 @@ const DAY_LABELS: Record<string, string> = {
   sunday: 'Dimanche',
 };
 
-// Prix conformes à config/pricing.js (source de vérité)
+// Prix conformes à config/pricing.js (source de vérité — modèle 2026 Free/Basic/Business)
 const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number }> = {
-  starter: {
-    name: 'Starter',
-    description: 'Pour démarrer votre activité',
-    color: 'from-blue-500 to-cyan-500',
-    price: 99,
+  free: {
+    name: 'Free',
+    description: 'Freemium à vie pour démarrer',
+    color: 'from-gray-400 to-gray-500',
+    price: 0,
   },
-  pro: {
-    name: 'Pro',
-    description: 'Pour les équipes en croissance',
-    color: 'from-cyan-500 to-emerald-500',
-    price: 249,
+  basic: {
+    name: 'Basic',
+    description: 'Tout illimité + IA via crédits',
+    color: 'from-cyan-500 to-blue-500',
+    price: 29,
   },
   business: {
     name: 'Business',
-    description: 'Solution complète',
+    description: 'Multi-site, white-label, API + 10 000 crédits IA inclus (valeur 150€)',
     color: 'from-purple-500 to-pink-500',
-    price: 499,
+    price: 149,
   },
 };
 
@@ -223,11 +223,18 @@ function ServiceCard({
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Canaux IA accessibles par plan
+// Canaux IA accessibles par plan (modèle 2026 — IA débloquée à partir de Basic)
 const PLAN_CHANNELS: Record<string, string[]> = {
-  starter: ['web'],
-  pro: ['web', 'whatsapp', 'telephone'],
+  free: [],
+  basic: ['web', 'whatsapp', 'telephone'],
   business: ['web', 'whatsapp', 'telephone'],
+};
+
+// Mapping retro-compat vers les nouveaux noms de plans
+const normalizePlan = (plan: string): string => {
+  if (plan === 'starter') return 'free';
+  if (plan === 'pro') return 'basic';
+  return plan;
 };
 
 export default function Onboarding() {
@@ -236,7 +243,8 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
 
   // Canaux disponibles selon le plan réel du tenant
-  const availableChannels = PLAN_CHANNELS[tenantPlan] || PLAN_CHANNELS.starter;
+  const normalizedPlan = normalizePlan(tenantPlan);
+  const availableChannels = PLAN_CHANNELS[normalizedPlan] || PLAN_CHANNELS.free;
 
   // État de l'onboarding
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -389,7 +397,7 @@ export default function Onboarding() {
 
   const selectedTemplate = templates.find(t => t.id === selectedType);
   // Utiliser le plan réel du tenant (choisi au signup), pas le plan suggéré par le template
-  const planInfo = PLAN_INFO[tenantPlan] || PLAN_INFO.starter;
+  const planInfo = PLAN_INFO[normalizedPlan] || PLAN_INFO.free;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 relative">
@@ -668,9 +676,9 @@ export default function Onboarding() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 {[
-                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site', minPlan: 'starter' },
-                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Réponses auto 24/7', minPlan: 'pro' },
-                  { id: 'telephone', icon: PhoneCall, label: 'Téléphone', desc: 'Standard IA vocal', minPlan: 'pro' },
+                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site', minPlan: 'basic' },
+                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Réponses auto 24/7', minPlan: 'basic' },
+                  { id: 'telephone', icon: PhoneCall, label: 'Téléphone', desc: 'Standard IA vocal', minPlan: 'basic' },
                 ].map((channel) => {
                   const isAvailable = availableChannels.includes(channel.id);
                   const isSelected = selectedChannels.has(channel.id);
@@ -698,8 +706,8 @@ export default function Onboarding() {
                       )}
                     >
                       {!isAvailable && (
-                        <span className="absolute top-2 right-2 text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                          Plan Pro
+                        <span className="absolute top-2 right-2 text-[10px] font-bold bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">
+                          Plan Basic
                         </span>
                       )}
                       <channel.icon className={cn(

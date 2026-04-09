@@ -16,7 +16,21 @@ import { api } from '@/lib/api';
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
 
-export type PlanType = 'starter' | 'pro' | 'business';
+// Modele 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
+// 'starter' et 'pro' sont DEPRECATED — gardes pour retro-compat consumer
+export type PlanType = 'free' | 'basic' | 'business' | 'starter' | 'pro';
+
+/**
+ * Normalise les anciens noms de plan vers les nouveaux
+ * starter → free, pro → basic
+ */
+export function normalizePlan(plan: PlanType | string | undefined): 'free' | 'basic' | 'business' {
+  if (plan === 'starter') return 'free';
+  if (plan === 'pro') return 'basic';
+  if (plan === 'free' || plan === 'basic' || plan === 'business') return plan;
+  return 'free';
+}
 
 export interface TenantModules {
   // Modules de base
@@ -181,14 +195,15 @@ function detectTenantSlug(): string {
 // PLAN HIERARCHY
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PLAN_ORDER: PlanType[] = ['starter', 'pro', 'business'];
+const PLAN_ORDER: Array<'free' | 'basic' | 'business'> = ['free', 'basic', 'business'];
 
 /**
  * Vérifie si le plan actuel inclut le plan requis
+ * Les anciens noms (starter/pro) sont automatiquement normalisés
  */
 function hasPlanAccess(currentPlan: PlanType, requiredPlan: PlanType): boolean {
-  const currentIndex = PLAN_ORDER.indexOf(currentPlan);
-  const requiredIndex = PLAN_ORDER.indexOf(requiredPlan);
+  const currentIndex = PLAN_ORDER.indexOf(normalizePlan(currentPlan));
+  const requiredIndex = PLAN_ORDER.indexOf(normalizePlan(requiredPlan));
   return currentIndex >= requiredIndex;
 }
 
@@ -196,30 +211,34 @@ function hasPlanAccess(currentPlan: PlanType, requiredPlan: PlanType): boolean {
 // DEFAULT QUOTAS BY PLAN
 // ══════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_QUOTAS: Record<PlanType, TenantQuotas> = {
-  starter: {
-    clients_max: 200,
-    storage_gb: 2,
+// Quotas par defaut (modele 2026 — revision finale 9 avril 2026)
+// Free     : freemium strict (30 RDV/mois, 50 clients), IA bloquee (0 credit)
+// Basic    : tout illimite non-IA + 500 credits IA inclus / mois (valeur 7,50€)
+// Business : Basic + multi-sites + 10 000 credits IA inclus / mois (valeur 150€)
+const DEFAULT_QUOTAS: Record<'free' | 'basic' | 'business', TenantQuotas> = {
+  free: {
+    clients_max: 50,
+    storage_gb: 1,
     posts_ia_month: 0,
-    images_ia_month: 100,
-    reservations_month: 500,
-    messages_ia_month: 1000,
+    images_ia_month: 0,
+    reservations_month: 30,
+    messages_ia_month: 0,
   },
-  pro: {
-    clients_max: 2000,
+  basic: {
+    clients_max: -1, // Illimite
     storage_gb: 10,
-    posts_ia_month: 0,
-    images_ia_month: 500,
-    reservations_month: 5000,
-    messages_ia_month: 5000,
+    posts_ia_month: 0, // 500 credits IA inclus (gere via ai_credits)
+    images_ia_month: 0,
+    reservations_month: -1, // Illimite
+    messages_ia_month: 0, // 500 credits IA inclus (gere via ai_credits)
   },
   business: {
-    clients_max: -1, // Illimité
-    storage_gb: -1, // Illimité
-    posts_ia_month: 1000,
-    images_ia_month: 1000,
-    reservations_month: -1, // Illimité
-    messages_ia_month: -1, // Illimité
+    clients_max: -1, // Illimite
+    storage_gb: -1, // Illimite
+    posts_ia_month: 0, // 10 000 credits IA inclus (gere via ai_credits)
+    images_ia_month: 0,
+    reservations_month: -1, // Illimite
+    messages_ia_month: 0,
   },
 };
 
@@ -298,11 +317,11 @@ export function useTenant() {
   }
 
   // Valeurs par défaut si pas encore chargé
-  // Le backend retourne déjà le plan effectif (Starter pendant essai)
-  const currentPlan: PlanType = tenant?.plan || 'starter';
+  // Le backend retourne le plan effectif. Modele 2026 : default = Free
+  const currentPlan: PlanType = tenant?.plan || 'free';
   const currentModules = tenant?.modules || {};
   const currentBranding = tenant?.branding || {};
-  const currentQuotas = tenant?.quotas || DEFAULT_QUOTAS[currentPlan];
+  const currentQuotas = tenant?.quotas || DEFAULT_QUOTAS[normalizePlan(currentPlan)];
 
   // Plan choisi au signup (pour affichage upgrade sur la page abonnement)
   const chosenPlan: PlanType = tenant?.plan_choisi || currentPlan;
@@ -317,17 +336,19 @@ export function useTenant() {
     // Raccourcis
     slug: tenant?.slug || tenantSlug,
     name: tenant?.name || 'NEXUS',
-    plan: currentPlan,         // Plan effectif (Starter pendant essai)
+    plan: currentPlan,         // Plan effectif (Free pendant essai)
     chosenPlan,                // Plan choisi au signup (pour info upgrade)
     modules: currentModules,
     branding: currentBranding,
     quotas: currentQuotas,
     statut: tenant?.statut || 'actif',
 
-    // Helpers plan — basés sur le plan effectif (Starter pendant essai)
+    // Helpers plan — basés sur le plan effectif (modele 2026)
     hasPlan: (requiredPlan: PlanType) => hasPlanAccess(currentPlan, requiredPlan),
-    isPro: hasPlanAccess(currentPlan, 'pro'),
+    isBasic: hasPlanAccess(currentPlan, 'basic'),
     isBusiness: hasPlanAccess(currentPlan, 'business'),
+    // DEPRECATED — alias retro-compat (a supprimer apres migration consumers)
+    isPro: hasPlanAccess(currentPlan, 'basic'),
 
     // Helpers modules
     hasModule: (moduleName: string) => currentModules[moduleName] === true,

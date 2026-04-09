@@ -354,7 +354,7 @@ export async function generateFollowUpEmail(prospect, emailType, previousSubject
   const angles = {
     followup_j3: 'Angle: rappeler le benefice principal avec un chiffre concret. Tres court (60 mots max). Ton direct, presque complice.',
     followup_j7: 'Angle: partager un temoignage client realiste du meme secteur. Un resultat concret avec des chiffres. Court (80 mots max).',
-    followup_j14: 'Angle: dernier message, ton sincere. Proposer un essai gratuit 14 jours. Pas d\'agressivite, juste de la franchise. Court (60 mots max).',
+    followup_j14: 'Angle: dernier message, ton sincere. Proposer le plan Free gratuit a vie (sans carte bancaire, 30 RDV/mois). Pas d\'agressivite, juste de la franchise. Court (60 mots max).',
   };
 
   const systemPrompt = buildSystemPrompt(ctx);

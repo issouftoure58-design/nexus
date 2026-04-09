@@ -4,27 +4,27 @@ export const MESSAGES_CONFIG = {
     audio: "/audio/welcome.mp3"
   },
   prix: {
-    text: "Nous avons 3 plans : Starter a 99€/mois avec 1 assistant IA, CRM et agenda. Pro a 249€/mois avec tous les assistants IA, marketing et comptabilite. Business a 499€/mois pour les entreprises multi-sites avec API et account manager dedie. Essai gratuit de 14 jours !",
+    text: "NEXUS propose 3 niveaux : Free gratuit a vie avec 30 reservations et 20 factures par mois pour decouvrir, Basic a 29€/mois pour un acces illimite a toutes les fonctions non-IA avec 500 credits IA inclus chaque mois, et Business a 149€/mois pour les multi-sites avec white-label, API et 10 000 credits IA inclus chaque mois (valeur 150€). Les fonctions IA consomment des credits (1,5€ = 100 credits). Un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits.",
     audio: null
   },
   telephone: {
-    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Starter, Pro et Business.",
+    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Basic et Business via des credits IA : 1 minute = 8 credits.",
     audio: null
   },
   whatsapp: {
-    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Inclus dans tous nos plans !",
+    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Disponible dans Basic et Business via des credits IA : 1 message = 1 credit.",
     audio: null
   },
   reservation: {
-    text: "Notre systeme de reservations permet a vos clients de reserver en ligne 24/7. Calendrier synchronise, rappels automatiques, gestion des creneaux. Inclus dans tous les plans NEXUS !",
+    text: "Notre systeme de reservations permet a vos clients de reserver en ligne 24/7. Calendrier synchronise, rappels automatiques, gestion des creneaux. Inclus dans tous les plans NEXUS, meme le plan Free !",
     audio: null
   },
   essai: {
-    text: "Vous pouvez essayer NEXUS gratuitement pendant 14 jours, sans carte bancaire requise. Cliquez sur 'Essai gratuit' pour commencer !",
+    text: "NEXUS a un plan Free 100% gratuit a vie sans carte bancaire. Vous pouvez decouvrir toute la plateforme avec 30 reservations et 20 factures par mois. Cliquez sur 'Demarrer gratuitement' pour creer votre compte !",
     audio: "/audio/faq-essai.mp3"
   },
   default: {
-    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Starter 99€, Pro 249€, Business 499€), les fonctionnalites, ou comment demarrer votre essai gratuit.",
+    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Free gratuit, Basic 29€, Business 149€), les credits IA, les fonctionnalites, ou comment demarrer.",
     audio: null
   }
 }

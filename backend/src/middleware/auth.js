@@ -108,7 +108,7 @@ export const authenticateToken = async (req, res, next) => {
       email: user.email,
       role: user.role,
       tenant_id: user.tenant_id,
-      plan: tenant?.plan || 'starter'
+      plan: tenant?.plan || 'free'
     };
 
     req.tenant = tenant;
@@ -158,10 +158,17 @@ export const requireRole = (roles) => {
 
 /**
  * Middleware pour verifier un plan minimum
- * @param {string} minPlan - Plan minimum requis ('starter', 'pro', 'business', 'enterprise')
+ * Modèle 2026 : Free / Basic / Business (+ Enterprise sur demande)
+ * @param {string} minPlan - Plan minimum requis ('free', 'basic', 'business', 'enterprise')
  */
 export const requirePlan = (minPlan) => {
-  const planOrder = ['starter', 'pro', 'business', 'enterprise'];
+  const planOrder = ['free', 'basic', 'business', 'enterprise'];
+  const normalize = (p) => {
+    const x = (p || 'free').toLowerCase();
+    if (x === 'starter') return 'free';
+    if (x === 'pro') return 'basic';
+    return x;
+  };
 
   return (req, res, next) => {
     if (!req.user) {
@@ -172,8 +179,8 @@ export const requirePlan = (minPlan) => {
       });
     }
 
-    const userPlanIndex = planOrder.indexOf(req.user.plan);
-    const requiredPlanIndex = planOrder.indexOf(minPlan);
+    const userPlanIndex = planOrder.indexOf(normalize(req.user.plan));
+    const requiredPlanIndex = planOrder.indexOf(normalize(minPlan));
 
     if (userPlanIndex < requiredPlanIndex) {
       return res.status(403).json({

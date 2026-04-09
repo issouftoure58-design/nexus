@@ -61,16 +61,23 @@ export default function TermsOfServicePage() {
             <h2 className="text-2xl font-semibold mb-4">4. Abonnements et Tarifs</h2>
             <h3 className="text-xl font-medium mb-3">4.1 Plans Disponibles</h3>
             <ul>
-              <li><strong>Starter (99€/mois)</strong> : Fonctionnalités de base</li>
-              <li><strong>Pro (249€/mois)</strong> : + WhatsApp IA, Téléphone IA, Marketing</li>
-              <li><strong>Business (499€/mois)</strong> : + RH, SEO, API, SENTINEL</li>
+              <li><strong>Free (0€)</strong> : gratuit à vie, sans carte bancaire — 30 réservations/mois, 20 factures/mois, 50 clients max, modules visibles, IA bloquée (0 crédit)</li>
+              <li><strong>Basic (29€/mois)</strong> : tout illimité non-IA + 500 crédits IA inclus chaque mois (valeur 7,50€)</li>
+              <li><strong>Business (149€/mois)</strong> : Basic + multi-sites, white-label, API, SSO, 10 000 crédits IA inclus chaque mois (valeur 150€)</li>
             </ul>
-            <h3 className="text-xl font-medium mb-3">4.2 Facturation</h3>
+            <h3 className="text-xl font-medium mb-3">4.2 Crédits IA (inclus et rechargeables)</h3>
             <p>
-              Les abonnements sont facturés mensuellement ou annuellement (avec 20% de
-              réduction). Le paiement s'effectue par carte bancaire via Stripe.
+              Les fonctions IA fonctionnent avec un système de crédits universels. Taux base : 1,5€ = 100 crédits (0,015€/crédit).
+              Chaque plan payant inclut déjà des crédits mensuels (Basic 500, Business 10 000). Si le client a besoin de plus,
+              un pack unique additionnel est disponible : Pack 1000 à 15€ pour 1 000 crédits au taux base (0% bonus).
+              L'utilisateur paie uniquement ce qu'il consomme au-delà des crédits inclus.
             </p>
-            <h3 className="text-xl font-medium mb-3">4.3 Résiliation</h3>
+            <h3 className="text-xl font-medium mb-3">4.3 Facturation</h3>
+            <p>
+              Les abonnements sont facturés mensuellement ou annuellement (avec 2 mois offerts en
+              annuel sur Basic). Le paiement s'effectue par carte bancaire via Stripe.
+            </p>
+            <h3 className="text-xl font-medium mb-3">4.4 Résiliation</h3>
             <p>
               L'abonnement peut être résilié à tout moment. L'accès reste actif jusqu'à
               la fin de la période facturée. Aucun remboursement partiel n'est effectué.
@@ -133,9 +140,9 @@ export default function TermsOfServicePage() {
             </p>
             <h3 className="text-xl font-medium mb-3">8.2 Support</h3>
             <ul>
-              <li><strong>Starter</strong> : Support email (48h)</li>
-              <li><strong>Pro</strong> : Support prioritaire (24h)</li>
-              <li><strong>Business</strong> : Support 24/7 + Account Manager dédié</li>
+              <li><strong>Free</strong> : Support email</li>
+              <li><strong>Basic</strong> : Support email prioritaire</li>
+              <li><strong>Business</strong> : Support prioritaire 1h + Account Manager dédié</li>
             </ul>
           </section>
 

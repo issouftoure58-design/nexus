@@ -125,7 +125,7 @@ router.post('/extend', authenticateAdmin, async (req, res) => {
 /**
  * POST /api/trial/convert
  * Convertit le trial en abonnement payant
- * Body: { plan_id: 'pro' }
+ * Body: { plan_id: 'basic' }
  */
 router.post('/convert', authenticateAdmin, async (req, res) => {
   try {

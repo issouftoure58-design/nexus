@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import {
   Loader2, AlertCircle, Lock, Mail, User, Building, Phone,
-  Check, ArrowLeft, ArrowRight, Search,
+  Check, ArrowLeft, ArrowRight, Search, MessageSquare, ShieldCheck,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -144,32 +144,34 @@ const CATEGORIES: Record<string, { label: string; emoji: string }> = {
   autre: { label: 'Autre', emoji: '🏪' },
 };
 
+// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Basic 29€ illimite non-IA + 500 credits IA / Business 149€ multi-sites + 10 000 credits IA
 const PLANS = {
-  starter: {
-    name: 'Starter', price: 79, originalPrice: 99,
-    features: ['Dashboard & Réservations', 'Facturation & Documents', 'Agent IA Web', 'Support email'],
+  free: {
+    name: 'Free', price: 0, originalPrice: 0,
+    features: ['30 réservations / mois', '20 factures / mois', '50 clients max', 'Tous les modules visibles', 'Support email'],
   },
-  pro: {
-    name: 'Pro', price: 199, originalPrice: 249, popular: true,
-    features: ['Tout Starter +', 'WhatsApp & Téléphone IA', 'Comptabilité complète', 'CRM avancé & Stock', 'Support prioritaire'],
+  basic: {
+    name: 'Basic', price: 29, originalPrice: 29, popular: true,
+    features: ['Tout illimité (réservations, factures, clients)', 'CRM, Comptabilité, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '500 crédits IA inclus / mois (valeur 7,50€)', 'Support email prioritaire'],
   },
   business: {
-    name: 'Business', price: 399, originalPrice: 499,
-    features: ['Tout Pro +', 'Marketing & Pipeline', 'Analytics & SEO', 'RH & Planning', 'API & Account manager'],
+    name: 'Business', price: 149, originalPrice: 149,
+    features: ['Tout Basic +', 'Multi-sites illimités', 'White-label + API + SSO', '10 000 crédits IA inclus / mois (valeur 150€)', 'Account Manager dédié'],
   },
 };
 
-// Template → suggested plan
+// Template → suggested plan (modele 2026)
 const TEMPLATE_SUGGESTED_PLAN: Record<string, keyof typeof PLANS> = {
-  salon_coiffure: 'pro',
-  institut_beaute: 'pro',
-  restaurant: 'pro',
-  medical: 'starter',
-  garage: 'starter',
-  artisan: 'starter',
-  hotel: 'business',
-  commerce: 'starter',
-  autre: 'starter',
+  salon_coiffure: 'basic',
+  institut_beaute: 'basic',
+  restaurant: 'basic',
+  medical: 'basic',
+  garage: 'basic',
+  artisan: 'basic',
+  hotel: 'basic',
+  commerce: 'basic',
+  autre: 'free',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -321,10 +323,19 @@ function StepMetier({
 function StepEntreprise({
   data,
   onChange,
+  smsState,
+  onSendSms,
+  onVerifySms,
 }: {
-  data: { entreprise: string; telephone: string; adresse: string };
+  data: { entreprise: string; telephone: string; adresse: string; siret: string; sms_code: string; sms_verified_token: string };
   onChange: (field: string, value: string) => void;
+  smsState: { sent: boolean; sending: boolean; verifying: boolean; error: string | null };
+  onSendSms: () => void;
+  onVerifySms: () => void;
 }) {
+  const phoneVerified = !!data.sms_verified_token;
+  const phoneOk = /^[\d\s+\-.()]{10,}$/.test(data.telephone);
+
   return (
     <div className="space-y-4">
       <div className="text-center mb-6">
@@ -341,11 +352,90 @@ function StepEntreprise({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">SIRET (recommandé)</label>
         <div className="relative">
-          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input type="tel" value={data.telephone} onChange={e => onChange('telephone', e.target.value)} placeholder="06 12 34 56 78" className="pl-10" />
+          <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            value={data.siret}
+            onChange={e => onChange('siret', e.target.value.replace(/\D/g, '').slice(0, 14))}
+            placeholder="14 chiffres"
+            className="pl-10"
+            inputMode="numeric"
+            maxLength={14}
+          />
         </div>
+        <p className="mt-1 text-xs text-gray-400">Renseigner le SIRET valide votre statut professionnel et sécurise votre compte.</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Téléphone mobile * {phoneVerified && <span className="text-green-600 font-normal">(verifié)</span>}
+        </label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="tel"
+              value={data.telephone}
+              onChange={e => {
+                onChange('telephone', e.target.value);
+                if (phoneVerified) onChange('sms_verified_token', '');
+              }}
+              placeholder="06 12 34 56 78"
+              className="pl-10"
+              disabled={phoneVerified}
+              required
+            />
+          </div>
+          {!phoneVerified && (
+            <Button
+              type="button"
+              onClick={onSendSms}
+              disabled={!phoneOk || smsState.sending}
+              variant="secondary"
+              className="whitespace-nowrap"
+            >
+              {smsState.sending ? <Loader2 className="h-4 w-4 animate-spin" /> : (smsState.sent ? 'Renvoyer' : 'Envoyer code')}
+            </Button>
+          )}
+        </div>
+
+        {smsState.sent && !phoneVerified && (
+          <div className="mt-3 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2 text-sm text-cyan-900">
+              <MessageSquare className="h-4 w-4" />
+              <span>Code envoyé par SMS au {data.telephone}</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={data.sms_code}
+                onChange={e => onChange('sms_code', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                inputMode="numeric"
+                maxLength={6}
+                className="text-center font-mono text-lg tracking-widest"
+              />
+              <Button
+                type="button"
+                onClick={onVerifySms}
+                disabled={data.sms_code.length !== 6 || smsState.verifying}
+              >
+                {smsState.verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Vérifier'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {phoneVerified && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-green-700">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Numéro vérifié avec succès</span>
+          </div>
+        )}
+
+        {smsState.error && (
+          <p className="mt-2 text-xs text-red-600">{smsState.error}</p>
+        )}
       </div>
 
       <div>
@@ -456,7 +546,7 @@ function StepPlan({
     <div className="space-y-4">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Choisissez votre plan</h2>
-        <p className="text-gray-500 mt-1">14 jours d'essai gratuit, sans engagement</p>
+        <p className="text-gray-500 mt-1">Plan Free gratuit à vie, sans carte bancaire</p>
       </div>
 
       <div className="grid gap-4">
@@ -535,25 +625,34 @@ export default function Signup() {
     entreprise: '',
     telephone: '',
     adresse: '',
+    siret: '',
+    sms_code: '',
+    sms_verified_token: '',
     nom: '',
     email: '',
     password: '',
     confirmPassword: '',
     accept_cgv: false,
   });
-  const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLANS>('starter');
+  const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLANS>('basic');
+  const [smsState, setSmsState] = useState<{
+    sent: boolean;
+    sending: boolean;
+    verifying: boolean;
+    error: string | null;
+  }>({ sent: false, sending: false, verifying: false, error: null });
 
   // Template technique déduit de la profession
   const selectedProfession = PROFESSIONS.find(p => p.id === professionId);
   const templateType = selectedProfession?.template || 'autre';
-  const suggestedPlan = TEMPLATE_SUGGESTED_PLAN[templateType] || 'starter';
+  const suggestedPlan = TEMPLATE_SUGGESTED_PLAN[templateType] || 'basic';
 
   // Quand on sélectionne un métier, pré-sélectionner le plan recommandé
   const handleSelectProfession = (id: string) => {
     setProfessionId(id);
     const prof = PROFESSIONS.find(p => p.id === id);
     if (prof) {
-      const suggested = TEMPLATE_SUGGESTED_PLAN[prof.template] || 'starter';
+      const suggested = TEMPLATE_SUGGESTED_PLAN[prof.template] || 'basic';
       setSelectedPlan(suggested);
     }
   };
@@ -562,10 +661,57 @@ export default function Signup() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleSendSms = async () => {
+    if (!formData.telephone) return;
+    setSmsState(prev => ({ ...prev, sending: true, error: null }));
+    try {
+      const response = await fetch('/api/admin/auth/signup/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formData.telephone }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de l'envoi du code SMS");
+      }
+      setSmsState({ sent: true, sending: false, verifying: false, error: null });
+    } catch (err) {
+      setSmsState(prev => ({
+        ...prev,
+        sending: false,
+        error: err instanceof Error ? err.message : "Erreur d'envoi du SMS",
+      }));
+    }
+  };
+
+  const handleVerifySms = async () => {
+    if (!formData.telephone || formData.sms_code.length !== 6) return;
+    setSmsState(prev => ({ ...prev, verifying: true, error: null }));
+    try {
+      const response = await fetch('/api/admin/auth/signup/sms/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formData.telephone, code: formData.sms_code }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.token) {
+        throw new Error(data.error || 'Code de vérification invalide');
+      }
+      setFormData(prev => ({ ...prev, sms_verified_token: data.token }));
+      setSmsState({ sent: true, sending: false, verifying: false, error: null });
+    } catch (err) {
+      setSmsState(prev => ({
+        ...prev,
+        verifying: false,
+        error: err instanceof Error ? err.message : 'Code invalide',
+      }));
+    }
+  };
+
   const canGoNext = (): boolean => {
     switch (step) {
       case 1: return !!professionId;
-      case 2: return !!formData.entreprise.trim();
+      case 2: return !!formData.entreprise.trim() && !!formData.sms_verified_token;
       case 3:
         return !!formData.nom.trim() &&
           !!formData.email.trim() &&
@@ -593,6 +739,8 @@ export default function Signup() {
           entreprise: formData.entreprise,
           telephone: formData.telephone,
           adresse: formData.adresse,
+          siret: formData.siret || undefined,
+          sms_verified_token: formData.sms_verified_token,
           nom: formData.nom,
           email: formData.email,
           password: formData.password,
@@ -680,7 +828,15 @@ export default function Signup() {
 
             {/* Steps */}
             {step === 1 && <StepMetier selected={professionId} onSelect={handleSelectProfession} />}
-            {step === 2 && <StepEntreprise data={formData} onChange={handleFieldChange} />}
+            {step === 2 && (
+              <StepEntreprise
+                data={formData}
+                onChange={handleFieldChange}
+                smsState={smsState}
+                onSendSms={handleSendSms}
+                onVerifySms={handleVerifySms}
+              />
+            )}
             {step === 3 && <StepCompte data={formData} onChange={handleFieldChange} />}
             {step === 4 && <StepPlan selected={selectedPlan} suggested={suggestedPlan} onSelect={setSelectedPlan} />}
 

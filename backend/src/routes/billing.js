@@ -21,6 +21,7 @@ import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
 import * as billingService from '../services/stripeBillingService.js';
+import creditsService, { CREDIT_PACKS, CREDIT_COSTS } from '../services/creditsService.js';
 
 const router = express.Router();
 
@@ -376,6 +377,127 @@ router.post('/checkout/pack', async (req, res) => {
     });
   } catch (error) {
     logger.error('Billing Erreur POST checkout/pack:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// CREDITS IA — Solde, transactions, achat de packs
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/billing/credits/balance
+ * Solde courant en crédits IA + métadonnées (mensuel inclus, prochain reset, etc.)
+ */
+router.get('/credits/balance', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const balance = await creditsService.getBalance(tenantId);
+
+    res.json({
+      success: true,
+      balance: balance.balance,
+      total_purchased: balance.total_purchased || 0,
+      total_consumed: balance.total_consumed || 0,
+      monthly_included: balance.monthly_included || 0,
+      monthly_used: balance.monthly_used || 0,
+      monthly_reset_at: balance.monthly_reset_at,
+      auto_recharge_enabled: balance.auto_recharge_enabled || false,
+      auto_recharge_threshold: balance.auto_recharge_threshold || null,
+      auto_recharge_pack: balance.auto_recharge_pack || null,
+    });
+  } catch (error) {
+    logger.error('Billing Erreur GET credits/balance:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/billing/credits/transactions
+ * Historique des transactions (achats, consommation, grants).
+ * Query: ?limit=50&type=consume|purchase|monthly_grant
+ */
+router.get('/credits/transactions', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const type = req.query.type || null;
+
+    const transactions = await creditsService.getTransactions(tenantId, { limit, type });
+
+    res.json({
+      success: true,
+      transactions,
+      count: transactions.length,
+    });
+  } catch (error) {
+    logger.error('Billing Erreur GET credits/transactions:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/billing/credits/packs
+ * Liste des packs disponibles + grille tarifaire (sans authentification spéciale).
+ */
+router.get('/credits/packs', (req, res) => {
+  res.json({
+    success: true,
+    packs: Object.entries(CREDIT_PACKS).map(([id, pack]) => ({
+      id,
+      code: pack.code,
+      credits: pack.credits,
+      price_cents: pack.price_cents,
+      price_eur: pack.price_cents / 100,
+      bonus_pct: pack.bonus_pct,
+      cost_per_credit_cents: pack.price_cents / pack.credits,
+    })),
+    costs: CREDIT_COSTS,
+  });
+});
+
+/**
+ * POST /api/billing/credits/checkout
+ * Crée une Checkout Session pour acheter un pack de crédits IA.
+ * Body: { packId: 'pack_1000', successUrl?, cancelUrl? }
+ *
+ * Modèle pricing 2026 — révision finale 9 avril 2026 :
+ * Pack unique 1000 crédits — 15€ (taux base 0,015€/crédit, 0% bonus).
+ */
+router.post('/credits/checkout', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { packId, successUrl, cancelUrl } = req.body;
+
+    const validPackIds = Object.keys(CREDIT_PACKS); // ex: ['pack_1000']
+    if (!packId || !CREDIT_PACKS[packId]) {
+      return res.status(400).json({
+        success: false,
+        error: `packId requis (${validPackIds.join(' | ')}). Reçu: ${packId}`,
+      });
+    }
+
+    const pack = CREDIT_PACKS[packId];
+
+    const result = await billingService.createOneTimeCheckout(
+      tenantId,
+      pack.code, // ex: 'nexus_credits_1000'
+      1,
+      successUrl,
+      cancelUrl
+    );
+
+    res.json({
+      success: true,
+      pack: {
+        id: packId,
+        credits: pack.credits,
+        price_cents: pack.price_cents,
+      },
+      ...result,
+    });
+  } catch (error) {
+    logger.error('Billing Erreur POST credits/checkout:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

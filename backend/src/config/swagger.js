@@ -137,7 +137,7 @@ Toutes les requetes necessitent un tenant_id. Le tenant est resolu via:
         Plan: {
           type: 'object',
           properties: {
-            id: { type: 'string', enum: ['starter', 'pro', 'business'] },
+            id: { type: 'string', enum: ['free', 'basic', 'business'] },
             name: { type: 'string' },
             price: { type: 'integer', description: 'Prix mensuel en centimes' },
             features: { type: 'array', items: { type: 'string' } }

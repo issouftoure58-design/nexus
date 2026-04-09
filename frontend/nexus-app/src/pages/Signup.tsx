@@ -21,7 +21,7 @@ interface Secteur {
 export default function Signup() {
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
-  const planFromUrl = searchParams.get('plan') || 'pro';
+  const planFromUrl = searchParams.get('plan') || 'basic';
   const periodeFromUrl = (searchParams.get('periode') as 'monthly' | 'yearly') || 'monthly';
 
   const [step, setStep] = useState(1);
@@ -153,7 +153,7 @@ export default function Signup() {
             Creez votre compte NEXUS
           </h1>
           <p className="text-gray-600">
-            14 jours d'essai gratuit - Sans engagement
+            Plan Free gratuit a vie - Sans carte bancaire - Sans engagement
           </p>
         </div>
 
@@ -415,8 +415,8 @@ export default function Signup() {
                     <span className="font-medium">{formData.email}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Essai gratuit</span>
-                    <span className="font-medium text-green-600">14 jours</span>
+                    <span className="text-gray-600">Plan</span>
+                    <span className="font-medium text-green-600">Free (gratuit a vie)</span>
                   </div>
                 </div>
 

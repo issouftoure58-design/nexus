@@ -14,7 +14,7 @@ const tenant = {
   id: '',                            // À CONFIGURER: slug unique (ex: 'monbusiness')
   name: '',                          // À CONFIGURER: nom commercial affiché
   domain: '',                        // À CONFIGURER: domaine principal (ex: 'monbusiness.fr')
-  plan: 'starter',                   // starter | pro | business
+  plan: 'free',                      // free | basic | business (modèle 2026)
 
   // ===== ASSISTANT IA =====
   assistantName: 'Nexus',            // À CONFIGURER: prénom de l'assistant (ex: 'Halimah')

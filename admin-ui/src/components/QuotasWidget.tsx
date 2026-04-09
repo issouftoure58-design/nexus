@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, TrendingUp, Users, HardDrive, Image, FileText, Crown, Infinity } from 'lucide-react';
 
+type PlanType = 'free' | 'basic' | 'business';
+
 interface QuotaData {
-  plan: 'starter' | 'pro' | 'business';
+  plan: PlanType | 'starter' | 'pro';
   limits: {
     clients: number;
     storage_gb: number;
@@ -22,17 +24,24 @@ interface QuotaData {
   };
 }
 
-const PLAN_LABELS = {
-  starter: 'Starter',
-  pro: 'Pro',
+// Retro-compat : starter→free, pro→basic
+const normalizePlan = (plan: string): PlanType => {
+  if (plan === 'starter') return 'free';
+  if (plan === 'pro') return 'basic';
+  return plan as PlanType;
+};
+
+const PLAN_LABELS: Record<PlanType, string> = {
+  free: 'Free',
+  basic: 'Basic',
   business: 'Business',
 };
 
-const PLAN_COLORS = {
-  starter: 'secondary',
-  pro: 'default',
+const PLAN_COLORS: Record<PlanType, 'secondary' | 'default' | 'success'> = {
+  free: 'secondary',
+  basic: 'default',
   business: 'success',
-} as const;
+};
 
 export function QuotasWidget() {
   const { data: quotas, isLoading, error } = useQuery<QuotaData>({
@@ -126,18 +135,18 @@ export function QuotasWidget() {
               )}
             </CardTitle>
             <CardDescription>
-              Plan actuel : <Badge variant={PLAN_COLORS[quotas.plan]}>{PLAN_LABELS[quotas.plan]}</Badge>
+              Plan actuel : <Badge variant={PLAN_COLORS[normalizePlan(quotas.plan)]}>{PLAN_LABELS[normalizePlan(quotas.plan)]}</Badge>
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         {/* Message special Business */}
-        {quotas.plan === 'business' && (
+        {normalizePlan(quotas.plan) === 'business' && (
           <Alert className="mb-6 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50">
             <Crown className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
-              <strong>Plan Business</strong> - Quotas illimites clients et stockage
+              <strong>Plan Business</strong> - Multi-site, white-label, API + 10 000 credits IA inclus / mois (valeur 150€)
               <div className="flex items-center gap-1 mt-1 text-sm text-amber-600">
                 <Infinity className="h-3 w-3" /> Aucune limite sur vos ressources principales
               </div>
@@ -176,28 +185,28 @@ export function QuotasWidget() {
         </div>
 
         {/* Alertes d'upgrade */}
-        {quotas.plan === 'starter' && hasWarnings && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        {normalizePlan(quotas.plan) === 'free' && hasWarnings && (
+          <div className="mt-6 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
             <div className="flex items-start gap-3">
-              <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5" />
+              <TrendingUp className="h-5 w-5 text-cyan-600 mt-0.5" />
               <div>
-                <p className="font-medium text-blue-900">Passez au plan Pro</p>
-                <p className="text-sm text-blue-700 mt-1">
-                  Obtenez 3 000 clients, 10 Go de stockage, et l'IA Admin avancee.
+                <p className="font-medium text-cyan-900">Passez au plan Basic — 29€/mois</p>
+                <p className="text-sm text-cyan-700 mt-1">
+                  Tout illimite (RDV, factures, clients) + IA debloquee via credits pay-as-you-go.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {quotas.plan === 'pro' && hasWarnings && (
+        {normalizePlan(quotas.plan) === 'basic' && hasWarnings && (
           <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <div className="flex items-start gap-3">
               <TrendingUp className="h-5 w-5 text-purple-600 mt-0.5" />
               <div>
-                <p className="font-medium text-purple-900">Passez au plan Business</p>
+                <p className="font-medium text-purple-900">Passez au plan Business — 149€/mois</p>
                 <p className="text-sm text-purple-700 mt-1">
-                  Ressources illimitees et fonctionnalites entreprise.
+                  Multi-site, white-label, API, SSO + 10 000 credits IA inclus chaque mois (valeur 150€).
                 </p>
               </div>
             </div>

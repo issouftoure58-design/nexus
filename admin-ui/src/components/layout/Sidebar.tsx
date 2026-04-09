@@ -76,39 +76,40 @@ interface UpgradeModalData {
   requiredModule?: string;
 }
 
-// Prix des plans pour le modal
+// Prix des plans pour le modal (modele 2026)
 const PLAN_PRICES: Record<string, number> = {
-  starter: 99,
-  pro: 249,
-  business: 499,
+  free: 0,
+  basic: 29,
+  business: 149,
 };
 
 const PLAN_NAMES: Record<string, string> = {
-  starter: 'Starter',
-  pro: 'Pro',
+  free: 'Free',
+  basic: 'Basic',
   business: 'Business',
 };
 
-// Mapping modules vers plans requis
+// Mapping modules vers plans requis (modele 2026 — revision finale 9 avril 2026)
+// Free : modules de base visibles. Basic : tout illimite + 500 credits IA inclus. Business : multi-site + 10 000 credits IA inclus.
 const MODULE_TO_PLAN: Record<string, PlanType> = {
-  // Starter
-  'agent_ia_web': 'starter',
-  'reservations': 'starter',
-  'facturation': 'starter',
-  'ecommerce': 'starter',
-  // Pro
-  'whatsapp': 'pro',
-  'telephone': 'pro',
-  'comptabilite': 'pro',
-  'stock': 'pro',
-  'devis': 'pro',
-  'crm_avance': 'pro',
-  // Business
-  'pipeline': 'business',
-  'marketing': 'business',
-  'analytics': 'business',
-  'rh': 'business',
-  'seo': 'business',
+  // Free (modules de base, accessibles meme en gratuit avec quotas)
+  'reservations': 'free',
+  'facturation': 'free',
+  'ecommerce': 'free',
+  // Basic (tout debloque + IA pay-as-you-go)
+  'agent_ia_web': 'basic',
+  'whatsapp': 'basic',
+  'telephone': 'basic',
+  'comptabilite': 'basic',
+  'stock': 'basic',
+  'devis': 'basic',
+  'crm_avance': 'basic',
+  'marketing': 'basic',
+  'analytics': 'basic',
+  'rh': 'basic',
+  'seo': 'basic',
+  'pipeline': 'basic',
+  // Business (premium)
   'sentinel': 'business',
 };
 
@@ -242,8 +243,8 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
   }, [hasModule, hasPlan]);
 
   const getRequiredPlanForItem = useCallback((item: NavItem): PlanType => {
-    if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'pro';
-    return item.requiredPlan || 'pro';
+    if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'basic';
+    return item.requiredPlan || 'basic';
   }, []);
 
   const getVisibleItems = useCallback((items: NavItem[]): NavItem[] => {
@@ -330,28 +331,33 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
     );
   };
 
-  // Plan badge
+  // Plan badge — Modèle 2026 (Free / Basic / Business)
   const PlanBadge = () => {
-    const colors = {
-      starter: 'bg-gray-500',
-      pro: 'bg-blue-500',
+    const colors: Record<string, string> = {
+      free: 'bg-gray-500',
+      basic: 'bg-gradient-to-r from-cyan-500 to-blue-500',
       business: 'bg-gradient-to-r from-yellow-500 to-orange-500',
+      // Legacy aliases
+      starter: 'bg-gray-500',
+      pro: 'bg-gradient-to-r from-cyan-500 to-blue-500',
     };
 
-    const labels = {
-      starter: 'Starter',
-      pro: 'Pro',
+    const labels: Record<string, string> = {
+      free: 'Free',
+      basic: 'Basic',
       business: 'Business',
+      starter: 'Free',
+      pro: 'Basic',
     };
 
     return (
       <span
         className={cn(
           'px-2 py-0.5 text-xs font-semibold text-white rounded-full',
-          colors[plan]
+          colors[plan] || 'bg-gray-500'
         )}
       >
-        {labels[plan]}
+        {labels[plan] || 'Free'}
       </span>
     );
   };
@@ -480,7 +486,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
               <p className="text-gray-600 mb-6">
                 Cette fonctionnalite est disponible a partir du plan{' '}
                 <span className="font-semibold text-gray-900">
-                  {PLAN_NAMES[upgradeModal.requiredPlan || 'pro']}
+                  {PLAN_NAMES[upgradeModal.requiredPlan || 'basic']}
                 </span>.
               </p>
 
@@ -488,21 +494,19 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-xl mb-6 border border-purple-100">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-gray-900">
-                    Plan {PLAN_NAMES[upgradeModal.requiredPlan || 'pro']}
+                    Plan {PLAN_NAMES[upgradeModal.requiredPlan || 'basic']}
                   </span>
                   <div className="flex items-baseline">
                     <span className="text-3xl font-bold text-gray-900">
-                      {PLAN_PRICES[upgradeModal.requiredPlan || 'pro']}
+                      {PLAN_PRICES[upgradeModal.requiredPlan || 'basic']}€
                     </span>
                     <span className="text-gray-500 ml-1">/mois</span>
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">
                   {upgradeModal.requiredPlan === 'business'
-                    ? '20 users, clients illimites, 300min voix IA'
-                    : upgradeModal.requiredPlan === 'pro'
-                    ? '5 users, 5000 clients, 60min voix IA'
-                    : '1 user, 1000 clients, 200 SMS'}
+                    ? 'Multi-sites, white-label, API + 10 000 credits IA inclus / mois (valeur 150€)'
+                    : 'Tout illimite (RDV, factures, CRM, comptabilite) + 500 credits IA inclus / mois'}
                 </p>
               </div>
 

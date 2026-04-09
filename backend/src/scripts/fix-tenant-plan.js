@@ -1,5 +1,6 @@
 /**
- * Fix tenant plan - Met à jour le plan d'un tenant pour activer les features Pro
+ * Fix tenant plan - Met à jour le plan d'un tenant
+ * Modèle 2026: free | basic | business
  */
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
@@ -17,7 +18,7 @@ const supabase = createClient(
 );
 
 const TENANT_ID = process.argv[2] || 'nexus-test';
-const NEW_PLAN = process.argv[3] || 'pro';
+const NEW_PLAN = process.argv[3] || 'basic';
 
 async function main() {
   console.log(`\n🔧 Mise à jour du plan pour tenant: ${TENANT_ID}\n`);

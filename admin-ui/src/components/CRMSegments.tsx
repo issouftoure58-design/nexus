@@ -188,7 +188,7 @@ export function CRMSegments() {
         <CardContent className="p-6 text-center">
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
           <p className="text-red-700 font-medium">{(error as Error).message}</p>
-          <p className="text-sm text-red-600 mt-2">La segmentation CRM nécessite le plan Pro.</p>
+          <p className="text-sm text-red-600 mt-2">La segmentation CRM nécessite le plan Basic (29€/mois).</p>
         </CardContent>
       </Card>
     );

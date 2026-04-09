@@ -77,15 +77,17 @@ const requireProPlan = async (req, res, next) => {
 
     if (error) throw error;
 
-    const plan = (tenant?.plan || 'starter').toLowerCase();
+    const plan = (tenant?.plan || 'free').toLowerCase();
 
-    if (plan === 'starter') {
+    // Modele 2026 : Free n'a pas l'IA. Basic et Business OK (Basic via credits, Business avec inclus)
+    // 'starter' = alias retro-compat de 'free'
+    if (plan === 'free' || plan === 'starter') {
       return res.status(403).json({
         error: 'Plan insuffisant',
         code: 'PLAN_UPGRADE_REQUIRED',
-        message: 'Les fonctionnalités IA vocale nécessitent le plan Pro ou Business',
+        message: 'Les fonctionnalités IA vocale nécessitent le plan Basic (29€/mois) ou Business — IA via crédits',
         current_plan: plan,
-        required_plan: 'pro',
+        required_plan: 'basic',
         upgrade_url: '/subscription'
       });
     }

@@ -1875,60 +1875,46 @@ export const TOOLS_ADMIN = [
 ];
 
 // ============================================
-// OUTILS PAR PLAN (Starter, Pro, Business)
+// OUTILS PAR PLAN (modele 2026 : Free, Basic, Business)
 // ============================================
 
 /**
  * Retourne les outils disponibles selon le plan du tenant
- * - Starter: Outils de base (gestion, marketing, compta)
- * - Pro: TOUS les outils (accès complet)
- * - Business: TOUS les outils (accès complet)
+ * Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
+ * - Free    : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees, 0 credit)
+ * - Basic   : 29€/mois, TOUS les outils, 500 credits IA inclus/mois (valeur 7,50€)
+ * - Business: 149€/mois, TOUS les outils, 10 000 credits IA inclus/mois (valeur 150€)
+ *
+ * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat
  */
-// Sous-ensembles RH et Analytics pour le plan Pro
-const RH_BASE_TOOLS = ['rh_liste_equipe', 'rh_heures_mois', 'rh_absences', 'rh_stats'];
-const ANALYTICS_BASE_TOOLS = ['analytics_kpi'];
-
 export function getToolsForPlan(plan) {
-  const basePlan = plan?.toLowerCase() || 'starter';
+  const rawPlan = plan?.toLowerCase() || 'free';
+  // Normalisation legacy
+  const basePlan = rawPlan === 'starter' ? 'free'
+                 : rawPlan === 'pro' ? 'basic'
+                 : rawPlan;
 
-  // Outils de base (Starter) — 64 outils
+  // Outils de gestion (sans IA) — disponibles meme en Free
   const baseTools = [
     ...TOOLS_CLIENT,
     ...TOOLS_ADMIN_GESTION,
-    ...TOOLS_ADMIN_MARKETING,
-    ...TOOLS_ADMIN_COMMERCIAL,
     ...TOOLS_ADMIN_COMPTABLE,
-    ...TOOLS_ADMIN_CONTENU,
-    ...TOOLS_ADMIN_VIDEO,
-    ...TOOLS_ADMIN_MEMOIRE,
     ...TOOLS_ADMIN_PLANIFICATION,
     ...TOOLS_ADMIN_AGENDA
   ];
 
-  // Plan Starter (99€): outils de base uniquement
-  if (basePlan === 'starter') {
+  // Plan Free (0€): outils de gestion uniquement, IA bloquee
+  if (basePlan === 'free') {
     return baseTools;
   }
 
-  // Plan Pro (249€): Starter + SEO, Social, RH base, Analytics KPI — 76 outils
-  if (basePlan === 'pro') {
-    return [
-      ...baseTools,
-      ...TOOLS_ADMIN_SEO,
-      ...TOOLS_ADMIN_SOCIAL,
-      ...TOOLS_ADMIN_RH.filter(t => RH_BASE_TOOLS.includes(t.name)),
-      ...TOOLS_ADMIN_ANALYTICS.filter(t => ANALYTICS_BASE_TOOLS.includes(t.name))
-    ];
-  }
-
-  // Plan Business/Enterprise (499€): TOUS les outils — 105 outils
-  // Inclut en plus du Pro: Stratégie, Analytics avancé, RH complet,
-  // Agent IA, Recherche web, Pro Tools
-  if (basePlan === 'business' || basePlan === 'enterprise') {
+  // Plan Basic (29€) ET Business (149€): TOUS les outils
+  // Difference : Basic = 500 credits inclus/mois, Business = 10 000 credits inclus/mois
+  if (basePlan === 'basic' || basePlan === 'business' || basePlan === 'enterprise') {
     return TOOLS_ADMIN;
   }
 
-  // Fallback: starter
+  // Fallback: free (le plus restrictif)
   return baseTools;
 }
 

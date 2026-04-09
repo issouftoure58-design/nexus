@@ -29,42 +29,55 @@ const router = express.Router();
  * Mapping module -> plans autorisés
  * IMPORTANT: Synchronisé avec checkPlan.js et moduleProtection.js
  *
- * Grille tarifaire 2026:
- * - Starter (79€/mois offre lancement): Dashboard, Réservations, Facturation, Agent IA Web
- * - Pro (249€/mois): + WhatsApp, Téléphone IA, Comptabilité, CRM, Stock, Devis
- * - Business (499€/mois): + Marketing, Pipeline, Analytics, SEO, RH, API, SENTINEL
+ * Grille tarifaire 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
+ * - Free (0€): Dashboard, 30 RDV/mois, 20 factures/mois, 50 clients (modules visibles, IA bloquee)
+ * - Basic (29€/mois): Tout illimite non-IA + 500 credits IA inclus/mois (valeur 7,50€)
+ * - Business (149€/mois): Basic + multi-sites, white-label, API, SSO + 10 000 credits IA inclus/mois (valeur 150€)
+ *
+ * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat (mappes en interne)
  */
 const MODULE_PLAN_ACCESS = {
-  // STARTER - Inclus dans tous les plans
-  'socle': ['starter', 'pro', 'business'],
-  'agent_ia_web': ['starter', 'pro', 'business'],
-  'ia_reservation': ['starter', 'pro', 'business'],
-  'facturation': ['starter', 'pro', 'business'],
+  // FREE - Modules visibles dans tous les plans (lecture / decouverte)
+  'socle': ['free', 'basic', 'business', 'starter', 'pro'],
+  'facturation': ['free', 'basic', 'business', 'starter', 'pro'],
 
-  // PRO - Nécessite plan Pro ou Business
-  'whatsapp': ['pro', 'business'],
-  'telephone': ['pro', 'business'],
-  'standard_ia': ['pro', 'business'],
-  'comptabilite': ['pro', 'business'],
-  'crm_avance': ['pro', 'business'],
-  'stock': ['pro', 'business'],
-  'devis': ['pro', 'business'],
+  // BASIC - Necessite plan Basic ou Business (IA via credits)
+  'agent_ia_web': ['basic', 'business', 'pro'],
+  'ia_reservation': ['basic', 'business', 'pro'],
+  'whatsapp': ['basic', 'business', 'pro'],
+  'telephone': ['basic', 'business', 'pro'],
+  'standard_ia': ['basic', 'business', 'pro'],
+  'comptabilite': ['basic', 'business', 'pro'],
+  'crm_avance': ['basic', 'business', 'pro'],
+  'stock': ['basic', 'business', 'pro'],
+  'devis': ['basic', 'business', 'pro'],
+  'marketing': ['basic', 'business', 'pro'],
+  'pipeline': ['basic', 'business', 'pro'],
+  'analytics': ['basic', 'business', 'pro'],
+  'seo': ['basic', 'business', 'pro'],
+  'rh': ['basic', 'business', 'pro'],
 
-  // BUSINESS - Exclusivement Business
-  'marketing': ['business'],
-  'pipeline': ['business'],
-  'analytics': ['business'],
-  'seo': ['business'],
-  'rh': ['business'],
+  // BUSINESS - Exclusivement Business (multi-sites, white-label, API)
   'api': ['business'],
   'sentinel': ['business'],
   'whitelabel': ['business'],
+  'multi_sites': ['business'],
+  'sso': ['business'],
 
-  // MODULES MÉTIER - Addon payant, tous plans
-  'restaurant': ['starter', 'pro', 'business'],
-  'hotel': ['starter', 'pro', 'business'],
-  'domicile': ['starter', 'pro', 'business'],
+  // MODULES METIER - Tous plans (acces selon business_profile)
+  'restaurant': ['free', 'basic', 'business', 'starter', 'pro'],
+  'hotel': ['free', 'basic', 'business', 'starter', 'pro'],
+  'domicile': ['free', 'basic', 'business', 'starter', 'pro'],
 };
+
+/**
+ * Normalise les anciens noms de plan vers les nouveaux
+ */
+function normalizePlanId(planId) {
+  if (planId === 'starter') return 'free';
+  if (planId === 'pro') return 'basic';
+  return planId || 'free';
+}
 
 /**
  * Vérifie si un plan peut accéder à un module
@@ -76,7 +89,8 @@ function canPlanAccessModule(planId, moduleId) {
     console.warn(`[MODULES] ⚠️ Module ${moduleId} non mappé dans MODULE_PLAN_ACCESS`);
     return true;
   }
-  return allowedPlans.includes(planId?.toLowerCase());
+  const normalized = normalizePlanId(planId?.toLowerCase());
+  return allowedPlans.includes(normalized) || allowedPlans.includes(planId?.toLowerCase());
 }
 
 /**
@@ -84,9 +98,9 @@ function canPlanAccessModule(planId, moduleId) {
  */
 function getMinimumPlanForModule(moduleId) {
   const allowedPlans = MODULE_PLAN_ACCESS[moduleId];
-  if (!allowedPlans) return 'starter';
-  if (allowedPlans.includes('starter')) return 'starter';
-  if (allowedPlans.includes('pro')) return 'pro';
+  if (!allowedPlans) return 'free';
+  if (allowedPlans.includes('free')) return 'free';
+  if (allowedPlans.includes('basic')) return 'basic';
   return 'business';
 }
 
@@ -686,7 +700,7 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
     if (tenantError) throw tenantError;
 
     const modulesActifs = tenant?.modules_actifs || { socle: true };
-    const tenantPlan = tenant?.plan || 'starter';
+    const tenantPlan = tenant?.plan || 'free';
 
     // ════════════════════════════════════════════════════════════════
     // VÉRIFICATION PLAN - SÉCURITÉ CRITIQUE
@@ -694,7 +708,7 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
     if (!canPlanAccessModule(tenantPlan, moduleId)) {
       const requiredPlan = getMinimumPlanForModule(moduleId);
       const { PLAN_PRICES } = await import('../config/pricing.js');
-      const planPrices = { starter: PLAN_PRICES.starter.monthly, pro: PLAN_PRICES.pro.monthly, business: PLAN_PRICES.business.monthly };
+      const planPrices = { free: PLAN_PRICES.free.monthly, basic: PLAN_PRICES.basic.monthly, business: PLAN_PRICES.business.monthly };
 
       console.log(`[MODULES] ⛔ Accès refusé: ${moduleId} nécessite ${requiredPlan}, tenant a ${tenantPlan}`);
 
@@ -973,7 +987,7 @@ router.post('/bulk', authenticateAdmin, async (req, res) => {
     if (tenantError) throw tenantError;
 
     let modulesActifs = { ...tenant?.modules_actifs } || { socle: true };
-    const tenantPlan = tenant?.plan || 'starter';
+    const tenantPlan = tenant?.plan || 'free';
 
     const errors = [];
     const activated = [];

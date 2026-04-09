@@ -7,121 +7,121 @@ import {
   FileText, CreditCard, Settings, Sparkles
 } from "lucide-react";
 
-// Feature categories
+// Feature categories — Modèle pricing 2026 révision finale 9 avril 2026 : Free / Basic 29€ (500 cr) / Business 149€ (10 000 cr)
 const FEATURE_CATEGORIES = [
   {
-    id: "core",
-    title: "Socle de Base",
-    subtitle: "Inclus dans tous les plans",
+    id: "free",
+    title: "Plan Free",
+    subtitle: "Gratuit a vie — pour decouvrir NEXUS",
     icon: Zap,
     color: "cyan",
     features: [
       {
-        name: "Dashboard IA",
-        description: "Vue d'ensemble de votre activite avec KPIs en temps reel et insights automatiques",
-        icon: BarChart3,
-      },
-      {
-        name: "CRM Intelligent",
-        description: "Gestion clients complete avec historique, preferences et segmentation automatique",
-        icon: Users,
-      },
-      {
-        name: "Reservations en ligne",
+        name: "Reservations en ligne (30/mois)",
         description: "Systeme de prise de RDV 24/7 avec confirmation SMS et rappels automatiques",
         icon: Calendar,
       },
       {
-        name: "Agent IA Web (Halimah)",
-        description: "Chatbot intelligent qui repond aux questions et prend les RDV automatiquement",
-        icon: Bot,
+        name: "Facturation (20/mois)",
+        description: "Creation et envoi de factures avec watermark NEXUS, export comptable basique",
+        icon: FileText,
       },
       {
-        name: "Site Vitrine",
+        name: "CRM jusqu'a 50 clients",
+        description: "Gestion clients basique avec historique et preferences",
+        icon: Users,
+      },
+      {
+        name: "Site vitrine public",
         description: "Page publique personnalisable pour presenter vos services et collecter les RDV",
         icon: Globe,
       },
       {
-        name: "Facturation",
-        description: "Creation et envoi de factures, suivi des paiements, export comptable",
-        icon: FileText,
+        name: "Tous les modules visibles",
+        description: "Decouvrez toute la plateforme avant de passer en Basic",
+        icon: BarChart3,
+      },
+      {
+        name: "Support email",
+        description: "Reponse sous 24h pour vous accompagner dans vos premiers pas",
+        icon: Mail,
       },
     ],
   },
   {
-    id: "pro",
-    title: "Fonctionnalites Pro",
-    subtitle: "Disponible avec le plan Pro",
+    id: "basic",
+    title: "Plan Basic — 29€/mois",
+    subtitle: "Tout illimite + IA via credits pay-as-you-go",
     icon: Sparkles,
     color: "purple",
     features: [
       {
-        name: "WhatsApp IA",
-        description: "Agent IA qui repond sur WhatsApp Business 24/7, prend les RDV et repond aux questions",
-        icon: MessageCircle,
+        name: "Reservations & Facturation illimitees",
+        description: "Aucune limite, aucun watermark sur vos factures",
+        icon: Calendar,
       },
       {
-        name: "Telephone IA",
-        description: "Assistant vocal qui decroche, prend les messages et planifie les rappels",
-        icon: Phone,
+        name: "CRM illimite + segmentation",
+        description: "Gestion clients complete avec historique, preferences et segmentation RFM",
+        icon: Users,
       },
       {
-        name: "Pipeline Commercial",
-        description: "Suivi des prospects, relances automatiques, conversion optimisee par l'IA",
-        icon: Target,
-      },
-      {
-        name: "Marketing Automatise",
-        description: "Campagnes SMS/email automatiques, generation de contenus par IA",
-        icon: Mail,
-      },
-      {
-        name: "Comptabilite",
-        description: "Suivi CA, depenses, P&L automatique, preparation bilan comptable",
+        name: "Comptabilite & RH complets",
+        description: "Suivi CA, depenses, P&L, gestion equipe, plannings et conges",
         icon: PieChart,
       },
       {
-        name: "Analytics Avances",
-        description: "Rapports detailles, tendances, predictions IA sur votre activite",
+        name: "Workflows, Devis, Pipeline",
+        description: "Automatisation marketing, devis pro, suivi commercial des opportunites",
+        icon: Target,
+      },
+      {
+        name: "Stock, Analytics, SEO",
+        description: "Inventaire produits, rapports detailles, optimisation Google",
         icon: TrendingUp,
+      },
+      {
+        name: "Toutes les fonctions IA en credits",
+        description: "WhatsApp IA, Telephone IA, chat web, marketing IA, articles SEO — payez uniquement ce que vous consommez",
+        icon: Bot,
       },
     ],
   },
   {
     id: "business",
-    title: "Fonctionnalites Business",
-    subtitle: "Disponible avec le plan Business",
+    title: "Plan Business — 149€/mois",
+    subtitle: "Pour les entreprises et chaines + 10 000 credits IA inclus (valeur 150€)",
     icon: Shield,
     color: "blue",
     features: [
       {
-        name: "RH & Planning Complet",
-        description: "Gestion des employes, plannings, conges, paie, contrats",
-        icon: Users,
-      },
-      {
-        name: "SEO IA",
-        description: "Optimisation automatique pour Google, generation de contenus SEO",
+        name: "Multi-sites illimites",
+        description: "Gerez plusieurs etablissements depuis un seul tableau de bord",
         icon: Globe,
       },
       {
-        name: "API & Integrations",
-        description: "Connectez NEXUS a vos outils existants via notre API REST",
-        icon: Settings,
-      },
-      {
-        name: "SENTINEL Intelligence",
-        description: "Monitoring avance de votre activite avec alertes predictives",
-        icon: Shield,
-      },
-      {
-        name: "White-label",
-        description: "Personnalisez NEXUS aux couleurs de votre marque",
+        name: "White-label complet",
+        description: "Personnalisez NEXUS avec votre logo, vos couleurs et votre domaine",
         icon: Sparkles,
       },
       {
-        name: "Support 24/7 + Account Manager",
-        description: "Un interlocuteur dedie pour vous accompagner",
+        name: "API & Webhooks",
+        description: "Connectez NEXUS a vos outils existants via notre API REST documentee",
+        icon: Settings,
+      },
+      {
+        name: "SSO entreprise",
+        description: "Single Sign-On pour vos equipes via Google, Microsoft, SAML",
+        icon: Shield,
+      },
+      {
+        name: "10 000 credits IA inclus / mois",
+        description: "Equivalent 150€ de credits IA inclus chaque mois au taux base (rechargeable a la demande avec le Pack 1000)",
+        icon: Zap,
+      },
+      {
+        name: "Support prioritaire 1h + Account Manager",
+        description: "Premiere reponse en 1h, account manager dedie, sessions de formation",
         icon: Phone,
       },
     ],

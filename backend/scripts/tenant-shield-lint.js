@@ -79,6 +79,7 @@ const SYSTEM_TABLES = [
   'stripe_processed_events', // idempotence check par event_id (Stripe events globaux)
   'rgpd_requests',      // job système cross-tenant (traite les demandes de tous les tenants)
   'client_consents',    // liées à clients par client_id
+  'signup_phone_verifications', // pre-tenant : vérification SMS AVANT création du tenant (lookup par phone_e164)
 ];
 
 // Fichiers à ignorer

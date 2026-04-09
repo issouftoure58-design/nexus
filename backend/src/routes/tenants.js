@@ -28,79 +28,99 @@ const router = express.Router();
 // QUOTAS PAR DÉFAUT SELON PLAN
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Modèle 2026 — révision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Free    : quotas stricts + IA bloquée (0 crédit)
+// Basic   : 29€/mois, tout illimité non-IA + 500 crédits IA inclus/mois (valeur 7,50€)
+// Business: 149€/mois, Basic + premium + 10 000 crédits IA inclus/mois (valeur 150€)
+const FREE_QUOTAS = {
+  clients_max: 50,
+  storage_gb: 1,
+  posts_ia_month: 0, // IA bloquée en Free
+  images_ia_month: 0,
+  reservations_month: 30,
+  factures_month: 20,
+  messages_ia_month: 0,
+  credits_ia_inclus_mois: 0,
+};
+const BASIC_QUOTAS = {
+  clients_max: -1,
+  storage_gb: 50,
+  posts_ia_month: -1, // via crédits IA
+  images_ia_month: -1,
+  reservations_month: -1,
+  factures_month: -1,
+  messages_ia_month: -1,
+  credits_ia_inclus_mois: 500,
+};
+const BUSINESS_QUOTAS = {
+  clients_max: -1,
+  storage_gb: 500,
+  posts_ia_month: -1,
+  images_ia_month: -1,
+  reservations_month: -1,
+  factures_month: -1,
+  messages_ia_month: -1,
+  credits_ia_inclus_mois: 10000,
+};
+
 const DEFAULT_QUOTAS = {
-  starter: {
-    clients_max: 1000,
-    storage_gb: 2,
-    posts_ia_month: 100,
-    images_ia_month: 100,
-    reservations_month: 500,
-    messages_ia_month: 1000,
-  },
-  pro: {
-    clients_max: 3000,
-    storage_gb: 10,
-    posts_ia_month: 500,
-    images_ia_month: 500,
-    reservations_month: 2000,
-    messages_ia_month: 5000,
-  },
-  business: {
-    clients_max: -1,
-    storage_gb: 50,
-    posts_ia_month: 2000,
-    images_ia_month: 2000,
-    reservations_month: -1,
-    messages_ia_month: -1,
-  },
+  free: FREE_QUOTAS,
+  basic: BASIC_QUOTAS,
+  business: BUSINESS_QUOTAS,
+  // ⚠️ DEPRECATED — alias retro-compat
+  starter: FREE_QUOTAS,
+  pro: BASIC_QUOTAS,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MODULES DISPONIBLES
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Modèle 2026 : Free / Basic / Business
+// Tous les agents IA sont disponibles à partir de Basic (29€/mois) et consomment des crédits IA
+// Le plan Free n'a pas accès aux fonctions IA (mais voit les modules en mode aperçu)
 const AVAILABLE_MODULES = [
   {
     id: 'agent_ia_web',
     name: 'Agent IA Web Chat',
     description: 'Assistant conversationnel sur votre site web',
-    price: 0, // Inclus dans tous les plans
-    requiredPlan: 'starter',
+    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
+    requiredPlan: 'basic',
   },
   {
     id: 'agent_ia_whatsapp',
     name: 'Agent IA WhatsApp',
     description: 'Réponses automatiques sur WhatsApp Business',
-    price: 0, // Inclus à partir du plan Pro
-    requiredPlan: 'pro',
+    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
+    requiredPlan: 'basic',
   },
   {
     id: 'agent_ia_telephone',
     name: 'Agent IA Téléphone',
     description: 'Standard téléphonique automatisé',
-    price: 0, // Inclus à partir du plan Pro
-    requiredPlan: 'pro',
+    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
+    requiredPlan: 'basic',
   },
   {
     id: 'restaurant',
     name: 'Module Restaurant Pro',
     description: 'Gestion spécialisée pour restaurants et traiteurs',
-    price: 39, // nexus_module_restaurant (migration 041)
-    requiredPlan: 'starter',
+    price: 0, // Inclus dans tous les plans (Free a une version limitée)
+    requiredPlan: 'free',
   },
   {
     id: 'hotel',
     name: 'Module Hôtel Pro',
     description: 'Gestion spécialisée pour hôtels et hébergements',
-    price: 69, // nexus_module_hotel (migration 041)
-    requiredPlan: 'starter',
+    price: 0, // Inclus dans tous les plans (Free a une version limitée)
+    requiredPlan: 'free',
   },
   {
     id: 'domicile',
     name: 'Module Domicile Pro',
     description: 'Gestion spécialisée pour services à domicile',
-    price: 29, // nexus_module_domicile (migration 041)
-    requiredPlan: 'starter',
+    price: 0, // Inclus dans tous les plans (Free a une version limitée)
+    requiredPlan: 'free',
   },
 ];
 
@@ -138,15 +158,17 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Déterminer le plan stocké et le plan effectif
-    const storedPlan = (tenant.plan || tenant.tier || 'starter').toLowerCase();
-    // ═══ ESSAI: plan effectif = Starter (accès restreint) ═══
+    // Modèle 2026 : Free / Basic / Business
+    // Le plan stocké est normalisé vers les noms canoniques
+    const rawStoredPlan = (tenant.plan || tenant.tier || 'free').toLowerCase();
+    const storedPlan = rawStoredPlan === 'starter' ? 'free' : rawStoredPlan === 'pro' ? 'basic' : rawStoredPlan;
+    // ═══ ESSAI: plan effectif = Basic (déverrouillé entierement, le tenant teste avant de payer) ═══
     // Le plan choisi reste mémorisé dans storedPlan pour la conversion post-paiement
-    const effectivePlan = tenant.statut === 'essai' ? 'starter' : storedPlan;
+    const effectivePlan = tenant.statut === 'essai' ? 'basic' : storedPlan;
 
-    // Construire les quotas selon le plan effectif (Starter pendant essai)
+    // Construire les quotas selon le plan effectif
     const quotas = {
-      ...DEFAULT_QUOTAS[effectivePlan] || DEFAULT_QUOTAS.starter,
+      ...DEFAULT_QUOTAS[effectivePlan] || DEFAULT_QUOTAS.free,
       ...(tenant.quotas || {}),
     };
 
@@ -317,9 +339,11 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    const storedPlan = (tenant?.plan || tenant?.tier || 'starter').toLowerCase();
-    // ═══ ESSAI: plan effectif Starter ═══
-    const currentPlan = tenant?.statut === 'essai' ? 'starter' : storedPlan;
+    // Modèle 2026 : Free / Basic / Business
+    const rawStoredPlan = (tenant?.plan || tenant?.tier || 'free').toLowerCase();
+    const storedPlan = rawStoredPlan === 'starter' ? 'free' : rawStoredPlan === 'pro' ? 'basic' : rawStoredPlan;
+    // ═══ ESSAI: plan effectif = Basic (déverrouillé entierement) ═══
+    const currentPlan = tenant?.statut === 'essai' ? 'basic' : storedPlan;
     const activeModules = tenant?.modules_actifs || {};
 
     // Enrichir les modules avec leur statut
@@ -761,9 +785,17 @@ router.patch('/me/complete-onboarding', authenticateAdmin, async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function isPlanSufficient(currentPlan, requiredPlan) {
-  const planOrder = ['starter', 'pro', 'business'];
-  const currentIndex = planOrder.indexOf(currentPlan);
-  const requiredIndex = planOrder.indexOf(requiredPlan);
+  // Modèle 2026 : Free / Basic / Business
+  // Normaliser les anciens noms (starter→free, pro→basic) pour rétrocompat
+  const normalize = (p) => {
+    const x = (p || 'free').toLowerCase();
+    if (x === 'starter') return 'free';
+    if (x === 'pro') return 'basic';
+    return x;
+  };
+  const planOrder = ['free', 'basic', 'business'];
+  const currentIndex = planOrder.indexOf(normalize(currentPlan));
+  const requiredIndex = planOrder.indexOf(normalize(requiredPlan));
   return currentIndex >= requiredIndex;
 }
 

@@ -2,7 +2,7 @@
  * ModuleGate - Bloque l'accès aux modules selon plan/modules
  *
  * Usage:
- *   <ModuleGate requiredPlan="pro">
+ *   <ModuleGate requiredPlan="basic">
  *     <CRMPage />
  *   </ModuleGate>
  *
@@ -11,7 +11,7 @@
  *   </ModuleGate>
  */
 
-import { useTenant, PlanType } from '@/hooks/useTenant';
+import { useTenant, PlanType, normalizePlan } from '@/hooks/useTenant';
 import { Lock, Zap, Crown, Sparkles, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -36,34 +36,36 @@ interface ModuleGateProps {
 // PLAN INFO
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PLAN_INFO: Record<PlanType, { name: string; color: string; price: number }> = {
-  starter: { name: 'Starter', color: 'gray', price: 99 },
-  pro: { name: 'Pro', color: 'blue', price: 249 },
-  business: { name: 'Business', color: 'yellow', price: 499 },
+// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+const PLAN_INFO: Record<'free' | 'basic' | 'business', { name: string; color: string; price: number }> = {
+  free: { name: 'Free', color: 'gray', price: 0 },
+  basic: { name: 'Basic', color: 'cyan', price: 29 },
+  business: { name: 'Business', color: 'purple', price: 149 },
 };
 
-const PLAN_FEATURES: Record<PlanType, string[]> = {
-  starter: [
-    'Dashboard & Réservations',
-    'Facturation & Documents',
-    'Agent IA Web',
+const PLAN_FEATURES: Record<'free' | 'basic' | 'business', string[]> = {
+  free: [
+    '30 réservations / mois',
+    '20 factures / mois (avec watermark)',
+    '50 clients max dans le CRM',
+    'Tous les modules visibles (lecture)',
     'Support email',
   ],
-  pro: [
-    'Tout Starter +',
-    'WhatsApp & Téléphone IA',
-    'Comptabilité complète',
-    'CRM avancé & Stock',
-    'Devis & Segments',
-    'Support prioritaire',
+  basic: [
+    'Réservations illimitées',
+    'Facturation illimitée (sans watermark)',
+    'CRM, Équipe, Fidélité, Comptabilité, RH, Stock',
+    'Workflows, Pipeline, Devis, SEO',
+    '500 crédits IA inclus chaque mois (valeur 7,50€)',
+    'Support email prioritaire',
   ],
   business: [
-    'Tout Pro +',
-    'Marketing & Pipeline commercial',
-    'Analytics avancés & SEO',
-    'RH & Planning équipe',
-    'API & Intégrations',
-    'Account Manager dédié',
+    'Tout Basic +',
+    'Multi-sites illimités',
+    'White-label (logo + domaine custom)',
+    'API + Webhooks + SSO entreprise',
+    '10 000 crédits IA inclus chaque mois (valeur 150€)',
+    'Account Manager dédié + support prioritaire 1h',
   ],
 };
 
@@ -82,8 +84,9 @@ export function ModuleGate({
 
   // Vérif plan minimum
   if (requiredPlan && !hasPlan(requiredPlan)) {
-    const planInfo = PLAN_INFO[requiredPlan];
-    const features = PLAN_FEATURES[requiredPlan];
+    const normalizedRequired = normalizePlan(requiredPlan);
+    const planInfo = PLAN_INFO[normalizedRequired];
+    const features = PLAN_FEATURES[normalizedRequired];
 
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-8">
@@ -97,7 +100,7 @@ export function ModuleGate({
               </div>
 
               <h2 className="text-3xl font-bold text-white mb-3">
-                {moduleTitle || `Module ${requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)}`}
+                {moduleTitle || `Module ${normalizedRequired.charAt(0).toUpperCase() + normalizedRequired.slice(1)}`}
               </h2>
 
               <p className="text-white/70 text-lg max-w-md mx-auto">
@@ -111,7 +114,7 @@ export function ModuleGate({
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-6">
                 <div>
                   <p className="text-sm text-gray-500">Votre plan actuel</p>
-                  <p className="font-semibold text-gray-900">{PLAN_INFO[plan].name}</p>
+                  <p className="font-semibold text-gray-900">{PLAN_INFO[normalizePlan(plan)].name}</p>
                 </div>
                 <ArrowRight className="w-5 h-5 text-gray-400" />
                 <div className="text-right">
@@ -197,7 +200,7 @@ export function ModuleGate({
           </Link>
 
           <p className="mt-6 text-sm text-gray-500">
-            Plan actuel : <span className="font-semibold">{PLAN_INFO[plan].name}</span>
+            Plan actuel : <span className="font-semibold">{PLAN_INFO[normalizePlan(plan)].name}</span>
           </p>
         </div>
       </div>

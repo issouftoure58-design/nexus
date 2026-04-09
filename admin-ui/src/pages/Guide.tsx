@@ -41,7 +41,7 @@ interface GuideSection {
   icon: React.ElementType;
   title: string;
   path?: string;
-  badge?: 'Pro' | 'Business';
+  badge?: 'Basic' | 'Business';
   condition: (checks: ReturnType<typeof useBusinessTypeChecks>) => boolean;
   content: (term: typeof TERMINOLOGY[string]) => string[];
   tip?: (term: typeof TERMINOLOGY[string]) => string;
@@ -90,14 +90,16 @@ function getQuickLinks(businessType: string): { label: string; path: string; ico
 // Badge couleur plan
 // ---------------------------------------------------------------------------
 function PlanBadge({ plan }: { plan: string }) {
+  // Modele 2026 : free / basic / business + aliases retro-compat
+  const normalized = plan === 'starter' ? 'free' : plan === 'pro' ? 'basic' : plan;
   const colors: Record<string, string> = {
-    starter: 'bg-green-100 text-green-700',
-    pro: 'bg-blue-100 text-blue-700',
+    free: 'bg-gray-100 text-gray-700',
+    basic: 'bg-cyan-100 text-cyan-700',
     business: 'bg-purple-100 text-purple-700',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[plan] || colors.starter}`}>
-      {plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Starter'}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[normalized] || colors.free}`}>
+      {normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Free'}
     </span>
   );
 }
@@ -304,7 +306,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: FileText,
     title: 'Devis',
     path: '/devis',
-    badge: 'Pro',
+    badge: 'Basic',
     condition: always,
     content: (t) => [
       `Creez des devis professionnels pour vos ${t.client}s. Chaque devis peut etre converti en facture en un clic.`,
@@ -317,7 +319,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: CreditCard,
     title: 'Comptabilite',
     path: '/comptabilite',
-    badge: 'Pro',
+    badge: 'Basic',
     condition: always,
     content: () => [
       `5 onglets : Compte de Resultat, Bilan, Rapprochement bancaire, Comptes Auxiliaires et Espace Expert-comptable.`,
@@ -331,7 +333,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Package,
     title: 'Stock & Inventaire',
     path: '/stock',
-    badge: 'Pro',
+    badge: 'Basic',
     condition: always,
     content: () => [
       `Gerez vos produits avec suivi des quantites, alertes de stock bas et historique des mouvements.`,
@@ -348,8 +350,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     condition: always,
     content: (t) => [
       `L'Agent IA Web est un chatbot 24/7 integre a votre site. Il repond aux questions et prend les ${t.booking}s automatiquement.`,
-      `L'Agent IA Telephone (Pro) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain.`,
-      `L'Agent IA WhatsApp (Pro) repond a vos ${t.client}s sur WhatsApp avec les memes capacites.`,
+      `L'Agent IA Telephone (Basic) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain. Consomme des credits IA a l'usage.`,
+      `L'Agent IA WhatsApp (Basic) repond a vos ${t.client}s sur WhatsApp avec les memes capacites. Consomme des credits IA a l'usage.`,
       `Tous les agents sont entraines sur vos donnees (services, horaires, FAQ) et respectent votre ton de communication.`,
     ],
     tip: (t) => `Astuce : renseignez bien vos services et horaires — plus l'IA a d'informations, mieux elle repond a vos ${t.client}s.`,
@@ -446,7 +448,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     content: (t) => [
       `Gerez votre profil, mot de passe et authentification a deux facteurs (2FA).`,
       `La section Equipe permet d'inviter des ${t.staff}s avec des roles et permissions personnalises.`,
-      `Consultez et gerez votre abonnement (Starter, Pro, Business) dans "Mon abonnement". L'essai gratuit dure 14 jours.`,
+      `Consultez et gerez votre abonnement (Free, Basic 29€/mois avec 500 credits IA inclus, Business 149€/mois avec 10 000 credits IA inclus) dans "Mon abonnement". L'essai Basic gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
       `La section Activite permet de decrire votre etablissement — ces informations sont utilisees par l'IA pour renseigner vos ${t.client}s.`,
     ],
   },
@@ -480,7 +482,7 @@ export default function Guide() {
   const quickLinks = useMemo(() => getQuickLinks(businessType), [businessType]);
 
   const badgeColor: Record<string, string> = {
-    Pro: 'bg-blue-100 text-blue-700 border-blue-200',
+    Basic: 'bg-cyan-100 text-cyan-700 border-cyan-200',
     Business: 'bg-purple-100 text-purple-700 border-purple-200',
   };
 

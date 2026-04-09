@@ -10,11 +10,19 @@ interface TenantInfo {
   quota: { percentage: number; status: string };
 }
 
-const PLAN_PRICES: Record<string, number> = { starter: 99, pro: 249, business: 499 };
+// Modèle pricing 2026 — révision finale 9 avril 2026 — Free 0€ / Basic 29€ (500 cr inclus) / Business 149€ (10 000 cr inclus)
+const PLAN_PRICES: Record<string, number> = { free: 0, basic: 29, business: 149 };
 const PLAN_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
-  starter: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },
-  pro: { bar: 'bg-blue-500', text: 'text-blue-400', bg: 'bg-blue-950/30 border-blue-800' },
+  free: { bar: 'bg-slate-500', text: 'text-slate-400', bg: 'bg-slate-950/30 border-slate-800' },
+  basic: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },
   business: { bar: 'bg-purple-500', text: 'text-purple-400', bg: 'bg-purple-950/30 border-purple-800' },
+};
+
+// Retro-compat : starter→free, pro→basic
+const normalizePlan = (plan: string): string => {
+  if (plan === 'starter') return 'free';
+  if (plan === 'pro') return 'basic';
+  return plan;
 };
 
 export default function NexusBilling() {
@@ -48,11 +56,15 @@ export default function NexusBilling() {
     return () => clearInterval(id);
   }, []);
 
-  const mrr = tenants.reduce((sum, t) => sum + (PLAN_PRICES[t.plan] || 0), 0);
+  const mrr = tenants.reduce((sum, t) => sum + (PLAN_PRICES[normalizePlan(t.plan)] || 0), 0);
   const arr = mrr * 12;
   const totalCost = tenants.reduce((sum, t) => sum + t.usage.cost, 0);
   const margin = mrr > 0 ? ((mrr - totalCost) / mrr * 100) : 0;
-  const planCounts = tenants.reduce<Record<string, number>>((acc, t) => { acc[t.plan] = (acc[t.plan] || 0) + 1; return acc; }, {});
+  const planCounts = tenants.reduce<Record<string, number>>((acc, t) => {
+    const p = normalizePlan(t.plan);
+    acc[p] = (acc[p] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <NexusLayout>
@@ -82,7 +94,7 @@ export default function NexusBilling() {
             <div className="bg-slate-900 rounded-lg border border-slate-800 mb-6 p-4">
               <h2 className="font-semibold text-white mb-4">Revenus par plan</h2>
               <div className="space-y-4">
-                {(['starter', 'pro', 'business'] as const).map((plan) => {
+                {(['free', 'basic', 'business'] as const).map((plan) => {
                   const count = planCounts[plan] || 0;
                   const total = tenants.length || 1;
                   const pct = (count / total) * 100;
@@ -129,9 +141,10 @@ export default function NexusBilling() {
                 </thead>
                 <tbody>
                   {tenants.map((t) => {
-                    const price = PLAN_PRICES[t.plan] || 0;
+                    const np = normalizePlan(t.plan);
+                    const price = PLAN_PRICES[np] || 0;
                     const tMargin = price > 0 ? ((price - t.usage.cost) / price * 100) : 0;
-                    const c = PLAN_COLORS[t.plan] || PLAN_COLORS.starter;
+                    const c = PLAN_COLORS[np] || PLAN_COLORS.free;
                     return (
                       <tr key={t.id} className="border-t border-slate-800 hover:bg-slate-800/30 transition group">
                         <td className="px-4 py-3">
@@ -139,7 +152,7 @@ export default function NexusBilling() {
                           <div className="text-xs text-slate-500">{t.id}</div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded text-xs border ${c.bg} ${c.text} capitalize`}>{t.plan}</span>
+                          <span className={`px-2 py-1 rounded text-xs border ${c.bg} ${c.text} capitalize`}>{np}</span>
                         </td>
                         <td className="px-4 py-3 text-right text-slate-300 font-mono">{price}€</td>
                         <td className="px-4 py-3 text-right text-slate-300 font-mono">{t.usage.cost.toFixed(2)}€</td>
