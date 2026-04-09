@@ -22,7 +22,6 @@ import {
   Check,
   Zap,
   Phone,
-  MessageSquare,
   Globe,
   Users,
   BarChart3,
@@ -30,8 +29,6 @@ import {
   Star,
   X,
   AlertTriangle,
-  Mail,
-  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreditsBalanceCard } from '@/components/CreditsBalanceCard';
@@ -63,35 +60,6 @@ interface SubscriptionData {
   cancel_at_period_end: boolean;
   cancel_at: string | null;
   items: unknown[];
-}
-
-interface QuotaMetric {
-  used: number;
-  limit: number;
-  remaining: number;
-  percentage: number;
-  excess: number;
-  overageRate: number;
-  overageCost: number;
-  status: 'ok' | 'warning' | 'exceeded';
-}
-
-interface QuotaModule {
-  name: string;
-  basePrice: number;
-  unlimited: boolean;
-  metrics: Record<string, QuotaMetric>;
-}
-
-interface QuotaStatusResponse {
-  success: boolean;
-  tenantId: string;
-  modules: Record<string, QuotaModule>;
-  totalOverage: number;
-  resetDate: string;
-  resetInDays: number;
-  modulesActifs: Record<string, boolean>;
-  pendingActivations: string[];
 }
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -173,49 +141,6 @@ const PLANS = [
   },
 ];
 
-// Labels et unités spécifiques par métrique (quand un module a plusieurs métriques)
-const METRIC_LABELS: Record<string, Record<string, { label: string; unit: string }>> = {
-  web_chat_ia: {
-    sessions: { label: 'Chat Web IA — Sessions', unit: 'sessions' },
-    messages: { label: 'Chat Web IA — Messages', unit: 'msg' },
-  },
-};
-
-// Config d'affichage par module de quota
-const QUOTA_MODULE_CONFIG: Record<string, { icon: typeof Phone; label: string; unit: string; color: string }> = {
-  telephone_ia: { icon: Phone, label: 'Voix IA', unit: 'min', color: 'text-purple-600' },
-  sms_rdv: { icon: MessageSquare, label: 'SMS', unit: 'SMS', color: 'text-cyan-600' },
-  whatsapp_ia: { icon: MessageSquare, label: 'WhatsApp IA', unit: 'msg', color: 'text-green-600' },
-  web_chat_ia: { icon: Globe, label: 'Chat Web IA', unit: 'sessions', color: 'text-blue-600' },
-  marketing_email: { icon: Mail, label: 'Email Marketing', unit: 'emails', color: 'text-orange-600' },
-};
-
-// Modules avec quotas visibles par plan (modèle 2026)
-// Free: aucun module IA accessible. Basic et Business: tous les modules IA via crédits.
-const PLAN_MODULES: Record<string, string[]> = {
-  free: [],
-  basic: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
-  business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
-  // ⚠️ DEPRECATED — Aliases retro-compat
-  starter: [],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
-};
-
-// Mapping quotaModuleId → clé dans modules_actifs
-const QUOTA_TO_MODULE_KEY: Record<string, string> = {
-  telephone_ia: 'telephone',
-  sms_rdv: 'sms_rdv',
-  whatsapp_ia: 'whatsapp',
-  web_chat_ia: 'agent_ia_web',
-  marketing_email: 'marketing_email',
-};
-
-// Modules toujours considérés actifs (infra partagée)
-const ALWAYS_ACTIVE_MODULES = new Set(['sms_rdv', 'marketing_email']);
-
-const getBarColor = (pct: number) =>
-  pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-green-500';
-
 export default function Subscription() {
   const queryClient = useQueryClient();
   const { plan: currentPlan, tenant, isLoading: loadingTenant } = useTenant();
@@ -233,13 +158,6 @@ export default function Subscription() {
   const { data: paymentMethodsData, isError: isPmError } = useQuery({
     queryKey: ['payment-methods'],
     queryFn: () => api.get<{ payment_methods: PaymentMethod[] }>('/billing/payment-methods'),
-  });
-
-  // Charger les quotas de consommation
-  const { data: quotaData, isLoading: isQuotaLoading } = useQuery<QuotaStatusResponse>({
-    queryKey: ['quotas'],
-    queryFn: () => api.get<QuotaStatusResponse>('/quotas'),
-    staleTime: 60_000,
   });
 
   // Charger les factures
@@ -308,17 +226,6 @@ export default function Subscription() {
     },
     onError: (err: Error) => {
       setError(err.message || 'Impossible de supprimer la carte');
-    },
-  });
-
-  // Mutation pour demander l'activation d'un module
-  const activationMutation = useMutation({
-    mutationFn: (moduleId: string) => api.post('/quotas/request-activation', { moduleId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotas'] });
-    },
-    onError: (err: Error) => {
-      setError(err.message || 'Impossible d\'envoyer la demande d\'activation');
     },
   });
 
@@ -593,130 +500,6 @@ export default function Subscription() {
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Consommation du mois */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-gray-400" />
-                Consommation du mois
-              </h2>
-              {quotaData && (
-                <span className="text-sm text-gray-500">
-                  Réinitialisation dans {quotaData.resetInDays} jour{quotaData.resetInDays > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-
-            <div className="p-6 space-y-5">
-              {isQuotaLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
-                </div>
-              ) : quotaData?.modules ? (
-                <>
-                  {(PLAN_MODULES[currentPlan || 'free'] || PLAN_MODULES.free).map((moduleId: string) => {
-                    const mod = quotaData.modules[moduleId];
-                    const config = QUOTA_MODULE_CONFIG[moduleId];
-                    if (!mod || !config) return null;
-
-                    const metricEntries = Object.entries(mod.metrics);
-                    if (metricEntries.length === 0) return null;
-
-                    // Déterminer le statut d'activation
-                    const moduleKey = QUOTA_TO_MODULE_KEY[moduleId] || moduleId;
-                    const isAlwaysActive = ALWAYS_ACTIVE_MODULES.has(moduleId);
-                    const isActive = isAlwaysActive || quotaData.modulesActifs?.[moduleKey] === true;
-                    const isPending = !isActive && quotaData.pendingActivations?.includes(moduleId);
-
-                    // Module non activé — afficher demande d'activation
-                    if (!isActive && !isAlwaysActive) {
-                      const Icon = config.icon;
-                      return (
-                        <div key={moduleId} className={cn('rounded-lg p-4', isPending ? 'bg-yellow-50' : 'bg-gray-50')}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Icon className={cn('w-4 h-4', isPending ? 'text-yellow-600' : 'text-gray-400')} />
-                              <span className="text-sm font-medium text-gray-900">{config.label}</span>
-                            </div>
-                            {isPending ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
-                                <Clock className="w-3 h-3" />
-                                Activation en cours
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => activationMutation.mutate(moduleId)}
-                                disabled={activationMutation.isPending}
-                                className="px-3 py-1.5 bg-cyan-500 text-white text-xs font-medium rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50"
-                              >
-                                Demander l'activation
-                              </button>
-                            )}
-                          </div>
-                          {isPending && (
-                            <p className="mt-2 text-xs text-yellow-600">Votre demande est en cours de traitement</p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // Module actif — afficher les barres de progression
-                    return metricEntries.map(([metricKey, metric]) => {
-                      const Icon = config.icon;
-                      const metricOverride = METRIC_LABELS[moduleId]?.[metricKey];
-                      const displayLabel = metricOverride?.label || config.label;
-                      const displayUnit = metricOverride?.unit || config.unit;
-                      return (
-                        <div key={`${moduleId}-${metricKey}`}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <Icon className={cn('w-4 h-4', config.color)} />
-                              <span className="text-sm font-medium text-gray-900">{displayLabel}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-600">
-                                {metric.used} / {metric.limit} {displayUnit}
-                              </span>
-                              {metric.status === 'exceeded' ? (
-                                <span className="text-xs font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                                  Dépassé
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400">
-                                  ({metric.remaining} restants)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={cn('h-full rounded-full transition-all', getBarColor(metric.percentage))}
-                              style={{ width: `${Math.min(metric.percentage, 100)}%` }}
-                            />
-                          </div>
-                          {metric.excess > 0 && (
-                            <p className="mt-1 text-xs text-red-600">
-                              {metric.excess} {displayUnit} en dépassement = {metric.overageCost.toFixed(2)}€
-                            </p>
-                          )}
-                        </div>
-                      );
-                    });
-                  })}
-
-                  {quotaData.totalOverage > 0 && (
-                    <div className="mt-2 pt-4 border-t border-gray-200 flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Total dépassement ce mois</span>
-                      <span className="text-sm font-bold text-red-600">{quotaData.totalOverage.toFixed(2)}€</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4">Aucune donnée de consommation</p>
-              )}
             </div>
           </div>
 
