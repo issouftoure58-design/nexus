@@ -147,7 +147,7 @@ function getPlanCapabilities(plan) {
   ];
   const basicCaps = [
     'Tout illimité (réservations, factures, clients)',
-    'CRM complet, Comptabilité, RH, Stock',
+    'CRM complet, Comptabilité, Stock',
     'Workflows, Pipeline, Devis, SEO',
     'Marketing email/SMS/réseaux sociaux',
     'WhatsApp IA, Téléphone IA, Agent web',
@@ -155,7 +155,8 @@ function getPlanCapabilities(plan) {
     'Analytics et tableaux de bord'
   ];
   const businessCaps = [
-    'Multi-sites',
+    'RH & Planning complet',
+    'Équipe (20 max), Multi-sites',
     'White-label (logo + domaine custom)',
     'API + Webhooks + SSO entreprise',
     '10 000 crédits IA inclus chaque mois (valeur 150€)',

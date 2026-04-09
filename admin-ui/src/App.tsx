@@ -242,7 +242,7 @@ function App() {
             <Route path="/commandes" element={<ModuleRoute module="ecommerce" moduleTitle="Commandes" moduleDescription="Gestion des commandes"><Commandes /></ModuleRoute>} />
             <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
             <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
-            <Route path="/rh" element={<ModuleRoute module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
+            <Route path="/rh" element={<ModuleRoute requiredPlan="business" module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
             {/* Modules Marketing — verrouilles Basic+ (Free tier bloque sur features IA) */}
             <Route path="/segments" element={<ModuleRoute requiredPlan="basic" module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />

@@ -90,7 +90,7 @@ const BASIC_FEATURES = {
   fidelite: true,
   comptabilite: true,
   stock: true,
-  rh: true,
+  rh: false,            // RH = Business uniquement (multi-sites, équipes larges)
   crm_avance: true,
   devis: true,
   marketing: true,
@@ -115,7 +115,8 @@ const BASIC_FEATURES = {
  */
 const BUSINESS_FEATURES = {
   ...BASIC_FEATURES,
-  // Premium
+  // Business-only
+  rh: true,             // RH débloqué en Business (override du false Basic)
   multi_site: true,
   whitelabel: true,
   api: true,

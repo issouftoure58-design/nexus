@@ -56,14 +56,14 @@ const PLAN_FEATURES: Record<'free' | 'basic' | 'business', string[]> = {
   basic: [
     'Réservations illimitées',
     'Facturation illimitée (sans watermark)',
-    'CRM, Équipe, Fidélité, Comptabilité, RH, Stock',
+    'CRM, Équipe (5 max), Fidélité, Comptabilité, Stock',
     'Workflows, Pipeline, Devis, SEO',
     '1 000 crédits IA inclus chaque mois (valeur 15€)',
     'Support email prioritaire',
   ],
   business: [
-    'Tout Basic +',
-    'Multi-sites',
+    'Tout Basic + RH & Planning',
+    'Équipe (20 max), Multi-sites',
     'White-label (logo + domaine custom)',
     'API + Webhooks + SSO entreprise',
     '10 000 crédits IA inclus chaque mois (valeur 150€)',

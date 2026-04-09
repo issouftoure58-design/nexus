@@ -66,8 +66,8 @@ const FEATURE_CATEGORIES = [
         icon: Users,
       },
       {
-        name: "Comptabilite & RH complets",
-        description: "Suivi CA, depenses, P&L, gestion equipe, plannings et conges",
+        name: "Comptabilite complete",
+        description: "Suivi CA, depenses, P&L, grand livre, bilan et TVA",
         icon: PieChart,
       },
       {

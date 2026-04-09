@@ -111,8 +111,8 @@ const PLANS = [
     features: [
       { text: 'Réservations illimitées', icon: Clock },
       { text: 'Facturation illimitée (sans watermark)', icon: FileText },
-      { text: 'CRM, Équipe, Fidélité illimités', icon: Users },
-      { text: 'Comptabilité, RH, Stock complets', icon: BarChart3 },
+      { text: 'CRM, Équipe (5 max), Fidélité', icon: Users },
+      { text: 'Comptabilité, Stock complets', icon: BarChart3 },
       { text: 'Workflows, Pipeline, Devis, SEO', icon: Sparkles },
       { text: 'WhatsApp IA, Téléphone IA, Marketing IA', icon: Phone },
       { text: '1 000 crédits IA inclus / mois (valeur 15€)', icon: Zap },
@@ -130,6 +130,7 @@ const PLANS = [
     color: 'from-purple-500 to-indigo-600',
     features: [
       { text: 'Tout Basic +', icon: CheckCircle },
+      { text: 'RH & Planning complet', icon: Users },
       { text: 'Multi-sites', icon: Globe },
       { text: 'White-label (logo + domaine custom)', icon: Star },
       { text: 'API + Webhooks', icon: Shield },

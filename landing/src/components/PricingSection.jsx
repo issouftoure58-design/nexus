@@ -74,8 +74,8 @@ export default function PricingSection() {
                 'Reservations illimitees',
                 'Facturation illimitee (sans watermark)',
                 '1 000 credits IA inclus / mois (valeur 15€)',
-                'CRM, Equipe, Fidelite illimites',
-                'Comptabilite, RH, Stock complets',
+                'CRM, Equipe (5 max), Fidelite',
+                'Comptabilite, Stock complets',
                 'Workflows, Pipeline, Devis, SEO',
                 'Support email prioritaire',
               ].map((feature) => (
@@ -109,7 +109,8 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                'Tout Basic + multi-sites',
+                'Tout Basic + RH & Planning',
+                'Multi-sites',
                 'White-label (logo + domaine custom)',
                 'API + Webhooks',
                 'SSO entreprise',

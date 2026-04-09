@@ -16,11 +16,11 @@ const PLANS = [
   },
   {
     name: 'Basic', price: 29, color: 'cyan', popular: true,
-    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, RH, Stock', 'Workflows, Pipeline, Devis, SEO', '1 000 credits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
+    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, Stock, Equipe (5 max)', 'Workflows, Pipeline, Devis, SEO', '1 000 credits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
   },
   {
     name: 'Business', price: 149, color: 'purple',
-    features: ['Tout Basic +', 'Multi-sites', 'White-label + API + SSO', '10 000 credits IA inclus / mois (valeur 150€)', 'Account Manager dedie'],
+    features: ['Tout Basic + RH & Planning', 'Equipe (20 max), Multi-sites', 'White-label + API + SSO', '10 000 credits IA inclus / mois (valeur 150€)', 'Account Manager dedie'],
   },
 ];
 

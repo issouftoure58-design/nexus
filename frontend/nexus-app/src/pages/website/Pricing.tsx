@@ -54,8 +54,8 @@ const PLANS = [
     features: [
       { text: 'Reservations illimitees', included: true },
       { text: 'Facturation illimitee (sans watermark)', included: true },
-      { text: 'CRM, Equipe, Fidelite illimites', included: true },
-      { text: 'Comptabilite, RH, Stock complets', included: true },
+      { text: 'CRM, Equipe (5 max), Fidelite', included: true },
+      { text: 'Comptabilite, Stock complets', included: true },
       { text: 'Workflows, Pipeline, Devis, SEO', included: true },
       { text: '1 000 credits IA inclus chaque mois', included: true },
       { text: 'WhatsApp IA, Telephone IA, Marketing IA', included: true },
@@ -78,7 +78,8 @@ const PLANS = [
     color: 'from-purple-500 to-indigo-600',
     features: [
       { text: 'Tout Basic +', included: true },
-      { text: 'Multi-sites', included: true },
+      { text: 'RH & Planning complet', included: true },
+      { text: 'Equipe (20 max), Multi-sites', included: true },
       { text: 'White-label (logo + domaine)', included: true },
       { text: 'API + Webhooks', included: true },
       { text: 'SSO entreprise', included: true },

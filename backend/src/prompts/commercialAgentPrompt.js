@@ -56,7 +56,7 @@ const PRICING = {
         'Facturation illimitee (sans watermark)',
         '1 000 credits IA inclus / mois (valeur 15€)',
         'CRM, Equipe, Fidelite illimites',
-        'Comptabilite, RH, Stock complets',
+        'Comptabilite, Stock complets',
         'Workflows, Pipeline, Devis, SEO',
         'Toutes les fonctions IA disponibles via credits',
         'Support email prioritaire'
@@ -76,7 +76,8 @@ const PRICING = {
       ia_included: '10 000 credits IA inclus chaque mois (valeur 150€)',
       features: [
         'Tout Basic +',
-        'Multi-sites',
+        'RH & Planning complet',
+        'Equipe (20 max), Multi-sites',
         'White-label (logo + domaine custom)',
         'API + Webhooks',
         'SSO entreprise',
@@ -163,8 +164,8 @@ NEXUS a 3 niveaux d'acces:
 - Reservations, factures, clients ILLIMITES
 - Facturation complete sans watermark
 - **1 000 credits IA inclus chaque mois (valeur 15€)**
-- Comptabilite, RH, Stock complets
-- Equipe, Fidelite, Workflows, Pipeline, Devis, SEO
+- Comptabilite, Stock complets
+- Equipe (5 max), Fidelite, Workflows, Pipeline, Devis, SEO
 - Toutes les fonctions IA disponibles
 - Support email prioritaire
 - 290€/an si paiement annuel (2 mois offerts)
@@ -172,7 +173,8 @@ NEXUS a 3 niveaux d'acces:
 
 ### Plan Business — 149€/mois (multi-sites & premium)
 - Tout Basic +
-- Multi-sites
+- RH & Planning complet
+- Equipe (20 max), Multi-sites
 - White-label (logo + domaine custom)
 - API + Webhooks
 - SSO entreprise
