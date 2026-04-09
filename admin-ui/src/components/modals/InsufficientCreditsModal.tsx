@@ -82,9 +82,6 @@ export function InsufficientCreditsModal({
   const missing = Math.max(0, required - currentBalance);
   const actionLabel = action ? ACTION_LABELS[action] : 'cette action';
 
-  // Pack unique — toujours le Pack 1000
-  const recommendedPack = packsData?.packs?.[0];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
