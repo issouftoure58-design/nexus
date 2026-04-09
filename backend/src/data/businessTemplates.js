@@ -793,7 +793,7 @@ export const NEXUS_PLANS = {
     description: 'Multi-sites + 10 000 crédits IA inclus/mois',
     includes: [
       'Tout Basic +',
-      'Multi-sites illimités',
+      'Multi-sites',
       'White-label & API',
       'SSO & Account manager dédié',
       '10 000 crédits IA inclus/mois (valeur 150€)',

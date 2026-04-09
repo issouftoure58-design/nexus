@@ -78,7 +78,7 @@ const PLANS = [
     color: 'from-purple-500 to-indigo-600',
     features: [
       { text: 'Tout Basic +', included: true },
-      { text: 'Multi-sites illimites', included: true },
+      { text: 'Multi-sites', included: true },
       { text: 'White-label (logo + domaine)', included: true },
       { text: 'API + Webhooks', included: true },
       { text: 'SSO entreprise', included: true },

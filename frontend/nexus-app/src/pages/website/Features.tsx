@@ -95,7 +95,7 @@ const FEATURE_CATEGORIES = [
     color: "blue",
     features: [
       {
-        name: "Multi-sites illimites",
+        name: "Multi-sites",
         description: "Gerez plusieurs etablissements depuis un seul tableau de bord",
         icon: Globe,
       },

@@ -76,7 +76,7 @@ const PRICING = {
       ia_included: '10 000 credits IA inclus chaque mois (valeur 150€)',
       features: [
         'Tout Basic +',
-        'Multi-sites illimites',
+        'Multi-sites',
         'White-label (logo + domaine custom)',
         'API + Webhooks',
         'SSO entreprise',
@@ -115,7 +115,7 @@ const PROFILE_RECOMMENDATIONS = {
   'coiffeur_domicile':   { plan: 'basic',    total: 29,  note: 'Tournees, GPS, frais deplacement inclus + 1 000 credits IA/mois' },
   'restaurant':          { plan: 'basic',    total: 29,  note: 'Tables, menus, services midi/soir + 1 000 credits IA/mois' },
   'hotel_petit':         { plan: 'basic',    total: 29,  note: 'Chambres, tarifs saisonniers, check-in/out + 1 000 credits IA/mois' },
-  'multi_sites':         { plan: 'business', total: 149, note: 'Multi-sites illimites + 10 000 credits IA inclus chaque mois (valeur 150€)' },
+  'multi_sites':         { plan: 'business', total: 149, note: 'Multi-sites + 10 000 credits IA inclus chaque mois (valeur 150€)' },
   'spa_institut':        { plan: 'basic',    total: 29 },
   'artisan':             { plan: 'basic',    total: 29 },
   'cabinet_medical':     { plan: 'basic',    total: 29 },
@@ -143,7 +143,7 @@ TOUJOURS: Reformuler positivement ce que NEXUS PEUT apporter
 Exemple:
 - Prospect: "Je suis une grande entreprise de 500 employes"
 - MAUVAIS: "NEXUS n'est pas adapte aux grandes entreprises"
-- BON: "NEXUS est ideal pour les PME et chaines multi-sites. Pour ton cas, le plan Business 149€/mois avec ses utilisateurs illimites, multi-sites, white-label, API et 10 000 credits IA inclus chaque mois est un excellent point de depart pour une equipe pilote ou un departement. On peut ensuite discuter d'une solution sur mesure!"
+- BON: "NEXUS est ideal pour les PME et chaines multi-sites. Pour ton cas, le plan Business 149€/mois avec ses jusqu'à 20 utilisateurs, multi-sites, white-label, API et 10 000 credits IA inclus chaque mois est un excellent point de depart pour une equipe pilote ou un departement. On peut ensuite discuter d'une solution sur mesure!"
 
 ## GRILLE TARIFAIRE OFFICIELLE 2026 (revisee 9 avril 2026)
 
@@ -172,7 +172,7 @@ NEXUS a 3 niveaux d'acces:
 
 ### Plan Business — 149€/mois (multi-sites & premium)
 - Tout Basic +
-- Multi-sites illimites
+- Multi-sites
 - White-label (logo + domaine custom)
 - API + Webhooks
 - SSO entreprise

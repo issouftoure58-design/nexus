@@ -157,7 +157,7 @@ const PLANS = {
   },
   business: {
     name: 'Business', price: 149, originalPrice: 149,
-    features: ['Tout Basic +', 'Multi-sites illimités', 'White-label + API + SSO', '10 000 crédits IA inclus / mois (valeur 150€)', 'Account Manager dédié'],
+    features: ['Tout Basic +', 'Multi-sites', 'White-label + API + SSO', '10 000 crédits IA inclus / mois (valeur 150€)', 'Account Manager dédié'],
   },
 };
 

@@ -155,7 +155,7 @@ function getPlanCapabilities(plan) {
     'Analytics et tableaux de bord'
   ];
   const businessCaps = [
-    'Multi-sites illimités',
+    'Multi-sites',
     'White-label (logo + domaine custom)',
     'API + Webhooks + SSO entreprise',
     '10 000 crédits IA inclus chaque mois (valeur 150€)',

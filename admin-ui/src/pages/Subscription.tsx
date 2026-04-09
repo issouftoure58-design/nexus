@@ -130,7 +130,7 @@ const PLANS = [
     color: 'from-purple-500 to-indigo-600',
     features: [
       { text: 'Tout Basic +', icon: CheckCircle },
-      { text: 'Multi-sites illimités', icon: Globe },
+      { text: 'Multi-sites', icon: Globe },
       { text: 'White-label (logo + domaine custom)', icon: Star },
       { text: 'API + Webhooks', icon: Shield },
       { text: 'SSO entreprise', icon: Shield },

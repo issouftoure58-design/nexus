@@ -109,7 +109,7 @@ export default function PricingSection() {
             </div>
             <ul className="space-y-3 mb-8">
               {[
-                'Tout Basic + multi-sites illimites',
+                'Tout Basic + multi-sites',
                 'White-label (logo + domaine custom)',
                 'API + Webhooks',
                 'SSO entreprise',

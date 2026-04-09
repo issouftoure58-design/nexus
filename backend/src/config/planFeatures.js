@@ -110,7 +110,7 @@ const BASIC_FEATURES = {
 
 /**
  * BUSINESS — 149€/mois — Multi-sites & premium
- * Tout Basic + multi-sites illimités, white-label, API, SSO, account manager
+ * Tout Basic + multi-sites, white-label, API, SSO, account manager
  * + 10 000 crédits IA inclus chaque mois (valeur ~150€).
  */
 const BUSINESS_FEATURES = {
