@@ -101,10 +101,11 @@ const BASIC_FEATURES = {
   workflows: true,
   sentinel: true,
 
-  // ✨ IA débloquée (mais consomme des crédits)
+  // ✨ IA — seul agent_ia_web est auto-accordé (self-service, pur logiciel)
+  // ⚠️ whatsapp et telephone NE SONT PAS ici : ils nécessitent un provisioning
+  // manuel (achat numéro 06/07 OVH + config Twilio). Activation via demande
+  // tenant → approbation super-admin dans Sentinel. Voir activation-ia-protocol.md
   agent_ia_web: true,
-  whatsapp: true,
-  telephone: true,
 };
 
 /**
