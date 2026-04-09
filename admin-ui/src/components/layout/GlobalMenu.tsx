@@ -43,7 +43,7 @@ const menuItems = [
   { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'basic' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'basic' },
   { icon: Package, label: 'Stock', path: '/stock', plan: 'basic' },
-  { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'basic' },
+  { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'business' },
   { type: 'separator', label: 'Marketing' },
   { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'basic' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'basic' },

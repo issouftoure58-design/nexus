@@ -126,7 +126,7 @@ Pour chaque métier, l'interface, les outils IA et la terminologie s'adaptent au
 - **1 000 crédits IA inclus chaque mois** (valeur 15€)
 - Comptabilité complète aux normes françaises (journaux, rapprochement bancaire, export FEC)
 - Marketing automatisé (workflows, segments CRM)
-- Gestion des stocks, RH de base, équipe, fidélité
+- Gestion des stocks, équipe (5 max), fidélité
 - Workflows, Pipeline, Devis, SEO tracking
 - TOUTES les fonctions IA disponibles
 - Support email prioritaire
@@ -135,7 +135,8 @@ Pour chaque métier, l'interface, les outils IA et la terminologie s'adaptent au
 
 **BUSINESS - 149€/mois**
 - Tout le plan Basic
-- Multi-sites et multi-établissements ILLIMITÉS
+- RH & Planning complet
+- Équipe (20 max), Multi-sites
 - White-label (logo + domaine custom pour ton image de marque)
 - API complète + Webhooks pour intégrations custom
 - SSO entreprise

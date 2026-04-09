@@ -215,7 +215,7 @@ const BASIC_LIMITS = {
   reservations_mois:  -1,
   factures_mois:      -1,
   prestations_max:    -1,
-  users_max:          -1,
+  users_max:          5,   // Équipe 5 max en Basic
   chat_admin_questions_mois: -1, // illimite (consomme credits)
   credits_ia_inclus_mois: 1000,  // 1 000 crédits IA inclus par mois (valeur 15€)
 
@@ -232,7 +232,7 @@ const BUSINESS_LIMITS = {
   reservations_mois:  -1,
   factures_mois:      -1,
   prestations_max:    -1,
-  users_max:          -1,
+  users_max:          20,  // Équipe 20 max en Business
   chat_admin_questions_mois: -1,
   multi_site_max:     -1,
   credits_ia_inclus_mois: 10000, // 10 000 crédits IA inclus par mois (valeur 150€)

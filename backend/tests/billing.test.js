@@ -141,21 +141,22 @@ describe('Plan Limits — Basic & Business (révision 9 avril 2026)', () => {
     clients_max:        -1,
     reservations_mois:  -1,
     factures_mois:      -1,
-    users_max:          -1,
+    users_max:          5,  // Équipe 5 max en Basic
     credits_ia_inclus_mois: 1000,
   };
 
   const BUSINESS_LIMITS = {
     ...BASIC_LIMITS,
+    users_max:          20, // Équipe 20 max en Business
     multi_site_max:     -1,
     credits_ia_inclus_mois: 10000,
   };
 
-  test('Basic = tout illimité non-IA', () => {
+  test('Basic = tout illimité non-IA sauf users', () => {
     expect(BASIC_LIMITS.clients_max).toBe(-1);
     expect(BASIC_LIMITS.reservations_mois).toBe(-1);
     expect(BASIC_LIMITS.factures_mois).toBe(-1);
-    expect(BASIC_LIMITS.users_max).toBe(-1);
+    expect(BASIC_LIMITS.users_max).toBe(5);
   });
 
   test('Basic inclut 1 000 crédits IA mensuels', () => {

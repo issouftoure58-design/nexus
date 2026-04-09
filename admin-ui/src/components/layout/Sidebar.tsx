@@ -106,7 +106,7 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   'crm_avance': 'basic',
   'marketing': 'basic',
   'analytics': 'basic',
-  'rh': 'basic',
+  'rh': 'business',
   'seo': 'basic',
   'pipeline': 'basic',
   // Business (premium)

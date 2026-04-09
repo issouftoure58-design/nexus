@@ -45,7 +45,7 @@ const PRICING = {
       name: 'Basic',
       price_monthly: 29,
       price_yearly: 290, // 2 mois offerts
-      users: -1, // illimite
+      users: 5, // 5 utilisateurs max
       clients_max: -1,
       reservations_mois: -1,
       factures_mois: -1,
@@ -55,7 +55,7 @@ const PRICING = {
         'Reservations illimitees',
         'Facturation illimitee (sans watermark)',
         '1 000 credits IA inclus / mois (valeur 15€)',
-        'CRM, Equipe, Fidelite illimites',
+        'CRM, Equipe (5 max), Fidelite',
         'Comptabilite, Stock complets',
         'Workflows, Pipeline, Devis, SEO',
         'Toutes les fonctions IA disponibles via credits',
@@ -68,7 +68,7 @@ const PRICING = {
       name: 'Business',
       price_monthly: 149,
       price_yearly: 1490,
-      users: -1,
+      users: 20, // 20 utilisateurs max
       clients_max: -1,
       reservations_mois: -1,
       factures_mois: -1,

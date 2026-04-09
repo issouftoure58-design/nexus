@@ -467,8 +467,8 @@ export default function Pricing() {
                 <tr>
                   <td>Utilisateurs</td>
                   <td>1</td>
-                  <td>Illimite</td>
-                  <td>Illimite</td>
+                  <td>5 max</td>
+                  <td>20 max</td>
                 </tr>
                 <tr>
                   <td>Reservations / mois</td>
@@ -495,9 +495,15 @@ export default function Pricing() {
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                 </tr>
                 <tr>
-                  <td>Comptabilite, RH, Stock</td>
+                  <td>Comptabilite, Stock</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
+                  <td><Check className="w-4 h-4 text-green-500" /></td>
+                </tr>
+                <tr>
+                  <td>RH & Planning</td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
+                  <td><X className="w-4 h-4 text-gray-300" /></td>
                   <td><Check className="w-4 h-4 text-green-500" /></td>
                 </tr>
                 <tr>

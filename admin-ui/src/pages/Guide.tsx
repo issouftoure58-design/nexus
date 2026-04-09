@@ -402,7 +402,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: UserCog,
     title: 'RH & Planning',
     path: '/rh',
-    badge: 'Basic',
+    badge: 'Business',
     condition: always,
     content: (t) => [
       `Gerez votre equipe : fiches ${t.staff}s, planning, conges et absences.`,
