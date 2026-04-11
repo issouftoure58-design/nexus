@@ -13,6 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { quotaManager, MODULE_QUOTAS } from './quotaManager.js';
+import { checkAndAlert as checkCreditAlert } from './creditAlertService.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -105,6 +106,9 @@ export async function trackUsage(tenantId, type, amount, metadata = {}) {
       const metric = getMetricForType(type);
       await quotaManager.incrementUsage(tenantId, moduleId, metric, amount);
     }
+
+    // 4. Vérifier les seuils de crédits IA (fire-and-forget — ne bloque pas le flow)
+    checkCreditAlert(tenantId).catch(() => {});
 
     return { success: true };
   } catch (error) {

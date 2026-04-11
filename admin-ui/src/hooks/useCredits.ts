@@ -40,17 +40,21 @@ export interface CreditTransaction {
 /**
  * Coûts par action IA — doit rester synchronisé avec backend creditsService.CREDIT_COSTS
  */
+/**
+ * Synced with backend/src/config/pricing.js CREDIT_COSTS (11 avril 2026)
+ */
 export const CREDIT_COSTS = {
-  chat_admin_question: 4,
-  whatsapp_message: 4,
-  devis_ia: 6,
-  antichurn_whatsapp: 6,
-  email_ia_sent: 6,
-  web_chat_conversation: 9,
-  social_post_generated: 9,
-  phone_minute: 15,
-  antichurn_sms_fr: 16,
-  seo_article: 66,
+  chat_admin_haiku: 7,
+  whatsapp_message: 7,
+  whatsapp_voice_note: 10,
+  devis_ia: 9,
+  anti_churn_whatsapp: 9,
+  email_ia_sent: 9,
+  agent_web_conversation: 12,
+  social_post_generated: 12,
+  phone_minute: 18,
+  anti_churn_sms_fr: 19,
+  seo_article_full: 69,
 } as const;
 
 export type CreditAction = keyof typeof CREDIT_COSTS;

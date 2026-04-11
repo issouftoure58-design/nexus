@@ -42,16 +42,17 @@ interface CreditPack {
 }
 
 const ACTION_LABELS: Record<CreditAction, string> = {
-  chat_admin_question: 'une question chat IA admin',
+  chat_admin_haiku: 'une question chat IA admin',
   whatsapp_message: 'un message WhatsApp IA',
-  web_chat_conversation: 'une conversation chat web',
-  phone_minute: 'une minute de téléphone IA',
-  social_post_generated: 'un post réseaux',
-  email_ia_sent: 'un email IA',
-  antichurn_whatsapp: 'un message anti-churn WhatsApp',
-  antichurn_sms_fr: 'un SMS anti-churn',
-  seo_article: 'un article SEO complet',
+  whatsapp_voice_note: 'une note vocale WhatsApp',
   devis_ia: 'un devis IA',
+  anti_churn_whatsapp: 'un message anti-churn WhatsApp',
+  email_ia_sent: 'un email IA',
+  agent_web_conversation: 'une conversation chat web',
+  social_post_generated: 'un post réseaux',
+  phone_minute: 'une minute de téléphone IA',
+  anti_churn_sms_fr: 'un SMS anti-churn',
+  seo_article_full: 'un article SEO complet',
 };
 
 interface InsufficientCreditsModalProps {

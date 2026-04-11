@@ -1,9 +1,14 @@
-1 plateforme, 100+ modules. 💡
+Ce que l'IA NEXUS fait concretement pour vous :
 
-Facturation, comptabilité, CRM, RH, paie, stock, fidélité, SEO, workflows, assistant IA...
+📞 Repond au telephone — prend les RDV automatiquement
+💬 Repond sur WhatsApp — tarifs, dispos, zone de deplacement
+🌐 Reservation en ligne — vos clients reservent 24h/24
+🔔 Rappels SMS — la veille + le matin = quasi zero lapin
+📊 Agenda intelligent — tout synchronise en temps reel
+🧾 Facturation — devis + factures en 2 clics
 
-Tout ce dont un pro a besoin. Rien de superflu.
+Tout ca dans une seule app. Adapte a votre metier.
 
-👉 nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #Modules #SaaS #GestionBusiness #IA #AllInOne #Entrepreneur #PME
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #Agenda #Facturation #Coiffeuse #Restaurant #PME #AssistantIA

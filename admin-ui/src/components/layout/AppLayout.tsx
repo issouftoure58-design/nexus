@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlobalMenu } from './GlobalMenu';
 import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
+import { CreditAlertBanner } from '../CreditAlertBanner';
 import { api, notificationsApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
 import { applyTenantTheme } from '@/lib/themeColors';
@@ -259,6 +260,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Trial Banner */}
       <TrialBanner />
+      {/* Credit Alert Banner */}
+      <CreditAlertBanner />
 
       {/* Main content */}
       <main className="min-h-[calc(100vh-3.5rem)]">

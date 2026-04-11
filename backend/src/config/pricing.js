@@ -91,6 +91,7 @@ export const CREDIT_PACKS = {
 export const CREDIT_COSTS = {
   chat_admin_haiku:        7,   // 1 question chat IA admin
   whatsapp_message:        7,   // 1 message WhatsApp IA repondu
+  whatsapp_voice_note:    10,   // 1 note vocale WhatsApp (7 msg + 3 Whisper transcription)
   devis_ia:                9,   // 1 devis IA
   anti_churn_whatsapp:     9,   // 1 message Anti-Churn WhatsApp
   email_ia_sent:           9,   // 1 email IA genere + envoi Resend

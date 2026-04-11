@@ -1,10 +1,13 @@
-SENTINEL — le gardien invisible de NEXUS. 🛡️
+Vos donnees clients sont precieuses. NEXUS les protege.
 
-Surveillance 24h/24. Détection des menaces.
-Vos données sont protégées à chaque instant.
+🔒 Chiffrement de bout en bout
+🛡️ SENTINEL — surveillance 24/7 de votre compte
+📋 100% conforme RGPD
+🇫🇷 Heberge en France (OVH)
 
-NEXUS, c'est la performance ET la sécurité.
+Vos clients vous confient leur numero, leur adresse, leurs habitudes.
+On prend ca tres au serieux.
 
-👉 nexus-ai-saas.com
+nexus-ai-saas.com
 
-#NEXUS #Sentinel #Securite #IA #Protection #RGPD #Cybersecurite #SaaS #Business
+#NEXUS #RGPD #Securite #DonneesPersonnelles #Confiance #MadeInFrance #SaaS #PME

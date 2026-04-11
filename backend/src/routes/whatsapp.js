@@ -11,6 +11,7 @@ import {
   handleIncomingMessageNexus,
   handlePaymentConfirmed
 } from '../services/whatsappService.js';
+import { transcribeFromUrl } from '../services/whisperService.js';
 import usageTracking from '../services/usageTrackingService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
@@ -64,32 +65,72 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
     const {
       From,           // whatsapp:+33612345678
       To,             // whatsapp:+14155238886 (numéro Twilio)
-      Body,           // Contenu du message
+      Body,           // Contenu du message (vide si note vocale)
       ProfileName,    // Nom du profil WhatsApp
       MessageSid,     // ID unique du message
       NumMedia,       // Nombre de médias attachés
+      MediaUrl0,      // URL du premier média (note vocale, image, etc.)
+      MediaContentType0, // Type MIME du premier média (audio/ogg, image/jpeg, etc.)
     } = req.body;
 
-    // Validation des données requises
-    if (!From || !Body) {
-      console.error('[WhatsApp Webhook] Données manquantes:', { From, Body });
+    const numMedia = parseInt(NumMedia || '0', 10);
+    const isVoiceNote = numMedia > 0 && MediaUrl0 && MediaContentType0?.startsWith('audio/');
+
+    // Validation minimale (From requis, Body ou media requis)
+    if (!From || (!Body && numMedia === 0)) {
+      console.error('[WhatsApp Webhook] Données manquantes:', { From, Body, NumMedia });
       return res.status(400).send('<Response></Response>');
     }
 
     // Extraire le numéro de téléphone (enlever le préfixe whatsapp:)
     const clientPhone = From.replace('whatsapp:', '');
 
-    // Identifier le tenant par le numéro appelé (MULTI-TENANT)
+    // ── TENANT RESOLUTION (AVANT toute opération coûteuse) ──
     const { tenantId, config: tenantConfig, error: tenantError } = getTenantByWhatsAppNumber(To);
 
-    // 🔒 TENANT ISOLATION: Rejeter si tenant inconnu
     if (!tenantId || tenantError) {
-      console.error('[WhatsApp Webhook] ❌ TENANT_NOT_FOUND:', {
-        toNumber: To,
-        fromPhone: clientPhone,
-        error: tenantError
-      });
-      // Répondre avec une erreur générique - ne pas traiter le message
+      console.error('[WhatsApp Webhook] TENANT_NOT_FOUND:', { toNumber: To, fromPhone: clientPhone, error: tenantError });
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
+    // ── QUOTA CHECK (AVANT transcription Whisper pour ne pas payer si quota épuisé) ──
+    try {
+      await usageTracking.enforceQuota(tenantId, 'whatsapp');
+    } catch (quotaError) {
+      console.log(`[WhatsApp] Quota dépassé pour ${tenantId}:`, quotaError.message);
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
+    // ── TRANSCRIPTION NOTES VOCALES (après quota check) ──
+    let messageText = Body || '';
+    if (isVoiceNote) {
+      console.log(`[WhatsApp Webhook] Note vocale détectée (${MediaContentType0}), transcription Whisper...`);
+      const transcription = await transcribeFromUrl(MediaUrl0, { phoneNumber: clientPhone });
+
+      if (transcription.rateLimited) {
+        // Rate limité — ignorer silencieusement (pas de coût)
+        console.warn(`[WhatsApp Webhook] Rate limit notes vocales: ${clientPhone}`);
+        res.type('text/xml');
+        return res.send('<Response></Response>');
+      }
+
+      if (transcription.tooLarge) {
+        // Audio trop long — répondre un message d'erreur
+        console.warn(`[WhatsApp Webhook] Audio trop volumineux: ${clientPhone}`);
+        messageText = '[Le client a envoyé une note vocale trop longue]';
+      } else if (transcription.success && transcription.text) {
+        messageText = transcription.text;
+        console.log(`[WhatsApp Webhook] Transcription OK: "${messageText.substring(0, 100)}"`);
+      } else {
+        console.warn(`[WhatsApp Webhook] Transcription échouée: ${transcription.error}`);
+        messageText = '[Note vocale non transcrite]';
+      }
+    }
+
+    // Dernier check — si toujours pas de texte, abandonner
+    if (!messageText.trim()) {
       res.type('text/xml');
       return res.send('<Response></Response>');
     }
@@ -99,22 +140,15 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
       nom: ProfileName,
       tenant: tenantId,
       tenantName: tenantConfig?.name,
-      message: Body.substring(0, 100) + (Body.length > 100 ? '...' : ''),
+      message: messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''),
       messageId: MessageSid,
+      isVoiceNote,
     });
 
-    // Vérifier le quota avant de traiter
-    try {
-      await usageTracking.enforceQuota(tenantId, 'whatsapp');
-    } catch (quotaError) {
-      console.log(`[WhatsApp] Quota dépassé pour ${tenantId}:`, quotaError.message);
-      // On pourrait envoyer un message d'erreur au client ici
-    }
+    // ── TRAITEMENT IA ──
+    const result = await handleIncomingMessageNexus(clientPhone, messageText, ProfileName, tenantId);
 
-    // Traiter le message via nexusCore (handler unifié, multi-tenant)
-    const result = await handleIncomingMessageNexus(clientPhone, Body, ProfileName, tenantId);
-
-    // Tracker l'utilisation (message entrant + réponse = 2 messages)
+    // Tracker l'utilisation (coût différencié pour notes vocales)
     await usageTracking.trackWhatsAppMessage(tenantId, MessageSid, 'inbound');
     if (result.response) {
       await usageTracking.trackWhatsAppMessage(tenantId, `${MessageSid}-reply`, 'outbound');

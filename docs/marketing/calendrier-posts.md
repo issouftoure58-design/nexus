@@ -157,193 +157,204 @@
 
 ### V1 — Video Presentation NEXUS (screen recording)
 ```
-NEXUS — La plateforme IA tout-en-un pour les pros.
+Vous ratez des clients parce que vous etes occupes ?
 
-Agenda, facturation, comptabilite, CRM, RH, paie, stock, fidelite, SEO, workflows... tout est la.
+NEXUS, c'est une IA qui repond a votre place :
+📞 Au telephone — elle prend les reservations toute seule
+💬 Sur WhatsApp — tarifs, dispos, zone, elle gere
+🌐 Sur votre site — les clients reservent 24h/24
 
-Salon, restaurant, hotel, commerce, securite, services a domicile — NEXUS s'adapte a votre metier.
+Vous etes coiffeuse, restaurateur, praticien ? L'IA s'adapte a votre metier.
 
-100+ fonctionnalites. 1 seule plateforme. Assistant IA 24/7.
+Gratuit pour commencer. nexus-ai-saas.com
 
-Essai gratuit 14 jours sur nexus-ai-saas.com
-
-#NEXUS #SaaS #GestionBusiness #IA #IntelligenceArtificielle #Facturation #Comptabilite #CRM #RH #Paie #GestionSalon #GestionRestaurant #GestionHotel #Entrepreneur #PME #TPE #AutoEntrepreneur #BusinessFrance #TechFrance #StartupFrance #Productivite #Digital #Automatisation
+#NEXUS #IAReservation #TelephoneIA #WhatsAppBusiness #ReservationEnLigne #Coiffeuse #Restaurant #Salon #PME #Entrepreneur #AssistantIA #GestionRDV #IA #AutoEntrepreneur #BusinessFrance
 ```
 
 ### C1 — Carrousel "La Galere"
 ```
-Vous gerez TOUT seul ?
+Combien de clients vous perdez chaque jour ?
 
-Clients, factures, relances, compta, planning...
-Et en plus il faut poster sur les reseaux ?
+Ceux qui appellent et ca sonne dans le vide.
+Ceux qui ecrivent sur WhatsApp et attendent 3h.
+Ceux qui veulent reserver mais "venez en MP".
 
-NEXUS gere tout ca pour vous. Automatiquement.
-100+ fonctionnalites. 1 seule plateforme. IA 24/7.
+NEXUS, c'est une IA qui repond pour vous :
+📞 Telephone IA — elle decroche, elle reserve
+💬 WhatsApp IA — tarifs, dispos, en automatique
+📅 Reservation en ligne — 24h/24, zero MP
 
-Offre lancement : a partir de 79€/mois pour les 100 premiers
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #GestionBusiness #IA #Entrepreneur #PME #TPE #Automatisation #Facturation #Comptabilite #CRM #SaaS #BusinessFrance
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #Coiffeuse #Restaurant #Salon #PME #AssistantIA #ReservationEnLigne
 ```
 
 ### C2 — Carrousel "Liberte"
 ```
-Combien d'heures vous perdez chaque semaine ?
+Imaginez : vous etes avec un client.
 
-Facturation → automatique
-Relances → automatiques
-Compta → automatique
-RH & Paie → automatique
-CRM → automatique
+Le telephone sonne → l'IA decroche et prend le RDV.
+Un message WhatsApp arrive → l'IA repond avec vos tarifs et dispos.
+Quelqu'un veut reserver a 23h → il reserve en ligne, tout seul.
 
-Resultat : vous recuperez votre temps.
-Pour votre famille. Pour vous.
+Le lendemain matin, un rappel automatique part au client. Zero lapin.
 
-NEXUS — l'assistant IA qui gere votre business pendant que vous vivez.
+C'est pas de la science-fiction. C'est NEXUS.
 
-Offre lancement : a partir de 79€/mois (100 premiers clients)
-nexus-ai-saas.com
+Gratuit pour demarrer. nexus-ai-saas.com
 
-#NEXUS #Productivite #GestionBusiness #IA #Entrepreneur #TempsPourSoi #Automatisation #SaaS #PME
+#NEXUS #IAReservation #TelephoneIA #WhatsAppBusiness #AntiLapin #RappelAutomatique #Coiffeuse #Restaurant #PME #AssistantIA
 ```
 
 ### C3 — "NEXUS Gere" (planche)
 ```
-Et si votre business tournait tout seul ?
+"T'es dispo quand ?"
+"C'est combien les tresses ?"
+"Tu te deplaces ou ?"
 
-Agenda, facturation, comptabilite, CRM, RH, paie, stock, fidelite, SEO...
+Vous repondez a ca 20 fois par jour.
 
-NEXUS s'occupe de TOUT.
-Salon, restaurant, hotel, commerce, securite, services a domicile.
+Et si une IA le faisait a votre place ?
 
-Votre assistant IA personnel, disponible 24h/24.
+NEXUS repond sur WhatsApp et au telephone avec VOS tarifs, VOS dispos, VOTRE zone. Les clients reservent directement. Plus de MP pour rien.
 
-79€/mois seulement — offre limitee aux 100 premiers
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #SaaS #IA #IntelligenceArtificielle #GestionBusiness #Entrepreneur #PME #TPE #AutoEntrepreneur #Digital
+#NEXUS #IAReservation #WhatsAppIA #TelephoneIA #Coiffeuse #CoiffureAfro #Salon #Restaurant #PME #ReservationEnLigne
 ```
 
 ### C4 — Livret Commercial (8 pages)
 ```
-Tout ce que NEXUS fait pour vous en 8 images.
+Le probleme : vous perdez des clients parce que vous etes occupes.
+La solution : une IA qui repond a votre place.
 
-Du probleme a la solution :
-- Le constat : vous etes submerge
-- La reponse : 100+ modules automatises
-- Les resultats : du temps, de l'argent, zero stress
+📞 Telephone IA — elle decroche, donne les infos, prend le RDV
+💬 WhatsApp IA — tarifs, dispos, zone, en automatique
+📅 Reservation en ligne — vos clients reservent 24h/24
+🔔 Rappels auto — SMS la veille et le matin, quasi plus de lapins
 
-Swipez pour decouvrir comment NEXUS transforme votre quotidien.
+Swipez pour voir comment ca marche.
 
-Offre lancement : 79€/mois — 100 places seulement
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #SaaS #GestionBusiness #Entrepreneur #PME #IA #Automatisation #Facturation #Comptabilite #CRM #RH
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #AntiLapin #Coiffeuse #Restaurant #Salon #PME #AssistantIA
 ```
 
 ### P1 — Pain point "galere"
 ```
-Ca vous parle ?
+Le telephone sonne. Vous avez les mains occupees.
 
-Appels, messages, factures, relances, compta...
-Tout en meme temps.
-Tout seul.
+Un client WhatsApp : "C'est combien ?" — vous repondrez dans 2h.
+Un autre appel. Messagerie. Il rappellera pas.
 
-Et si quelqu'un pouvait gerer tout ca a votre place ?
+Combien de clients perdus cette semaine ?
 
-Demain, on vous presente la solution.
+Et si quelqu'un pouvait repondre a votre place, 24h/24 ?
 
-#Entrepreneur #GestionBusiness #Galere #PME #TPE #AutoEntrepreneur #ChargerMentale
+Demain, on vous montre comment.
+
+#Coiffeuse #Restaurant #Salon #PME #ClientsPerdu #Telephone #WhatsApp #RDV #Entrepreneur
 ```
 
 ### P2 — "NEXUS au secours"
 ```
-La solution existe.
+La solution existe. Elle s'appelle NEXUS.
 
-NEXUS — votre assistant IA qui gere :
-- Agenda & RDV
-- Facturation & relances
-- Comptabilite complete
-- CRM & fidelite
-- RH & Paie
-- Et 100+ fonctionnalites de plus
+Une IA qui travaille pour vous :
+📞 Elle decroche le telephone et prend les reservations
+💬 Elle repond sur WhatsApp (tarifs, dispos, zone)
+📅 Les clients reservent en ligne, meme a minuit
+🔔 Rappel SMS auto la veille — quasi plus de lapins
+💰 Facturation et paiement en ligne integres
 
-Plus jamais seul face a la gestion.
+Plus jamais un client perdu parce que vous etiez occupes.
 
-Essai gratuit 14 jours : nexus-ai-saas.com
+Gratuit pour commencer : nexus-ai-saas.com
 
-#NEXUS #SaaS #IA #Solution #GestionBusiness #Entrepreneur #PME #Automatisation
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #ReservationEnLigne #AntiLapin #Coiffeuse #Restaurant #Salon #PME
 ```
 
 ### P3 — Modules NEXUS
 ```
-1 plateforme, 100+ modules.
+Ce que l'IA NEXUS fait concretement pour vous :
 
-Facturation, comptabilite, CRM, RH, paie, stock, fidelite, SEO, workflows, assistant IA...
+📞 Repond au telephone — prend les RDV automatiquement
+💬 Repond sur WhatsApp — tarifs, dispos, zone de deplacement
+🌐 Reservation en ligne — vos clients reservent 24h/24
+🔔 Rappels SMS — la veille + le matin = quasi zero lapin
+📊 Agenda intelligent — tout synchronise en temps reel
+🧾 Facturation — devis + factures en 2 clics
 
-Tout ce dont un pro a besoin. Rien de superflu.
+Tout ca dans une seule app. Adapte a votre metier.
 
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #Modules #SaaS #GestionBusiness #IA #AllInOne #Entrepreneur #PME
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #Agenda #Facturation #Coiffeuse #Restaurant #PME #AssistantIA
 ```
 
 ### P4 — NEXUS s'adapte
 ```
-NEXUS s'adapte a VOTRE metier.
+L'IA NEXUS s'adapte a VOTRE metier.
 
-Salon de coiffure ? Restaurant ? Hotel ?
-Commerce ? Securite ? Services a domicile ?
+💇 Coiffeuse ? Elle connait vos prestations et vos tarifs.
+🍽️ Restaurant ? Elle donne la carte et reserve une table.
+🏨 Hotel ? Elle verifie les dispos et reserve la chambre.
+💆 Bien-etre ? Elle propose vos soins et prend le RDV.
 
-Memes outils. Configuration sur mesure.
-L'IA apprend votre metier et s'adapte.
+Meme IA. Configuration sur mesure.
+Elle repond au telephone et sur WhatsApp comme si c'etait vous.
 
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #MultiSecteur #SaaS #Salon #Restaurant #Hotel #Commerce #Securite #IA #Entrepreneur
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #Coiffeuse #Restaurant #Hotel #BienEtre #PME #AssistantIA
 ```
 
 ### S6 — Sentinel protege
 ```
-Vos donnees sont notre priorite absolue.
+Vos donnees clients sont precieuses. NEXUS les protege.
 
-SENTINEL — le gardien de NEXUS.
-Surveillance 24/7. Chiffrement. Alertes temps reel.
-Conformite RGPD. Zero compromis.
+🔒 Chiffrement de bout en bout
+🛡️ SENTINEL — surveillance 24/7 de votre compte
+📋 100% conforme RGPD
+🇫🇷 Heberge en France (OVH)
 
-Parce que votre business merite la meilleure protection.
+Vos clients vous confient leur numero, leur adresse, leurs habitudes.
+On prend ca tres au serieux.
 
 nexus-ai-saas.com
 
-#NEXUS #Securite #RGPD #Protection #Donnees #Cybersecurite #SaaS #Confiance
+#NEXUS #RGPD #Securite #DonneesPersonnelles #Confiance #MadeInFrance #SaaS #PME
 ```
 
 ### S8 — Robot NEXUS
 ```
-L'intelligence artificielle au service de votre business.
-
-NEXUS analyse, anticipe, automatise.
 Pendant que vous dormez, NEXUS travaille.
 
-Bienvenue dans le futur de la gestion.
+23h → un client reserve en ligne.
+7h → un rappel SMS part automatiquement.
+9h → vous ouvrez l'agenda, tout est la.
 
-nexus-ai-saas.com
+L'IA qui ne dort jamais. Telephone, WhatsApp, reservations, rappels.
 
-#NEXUS #IA #IntelligenceArtificielle #Robot #Futur #Tech #Innovation #SaaS #Business
+Gratuit pour commencer. nexus-ai-saas.com
+
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #AssistantIA #24h24 #PME #Entrepreneur #Coiffeuse #Restaurant
 ```
 
 ### S9 — Superhero NEXUS
 ```
 Votre business a un nouveau superhero.
 
-NEXUS — 100+ fonctionnalites.
-1 assistant IA. 0 stress.
+Il repond au telephone quand vous etes occupes.
+Il gere WhatsApp a votre place.
+Il prend les RDV pendant que vous dormez.
+Il envoie les rappels pour eviter les lapins.
 
-Rejoignez les 100 premiers et beneficiez de l'offre lancement.
+Son nom ? NEXUS.
 
-nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #Superhero #IA #Business #Entrepreneur #SaaS #Innovation #Lancement
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #AssistantIA #Superhero #PME #Coiffeuse #Restaurant #Salon
 ```
 
 ---

@@ -2042,17 +2042,17 @@ function classifyTwilioError(statusCode, errorData) {
  *
  * @param {string} phoneNumber - Numéro de téléphone (formats acceptés: 06XXXXXXXX, +336XXXXXXXX, 336XXXXXXXX)
  * @param {string} message - Message à envoyer
+ * @param {string} tenantId - ID du tenant
+ * @param {Object} [options] - Options supplémentaires
+ * @param {string} [options.mediaUrl] - URL publique d'un fichier media (audio MP3, image, etc.) à joindre au message
  * @returns {Promise<{ success: boolean, messageId?: string, error?: string, errorType?: string }>}
  *
  * @example
  * const result = await sendWhatsAppNotification('0612345678', 'Votre RDV est confirmé !', 'nexus-test');
- * if (result.success) {
- *   console.log('Message envoyé:', result.messageId);
- * } else {
- *   console.error('Erreur:', result.error);
- * }
+ * // Avec note vocale :
+ * const result = await sendWhatsAppNotification('0612345678', '', 'nexus-test', { mediaUrl: 'https://example.com/audio.mp3' });
  */
-export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
+export async function sendWhatsAppNotification(phoneNumber, message, tenantId, options = {}) {
   // 0. Vérifier que le tenant a un vrai numéro WhatsApp en production
   // Sans numéro dédié, on tombe sur le sandbox US qui accepte les messages
   // mais ne les délivre jamais → retourner false pour que la cascade SMS prenne le relais
@@ -2096,15 +2096,17 @@ export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
     };
   }
 
-  // 3. Valider le message
-  if (!message || typeof message !== 'string' || message.trim().length === 0) {
-    logEvent('ERROR', ERROR_TYPES.TWILIO_SEND_ERROR, 'Message vide ou invalide', {
+  // 3. Valider le message (texte OU media requis)
+  const hasText = message && typeof message === 'string' && message.trim().length > 0;
+  const hasMedia = options.mediaUrl && typeof options.mediaUrl === 'string';
+  if (!hasText && !hasMedia) {
+    logEvent('ERROR', ERROR_TYPES.TWILIO_SEND_ERROR, 'Message vide ou invalide (texte ou mediaUrl requis)', {
       phoneNumber: phoneResult.formatted,
     });
 
     return {
       success: false,
-      error: 'Message requis',
+      error: 'Message ou mediaUrl requis',
       errorType: ERROR_TYPES.TWILIO_SEND_ERROR,
     };
   }
@@ -2123,7 +2125,8 @@ export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
         body: new URLSearchParams({
           From: fromNumber,
           To: phoneResult.formatted,
-          Body: message.trim(),
+          ...(hasText && { Body: message.trim() }),
+          ...(hasMedia && { MediaUrl: options.mediaUrl }),
         }),
       }
     );
@@ -2160,10 +2163,11 @@ export async function sendWhatsAppNotification(phoneNumber, message, tenantId) {
     }
 
     // 6. Succès
-    logEvent('INFO', 'WHATSAPP_SENT', 'Message WhatsApp envoyé', {
+    logEvent('INFO', 'WHATSAPP_SENT', `Message WhatsApp envoyé${hasMedia ? ' (avec media)' : ''}`, {
       phoneNumber: phoneResult.formatted,
       messageId: data.sid,
-      messageLength: message.length,
+      messageLength: hasText ? message.length : 0,
+      hasMedia,
     });
 
     return {

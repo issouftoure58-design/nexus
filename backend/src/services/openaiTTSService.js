@@ -456,6 +456,38 @@ function resetStats() {
 }
 
 /**
+ * Génère un audio TTS, le cache, et retourne l'URL publique
+ * Utile pour WhatsApp voice notes et autres canaux nécessitant une URL
+ *
+ * @param {string} text - Texte à convertir en audio
+ * @param {Object} [options] - Options TTS
+ * @param {string} [options.voice] - Voix OpenAI (default: nova)
+ * @returns {Promise<{ success: boolean, url?: string, filename?: string, error?: string }>}
+ */
+async function generateAudioUrl(text, options = {}) {
+  const { voice = DEFAULT_VOICE } = options;
+  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5001';
+
+  try {
+    const result = await textToSpeech(text, { voice, useCache: true, optimize: true });
+    if (!result.success) {
+      return { success: false, error: result.error || 'TTS failed' };
+    }
+
+    // Calculer le filename (même logique que twilioWebhooks.js)
+    const processedText = optimizeText(text);
+    const hash = getTextHash(processedText, voice);
+    const filename = `${hash}.mp3`;
+    const url = `${baseUrl}/api/voice/audio/${filename}`;
+
+    return { success: true, url, filename };
+  } catch (error) {
+    console.error('[OPENAI TTS] generateAudioUrl error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Vérifie si le service est configuré
  */
 function isConfigured() {
@@ -484,6 +516,7 @@ export default {
   textToSpeech,
   textToSpeechSmart,
   textToSpeechStream,
+  generateAudioUrl,
   pregenerateCommonPhrases,
   clearCache,
   getCacheStats,
@@ -502,6 +535,7 @@ export {
   textToSpeech,
   textToSpeechSmart,
   textToSpeechStream,
+  generateAudioUrl,
   pregenerateCommonPhrases,
   clearCache,
   getCacheStats,

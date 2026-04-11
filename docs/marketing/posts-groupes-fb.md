@@ -180,31 +180,34 @@
 
 ---
 
-## 11. (en attente de scan)
+## 11. Coiffeuses Afro Certifiées & Professionnelles IDF
 
-**Groupe :**
-**Posts analysés :**
-**Insight clé :**
+**Groupe :** https://www.facebook.com/groups/1142079080008153
+**Membres :** ~moyen | **Posts analysés :** 36
+**Insight clé :** 90% des posts = "je suis disponible et je me déplace" sans aucune différenciation. Les clientes galèrent à contacter les coiffeuses ("comment vous contacter ?", "je n'arrive pas à vous contacter", "pas de possibilité avec Messenger"). Zéro engagement (0 comments sur 35/36 posts). Aucune coiffeuse n'affiche ses tarifs, sa zone précise ou ses dispos — tout passe par MP. Mentions géographiques : 91, 78, 93, 95, Paris, Montreuil, Combs-la-Ville, Taverny, Corbeil, Evry.
+**Top post :** 3 réactions — admin @tout le monde
 
 **Post :**
 
-> (à rédiger après analyse)
+> Salut les coiffeuses ! Ça fait quelques jours que je lis le groupe. Un truc me saute aux yeux : des clientes qui demandent "comment on vous contacte ?" et des coiffeuses qui répondent "dispo, venez en MP" — mais le MP ne marche pas toujours. Résultat : des clientes perdues avant même d'avoir pris RDV.
+>
+> Full transparence : je suis Issouf, fondateur de NEXUS. On a créé une plateforme pensée exactement pour les coiffeuses à domicile — la cliente voit vos tarifs, votre zone de déplacement (91, 78, 93, toute l'IDF...), vos créneaux libres, et elle réserve directement. Vous recevez un rappel automatique la veille et le matin. Plus de "t'es dispo quand ?", plus de clientes perdues dans les MP, et quasi plus de lapins.
+>
+> C'est gratuit pour démarrer, sans carte bancaire. Si ça intéresse quelqu'un, envoyez-moi un MP et je vous montre en 5 minutes. Et si vous avez d'autres galères au quotidien (gestion des tarifs, relances, facturation...) ça m'intéresse aussi — on construit avec les retours des pros.
 
 **Statut :** [ ] Posté | **Date :** _____ | **Retours :** _____
 
 ---
 
-## 12. (en attente de scan)
+## 12. GROUPE DES COIFFEURS
 
-**Groupe :**
-**Posts analysés :**
-**Insight clé :**
+**Groupe :** https://www.facebook.com/groups/2946072752384966
+**Posts analysés :** 3
+**Insight clé :** Groupe mort. 3 posts sans engagement. Pas exploitable.
 
-**Post :**
+**Post :** SKIP — groupe inactif
 
-> (à rédiger après analyse)
-
-**Statut :** [ ] Posté | **Date :** _____ | **Retours :** _____
+**Statut :** [x] Ignoré
 
 ---
 
@@ -222,5 +225,5 @@
 | 8 | Salons Bien-Être | [ ] | 0 | 0 |
 | 9 | Restaurateurs aux commandes | [ ] | 0 | 0 |
 | 10 | Coiffure & Esthétique | [ ] | 0 | 0 |
-| 11 | (en attente) | [ ] | 0 | 0 |
-| 12 | (en attente) | [ ] | 0 | 0 |
+| 11 | Coiffeuses Afro Certifiées IDF | [ ] | 0 | 0 |
+| 12 | GROUPE DES COIFFEURS (SKIP) | [x] | — | — |

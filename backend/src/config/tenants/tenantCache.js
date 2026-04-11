@@ -183,6 +183,17 @@ async function loadPhoneNumbers() {
         }
       }
     }
+
+    // Static tenant phone numbers (fallback for tenants not yet in DB)
+    const staticPhones = {
+      '+33974995631': 'nexus-test',
+    };
+    for (const [phone, tenantId] of Object.entries(staticPhones)) {
+      if (!phoneMap.has(phone)) {
+        phoneMap.set(phone, tenantId);
+        logger.info('Static phone mapping added', { tag: 'TenantCache', phone, tenantId });
+      }
+    }
   } catch (err) {
     logger.warn('Phone numbers load failed', { tag: 'TenantCache', error: err.message });
   }

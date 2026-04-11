@@ -59,6 +59,9 @@ import {
 import { getEffectiveConfig, getFullAgentConfig } from '../../templates/templateLoader.js';
 import { generateSystemPrompt as dynamicSystemPrompt } from '../../templates/promptEngine.js';
 
+// 🎯 DEMO TENANT: Prompt commercial spécialisé
+import { getDemoPrompt } from '../../prompts/demoAgentPrompt.js';
+
 // 🤝 Reconnaissance client (accueil personnalisé)
 import { recognizeClient } from '../../services/clientRecognition.js';
 import {
@@ -2479,6 +2482,13 @@ async function getSystemPromptUnified(channel, tenantConfig) {
   }
 
   const tenantId = tenantConfig.id || tenantConfig.tenant_id || tenantConfig.slug;
+
+  // 🎯 DEMO TENANT: Utiliser le prompt commercial spécialisé
+  if (tenantConfig.isDemoTenant) {
+    console.log(`[NEXUS CORE] Using DEMO prompt for ${tenantId} (channel: ${channel})`);
+    return getDemoPrompt(channel);
+  }
+
   console.log(`[NEXUS CORE] Generating dynamic prompt for ${tenantId}`);
   return dynamicSystemPrompt(channel, tenantConfig);
 }

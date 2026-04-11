@@ -1,11 +1,13 @@
-NEXUS s'adapte à VOTRE métier. 🎯
+L'IA NEXUS s'adapte a VOTRE metier.
 
-Salon de coiffure ? Restaurant ? Hôtel ?
-Commerce ? Sécurité ? Services à domicile ?
+💇 Coiffeuse ? Elle connait vos prestations et vos tarifs.
+🍽️ Restaurant ? Elle donne la carte et reserve une table.
+🏨 Hotel ? Elle verifie les dispos et reserve la chambre.
+💆 Bien-etre ? Elle propose vos soins et prend le RDV.
 
-Mêmes outils. Configuration sur mesure.
-L'IA apprend votre métier et s'adapte.
+Meme IA. Configuration sur mesure.
+Elle repond au telephone et sur WhatsApp comme si c'etait vous.
 
-👉 nexus-ai-saas.com
+Gratuit pour commencer. nexus-ai-saas.com
 
-#NEXUS #MultiSecteur #SaaS #Salon #Restaurant #Hotel #Commerce #Securite #IA #Entrepreneur
+#NEXUS #IAReservation #TelephoneIA #WhatsAppIA #Coiffeuse #Restaurant #Hotel #BienEtre #PME #AssistantIA

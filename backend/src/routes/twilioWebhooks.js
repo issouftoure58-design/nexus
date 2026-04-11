@@ -263,6 +263,11 @@ const VOICE_CONFIG = {
   language: 'fr-FR'
 };
 
+// ── PROTECTIONS ANTI-ABUS VOIX ──
+const MAX_CALL_DURATION_MS = 15 * 60 * 1000; // 15 minutes max par appel
+const MAX_TURNS_PER_CALL = 25;                // 25 échanges max (accueil + 24 tours)
+const MAX_TTS_CALLS_PER_CALL = 30;            // 30 synthèses vocales max par appel
+
 // Hints génériques pour la reconnaissance vocale Twilio (multi-tenant)
 const BASE_SPEECH_HINTS = [
   // Jours
@@ -510,6 +515,18 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
     return res.send(twiml.toString());
   }
 
+  // ── QUOTA CHECK (AVANT toute opération coûteuse — Claude, TTS, Twilio minutes) ──
+  try {
+    await usageTracking.enforceQuota(tenantId, 'telephone');
+  } catch (quotaError) {
+    logger.warn(`VOICE Quota dépassé pour ${tenantId}: ${quotaError.message}`);
+    const twiml = new VoiceResponse();
+    twiml.say(VOICE_CONFIG, "Désolé, le service téléphonique n'est plus disponible ce mois-ci. Contactez-nous par email pour recharger votre compte. Au revoir.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
+
   // V3: Router vers le mode temps reel si active pour ce tenant
   const realtimeCheck = isRealtimeEnabled(tenantId);
   logger.info(`VOICE Realtime check: ${realtimeCheck} (env=${process.env.VOICE_REALTIME}, tenant=${tenantId})`);
@@ -527,7 +544,9 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
   voiceSessions.set(CallSid, {
     startTime: Date.now(),
     tenantId,
-    tenantConfig
+    tenantConfig,
+    turnCount: 0,
+    ttsCount: 0,
   });
 
   // Tracker la conversation
@@ -585,6 +604,30 @@ router.post('/voice/conversation', validateTwilioSignature, async (req, res) => 
     twiml.hangup();
     res.type('text/xml');
     return res.send(twiml.toString());
+  }
+
+  // ── PROTECTIONS ANTI-ABUS (durée, tours, TTS) ──
+  if (session) {
+    session.turnCount = (session.turnCount || 0) + 1;
+    const elapsed = Date.now() - (session.startTime || Date.now());
+
+    // Durée max dépassée
+    if (elapsed > MAX_CALL_DURATION_MS) {
+      logger.warn(`VOICE DURATION_LIMIT: ${CallSid} a dépassé ${MAX_CALL_DURATION_MS / 60000} min (tenant: ${tenantId})`);
+      await sayWithTTS(twiml, "Je suis désolée, notre conversation a été très longue. Je dois vous laisser. N'hésitez pas à rappeler ou à nous écrire sur WhatsApp. Au revoir !");
+      twiml.hangup();
+      res.type('text/xml');
+      return res.send(twiml.toString());
+    }
+
+    // Nombre de tours max dépassé
+    if (session.turnCount > MAX_TURNS_PER_CALL) {
+      logger.warn(`VOICE TURN_LIMIT: ${CallSid} a dépassé ${MAX_TURNS_PER_CALL} tours (tenant: ${tenantId})`);
+      await sayWithTTS(twiml, "On a eu un bel échange ! Pour aller plus loin, je vous invite à créer votre compte sur notre site. Merci et à bientôt !");
+      twiml.hangup();
+      res.type('text/xml');
+      return res.send(twiml.toString());
+    }
   }
 
   // Vérifier si on a bien compris
