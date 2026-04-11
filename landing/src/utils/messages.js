@@ -8,11 +8,11 @@ export const MESSAGES_CONFIG = {
     audio: null
   },
   telephone: {
-    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Basic et Business via des credits IA : 1 minute = 15 credits.",
+    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Basic et Business via des credits IA : 1 minute = 18 credits.",
     audio: null
   },
   whatsapp: {
-    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Disponible dans Basic et Business via des credits IA : 1 message = 4 credits.",
+    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Disponible dans Basic et Business via des credits IA : 1 message = 7 credits.",
     audio: null
   },
   reservation: {

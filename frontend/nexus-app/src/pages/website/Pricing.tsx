@@ -107,14 +107,14 @@ const CREDIT_PACKS = [
 
 // Cout en credits par action IA (pay-as-you-go)
 const CREDIT_COSTS = [
-  { action: '1 question chat IA admin', cost: '4 credits' },
-  { action: '1 message WhatsApp IA repondu', cost: '4 credits' },
-  { action: '1 devis IA', cost: '6 credits' },
-  { action: '1 email IA envoye', cost: '6 credits' },
-  { action: '1 conversation Agent IA Web', cost: '9 credits' },
-  { action: '1 post reseaux sociaux genere', cost: '9 credits' },
-  { action: '1 minute Telephone IA', cost: '15 credits' },
-  { action: '1 article SEO (1500 mots)', cost: '66 credits' },
+  { action: '1 question chat IA admin', cost: '7 credits' },
+  { action: '1 message WhatsApp IA repondu', cost: '7 credits' },
+  { action: '1 devis IA', cost: '9 credits' },
+  { action: '1 email IA envoye', cost: '9 credits' },
+  { action: '1 conversation Agent IA Web', cost: '12 credits' },
+  { action: '1 post reseaux sociaux genere', cost: '12 credits' },
+  { action: '1 minute Telephone IA', cost: '18 credits' },
+  { action: '1 article SEO (1500 mots)', cost: '69 credits' },
 ];
 
 // Exemples de configurations (modele 2026 — revision finale 9 avril 2026)
@@ -186,7 +186,7 @@ const FAQS = [
   },
   {
     q: 'Comment fonctionnent les credits IA ?',
-    a: "1,5 euro = 100 credits (0,015€/credit — taux base). Chaque plan payant inclut deja des credits : Basic 1 000 credits/mois, Business 10 000 credits/mois. Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits au taux base (sans bonus). 1 message WhatsApp IA = 4 credits, 1 minute Telephone IA = 15 credits, 1 article SEO = 66 credits.",
+    a: "1,5 euro = 100 credits (0,015€/credit — taux base). Chaque plan payant inclut deja des credits : Basic 1 000 credits/mois, Business 10 000 credits/mois. Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits au taux base (sans bonus). 1 message WhatsApp IA = 7 credits, 1 minute Telephone IA = 18 credits, 1 article SEO = 69 credits.",
   },
   {
     q: 'Puis-je changer de plan en cours de mois ?',
@@ -521,14 +521,14 @@ export default function Pricing() {
                 <tr>
                   <td>WhatsApp IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td>4 credits / message</td>
-                  <td>4 credits / message</td>
+                  <td>7 credits / message</td>
+                  <td>7 credits / message</td>
                 </tr>
                 <tr>
                   <td>Telephone IA</td>
                   <td><X className="w-4 h-4 text-gray-300" /></td>
-                  <td>15 credits / minute</td>
-                  <td>15 credits / minute</td>
+                  <td>18 credits / minute</td>
+                  <td>18 credits / minute</td>
                 </tr>
                 <tr>
                   <td>Marketing IA, SEO IA</td>

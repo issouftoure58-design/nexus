@@ -89,16 +89,16 @@ export const CREDIT_PACKS = {
  * Cout en credits IA par action (voir business-model-2026.md pour le detail des marges)
  */
 export const CREDIT_COSTS = {
-  chat_admin_haiku:        4,   // 1 question chat IA admin
-  whatsapp_message:        4,   // 1 message WhatsApp IA repondu
-  devis_ia:                6,   // 1 devis IA
-  anti_churn_whatsapp:     6,   // 1 message Anti-Churn WhatsApp
-  email_ia_sent:           6,   // 1 email IA genere + envoi Resend
-  agent_web_conversation:  9,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
-  social_post_generated:   9,   // 1 post reseaux genere (Sonnet + image)
-  phone_minute:           15,   // 1 minute appel Telephone IA
-  anti_churn_sms_fr:      16,   // 1 message Anti-Churn SMS FR (cher)
-  seo_article_full:       66,   // 1 article SEO complet (1500 mots, Sonnet)
+  chat_admin_haiku:        7,   // 1 question chat IA admin
+  whatsapp_message:        7,   // 1 message WhatsApp IA repondu
+  devis_ia:                9,   // 1 devis IA
+  anti_churn_whatsapp:     9,   // 1 message Anti-Churn WhatsApp
+  email_ia_sent:           9,   // 1 email IA genere + envoi Resend
+  agent_web_conversation: 12,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
+  social_post_generated:  12,   // 1 post reseaux genere (Sonnet + image)
+  phone_minute:           18,   // 1 minute appel Telephone IA
+  anti_churn_sms_fr:      19,   // 1 message Anti-Churn SMS FR (cher)
+  seo_article_full:       69,   // 1 article SEO complet (1500 mots, Sonnet)
 };
 
 /**

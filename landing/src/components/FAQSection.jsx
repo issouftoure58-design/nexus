@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 const FAQS = [
   {
     q: "Qu'est-ce que NEXUS exactement ?",
-    a: "NEXUS est une plateforme SaaS tout-en-un propulsee par l'intelligence artificielle, concue pour les PME francophones. Elle regroupe un assistant telephone IA, un chatbot WhatsApp, un systeme de reservations en ligne, un CRM client, la comptabilite automatisee et des outils marketing — le tout dans une seule interface. NEXUS remplace jusqu'a 6 logiciels differents pour un seul abonnement."
+    a: "NEXUS est une IA qui repond au telephone et sur WhatsApp 24h/24 a votre place, prend les reservations automatiquement et gere votre facturation. Concue pour les PME francophones, la plateforme inclut aussi un CRM client, la comptabilite et des outils marketing — tout dans une seule interface. Vos clients sont toujours accueillis, meme quand vous etes occupes."
   },
   {
     q: 'Pour quels types de business NEXUS est-il adapte ?',
@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: 'Comment fonctionnent les credits IA NEXUS ?',
-    a: "NEXUS utilise un systeme de credits universels pour toutes les fonctions IA, similaire a Twilio ou OpenAI. 1,5 euro = 100 credits. Chaque plan payant inclut deja des credits : Basic 1 000 credits par mois (valeur 15 euros), Business 10 000 credits par mois (valeur 150 euros). Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15 euros pour 1 000 credits (taux base, sans bonus). Exemples de consommation : 1 question chat IA = 4 credits, 1 message WhatsApp IA = 4 credits, 1 minute de telephone IA = 15 credits, 1 post reseaux sociaux = 9 credits, 1 article SEO complet = 66 credits. Mode degrade gracieux a 0 credit (aucune surprise)."
+    a: "NEXUS utilise un systeme de credits universels pour toutes les fonctions IA, similaire a Twilio ou OpenAI. 1,5 euro = 100 credits. Chaque plan payant inclut deja des credits : Basic 1 000 credits par mois (valeur 15 euros), Business 10 000 credits par mois (valeur 150 euros). Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15 euros pour 1 000 credits (taux base, sans bonus). Exemples de consommation : 1 question chat IA = 7 credits, 1 message WhatsApp IA = 7 credits, 1 minute de telephone IA = 18 credits, 1 post reseaux sociaux = 12 credits, 1 article SEO complet = 69 credits. Mode degrade gracieux a 0 credit (aucune surprise)."
   },
   {
     q: "L'assistant IA comprend-il le francais ?",
@@ -79,7 +79,7 @@ export default function FAQSection() {
             </span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Retrouvez les reponses aux questions les plus posees sur NEXUS, le logiciel de gestion IA tout-en-un pour les PME. Tarifs, fonctionnalites, securite des donnees, integration WhatsApp Business et telephone IA — tout est explique ici.
+            Retrouvez les reponses aux questions les plus posees sur NEXUS — l'IA qui repond au telephone, gere vos messages WhatsApp et prend vos reservations 24/7. Tarifs, fonctionnalites, credits IA, securite des donnees — tout est explique ici.
           </p>
         </div>
         <div className="space-y-4">

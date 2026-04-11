@@ -15,32 +15,32 @@ import { jest } from '@jest/globals';
 import { CREDIT_COSTS, CREDIT_PACKS, MONTHLY_INCLUDED } from '../src/services/creditsService.js';
 
 describe('CREDIT_COSTS — Tarifs par action IA', () => {
-  test('chat IA admin = 4 crédits/question', () => {
-    expect(CREDIT_COSTS.chat_admin_question).toBe(4);
+  test('chat IA admin = 7 crédits/question', () => {
+    expect(CREDIT_COSTS.chat_admin_question).toBe(7);
   });
 
-  test('WhatsApp IA = 4 crédits/message', () => {
-    expect(CREDIT_COSTS.whatsapp_message).toBe(4);
+  test('WhatsApp IA = 7 crédits/message', () => {
+    expect(CREDIT_COSTS.whatsapp_message).toBe(7);
   });
 
-  test('Web chat = 9 crédits/conversation', () => {
-    expect(CREDIT_COSTS.web_chat_conversation).toBe(9);
+  test('Web chat = 12 crédits/conversation', () => {
+    expect(CREDIT_COSTS.web_chat_conversation).toBe(12);
   });
 
-  test('Téléphone IA = 15 crédits/minute', () => {
-    expect(CREDIT_COSTS.phone_minute).toBe(15);
+  test('Téléphone IA = 18 crédits/minute', () => {
+    expect(CREDIT_COSTS.phone_minute).toBe(18);
   });
 
-  test('Post réseaux IA = 9 crédits', () => {
-    expect(CREDIT_COSTS.social_post_generated).toBe(9);
+  test('Post réseaux IA = 12 crédits', () => {
+    expect(CREDIT_COSTS.social_post_generated).toBe(12);
   });
 
-  test('Email IA = 6 crédits', () => {
-    expect(CREDIT_COSTS.email_ia_sent).toBe(6);
+  test('Email IA = 9 crédits', () => {
+    expect(CREDIT_COSTS.email_ia_sent).toBe(9);
   });
 
-  test('Article SEO complet = 66 crédits (action la plus chère)', () => {
-    expect(CREDIT_COSTS.seo_article).toBe(66);
+  test('Article SEO complet = 69 crédits (action la plus chère)', () => {
+    expect(CREDIT_COSTS.seo_article).toBe(69);
     // Vérifie que c'est bien la plus chère parmi les actions courantes
     const otherCosts = ['chat_admin_question', 'whatsapp_message', 'web_chat_conversation', 'phone_minute', 'email_ia_sent']
       .map((k) => CREDIT_COSTS[k]);

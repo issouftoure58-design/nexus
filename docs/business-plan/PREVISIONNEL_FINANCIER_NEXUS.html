@@ -3,11 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Business Plan NEXUS — Mars 2026</title>
+<title>Previsionnel Financier NEXUS — Avril 2026</title>
 <style>
-  /* ═══════════════════════════════════════════ */
-  /* BASE                                        */
-  /* ═══════════════════════════════════════════ */
   :root {
     --primary: #1e3a5f;
     --accent: #2563eb;
@@ -20,586 +17,91 @@
     --danger: #dc2626;
     --warning: #d97706;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    color: var(--text);
-    line-height: 1.6;
-    background: #f8fafc;
-  }
-
-  .page {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
-    background: var(--bg);
-    padding: 25mm 20mm;
-    box-shadow: 0 0 20px rgba(0,0,0,0.08);
-    position: relative;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* COVER PAGE                                  */
-  /* ═══════════════════════════════════════════ */
-  .cover {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 30mm 20mm;
-  }
-
-  .cover-logo {
-    width: 80px;
-    height: 80px;
-    background: linear-gradient(135deg, var(--accent), #7c3aed);
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 36px;
-    font-weight: 800;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(37,99,235,0.3);
-  }
-
-  .cover h1 {
-    font-size: 42px;
-    color: var(--primary);
-    font-weight: 800;
-    letter-spacing: -1px;
-    margin-bottom: 8px;
-  }
-
-  .cover .subtitle {
-    font-size: 18px;
-    color: var(--accent);
-    font-weight: 500;
-    margin-bottom: 40px;
-  }
-
-  .cover .tagline {
-    font-size: 22px;
-    color: var(--text);
-    font-weight: 600;
-    margin-bottom: 10px;
-    max-width: 500px;
-  }
-
-  .cover .tagline-sub {
-    font-size: 15px;
-    color: var(--text-light);
-    margin-bottom: 60px;
-    max-width: 450px;
-  }
-
-  .cover-meta {
-    margin-top: auto;
-    padding-top: 40px;
-    border-top: 2px solid var(--border);
-    width: 100%;
-  }
-
-  .cover-meta table {
-    margin: 0 auto;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .cover-meta td {
-    padding: 4px 16px;
-    text-align: left;
-  }
-
-  .cover-meta td:first-child {
-    color: var(--text-light);
-    font-weight: 500;
-  }
-
-  .cover-badge {
-    display: inline-block;
-    background: var(--accent-light);
-    color: var(--accent);
-    padding: 6px 16px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    margin-top: 20px;
-  }
-
-  .cover-confidentiel {
-    color: var(--danger);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-top: 15px;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* TYPOGRAPHY                                  */
-  /* ═══════════════════════════════════════════ */
-  h1 {
-    font-size: 28px;
-    color: var(--primary);
-    font-weight: 700;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 3px solid var(--accent);
-  }
-
-  h2 {
-    font-size: 20px;
-    color: var(--primary);
-    font-weight: 600;
-    margin-top: 25px;
-    margin-bottom: 12px;
-  }
-
-  h3 {
-    font-size: 16px;
-    color: var(--accent);
-    font-weight: 600;
-    margin-top: 18px;
-    margin-bottom: 8px;
-  }
-
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text); line-height: 1.6; background: #f8fafc; }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: var(--bg); padding: 25mm 20mm; box-shadow: 0 0 20px rgba(0,0,0,0.08); position: relative; }
+  .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 30mm 20mm; }
+  .cover-logo { width: 80px; height: 80px; background: linear-gradient(135deg, var(--accent), #7c3aed); border-radius: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; font-weight: 800; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(37,99,235,0.3); }
+  .cover h1 { font-size: 42px; color: var(--primary); font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 18px; color: var(--accent); font-weight: 500; margin-bottom: 40px; }
+  .cover .tagline { font-size: 22px; color: var(--text); font-weight: 600; margin-bottom: 10px; max-width: 500px; }
+  .cover .tagline-sub { font-size: 15px; color: var(--text-light); margin-bottom: 60px; max-width: 450px; }
+  .cover-meta { margin-top: auto; padding-top: 40px; border-top: 2px solid var(--border); width: 100%; }
+  .cover-meta table { margin: 0 auto; border-collapse: collapse; font-size: 13px; }
+  .cover-meta td { padding: 4px 16px; text-align: left; }
+  .cover-meta td:first-child { color: var(--text-light); font-weight: 500; }
+  .cover-badge { display: inline-block; background: var(--accent-light); color: var(--accent); padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-top: 20px; }
+  .cover-confidentiel { color: var(--danger); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; margin-top: 15px; }
+  h1 { font-size: 28px; color: var(--primary); font-weight: 700; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid var(--accent); }
+  h2 { font-size: 20px; color: var(--primary); font-weight: 600; margin-top: 25px; margin-bottom: 12px; }
+  h3 { font-size: 16px; color: var(--accent); font-weight: 600; margin-top: 18px; margin-bottom: 8px; }
   p { margin-bottom: 10px; font-size: 14px; }
-
-  .section-number {
-    display: inline-block;
-    background: var(--accent);
-    color: white;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 32px;
-    font-size: 14px;
-    font-weight: 700;
-    margin-right: 10px;
-    vertical-align: middle;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* TABLE OF CONTENTS                           */
-  /* ═══════════════════════════════════════════ */
-  .toc h1 { text-align: center; border: none; }
-
-  .toc-list {
-    list-style: none;
-    padding: 0;
-    margin-top: 30px;
-  }
-
-  .toc-list li {
-    display: flex;
-    align-items: baseline;
-    padding: 10px 0;
-    border-bottom: 1px dotted var(--border);
-    font-size: 15px;
-  }
-
-  .toc-list li .toc-num {
-    color: var(--accent);
-    font-weight: 700;
-    min-width: 40px;
-  }
-
-  .toc-list li .toc-title {
-    flex: 1;
-    font-weight: 500;
-  }
-
-  .toc-list li .toc-page {
-    color: var(--text-light);
-    font-weight: 600;
-    min-width: 30px;
-    text-align: right;
-  }
-
-  .toc-list li.toc-annexe {
-    color: var(--text-light);
-    font-size: 13px;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* TABLES                                      */
-  /* ═══════════════════════════════════════════ */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 15px 0;
-    font-size: 13px;
-  }
-
-  table th {
-    background: var(--primary);
-    color: white;
-    padding: 10px 12px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  table td {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
+  .section-number { display: inline-block; background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; margin-right: 10px; vertical-align: middle; }
+  table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
+  table th { background: var(--primary); color: white; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
   table tr:nth-child(even) { background: #f8fafc; }
-
   table.financial th { background: var(--accent); }
   table.financial td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
   table.financial tr.total { font-weight: 700; background: var(--accent-light); }
   table.financial tr.total td { border-top: 2px solid var(--accent); }
   table.financial tr.subtotal { font-weight: 600; }
   table.financial tr.separator td { border: none; padding: 4px; }
-
   table.compact { font-size: 11px; }
   table.compact th, table.compact td { padding: 5px 8px; }
-
-  /* ═══════════════════════════════════════════ */
-  /* KPI BOXES                                   */
-  /* ═══════════════════════════════════════════ */
-  .kpi-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin: 15px 0;
-  }
-
-  .kpi-box {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 15px;
-    text-align: center;
-    background: white;
-  }
-
-  .kpi-value {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--accent);
-  }
-
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 15px 0; }
+  .kpi-box { border: 1px solid var(--border); border-radius: 10px; padding: 15px; text-align: center; background: white; }
+  .kpi-value { font-size: 24px; font-weight: 800; color: var(--accent); }
   .kpi-value.success { color: var(--success); }
   .kpi-value.danger { color: var(--danger); }
   .kpi-value.warning { color: var(--warning); }
-
-  .kpi-label {
-    font-size: 11px;
-    color: var(--text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 4px;
-  }
-
+  .kpi-label { font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
   .kpi-row-3 { grid-template-columns: repeat(3, 1fr); }
-
-  /* ═══════════════════════════════════════════ */
-  /* HIGHLIGHTS / CALLOUTS                       */
-  /* ═══════════════════════════════════════════ */
-  .highlight {
-    background: var(--accent-light);
-    border-left: 4px solid var(--accent);
-    padding: 15px 18px;
-    border-radius: 0 8px 8px 0;
-    margin: 15px 0;
-    font-size: 14px;
-  }
-
+  .highlight { background: var(--accent-light); border-left: 4px solid var(--accent); padding: 15px 18px; border-radius: 0 8px 8px 0; margin: 15px 0; font-size: 14px; }
   .highlight strong { color: var(--accent); }
-
-  .callout-success {
-    background: #ecfdf5;
-    border-left: 4px solid var(--success);
-    padding: 12px 16px;
-    border-radius: 0 8px 8px 0;
-    margin: 12px 0;
-    font-size: 13px;
-  }
-
-  .callout-warning {
-    background: #fffbeb;
-    border-left: 4px solid var(--warning);
-    padding: 12px 16px;
-    border-radius: 0 8px 8px 0;
-    margin: 12px 0;
-    font-size: 13px;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* SCREENSHOTS                                 */
-  /* ═══════════════════════════════════════════ */
-  .screenshot-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    margin: 15px 0;
-  }
-
-  .screenshot-item {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .screenshot-item img {
-    width: 100%;
-    display: block;
-  }
-
-  .screenshot-caption {
-    padding: 6px 10px;
-    background: #f8fafc;
-    font-size: 11px;
-    color: var(--text-light);
-    font-weight: 500;
-    text-align: center;
-  }
-
-  .screenshot-full {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin: 12px 0;
-  }
-
-  .screenshot-full img {
-    width: 100%;
-    display: block;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* FUNNEL / DIAGRAM                            */
-  /* ═══════════════════════════════════════════ */
-  .funnel {
-    margin: 15px 0;
-    text-align: center;
-  }
-
-  .funnel-step {
-    display: inline-block;
-    padding: 8px 20px;
-    margin: 4px 0;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    color: white;
-  }
-
-  .funnel-arrow {
-    display: block;
-    color: var(--text-light);
-    font-size: 18px;
-    margin: 2px 0;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* PAGE HEADER / FOOTER                        */
-  /* ═══════════════════════════════════════════ */
-  .page-header {
-    position: absolute;
-    top: 10mm;
-    left: 20mm;
-    right: 20mm;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-    font-size: 10px;
-    color: var(--text-light);
-  }
-
-  .page-header .logo-mini {
-    display: inline-block;
-    background: var(--accent);
-    color: white;
-    width: 20px;
-    height: 20px;
-    border-radius: 5px;
-    text-align: center;
-    line-height: 20px;
-    font-size: 10px;
-    font-weight: 800;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-
-  .page-footer {
-    position: absolute;
-    bottom: 10mm;
-    left: 20mm;
-    right: 20mm;
-    text-align: center;
-    font-size: 9px;
-    color: var(--text-light);
-    border-top: 1px solid var(--border);
-    padding-top: 6px;
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* COMPARISON TABLE                            */
-  /* ═══════════════════════════════════════════ */
-  .check { color: var(--success); font-weight: 700; }
-  .cross { color: var(--danger); font-weight: 700; }
-
-  /* ═══════════════════════════════════════════ */
-  /* TIMELINE                                    */
-  /* ═══════════════════════════════════════════ */
-  .timeline {
-    position: relative;
-    margin: 15px 0 15px 20px;
-    padding-left: 25px;
-    border-left: 3px solid var(--accent);
-  }
-
-  .timeline-item {
-    margin-bottom: 15px;
-    position: relative;
-  }
-
-  .timeline-item::before {
-    content: '';
-    width: 12px;
-    height: 12px;
-    background: var(--accent);
-    border-radius: 50%;
-    position: absolute;
-    left: -31px;
-    top: 3px;
-  }
-
-  .timeline-date {
-    font-size: 11px;
-    color: var(--accent);
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .timeline-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .timeline-desc {
-    font-size: 12px;
-    color: var(--text-light);
-  }
-
-  /* ═══════════════════════════════════════════ */
-  /* RISK MATRIX                                 */
-  /* ═══════════════════════════════════════════ */
-  .risk-low { background: #ecfdf5; color: var(--success); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-  .risk-med { background: #fffbeb; color: var(--warning); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-  .risk-high { background: #fef2f2; color: var(--danger); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-
-  /* ═══════════════════════════════════════════ */
-  /* PRINT                                       */
-  /* ═══════════════════════════════════════════ */
+  .callout-success { background: #ecfdf5; border-left: 4px solid var(--success); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13px; }
+  .callout-warning { background: #fffbeb; border-left: 4px solid var(--warning); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13px; }
+  .callout-info { background: var(--accent-light); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13px; }
+  .page-header { position: absolute; top: 10mm; left: 20mm; right: 20mm; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--text-light); }
+  .page-header .logo-mini { display: inline-block; background: var(--accent); color: white; width: 20px; height: 20px; border-radius: 5px; text-align: center; line-height: 20px; font-size: 10px; font-weight: 800; margin-right: 6px; vertical-align: middle; }
+  .page-footer { position: absolute; bottom: 10mm; left: 20mm; right: 20mm; text-align: center; font-size: 9px; color: var(--text-light); border-top: 1px solid var(--border); padding-top: 6px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .text-small { font-size: 12px; }
+  .text-muted { color: var(--text-light); }
   @media print {
     body { background: white; margin: 0; font-size: 11px; line-height: 1.45; }
-
-    .page {
-      box-shadow: none;
-      margin: 0;
-      padding: 6mm 10mm;
-      width: 100%;
-      min-height: 0;
-      overflow: visible;
-      page-break-after: always;
-      page-break-inside: auto;
-    }
-
+    .page { box-shadow: none; margin: 0; padding: 6mm 10mm; width: 100%; min-height: 0; overflow: visible; page-break-after: always; page-break-inside: auto; }
     .page:last-child { page-break-after: auto; }
-
     .page.cover { padding: 10mm 15mm; }
-
     h1 { font-size: 20px; margin-bottom: 10px; padding-bottom: 6px; }
     h2 { font-size: 15px; margin-top: 14px; margin-bottom: 6px; }
-    h3 { font-size: 13px; margin-top: 10px; margin-bottom: 4px; }
     p { font-size: 11px; margin-bottom: 6px; }
-
     table { font-size: 10px; margin: 8px 0; }
     table th { padding: 5px 6px; font-size: 9px; }
     table td { padding: 4px 6px; }
     table.compact { font-size: 9px; }
     table.compact th, table.compact td { padding: 3px 5px; }
-
     .kpi-row { gap: 6px; margin: 8px 0; }
     .kpi-box { padding: 8px; }
     .kpi-value { font-size: 18px; }
     .kpi-label { font-size: 9px; }
-
     .highlight { padding: 8px 10px; margin: 8px 0; font-size: 11px; }
-    .callout-success, .callout-warning { padding: 6px 10px; margin: 6px 0; font-size: 11px; }
-
+    .callout-success, .callout-warning, .callout-info { padding: 6px 10px; margin: 6px 0; font-size: 11px; }
     .cover h1 { font-size: 32px; }
     .cover .subtitle { font-size: 14px; margin-bottom: 25px; }
     .cover .tagline { font-size: 17px; }
     .cover .tagline-sub { font-size: 12px; margin-bottom: 35px; }
     .cover-logo { width: 60px; height: 60px; font-size: 28px; margin-bottom: 20px; }
-
-    .toc-list li { padding: 6px 0; font-size: 12px; }
-
-    .screenshot-grid { gap: 8px; margin: 8px 0; }
-
-    .grid-2 { gap: 8px; }
-
-    /* Header/footer */
-    .page-header {
-      position: relative;
-      top: auto; left: auto; right: auto;
-      margin-bottom: 3mm;
-      padding: 0;
-      font-size: 9px;
-    }
-    .page-footer {
-      position: relative;
-      bottom: auto; left: auto; right: auto;
-      margin-top: 3mm;
-      padding: 0;
-      border-top: 1px solid #e2e8f0;
-      padding-top: 1mm;
-      font-size: 8px;
-    }
-
+    .page-header { position: relative; top: auto; left: auto; right: auto; margin-bottom: 3mm; padding: 0; font-size: 9px; }
+    .page-footer { position: relative; bottom: auto; left: auto; right: auto; margin-top: 3mm; padding: 0; border-top: 1px solid #e2e8f0; padding-top: 1mm; font-size: 8px; }
     .no-print { display: none; }
-
-    * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
     table { page-break-inside: avoid; }
-    .stat-card, .kpi-row, .kpi-box, .highlight, .callout-success, .callout-warning { page-break-inside: avoid; }
+    .kpi-row, .kpi-box, .highlight, .callout-success, .callout-warning, .callout-info { page-break-inside: avoid; }
     h1, h2, h3 { page-break-after: avoid; }
-
     @page { margin: 6mm 8mm; size: A4; }
   }
-
-  /* ═══════════════════════════════════════════ */
-  /* UTILITY                                     */
-  /* ═══════════════════════════════════════════ */
-  .mt-20 { margin-top: 20px; }
-  .mb-10 { margin-bottom: 10px; }
-  .text-center { text-align: center; }
-  .text-right { text-align: right; }
-  .text-small { font-size: 12px; }
-  .text-muted { color: var(--text-light); }
-  .text-accent { color: var(--accent); }
-  .fw-700 { font-weight: 700; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 </style>
 </head>
 <body>
@@ -619,159 +121,183 @@
       <tr><td>Document</td><td><strong>Previsionnel financier</strong></td></tr>
       <tr><td>Societe</td><td><strong>NEXUS — SIREN 947 570 362</strong></td></tr>
       <tr><td>Fondateur</td><td><strong>Issouf Toure</strong></td></tr>
-      <tr><td>Date</td><td><strong>Mars 2026</strong></td></tr>
-      <tr><td>Version</td><td><strong>1.0</strong></td></tr>
+      <tr><td>Date</td><td><strong>Avril 2026</strong></td></tr>
+      <tr><td>Version</td><td><strong>4.0 (revision 6)</strong></td></tr>
     </table>
-    <div class="cover-badge">Accompagne le Business Plan NEXUS</div>
+    <div class="cover-badge">Demande de financement : 40 000 EUR (+ 5 000 EUR NACRE en option)</div>
     <div class="cover-confidentiel">Document confidentiel</div>
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 6. PLAN DE FINANCEMENT                                     -->
+<!-- ══════════════════════════════════════════════════════════ -->
 <div class="page">
   <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>6. Plan de Financement</span>
+    <span><span class="logo-mini">N</span> NEXUS — Previsionnel Financier</span>
+    <span>Plan de Financement</span>
   </div>
 
-  <h2>6.1 Besoin total : 85 000 EUR</h2>
+  <h1><span class="section-number">1</span> Plan de Financement Initial</h1>
+
+  <h2>1.1 Besoin total : 40 000 EUR</h2>
   <table class="financial">
     <tr><th>Poste</th><th>Montant</th><th>%</th></tr>
-    <tr><td>Tresorerie d'avance (BFR + runway 6 mois)</td><td>25 000 EUR</td><td>29%</td></tr>
-    <tr><td>Marketing lancement (SEO, Ads, salons pro)</td><td>20 000 EUR</td><td>24%</td></tr>
-    <tr><td>Recrutement dev (3 premiers mois salaire + charges)</td><td>20 000 EUR</td><td>24%</td></tr>
-    <tr><td>Infrastructure (upgrade Supabase Pro, CDN, backups)</td><td>10 000 EUR</td><td>12%</td></tr>
-    <tr><td>Juridique, comptable, assurances</td><td>5 000 EUR</td><td>6%</td></tr>
-    <tr><td>Materiel (poste dev, ecrans)</td><td>5 000 EUR</td><td>6%</td></tr>
-    <tr class="total"><td><strong>TOTAL</strong></td><td><strong>85 000 EUR</strong></td><td><strong>100%</strong></td></tr>
+    <tr><td>Fonds de roulement (6 mois charges minimum)</td><td>18 000 EUR</td><td>45%</td></tr>
+    <tr><td>Tresorerie de securite</td><td>16 000 EUR</td><td>40%</td></tr>
+    <tr><td>Marketing lancement</td><td>3 000 EUR</td><td>8%</td></tr>
+    <tr><td>Materiel informatique</td><td>1 500 EUR</td><td>4%</td></tr>
+    <tr><td>Frais d'etablissement</td><td>1 500 EUR</td><td>4%</td></tr>
+    <tr class="total"><td><strong>TOTAL</strong></td><td><strong>40 000 EUR</strong></td><td><strong>100%</strong></td></tr>
   </table>
 
-  <h2>6.2 Sources de financement</h2>
+  <h2>1.2 Sources de financement</h2>
   <table class="financial">
     <tr><th>Source</th><th>Montant</th><th>Type</th><th>Statut</th></tr>
     <tr><td>Pret d'honneur Initiative 95</td><td>15 000 EUR</td><td>Quasi-fonds propres (0%)</td><td>A demander</td></tr>
-    <tr><td>Pret d'honneur WILCO</td><td>30 000 EUR</td><td>Quasi-fonds propres (0%)</td><td>A demander</td></tr>
-    <tr><td>Pret bancaire (garanti BPI 60%)</td><td>30 000 EUR</td><td>Emprunt 5 ans (~3%)</td><td>A demander</td></tr>
-    <tr><td>NACRE phase 2 (eligible ASS)</td><td>10 000 EUR</td><td>Pret 0%, 5 ans</td><td>A demander</td></tr>
-    <tr class="total"><td><strong>TOTAL TRESORERIE</strong></td><td><strong>85 000 EUR</strong></td><td></td><td></td></tr>
+    <tr><td>Pret bancaire (garanti BPI 60%)</td><td>25 000 EUR</td><td>Emprunt 5 ans (~3%)</td><td>A demander</td></tr>
+    <tr class="total"><td><strong>TOTAL BASE</strong></td><td><strong>40 000 EUR</strong></td><td></td><td></td></tr>
+    <tr><td>NACRE phase 2 (OPTIONNEL)</td><td>5 000 EUR</td><td>Pret 0%, 5 ans</td><td>En option</td></tr>
+    <tr class="total"><td><strong>TOTAL AVEC NACRE</strong></td><td><strong>45 000 EUR</strong></td><td></td><td></td></tr>
   </table>
 
-  <h2>6.3 Effet de levier</h2>
+  <div class="callout-info" style="margin-top:10px;">
+    <strong>Note NACRE :</strong> Le NACRE est gere par la Region (pas France Travail). Montant optionnel — si non obtenu, le plan de base a 40 000 EUR reste viable. Impact = +5 000 EUR de tresorerie, pas d'impact sur le resultat.
+  </div>
+
+  <h2>1.3 Effet de levier</h2>
   <div class="kpi-row kpi-row-3">
-    <div class="kpi-box"><div class="kpi-value">45 000 EUR</div><div class="kpi-label">Quasi-fonds propres (prets d'honneur)</div></div>
-    <div class="kpi-box"><div class="kpi-value success">1.5x</div><div class="kpi-label">Ratio quasi-FP / emprunt</div></div>
-    <div class="kpi-box"><div class="kpi-value">x7</div><div class="kpi-label">Effet levier prets d'honneur</div></div>
+    <div class="kpi-box"><div class="kpi-value">15 000 EUR</div><div class="kpi-label">Quasi-fonds propres (pret d'honneur I95)</div></div>
+    <div class="kpi-box"><div class="kpi-value success">0.6x</div><div class="kpi-label">Ratio quasi-FP / emprunt</div></div>
+    <div class="kpi-box"><div class="kpi-value">762 EUR</div><div class="kpi-label">Mensualite totale (a partir An 2)</div></div>
   </div>
 
   <div class="callout-success">
-    <strong>Strategie sans apport cash :</strong> Les prets d'honneur (45 000 EUR) sont assimiles a des fonds propres par les banques. Avec un ratio de 1.5, le profil est solide pour un pret bancaire de 30 000 EUR garanti BPI a 60%.
+    <strong>Strategie sans apport cash :</strong> Le pret d'honneur Initiative 95 (15 000 EUR) est assimile a des fonds propres par les banques. Avec la garantie BPI a 60%, le profil est solide pour un pret bancaire de 25 000 EUR. Le fondateur ne se verse pas de salaire les 6 premiers mois et assure la comptabilite lui-meme (BEP Compta + 10 ans d'experience).
   </div>
 
+  <h2>1.4 Hypotheses structurantes</h2>
   <div class="callout-warning">
-    <strong>Plan B si WILCO non obtenu :</strong> Bourse French Tech BPI (25 000 EUR subvention) + Pret bancaire elargi (40 000 EUR) + TP'UP Region IDF (15 000 EUR subvention)
+    <strong>Modele frugal :</strong> Pas de salaire fondateur M1-M6 (constitution tresorerie). 0 EUR de charges comptables (fondateur = comptable diplome). 0 EUR de loyer (societe hebergee au domicile). Fondateur seul Y1/Y2 — premier recrutement CSM en Y3 si traction confirmee.
   </div>
 
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 10</div>
+  <div class="page-footer">NEXUS — Previsionnel Financier Confidentiel — Avril 2026 — Page 1</div>
 </div>
+
 <!-- ══════════════════════════════════════════════════════════ -->
 <!-- 7. PREVISIONS FINANCIERES (P&L)                           -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div class="page">
   <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>7. Previsions Financieres</span>
+    <span><span class="logo-mini">N</span> NEXUS — Previsionnel Financier</span>
+    <span>Previsions Financieres</span>
   </div>
 
-  <h1><span class="section-number">7</span> Previsions Financieres</h1>
+  <h1><span class="section-number">2</span> Previsions Financieres</h1>
 
-  <h2>7.1 Hypotheses cles</h2>
+  <h2>2.1 Hypotheses cles</h2>
   <table class="compact">
     <tr><th>Parametre</th><th>Valeur</th><th>Justification</th></tr>
-    <tr><td>ARPA</td><td>199 EUR/mois</td><td>Mix 50% Starter, 35% Pro, 15% Business</td></tr>
-    <tr><td>Nouveaux clients/mois (An 1)</td><td>3 a 10 (croissant)</td><td>Demarrage prudent, acceleration T3</td></tr>
+    <tr><td>Plans tarifaires</td><td>Free 0 EUR / Basic 29 EUR / Business 149 EUR</td><td>Grille revisee avril 2026</td></tr>
+    <tr><td>Mix plans</td><td>10% Free / 70% Basic / 20% Business</td><td>Hypothese conservative</td></tr>
+    <tr><td>ARPA (revenu moyen/client/mois)</td><td>55 EUR</td><td>0.7 x 29 + 0.2 x 149 + credits packs</td></tr>
+    <tr><td>Nouveaux clients/mois (An 1)</td><td>6 a 14 (croissant)</td><td>Demarrage prudent, acceleration T3-T4</td></tr>
     <tr><td>Churn mensuel</td><td>3% An 1, 2.5% An 2, 2% An 3</td><td>Benchmark SaaS PME (Baremetrics)</td></tr>
-    <tr><td>Cout hebergement/client</td><td>8 EUR/mois</td><td>Render + Supabase + Twilio</td></tr>
-    <tr><td>Charges sociales</td><td>45%</td><td>Regime general</td></tr>
+    <tr><td>Cout hebergement</td><td>150 EUR/mois</td><td>Render + Supabase (scalable)</td></tr>
+    <tr><td>Charges sociales</td><td>45%</td><td>SASU regime general</td></tr>
+    <tr><td>Remuneration fondateur</td><td>0 EUR (M1-M6), 1 200 EUR/mois (M7-M12)</td><td>Pas de salaire les 6 premiers mois</td></tr>
+    <tr><td>Comptabilite</td><td>0 EUR</td><td>Fondateur = comptable (BEP Compta + 10 ans)</td></tr>
+    <tr><td>Loyer</td><td>0 EUR</td><td>Societe hebergee au domicile</td></tr>
+    <tr><td>Effectif Y1/Y2</td><td>1 (fondateur seul)</td><td>Dev + commercial + support</td></tr>
   </table>
 
-  <h2>7.2 Compte de resultat previsionnel</h2>
+  <h2>2.2 Compte de resultat previsionnel</h2>
   <table class="financial">
     <tr><th></th><th>An 1 (2026-27)</th><th>An 2 (2027-28)</th><th>An 3 (2028-29)</th></tr>
     <tr class="subtotal"><td><strong>CHIFFRE D'AFFAIRES</strong></td><td></td><td></td><td></td></tr>
-    <tr><td>Abonnements SaaS</td><td>71 640 EUR</td><td>238 800 EUR</td><td>477 600 EUR</td></tr>
-    <tr><td>Setup fees / accompagnement</td><td>3 000 EUR</td><td>8 000 EUR</td><td>15 000 EUR</td></tr>
-    <tr class="total"><td><strong>CA Total HT</strong></td><td><strong>74 640 EUR</strong></td><td><strong>246 800 EUR</strong></td><td><strong>492 600 EUR</strong></td></tr>
+    <tr><td>Abonnements SaaS + credits IA (HT)</td><td>35 860 EUR</td><td>148 710 EUR</td><td>308 200 EUR</td></tr>
+    <tr><td>Setup / accompagnement</td><td>6 000 EUR</td><td>14 500 EUR</td><td>17 500 EUR</td></tr>
+    <tr class="total"><td><strong>CA Total HT</strong></td><td><strong>41 860 EUR</strong></td><td><strong>163 210 EUR</strong></td><td><strong>325 700 EUR</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td></tr>
     <tr class="subtotal"><td><strong>CHARGES VARIABLES</strong></td><td></td><td></td><td></td></tr>
-    <tr><td>Hebergement cloud</td><td>3 600 EUR</td><td>9 600 EUR</td><td>18 000 EUR</td></tr>
-    <tr><td>Services tiers (Twilio/Resend/Anthropic)</td><td>4 800 EUR</td><td>14 400 EUR</td><td>28 800 EUR</td></tr>
-    <tr><td>Commissions Stripe</td><td>1 200 EUR</td><td>3 800 EUR</td><td>7 500 EUR</td></tr>
-    <tr class="total"><td><strong>Total charges variables</strong></td><td><strong>9 600 EUR</strong></td><td><strong>27 800 EUR</strong></td><td><strong>54 300 EUR</strong></td></tr>
+    <tr><td>Hebergement cloud (Render + Supabase)</td><td>2 400 EUR</td><td>6 000 EUR</td><td>12 000 EUR</td></tr>
+    <tr><td>Services tiers (Anthropic/Twilio/Resend)</td><td>3 200 EUR</td><td>11 800 EUR</td><td>22 500 EUR</td></tr>
+    <tr><td>Commissions Stripe (2.9%)</td><td>1 200 EUR</td><td>3 700 EUR</td><td>7 400 EUR</td></tr>
+    <tr class="total"><td><strong>Total charges variables</strong></td><td><strong>6 800 EUR</strong></td><td><strong>21 500 EUR</strong></td><td><strong>41 900 EUR</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td></tr>
-    <tr style="background:var(--accent-light);"><td><strong>MARGE BRUTE</strong></td><td><strong>65 040 EUR</strong></td><td><strong>219 000 EUR</strong></td><td><strong>438 300 EUR</strong></td></tr>
-    <tr style="background:var(--accent-light);"><td><strong>Taux de marge brute</strong></td><td><strong>87%</strong></td><td><strong>89%</strong></td><td><strong>89%</strong></td></tr>
+    <tr style="background:var(--accent-light);"><td><strong>MARGE BRUTE</strong></td><td><strong>35 060 EUR</strong></td><td><strong>141 710 EUR</strong></td><td><strong>283 800 EUR</strong></td></tr>
+    <tr style="background:var(--accent-light);"><td><strong>Taux de marge brute</strong></td><td><strong>84%</strong></td><td><strong>87%</strong></td><td><strong>87%</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td></tr>
     <tr class="subtotal"><td><strong>CHARGES FIXES</strong></td><td></td><td></td><td></td></tr>
-    <tr><td>Salaire fondateur</td><td>24 000 EUR</td><td>36 000 EUR</td><td>42 000 EUR</td></tr>
-    <tr><td>Salaire developpeur (a partir M4)</td><td>15 000 EUR</td><td>48 000 EUR</td><td>52 000 EUR</td></tr>
-    <tr><td>Salaire commercial (a partir M7)</td><td>8 000 EUR</td><td>38 400 EUR</td><td>42 000 EUR</td></tr>
-    <tr><td>Salaire support/CSM (a partir M16)</td><td>0 EUR</td><td>10 000 EUR</td><td>36 000 EUR</td></tr>
-    <tr><td>Charges sociales (45%)</td><td>21 150 EUR</td><td>59 580 EUR</td><td>77 400 EUR</td></tr>
-    <tr><td>Marketing & acquisition</td><td>12 000 EUR</td><td>24 000 EUR</td><td>36 000 EUR</td></tr>
-    <tr><td>Loyer / coworking</td><td>3 600 EUR</td><td>6 000 EUR</td><td>9 600 EUR</td></tr>
-    <tr><td>Autres (assurance, comptable, materiel, divers)</td><td>9 500 EUR</td><td>11 000 EUR</td><td>14 500 EUR</td></tr>
-    <tr class="total"><td><strong>Total charges fixes</strong></td><td><strong>93 250 EUR</strong></td><td><strong>232 980 EUR</strong></td><td><strong>309 500 EUR</strong></td></tr>
+    <tr><td>Remuneration fondateur (net)</td><td>7 200 EUR</td><td>24 000 EUR</td><td>36 000 EUR</td></tr>
+    <tr><td>Charges sociales fondateur (45%)</td><td>3 240 EUR</td><td>10 800 EUR</td><td>16 200 EUR</td></tr>
+    <tr><td>Prestataires externes ponctuels</td><td>0 EUR</td><td>10 000 EUR</td><td>6 000 EUR</td></tr>
+    <tr><td>Salaire support/CSM (a partir An 3)</td><td>0 EUR</td><td>0 EUR</td><td>24 000 EUR</td></tr>
+    <tr><td>Charges sociales CSM</td><td>0 EUR</td><td>0 EUR</td><td>10 800 EUR</td></tr>
+    <tr><td>Marketing & acquisition</td><td>3 600 EUR</td><td>9 600 EUR</td><td>14 400 EUR</td></tr>
+    <tr><td>Assurances (RC Pro)</td><td>1 000 EUR</td><td>1 200 EUR</td><td>2 000 EUR</td></tr>
+    <tr><td>Comptable / juridique</td><td>0 EUR</td><td>0 EUR</td><td>0 EUR</td></tr>
+    <tr><td>Materiel / licences</td><td>500 EUR</td><td>1 500 EUR</td><td>2 500 EUR</td></tr>
+    <tr><td>Loyer / coworking</td><td>0 EUR</td><td>0 EUR</td><td>0 EUR</td></tr>
+    <tr><td>Divers / imprevus</td><td>1 200 EUR</td><td>2 000 EUR</td><td>3 000 EUR</td></tr>
+    <tr class="total"><td><strong>Total charges fixes</strong></td><td><strong>16 740 EUR</strong></td><td><strong>59 100 EUR</strong></td><td><strong>114 900 EUR</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td></tr>
-    <tr><td>RESULTAT D'EXPLOITATION</td><td style="color:var(--danger)">-28 210 EUR</td><td style="color:var(--danger)">-13 980 EUR</td><td style="color:var(--success)">128 800 EUR</td></tr>
-    <tr><td>Charges financieres</td><td>900 EUR</td><td>750 EUR</td><td>600 EUR</td></tr>
-    <tr><td>IS</td><td>0 EUR</td><td>0 EUR</td><td>27 275 EUR</td></tr>
-    <tr class="total"><td><strong>RESULTAT NET</strong></td><td style="color:var(--danger)"><strong>-29 110 EUR</strong></td><td style="color:var(--danger)"><strong>-14 730 EUR</strong></td><td style="color:var(--success)"><strong>100 925 EUR</strong></td></tr>
+    <tr><td>RESULTAT D'EXPLOITATION</td><td style="color:var(--success)">+18 320 EUR</td><td style="color:var(--success)">+82 610 EUR</td><td style="color:var(--success)">+168 900 EUR</td></tr>
+    <tr><td>Charges financieres (interets pret bancaire)</td><td>375 EUR</td><td>625 EUR</td><td>500 EUR</td></tr>
+    <tr><td>IS (15%)</td><td>2 692 EUR</td><td>16 246 EUR</td><td>37 725 EUR</td></tr>
+    <tr class="total"><td><strong>RESULTAT NET</strong></td><td style="color:var(--success)"><strong>+15 253 EUR</strong></td><td style="color:var(--success)"><strong>+65 739 EUR</strong></td><td style="color:var(--success)"><strong>+130 675 EUR</strong></td></tr>
   </table>
 
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 11</div>
+  <div class="callout-success" style="margin-top:8px;">
+    <strong>Rentabilite des An 1.</strong> Le modele frugal (0 salaire M1-M6, 0 comptable, 0 loyer) combine a une acquisition soutenue genere un resultat net positif de +15 253 EUR des la premiere annee. Le resultat progresse fortement : +65 739 EUR en An 2 et +130 675 EUR en An 3.
+  </div>
+
+  <div class="page-footer">NEXUS — Previsionnel Financier Confidentiel — Avril 2026 — Page 2</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
-<!-- 7. PREVISIONS (suite — MRR + tresorerie)                  -->
+<!-- CLIENTS & MRR + TRESORERIE                                -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div class="page">
   <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>7. Previsions Financieres (suite)</span>
+    <span><span class="logo-mini">N</span> NEXUS — Previsionnel Financier</span>
+    <span>Clients, MRR & Tresorerie</span>
   </div>
 
-  <h2>7.3 Evolution clients et MRR — Annee 1</h2>
+  <h2>2.3 Evolution clients et MRR — Annee 1</h2>
   <table class="financial compact">
     <tr><th>Mois</th><th>Nouveaux</th><th>Churn</th><th>Clients actifs</th><th>MRR</th><th>ARR annualise</th></tr>
-    <tr><td>M1</td><td>3</td><td>0</td><td>3</td><td>597 EUR</td><td>7 164 EUR</td></tr>
-    <tr><td>M2</td><td>3</td><td>0</td><td>6</td><td>1 194 EUR</td><td>14 328 EUR</td></tr>
-    <tr><td>M3</td><td>4</td><td>0</td><td>10</td><td>1 990 EUR</td><td>23 880 EUR</td></tr>
-    <tr><td>M4</td><td>4</td><td>0</td><td>14</td><td>2 786 EUR</td><td>33 432 EUR</td></tr>
-    <tr><td>M5</td><td>5</td><td>0</td><td>19</td><td>3 781 EUR</td><td>45 372 EUR</td></tr>
-    <tr><td>M6</td><td>5</td><td>1</td><td>23</td><td>4 577 EUR</td><td>54 924 EUR</td></tr>
-    <tr><td>M7</td><td>6</td><td>1</td><td>28</td><td>5 572 EUR</td><td>66 864 EUR</td></tr>
-    <tr><td>M8</td><td>7</td><td>1</td><td>34</td><td>6 766 EUR</td><td>81 192 EUR</td></tr>
-    <tr><td>M9</td><td>8</td><td>1</td><td>41</td><td>8 159 EUR</td><td>97 908 EUR</td></tr>
-    <tr><td>M10</td><td>8</td><td>1</td><td>48</td><td>9 552 EUR</td><td>114 624 EUR</td></tr>
-    <tr><td>M11</td><td>9</td><td>2</td><td>55</td><td>10 945 EUR</td><td>131 340 EUR</td></tr>
-    <tr><td>M12</td><td>10</td><td>2</td><td>63</td><td>12 537 EUR</td><td>150 444 EUR</td></tr>
-    <tr class="total"><td><strong>Fin An 1</strong></td><td><strong>72</strong></td><td><strong>9</strong></td><td><strong>63</strong></td><td><strong>12 537 EUR</strong></td><td><strong>150 444 EUR</strong></td></tr>
+    <tr><td>M1</td><td>6</td><td>0</td><td>6</td><td>330 EUR</td><td>3 960 EUR</td></tr>
+    <tr><td>M2</td><td>7</td><td>0</td><td>13</td><td>715 EUR</td><td>8 580 EUR</td></tr>
+    <tr><td>M3</td><td>8</td><td>0</td><td>21</td><td>1 155 EUR</td><td>13 860 EUR</td></tr>
+    <tr><td>M4</td><td>9</td><td>1</td><td>29</td><td>1 595 EUR</td><td>19 140 EUR</td></tr>
+    <tr><td>M5</td><td>10</td><td>1</td><td>38</td><td>2 090 EUR</td><td>25 080 EUR</td></tr>
+    <tr><td>M6</td><td>10</td><td>1</td><td>47</td><td>2 585 EUR</td><td>31 020 EUR</td></tr>
+    <tr><td>M7</td><td>11</td><td>1</td><td>57</td><td>3 135 EUR</td><td>37 620 EUR</td></tr>
+    <tr><td>M8</td><td>12</td><td>2</td><td>67</td><td>3 685 EUR</td><td>44 220 EUR</td></tr>
+    <tr><td>M9</td><td>12</td><td>2</td><td>77</td><td>4 235 EUR</td><td>50 820 EUR</td></tr>
+    <tr><td>M10</td><td>13</td><td>2</td><td>88</td><td>4 840 EUR</td><td>58 080 EUR</td></tr>
+    <tr><td>M11</td><td>14</td><td>3</td><td>99</td><td>5 445 EUR</td><td>65 340 EUR</td></tr>
+    <tr><td>M12</td><td>14</td><td>3</td><td>110</td><td>6 050 EUR</td><td>72 600 EUR</td></tr>
+    <tr class="total"><td><strong>Fin An 1</strong></td><td><strong>126</strong></td><td><strong>16</strong></td><td><strong>110</strong></td><td><strong>6 050 EUR</strong></td><td><strong>72 600 EUR</strong></td></tr>
   </table>
 
   <div class="kpi-row kpi-row-3" style="margin-top:10px;">
-    <div class="kpi-box"><div class="kpi-value">~140</div><div class="kpi-label">Clients fin An 2</div></div>
-    <div class="kpi-box"><div class="kpi-value">~250</div><div class="kpi-label">Clients fin An 3</div></div>
-    <div class="kpi-box"><div class="kpi-value success">597 k EUR</div><div class="kpi-label">ARR fin An 3</div></div>
+    <div class="kpi-box"><div class="kpi-value">~325</div><div class="kpi-label">Clients fin An 2</div></div>
+    <div class="kpi-box"><div class="kpi-value">~550</div><div class="kpi-label">Clients fin An 3</div></div>
+    <div class="kpi-box"><div class="kpi-value success">363 000 EUR</div><div class="kpi-label">ARR fin An 3</div></div>
   </div>
 
-  <h2>7.4 Seuil de rentabilite</h2>
+  <h2>2.4 Seuil de rentabilite</h2>
   <div class="kpi-row">
-    <div class="kpi-box"><div class="kpi-value">107 184 EUR</div><div class="kpi-label">Seuil CA HT / an</div></div>
-    <div class="kpi-box"><div class="kpi-value">8 932 EUR</div><div class="kpi-label">Seuil MRR mensuel</div></div>
-    <div class="kpi-box"><div class="kpi-value">~45</div><div class="kpi-label">Clients necessaires</div></div>
-    <div class="kpi-box"><div class="kpi-value success">M9-M10</div><div class="kpi-label">Atteint en MRR</div></div>
+    <div class="kpi-box"><div class="kpi-value">19 929 EUR</div><div class="kpi-label">Seuil CA HT / an (Y1)</div></div>
+    <div class="kpi-box"><div class="kpi-value">1 661 EUR</div><div class="kpi-label">Seuil MRR mensuel</div></div>
+    <div class="kpi-box"><div class="kpi-value">~50</div><div class="kpi-label">Clients necessaires (avec salaire)</div></div>
+    <div class="kpi-box"><div class="kpi-value success">M6-M7</div><div class="kpi-label">Break-even atteint</div></div>
   </div>
+  <p class="text-small text-muted">Note : Le seuil Y1 formel reflete l'absence de salaire M1-M6. Avec salaire plein, le seuil reel = ~50 clients, atteint en M6-M7 (milieu An 1).</p>
 
-  <h2>7.5 BFR et CAF</h2>
+  <h2>2.5 BFR et CAF</h2>
   <div class="grid-2">
     <div class="callout-success">
       <strong>BFR quasi nul</strong><br>
@@ -781,326 +307,140 @@
     </div>
     <table class="financial compact">
       <tr><th></th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-      <tr><td>Resultat net</td><td>-29 110</td><td>-14 730</td><td>100 925</td></tr>
+      <tr><td>Resultat net</td><td>+15 253</td><td>+65 739</td><td>+130 675</td></tr>
       <tr><td>+ Amortissements</td><td>1 500</td><td>1 500</td><td>1 500</td></tr>
-      <tr class="total"><td><strong>CAF</strong></td><td><strong>-27 610</strong></td><td><strong>-13 230</strong></td><td><strong>102 425</strong></td></tr>
+      <tr class="total"><td><strong>CAF</strong></td><td><strong>+16 753</strong></td><td><strong>+67 239</strong></td><td><strong>+132 175</strong></td></tr>
     </table>
   </div>
 
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 12</div>
+  <div class="page-footer">NEXUS — Previsionnel Financier Confidentiel — Avril 2026 — Page 3</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
-<!-- 7. PREVISIONS (page 3 — tresorerie mensuelle)             -->
+<!-- TRESORERIE MENSUELLE M1-M12                                -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div class="page">
   <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>7. Plan de Tresorerie Mensuel</span>
+    <span><span class="logo-mini">N</span> NEXUS — Previsionnel Financier</span>
+    <span>Plan de Tresorerie Mensuel</span>
   </div>
 
-  <h2>7.6 Plan de tresorerie mensuel — Annee 1</h2>
+  <h2>2.6 Plan de tresorerie mensuel — Annee 1</h2>
 
   <table class="financial compact" style="font-size:10px;">
     <tr><th></th><th>M1</th><th>M2</th><th>M3</th><th>M4</th><th>M5</th><th>M6</th><th>M7</th><th>M8</th><th>M9</th><th>M10</th><th>M11</th><th>M12</th></tr>
     <tr class="subtotal"><td><strong>ENCAISSEMENTS</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>CA TTC</td><td>716</td><td>1 433</td><td>2 388</td><td>3 343</td><td>4 537</td><td>5 492</td><td>6 686</td><td>8 119</td><td>9 791</td><td>11 462</td><td>13 134</td><td>15 043</td></tr>
+    <tr><td>CA HT (franchise TVA)</td><td>830</td><td>1 215</td><td>1 655</td><td>2 095</td><td>2 590</td><td>3 085</td><td>3 635</td><td>4 185</td><td>4 735</td><td>5 340</td><td>5 945</td><td>6 550</td></tr>
     <tr><td>Pret I95</td><td>15 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Pret WILCO</td><td></td><td>30 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Pret bancaire</td><td></td><td></td><td>30 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>NACRE</td><td></td><td></td><td></td><td>10 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr class="total"><td><strong>Total</strong></td><td><strong>15 716</strong></td><td><strong>31 433</strong></td><td><strong>32 388</strong></td><td><strong>13 343</strong></td><td><strong>4 537</strong></td><td><strong>5 492</strong></td><td><strong>6 686</strong></td><td><strong>8 119</strong></td><td><strong>9 791</strong></td><td><strong>11 462</strong></td><td><strong>13 134</strong></td><td><strong>15 043</strong></td></tr>
+    <tr><td>Pret bancaire</td><td></td><td></td><td>25 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>NACRE (optionnel)</td><td></td><td></td><td></td><td></td><td></td><td>(5 000)</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr class="total"><td><strong>Total (base)</strong></td><td><strong>15 830</strong></td><td><strong>1 215</strong></td><td><strong>26 655</strong></td><td><strong>2 095</strong></td><td><strong>2 590</strong></td><td><strong>3 085</strong></td><td><strong>3 635</strong></td><td><strong>4 185</strong></td><td><strong>4 735</strong></td><td><strong>5 340</strong></td><td><strong>5 945</strong></td><td><strong>6 550</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
     <tr class="subtotal"><td><strong>DECAISSEMENTS</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Charges exploit.</td><td>7 585</td><td>4 645</td><td>5 210</td><td>8 900</td><td>8 965</td><td>8 980</td><td>11 950</td><td>12 020</td><td>12 045</td><td>12 070</td><td>12 100</td><td>12 130</td></tr>
-    <tr><td>Remb. emprunts</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>575</td><td>575</td><td>575</td><td>575</td><td>575</td><td>575</td></tr>
-    <tr><td>TVA a reverser</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>500</td><td>1 000</td><td>1 500</td></tr>
-    <tr class="total"><td><strong>Total</strong></td><td><strong>7 585</strong></td><td><strong>4 645</strong></td><td><strong>5 210</strong></td><td><strong>8 900</strong></td><td><strong>8 965</strong></td><td><strong>8 980</strong></td><td><strong>12 525</strong></td><td><strong>12 595</strong></td><td><strong>12 620</strong></td><td><strong>13 145</strong></td><td><strong>13 675</strong></td><td><strong>14 205</strong></td></tr>
+    <tr><td>Hebergement</td><td>150</td><td>150</td><td>150</td><td>150</td><td>150</td><td>150</td><td>200</td><td>200</td><td>200</td><td>200</td><td>200</td><td>200</td></tr>
+    <tr><td>Services tiers</td><td>70</td><td>80</td><td>100</td><td>120</td><td>150</td><td>170</td><td>210</td><td>230</td><td>260</td><td>280</td><td>300</td><td>305</td></tr>
+    <tr><td>Stripe</td><td>24</td><td>35</td><td>48</td><td>61</td><td>75</td><td>89</td><td>105</td><td>121</td><td>137</td><td>155</td><td>172</td><td>190</td></tr>
+    <tr><td>Salaire fondateur</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1 200</td><td>1 200</td><td>1 200</td><td>1 200</td><td>1 200</td><td>1 200</td></tr>
+    <tr><td>Charges sociales</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>540</td><td>540</td><td>540</td><td>540</td><td>540</td><td>540</td></tr>
+    <tr><td>Marketing</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td></tr>
+    <tr><td>Assurances</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td><td>83</td></tr>
+    <tr><td>Materiel</td><td>500</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+    <tr><td>Divers</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td><td>100</td></tr>
+    <tr class="total"><td><strong>Total</strong></td><td><strong>1 227</strong></td><td><strong>748</strong></td><td><strong>781</strong></td><td><strong>814</strong></td><td><strong>858</strong></td><td><strong>892</strong></td><td><strong>2 738</strong></td><td><strong>2 774</strong></td><td><strong>2 820</strong></td><td><strong>2 858</strong></td><td><strong>2 895</strong></td><td><strong>2 918</strong></td></tr>
     <tr class="separator"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td><strong>Solde mois</strong></td><td>+8 131</td><td>+26 788</td><td>+27 178</td><td>+4 443</td><td>-4 428</td><td>-3 488</td><td>-5 839</td><td>-4 476</td><td>-2 829</td><td>-1 683</td><td>-541</td><td>+838</td></tr>
-    <tr class="total" style="font-size:11px;"><td><strong>TRESO CUMULEE</strong></td><td><strong>8 131</strong></td><td><strong>34 919</strong></td><td><strong>62 097</strong></td><td><strong>66 540</strong></td><td><strong>62 112</strong></td><td><strong>58 624</strong></td><td><strong>52 785</strong></td><td><strong>48 309</strong></td><td><strong>45 480</strong></td><td><strong>43 797</strong></td><td><strong>43 256</strong></td><td><strong>44 094</strong></td></tr>
+    <tr><td><strong>Solde mois</strong></td><td>+14 603</td><td>+467</td><td>+25 874</td><td>+1 281</td><td>+1 732</td><td>+2 193</td><td>+897</td><td>+1 411</td><td>+1 915</td><td>+2 482</td><td>+3 050</td><td>+3 632</td></tr>
+    <tr class="total" style="font-size:11px;"><td><strong>TRESO (sans NACRE)</strong></td><td><strong>14 603</strong></td><td><strong>15 070</strong></td><td><strong>40 944</strong></td><td><strong>42 225</strong></td><td><strong>43 957</strong></td><td><strong>46 150</strong></td><td><strong>47 047</strong></td><td><strong>48 458</strong></td><td><strong>50 373</strong></td><td><strong>52 855</strong></td><td><strong>55 905</strong></td><td><strong>59 537</strong></td></tr>
+    <tr style="background:#1a365d;color:white"><td><strong>TRESO (avec NACRE)</strong></td><td><strong>14 603</strong></td><td><strong>15 070</strong></td><td><strong>40 944</strong></td><td><strong>42 225</strong></td><td><strong>43 957</strong></td><td><strong>51 150</strong></td><td><strong>52 047</strong></td><td><strong>53 458</strong></td><td><strong>55 373</strong></td><td><strong>57 855</strong></td><td><strong>60 905</strong></td><td><strong>64 537</strong></td></tr>
   </table>
 
   <div class="callout-success" style="margin-top:15px;">
-    <strong>La tresorerie reste positive chaque mois.</strong> Point bas a 43 256 EUR (M11) — coussin confortable. Le NACRE en M4 compense l'absence d'apport personnel et maintient la tresorerie au-dessus de 40 000 EUR en permanence.
+    <strong>La tresorerie est croissante chaque mois.</strong> Tresorerie fin An 1 : 59 537 EUR (sans NACRE) — coussin tres confortable. Avec NACRE : 64 537 EUR. Aucune tension de tresorerie, solde mensuel positif des le mois 1.
   </div>
 
-  <h2>7.7 Echeancier des emprunts</h2>
+  <h2>2.7 Echeancier des emprunts</h2>
   <table class="financial compact">
     <tr><th>Emprunt</th><th>Capital</th><th>Taux</th><th>Duree</th><th>Differe</th><th>Mensualite</th></tr>
-    <tr><td>Pret d'honneur Initiative 95</td><td>15 000 EUR</td><td>0%</td><td>5 ans</td><td>6 mois</td><td>278 EUR</td></tr>
-    <tr><td>Pret d'honneur WILCO</td><td>30 000 EUR</td><td>0%</td><td>5 ans</td><td>12 mois</td><td>556 EUR</td></tr>
-    <tr><td>Pret bancaire (garanti BPI)</td><td>30 000 EUR</td><td>3%</td><td>5 ans</td><td>6 mois</td><td>575 EUR</td></tr>
-    <tr><td>NACRE phase 2</td><td>10 000 EUR</td><td>0%</td><td>5 ans</td><td>12 mois</td><td>185 EUR</td></tr>
+    <tr><td>Pret d'honneur Initiative 95</td><td>15 000 EUR</td><td>0%</td><td>5 ans</td><td>12 mois</td><td>313 EUR</td></tr>
+    <tr><td>Pret bancaire (garanti BPI)</td><td>25 000 EUR</td><td>3%</td><td>5 ans</td><td>12 mois</td><td>449 EUR</td></tr>
+    <tr><td>NACRE phase 2 (OPTIONNEL)</td><td>5 000 EUR</td><td>0%</td><td>5 ans</td><td>12 mois</td><td>104 EUR</td></tr>
   </table>
 
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Page 13</div>
+  <div class="page-footer">NEXUS — Previsionnel Financier Confidentiel — Avril 2026 — Page 4</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
-<!-- ANNEXE C — PREVISIONNEL FINANCIER DETAILLE (page 1)       -->
+<!-- ANNEXES — BILAN + PESSIMISTE + REMBOURSEMENTS              -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div class="page">
   <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>Annexe C : Previsionnel financier</span>
+    <span><span class="logo-mini">N</span> NEXUS — Previsionnel Financier</span>
+    <span>Bilan & Scenarios</span>
   </div>
 
-  <h1>Annexe C — Previsionnel financier detaille</h1>
-
-  <h2>C.1 Plan de financement initial</h2>
-  <div class="grid-2">
-    <div>
-      <table class="financial">
-        <tr><th colspan="2">BESOINS</th></tr>
-        <tr><td>Developpement logiciel (capitalise)</td><td>15 000 EUR</td></tr>
-        <tr><td>Licences et outils</td><td>2 000 EUR</td></tr>
-        <tr><td>Materiel informatique</td><td>5 000 EUR</td></tr>
-        <tr><td>Frais d'etablissement</td><td>3 000 EUR</td></tr>
-        <tr><td>Tresorerie de securite</td><td>25 000 EUR</td></tr>
-        <tr><td>Marketing lancement</td><td>20 000 EUR</td></tr>
-        <tr><td>Recrutement (3 mois avance)</td><td>15 000 EUR</td></tr>
-        <tr class="total"><td><strong>TOTAL BESOINS</strong></td><td><strong>85 000 EUR</strong></td></tr>
-      </table>
-    </div>
-    <div>
-      <table class="financial">
-        <tr><th colspan="2">RESSOURCES</th></tr>
-        <tr><td>Capital social SASU</td><td>1 EUR</td></tr>
-        <tr><td>Pret d'honneur Initiative 95</td><td>15 000 EUR</td></tr>
-        <tr><td>Pret d'honneur WILCO</td><td>30 000 EUR</td></tr>
-        <tr><td>Pret bancaire (garanti BPI 60%)</td><td>30 000 EUR</td></tr>
-        <tr><td>NACRE phase 2 (ASS)</td><td>10 000 EUR</td></tr>
-        <tr><td>Subventions (BPI/Region)</td><td>0 EUR</td></tr>
-        <tr><td></td><td></td></tr>
-        <tr class="total"><td><strong>TOTAL RESSOURCES</strong></td><td><strong>85 001 EUR</strong></td></tr>
-      </table>
-    </div>
-  </div>
-
-  <p class="text-small text-muted">Note : Actif technologique du fondateur (plateforme NEXUS v3.21.0) valorise a 80 000 EUR en cout de remplacement — non inscrit au capital pour eviter les frais de commissaire aux apports.</p>
-
-  <h2>C.2 Hypotheses detaillees</h2>
-  <table class="compact">
-    <tr><th>Parametre</th><th>Valeur</th><th>Source</th></tr>
-    <tr><td>Mix plans</td><td>50% Starter / 35% Pro / 15% Business</td><td>Benchmark SaaS PME</td></tr>
-    <tr><td>ARPA (revenu moyen/client/mois)</td><td>199 EUR</td><td>0.5 x 99 + 0.35 x 249 + 0.15 x 499</td></tr>
-    <tr><td>Nouveaux clients M1-M3</td><td>3-4/mois</td><td>Conservative (demarrage)</td></tr>
-    <tr><td>Nouveaux clients M4-M6</td><td>4-5/mois</td><td>Acceleration marketing</td></tr>
-    <tr><td>Nouveaux clients M7-M12</td><td>6-10/mois</td><td>Commercial recrute</td></tr>
-    <tr><td>Churn mensuel An 1 / An 2 / An 3</td><td>3% / 2.5% / 2%</td><td>Baremetrics 2025</td></tr>
-    <tr><td>Cout hebergement/client</td><td>8 EUR/mois</td><td>Render + Supabase + Twilio</td></tr>
-    <tr><td>Taux charges sociales</td><td>45%</td><td>Regime general</td></tr>
-    <tr><td>TVA</td><td>20%</td><td>Standard</td></tr>
-    <tr><td>IS</td><td>15% < 42 500 EUR puis 25%</td><td>PME</td></tr>
-    <tr><td>Salaire fondateur net</td><td>2 000 EUR/mois</td><td>Phase demarrage</td></tr>
-    <tr><td>Salaire dev brut</td><td>3 333 EUR/mois</td><td>40k brut annuel</td></tr>
-    <tr><td>Salaire commercial brut</td><td>2 667 EUR/mois</td><td>32k brut annuel</td></tr>
-  </table>
-
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Annexe C — Page 20</div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════ -->
-<!-- ANNEXE C (page 2 — Clients & MRR + Compte de Resultat)    -->
-<!-- ══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>Annexe C : Previsionnel (suite)</span>
-  </div>
-
-  <h2>C.3 Evolution clients et MRR — Annee 1</h2>
-  <table class="financial compact">
-    <tr><th>Mois</th><th>Nouveaux</th><th>Churn</th><th>Clients fin mois</th><th>MRR</th><th>ARR annualise</th></tr>
-    <tr><td>M1</td><td>3</td><td>0</td><td>3</td><td>597 EUR</td><td>7 164 EUR</td></tr>
-    <tr><td>M2</td><td>3</td><td>0</td><td>6</td><td>1 194 EUR</td><td>14 328 EUR</td></tr>
-    <tr><td>M3</td><td>4</td><td>0</td><td>10</td><td>1 990 EUR</td><td>23 880 EUR</td></tr>
-    <tr><td>M4</td><td>4</td><td>0</td><td>14</td><td>2 786 EUR</td><td>33 432 EUR</td></tr>
-    <tr><td>M5</td><td>5</td><td>0</td><td>19</td><td>3 781 EUR</td><td>45 372 EUR</td></tr>
-    <tr><td>M6</td><td>5</td><td>1</td><td>23</td><td>4 577 EUR</td><td>54 924 EUR</td></tr>
-    <tr><td>M7</td><td>6</td><td>1</td><td>28</td><td>5 572 EUR</td><td>66 864 EUR</td></tr>
-    <tr><td>M8</td><td>7</td><td>1</td><td>34</td><td>6 766 EUR</td><td>81 192 EUR</td></tr>
-    <tr><td>M9</td><td>8</td><td>1</td><td>41</td><td>8 159 EUR</td><td>97 908 EUR</td></tr>
-    <tr><td>M10</td><td>8</td><td>1</td><td>48</td><td>9 552 EUR</td><td>114 624 EUR</td></tr>
-    <tr><td>M11</td><td>9</td><td>2</td><td>55</td><td>10 945 EUR</td><td>131 340 EUR</td></tr>
-    <tr><td>M12</td><td>10</td><td>2</td><td>63</td><td>12 537 EUR</td><td>150 444 EUR</td></tr>
-    <tr class="total"><td><strong>Total An 1</strong></td><td><strong>72</strong></td><td><strong>9</strong></td><td><strong>63</strong></td><td><strong>12 537 EUR</strong></td><td><strong>150 444 EUR</strong></td></tr>
-  </table>
-
-  <div class="grid-3" style="margin-top:1em">
-    <div class="kpi-box" style="text-align:center">
-      <div style="font-size:1.8em;font-weight:bold;color:var(--primary)">~140</div>
-      <div>Clients fin An 2</div>
-      <div style="font-size:0.8em;color:#666">+120 nouveaux, -17 churn</div>
-    </div>
-    <div class="kpi-box" style="text-align:center">
-      <div style="font-size:1.8em;font-weight:bold;color:var(--primary)">~250</div>
-      <div>Clients fin An 3</div>
-      <div style="font-size:0.8em;color:#666">+144 nouveaux, -34 churn</div>
-    </div>
-    <div class="kpi-box" style="text-align:center">
-      <div style="font-size:1.8em;font-weight:bold;color:var(--success)">597 000 EUR</div>
-      <div>ARR fin An 3</div>
-      <div style="font-size:0.8em;color:#666">x4 vs An 1</div>
-    </div>
-  </div>
-
-  <h2 style="margin-top:1.5em">C.4 Compte de resultat previsionnel (3 ans)</h2>
-  <table class="financial">
-    <tr><th>Poste</th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-    <tr style="background:#f0f7ff"><td colspan="4"><strong>PRODUITS D'EXPLOITATION</strong></td></tr>
-    <tr><td>Abonnements SaaS (HT)</td><td>71 640 EUR</td><td>238 800 EUR</td><td>477 600 EUR</td></tr>
-    <tr><td>Setup fees / accompagnement</td><td>3 000 EUR</td><td>8 000 EUR</td><td>15 000 EUR</td></tr>
-    <tr class="total" style="background:#e8f0fe"><td><strong>TOTAL CA HT</strong></td><td><strong>74 640 EUR</strong></td><td><strong>246 800 EUR</strong></td><td><strong>492 600 EUR</strong></td></tr>
-    <tr style="background:#f0f7ff"><td colspan="4"><strong>CHARGES VARIABLES</strong></td></tr>
-    <tr><td>Hebergement cloud</td><td>3 600 EUR</td><td>9 600 EUR</td><td>18 000 EUR</td></tr>
-    <tr><td>Services tiers (Twilio/Resend/Anthropic)</td><td>4 800 EUR</td><td>14 400 EUR</td><td>28 800 EUR</td></tr>
-    <tr><td>Commissions Stripe (1.4%)</td><td>1 200 EUR</td><td>3 800 EUR</td><td>7 500 EUR</td></tr>
-    <tr style="background:#e8f0fe"><td><strong>Total charges variables</strong></td><td><strong>9 600 EUR</strong></td><td><strong>27 800 EUR</strong></td><td><strong>54 300 EUR</strong></td></tr>
-    <tr style="background:#e6f4ea"><td><strong>MARGE BRUTE</strong></td><td><strong>65 040 EUR</strong></td><td><strong>219 000 EUR</strong></td><td><strong>438 300 EUR</strong></td></tr>
-    <tr style="background:#e6f4ea"><td><em>Taux de marge brute</em></td><td><em>87%</em></td><td><em>89%</em></td><td><em>89%</em></td></tr>
-    <tr style="background:#f0f7ff"><td colspan="4"><strong>CHARGES FIXES</strong></td></tr>
-    <tr><td>Salaire fondateur</td><td>24 000 EUR</td><td>36 000 EUR</td><td>42 000 EUR</td></tr>
-    <tr><td>Salaire developpeur (a partir M4)</td><td>15 000 EUR</td><td>48 000 EUR</td><td>52 000 EUR</td></tr>
-    <tr><td>Salaire commercial (a partir M7)</td><td>8 000 EUR</td><td>38 400 EUR</td><td>42 000 EUR</td></tr>
-    <tr><td>Salaire support/CSM (a partir M16)</td><td>0 EUR</td><td>10 000 EUR</td><td>36 000 EUR</td></tr>
-    <tr><td>Charges sociales (45%)</td><td>21 150 EUR</td><td>59 580 EUR</td><td>77 400 EUR</td></tr>
-    <tr><td>Marketing & acquisition</td><td>12 000 EUR</td><td>24 000 EUR</td><td>36 000 EUR</td></tr>
-    <tr><td>Loyer bureau / coworking</td><td>3 600 EUR</td><td>6 000 EUR</td><td>9 600 EUR</td></tr>
-    <tr><td>Assurances + Comptable + Divers</td><td>9 500 EUR</td><td>11 000 EUR</td><td>14 500 EUR</td></tr>
-    <tr style="background:#e8f0fe"><td><strong>Total charges fixes</strong></td><td><strong>93 250 EUR</strong></td><td><strong>232 980 EUR</strong></td><td><strong>309 500 EUR</strong></td></tr>
-    <tr><td colspan="4" style="height:4px;background:#ccc"></td></tr>
-    <tr><td><strong>RESULTAT D'EXPLOITATION</strong></td><td style="color:var(--danger)"><strong>-28 210 EUR</strong></td><td style="color:var(--danger)"><strong>-13 980 EUR</strong></td><td style="color:var(--success)"><strong>+128 800 EUR</strong></td></tr>
-    <tr><td>Charges financieres</td><td>900 EUR</td><td>750 EUR</td><td>600 EUR</td></tr>
-    <tr><td>IS (15%/25%)</td><td>0 EUR</td><td>0 EUR</td><td>27 275 EUR</td></tr>
-    <tr class="total"><td><strong>RESULTAT NET</strong></td><td style="color:var(--danger)"><strong>-29 110 EUR</strong></td><td style="color:var(--danger)"><strong>-14 730 EUR</strong></td><td style="color:var(--success)"><strong>+100 925 EUR</strong></td></tr>
-  </table>
-  <p class="text-small text-muted">Pertes An 1-2 financees par la tresorerie de securite (85k de financement). Rentabilite nette atteinte An 3.</p>
-
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Annexe C — Page 21</div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════ -->
-<!-- ANNEXE C (page 3 — Tresorerie mensuelle M1-M12)           -->
-<!-- ══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>Annexe C : Previsionnel (suite)</span>
-  </div>
-
-  <h2>C.5 Plan de tresorerie mensuel — Annee 1</h2>
-  <div style="overflow-x:auto">
-    <table class="financial compact" style="font-size:0.7em">
-      <tr><th></th><th>M1</th><th>M2</th><th>M3</th><th>M4</th><th>M5</th><th>M6</th><th>M7</th><th>M8</th><th>M9</th><th>M10</th><th>M11</th><th>M12</th><th>TOTAL</th></tr>
-      <tr style="background:#f0f7ff"><td colspan="14"><strong>ENCAISSEMENTS</strong></td></tr>
-      <tr><td>CA TTC</td><td>716</td><td>1 433</td><td>2 388</td><td>3 343</td><td>4 537</td><td>5 492</td><td>6 686</td><td>8 119</td><td>9 791</td><td>11 462</td><td>13 134</td><td>15 043</td><td>82 144</td></tr>
-      <tr><td>Pret Initiative 95</td><td>15 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>15 000</td></tr>
-      <tr><td>Pret WILCO</td><td></td><td>30 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>30 000</td></tr>
-      <tr><td>Pret bancaire</td><td></td><td></td><td>30 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>30 000</td></tr>
-      <tr><td>NACRE</td><td></td><td></td><td></td><td>10 000</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>10 000</td></tr>
-      <tr style="background:#e8f0fe"><td><strong>TOTAL</strong></td><td><strong>15 716</strong></td><td><strong>31 433</strong></td><td><strong>32 388</strong></td><td><strong>13 343</strong></td><td><strong>4 537</strong></td><td><strong>5 492</strong></td><td><strong>6 686</strong></td><td><strong>8 119</strong></td><td><strong>9 791</strong></td><td><strong>11 462</strong></td><td><strong>13 134</strong></td><td><strong>15 043</strong></td><td><strong>167 144</strong></td></tr>
-      <tr style="background:#f0f7ff"><td colspan="14"><strong>DECAISSEMENTS</strong></td></tr>
-      <tr><td>Hebergement</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>300</td><td>3 600</td></tr>
-      <tr><td>Services tiers</td><td>200</td><td>250</td><td>300</td><td>350</td><td>400</td><td>400</td><td>450</td><td>500</td><td>500</td><td>500</td><td>500</td><td>500</td><td>4 850</td></tr>
-      <tr><td>Stripe</td><td>10</td><td>20</td><td>35</td><td>50</td><td>65</td><td>80</td><td>100</td><td>120</td><td>145</td><td>170</td><td>195</td><td>225</td><td>1 215</td></tr>
-      <tr><td>Salaire fondateur</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>24 000</td></tr>
-      <tr><td>Salaire dev</td><td>0</td><td>0</td><td>0</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>2 500</td><td>22 500</td></tr>
-      <tr><td>Salaire commercial</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>2 000</td><td>12 000</td></tr>
-      <tr><td>Charges sociales</td><td>900</td><td>900</td><td>900</td><td>2 025</td><td>2 025</td><td>2 025</td><td>2 925</td><td>2 925</td><td>2 925</td><td>2 925</td><td>2 925</td><td>2 925</td><td>25 325</td></tr>
-      <tr><td>Marketing</td><td>500</td><td>500</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>1 000</td><td>11 000</td></tr>
-      <tr><td>Loyer + Assur + Compta</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>675</td><td>8 100</td></tr>
-      <tr><td>Materiel</td><td>3 000</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>3 000</td></tr>
-      <tr><td>Remb. emprunts</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>575</td><td>575</td><td>575</td><td>575</td><td>575</td><td>575</td><td>3 450</td></tr>
-      <tr><td>TVA a reverser</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>500</td><td>1 000</td><td>1 500</td><td>3 000</td></tr>
-      <tr style="background:#e8f0fe"><td><strong>TOTAL</strong></td><td><strong>7 585</strong></td><td><strong>4 645</strong></td><td><strong>5 210</strong></td><td><strong>8 900</strong></td><td><strong>8 965</strong></td><td><strong>8 980</strong></td><td><strong>12 525</strong></td><td><strong>12 595</strong></td><td><strong>12 620</strong></td><td><strong>13 145</strong></td><td><strong>13 670</strong></td><td><strong>14 200</strong></td><td><strong>123 040</strong></td></tr>
-      <tr><td colspan="14" style="height:4px;background:#ccc"></td></tr>
-      <tr style="background:#e6f4ea"><td><strong>SOLDE DU MOIS</strong></td><td><strong>+8 131</strong></td><td><strong>+26 788</strong></td><td><strong>+27 178</strong></td><td><strong>+4 443</strong></td><td style="color:var(--danger)"><strong>-4 428</strong></td><td style="color:var(--danger)"><strong>-3 488</strong></td><td style="color:var(--danger)"><strong>-5 839</strong></td><td style="color:var(--danger)"><strong>-4 476</strong></td><td style="color:var(--danger)"><strong>-2 829</strong></td><td style="color:var(--danger)"><strong>-1 683</strong></td><td style="color:var(--danger)"><strong>-536</strong></td><td><strong>+843</strong></td><td><strong>+44 104</strong></td></tr>
-      <tr style="background:#1a365d;color:white"><td><strong>TRESORERIE CUMULEE</strong></td><td><strong>8 131</strong></td><td><strong>34 919</strong></td><td><strong>62 097</strong></td><td><strong>66 540</strong></td><td><strong>62 112</strong></td><td><strong>58 624</strong></td><td><strong>52 785</strong></td><td><strong>48 309</strong></td><td><strong>45 480</strong></td><td><strong>43 797</strong></td><td><strong>43 261</strong></td><td><strong>44 104</strong></td><td></td></tr>
-    </table>
-  </div>
-  <div class="callout-info" style="margin-top:0.8em">
-    <strong>Point cle :</strong> La tresorerie reste <strong>toujours positive</strong> (minimum 43 261 EUR en M11). Les soldes mensuels negatifs a partir de M5 sont normaux — c'est la phase d'investissement en equipe. Le CA couvre les charges operationnelles a partir de M12.
-  </div>
-
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Annexe C — Page 22</div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════ -->
-<!-- ANNEXE C (page 4 — Bilan + Seuil + Pessimiste + Echeancier) -->
-<!-- ══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="page-header">
-    <span><span class="logo-mini">N</span> NEXUS — Business Plan</span>
-    <span>Annexe C : Previsionnel (suite)</span>
-  </div>
-
-  <h2>C.6 Bilan previsionnel (simplifie)</h2>
+  <h2>2.8 Bilan previsionnel (simplifie)</h2>
   <div class="grid-2">
     <table class="financial compact">
       <tr><th>ACTIF</th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-      <tr><td>Immobilisations incorporelles (net)</td><td>13 500</td><td>12 000</td><td>10 500</td></tr>
-      <tr><td>Immobilisations corporelles (net)</td><td>3 500</td><td>2 000</td><td>500</td></tr>
+      <tr><td>Immobilisations corporelles (net)</td><td>1 000</td><td>500</td><td>2 000</td></tr>
       <tr><td>Creances clients</td><td>0</td><td>0</td><td>0</td></tr>
-      <tr><td>Tresorerie</td><td>44 104</td><td>28 874</td><td>135 799</td></tr>
-      <tr class="total"><td><strong>TOTAL ACTIF</strong></td><td><strong>61 104</strong></td><td><strong>42 874</strong></td><td><strong>146 799</strong></td></tr>
+      <tr><td>Tresorerie</td><td>59 537</td><td>120 000</td><td>240 000</td></tr>
+      <tr class="total"><td><strong>TOTAL ACTIF</strong></td><td><strong>60 537</strong></td><td><strong>120 500</strong></td><td><strong>242 000</strong></td></tr>
     </table>
     <table class="financial compact">
       <tr><th>PASSIF</th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
       <tr><td>Capital social (SASU)</td><td>1</td><td>1</td><td>1</td></tr>
-      <tr><td>Reserves</td><td>0</td><td>-29 110</td><td>-43 840</td></tr>
-      <tr><td>Resultat de l'exercice</td><td>-29 110</td><td>-14 730</td><td>100 925</td></tr>
-      <tr><td>Emprunts LT (bancaire)</td><td>26 550</td><td>20 100</td><td>13 650</td></tr>
-      <tr><td>Prets d'honneur (I95+WILCO)</td><td>45 000</td><td>45 000</td><td>36 000</td></tr>
-      <tr><td>NACRE</td><td>10 000</td><td>7 780</td><td>5 560</td></tr>
-      <tr><td>Dettes fournisseurs</td><td>2 000</td><td>3 000</td><td>4 000</td></tr>
-      <tr><td>Dettes fiscales/sociales</td><td>6 663</td><td>10 833</td><td>30 503</td></tr>
-      <tr class="total"><td><strong>TOTAL PASSIF</strong></td><td><strong>61 104</strong></td><td><strong>42 874</strong></td><td><strong>146 799</strong></td></tr>
+      <tr><td>Reserves</td><td>0</td><td>15 253</td><td>80 992</td></tr>
+      <tr><td>Resultat de l'exercice</td><td>15 253</td><td>65 739</td><td>130 675</td></tr>
+      <tr><td>Emprunts LT</td><td>40 000</td><td>30 507</td><td>21 014</td></tr>
+      <tr><td>Dettes courantes</td><td>5 283</td><td>9 000</td><td>9 318</td></tr>
+      <tr class="total"><td><strong>TOTAL PASSIF</strong></td><td><strong>60 537</strong></td><td><strong>120 500</strong></td><td><strong>242 000</strong></td></tr>
     </table>
   </div>
 
-  <h2>C.7 Seuil de rentabilite</h2>
-  <table class="financial">
-    <tr><th></th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-    <tr><td>Charges fixes totales</td><td>93 250 EUR</td><td>232 980 EUR</td><td>309 500 EUR</td></tr>
-    <tr><td>Taux de marge sur couts variables</td><td>87%</td><td>89%</td><td>89%</td></tr>
-    <tr class="total"><td><strong>Seuil de rentabilite (CA HT)</strong></td><td><strong>107 184 EUR</strong></td><td><strong>261 775 EUR</strong></td><td><strong>347 753 EUR</strong></td></tr>
-    <tr><td>Seuil mensuel</td><td>8 932 EUR</td><td>21 815 EUR</td><td>28 980 EUR</td></tr>
-    <tr><td>Nb clients equivalent (ARPA 199)</td><td>45</td><td>110</td><td>146</td></tr>
-    <tr><td>CA previsionnel</td><td>74 640 EUR</td><td>246 800 EUR</td><td>492 600 EUR</td></tr>
-    <tr><td>Marge de securite (CA - Seuil)</td><td style="color:var(--danger)">-32 544 EUR</td><td style="color:var(--danger)">-14 975 EUR</td><td style="color:var(--success)">+144 847 EUR</td></tr>
-    <tr><td>Taux de marge de securite</td><td style="color:var(--danger)">-44%</td><td style="color:var(--danger)">-6%</td><td style="color:var(--success)">+29%</td></tr>
-  </table>
+  <p class="text-small text-muted">Note : Actif technologique du fondateur (plateforme NEXUS v3.25.0) valorise a 80 000 EUR en cout de remplacement — non inscrit au capital pour eviter les frais de commissaire aux apports.</p>
 
-  <h2>C.8 Scenario pessimiste (-30% acquisition)</h2>
+  <h2>2.9 Scenario pessimiste (-30% acquisition)</h2>
   <table class="financial">
     <tr><th></th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-    <tr><td>Clients fin d'annee</td><td>44</td><td>98</td><td>175</td></tr>
-    <tr><td>MRR fin d'annee</td><td>8 756 EUR</td><td>19 502 EUR</td><td>34 825 EUR</td></tr>
-    <tr><td>CA HT</td><td>52 248 EUR</td><td>172 760 EUR</td><td>344 820 EUR</td></tr>
-    <tr><td>Charges totales</td><td>102 850 EUR</td><td>260 780 EUR</td><td>363 800 EUR</td></tr>
-    <tr><td>Resultat net</td><td style="color:var(--danger)">-50 602 EUR</td><td style="color:var(--danger)">-87 270 EUR</td><td style="color:var(--danger)">-18 230 EUR</td></tr>
-    <tr><td>Tresorerie fin d'annee</td><td>30 612 EUR</td><td>8 342 EUR</td><td style="color:var(--danger)">-9 888 EUR</td></tr>
+    <tr><td>Clients fin d'annee</td><td>77</td><td>228</td><td>385</td></tr>
+    <tr><td>MRR fin d'annee</td><td>4 235 EUR</td><td>12 540 EUR</td><td>21 175 EUR</td></tr>
+    <tr><td>CA HT</td><td>29 300 EUR</td><td>114 250 EUR</td><td>227 990 EUR</td></tr>
+    <tr><td>Charges totales (avec ajustements)</td><td>20 530 EUR</td><td>62 840 EUR</td><td>125 050 EUR</td></tr>
+    <tr><td>Resultat net</td><td style="color:var(--success)">+7 170 EUR</td><td style="color:var(--success)">+40 410 EUR</td><td style="color:var(--success)">+82 940 EUR</td></tr>
+    <tr><td>Tresorerie fin d'annee (sans NACRE)</td><td>47 200 EUR</td><td>83 000 EUR</td><td>157 000 EUR</td></tr>
   </table>
-  <div class="callout-warning">
-    <strong>Scenario pessimiste :</strong> Tresorerie reste positive 2 ans. Actions correctives en cas de sous-performance : reduction marketing (-50%), report recrutement commercial, passage en mode lean. Avec ajustements, tresorerie positive meme en An 3.
+  <div class="callout-success">
+    <strong>Meme en scenario pessimiste (-30%) :</strong> Tresorerie <strong>toujours positive et croissante</strong> sur 3 ans (47 200 EUR en fin An 1, 157 000 EUR en fin An 3). Resultat net positif des An 1 (+7 170 EUR). Le modele tres frugal (0 salaire M1-M6, 0 comptable, 0 loyer) offre une resilience maximale.
   </div>
 
-  <h2>C.9 Echeancier annuel des remboursements</h2>
+  <h2>2.10 Echeancier annuel des remboursements</h2>
   <table class="financial compact">
     <tr><th>Emprunt</th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
-    <tr><td>Pret d'honneur Initiative 95</td><td>1 668 EUR</td><td>3 336 EUR</td><td>3 336 EUR</td></tr>
-    <tr><td>Pret d'honneur WILCO</td><td>0 EUR</td><td>6 672 EUR</td><td>6 672 EUR</td></tr>
-    <tr><td>Pret bancaire (garanti BPI)</td><td>3 450 EUR</td><td>6 900 EUR</td><td>6 900 EUR</td></tr>
-    <tr><td>NACRE</td><td>0 EUR</td><td>2 220 EUR</td><td>2 220 EUR</td></tr>
-    <tr class="total"><td><strong>Total remboursements</strong></td><td><strong>5 118 EUR</strong></td><td><strong>19 128 EUR</strong></td><td><strong>19 128 EUR</strong></td></tr>
-    <tr><td>Dont interets</td><td>450 EUR</td><td>900 EUR</td><td>600 EUR</td></tr>
+    <tr><td>Pret d'honneur Initiative 95</td><td>0 EUR</td><td>3 750 EUR</td><td>3 750 EUR</td></tr>
+    <tr><td>Pret bancaire (garanti BPI)</td><td>0 EUR</td><td>5 388 EUR</td><td>5 388 EUR</td></tr>
+    <tr><td>NACRE (optionnel)</td><td>0 EUR</td><td>1 250 EUR</td><td>1 250 EUR</td></tr>
+    <tr class="total"><td><strong>Total remboursements (base)</strong></td><td><strong>0 EUR</strong></td><td><strong>9 138 EUR</strong></td><td><strong>9 138 EUR</strong></td></tr>
+    <tr class="total"><td><strong>Total avec NACRE</strong></td><td><strong>0 EUR</strong></td><td><strong>10 388 EUR</strong></td><td><strong>10 388 EUR</strong></td></tr>
+    <tr><td>Dont interets (pret bancaire)</td><td>375 EUR</td><td>625 EUR</td><td>500 EUR</td></tr>
   </table>
 
-  <div class="page-footer">NEXUS — Business Plan Confidentiel — Mars 2026 — Annexe C — Page 23</div>
-</div>
+  <h2>2.11 Indicateurs cles</h2>
+  <table class="financial compact">
+    <tr><th>Indicateur</th><th>An 1</th><th>An 2</th><th>An 3</th></tr>
+    <tr><td>Clients payants fin annee</td><td>110</td><td>325</td><td>550</td></tr>
+    <tr><td>MRR fin annee</td><td>6 050 EUR</td><td>17 875 EUR</td><td>30 250 EUR</td></tr>
+    <tr><td>ARR fin annee</td><td>72 600 EUR</td><td>214 500 EUR</td><td>363 000 EUR</td></tr>
+    <tr><td>CA HT annuel</td><td>41 860 EUR</td><td>163 210 EUR</td><td>325 700 EUR</td></tr>
+    <tr><td>Resultat net</td><td style="color:var(--success)">+15 253 EUR</td><td style="color:var(--success)">+65 739 EUR</td><td style="color:var(--success)">+130 675 EUR</td></tr>
+    <tr><td>Effectif</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>CA / employe</td><td>41 860 EUR</td><td>163 210 EUR</td><td>162 850 EUR</td></tr>
+    <tr><td>LTV estimee</td><td>1 833 EUR</td><td>2 200 EUR</td><td>2 750 EUR</td></tr>
+    <tr><td>CAC estime</td><td>29 EUR</td><td>35 EUR</td><td>42 EUR</td></tr>
+    <tr><td>Ratio LTV/CAC</td><td>63x</td><td>63x</td><td>65x</td></tr>
+  </table>
 
+  <div class="page-footer">NEXUS — Previsionnel Financier Confidentiel — Avril 2026 — Page 5</div>
+</div>
 
 </body>
 </html>

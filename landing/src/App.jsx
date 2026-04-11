@@ -342,10 +342,10 @@ function App() {
             </span>
           </h1>
           <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
-            Votre assistant IA qui automatise tout votre business
+            L'IA qui repond au telephone, gere vos messages et prend vos reservations
           </p>
           <p className="text-gray-500 text-sm md:text-base max-w-2xl mx-auto mt-3">
-            NEXUS est le logiciel de gestion tout-en-un propulse par l'intelligence artificielle pour les PME francaises. Telephone IA, WhatsApp automatise, reservations en ligne, CRM client et comptabilite — remplacez 6 outils par une seule plateforme. Adapte aux salons de coiffure, restaurants, hotels, commerces et services.
+            NEXUS repond a vos appels 24h/24, gere vos messages WhatsApp et prend les reservations automatiquement. Vos clients sont toujours accueillis, meme quand vous etes occupes. Facturation, CRM et bien plus inclus. Adapte aux salons de coiffure, restaurants, hotels, commerces et services.
           </p>
         </div>
 
@@ -399,13 +399,13 @@ function App() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Tout ce dont votre{' '}
+              Une IA qui travaille pour vous,{' '}
               <span className="bg-gradient-to-r from-neon-cyan to-primary-400 bg-clip-text text-transparent">
-                PME a besoin
+                24h/24
               </span>
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              NEXUS regroupe tous les outils dont votre PME a besoin en une seule plateforme propulsee par l'intelligence artificielle. Plus besoin de jongler entre 6 logiciels differents — tout est integre, automatise et adapte a votre metier.
+              Pendant que vous exercez votre metier, NEXUS repond au telephone, gere vos messages WhatsApp, prend les reservations et envoie les factures. Une seule plateforme propulsee par l'IA, adaptee a votre metier.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -445,17 +445,17 @@ function App() {
               <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Receipt className="w-7 h-7 text-purple-400" />
               </div>
-              <h3 className="text-xl font-bold mb-2">Comptabilite automatisee</h3>
-              <p className="text-sm text-purple-400 mb-2">Finances claires et a jour</p>
-              <p className="text-gray-400 text-sm">Suivez vos revenus et depenses en temps reel, generez des exports comptables pour votre expert-comptable et visualisez vos indicateurs financiers. La facturation et le suivi des paiements sont automatises, sans saisie manuelle.</p>
+              <h3 className="text-xl font-bold mb-2">Facturation automatique</h3>
+              <p className="text-sm text-purple-400 mb-2">Factures generees en un clic</p>
+              <p className="text-gray-400 text-sm">Generez vos factures automatiquement apres chaque reservation, suivez les paiements et relancez les impayes. Devis, avoir, exports comptables — tout est gere sans saisie manuelle pour vous faire gagner du temps.</p>
             </div>
             <div className="text-center p-6 rounded-2xl bg-dark-800/50 border border-white/5">
               <div className="w-14 h-14 bg-gradient-to-br from-pink-500/20 to-pink-600/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Megaphone className="w-7 h-7 text-pink-400" />
               </div>
-              <h3 className="text-xl font-bold mb-2">Marketing IA</h3>
-              <p className="text-sm text-pink-400 mb-2">Attirez et fidelisez vos clients</p>
-              <p className="text-gray-400 text-sm">Generez du contenu marketing avec l'IA : posts reseaux sociaux, campagnes email, articles SEO. Programmez vos publications, analysez les performances et boostez votre visibilite en ligne sans effort.</p>
+              <h3 className="text-xl font-bold mb-2">Et bien plus inclus</h3>
+              <p className="text-sm text-pink-400 mb-2">Tout pour gerer votre activite</p>
+              <p className="text-gray-400 text-sm">Comptabilite, gestion des stocks, programme de fidelite, marketing automatise, workflows, equipe — tout est inclus dans votre abonnement. Des outils que vous decouvrirez au fur et a mesure de vos besoins.</p>
             </div>
           </div>
         </div>

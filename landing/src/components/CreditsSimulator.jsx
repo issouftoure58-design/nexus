@@ -11,12 +11,12 @@ import { Calculator, Phone, MessageCircle, Globe, Megaphone, FileText, Sparkles,
 
 // Couts en credits — alignés avec backend/src/config/pricing.js (modele 2026)
 const CREDIT_COSTS = {
-  whatsapp: 4,        // 1 message WhatsApp IA = 4 credits
-  webChat: 9,         // 1 conversation chat web = 9 credits (~5 messages)
-  phoneMin: 15,       // 1 minute telephone IA = 15 credits
-  socialPost: 9,      // 1 post reseaux sociaux genere = 9 credits
-  email: 6,           // 1 email IA personnalise = 6 credits
-  seoArticle: 66,     // 1 article SEO complet (1500 mots) = 66 credits
+  whatsapp: 7,        // 1 message WhatsApp IA = 7 credits
+  webChat: 12,        // 1 conversation chat web = 12 credits (~5 messages)
+  phoneMin: 18,       // 1 minute telephone IA = 18 credits
+  socialPost: 12,     // 1 post reseaux sociaux genere = 12 credits
+  email: 9,           // 1 email IA personnalise = 9 credits
+  seoArticle: 69,     // 1 article SEO complet (1500 mots) = 69 credits
 }
 
 // Credits inclus par plan (source de verite : creditsService.js)
@@ -52,12 +52,12 @@ const USAGE_PRESETS = [
 ]
 
 const ITEMS = [
-  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois', cost: CREDIT_COSTS.whatsapp, costLabel: '4 cr / msg' },
-  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois', cost: CREDIT_COSTS.webChat, costLabel: '9 cr / conv' },
-  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois', cost: CREDIT_COSTS.phoneMin, costLabel: '15 cr / min' },
-  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois', cost: CREDIT_COSTS.socialPost, costLabel: '9 cr / post' },
-  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois', cost: CREDIT_COSTS.email, costLabel: '6 cr / email' },
-  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois', cost: CREDIT_COSTS.seoArticle, costLabel: '66 cr / article' },
+  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois', cost: CREDIT_COSTS.whatsapp, costLabel: '7 cr / msg' },
+  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois', cost: CREDIT_COSTS.webChat, costLabel: '12 cr / conv' },
+  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois', cost: CREDIT_COSTS.phoneMin, costLabel: '18 cr / min' },
+  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois', cost: CREDIT_COSTS.socialPost, costLabel: '12 cr / post' },
+  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois', cost: CREDIT_COSTS.email, costLabel: '9 cr / email' },
+  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois', cost: CREDIT_COSTS.seoArticle, costLabel: '69 cr / article' },
 ]
 
 export default function CreditsSimulator() {

@@ -302,14 +302,14 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
                   Combien coûte chaque action IA ?
                 </summary>
                 <div className="px-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-600">
-                  <div className="flex justify-between"><span>Question chat IA admin</span><span className="font-semibold">4 cr</span></div>
-                  <div className="flex justify-between"><span>Message WhatsApp IA</span><span className="font-semibold">4 cr</span></div>
-                  <div className="flex justify-between"><span>Devis IA</span><span className="font-semibold">6 cr</span></div>
-                  <div className="flex justify-between"><span>Email IA</span><span className="font-semibold">6 cr</span></div>
-                  <div className="flex justify-between"><span>Conversation chat web</span><span className="font-semibold">9 cr</span></div>
-                  <div className="flex justify-between"><span>Post réseaux généré</span><span className="font-semibold">9 cr</span></div>
-                  <div className="flex justify-between"><span>Minute téléphone IA</span><span className="font-semibold">15 cr</span></div>
-                  <div className="flex justify-between"><span>Article SEO complet</span><span className="font-semibold">66 cr</span></div>
+                  <div className="flex justify-between"><span>Question chat IA admin</span><span className="font-semibold">7 cr</span></div>
+                  <div className="flex justify-between"><span>Message WhatsApp IA</span><span className="font-semibold">7 cr</span></div>
+                  <div className="flex justify-between"><span>Devis IA</span><span className="font-semibold">9 cr</span></div>
+                  <div className="flex justify-between"><span>Email IA</span><span className="font-semibold">9 cr</span></div>
+                  <div className="flex justify-between"><span>Conversation chat web</span><span className="font-semibold">12 cr</span></div>
+                  <div className="flex justify-between"><span>Post réseaux généré</span><span className="font-semibold">12 cr</span></div>
+                  <div className="flex justify-between"><span>Minute téléphone IA</span><span className="font-semibold">18 cr</span></div>
+                  <div className="flex justify-between"><span>Article SEO complet</span><span className="font-semibold">69 cr</span></div>
                 </div>
               </details>
             </div>

@@ -21,16 +21,16 @@ import logger from '../config/logger.js';
 // ════════════════════════════════════════════════════════════════════
 
 export const CREDIT_COSTS = {
-  chat_admin_question: 4,    // 1 question chat IA admin
-  whatsapp_message: 4,       // 1 message WhatsApp IA répondu
-  devis_ia: 6,               // 1 devis IA généré
-  antichurn_whatsapp: 6,     // 1 message Anti-Churn WhatsApp
-  email_ia_sent: 6,          // 1 email IA généré + envoi
-  web_chat_conversation: 9,  // 1 conversation Agent IA Web (~5 messages Sonnet)
-  social_post_generated: 9,  // 1 post réseaux généré (Sonnet + image)
-  phone_minute: 15,          // 1 minute appel Téléphone IA
-  antichurn_sms_fr: 16,      // 1 message Anti-Churn SMS FR (cher)
-  seo_article: 66,           // 1 article SEO complet (1500 mots)
+  chat_admin_question: 7,    // 1 question chat IA admin
+  whatsapp_message: 7,       // 1 message WhatsApp IA répondu
+  devis_ia: 9,               // 1 devis IA généré
+  antichurn_whatsapp: 9,     // 1 message Anti-Churn WhatsApp
+  email_ia_sent: 9,          // 1 email IA généré + envoi
+  web_chat_conversation: 12, // 1 conversation Agent IA Web (~5 messages Sonnet)
+  social_post_generated: 12, // 1 post réseaux généré (Sonnet + image)
+  phone_minute: 18,          // 1 minute appel Téléphone IA
+  antichurn_sms_fr: 19,      // 1 message Anti-Churn SMS FR (cher)
+  seo_article: 69,           // 1 article SEO complet (1500 mots)
 };
 
 // Pack unique disponible (taux base, sans bonus)

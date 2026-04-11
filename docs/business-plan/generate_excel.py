@@ -2,6 +2,7 @@
 """
 Generateur du previsionnel financier NEXUS en .xlsx avec formules.
 Toutes les cellules calculees utilisent des formules Excel (pas de valeurs en dur).
+VERSION 3.0 — Avril 2026 (Free / Basic 29€ / Business 149€ + credits IA)
 """
 
 from openpyxl import Workbook
@@ -99,35 +100,36 @@ style_header_row(ws1, 4, 3)
 
 # Data rows (row, label, value, note)
 hyp_data = [
-    (5, "Prix Starter (EUR/mois)", 99, "Abonnement mensuel"),
-    (6, "Prix Pro (EUR/mois)", 249, ""),
-    (7, "Prix Business (EUR/mois)", 499, ""),
-    (8, "Mix Starter (%)", 0.50, "Part des clients Starter"),
-    (9, "Mix Pro (%)", 0.35, "Part des clients Pro"),
-    (10, "Mix Business (%)", 0.15, "Part des clients Business"),
-    (11, "ARPA (calcule)", None, "=B5*B8+B6*B9+B7*B10"),  # formula
+    (5, "Prix Free (EUR/mois)", 0, "Gratuit a vie"),
+    (6, "Prix Basic (EUR/mois)", 29, "Illimite + 1000 credits IA/mois"),
+    (7, "Prix Business (EUR/mois)", 149, "Multi-site + 10000 credits IA/mois"),
+    (8, "Mix Free (%)", 0.10, "Utilisateurs gratuits"),
+    (9, "Mix Basic (%)", 0.70, "Coeur de cible PME"),
+    (10, "Mix Business (%)", 0.20, "Multi-sites, franchises"),
+    (11, "ARPA (revenu moyen/client/mois)", None, "=B5*B8+B6*B9+B7*B10"),  # formula
     (12, "", "", ""),
     (13, "Churn mensuel An 1", 0.03, "Benchmark SaaS SMB"),
     (14, "Churn mensuel An 2", 0.025, "Amelioration onboarding"),
     (15, "Churn mensuel An 3", 0.02, "Produit mature"),
     (16, "", "", ""),
-    (17, "Cout hebergement/client (EUR/mois)", 8, "Render + Supabase + Twilio"),
-    (18, "Commission Stripe (%)", 0.014, "1.4% + 0.25 EUR"),
-    (19, "", "", ""),
-    (20, "Salaire fondateur net (EUR/mois)", 2000, "Phase demarrage"),
-    (21, "Salaire dev brut (EUR/mois)", 3333, "40k brut annuel"),
-    (22, "Salaire commercial brut (EUR/mois)", 2667, "32k brut annuel"),
-    (23, "Taux charges sociales", 0.45, "Regime general"),
-    (24, "", "", ""),
-    (25, "Loyer/coworking (EUR/mois)", 300, ""),
-    (26, "Assurances (EUR/mois)", 125, "RC Pro + Cyber"),
-    (27, "Comptable/juridique (EUR/mois)", 250, ""),
-    (28, "Marketing M1-M3 (EUR/mois)", 500, "Demarrage"),
-    (29, "Marketing M4+ (EUR/mois)", 1000, "Acceleration"),
-    (30, "", "", ""),
-    (31, "TVA", 0.20, "Taux standard"),
-    (32, "IS taux reduit (< 42500 EUR)", 0.15, "PME"),
-    (33, "IS taux normal", 0.25, "Au-dela de 42500 EUR"),
+    (17, "Cout infra fixe (EUR/mois)", 150, "Render + Supabase base"),
+    (18, "Cout variable/client (EUR/mois)", 5, "Anthropic + Twilio + Resend"),
+    (19, "Commission Stripe (%)", 0.029, "2.9%"),
+    (20, "", "", ""),
+    (21, "Salaire fondateur M1-M6", 0, "Pas de salaire les 6 premiers mois"),
+    (22, "Salaire fondateur M7+ An 1 (EUR/mois)", 1200, "Phase demarrage"),
+    (23, "Salaire fondateur An 2 (EUR/mois)", 2000, "Croissance"),
+    (24, "Salaire fondateur An 3 (EUR/mois)", 3000, "Rentabilite"),
+    (25, "Taux charges sociales", 0.45, "SASU regime general"),
+    (26, "", "", ""),
+    (27, "Comptable / juridique", 0, "Fondateur = comptable (BEP + 10 ans exp)"),
+    (28, "Loyer", 0, "Societe hebergee au domicile du fondateur"),
+    (29, "Marketing An 1 (EUR/mois)", 300, "Reseaux sociaux + pub ciblee"),
+    (30, "Marketing An 2+ (EUR/mois)", 800, "Ads + partenariats"),
+    (31, "", "", ""),
+    (32, "TVA", 0.20, "Taux standard"),
+    (33, "IS taux reduit (< 42500 EUR)", 0.15, "PME"),
+    (34, "IS taux normal", 0.25, "Au-dela de 42500 EUR"),
 ]
 
 for row, label, value, note in hyp_data:
@@ -142,9 +144,9 @@ for row, label, value, note in hyp_data:
         cell_b.number_format = EUR_FORMAT
         cell_b.font = BOLD_FONT
         ws1.cell(row=row, column=1, value="ARPA (revenu moyen/client/mois)").font = BOLD_FONT
-    elif isinstance(value, float) and value < 1:
+    elif isinstance(value, float) and 0 < value < 1:
         cell_b.value = value
-        cell_b.number_format = PCT_FORMAT
+        cell_b.number_format = PCT_FORMAT if value >= 0.10 else PCT_FORMAT_1
     elif isinstance(value, (int, float)) and value >= 1:
         cell_b.value = value
         cell_b.number_format = EUR_FORMAT if value > 10 else '0'
@@ -157,7 +159,7 @@ for row, label, value, note in hyp_data:
 
 ws1.column_dimensions['A'].width = 38
 ws1.column_dimensions['B'].width = 15
-ws1.column_dimensions['C'].width = 30
+ws1.column_dimensions['C'].width = 35
 
 
 # =====================================================================
@@ -167,7 +169,7 @@ ws2 = wb.create_sheet("Plan Financement")
 ws2.sheet_properties.tabColor = "38A169"
 
 ws2.merge_cells('A1:E1')
-ws2['A1'] = "PLAN DE FINANCEMENT INITIAL"
+ws2['A1'] = "PLAN DE FINANCEMENT INITIAL — 40 000 EUR (+ NACRE 5K optionnel)"
 ws2['A1'].font = TITLE_FONT
 
 # Besoins
@@ -178,23 +180,19 @@ for col, label in [(1, "Poste"), (2, "Montant"), (4, "Poste"), (5, "Montant")]:
 style_header_row(ws2, 4, 5)
 
 besoins = [
-    (5, "Developpement logiciel (capitalise)", 15000),
-    (6, "Licences et outils", 2000),
-    (7, "Materiel informatique", 5000),
-    (8, "Frais d'etablissement", 3000),
-    (9, "BFR de demarrage", 0),
-    (10, "Tresorerie de securite", 25000),
-    (11, "Marketing lancement", 20000),
-    (12, "Recrutement (3 mois avance)", 15000),
+    (5, "Fonds de roulement (6 mois charges mini)", 18000),
+    (6, "Tresorerie de securite (couverture pertes Y1)", 16000),
+    (7, "Marketing lancement (reseaux, pub ciblee)", 3000),
+    (8, "Materiel informatique", 1500),
+    (9, "Frais d'etablissement (SASU, juridique)", 1500),
 ]
 
 ressources = [
     (5, "Capital social SASU", 1),
-    (6, "Pret d'honneur Initiative 95", 15000),
-    (7, "Pret d'honneur WILCO", 30000),
-    (8, "Pret bancaire (garanti BPI 60%)", 30000),
-    (9, "NACRE phase 2 (ASS)", 10000),
-    (10, "Subventions (BPI/Region)", 0),
+    (6, "Apport en nature (logiciel NEXUS v3.25)", 80000),
+    (7, "Pret d'honneur Initiative 95", 15000),
+    (8, "Pret bancaire (garanti BPI 60%)", 25000),
+    (9, "NACRE phase 2 (OPTIONNEL)", 5000),
 ]
 
 for row, label, val in besoins:
@@ -210,26 +208,37 @@ for row, label, val in ressources:
     ws2.cell(row=row, column=4).border = THIN_BORDER
 
 # Totals with formulas
-total_row = 13
+total_row = 11
 ws2.cell(row=total_row, column=1, value="TOTAL BESOINS")
-ws2.cell(row=total_row, column=2, value="=SUM(B5:B12)")
+ws2.cell(row=total_row, column=2, value="=SUM(B5:B9)")
 ws2.cell(row=total_row, column=2).number_format = EUR_FORMAT
-ws2.cell(row=total_row, column=4, value="TOTAL RESSOURCES")
-ws2.cell(row=total_row, column=5, value="=SUM(E5:E12)")
+ws2.cell(row=total_row, column=4, value="TOTAL TRESORERIE BASE (sans NACRE)")
+ws2.cell(row=total_row, column=5, value="=E7+E8")
 ws2.cell(row=total_row, column=5).number_format = EUR_FORMAT
 style_total_row(ws2, total_row, 5)
 
 # Equilibre check
-ws2.cell(row=15, column=1, value="Equilibre (Ressources - Besoins)")
-ws2.cell(row=15, column=2, value="=E13-B13")
-ws2.cell(row=15, column=2).number_format = EUR_FORMAT_NEG
-ws2.cell(row=15, column=1).font = BOLD_FONT
-ws2.cell(row=15, column=2).font = BOLD_FONT
+ws2.cell(row=13, column=1, value="Equilibre (Ressources tresorerie - Besoins)")
+ws2.cell(row=13, column=2, value="=E11-B11")
+ws2.cell(row=13, column=2).number_format = EUR_FORMAT_NEG
+ws2.cell(row=13, column=1).font = BOLD_FONT
+ws2.cell(row=13, column=2).font = BOLD_FONT
 
-ws2.column_dimensions['A'].width = 35
+# Total avec NACRE
+ws2.cell(row=13, column=4, value="TOTAL AVEC NACRE (optionnel)").font = BOLD_FONT
+ws2.cell(row=13, column=5, value="=E7+E8+E9")
+ws2.cell(row=13, column=5).number_format = EUR_FORMAT
+ws2.cell(row=13, column=5).font = BOLD_FONT
+
+# Notes
+ws2.cell(row=15, column=1, value="Note : L'apport en nature (80 000 EUR) valorise le logiciel developpe").font = SMALL_FONT
+ws2.cell(row=16, column=1, value="pendant 18 mois. Il n'apporte pas de tresorerie mais renforce les fonds propres.").font = SMALL_FONT
+ws2.cell(row=17, column=1, value="NACRE = gere par la Region (pas France Travail). Bonus si eligible, pas indispensable.").font = SMALL_FONT
+
+ws2.column_dimensions['A'].width = 42
 ws2.column_dimensions['B'].width = 15
 ws2.column_dimensions['C'].width = 3
-ws2.column_dimensions['D'].width = 35
+ws2.column_dimensions['D'].width = 42
 ws2.column_dimensions['E'].width = 15
 
 
@@ -251,9 +260,9 @@ for col, label in enumerate(["Mois", "Nouveaux", "Churn", "Clients fin mois", "M
     ws3.cell(row=4, column=col, value=label)
 style_header_row(ws3, 4, 6)
 
-# Input: nouveaux clients and churn per month
-nouveaux = [3, 3, 4, 4, 5, 5, 6, 7, 8, 8, 9, 10]
-churns = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2]
+# Input: nouveaux clients and churn per month (acquisition acceleree multi-canal)
+nouveaux = [6, 7, 8, 9, 10, 10, 11, 12, 12, 13, 14, 14]
+churns = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3]
 
 for i in range(12):
     r = 5 + i
@@ -298,10 +307,10 @@ style_total_row(ws3, r_total, 6)
 # An 2 summary
 ws3.cell(row=19, column=1, value="An 2 (previsions)").font = SECTION_FONT
 ws3.cell(row=20, column=1, value="Nouveaux clients").font = NORMAL_FONT
-ws3.cell(row=20, column=2, value=120)
+ws3.cell(row=20, column=2, value=278)
 ws3.cell(row=20, column=2).fill = LIGHT_YELLOW
 ws3.cell(row=21, column=1, value="Churn total").font = NORMAL_FONT
-ws3.cell(row=21, column=2, value=17)
+ws3.cell(row=21, column=2, value=63)
 ws3.cell(row=21, column=2).fill = LIGHT_YELLOW
 ws3.cell(row=22, column=1, value="Clients fin An 2").font = BOLD_FONT
 ws3.cell(row=22, column=2, value="=D17+B20-C21")
@@ -312,10 +321,10 @@ ws3.cell(row=23, column=2).number_format = EUR_FORMAT
 # An 3 summary
 ws3.cell(row=25, column=1, value="An 3 (previsions)").font = SECTION_FONT
 ws3.cell(row=26, column=1, value="Nouveaux clients").font = NORMAL_FONT
-ws3.cell(row=26, column=2, value=144)
+ws3.cell(row=26, column=2, value=285)
 ws3.cell(row=26, column=2).fill = LIGHT_YELLOW
 ws3.cell(row=27, column=1, value="Churn total").font = NORMAL_FONT
-ws3.cell(row=27, column=2, value=34)
+ws3.cell(row=27, column=2, value=60)
 ws3.cell(row=27, column=2).fill = LIGHT_YELLOW
 ws3.cell(row=28, column=1, value="Clients fin An 3").font = BOLD_FONT
 ws3.cell(row=28, column=2, value="=B22+B26-C27")
@@ -337,7 +346,7 @@ ws4['A1'] = "COMPTE DE RESULTAT PREVISIONNEL (3 ANS)"
 ws4['A1'].font = TITLE_FONT
 
 ws4.merge_cells('A2:D2')
-ws4['A2'] = "Lie aux onglets Hypotheses et Clients & MRR"
+ws4['A2'] = "Lie aux onglets Hypotheses et Clients & MRR — Solo founder An 1/An 2, 1er recrutement An 3"
 ws4['A2'].font = SMALL_FONT
 
 for col, label in enumerate(["Poste", "An 1", "An 2", "An 3"], 1):
@@ -345,7 +354,6 @@ for col, label in enumerate(["Poste", "An 1", "An 2", "An 3"], 1):
 style_header_row(ws4, 4, 4)
 
 # Row references for formulas
-# We'll use a mix of direct formulas and cell references
 rows = {}
 
 def cr_row(r, label, an1, an2, an3, is_total=False, is_section=False, fmt=EUR_FORMAT_NEG):
@@ -366,17 +374,15 @@ def cr_row(r, label, an1, an2, an3, is_total=False, is_section=False, fmt=EUR_FO
 
 cr_row(6, "PRODUITS D'EXPLOITATION", None, None, None, is_section=True)
 
-# Abonnements SaaS - calculated from MRR data
-# An1: sum of monthly MRR (approximation: average MRR * 12 months / 1.2 for HT)
-# More precise: we reference the clients sheet
-cr_row(7, "Abonnements SaaS (HT)", 71640, 238800, 477600)
-cr_row(8, "Setup fees / accompagnement", 3000, 8000, 15000)
+# CA based on ARPA 55 EUR model — 110/325/550 clients
+cr_row(7, "Abonnements SaaS + credits IA (HT)", 35860, 149710, 309700)
+cr_row(8, "Setup / accompagnement", 6000, 13500, 16000)
 cr_row(9, "TOTAL CA HT", "=B7+B8", "=C7+C8", "=D7+D8", is_total=True)
 
 cr_row(11, "CHARGES VARIABLES", None, None, None, is_section=True)
-cr_row(12, "Hebergement cloud", 3600, 9600, 18000)
-cr_row(13, "Services tiers (Twilio/Resend/Anthropic)", 4800, 14400, 28800)
-cr_row(14, "Commissions Stripe", 1200, 3800, 7500)
+cr_row(12, "Hebergement cloud (Render, Supabase)", 2400, 4800, 8400)
+cr_row(13, "Services tiers (Anthropic, Twilio, Resend)", 3200, 12000, 24000)
+cr_row(14, "Commissions Stripe (2.9%)", 1200, 4700, 9500)
 cr_row(15, "Total charges variables", "=SUM(B12:B14)", "=SUM(C12:C14)", "=SUM(D12:D14)", is_total=True)
 
 cr_row(17, "MARGE BRUTE", "=B9-B15", "=C9-C15", "=D9-D15")
@@ -387,28 +393,28 @@ for c in [2, 3, 4]:
 cr_row(18, "Taux de marge brute", "=B17/B9", "=C17/C9", "=D17/D9", fmt=PCT_FORMAT)
 
 cr_row(20, "CHARGES FIXES", None, None, None, is_section=True)
-cr_row(21, "Salaire fondateur", 24000, 36000, 42000)
-cr_row(22, "Salaire developpeur (M4)", 15000, 48000, 52000)
-cr_row(23, "Salaire commercial (M7)", 8000, 38400, 42000)
-cr_row(24, "Salaire support/CSM (M16)", 0, 10000, 36000)
-cr_row(25, "Charges sociales (45%)", "=(B21+B22+B23+B24)*Hypotheses!B23", "=(C21+C22+C23+C24)*Hypotheses!B23", "=(D21+D22+D23+D24)*Hypotheses!B23")
-cr_row(26, "Marketing & acquisition", 12000, 24000, 36000)
-cr_row(27, "Loyer bureau / coworking", "=Hypotheses!B25*12", "=Hypotheses!B25*12*1.5", "=Hypotheses!B25*12*2.5")
-cr_row(28, "Assurances (RC Pro + cyber)", "=Hypotheses!B26*12", 2000, 2500)
-cr_row(29, "Comptable / juridique", "=Hypotheses!B27*12", 4000, 5000)
-cr_row(30, "Materiel / licences", 3000, 2000, 3000)
-cr_row(31, "Divers / imprevus", 2000, 3000, 4000)
+cr_row(21, "Remuneration fondateur (net)", 7200, 24000, 36000)
+cr_row(22, "Charges sociales (45%)", "=B21*Hypotheses!B25", "=C21*Hypotheses!B25", "=D21*Hypotheses!B25")
+cr_row(23, "Prestataires externes (missions)", 0, 10000, 6000)
+cr_row(24, "Salaire support/CSM (a partir M25)", 0, 0, 24000)
+cr_row(25, "Charges sociales CSM", 0, 0, "=D24*Hypotheses!B25")
+cr_row(26, "Marketing & acquisition", 3600, 9600, 14400)
+cr_row(27, "Assurances (RC Pro)", 1000, 1200, 2000)
+cr_row(28, "Comptable / juridique (fondateur = comptable)", 0, 0, 0)
+cr_row(29, "Materiel / licences", 500, 1500, 2500)
+cr_row(30, "Loyer / coworking (domicile)", 0, 0, 0)
+cr_row(31, "Divers / imprevus", 1200, 2000, 3000)
 cr_row(32, "Total charges fixes", "=SUM(B21:B31)", "=SUM(C21:C31)", "=SUM(D21:D31)", is_total=True)
 
 cr_row(34, "RESULTAT D'EXPLOITATION", "=B17-B32", "=C17-C32", "=D17-D32")
 ws4.cell(row=34, column=1).font = BOLD_FONT
-cr_row(35, "Charges financieres", 900, 750, 600)
+cr_row(35, "Charges financieres (interets emprunts)", 375, 625, 500)
 cr_row(36, "RESULTAT COURANT", "=B34-B35", "=C34-C35", "=D34-D35")
 
 # IS calculation with formula
-cr_row(37, "IS (15%/25%)", '=IF(B36<=0,0,IF(B36<=42500,B36*Hypotheses!B32,42500*Hypotheses!B32+(B36-42500)*Hypotheses!B33))',
-       '=IF(C36<=0,0,IF(C36<=42500,C36*Hypotheses!B32,42500*Hypotheses!B32+(C36-42500)*Hypotheses!B33))',
-       '=IF(D36<=0,0,IF(D36<=42500,D36*Hypotheses!B32,42500*Hypotheses!B32+(D36-42500)*Hypotheses!B33))')
+cr_row(37, "IS (15%/25%)", '=IF(B36<=0,0,IF(B36<=42500,B36*Hypotheses!B33,42500*Hypotheses!B33+(B36-42500)*Hypotheses!B34))',
+       '=IF(C36<=0,0,IF(C36<=42500,C36*Hypotheses!B33,42500*Hypotheses!B33+(C36-42500)*Hypotheses!B34))',
+       '=IF(D36<=0,0,IF(D36<=42500,D36*Hypotheses!B33,42500*Hypotheses!B33+(D36-42500)*Hypotheses!B34))')
 
 cr_row(38, "RESULTAT NET", "=B36-B37", "=C36-C37", "=D36-D37", is_total=True)
 
@@ -428,7 +434,7 @@ ws5 = wb.create_sheet("Tresorerie M1-M12")
 ws5.sheet_properties.tabColor = "805AD5"
 
 ws5.merge_cells('A1:N1')
-ws5['A1'] = "PLAN DE TRESORERIE MENSUEL — ANNEE 1"
+ws5['A1'] = "PLAN DE TRESORERIE MENSUEL — ANNEE 1 (base 40K, sans NACRE)"
 ws5['A1'].font = TITLE_FONT
 
 # Headers
@@ -447,7 +453,7 @@ ws5.cell(row=r, column=1, value="CA TTC (MRR x 1.2)")
 for m in range(12):
     c = m + 2
     mrr_ref = f"'Clients & MRR'!E{5+m}"
-    ws5.cell(row=r, column=c, value=f"={mrr_ref}*(1+Hypotheses!B31)")
+    ws5.cell(row=r, column=c, value=f"={mrr_ref}*(1+Hypotheses!B32)")
     ws5.cell(row=r, column=c).number_format = EUR_FORMAT
     ws5.cell(row=r, column=c).border = THIN_BORDER
 ws5.cell(row=r, column=14, value="=SUM(B5:M5)")
@@ -460,50 +466,41 @@ ws5.cell(row=r, column=14, value="=SUM(B6:M6)")
 ws5.cell(row=r, column=14).number_format = EUR_FORMAT
 
 r = 7
-ws5.cell(row=r, column=1, value="Pret honneur WILCO")
-ws5.cell(row=r, column=3, value=30000).number_format = EUR_FORMAT
+ws5.cell(row=r, column=1, value="Pret bancaire (garanti BPI)")
+ws5.cell(row=r, column=4, value=25000).number_format = EUR_FORMAT
 ws5.cell(row=r, column=14, value="=SUM(B7:M7)")
 ws5.cell(row=r, column=14).number_format = EUR_FORMAT
 
 r = 8
-ws5.cell(row=r, column=1, value="Pret bancaire")
-ws5.cell(row=r, column=4, value=30000).number_format = EUR_FORMAT
-ws5.cell(row=r, column=14, value="=SUM(B8:M8)")
+ws5.cell(row=r, column=1, value="NACRE phase 2 (OPTIONNEL)")
+ws5.cell(row=r, column=1).font = SMALL_FONT
+ws5.cell(row=r, column=14, value=0)
 ws5.cell(row=r, column=14).number_format = EUR_FORMAT
 
 r = 9
-ws5.cell(row=r, column=1, value="NACRE phase 2")
-ws5.cell(row=r, column=5, value=10000).number_format = EUR_FORMAT
-ws5.cell(row=r, column=14, value="=SUM(B9:M9)")
-ws5.cell(row=r, column=14).number_format = EUR_FORMAT
-
-r = 10
 ws5.cell(row=r, column=1, value="TOTAL ENCAISSEMENTS")
 for c in range(2, 15):
-    ws5.cell(row=r, column=c, value=f"=SUM({get_column_letter(c)}5:{get_column_letter(c)}9)")
+    ws5.cell(row=r, column=c, value=f"=SUM({get_column_letter(c)}5:{get_column_letter(c)}8)")
     ws5.cell(row=r, column=c).number_format = EUR_FORMAT
 style_total_row(ws5, r, 14)
 
 # DECAISSEMENTS
-r = 12
+r = 11
 ws5.cell(row=r, column=1, value="DECAISSEMENTS").font = SECTION_FONT
 
-# Row data for decaissements with monthly values
+# Row data for decaissements with monthly values (solo founder, no salary M1-M6, no comptable, no loyer)
 dec_rows = {
-    13: ("Hebergement cloud", [300]*12),
-    14: ("Services tiers", [200, 250, 300, 350, 400, 400, 450, 500, 500, 500, 500, 500]),
-    15: ("Commissions Stripe", [10, 20, 35, 50, 65, 80, 100, 120, 145, 170, 195, 225]),
-    16: ("Salaire fondateur net", [2000]*12),
-    17: ("Salaire dev net", [0, 0, 0, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500]),
-    18: ("Salaire commercial net", [0, 0, 0, 0, 0, 0, 2000, 2000, 2000, 2000, 2000, 2000]),
-    19: ("Charges sociales", [900, 900, 900, 2025, 2025, 2025, 2925, 2925, 2925, 2925, 2925, 2925]),
-    20: ("Marketing", [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]),
-    21: ("Loyer/coworking", [300]*12),
-    22: ("Assurances", [125]*12),
-    23: ("Comptable/juridique", [250]*12),
-    24: ("Materiel", [3000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    25: ("Remboursement emprunts", [0, 0, 0, 0, 0, 0, 575, 575, 575, 575, 575, 575]),
-    26: ("TVA a reverser", [0, 0, 0, 0, 0, 0, 0, 0, 0, 500, 1000, 1500]),
+    12: ("Hebergement cloud", [150, 150, 175, 175, 200, 200, 200, 200, 225, 225, 250, 250]),
+    13: ("Services tiers (Anthropic/Twilio/Resend)", [150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 375, 400]),
+    14: ("Commissions Stripe", [22, 37, 54, 70, 89, 107, 128, 148, 167, 190, 213, 234]),
+    15: ("Salaire fondateur net (M7-M12)", [0, 0, 0, 0, 0, 0, 1200, 1200, 1200, 1200, 1200, 1200]),
+    16: ("Charges sociales fondateur", [0, 0, 0, 0, 0, 0, 540, 540, 540, 540, 540, 540]),
+    17: ("Marketing", [300]*12),
+    18: ("Assurances (RC Pro)", [83]*12),
+    19: ("Materiel", [500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    20: ("Remboursement emprunts", [0, 0, 0, 0, 0, 0, 728, 728, 728, 728, 728, 728]),
+    21: ("TVA a reverser", [0, 0, 0, 0, 0, 0, 0, 0, 800, 0, 0, 1600]),
+    22: ("Divers / imprevus", [100]*12),
 }
 
 for row_num, (label, values) in dec_rows.items():
@@ -514,50 +511,50 @@ for row_num, (label, values) in dec_rows.items():
         ws5.cell(row=row_num, column=c, value=val)
         ws5.cell(row=row_num, column=c).number_format = EUR_FORMAT
         ws5.cell(row=row_num, column=c).border = THIN_BORDER
-        if label in ["Salaire fondateur net", "Loyer/coworking", "Assurances", "Comptable/juridique"]:
-            ws5.cell(row=row_num, column=c).fill = LIGHT_BLUE  # linked to hypotheses visually
+        if "Salaire fondateur" in label:
+            ws5.cell(row=row_num, column=c).fill = LIGHT_BLUE
     # Total column
     ws5.cell(row=row_num, column=14, value=f"=SUM(B{row_num}:M{row_num})")
     ws5.cell(row=row_num, column=14).number_format = EUR_FORMAT
     ws5.cell(row=row_num, column=14).border = THIN_BORDER
 
 # Total decaissements
-r = 27
+r = 23
 ws5.cell(row=r, column=1, value="TOTAL DECAISSEMENTS")
 for c in range(2, 15):
-    ws5.cell(row=r, column=c, value=f"=SUM({get_column_letter(c)}13:{get_column_letter(c)}26)")
+    ws5.cell(row=r, column=c, value=f"=SUM({get_column_letter(c)}12:{get_column_letter(c)}22)")
     ws5.cell(row=r, column=c).number_format = EUR_FORMAT
 style_total_row(ws5, r, 14)
 
 # Solde du mois
-r = 29
+r = 25
 ws5.cell(row=r, column=1, value="SOLDE DU MOIS").font = BOLD_FONT
 ws5.cell(row=r, column=1).border = THIN_BORDER
 for c in range(2, 15):
-    ws5.cell(row=r, column=c, value=f"={get_column_letter(c)}10-{get_column_letter(c)}27")
+    ws5.cell(row=r, column=c, value=f"={get_column_letter(c)}9-{get_column_letter(c)}23")
     ws5.cell(row=r, column=c).number_format = EUR_FORMAT_NEG
     ws5.cell(row=r, column=c).border = THIN_BORDER
     ws5.cell(row=r, column=c).font = BOLD_FONT
 
 # Tresorerie cumulee
-r = 30
+r = 26
 ws5.cell(row=r, column=1, value="TRESORERIE CUMULEE").font = BOLD_FONT
 ws5.cell(row=r, column=1).border = THIN_BORDER
 ws5.cell(row=r, column=1).fill = LIGHT_GREEN
 for m in range(12):
     c = m + 2
     if m == 0:
-        ws5.cell(row=r, column=c, value=f"=B29")
+        ws5.cell(row=r, column=c, value=f"=B25")
     else:
         prev = get_column_letter(c - 1)
         cur = get_column_letter(c)
-        ws5.cell(row=r, column=c, value=f"={prev}30+{cur}29")
+        ws5.cell(row=r, column=c, value=f"={prev}26+{cur}25")
     ws5.cell(row=r, column=c).number_format = EUR_FORMAT_NEG
     ws5.cell(row=r, column=c).border = THIN_BORDER
     ws5.cell(row=r, column=c).font = BOLD_FONT
     ws5.cell(row=r, column=c).fill = LIGHT_GREEN
 
-ws5.column_dimensions['A'].width = 28
+ws5.column_dimensions['A'].width = 32
 for c in range(2, 15):
     ws5.column_dimensions[get_column_letter(c)].width = 12
 
@@ -571,6 +568,10 @@ ws6.sheet_properties.tabColor = "D69E2E"
 ws6.merge_cells('A1:D1')
 ws6['A1'] = "SEUIL DE RENTABILITE"
 ws6['A1'].font = TITLE_FONT
+
+ws6.merge_cells('A2:D2')
+ws6['A2'] = "Seuil atteint a ~50 clients (M6-M7, fin S1)"
+ws6['A2'].font = SMALL_FONT
 
 for col, label in enumerate(["", "An 1", "An 2", "An 3"], 1):
     ws6.cell(row=3, column=col, value=label)
@@ -624,7 +625,7 @@ style_header_row(ws7, 3, 8)
 # ACTIF
 bilan_actif = [
     (4, "Immobilisations incorporelles (net)", 13500, 12000, 10500),
-    (5, "Immobilisations corporelles (net)", 3500, 2000, 500),
+    (5, "Immobilisations corporelles (net)", 1000, 500, 0),
     (6, "Creances clients", 0, 0, 0),
     (7, "Tresorerie", None, None, None),  # linked
 ]
@@ -637,11 +638,11 @@ for r, label, a1, a2, a3 in bilan_actif:
         if r == 7:
             # Tresorerie linked to tresorerie sheet (M12 cumulated)
             if c == 2:
-                cell.value = "='Tresorerie M1-M12'!M30"
+                cell.value = "='Tresorerie M1-M12'!M26"
             elif c == 3:
-                cell.value = 28874  # An 2 (simplified)
+                cell.value = 120000  # An 2 estimate
             else:
-                cell.value = 135799  # An 3
+                cell.value = 240000  # An 3 estimate
         else:
             cell.value = v
         cell.number_format = EUR_FORMAT
@@ -657,12 +658,10 @@ style_total_row(ws7, 8, 4)
 # PASSIF
 bilan_passif = [
     (4, "Capital social (SASU)", 1, 1, 1),
-    (5, "Reserves", 0, "=-'Compte Resultat'!B38", "=F5+'Compte Resultat'!C38"),
+    (5, "Reserves", 0, "='Compte Resultat'!B38", "=F5+'Compte Resultat'!C38"),
     (6, "Resultat de l'exercice", "='Compte Resultat'!B38", "='Compte Resultat'!C38", "='Compte Resultat'!D38"),
-    (7, "Emprunts LT (bancaire)", 26550, 20100, 13650),
-    (8, "Prets d'honneur (I95 + WILCO)", 45000, 45000, 36000),
-    (9, "Dettes fournisseurs", 2000, 3000, 4000),
-    (10, "Dettes fiscales/sociales", 6664, 16614, 26224),
+    (7, "Emprunts LT", 35632, 25780, 15928),
+    (8, "Dettes courantes", 9651, 13727, 14396),
 ]
 
 for r, label, a1, a2, a3 in bilan_passif:
@@ -707,7 +706,7 @@ ws8['A1'] = "SCENARIO PESSIMISTE (-30% acquisition)"
 ws8['A1'].font = TITLE_FONT
 
 ws8.merge_cells('A2:D2')
-ws8['A2'] = "Hypothese : 30% de clients en moins, charges ajustees"
+ws8['A2'] = "Hypothese : 30% de clients en moins, charges ajustees a la baisse"
 ws8['A2'].font = SMALL_FONT
 
 for col, label in enumerate(["", "An 1", "An 2", "An 3"], 1):
@@ -736,7 +735,7 @@ ws8.cell(row=8, column=3).number_format = EUR_FORMAT
 ws8.cell(row=8, column=4, value="=D7*Hypotheses!B11")
 ws8.cell(row=8, column=4).number_format = EUR_FORMAT
 
-ws8.cell(row=9, column=1, value="CA HT").font = BOLD_FONT
+ws8.cell(row=9, column=1, value="CA HT (pessimiste)").font = BOLD_FONT
 ws8.cell(row=9, column=2, value="='Compte Resultat'!B9*$B$5")
 ws8.cell(row=9, column=2).number_format = EUR_FORMAT
 ws8.cell(row=9, column=3, value="='Compte Resultat'!C9*$B$5")
@@ -744,15 +743,16 @@ ws8.cell(row=9, column=3).number_format = EUR_FORMAT
 ws8.cell(row=9, column=4, value="='Compte Resultat'!D9*$B$5")
 ws8.cell(row=9, column=4).number_format = EUR_FORMAT
 
-ws8.cell(row=10, column=1, value="Charges totales").font = NORMAL_FONT
-ws8.cell(row=10, column=2, value=102850)
+# Charges ajustees (marketing reduit, charges variables proportionnelles)
+ws8.cell(row=10, column=1, value="Charges totales (ajustees)").font = NORMAL_FONT
+ws8.cell(row=10, column=2, value=20100)
 ws8.cell(row=10, column=2).number_format = EUR_FORMAT
-ws8.cell(row=10, column=3, value=260780)
+ws8.cell(row=10, column=3, value=62600)
 ws8.cell(row=10, column=3).number_format = EUR_FORMAT
-ws8.cell(row=10, column=4, value=363800)
+ws8.cell(row=10, column=4, value=120800)
 ws8.cell(row=10, column=4).number_format = EUR_FORMAT
 
-ws8.cell(row=11, column=1, value="Resultat net").font = BOLD_FONT
+ws8.cell(row=11, column=1, value="Resultat net (pessimiste)").font = BOLD_FONT
 ws8.cell(row=11, column=2, value="=B9-B10")
 ws8.cell(row=11, column=2).number_format = EUR_FORMAT_NEG
 ws8.cell(row=11, column=3, value="=C9-C10")
@@ -761,18 +761,20 @@ ws8.cell(row=11, column=4, value="=D9-D10")
 ws8.cell(row=11, column=4).number_format = EUR_FORMAT_NEG
 
 ws8.cell(row=13, column=1, value="Tresorerie fin annee").font = BOLD_FONT
-ws8.cell(row=13, column=1).fill = LIGHT_RED
-ws8.cell(row=13, column=2, value=30612).number_format = EUR_FORMAT_NEG
+ws8.cell(row=13, column=1).fill = LIGHT_GREEN
+ws8.cell(row=13, column=2, value=47200).number_format = EUR_FORMAT_NEG
 ws8.cell(row=13, column=3, value="=B13+C11").number_format = EUR_FORMAT_NEG
 ws8.cell(row=13, column=4, value="=C13+D11").number_format = EUR_FORMAT_NEG
 for c in [2, 3, 4]:
-    ws8.cell(row=13, column=c).fill = LIGHT_RED
+    ws8.cell(row=13, column=c).fill = LIGHT_GREEN
 
 # Notes
 ws8.cell(row=15, column=1, value="Actions correctives si scenario pessimiste :").font = BOLD_FONT
-ws8.cell(row=16, column=1, value="→ Reduction marketing de 30%").font = SMALL_FONT
-ws8.cell(row=17, column=1, value="→ Report recrutement commercial de 3 mois").font = SMALL_FONT
+ws8.cell(row=16, column=1, value="→ Reduction marketing de 50%").font = SMALL_FONT
+ws8.cell(row=17, column=1, value="→ Reduction salaire fondateur temporairement").font = SMALL_FONT
 ws8.cell(row=18, column=1, value="→ Negociation report echeance prets d'honneur").font = SMALL_FONT
+ws8.cell(row=19, column=1, value="→ Missions freelance en parallele pour le fondateur").font = SMALL_FONT
+ws8.cell(row=20, column=1, value="→ Tresorerie reste POSITIVE meme a -30% (modele frugal)").font = BOLD_FONT
 
 for r in range(7, 14):
     for c in range(1, 5):
@@ -800,9 +802,8 @@ style_header_row(ws9, 3, 7)
 
 prets = [
     (4, "Pret honneur Initiative 95", 15000, "0%", "5 ans", "6 mois", "=B4/54", "M7"),
-    (5, "Pret honneur WILCO", 30000, "0%", "5 ans", "12 mois", "=B5/54", "M13"),
-    (6, "Pret bancaire (garanti BPI)", 30000, "3%", "5 ans", "6 mois", 575, "M7"),
-    (7, "NACRE phase 2", 10000, "0%", "5 ans", "12 mois", "=B7/54", "M13"),
+    (5, "Pret bancaire (garanti BPI 60%)", 25000, "3%", "5 ans", "6 mois", 450, "M7"),
+    (6, "NACRE phase 2 (beneficiaire ASS)", 5000, "0%", "5 ans", "12 mois", "=B6/48", "M13"),
 ]
 
 for r, label, capital, taux, duree, differe, mensualite, debut in prets:
@@ -818,21 +819,20 @@ for r, label, capital, taux, duree, differe, mensualite, debut in prets:
         ws9.cell(row=r, column=c).border = THIN_BORDER
 
 # Total capital
-ws9.cell(row=8, column=1, value="TOTAL").font = BOLD_FONT
-ws9.cell(row=8, column=2, value="=SUM(B4:B7)").number_format = EUR_FORMAT
-style_total_row(ws9, 8, 7)
+ws9.cell(row=7, column=1, value="TOTAL").font = BOLD_FONT
+ws9.cell(row=7, column=2, value="=SUM(B4:B6)").number_format = EUR_FORMAT
+style_total_row(ws9, 7, 7)
 
 # Echeancier annuel
-ws9.cell(row=10, column=1, value="ECHEANCIER ANNUEL").font = SECTION_FONT
+ws9.cell(row=9, column=1, value="ECHEANCIER ANNUEL").font = SECTION_FONT
 for col, label in enumerate(["", "An 1", "An 2", "An 3", "Total"], 1):
-    ws9.cell(row=11, column=col, value=label)
-style_header_row(ws9, 11, 5)
+    ws9.cell(row=10, column=col, value=label)
+style_header_row(ws9, 10, 5)
 
 ech = [
-    (12, "Remb. pret I95", "=F4*6", "=F4*12", "=F4*12"),    # 6 mois An1 (M7-M12)
-    (13, "Remb. pret WILCO", 0, "=F5*12", "=F5*12"),         # Debut M13
-    (14, "Remb. pret bancaire", "=6*575", "=12*575", "=12*575"),  # 6 mois An1
-    (15, "Remb. NACRE", 0, "=F7*12", "=F7*12"),              # Debut M13
+    (11, "Remb. pret I95", "=F4*6", "=F4*12", "=F4*12"),       # 6 mois An1 (M7-M12)
+    (12, "Remb. pret bancaire", "=6*450", "=12*450", "=12*450"),  # 6 mois An1
+    (13, "Remb. NACRE", 0, "=F6*12", "=F6*12"),                  # Debut M13
 ]
 
 for r, label, a1, a2, a3 in ech:
@@ -847,20 +847,26 @@ for r, label, a1, a2, a3 in ech:
     ws9.cell(row=r, column=5).border = THIN_BORDER
 
 # Total remboursements
-ws9.cell(row=16, column=1, value="TOTAL REMBOURSEMENTS")
+ws9.cell(row=14, column=1, value="TOTAL REMBOURSEMENTS")
 for c in range(2, 6):
-    ws9.cell(row=16, column=c, value=f"=SUM({get_column_letter(c)}12:{get_column_letter(c)}15)")
-    ws9.cell(row=16, column=c).number_format = EUR_FORMAT
-style_total_row(ws9, 16, 5)
+    ws9.cell(row=14, column=c, value=f"=SUM({get_column_letter(c)}11:{get_column_letter(c)}13)")
+    ws9.cell(row=14, column=c).number_format = EUR_FORMAT
+style_total_row(ws9, 14, 5)
 
 # Interets
-ws9.cell(row=17, column=1, value="Dont interets").font = SMALL_FONT
-ws9.cell(row=17, column=2, value=450).number_format = EUR_FORMAT
-ws9.cell(row=17, column=3, value=900).number_format = EUR_FORMAT
-ws9.cell(row=17, column=4, value=600).number_format = EUR_FORMAT
-ws9.cell(row=17, column=5, value="=SUM(B17:D17)").number_format = EUR_FORMAT
+ws9.cell(row=15, column=1, value="Dont interets (pret bancaire)").font = SMALL_FONT
+ws9.cell(row=15, column=2, value=375).number_format = EUR_FORMAT
+ws9.cell(row=15, column=3, value=625).number_format = EUR_FORMAT
+ws9.cell(row=15, column=4, value=500).number_format = EUR_FORMAT
+ws9.cell(row=15, column=5, value="=SUM(B15:D15)").number_format = EUR_FORMAT
 
-ws9.column_dimensions['A'].width = 30
+# Resume
+ws9.cell(row=17, column=1, value="RESUME REMBOURSEMENTS MENSUELS").font = SECTION_FONT
+ws9.cell(row=18, column=1, value="M1-M6 : aucun remboursement (differe)").font = SMALL_FONT
+ws9.cell(row=19, column=1, value="M7-M12 : 728 EUR/mois (I95 278 + bancaire 450)").font = SMALL_FONT
+ws9.cell(row=20, column=1, value="M13+ : 821 EUR/mois (+ NACRE 93)").font = SMALL_FONT
+
+ws9.column_dimensions['A'].width = 35
 for c_letter in ['B', 'C', 'D', 'E', 'F', 'G']:
     ws9.column_dimensions[c_letter].width = 14
 
