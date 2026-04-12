@@ -57,15 +57,16 @@ async function publishAllScheduledPosts() {
 
     const { data: posts, error } = await rawSupabase
       .from('social_posts')
-      .select('*, social_accounts!social_posts_account_id_fkey(*)')
+      .select('*, social_accounts(*)')
       .eq('status', 'scheduled')
       .lte('scheduled_at', now)
       .limit(50);
 
     if (error) {
-      // Table n'existe pas encore — silencieux
-      if (error.code === '42P01') return;
-      throw error;
+      // Table n'existe pas encore ou FK manquante — silencieux au demarrage
+      if (error.code === '42P01' || error.code === 'PGRST200') return;
+      logger.warn(`[SOCIAL SCHEDULER] Query error: ${error.code} ${error.message || JSON.stringify(error)}`);
+      return;
     }
 
     if (!posts || posts.length === 0) return;
@@ -76,7 +77,7 @@ async function publishAllScheduledPosts() {
       await publishPost(post);
     }
   } catch (err) {
-    logger.error('[SOCIAL SCHEDULER] Erreur:', err.message);
+    logger.error(`[SOCIAL SCHEDULER] Erreur: ${err?.message || JSON.stringify(err)}`);
   }
 }
 
