@@ -175,9 +175,7 @@ function openOpenAISession(tenantId, callSid) {
       const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
       const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
-      // Demo: limiter les tokens pour eviter les monologues
-      // 200 tokens = assez pour 2-3 phrases completes sans couper mid-phrase
-      const maxTokens = isDemoTenant ? 200 : config.max_response_output_tokens;
+      const maxTokens = config.max_response_output_tokens;
 
       ws.send(JSON.stringify({
         type: 'session.update',
@@ -344,9 +342,15 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           isPlayingResponse = false;
           responseAudioStartedAt = 0;
           resetSilenceTimer();
+
+          // Purger le buffer audio OpenAI pour eviter que du bruit residuel
+          // declenche une nouvelle reponse (anti "lecture continue" + anti interruption)
+          if (openaiWs.readyState === WebSocket.OPEN) {
+            openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+          }
+
           // Debloquer l'audio client apres un delai suffisant
-          // 2s permet a l'echo telephonique de s'estomper et evite que le VAD
-          // detecte le bruit residuel comme une nouvelle requete (cause du "lecture continue")
+          // 2s permet a l'echo telephonique de s'estomper
           setTimeout(() => {
             const session = activeSessions.get(streamSid);
             if (session) session.isAISpeaking = false;
@@ -395,6 +399,10 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
 
           // Executer le tool via NEXUS CORE processMessage
           const toolResult = await executeRealtimeTool(toolName, toolArgs, tenantId, callSid);
+
+          // Purger l'audio buffer avant de renvoyer le resultat du tool
+          // Evite que du bruit capture pendant l'execution du tool ne declenche une interruption
+          openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
 
           // Renvoyer le resultat a OpenAI
           openaiWs.send(JSON.stringify({
