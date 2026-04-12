@@ -27,7 +27,7 @@ const DEFAULT_CONFIG = {
     silence_duration_ms: 900,  // Attend 900ms de silence avant de repondre (anti-monologue)
   },
   temperature: 0.6,
-  max_response_output_tokens: 150,
+  max_response_output_tokens: 300,
 };
 
 /**
