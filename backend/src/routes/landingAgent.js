@@ -191,7 +191,7 @@ Mode dégradé gracieux à 0 crédit (pas de mauvaise surprise).
 - Certaines integrations tres specifiques peuvent necessiter developpement sur mesure
 
 **Questions frequentes :**
-- "C'est complique a configurer ?" → Non, vous creez votre compte en 2 minutes et le chat IA web marche tout de suite. Pour le telephone IA et WhatsApp IA, vous faites une demande d'activation depuis votre espace et l'equipe technique configure tout sous 48 heures
+- "C'est complique a configurer ?" → Pas du tout, vous creez votre compte en 2 minutes et le chat IA web marche tout de suite. Pour le telephone IA et WhatsApp IA, vous faites une demande d'activation depuis votre espace et l'equipe technique configure tout sous 48 heures
 - "Mes clients vont-ils savoir que c'est une IA ?" → Je suis naturelle et transparente, la conversation est fluide
 - "Je peux garder mon numero de telephone ?" → Oui, on redirige vers notre systeme
 - "Que se passe-t-il si tu ne comprends pas ?" → Je prends un message ou je transfere vers vous
