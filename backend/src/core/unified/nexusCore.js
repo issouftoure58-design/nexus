@@ -2485,12 +2485,13 @@ async function getSystemPromptUnified(channel, tenantConfig) {
 
   // 🎯 DEMO TENANT: Utiliser le prompt commercial spécialisé
   // Check par flag config OU par tenantId (le flag peut manquer si chargé depuis DB)
+  console.log(`[NEXUS CORE] getSystemPromptUnified CHECK: tenantId="${tenantId}", isDemoTenant=${tenantConfig.isDemoTenant}, name="${tenantConfig.name}"`);
   if (tenantConfig.isDemoTenant || tenantId === 'nexus-test') {
-    console.log(`[NEXUS CORE] Using DEMO prompt for ${tenantId} (channel: ${channel})`);
+    console.log(`[NEXUS CORE] ✅ Using DEMO prompt for ${tenantId} (channel: ${channel})`);
     return getDemoPrompt(channel);
   }
 
-  console.log(`[NEXUS CORE] Generating dynamic prompt for ${tenantId}`);
+  console.log(`[NEXUS CORE] ➡️ Generating dynamic prompt for ${tenantId} (NOT demo)`);
   return dynamicSystemPrompt(channel, tenantConfig);
 }
 
