@@ -22,9 +22,9 @@ const DEFAULT_CONFIG = {
   },
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.8,            // Filtre strict bruits ambiants (evite faux positifs)
-    prefix_padding_ms: 400,    // Marge avant detection parole
-    silence_duration_ms: 900,  // Attend 900ms de silence avant de repondre (anti-monologue)
+    threshold: 0.95,           // Tres strict — seule une voix claire et soutenue interrompt
+    prefix_padding_ms: 800,    // Besoin de 800ms de parole continue pour detecter (anti-bruit)
+    silence_duration_ms: 1200, // Attend 1.2s de silence avant de repondre
   },
   temperature: 0.6,
   max_response_output_tokens: 300,
