@@ -169,7 +169,11 @@ function openOpenAISession(tenantId, callSid) {
 
       // Configurer la session
       const systemInstructions = buildSystemInstructions(tenantId);
-      const tools = buildRealtimeTools(tenantId);
+
+      // Demo tenant: pas de tools (la demo IA utilise uniquement son prompt, pas la DB)
+      const tenantCfg = getTenantConfig(tenantId);
+      const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
+      const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
       ws.send(JSON.stringify({
         type: 'session.update',
@@ -181,7 +185,7 @@ function openOpenAISession(tenantId, callSid) {
           input_audio_transcription: config.input_audio_transcription,
           turn_detection: config.turn_detection,
           tools,
-          tool_choice: 'auto',
+          tool_choice: isDemoTenant ? 'none' : 'auto',
           temperature: config.temperature,
           max_response_output_tokens: config.max_response_output_tokens,
         },
