@@ -14,7 +14,7 @@ const OPENAI_REALTIME_MODEL = 'gpt-4o-realtime-preview';
  */
 const DEFAULT_CONFIG = {
   model: OPENAI_REALTIME_MODEL,
-  voice: 'shimmer',
+  voice: 'coral',
   input_audio_format: 'g711_ulaw',
   output_audio_format: 'g711_ulaw',
   input_audio_transcription: {
@@ -22,12 +22,12 @@ const DEFAULT_CONFIG = {
   },
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.7,            // Filtre bruits ambiants telephoniques
-    prefix_padding_ms: 350,    // Legere marge avant detection parole
-    silence_duration_ms: 600,  // Attend 600ms de silence avant de repondre
+    threshold: 0.8,            // Filtre strict bruits ambiants (evite faux positifs)
+    prefix_padding_ms: 400,    // Marge avant detection parole
+    silence_duration_ms: 900,  // Attend 900ms de silence avant de repondre (anti-monologue)
   },
-  temperature: 0.7,
-  max_response_output_tokens: 500,
+  temperature: 0.6,
+  max_response_output_tokens: 150,
 };
 
 /**
