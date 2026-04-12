@@ -98,6 +98,7 @@ const IGNORE_FILES = [
   'responseCache.js',
   'taskQueue.js',
   'relancesService.js',
+  'socialScheduler.js', // scheduler cross-tenant : scanne tous les tenants via rawSupabase (service_role)
   // Services qui reçoivent déjà tenantId en paramètre et l'utilisent
   'halimahProService.js',
   'whatsappService.js',

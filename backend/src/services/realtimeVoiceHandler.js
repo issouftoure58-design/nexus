@@ -84,10 +84,15 @@ export function handleMediaStream(twilioWs) {
         // ---- Audio du telephone -> OpenAI ----
         case 'media': {
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-            // Anti barge-in : ne pas envoyer l'audio client pendant que l'IA parle
-            // Cela evite que le VAD detecte la voix du client et coupe la reponse brutalement
+            // Anti-echo avec grace period : bloquer l'audio client pendant les 1.5 premieres secondes
+            // de la reponse IA (evite que l'echo de la voix IA declenche le VAD).
+            // Apres 1.5s, laisser passer l'audio pour permettre le barge-in naturel.
             const session = activeSessions.get(streamSid);
-            if (session?.isAISpeaking) break;
+            if (session?.isAISpeaking) {
+              const elapsed = Date.now() - (session.audioStartedAt || Date.now());
+              if (elapsed < 1500) break; // Grace period : pas de barge-in pendant 1.5s
+              // Apres 1.5s, on laisse passer => OpenAI VAD detecte la voix et truncate
+            }
 
             openaiWs.send(JSON.stringify({
               type: 'input_audio_buffer.append',
@@ -175,6 +180,9 @@ function openOpenAISession(tenantId, callSid) {
       const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
       const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
+      // Demo: limiter les tokens de reponse pour forcer des reponses courtes (2-3 phrases)
+      const maxTokens = isDemoTenant ? 150 : config.max_response_output_tokens;
+
       ws.send(JSON.stringify({
         type: 'session.update',
         session: {
@@ -187,7 +195,7 @@ function openOpenAISession(tenantId, callSid) {
           tools,
           tool_choice: isDemoTenant ? 'none' : 'auto',
           temperature: config.temperature,
-          max_response_output_tokens: config.max_response_output_tokens,
+          max_response_output_tokens: maxTokens,
         },
       }));
 
@@ -340,9 +348,12 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
             if (!isPlayingResponse) {
               isPlayingResponse = true;
               responseAudioStartedAt = Date.now();
-              // Bloquer l'audio client pour eviter les interruptions brusques
+              // Marquer le debut de la parole IA (avec timestamp pour grace period barge-in)
               const session = activeSessions.get(streamSid);
-              if (session) session.isAISpeaking = true;
+              if (session) {
+                session.isAISpeaking = true;
+                session.audioStartedAt = responseAudioStartedAt;
+              }
             }
 
             // Ajouter au buffer — sera envoye a Twilio par le flusher toutes les 80ms
