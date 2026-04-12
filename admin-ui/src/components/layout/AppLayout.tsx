@@ -263,8 +263,18 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Credit Alert Banner */}
       <CreditAlertBanner />
 
-      {/* Main content */}
-      <main className="min-h-[calc(100vh-3.5rem)]">
+      {/* Main content — gradient pastel arriere-plan style HeyGen */}
+      <main
+        className="min-h-[calc(100vh-3.5rem)]"
+        style={{
+          background: `
+            radial-gradient(ellipse at 15% 30%, rgba(6, 182, 212, 0.07) 0%, transparent 50%),
+            radial-gradient(ellipse at 85% 15%, rgba(236, 72, 153, 0.05) 0%, transparent 50%),
+            radial-gradient(ellipse at 55% 85%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+            radial-gradient(ellipse at 90% 70%, rgba(6, 182, 212, 0.04) 0%, transparent 40%)
+          `,
+        }}
+      >
         {children}
       </main>
     </div>
