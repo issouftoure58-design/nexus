@@ -12,13 +12,27 @@ export default function useTextToSpeech() {
       const voices = window.speechSynthesis?.getVoices() || []
       if (voices.length > 0) {
         const frenchVoices = voices.filter(v => v.lang.startsWith('fr'))
-        const premiumFr = frenchVoices.find(v =>
-          v.name.toLowerCase().includes('premium') ||
-          v.name.toLowerCase().includes('enhanced') ||
-          v.name.toLowerCase().includes('google') ||
-          v.name.toLowerCase().includes('microsoft')
-        )
-        voiceRef.current = premiumFr || frenchVoices[0] || voices[0]
+
+        // Prefer feminine French voices for consistency with welcome audio
+        const feminineFr = frenchVoices.find(v => {
+          const n = v.name.toLowerCase()
+          return n.includes('amelie') || n.includes('denise') || n.includes('aurelie') ||
+                 n.includes('marie') || n.includes('lea') || n.includes('celine')
+        })
+
+        // Then try premium voices (Google fr is typically feminine)
+        const premiumFr = frenchVoices.find(v => {
+          const n = v.name.toLowerCase()
+          return n.includes('google') || n.includes('premium') || n.includes('enhanced')
+        })
+
+        // Avoid known masculine voices
+        const nonMasculineFr = frenchVoices.find(v => {
+          const n = v.name.toLowerCase()
+          return !n.includes('thomas') && !n.includes('henri') && !n.includes('nicolas')
+        })
+
+        voiceRef.current = feminineFr || premiumFr || nonMasculineFr || frenchVoices[0] || voices[0]
         setVoicesLoaded(true)
       }
     }

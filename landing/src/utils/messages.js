@@ -1,6 +1,6 @@
 export const MESSAGES_CONFIG = {
   welcome: {
-    text: "Bonjour ! Je suis NEXUS, votre assistant IA. Je peux automatiser votre business : reservations, appels telephoniques, WhatsApp, CRM, facturation... Posez-moi vos questions, je suis la pour vous aider !",
+    text: "Bonjour ! Je suis Nexus, votre assistante IA. Je reponds au telephone, je gere WhatsApp, je prends les rendez-vous, je fais les factures et le CRM... Posez-moi vos questions, je vous montre ce que je sais faire !",
     audio: "/audio/welcome.mp3"
   },
   prix: {
@@ -8,15 +8,15 @@ export const MESSAGES_CONFIG = {
     audio: null
   },
   telephone: {
-    text: "Notre assistant Telephone IA repond a vos appels 24h/24, 7j/7. Il peut prendre des rendez-vous, repondre aux questions frequentes, et transferer vers un humain si necessaire. Disponible dans les plans Basic et Business via des credits IA : 1 minute = 18 credits.",
+    text: "Je reponds a vos appels 24h/24, 7j/7. Je prends des rendez-vous, je reponds aux questions frequentes, et je transfere vers vous si necessaire. Je prends aussi les messages vocaux et je vous les envoie transcrits. Disponible dans les plans Basic et Business : 1 minute = 18 credits.",
     audio: null
   },
   whatsapp: {
-    text: "L'assistant WhatsApp IA repond instantanement a vos clients. Il peut prendre des RDV, envoyer des confirmations, et repondre aux questions. Disponible dans Basic et Business via des credits IA : 1 message = 7 credits.",
+    text: "Je reponds instantanement a vos clients sur WhatsApp. Je prends des RDV, j'envoie des confirmations, et je reponds a toutes les questions. Disponible dans Basic et Business : 1 message = 7 credits.",
     audio: null
   },
   reservation: {
-    text: "Notre systeme de reservations permet a vos clients de reserver en ligne 24/7. Calendrier synchronise, rappels automatiques, gestion des creneaux. Inclus dans tous les plans NEXUS, meme le plan Free !",
+    text: "Je gere votre agenda complet. Vos clients reservent en ligne 24h/24, 7j/7. Calendrier synchronise, rappels automatiques SMS, gestion des creneaux. Inclus dans tous les plans NEXUS, meme le plan Free !",
     audio: null
   },
   essai: {
@@ -24,7 +24,7 @@ export const MESSAGES_CONFIG = {
     audio: "/audio/faq-essai.mp3"
   },
   default: {
-    text: "Je suis la pour repondre a toutes vos questions sur NEXUS ! Vous pouvez me demander des infos sur nos plans (Free gratuit, Basic 29€, Business 149€), les credits IA, les fonctionnalites, ou comment demarrer.",
+    text: "Je suis la pour repondre a toutes vos questions ! Vous pouvez me demander des infos sur les plans (Free gratuit, Basic 29 euros, Business 149 euros), les credits IA, mes fonctionnalites, ou comment demarrer.",
     audio: null
   }
 }
