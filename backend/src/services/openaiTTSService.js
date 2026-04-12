@@ -48,9 +48,9 @@ if (!fs.existsSync(CACHE_DIR)) {
 }
 
 // Configuration par défaut
-const DEFAULT_VOICE = process.env.OPENAI_TTS_VOICE || 'nova'; // nova = féminin chaleureux
+const DEFAULT_VOICE = process.env.OPENAI_TTS_VOICE || 'shimmer'; // shimmer = féminin, clair, souriant
 const DEFAULT_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1'; // tts-1 = rapide, tts-1-hd = qualité
-const DEFAULT_SPEED = 1.0; // 0.25 à 4.0
+const DEFAULT_SPEED = 1.05; // Légèrement plus rapide = plus naturel et dynamique
 
 // Statistiques d'utilisation
 let stats = {
