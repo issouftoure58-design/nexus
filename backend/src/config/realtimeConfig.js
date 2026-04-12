@@ -14,7 +14,7 @@ const OPENAI_REALTIME_MODEL = 'gpt-4o-realtime-preview';
  */
 const DEFAULT_CONFIG = {
   model: OPENAI_REALTIME_MODEL,
-  voice: 'alloy',
+  voice: 'shimmer',
   input_audio_format: 'g711_ulaw',
   output_audio_format: 'g711_ulaw',
   input_audio_transcription: {
