@@ -175,9 +175,9 @@ function openOpenAISession(tenantId, callSid) {
       const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
       const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
-      // Demo: limiter les tokens pour forcer des reponses tres courtes (2-3 phrases max)
-      // 80 tokens ≈ 2-3 phrases en francais — evite les monologues
-      const maxTokens = isDemoTenant ? 80 : config.max_response_output_tokens;
+      // Demo: limiter les tokens pour forcer des reponses ultra-courtes
+      // 40 tokens ≈ 1-2 phrases en francais — coupe net le monologue
+      const maxTokens = isDemoTenant ? 40 : config.max_response_output_tokens;
 
       ws.send(JSON.stringify({
         type: 'session.update',
