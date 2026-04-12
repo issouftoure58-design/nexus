@@ -175,9 +175,9 @@ function openOpenAISession(tenantId, callSid) {
       const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
       const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
-      // Demo: limiter les tokens pour forcer des reponses ultra-courtes
-      // 40 tokens ≈ 1-2 phrases en francais — coupe net le monologue
-      const maxTokens = isDemoTenant ? 40 : config.max_response_output_tokens;
+      // Demo: limiter les tokens pour eviter les monologues
+      // 200 tokens = assez pour 2-3 phrases completes sans couper mid-phrase
+      const maxTokens = isDemoTenant ? 200 : config.max_response_output_tokens;
 
       ws.send(JSON.stringify({
         type: 'session.update',
@@ -371,11 +371,13 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           isPlayingResponse = false;
           responseAudioStartedAt = 0;
           resetSilenceTimer();
-          // Debloquer l'audio client apres un court delai (laisse le dernier chunk Twilio finir)
+          // Debloquer l'audio client apres un delai suffisant
+          // 2s permet a l'echo telephonique de s'estomper et evite que le VAD
+          // detecte le bruit residuel comme une nouvelle requete (cause du "lecture continue")
           setTimeout(() => {
             const session = activeSessions.get(streamSid);
             if (session) session.isAISpeaking = false;
-          }, 500);
+          }, 2000);
 
           if (event.response) {
             lastResponseId = event.response.id;
