@@ -208,7 +208,7 @@ function sendGreeting(openaiWs, tenantId) {
   const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
 
   if (isDemoTenant) {
-    greeting = "Bonjour ! Bienvenue sur la ligne NEXUS. Alors moi je suis l'assistante IA, exactement le type d'assistante que vous pourriez avoir pour votre business. Posez-moi toutes vos questions, je vous montre comment je fonctionne !";
+    greeting = "Bonjour ! Bienvenue chez NEXUS. Je suis l'assistante IA. Comment puis-je vous aider ?";
   } else {
     try {
       const info = getBusinessInfoSync(tenantId);
