@@ -1,149 +1,152 @@
 /**
- * Scheduler publication automatique posts programmés
+ * Scheduler publication automatique posts programmes
+ *
+ * Verifie toutes les 15 minutes si des posts sont a publier.
+ * Multi-tenant : scanne tous les tenants via service_role.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { rawSupabase } from '../config/supabase.js';
 import { publishToFacebook, publishToInstagram } from './facebookService.js';
-
-let supabase = null;
-
-function getSupabase() {
-  if (!supabase) {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return supabase;
-}
+import { registerInterval } from '../utils/intervalRegistry.js';
+import logger from '../config/logger.js';
 
 let intervalId = null;
 
 /**
- * Démarrer scheduler
+ * Demarrer scheduler
  */
 export function startSocialScheduler() {
-  console.log('[SOCIAL SCHEDULER] Démarrage...');
+  logger.info('[SOCIAL SCHEDULER] Demarrage...');
 
-  // Vérifier toutes les 15 minutes
+  // Verifier toutes les 15 minutes
   intervalId = setInterval(() => {
-    publishScheduledPosts();
+    publishAllScheduledPosts().catch(err =>
+      logger.error('[SOCIAL SCHEDULER] Erreur cycle:', err.message)
+    );
   }, 15 * 60 * 1000);
 
-  // Exécution immédiate
-  publishScheduledPosts();
+  registerInterval('socialScheduler', intervalId);
+  if (intervalId.unref) intervalId.unref();
 
-  console.log('[SOCIAL SCHEDULER] ✅ Actif (vérif toutes les 15min)');
+  // Execution immediate
+  publishAllScheduledPosts().catch(err =>
+    logger.error('[SOCIAL SCHEDULER] Erreur init:', err.message)
+  );
+
+  logger.info('[SOCIAL SCHEDULER] Actif (verif toutes les 15min)');
 }
 
 /**
- * Arrêter scheduler
+ * Arreter scheduler
  */
 export function stopSocialScheduler() {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
-    console.log('[SOCIAL SCHEDULER] Arrêté');
+    logger.info('[SOCIAL SCHEDULER] Arrete');
   }
 }
 
 /**
- * Publier posts programmés pour un tenant spécifique
- * @param {string} tenantId - ID du tenant (requis)
+ * Publier tous les posts programmes dont scheduled_at <= now
+ * Multi-tenant : utilise rawSupabase (service_role, pas de RLS)
  */
-async function publishScheduledPosts(tenantId) {
-  if (!tenantId) {
-    console.error('[SOCIAL SCHEDULER] tenant_id requis');
-    return;
-  }
-
+async function publishAllScheduledPosts() {
   try {
     const now = new Date().toISOString();
-    const db = getSupabase();
 
-    console.log(`[SOCIAL SCHEDULER] Vérification posts à publier pour tenant ${tenantId}...`);
-
-    const { data: posts } = await db
+    const { data: posts, error } = await rawSupabase
       .from('social_posts')
-      .select('*, social_accounts(*)')
-      .eq('tenant_id', tenantId)
+      .select('*, social_accounts!social_posts_account_id_fkey(*)')
       .eq('status', 'scheduled')
-      .lte('scheduled_at', now);
+      .lte('scheduled_at', now)
+      .limit(50);
 
-    if (!posts || posts.length === 0) {
-      console.log('[SOCIAL SCHEDULER] Aucun post à publier');
-      return;
+    if (error) {
+      // Table n'existe pas encore — silencieux
+      if (error.code === '42P01') return;
+      throw error;
     }
 
-    console.log(`[SOCIAL SCHEDULER] ${posts.length} post(s) à publier`);
+    if (!posts || posts.length === 0) return;
+
+    logger.info(`[SOCIAL SCHEDULER] ${posts.length} post(s) a publier`);
 
     for (const post of posts) {
       await publishPost(post);
     }
-
-  } catch (error) {
-    console.error('[SOCIAL SCHEDULER] Erreur:', error);
+  } catch (err) {
+    logger.error('[SOCIAL SCHEDULER] Erreur:', err.message);
   }
 }
 
 /**
- * Publier un post
- * @param {object} post - Post avec tenant_id inclus
+ * Publier un post sur la plateforme cible
  */
 async function publishPost(post) {
   if (!post.tenant_id) {
-    console.error('[SOCIAL SCHEDULER] tenant_id requis pour publication');
+    logger.error('[SOCIAL SCHEDULER] tenant_id requis pour publication');
     return;
   }
-
-  const db = getSupabase();
 
   try {
     const account = post.social_accounts;
 
-    if (!account || account.status !== 'active') {
-      console.error(`[SOCIAL SCHEDULER] Compte ${post.platform} inactif pour post ${post.id}`);
+    if (!account || !account.is_active) {
+      await markPostError(post, 'Compte social inactif ou non connecte');
       return;
     }
 
     let result;
 
-    if (post.platform === 'facebook') {
+    if (post.platform === 'facebook' || post.platform === 'both') {
       result = await publishToFacebook(account.page_id, account.access_token, {
         message: post.content,
-        imageUrl: post.image_url
-      });
-
-    } else if (post.platform === 'instagram') {
-      result = await publishToInstagram(account.ig_account_id, account.access_token, {
-        caption: post.content,
-        imageUrl: post.image_url
+        imageUrl: post.image_url,
       });
     }
 
-    // Marquer comme publié
-    await db
+    if (post.platform === 'instagram' || post.platform === 'both') {
+      if (!account.ig_account_id) {
+        logger.warn(`[SOCIAL SCHEDULER] Pas de compte IG pour post ${post.id}`);
+      } else {
+        result = await publishToInstagram(account.ig_account_id, account.access_token, {
+          caption: post.content,
+          imageUrl: post.image_url,
+        });
+      }
+    }
+
+    // Marquer comme publie
+    await rawSupabase
       .from('social_posts')
       .update({
         status: 'published',
-        post_id: result.postId,
-        published_at: new Date().toISOString()
+        post_id: result?.postId || null,
+        published_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .eq('tenant_id', post.tenant_id)
       .eq('id', post.id);
 
-    console.log(`[SOCIAL SCHEDULER] ✅ Post ${post.id} publié sur ${post.platform}`);
-
-  } catch (error) {
-    console.error(`[SOCIAL SCHEDULER] Erreur publication post ${post.id}:`, error);
-
-    await db
-      .from('social_posts')
-      .update({
-        status: 'error',
-        error_message: error.message
-      })
-      .eq('tenant_id', post.tenant_id)
-      .eq('id', post.id);
+    logger.info(`[SOCIAL SCHEDULER] Post ${post.id} publie sur ${post.platform} (tenant=${post.tenant_id})`);
+  } catch (err) {
+    logger.error(`[SOCIAL SCHEDULER] Erreur publication post ${post.id}: ${err.message}`);
+    await markPostError(post, err.message);
   }
 }
+
+/**
+ * Marquer un post en erreur
+ */
+async function markPostError(post, message) {
+  await rawSupabase
+    .from('social_posts')
+    .update({
+      status: 'error',
+      error_message: message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', post.id);
+}
+
+export default { startSocialScheduler, stopSocialScheduler };

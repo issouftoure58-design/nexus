@@ -686,11 +686,13 @@ app.use((err, req, res, next) => {
 
 // ============= INITIALISATION TENANT CACHE =============
 import { loadAllTenants, startPeriodicRefresh } from './config/tenants/tenantCache.js';
+import { startSocialScheduler } from './services/socialScheduler.js';
 
 // Charger le cache des tenants au démarrage (async)
 loadAllTenants()
   .then(() => {
     startPeriodicRefresh();
+    startSocialScheduler();
   })
   .catch(err => logger.error('TenantCache Erreur init', { error: err.message }));
 

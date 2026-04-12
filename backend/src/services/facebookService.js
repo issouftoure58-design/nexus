@@ -18,6 +18,11 @@ export function getAuthUrl(tenantId) {
   const scopes = [
     'email',
     'public_profile',
+    'pages_manage_posts',
+    'pages_read_engagement',
+    'pages_show_list',
+    'instagram_basic',
+    'instagram_content_publish',
   ].join(',');
 
   const state = Buffer.from(JSON.stringify({ tenantId })).toString('base64url');
@@ -114,18 +119,17 @@ export async function getInstagramAccountId(pageId, accessToken) {
 }
 
 /**
- * Publier sur page Facebook
+ * Publier sur page Facebook (texte seul ou avec image)
  */
 export async function publishToFacebook(pageId, accessToken, options) {
   const { message, imageUrl } = options;
 
-  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/photos`;
+  // Si image fournie -> /photos, sinon -> /feed (texte seul)
+  const endpoint = imageUrl ? 'photos' : 'feed';
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/${endpoint}`;
 
-  const body = {
-    message,
-    url: imageUrl,
-    access_token: accessToken
-  };
+  const body = { message, access_token: accessToken };
+  if (imageUrl) body.url = imageUrl;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -141,7 +145,7 @@ export async function publishToFacebook(pageId, accessToken, options) {
 
   return {
     success: true,
-    postId: data.id,
+    postId: data.id || data.post_id,
     platform: 'facebook'
   };
 }

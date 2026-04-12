@@ -481,19 +481,20 @@ router.post('/posts', async (req, res) => {
       });
     }
 
-    const platforms = Array.isArray(plateforme) ? plateforme : [plateforme || 'instagram'];
+    const platform = Array.isArray(plateforme) ? plateforme[0] : (plateforme || 'instagram');
     const status = scheduled_at ? 'scheduled' : 'draft';
+    const imageUrl = Array.isArray(media_urls) && media_urls.length > 0 ? media_urls[0] : null;
 
     const { data, error } = await supabase
       .from('social_posts')
       .insert({
         tenant_id: tenantId,
-        platforms,
+        platform,
         content: contenu,
         category: category || null,
         status,
         scheduled_at: scheduled_at || null,
-        media_urls: media_urls || [],
+        image_url: imageUrl,
         created_by: req.admin.id,
       })
       .select()
