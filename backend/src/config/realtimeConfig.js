@@ -22,9 +22,9 @@ const DEFAULT_CONFIG = {
   },
   turn_detection: {
     type: 'server_vad',
-    threshold: 0.95,           // Tres strict — seule une voix claire et soutenue interrompt
-    prefix_padding_ms: 800,    // Besoin de 800ms de parole continue pour detecter (anti-bruit)
-    silence_duration_ms: 1200, // Attend 1.2s de silence avant de repondre
+    threshold: 0.7,            // Seuil normal — le barge-in est gere cote serveur (audio mute)
+    prefix_padding_ms: 350,    // Marge standard
+    silence_duration_ms: 800,  // Attend 800ms de silence avant de repondre
   },
   temperature: 0.6,
   max_response_output_tokens: 300,

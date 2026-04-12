@@ -72,8 +72,8 @@ export function handleMediaStream(twilioWs) {
           // Ouvrir connexion OpenAI Realtime
           openaiWs = await openOpenAISession(tenantId, callSid);
 
-          // Stocker la session
-          activeSessions.set(streamSid, { openaiWs, tenantId, callSid, startTime, from });
+          // Stocker la session (isAISpeaking bloque l'audio client pendant que l'IA parle)
+          activeSessions.set(streamSid, { openaiWs, tenantId, callSid, startTime, from, isAISpeaking: false });
 
           // Pipe les reponses OpenAI -> Twilio
           setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid);
@@ -84,7 +84,11 @@ export function handleMediaStream(twilioWs) {
         // ---- Audio du telephone -> OpenAI ----
         case 'media': {
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-            // Envoyer l'audio brut a OpenAI (g711_ulaw base64, pas de conversion)
+            // Anti barge-in : ne pas envoyer l'audio client pendant que l'IA parle
+            // Cela evite que le VAD detecte la voix du client et coupe la reponse brutalement
+            const session = activeSessions.get(streamSid);
+            if (session?.isAISpeaking) break;
+
             openaiWs.send(JSON.stringify({
               type: 'input_audio_buffer.append',
               audio: msg.media.payload, // base64 g711_ulaw
@@ -313,6 +317,9 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
             if (!isPlayingResponse) {
               isPlayingResponse = true;
               responseAudioStartedAt = Date.now();
+              // Bloquer l'audio client pour eviter les interruptions brusques
+              const session = activeSessions.get(streamSid);
+              if (session) session.isAISpeaking = true;
             }
 
             twilioWs.send(JSON.stringify({
@@ -331,6 +338,11 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           isPlayingResponse = false;
           responseAudioStartedAt = 0;
           resetSilenceTimer();
+          // Debloquer l'audio client apres un court delai (laisse le dernier chunk Twilio finir)
+          setTimeout(() => {
+            const session = activeSessions.get(streamSid);
+            if (session) session.isAISpeaking = false;
+          }, 300);
 
           if (event.response) {
             lastResponseId = event.response.id;
