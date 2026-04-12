@@ -253,29 +253,9 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
   let isPlayingResponse = false;    // Est-ce que l'IA parle en ce moment
   let bargeInDebounce = null;       // Timer debounce pour eviter faux positifs
 
-  // Duree minimum de reponse avant d'autoriser le barge-in (ms)
-  const BARGE_IN_GRACE_PERIOD = 1500;
-  // Delai de confirmation du barge-in : attendre que la parole soit soutenue (ms)
-  const BARGE_IN_DEBOUNCE = 400;
-
-  // ---- Audio buffer : lisse la livraison vers Twilio ----
-  // Au lieu d'envoyer chaque micro-chunk immediatement, on les accumule
-  // et on envoie par lots reguliers pour eviter les trous audio
-  const audioChunks = [];
-  const AUDIO_FLUSH_MS = 80; // Flush toutes les 80ms
-  const audioFlusher = setInterval(() => {
-    if (audioChunks.length === 0 || twilioWs.readyState !== WebSocket.OPEN) return;
-
-    // Concatener tous les chunks en attente
-    const combined = Buffer.concat(audioChunks.map(b64 => Buffer.from(b64, 'base64')));
-    audioChunks.length = 0;
-
-    twilioWs.send(JSON.stringify({
-      event: 'media',
-      streamSid,
-      media: { payload: combined.toString('base64') },
-    }));
-  }, AUDIO_FLUSH_MS);
+  // ---- Audio : envoi direct vers Twilio (pas de buffering) ----
+  // Chaque chunk audio OpenAI est forward immediatement a Twilio
+  // Le buffering (concat + flush 80ms) causait des trous audio
 
   // ---- Silence detection : relance + fin d'appel gracieuse ----
   const SILENCE_RELANCE_MS = 12000;   // 12s sans activite -> relance douce
@@ -337,9 +317,9 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           logger.info(`REALTIME ${event.type} (tenant=${tenantId})`);
           break;
 
-        // ---- Audio de reponse -> buffer puis Twilio ----
+        // ---- Audio de reponse -> envoi direct Twilio ----
         case 'response.audio.delta': {
-          if (event.delta) {
+          if (event.delta && twilioWs.readyState === WebSocket.OPEN) {
             // Marquer le debut de l'audio si c'est le premier chunk
             if (!isPlayingResponse) {
               isPlayingResponse = true;
@@ -349,25 +329,18 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
               if (session) session.isAISpeaking = true;
             }
 
-            // Ajouter au buffer — sera envoye a Twilio par le flusher toutes les 80ms
-            audioChunks.push(event.delta);
+            // Envoi direct — pas de buffering, pas de perte
+            twilioWs.send(JSON.stringify({
+              event: 'media',
+              streamSid,
+              media: { payload: event.delta },
+            }));
           }
           break;
         }
 
         // ---- Reponse complete ----
         case 'response.done': {
-          // Flush les derniers chunks audio avant de marquer la fin
-          if (audioChunks.length > 0 && twilioWs.readyState === WebSocket.OPEN) {
-            const remaining = Buffer.concat(audioChunks.map(b64 => Buffer.from(b64, 'base64')));
-            audioChunks.length = 0;
-            twilioWs.send(JSON.stringify({
-              event: 'media',
-              streamSid,
-              media: { payload: remaining.toString('base64') },
-            }));
-          }
-
           isPlayingResponse = false;
           responseAudioStartedAt = 0;
           resetSilenceTimer();
@@ -463,7 +436,6 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
 
   openaiWs.on('close', (code, reason) => {
     clearInterval(silenceChecker);
-    clearInterval(audioFlusher);
     audioChunks.length = 0;
     logger.info(`REALTIME OpenAI WS closed: code=${code} reason=${reason?.toString() || ''} (tenant=${tenantId})`);
   });
