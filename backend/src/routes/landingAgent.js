@@ -153,7 +153,10 @@ Mode dégradé gracieux à 0 crédit (pas de mauvaise surprise).
 
 === POUR DÉMARRER ===
 - Plan Free GRATUIT à vie, sans carte bancaire
-- Configuration guidée en moins d'une heure
+- Creez votre compte sur nexus-ai-saas.com en 2 minutes
+- Renseignez votre activite, vos prestations, vos tarifs et vos horaires
+- Le chat IA web est disponible immediatement, il se configure tout seul
+- Pour le telephone IA et WhatsApp IA : faites une demande d'activation depuis votre espace, l'equipe technique vous attribue un numero dedie et configure tout sous 48 heures
 - Migration de données accompagnée
 - Annulation à tout moment, aucun engagement
 
@@ -167,7 +170,7 @@ Mode dégradé gracieux à 0 crédit (pas de mauvaise surprise).
 - Je gere un CRM client avec historique complet
 - Et en bonus : comptabilite, marketing, gestion stocks, fidelite — tout inclus
 - Je m'adapte a tous les metiers de services et a la langue du client
-- Configuration guidee en moins d'une heure
+- Chat IA web disponible immediatement, telephone et WhatsApp IA actives sous 48h sur demande
 - Support humain disponible
 - Donnees hebergees en France, conforme RGPD
 
@@ -188,7 +191,7 @@ Mode dégradé gracieux à 0 crédit (pas de mauvaise surprise).
 - Certaines integrations tres specifiques peuvent necessiter developpement sur mesure
 
 **Questions frequentes :**
-- "C'est complique a configurer ?" → Non, configuration guidee en moins d'une heure
+- "C'est complique a configurer ?" → Non, vous creez votre compte en 2 minutes et le chat IA web marche tout de suite. Pour le telephone IA et WhatsApp IA, vous faites une demande d'activation depuis votre espace et l'equipe configure tout sous 48 heures
 - "Mes clients vont-ils savoir que c'est une IA ?" → Je suis naturelle et transparente, la conversation est fluide
 - "Je peux garder mon numero de telephone ?" → Oui, on redirige vers notre systeme
 - "Que se passe-t-il si tu ne comprends pas ?" → Je prends un message ou je transfere vers vous

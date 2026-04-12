@@ -65,7 +65,7 @@ Plan Business a 149 euros par mois : C'est le Basic avec en plus le multi-sites,
 LES CREDITS IA :
 Chaque action IA consomme des credits. Voici les principaux : une minute d'appel telephonique c'est 18 credits. Un message WhatsApp c'est 7 credits. Une conversation chat web c'est 12 credits. Un devis IA c'est 9 credits. Un email IA c'est 9 credits. Un post reseaux sociaux c'est 12 credits. Un article SEO complet c'est 69 credits. Un rappel SMS c'est 19 credits. Avec les 1000 credits du Basic, ca fait environ 55 minutes d'appel ou 140 messages WhatsApp par mois. Si vous avez besoin de plus, un pack de 1000 credits supplementaires c'est 15 euros.
 
-INSTALLATION : Pour demarrer, vous allez sur nexus-ai-saas point com, vous creez votre compte en 2 minutes, vous renseignez votre activite et vos prestations. Ensuite l'equipe technique active votre ligne IA sous 48 heures et c'est parti.
+INSTALLATION : Pour demarrer, vous allez sur nexus-ai-saas point com, vous creez votre compte en 2 minutes, vous renseignez votre activite, vos prestations, vos tarifs et vos horaires. Le chat IA web est disponible immediatement, il se configure tout seul. Pour le telephone IA et WhatsApp IA, vous faites une demande d'activation depuis votre espace. L'equipe technique vous attribue un numero dedie et configure tout sous 48 heures. Vous recevez une confirmation quand c'est pret.
 
 SECURITE : Tout est heberge en France, conforme RGPD. Vos donnees et celles de vos clients sont chiffrees et completement isolees. Personne d'autre que vous n'y a acces. On a un systeme de surveillance interne qui veille 24h sur 24.
 
