@@ -15,9 +15,15 @@ import { registerInterval } from '../../utils/intervalRegistry.js';
 // Static fallback imports
 import fatshairafroStatic from './fatshairafro.js';
 import decoeventStatic from './decoevent.js';
+import nexustestStatic from './nexustest.js';
 import templateStatic from './template.js';
 
-const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoeventStatic };
+const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoeventStatic, 'nexus-test': nexustestStatic };
+
+// Flags from static config that must be merged into DB-loaded configs
+const STATIC_OVERRIDES = {
+  'nexus-test': { isDemoTenant: true },
+};
 
 // In-memory stores
 let tenantMap = new Map();   // tenantId -> full config object
@@ -72,6 +78,11 @@ export async function loadAllTenants() {
         phone_number: row.phone_number || baseConfig.phone_number || null,
         whatsapp_number: row.whatsapp_number || baseConfig.whatsapp_number || null,
       };
+
+      // Merge static overrides (e.g. isDemoTenant) that aren't in DB
+      if (STATIC_OVERRIDES[tenantId]) {
+        Object.assign(config, STATIC_OVERRIDES[tenantId]);
+      }
 
       newTenantMap.set(tenantId, config);
 

@@ -2484,7 +2484,8 @@ async function getSystemPromptUnified(channel, tenantConfig) {
   const tenantId = tenantConfig.id || tenantConfig.tenant_id || tenantConfig.slug;
 
   // 🎯 DEMO TENANT: Utiliser le prompt commercial spécialisé
-  if (tenantConfig.isDemoTenant) {
+  // Check par flag config OU par tenantId (le flag peut manquer si chargé depuis DB)
+  if (tenantConfig.isDemoTenant || tenantId === 'nexus-test') {
     console.log(`[NEXUS CORE] Using DEMO prompt for ${tenantId} (channel: ${channel})`);
     return getDemoPrompt(channel);
   }
