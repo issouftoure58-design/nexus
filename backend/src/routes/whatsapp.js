@@ -274,6 +274,149 @@ router.post('/test', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ============= META CLOUD API WEBHOOKS =============
+
+const META_WA_VERIFY_TOKEN = process.env.META_WA_VERIFY_TOKEN || 'nexus_wa_verify_2026';
+
+/**
+ * Meta WhatsApp Cloud API — Verification (GET)
+ * GET /api/whatsapp/meta
+ * Meta envoie un challenge handshake pour verifier le webhook
+ */
+router.get('/meta', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === META_WA_VERIFY_TOKEN) {
+    logger.info('[META WA WEBHOOK] Verification OK');
+    return res.status(200).send(challenge);
+  }
+
+  logger.warn('[META WA WEBHOOK] Verification FAILED', { mode, token: token?.substring(0, 8) });
+  return res.status(403).send('Forbidden');
+});
+
+/**
+ * Meta WhatsApp Cloud API — Messages entrants (POST)
+ * POST /api/whatsapp/meta
+ * Format Meta Cloud API → conversion vers handler NEXUS existant
+ */
+router.post('/meta', async (req, res) => {
+  try {
+    // Meta attend toujours 200 OK rapidement
+    res.status(200).send('EVENT_RECEIVED');
+
+    const body = req.body;
+    if (body.object !== 'whatsapp_business_account') return;
+
+    for (const entry of body.entry || []) {
+      for (const change of entry.changes || []) {
+        if (change.field !== 'messages') continue;
+
+        const value = change.value;
+        if (!value?.messages) continue;
+
+        const metadata = value.metadata;
+        const phoneNumberId = metadata?.phone_number_id;
+        const displayPhone = metadata?.display_phone_number;
+
+        for (const msg of value.messages) {
+          // Extraire les infos
+          const clientPhone = '+' + msg.from;
+          const contact = value.contacts?.[0];
+          const profileName = contact?.profile?.name || 'Client';
+          const messageId = msg.id;
+
+          // Extraire le texte selon le type
+          let messageText = '';
+          if (msg.type === 'text') {
+            messageText = msg.text?.body || '';
+          } else if (msg.type === 'interactive') {
+            messageText = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '';
+          } else {
+            logger.info(`[META WA] Type non-texte ignore: ${msg.type}`);
+            continue;
+          }
+
+          if (!messageText.trim()) continue;
+
+          // Resoudre le tenant par le numero
+          const cleanDisplay = '+' + displayPhone?.replace(/\D/g, '');
+          const { tenantId, config: tenantConfig } = getTenantByWhatsAppNumber(cleanDisplay);
+
+          if (!tenantId) {
+            logger.error(`[META WA] Tenant non trouve pour ${cleanDisplay}`);
+            continue;
+          }
+
+          logger.info(`[META WA] Message de ${clientPhone} (${profileName}) → tenant ${tenantId}: "${messageText.substring(0, 80)}"`);
+
+          // Quota check
+          try {
+            await usageTracking.enforceQuota(tenantId, 'whatsapp');
+          } catch (quotaError) {
+            logger.warn(`[META WA] Quota depasse pour ${tenantId}`);
+            continue;
+          }
+
+          // Traitement IA (meme handler que Twilio)
+          const result = await handleIncomingMessageNexus(clientPhone, messageText, profileName, tenantId);
+
+          // Tracker usage
+          await usageTracking.trackWhatsAppMessage(tenantId, messageId, 'inbound');
+
+          // Envoyer la reponse via Meta Cloud API
+          if (result.response && phoneNumberId) {
+            await sendMetaWhatsAppMessage(phoneNumberId, clientPhone, result.response);
+            await usageTracking.trackWhatsAppMessage(tenantId, `${messageId}-reply`, 'outbound');
+          }
+
+          logger.info(`[META WA] Reponse envoyee a ${clientPhone} (tenant ${tenantId})`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error(`[META WA WEBHOOK] Erreur: ${error.message}`);
+  }
+});
+
+/**
+ * Envoie un message via Meta WhatsApp Cloud API
+ */
+async function sendMetaWhatsAppMessage(phoneNumberId, to, message) {
+  const token = process.env.META_WA_ACCESS_TOKEN;
+  if (!token) {
+    logger.warn('[META WA] META_WA_ACCESS_TOKEN non configure — message non envoye');
+    return;
+  }
+
+  // Numero sans + pour Meta
+  const recipient = to.replace('+', '');
+
+  const response = await fetch(
+    `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: recipient,
+        type: 'text',
+        text: { body: message },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    logger.error(`[META WA] Erreur envoi: ${response.status} ${err}`);
+  }
+}
+
 /**
  * Endpoint de santé du webhook
  * GET /api/whatsapp/health
