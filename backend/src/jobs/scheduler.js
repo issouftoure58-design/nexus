@@ -1351,50 +1351,13 @@ async function runScheduler() {
   // Job: PLTE E2E — DÉSACTIVÉ (consommait ~10 requêtes Sonnet/jour à 04h00)
   // ===== FIN PLTE DÉSACTIVÉ =====
 
-  // Job: Prospection follow-up (toutes les 30 minutes)
-  const prospectionInterval = JOBS_SCHEDULE.prospectionFollowUp.interval * 60 * 1000;
-  if (now - lastProspectionFollowUpRun >= prospectionInterval) {
-    lastProspectionFollowUpRun = now;
-    try {
-      const { processFollowUps } = await import('../modules/prospection/followUpScheduler.js');
-      await processFollowUps();
-    } catch (err) {
-      console.error('[Scheduler] Erreur prospection follow-up:', err.message);
-    }
-  }
-
-  // Job: Prospection auto-scrape Google Places (lundi 7h)
-  if (shouldRunWeeklyJob('prospectionAutoScrape', JOBS_SCHEDULE.prospectionAutoScrape)) {
-    markJobExecuted('prospectionAutoScrape');
-    try {
-      const { autoScrapeProspects } = await import('../modules/prospection/followUpScheduler.js');
-      await autoScrapeProspects();
-    } catch (err) {
-      console.error('[Scheduler] Erreur prospection auto-scrape:', err.message);
-    }
-  }
-
-  // Job: Prospection auto recherche emails (lundi 8h)
-  if (shouldRunWeeklyJob('prospectionAutoEmails', JOBS_SCHEDULE.prospectionAutoEmails)) {
-    markJobExecuted('prospectionAutoEmails');
-    try {
-      const { autoScrapeEmails } = await import('../modules/prospection/followUpScheduler.js');
-      await autoScrapeEmails();
-    } catch (err) {
-      console.error('[Scheduler] Erreur prospection auto-emails:', err.message);
-    }
-  }
-
-  // Job: Prospection envoi campagnes actives (tous les jours 9h)
-  if (shouldRunJob('prospectionAutoCampaign', JOBS_SCHEDULE.prospectionAutoCampaign)) {
-    markJobExecuted('prospectionAutoCampaign');
-    try {
-      const { autoRunCampaigns } = await import('../modules/prospection/followUpScheduler.js');
-      await autoRunCampaigns();
-    } catch (err) {
-      console.error('[Scheduler] Erreur prospection auto-campaign:', err.message);
-    }
-  }
+  // ===== PROSPECTION DÉSACTIVÉ (13 avril 2026) — Google Places API coûtait ~20€/jour =====
+  // Job: Prospection follow-up — DÉSACTIVÉ
+  // Job: Prospection auto-scrape Google Places — DÉSACTIVÉ
+  // Job: Prospection auto recherche emails — DÉSACTIVÉ
+  // Job: Prospection envoi campagnes actives — DÉSACTIVÉ
+  // Pour réactiver : décommenter les blocs ci-dessous
+  // ===== FIN PROSPECTION DÉSACTIVÉ =====
 
   // Job: Traiter actions workflow programmées (chaque minute)
   try {
@@ -1439,10 +1402,10 @@ export function startScheduler() {
   console.log(`  ⏸️  PLTE v2 Nightly: DÉSACTIVÉ`);
   console.log(`  ⏸️  PLTE v2 Weekly: DÉSACTIVÉ`);
   console.log(`  ⏸️  PLTE E2E: DÉSACTIVÉ`);
-  console.log(`  ✅ Prospection Follow-Up: toutes les ${JOBS_SCHEDULE.prospectionFollowUp.interval} min (relances J3/J7/J14)`);
-  console.log(`  ✅ Prospection Auto-Scrape: lundi ${JOBS_SCHEDULE.prospectionAutoScrape.hour}h (Google Places)`);
-  console.log(`  ✅ Prospection Auto-Emails: lundi ${JOBS_SCHEDULE.prospectionAutoEmails.hour}h (recherche emails)`);
-  console.log(`  ✅ Prospection Auto-Campaign: tous les jours a ${JOBS_SCHEDULE.prospectionAutoCampaign.hour}h (envoi campagnes)`);
+  console.log(`  ⏸️  Prospection Follow-Up: DÉSACTIVÉ (économie Google Places API)`);
+  console.log(`  ⏸️  Prospection Auto-Scrape: DÉSACTIVÉ (économie Google Places API)`);
+  console.log(`  ⏸️  Prospection Auto-Emails: DÉSACTIVÉ (économie Google Places API)`);
+  console.log(`  ⏸️  Prospection Auto-Campaign: DÉSACTIVÉ (économie Google Places API)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis
