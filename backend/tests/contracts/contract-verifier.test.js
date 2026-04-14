@@ -336,3 +336,71 @@ describe('create_booking tool definition', () => {
     expect(bookingTool[0]).toContain('client_email');
   });
 });
+
+// ============================================================
+// Notification cascade — SMS fallback + sandbox detection
+// ============================================================
+describe('Notification cascade — SMS fallback', () => {
+  let notifContent;
+  let waContent;
+  let nexusCoreContent;
+
+  beforeAll(() => {
+    notifContent = readSource('services/notificationService.js');
+    waContent = readSource('services/whatsappService.js');
+    nexusCoreContent = readSource('core/unified/nexusCore.js');
+  });
+
+  it('sendConfirmation should have SMS fallback', () => {
+    // Find sendConfirmation function body and check for sendSMS call
+    const fn = notifContent.match(/export async function sendConfirmation[\s\S]*?^}/m);
+    expect(fn).toBeTruthy();
+    expect(fn[0]).toMatch(/sendSMS\s*\(/);
+  });
+
+  it('sendModification should have SMS fallback', () => {
+    const fn = notifContent.match(/export async function sendModification[\s\S]*?^}/m);
+    expect(fn).toBeTruthy();
+    expect(fn[0]).toMatch(/sendSMS\s*\(/);
+  });
+
+  it('sendRappelJ1 should have SMS fallback', () => {
+    const fn = notifContent.match(/export async function sendRappelJ1[\s\S]*?^}/m);
+    expect(fn).toBeTruthy();
+    expect(fn[0]).toMatch(/sendSMS\s*\(/);
+  });
+
+  it('WhatsApp templates should receive tenantId', () => {
+    // confirmationReservation, rappelJ1, modificationRdv must be called with tenantId
+    expect(notifContent).toMatch(/confirmationReservation\s*\([^)]*tenantId/);
+    expect(notifContent).toMatch(/rappelJ1\s*\([^)]*tenantId/);
+    expect(notifContent).toMatch(/modificationRdv\s*\([^)]*tenantId/);
+  });
+
+  it('sendWhatsAppNotification should detect sandbox number', () => {
+    // Must check for the Twilio sandbox number +14155238886
+    expect(waContent).toContain('+14155238886');
+  });
+
+  it('nexusCore should only send confirmation when statut=confirme', () => {
+    // The notification block should check statutFinal === confirme
+    expect(nexusCoreContent).toMatch(/statutFinal\s*===\s*['"]confirme['"]/);
+  });
+});
+
+// ============================================================
+// Admin EDIT — sends confirmation when statut → confirme
+// ============================================================
+describe('Admin EDIT (PUT) — confirmation on statut change', () => {
+  let content;
+
+  beforeAll(() => {
+    content = readSource('routes/adminReservations.js');
+  });
+
+  it('should send sendConfirmation when statut becomes confirme', () => {
+    // The EDIT route should import and call sendConfirmation for confirme
+    expect(content).toMatch(/sendConfirmation/);
+    expect(content).toMatch(/confirme/);
+  });
+});

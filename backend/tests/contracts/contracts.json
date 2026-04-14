@@ -106,6 +106,34 @@
       "mustPassToNotification": ["client_email", "client_telephone"],
       "sourceFile": "routes/adminReservations.js",
       "bugRef": "Session 40 — client_email jamais transmis → notifications email silencieusement cassées"
+    },
+
+    "PATCH /api/admin/reservations/:id/statut:notification": {
+      "description": "Changement statut → confirme doit envoyer confirmation au client",
+      "virtual": true,
+      "sourceFile": "routes/adminReservations.js",
+      "bugRef": "Session 40 — admin confirmait RDV sans aucune notification client"
+    },
+
+    "notification:cascade": {
+      "description": "Cascade notification: Email → WhatsApp → SMS. SMS doit être le fallback final.",
+      "virtual": true,
+      "rules": [
+        "sendConfirmation DOIT avoir SMS fallback",
+        "sendModification DOIT avoir SMS fallback",
+        "sendRappelJ1 DOIT avoir SMS fallback",
+        "WhatsApp templates DOIVENT recevoir tenantId",
+        "sendWhatsAppNotification DOIT detecter sandbox (+14155238886)"
+      ],
+      "sourceFiles": ["services/notificationService.js", "services/whatsappService.js"],
+      "bugRef": "Session 40 — WhatsApp sandbox acceptait message mais ne delivrait jamais, SMS jamais envoyé"
+    },
+
+    "nexusCore:confirmationTiming": {
+      "description": "Confirmation envoyée uniquement quand statut=confirme (pas demande)",
+      "virtual": true,
+      "sourceFile": "core/unified/nexusCore.js",
+      "bugRef": "Session 40 — double SMS: 1 à la creation (demande) + 1 à la confirmation admin"
     }
   },
 
