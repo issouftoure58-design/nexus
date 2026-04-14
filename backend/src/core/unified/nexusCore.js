@@ -2064,8 +2064,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
     let facture = null;
 
     // 11. ENVOYER CONFIRMATION CASCADE (Email → WhatsApp → SMS)
-    console.log(`[NEXUS CORE] 📧 Notification check: sendSMS=${sendSMS}, telephone=${data.client_telephone || 'VIDE'}, email=${data.client_email || 'VIDE'}`);
-    if (sendSMS && data.client_telephone) {
+    // Seulement si statut = confirme (admin). Les RDV en 'demande' (web/chat) recevront
+    // la confirmation quand l'admin confirmera via le dashboard.
+    const statutFinal = data.statut || 'demande';
+    console.log(`[NEXUS CORE] 📧 Notification check: sendSMS=${sendSMS}, statut=${statutFinal}, telephone=${data.client_telephone || 'VIDE'}, email=${data.client_email || 'VIDE'}`);
+    if (sendSMS && data.client_telephone && statutFinal === 'confirme') {
       try {
         const datesFormatees = reservationDates.map(d => {
           const dateObj = new Date(d);
