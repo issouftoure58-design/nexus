@@ -697,10 +697,10 @@ export default function Signup() {
         body: JSON.stringify({ phone: formData.telephone, code: formData.sms_code }),
       });
       const data = await response.json();
-      if (!response.ok || !data.token) {
+      if (!response.ok || !data.verified_token) {
         throw new Error(data.error || 'Code de vérification invalide');
       }
-      setFormData(prev => ({ ...prev, sms_verified_token: data.token }));
+      setFormData(prev => ({ ...prev, sms_verified_token: data.verified_token }));
       setSmsState({ sent: true, sending: false, verifying: false, error: null });
     } catch (err) {
       setSmsState(prev => ({
