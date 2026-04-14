@@ -986,6 +986,9 @@ export const PROFESSIONS = [
   { id: 'menuisier', label: 'Menuisier / Ébéniste', emoji: '🪚', description: 'Meubles sur mesure, réparations bois', template: 'artisan', category: 'services' },
   { id: 'vitrier', label: 'Vitrier / Miroitier', emoji: '🪟', description: 'Vitrerie, double vitrage', template: 'artisan', category: 'services' },
   { id: 'climatisation', label: 'Climatisation / Chauffage', emoji: '❄️', description: 'Installation, entretien clim/chauffage', template: 'artisan', category: 'services' },
+  { id: 'couvreur', label: 'Couvreur / Toiture', emoji: '🏗️', description: 'Toiture, zinguerie, charpente, étanchéité', template: 'artisan', category: 'services' },
+  { id: 'maconnerie', label: 'Maçon / Maçonnerie', emoji: '🧱', description: 'Construction, rénovation, gros œuvre', template: 'artisan', category: 'services' },
+  { id: 'carreleur', label: 'Carreleur / Solier', emoji: '🔲', description: 'Pose carrelage, faïence, sols', template: 'artisan', category: 'services' },
 
   // --- Sport & Loisirs ---
   { id: 'salle_sport', label: 'Salle de sport / Fitness', emoji: '🏋️', description: 'Abonnements, cours collectifs', template: 'autre', category: 'sport' },
