@@ -172,7 +172,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
   // 2. Envoyer WhatsApp (ne bloque pas si erreur)
   if (clientPhone) {
     try {
-      const whatsappMessage = confirmationReservation(rdv, acompte);
+      const whatsappMessage = confirmationReservation(rdv, acompte, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp confirmation envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
@@ -265,7 +265,7 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   // 2. Envoyer WhatsApp
   if (clientPhone) {
     try {
-      const whatsappMessage = rappelJ1(rdv, acompte);
+      const whatsappMessage = rappelJ1(rdv, acompte, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp rappel J-1 envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
@@ -433,7 +433,7 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
   // 2. Envoyer WhatsApp
   if (clientPhone) {
     try {
-      const whatsappMessage = modificationRdv(ancienRdv, nouveauRdv);
+      const whatsappMessage = modificationRdv(ancienRdv, nouveauRdv, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
 
       console.log(`[Notification] WhatsApp modification envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);

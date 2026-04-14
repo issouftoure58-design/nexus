@@ -1408,6 +1408,33 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       details: { ancien_statut: currentRdv.statut, nouveau_statut: statut }
     });
 
+    // 📩 Notification client sur changement de statut → confirme
+    if (statut === 'confirme' && currentRdv.statut !== 'confirme') {
+      try {
+        const clientPhone = currentRdv.clients?.telephone;
+        const clientEmail = currentRdv.clients?.email;
+        if (clientPhone || clientEmail) {
+          const { sendConfirmation } = await import('../services/notificationService.js');
+          await sendConfirmation({
+            client_telephone: clientPhone,
+            client_email: clientEmail,
+            client_prenom: currentRdv.clients?.prenom,
+            client_nom: currentRdv.clients?.nom,
+            service_nom: currentRdv.service_nom,
+            date: currentRdv.date_rdv || currentRdv.date,
+            heure: currentRdv.heure_rdv || currentRdv.heure,
+            total: (currentRdv.prix_total || 0) / 100,
+            prix_service: (currentRdv.prix_total || 0) / 100,
+            frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
+            adresse_client: currentRdv.adresse_client,
+          }, 0, tenantId);
+          console.log(`[ADMIN STATUT] Confirmation envoyée au client (cascade Email→WA→SMS)`);
+        }
+      } catch (notifErr) {
+        console.error('[ADMIN STATUT] Notification confirmation échouée (non bloquant):', notifErr.message);
+      }
+    }
+
     // 📄 Gestion automatique des factures selon le statut
     let facture = null;
 
