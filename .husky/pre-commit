@@ -33,6 +33,21 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# Run API contract lint
+npm run lint:contracts
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "============================================================"
+  echo "  COMMIT BLOQUE - VIOLATION CONTRAT API DETECTEE"
+  echo ""
+  echo "  Contrats: tests/contracts/contracts.json"
+  echo "  Fix: Verifie que res.json() retourne les bons champs"
+  echo "  Apres correction, relance: git commit"
+  echo "============================================================"
+  echo ""
+  exit 1
+fi
+
 echo ""
-echo "TENANT SHIELD: Code valide - Commit autorise"
+echo "SHIELD: Code valide - Commit autorise (syntax + tenant + contracts)"
 echo ""

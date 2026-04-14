@@ -114,11 +114,11 @@ export default function PipelinePage() {
   });
 
   // Fetch clients for search
-  const { data: clientsData } = useQuery<{ clients: Client[] }>({
+  const { data: clientsData } = useQuery<{ data: Client[] }>({
     queryKey: ['clients-search', clientSearch],
     queryFn: async () => {
-      if (!clientSearch || clientSearch.length < 2) return { clients: [] };
-      return api.get<{ clients: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
+      if (!clientSearch || clientSearch.length < 2) return { data: [] };
+      return api.get<{ data: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
     },
     enabled: clientSearch.length >= 2
   });
@@ -447,9 +447,9 @@ export default function PipelinePage() {
                           </Button>
                         </div>
                       )}
-                      {!selectedClient && (clientsData?.clients?.length ?? 0) > 0 && (
+                      {!selectedClient && (clientsData?.data?.length ?? 0) > 0 && (
                         <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                          {clientsData!.clients.map((c: Client) => (
+                          {clientsData!.data.map((c: Client) => (
                             <button
                               key={c.id}
                               className="w-full text-left px-4 py-2 hover:bg-gray-100"

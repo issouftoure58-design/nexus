@@ -116,6 +116,7 @@ export const TOOLS_CLIENT = [
         client_nom: { type: "string" },
         client_prenom: { type: "string" },
         client_telephone: { type: "string" },
+        client_email: { type: "string", description: "Email du client (optionnel, pour confirmation par email)" },
         nb_couverts: { type: "integer", description: "Nombre de personnes (restaurant uniquement)" },
         zone_preference: { type: "string", description: "Zone préférée (interieur, terrasse, salon_prive)" }
       },

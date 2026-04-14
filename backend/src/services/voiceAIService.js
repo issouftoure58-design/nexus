@@ -372,7 +372,7 @@ export async function getVoiceResponse(callSid, userMessage, isFirstMessage = fa
           if (result.success) {
             console.log('[HALIMAH TEL] ✅ RDV créé:', result.rdv?.id);
 
-            await sendConfirmationSMS(conv.data.telephone, {
+            await sendConfirmationSMS(conv.tenantId, conv.data.telephone, {
               service: conv.data.service.nom,
               date: result.summary?.date || conv.data.jour,
               heure: conv.data.heure,

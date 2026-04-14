@@ -1,0 +1,135 @@
+{
+  "version": "1.0.0",
+  "description": "Registre des contrats API — chaque endpoint liste les champs OBLIGATOIRES dans la réponse. Vérifié par contract-lint.js au pre-commit et contract-verifier.test.js en CI.",
+
+  "endpoints": {
+    "POST /api/signup/sms/verify": {
+      "description": "Vérification SMS signup — retourne verified_token (PAS token)",
+      "fields": ["success", "verified_token"],
+      "forbiddenFields": ["token"],
+      "sourceFile": "routes/signup.js",
+      "bugRef": "Session 40 — frontend lisait data.token au lieu de data.verified_token"
+    },
+
+    "POST /api/signup": {
+      "description": "Création compte signup",
+      "fields": ["success", "tenant_id", "admin", "plan"],
+      "admin_fields": ["id", "email", "nom"],
+      "plan_fields": ["id", "nom"],
+      "sourceFile": "routes/signup.js",
+      "bugRef": "Session 40 — champs manquants dans la réponse signup"
+    },
+
+    "POST /api/admin/auth/login": {
+      "description": "Login admin — retourne token JWT",
+      "fields": ["success", "token"],
+      "sourceFile": "routes/adminAuth.js"
+    },
+
+    "GET /api/admin/clients": {
+      "description": "Liste clients paginée",
+      "format": "paginated",
+      "dataFields": ["id", "nom", "prenom", "telephone", "email"],
+      "sourceFile": "routes/adminClients.js",
+      "bugRef": "Session 40 — frontend lisait .clients au lieu de .data"
+    },
+
+    "GET /api/admin/reservations": {
+      "description": "Liste réservations paginée",
+      "format": "paginated",
+      "dataFields": ["id", "date_rdv", "heure_rdv", "statut"],
+      "sourceFile": "routes/adminReservations.js"
+    },
+
+    "POST /api/admin/reservations": {
+      "description": "Création réservation admin",
+      "fields": ["success", "reservation"],
+      "clientSelectMustInclude": ["id", "prenom", "nom", "telephone", "email"],
+      "mustCallCreateReservationUnifiedWith": ["client_email"],
+      "sourceFile": "routes/adminReservations.js",
+      "bugRef": "Session 40 — email manquant dans SELECT client + client_email non passé à createReservationUnified"
+    },
+
+    "GET /api/admin/services": {
+      "description": "Liste services paginée",
+      "format": "paginated",
+      "dataFields": ["id", "nom"],
+      "sourceFile": "routes/adminServices.js"
+    },
+
+    "GET /api/admin/services/equipe": {
+      "description": "Liste membres équipe",
+      "fields": ["success", "data"],
+      "dataArrayFields": ["id", "nom", "prenom", "role"],
+      "sourceFile": "routes/adminServices.js"
+    },
+
+    "GET /api/admin/stats/activity": {
+      "description": "Activité récente dashboard",
+      "fields": ["activities"],
+      "sourceFile": "routes/adminStats.js"
+    },
+
+    "GET /api/admin/analytics/overview": {
+      "description": "Analytics overview",
+      "fields": ["ca_total"],
+      "sourceFile": "routes/adminAnalytics.js"
+    },
+
+    "GET /api/admin/rh/membres": {
+      "description": "Liste membres RH paginée",
+      "format": "paginated",
+      "sourceFile": "routes/adminRH.js"
+    },
+
+    "GET /api/admin/devis": {
+      "description": "Liste devis",
+      "fields": ["devis"],
+      "sourceFile": "routes/adminDevis.js"
+    },
+
+    "GET /api/admin/compta/pnl": {
+      "description": "Profit & Loss",
+      "fields": ["revenus", "depenses", "resultat"],
+      "sourceFile": "routes/adminCompta.js"
+    },
+
+    "GET /api/admin/workflows/templates": {
+      "description": "Templates workflows",
+      "fields": ["templates"],
+      "sourceFile": "routes/adminWorkflows.js"
+    },
+
+    "POST /api/admin/reservations:notification": {
+      "description": "Réservation admin — cascade notification doit recevoir email+telephone",
+      "virtual": true,
+      "mustPassToNotification": ["client_email", "client_telephone"],
+      "sourceFile": "routes/adminReservations.js",
+      "bugRef": "Session 40 — client_email jamais transmis → notifications email silencieusement cassées"
+    }
+  },
+
+  "formats": {
+    "paginated": {
+      "description": "Réponse paginée standard via paginated() helper",
+      "shape": {
+        "success": true,
+        "data": "T[]",
+        "pagination": {
+          "page": "number",
+          "limit": "number",
+          "total": "number",
+          "pages": "number"
+        }
+      },
+      "frontendReads": "items (via getPaginated normalizer)"
+    }
+  },
+
+  "rules": {
+    "paginatedEndpointsMustUsePaginatedHelper": true,
+    "paginatedResponseFieldIsData_NOT_items_clients_etc": true,
+    "signupSmsVerifyReturnsVerifiedToken_NOT_token": true,
+    "clientSelectForReservationMustIncludeEmail": true
+  }
+}

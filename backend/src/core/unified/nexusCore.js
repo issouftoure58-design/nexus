@@ -1852,7 +1852,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
     // 🔒 TENANT ISOLATION: tenant_id est OBLIGATOIRE (vérifié plus haut)
     let clientQuery = db
       .from('clients')
-      .select('id')
+      .select('id, email')
       .eq('tenant_id', data.tenant_id)  // 🔒 TENANT ISOLATION: Toujours filtrer
       .eq('telephone', telephone.replace('+33', '0'));
 
@@ -1860,6 +1860,11 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
     if (existingClient) {
       clientId = existingClient.id;
+      // Récupérer l'email du client existant pour les notifications (si pas déjà fourni)
+      if (!data.client_email && existingClient.email) {
+        data.client_email = existingClient.email;
+        console.log(`💾 📧 Email client récupéré depuis la BDD: ${existingClient.email}`);
+      }
       console.log(`💾 ✅ Client existant trouvé: ID=${clientId}`);
     } else {
       console.log(`💾 Client non trouvé, création...`);
