@@ -2,7 +2,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import obfuscatorPlugin from 'rollup-plugin-obfuscator';
+// obfuscator désactivé — corrompait les gros chunks en production (RH page crash)
+// import obfuscatorPlugin from 'rollup-plugin-obfuscator';
 
 export default defineConfig({
   plugins: [react()],
@@ -23,28 +24,6 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     rollupOptions: {
-      plugins: [
-        obfuscatorPlugin({
-          include: ['src/**/*.ts', 'src/**/*.tsx'],
-          exclude: ['node_modules/**'],
-          options: {
-            compact: true,
-            controlFlowFlattening: true,
-            controlFlowFlatteningThreshold: 0.5,
-            deadCodeInjection: false,
-            identifierNamesGenerator: 'hexadecimal',
-            splitStrings: true,
-            splitStringsChunkLength: 5,
-            stringArray: true,
-            stringArrayEncoding: ['base64'],
-            stringArrayThreshold: 0.75,
-            stringArrayWrappersCount: 1,
-            transformObjectKeys: false,
-            unicodeEscapeSequence: false,
-            reservedStrings: ['\\./', '\\.\\./', 'import', 'export', 'pages/', 'components/'],
-          },
-        }),
-      ],
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
