@@ -518,10 +518,142 @@ function ActiviteSubSection() {
           <MultiDayToggle />
         )}
 
+        {/* Acompte a la reservation */}
+        <DepositConfig />
+
         {/* Terminologie personnalisée — tous business types */}
         <TerminologyCustomizer />
       </CardContent>
     </Card>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DEPOSIT CONFIG (ACOMPTE)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function DepositConfig() {
+  const [enabled, setEnabled] = useState(false);
+  const [rate, setRate] = useState(30);
+  const [paymentUrl, setPaymentUrl] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (!loaded) {
+      api.get<{ enabled: boolean; rate: number; payment_url: string }>('/admin/profile/deposit-config')
+        .then((res) => {
+          setEnabled(!!res?.enabled);
+          setRate(res?.rate || 30);
+          setPaymentUrl(res?.payment_url || '');
+          setLoaded(true);
+        })
+        .catch(() => setLoaded(true));
+    }
+  }, [loaded]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.patch('/admin/profile/deposit-config', {
+        enabled,
+        rate,
+        payment_url: paymentUrl,
+      });
+      setFeedback({ message: 'Configuration acompte enregistree', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="border-t pt-4 space-y-4">
+      <div>
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Acompte</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Exiger un acompte avant confirmation des rendez-vous
+        </p>
+      </div>
+
+      {feedback && (
+        <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />
+      )}
+
+      {/* Toggle */}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <button
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => setEnabled(!enabled)}
+          className={cn(
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            enabled ? 'bg-cyan-600' : 'bg-gray-300 dark:bg-gray-600'
+          )}
+        >
+          <span className={cn(
+            'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+            enabled ? 'translate-x-6' : 'translate-x-1'
+          )} />
+        </button>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Exiger un acompte avant confirmation
+        </span>
+      </label>
+
+      {enabled && (
+        <div className="space-y-3 pl-1">
+          {/* Taux */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Taux d'acompte (%)
+            </label>
+            <div className="flex items-center gap-3">
+              <Input
+                type="number"
+                min={10}
+                max={100}
+                step={5}
+                value={rate}
+                onChange={e => setRate(Number(e.target.value))}
+                className="w-28"
+              />
+              <span className="text-sm text-gray-500">%</span>
+            </div>
+          </div>
+
+          {/* URL paiement */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lien de paiement
+            </label>
+            <Input
+              type="url"
+              placeholder="https://buy.stripe.com/votre-lien ou votre lien PayPal/SumUp..."
+              value={paymentUrl}
+              onChange={e => setPaymentUrl(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Collez le lien de votre page de paiement. Ce lien sera envoye au client avec le montant de l'acompte.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-cyan-600 hover:bg-cyan-700"
+        >
+          {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enregistrement...</> : 'Enregistrer'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

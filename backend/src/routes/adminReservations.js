@@ -1965,4 +1965,39 @@ router.get('/export/csv', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ============= ACOMPTE: CONFIRMATION RECEPTION PAIEMENT =============
+
+/**
+ * POST /api/admin/reservations/:id/deposit-received
+ * Confirme la reception de l'acompte — passe le RDV en 'confirme' + notification cascade
+ */
+router.post('/:id/deposit-received', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const reservationId = req.params.id;
+
+    const { handleDepositReceived } = await import('../services/depositService.js');
+    const result = await handleDepositReceived(reservationId, tenantId);
+
+    // Log dans historique_admin
+    try {
+      await supabase.from('historique_admin').insert({
+        tenant_id: tenantId,
+        admin_id: req.admin.id,
+        action: 'deposit_received',
+        entite: 'reservation',
+        entite_id: reservationId,
+        details: { action: 'Acompte recu — RDV confirme' },
+      });
+    } catch (logErr) {
+      console.warn('[ADMIN RESERVATIONS] Erreur log historique:', logErr.message);
+    }
+
+    success(res, { message: 'Acompte recu, reservation confirmee', notification: result.notification });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur deposit-received:', err.message);
+    apiError(res, err.message, 400);
+  }
+});
+
 export default router;

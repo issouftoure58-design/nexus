@@ -3,14 +3,16 @@
  * Inclut stats, filtres, tableau desktop, vue mobile, pagination
  */
 
+import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Plus, ChevronLeft, ChevronRight, Clock, User,
-  Filter, RefreshCw, Edit, Trash2, Download, RotateCcw
+  Filter, RefreshCw, Edit, Trash2, Download, RotateCcw, CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EntityLink } from '@/components/EntityLink';
 import { useProfile } from '@/contexts/ProfileContext';
+import { api } from '@/lib/api';
 import type { Reservation, ReservationService, ReservationMembre, Filters, Stats } from './types';
 import { STATUS_CONFIG, formatDate, formatCurrency, DEFAULT_FILTERS } from './types';
 
@@ -50,6 +52,33 @@ export default function PrestationsListe({
   onOpenNew,
 }: PrestationsListeProps) {
   const { t } = useProfile();
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositRate, setDepositRate] = useState(30);
+  const [confirmingDeposit, setConfirmingDeposit] = useState<number | null>(null);
+  const [depositModalRdv, setDepositModalRdv] = useState<Reservation | null>(null);
+
+  useEffect(() => {
+    api.get<{ enabled: boolean; rate: number }>('/admin/profile/deposit-config')
+      .then((res) => {
+        setDepositEnabled(!!res?.enabled);
+        setDepositRate(res?.rate || 30);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDepositReceived = useCallback(async (rdvId: number) => {
+    setConfirmingDeposit(rdvId);
+    try {
+      await api.post(`/admin/reservations/${rdvId}/deposit-received`);
+      onChangeStatut(rdvId, 'confirme');
+      setDepositModalRdv(null);
+    } catch {
+      alert('Erreur lors de la confirmation de l\'acompte');
+    } finally {
+      setConfirmingDeposit(null);
+    }
+  }, [onChangeStatut]);
+
   const resetFilters = () => {
     onFiltersChange(DEFAULT_FILTERS);
     onPageChange(1);
@@ -325,12 +354,30 @@ export default function PrestationsListe({
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`text-xs font-medium px-2 py-1 rounded ${statusConfig.bgColor} ${statusConfig.color}`}>
-                          {statusConfig.label}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-xs font-medium px-2 py-1 rounded ${statusConfig.bgColor} ${statusConfig.color}`}>
+                            {statusConfig.label}
+                          </span>
+                          {depositEnabled && rdv.statut === 'demande' && (
+                            <span className="text-xs font-medium px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                              Acompte en attente
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
+                          {depositEnabled && rdv.statut === 'demande' && (
+                            <button
+                              onClick={() => setDepositModalRdv(rdv)}
+                              disabled={confirmingDeposit === rdv.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40 disabled:opacity-50"
+                              title="Confirmer la reception de l'acompte"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              {confirmingDeposit === rdv.id ? '...' : 'Paiement recu'}
+                            </button>
+                          )}
                           <button
                             onClick={() => onOpenEdit(rdv)}
                             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -382,9 +429,16 @@ export default function PrestationsListe({
                       <span className="font-medium text-gray-900 dark:text-white">{formatDate(rdv.date || '')}</span>
                       <span className="text-gray-500">à {rdv.heure}</span>
                     </div>
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${statusConfig.bgColor} ${statusConfig.color}`}>
-                      {statusConfig.label}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${statusConfig.bgColor} ${statusConfig.color}`}>
+                        {statusConfig.label}
+                      </span>
+                      {depositEnabled && rdv.statut === 'demande' && (
+                        <span className="text-xs font-medium px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                          Acompte
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -460,7 +514,18 @@ export default function PrestationsListe({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                    {depositEnabled && rdv.statut === 'demande' && (
+                      <Button
+                        size="sm"
+                        onClick={() => setDepositModalRdv(rdv)}
+                        disabled={confirmingDeposit === rdv.id}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CreditCard className="w-3 h-3 mr-1" />
+                        {confirmingDeposit === rdv.id ? '...' : 'Paiement recu'}
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => onOpenEdit(rdv)}>
                       <Edit className="w-3 h-3 mr-1" />
                       Modifier
@@ -502,6 +567,69 @@ export default function PrestationsListe({
             </div>
           )}
         </>
+      )}
+
+      {/* Modal confirmation acompte */}
+      {depositModalRdv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDepositModalRdv(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
+                <CreditCard className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Confirmer le paiement</h3>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Client</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {depositModalRdv.client ? `${depositModalRdv.client.prenom} ${depositModalRdv.client.nom}` : 'Client'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Service</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{depositModalRdv.service_nom}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Date</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{formatDate(depositModalRdv.date || '')} a {depositModalRdv.heure}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(depositModalRdv.prix || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
+                  <span className="text-gray-500">Acompte ({depositRate}%)</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">
+                    {formatCurrency(Math.round((depositModalRdv.prix || 0) * depositRate) / 100)}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                En confirmant, le RDV passera en statut <strong>Confirme</strong> et le client recevra une confirmation par SMS/Email.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setDepositModalRdv(null)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={() => handleDepositReceived(depositModalRdv.id)}
+                disabled={confirmingDeposit === depositModalRdv.id}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {confirmingDeposit === depositModalRdv.id ? (
+                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Confirmation...</>
+                ) : (
+                  <><CreditCard className="w-4 h-4 mr-2" />Paiement recu</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

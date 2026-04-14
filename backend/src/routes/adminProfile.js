@@ -307,4 +307,80 @@ router.get('/terminology', async (req, res) => {
   }
 });
 
+// ============= CONFIGURATION ACOMPTE =============
+
+/**
+ * GET /api/admin/profile/deposit-config
+ * Recuperer la configuration acompte du tenant
+ */
+router.get('/deposit-config', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('deposit_enabled, deposit_rate, deposit_payment_url')
+      .eq('id', tenantId)
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      enabled: !!data.deposit_enabled,
+      rate: data.deposit_rate || 30,
+      payment_url: data.deposit_payment_url || '',
+    });
+  } catch (error) {
+    console.error('[ADMIN PROFILE] Erreur deposit-config:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/admin/profile/deposit-config
+ * Mettre a jour la configuration acompte du tenant
+ */
+router.patch('/deposit-config', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { enabled, rate, payment_url } = req.body;
+
+    const updates = { updated_at: new Date().toISOString() };
+
+    if (typeof enabled === 'boolean') {
+      updates.deposit_enabled = enabled;
+    }
+    if (typeof rate === 'number' && rate >= 10 && rate <= 100) {
+      updates.deposit_rate = Math.round(rate);
+    }
+    if (typeof payment_url === 'string') {
+      updates.deposit_payment_url = payment_url.trim() || null;
+    }
+
+    const { error } = await supabase
+      .from('tenants')
+      .update(updates)
+      .eq('id', tenantId);
+
+    if (error) throw error;
+
+    // Relire la config mise a jour
+    const { data } = await supabase
+      .from('tenants')
+      .select('deposit_enabled, deposit_rate, deposit_payment_url')
+      .eq('id', tenantId)
+      .single();
+
+    res.json({
+      message: 'Configuration acompte mise a jour',
+      enabled: !!data.deposit_enabled,
+      rate: data.deposit_rate || 30,
+      payment_url: data.deposit_payment_url || '',
+    });
+  } catch (error) {
+    console.error('[ADMIN PROFILE] Erreur update deposit-config:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 export default router;

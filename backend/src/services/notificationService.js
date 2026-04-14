@@ -724,6 +724,94 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
   return results;
 }
 
+// ============= DEMANDE D'ACOMPTE =============
+
+/**
+ * Envoie une demande d'acompte au client (Email → WhatsApp → SMS cascade)
+ * Inclut le montant et le lien de paiement du tenant
+ *
+ * @param {string} tenantId - ID du tenant
+ * @param {string} phone - Telephone du client
+ * @param {Object} details - { montant, total, lien, service, date, heure, clientNom }
+ * @param {string|null} email - Email du client (optionnel)
+ * @returns {Promise<{email: Object, whatsapp: Object, sms: Object}>}
+ */
+export async function sendDepositRequest(tenantId, phone, details, email = null) {
+  const results = {
+    email: { success: false, error: 'Non envoye' },
+    whatsapp: { success: false, error: 'Non envoye' },
+    sms: { success: false, error: 'Non envoye' },
+  };
+
+  const t = resolveTenant(tenantId);
+  const { montant, total, lien, service, date, heure, clientNom } = details;
+  const nom = clientNom || 'Client';
+
+  // 1. Email
+  if (email) {
+    try {
+      const emailHtml = `
+        <h2>Acompte requis pour votre reservation</h2>
+        <p>Bonjour ${nom},</p>
+        <p>Pour confirmer votre rendez-vous chez <strong>${t.salonName}</strong>, un acompte est requis :</p>
+        <ul>
+          <li><strong>Date :</strong> ${date} a ${heure}</li>
+          <li><strong>Service :</strong> ${service}</li>
+          <li><strong>Total :</strong> ${total}\u20AC</li>
+          <li><strong>Acompte a regler :</strong> ${montant}\u20AC</li>
+        </ul>
+        ${lien ? `<p style="margin-top: 20px;"><a href="${lien}" style="display: inline-block; background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Regler l'acompte</a></p>` : ''}
+        <p style="color: #666; font-size: 14px;">Votre rendez-vous sera confirme des reception du paiement.</p>
+        <p>A bientot !<br>${t.signataire} - ${t.salonName}</p>
+      `;
+
+      results.email = await sendEmail(
+        email,
+        `Acompte requis - ${t.salonName}`,
+        emailHtml
+      );
+
+      console.log(`[Notification] Email acompte envoye a ${email}:`, results.email.success ? 'OK' : results.email.error);
+    } catch (error) {
+      console.error('[Notification] Erreur envoi email acompte:', error.message);
+      results.email = { success: false, error: error.message };
+    }
+  }
+
+  // 2. WhatsApp
+  if (phone) {
+    try {
+      const waMessage = `Bonjour ${nom},\n\nPour confirmer votre RDV du ${date} a ${heure} (${service}, ${total}\u20AC), merci de regler l'acompte de ${montant}\u20AC.\n\n${lien ? `Lien de paiement : ${lien}\n\n` : ''}Votre RDV sera confirme des reception.\n\nA bientot !\n${t.signataire} - ${t.salonName}`;
+      results.whatsapp = await sendWhatsAppNotification(phone, waMessage, tenantId);
+
+      console.log(`[Notification] WhatsApp acompte envoye a ${phone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
+    } catch (error) {
+      console.error('[Notification] Erreur WhatsApp acompte:', error.message);
+      results.whatsapp = { success: false, error: error.message };
+    }
+  }
+
+  // 3. SMS fallback (seulement si email ET WhatsApp ont echoue)
+  const emailDelivered = results.email?.success;
+  const whatsappDelivered = results.whatsapp?.success;
+
+  if (phone && !emailDelivered && !whatsappDelivered) {
+    try {
+      const smsMessage = `${t.salonName}\nAcompte requis : ${montant}\u20AC\n\nRDV ${date} a ${heure}\n${service} - ${total}\u20AC\n\n${lien ? `Payer ici : ${lien}\n\n` : ''}Confirmation apres paiement.\n${t.telephone}`;
+
+      results.sms = await sendSMS(phone, smsMessage, tenantId, { essential: true });
+      console.log(`[Notification] SMS acompte (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+    } catch (error) {
+      console.error('[Notification] Erreur SMS acompte:', error.message);
+      results.sms = { success: false, error: error.message };
+    }
+  } else if (phone) {
+    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
+  }
+
+  return results;
+}
+
 // ============= FONCTIONS UTILITAIRES =============
 
 /**
@@ -751,5 +839,6 @@ export default {
   sendRemerciement,
   sendDemandeAvis,
   sendStatusChange,
+  sendDepositRequest,
   getNotificationServicesStatus,
 };

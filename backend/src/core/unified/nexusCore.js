@@ -78,7 +78,10 @@ import { findAvailableTable, getTableAvailability, isRestaurantFull, getServiceT
 import { getBusinessInfo, getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
 // 📱 Notification de confirmation (cascade: Email → WhatsApp → SMS)
-import { sendConfirmation as _sendConfirmationCascade } from '../../services/notificationService.js';
+import { sendConfirmation as _sendConfirmationCascade, sendDepositRequest as _sendDepositRequest } from '../../services/notificationService.js';
+
+// 💰 Acompte: config + calcul
+import { getDepositConfig, calculateDeposit } from '../../services/depositService.js';
 
 async function sendConfirmationNotification(tenantId, phone, details, clientEmail = null) {
   if (process.env.MOCK_SMS === 'true' || (process.env.NODE_ENV !== 'production' && !process.env.TWILIO_ACCOUNT_SID)) {
@@ -2089,6 +2092,32 @@ export async function createReservationUnified(data, channel = 'web', options = 
         console.error('[NEXUS CORE] ❌ Confirmation cascade ERREUR:', notifError.message);
         logger.warn('Erreur envoi confirmation', { tag: 'NEXUS CORE', error: notifError.message });
         // Ne pas échouer la réservation pour une notification
+      }
+    }
+
+    // 11b. ACOMPTE: Si tenant a deposit_enabled et RDV en 'demande', envoyer demande d'acompte
+    if (sendSMS && statutFinal === 'demande' && (data.client_telephone || data.client_email)) {
+      try {
+        const depositConfig = await getDepositConfig(data.tenant_id);
+        if (depositConfig.enabled && depositConfig.paymentUrl && prixTotal > 0) {
+          const montantAcompte = calculateDeposit(prixTotal, depositConfig.rate);
+          console.log(`[NEXUS CORE] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${prixTotal / 100}€)`);
+
+          await _sendDepositRequest(data.tenant_id, data.client_telephone, {
+            montant: montantAcompte,
+            total: prixTotal / 100,
+            lien: depositConfig.paymentUrl,
+            service: service.name,
+            date: data.date,
+            heure: data.heure,
+            clientNom: data.client_prenom || data.client_nom || null,
+          }, data.client_email || null);
+
+          console.log('[NEXUS CORE] ✅ Demande d\'acompte envoyee');
+        }
+      } catch (depositError) {
+        console.error('[NEXUS CORE] ❌ Erreur envoi demande acompte:', depositError.message);
+        // Ne pas echouer la reservation pour une notification
       }
     }
 
