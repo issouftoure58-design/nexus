@@ -85,11 +85,11 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
   }, [templatePreFill, devis]);
 
   // Fetch clients
-  const { data: clientsData } = useQuery<{ clients: Client[] }>({
+  const { data: clientsData } = useQuery<{ data: Client[] }>({
     queryKey: ['clients-search', clientSearch],
     queryFn: async () => {
-      if (!clientSearch || clientSearch.length < 2) return { clients: [] };
-      return api.get<{ clients: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
+      if (!clientSearch || clientSearch.length < 2) return { data: [] };
+      return api.get<{ data: Client[] }>(`/admin/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
     },
     enabled: clientSearch.length >= 2 && clientMode === 'existant'
   });
@@ -450,9 +450,9 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                   placeholder="Rechercher un client..."
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
-                {showClientDropdown && (clientsData?.clients?.length ?? 0) > 0 && (
+                {showClientDropdown && (clientsData?.data?.length ?? 0) > 0 && (
                   <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {clientsData!.clients.map((client: Client) => {
+                    {clientsData!.data.map((client: Client) => {
                       const isPro = client.type_client === 'professionnel' || !!client.raison_sociale;
                       const displayName = isPro && client.raison_sociale
                         ? client.raison_sociale
