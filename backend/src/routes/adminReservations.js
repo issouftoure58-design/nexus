@@ -558,7 +558,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     // Vérifier que le client existe et récupérer ses infos (🔒 TENANT ISOLATION)
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, prenom, nom, telephone')
+      .select('id, prenom, nom, telephone, email')
       .eq('id', client_id)
       .eq('tenant_id', tenantId)
       .single();
@@ -626,6 +626,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       heure: heureEffective,
       client_nom: `${client.prenom || ''} ${client.nom || ''}`.trim() || 'Client',
       client_telephone: client.telephone || '',
+      client_email: client.email || null,
       lieu: lieu || getDefaultLocation(tenantId),
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
