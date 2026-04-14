@@ -443,6 +443,21 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
     }
   }
 
+  // 3. SMS fallback (si email ET WhatsApp ont echoue)
+  const emailOk = results.email?.success;
+  const whatsappOk = results.whatsapp?.success;
+  if (clientPhone && !emailOk && !whatsappOk) {
+    try {
+      const total = nouveauRdv.total || (nouveauRdv.prix_service + (nouveauRdv.frais_deplacement || 0));
+      const smsMessage = `${t.salonName}\nVotre RDV a été modifié !\n\n${nouveauRdv.date} à ${nouveauRdv.heure}\n${nouveauRdv.service_nom}\n${total}€\n\nÀ bientôt !\n${t.signataire}`;
+      results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
+      console.log(`[Notification] SMS modification (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+    } catch (error) {
+      console.error('[Notification] Erreur envoi SMS modification:', error.message);
+      results.sms = { success: false, error: error.message };
+    }
+  }
+
   return results;
 }
 

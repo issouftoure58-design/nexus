@@ -1010,36 +1010,60 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Notification cascade (Email → WhatsApp → SMS) si changement service, date ou heure
-    if (updates.service_nom || updates.date || updates.heure) {
-      try {
-        const telephone = currentRdv.clients?.telephone;
-        const email = currentRdv.clients?.email;
-        if (telephone || email) {
-          const { sendModification } = await import('../services/notificationService.js');
-          const ancienRdv = {
-            date: currentRdv.date,
-            heure: currentRdv.heure,
-            service_nom: currentRdv.service_nom,
-          };
-          const nouveauRdv = {
-            client_telephone: telephone,
-            client_email: email,
-            client_nom: currentRdv.clients?.nom || 'Client',
-            client_prenom: currentRdv.clients?.prenom || '',
-            date: updates.date || currentRdv.date,
-            heure: updates.heure || currentRdv.heure,
-            service_nom: updates.service_nom || currentRdv.service_nom,
-            total: (updates.prix_total || currentRdv.prix_total || 0) / 100,
-            prix_service: (updates.prix_total || currentRdv.prix_total || 0) / 100,
-            frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
-            adresse_client: currentRdv.adresse_client,
-          };
-          await sendModification(ancienRdv, nouveauRdv, tenantId);
-          console.log(`[ADMIN EDIT] Notification modification envoyée (cascade Email→WA→SMS)`);
+    // 📩 Notification client — confirmation ou modification
+    {
+      const telephone = currentRdv.clients?.telephone;
+      const email = currentRdv.clients?.email;
+      const statutChanged = updates.statut && updates.statut !== currentRdv.statut;
+      const becameConfirme = statutChanged && updates.statut === 'confirme';
+      const detailsChanged = updates.service_nom || updates.date || updates.heure;
+
+      if ((becameConfirme || detailsChanged) && (telephone || email)) {
+        try {
+          if (becameConfirme) {
+            // Statut → confirme : envoyer confirmation (cascade Email→WA→SMS)
+            const { sendConfirmation } = await import('../services/notificationService.js');
+            await sendConfirmation({
+              client_telephone: telephone,
+              client_email: email,
+              client_prenom: currentRdv.clients?.prenom,
+              client_nom: currentRdv.clients?.nom,
+              service_nom: updates.service_nom || currentRdv.service_nom,
+              date: updates.date || currentRdv.date_rdv || currentRdv.date,
+              heure: updates.heure || currentRdv.heure_rdv || currentRdv.heure,
+              total: (updates.prix_total || currentRdv.prix_total || 0) / 100,
+              prix_service: (updates.prix_total || currentRdv.prix_total || 0) / 100,
+              frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
+              adresse_client: currentRdv.adresse_client,
+            }, 0, tenantId);
+            console.log(`[ADMIN EDIT] Confirmation envoyée au client (cascade Email→WA→SMS)`);
+          } else if (detailsChanged) {
+            // Modification date/heure/service : envoyer modification
+            const { sendModification } = await import('../services/notificationService.js');
+            const ancienRdv = {
+              date: currentRdv.date,
+              heure: currentRdv.heure,
+              service_nom: currentRdv.service_nom,
+            };
+            const nouveauRdv = {
+              client_telephone: telephone,
+              client_email: email,
+              client_nom: currentRdv.clients?.nom || 'Client',
+              client_prenom: currentRdv.clients?.prenom || '',
+              date: updates.date || currentRdv.date,
+              heure: updates.heure || currentRdv.heure,
+              service_nom: updates.service_nom || currentRdv.service_nom,
+              total: (updates.prix_total || currentRdv.prix_total || 0) / 100,
+              prix_service: (updates.prix_total || currentRdv.prix_total || 0) / 100,
+              frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
+              adresse_client: currentRdv.adresse_client,
+            };
+            await sendModification(ancienRdv, nouveauRdv, tenantId);
+            console.log(`[ADMIN EDIT] Notification modification envoyée (cascade Email→WA→SMS)`);
+          }
+        } catch (notifErr) {
+          console.error('[ADMIN EDIT] Notification échouée (non bloquant):', notifErr.message);
         }
-      } catch (notifErr) {
-        console.error('[ADMIN EDIT] Notification échouée (non bloquant):', notifErr.message);
       }
     }
 

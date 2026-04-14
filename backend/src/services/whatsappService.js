@@ -2057,7 +2057,11 @@ export async function sendWhatsAppNotification(phoneNumber, message, tenantId, o
   // Sans numéro dédié, on tombe sur le sandbox US qui accepte les messages
   // mais ne les délivre jamais → retourner false pour que la cascade SMS prenne le relais
   const fromNumber = getWhatsAppFromNumber(tenantId);
-  if (!fromNumber || fromNumber === TWILIO_WHATSAPP_NUMBER) {
+  // Normaliser pour comparaison (avec ou sans prefix whatsapp:)
+  const normalizedFrom = (fromNumber || '').replace('whatsapp:', '');
+  const normalizedEnv = (TWILIO_WHATSAPP_NUMBER || '').replace('whatsapp:', '');
+  const SANDBOX_NUMBER = '+14155238886'; // Twilio WhatsApp sandbox — accepte mais ne delivre jamais
+  if (!fromNumber || normalizedFrom === normalizedEnv || normalizedFrom === SANDBOX_NUMBER) {
     // Pas de numéro WhatsApp dédié pour ce tenant → skip
     return {
       success: false,
