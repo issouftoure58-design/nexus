@@ -2064,6 +2064,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
     let facture = null;
 
     // 11. ENVOYER CONFIRMATION CASCADE (Email → WhatsApp → SMS)
+    console.log(`[NEXUS CORE] 📧 Notification check: sendSMS=${sendSMS}, telephone=${data.client_telephone || 'VIDE'}, email=${data.client_email || 'VIDE'}`);
     if (sendSMS && data.client_telephone) {
       try {
         const datesFormatees = reservationDates.map(d => {
@@ -2071,7 +2072,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
           return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
         }).join(' et ');
 
-        await sendConfirmationNotification(data.tenant_id, data.client_telephone, {
+        const notifResult = await sendConfirmationNotification(data.tenant_id, data.client_telephone, {
           service: service.name,
           date: nbJours > 1 ? datesFormatees : data.date,
           heure: data.heure,
@@ -2080,8 +2081,9 @@ export async function createReservationUnified(data, channel = 'web', options = 
           adresse: data.adresse || null,
           nbJours: nbJours
         }, data.client_email || null);
-        console.log('[NEXUS CORE] ✅ Confirmation envoyée (cascade Email→WA→SMS)');
+        console.log('[NEXUS CORE] ✅ Confirmation cascade result:', JSON.stringify(notifResult));
       } catch (notifError) {
+        console.error('[NEXUS CORE] ❌ Confirmation cascade ERREUR:', notifError.message);
         logger.warn('Erreur envoi confirmation', { tag: 'NEXUS CORE', error: notifError.message });
         // Ne pas échouer la réservation pour une notification
       }
