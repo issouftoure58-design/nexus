@@ -2136,14 +2136,37 @@ export async function createReservationUnified(data, channel = 'web', options = 
       console.warn('[NEXUS CORE] Could not load tenant address for recap:', e.message);
     }
 
+    // Verifier si acompte actif pour enrichir le retour
+    let depositInfo = null;
+    try {
+      const depCfg = await getDepositConfig(data.tenant_id);
+      if (depCfg.enabled && depCfg.paymentUrl && prixTotal > 0) {
+        const montantAcompte = calculateDeposit(prixTotal, depCfg.rate);
+        depositInfo = {
+          required: true,
+          montant: montantAcompte,
+          taux: depCfg.rate,
+          lien: depCfg.paymentUrl,
+        };
+      }
+    } catch (_) {}
+
+    const baseMessage = nbJours > 1
+      ? `Réservation créée avec succès sur ${nbJours} jours`
+      : "Réservation créée avec succès";
+
+    const depositMessage = depositInfo
+      ? `. IMPORTANT: Un acompte de ${depositInfo.montant}€ (${depositInfo.taux}%) est requis pour confirmer la réservation. Le client va recevoir un SMS/email avec le lien de paiement. La réservation sera confirmée après réception du paiement. Informe le client qu'il doit régler l'acompte de ${depositInfo.montant}€ pour que son rendez-vous soit confirmé.`
+      : '';
+
     return {
       success: true,
-      message: nbJours > 1
-        ? `Réservation créée avec succès sur ${nbJours} jours`
-        : "Réservation créée avec succès",
+      message: baseMessage + depositMessage,
       reservationId: primaryReservation.id,
       reservationIds: createdReservations.map(r => r.id),
       multidayGroupId: multidayGroupId,
+      depositRequired: !!depositInfo,
+      deposit: depositInfo,
       recap: {
         service: service.name,
         prix: service.price,
@@ -2159,8 +2182,10 @@ export async function createReservationUnified(data, channel = 'web', options = 
         distanceKm,
         fraisDeplacement,
         prixTotal: prixTotal / 100,
-        acompte: pricing.deposit,
-        acompteTexte: `${pricing.deposit}€ (${BOOKING_RULES.DEPOSIT_PERCENT}%)`
+        acompte: depositInfo ? depositInfo.montant : pricing.deposit,
+        acompteTexte: depositInfo
+          ? `${depositInfo.montant}€ (${depositInfo.taux}%) — acompte requis avant confirmation`
+          : `${pricing.deposit}€ (${BOOKING_RULES.DEPOSIT_PERCENT}%)`
       },
       facture: facture ? { id: facture.id, numero: facture.numero, statut: facture.statut } : null
     };
