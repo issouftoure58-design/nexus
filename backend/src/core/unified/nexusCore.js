@@ -2122,23 +2122,9 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
           console.log('[NEXUS CORE] ✅ Demande d\'acompte envoyee');
         } else {
-          // Pas d'acompte: envoyer accuse de reception (le client sait que sa demande est prise en compte)
-          console.log('[NEXUS CORE] 📧 Pas d\'acompte — envoi accuse de reception');
-          const datesFormatees = reservationDates.map(d => {
-            const dateObj = new Date(d);
-            return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
-          }).join(' et ');
-
-          await sendConfirmationNotification(data.tenant_id, data.client_telephone, {
-            service: service.name,
-            date: nbJours > 1 ? datesFormatees : data.date,
-            heure: data.heure,
-            prixTotal: prixTotal / 100,
-            fraisDeplacement: fraisDeplacement,
-            adresse: data.adresse || null,
-            nbJours: nbJours
-          }, data.client_email || null);
-          console.log('[NEXUS CORE] ✅ Accuse de reception envoye');
+          // Pas d'acompte: PAS de notification auto pour 'demande'
+          // L'admin confirmera le RDV manuellement → la notification partira a ce moment
+          console.log('[NEXUS CORE] 📧 Pas d\'acompte, statut=demande — notification a la confirmation admin');
         }
       } catch (notifError) {
         console.error('[NEXUS CORE] ❌ Erreur envoi notification demande:', notifError.message);
