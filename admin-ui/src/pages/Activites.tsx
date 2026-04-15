@@ -126,6 +126,8 @@ export default function Activites() {
   const [newClientForm, setNewClientForm] = useState<NewClientForm>({ ...DEFAULT_NEW_CLIENT_FORM });
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [requireDeposit, setRequireDeposit] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -138,6 +140,13 @@ export default function Activites() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // === Charger config acompte ===
+  useEffect(() => {
+    api.get<{ enabled: boolean }>('/admin/profile/deposit-config')
+      .then((res) => setDepositEnabled(!!res?.enabled))
+      .catch(() => {});
   }, []);
 
   // === FETCH DATA ===
@@ -990,6 +999,7 @@ export default function Activites() {
           remise_valeur: newRdvForm.remise_valeur || 0,
           remise_motif: newRdvForm.remise_motif || null,
           prix_total: 0,
+          require_deposit: requireDeposit && depositEnabled,
         });
       } else if (isBusinessType('hotel')) {
         // Hotel: chambre + check-in/check-out + extras
@@ -1015,6 +1025,7 @@ export default function Activites() {
           remise_valeur: newRdvForm.remise_valeur || 0,
           remise_motif: newRdvForm.remise_motif || null,
           prix_total: selectedRoom ? (selectedRoom.prix || 0) : 0,
+          require_deposit: requireDeposit && depositEnabled,
         });
       } else {
         // Salon / Service domicile: multi-services + multi-membres
@@ -1071,7 +1082,8 @@ export default function Activites() {
           montant_tva: totals.tva,
           prix_total: totals.totalTTC,
           duree_totale_minutes: totals.dureeTotale,
-          frais_deplacement: totals.fraisDeplacement
+          frais_deplacement: totals.fraisDeplacement,
+          require_deposit: requireDeposit && depositEnabled,
         });
       }
 
@@ -1096,6 +1108,7 @@ export default function Activites() {
     setCreateNewClient(false);
     setNewClientForm({ ...DEFAULT_NEW_CLIENT_FORM });
     setCreateError('');
+    setRequireDeposit(false);
   };
 
   const handleExportCSV = () => {
@@ -1248,6 +1261,9 @@ export default function Activites() {
           onUpdateServiceQuantite={updateServiceQuantite}
           onUpdateAffectation={updateAffectation}
           onCalculateTotals={calculateTotals}
+          depositEnabled={depositEnabled}
+          requireDeposit={requireDeposit}
+          onRequireDepositChange={setRequireDeposit}
           onSubmit={handleCreateRdv}
           onClose={() => { setShowNewModal(false); resetNewRdvForm(); }}
         />

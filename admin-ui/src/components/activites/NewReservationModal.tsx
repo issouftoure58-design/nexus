@@ -62,6 +62,9 @@ interface NewReservationModalProps {
     value: number | string | undefined
   ) => void;
   onCalculateTotals: () => Totals;
+  depositEnabled?: boolean;
+  requireDeposit?: boolean;
+  onRequireDepositChange?: (value: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
 }
@@ -100,6 +103,9 @@ export default function NewReservationModal({
   onUpdateServiceQuantite,
   onUpdateAffectation,
   onCalculateTotals,
+  depositEnabled,
+  requireDeposit,
+  onRequireDepositChange,
   onSubmit,
   onClose,
 }: NewReservationModalProps) {
@@ -1010,6 +1016,29 @@ export default function NewReservationModal({
               </div>
             );
           })()}
+
+          {/* Toggle acompte */}
+          {depositEnabled && onRequireDepositChange && (
+            <label className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg cursor-pointer">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={requireDeposit}
+                onClick={() => onRequireDepositChange(!requireDeposit)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                  requireDeposit ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                  requireDeposit ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                }`} />
+              </button>
+              <div>
+                <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Demander l'acompte au client</span>
+                <p className="text-xs text-amber-600 dark:text-amber-400">Le RDV restera en attente jusqu'au paiement</p>
+              </div>
+            </label>
+          )}
 
           {createError && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">

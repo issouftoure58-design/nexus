@@ -535,7 +535,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       frais_deplacement,
       // Restaurant
       nb_couverts,
-      nb_personnes
+      nb_personnes,
+      // Acompte
+      require_deposit
     } = req.body;
 
     // Validation
@@ -630,7 +632,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       lieu: lieu || getDefaultLocation(tenantId),
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
-      statut: 'confirme',
+      statut: require_deposit ? 'demande' : 'confirme',
       // Durée totale (somme de tous les services × quantités)
       duree_totale_minutes: dureeConflictCheck,
       // Restaurant
