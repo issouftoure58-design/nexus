@@ -145,7 +145,11 @@ export default function Activites() {
   // === Charger config acompte ===
   useEffect(() => {
     api.get<{ enabled: boolean }>('/admin/profile/deposit-config')
-      .then((res) => setDepositEnabled(!!res?.enabled))
+      .then((res) => {
+        const enabled = !!res?.enabled;
+        setDepositEnabled(enabled);
+        setRequireDeposit(enabled); // Défaut: acompte demandé si activé pour le tenant
+      })
       .catch(() => {});
   }, []);
 
