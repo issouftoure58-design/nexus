@@ -12,6 +12,7 @@ import { supabase } from '../config/supabase.js';
 // V2 - Multi-tenant business info
 import { getBusinessInfo, getBusinessInfoSync, hasFeature, getTerminology } from '../services/tenantBusinessService.js';
 import { BUSINESS_TYPES } from '../config/businessTypes.js';
+import responseCache from '../services/responseCache.js';
 
 const router = express.Router();
 
@@ -363,6 +364,10 @@ router.patch('/deposit-config', async (req, res) => {
       .eq('id', tenantId);
 
     if (error) throw error;
+
+    // Invalider le cache IA pour ce tenant (les reponses cachees peuvent mentionner l'acompte)
+    responseCache.invalidateTenant(tenantId);
+    console.log(`[ADMIN PROFILE] Cache IA invalide pour ${tenantId} apres changement deposit-config`);
 
     // Relire la config mise a jour
     const { data } = await supabase

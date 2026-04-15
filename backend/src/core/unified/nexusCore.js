@@ -43,7 +43,6 @@ import {
 
 import {
   validateBeforeCreate,
-  calculateTotalPrice,
   getAvailableSlots,
   getConsecutiveBusinessDays,
 } from '../../services/bookingValidator.js';
@@ -2135,7 +2134,6 @@ export async function createReservationUnified(data, channel = 'web', options = 
     console.log('[NEXUS CORE] ========================================');
 
     // 11. RETOURNER LE RÉSULTAT
-    const pricing = calculateTotalPrice(service, distanceKm);
     const primaryReservation = createdReservations[0];
 
     // Charger l'adresse du tenant pour le recap (dynamique, pas hardcode)

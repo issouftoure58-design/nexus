@@ -49,7 +49,9 @@ class ResponseCache {
       /mon compte|mes\s+(?:rendez-vous|rdv|commandes|factures)/i,
       /annuler|modifier\s+(?:mon|ma|le|la)/i,
       /paiement|payer/i,
-      /(?:disponible|cr[eé]neau)\s+(?:pour|le|demain)/i
+      /(?:disponible|cr[eé]neau)\s+(?:pour|le|demain)/i,
+      /acompte/i,
+      /d[eé]p[oô]t/i
     ];
   }
 
