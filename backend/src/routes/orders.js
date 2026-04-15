@@ -295,7 +295,7 @@ router.post('/', async (req, res) => {
     console.log(`[ORDERS] ✅ Réservations créées avec statut: ${statutReservation}`);
 
     // 📱 Toujours envoyer SMS de confirmation (même en attente de paiement)
-    await sendOrderConfirmation(order, items, clientTelephone, clientEmail, tenantId);
+    await sendOrderConfirmation(order, items, cleanPhone, clientEmail, tenantId);
 
     if (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) {
       // Mettre à jour statut commande (🔒 TENANT ISOLATION)
