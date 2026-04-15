@@ -444,7 +444,6 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid, 
 
   openaiWs.on('close', (code, reason) => {
     clearInterval(silenceChecker);
-    audioChunks.length = 0;
     logger.info(`REALTIME OpenAI WS closed: code=${code} reason=${reason?.toString() || ''} (tenant=${tenantId})`);
   });
 

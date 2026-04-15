@@ -1718,9 +1718,15 @@ export async function createReservationUnified(data, channel = 'web', options = 
       return { success: false, error: `Le nom "${fullName}" semble incomplet. Il faut le prénom ET le nom de famille du client.` };
     }
 
-    const phone = String(data.client_telephone || '').replace(/[\s\-\.]/g, '');
+    let phone = String(data.client_telephone || '').replace(/[\s\-\.]/g, '');
+    // Normaliser format international → local français
+    if (phone.startsWith('+33')) phone = '0' + phone.substring(3);
+    else if (phone.startsWith('0033')) phone = '0' + phone.substring(4);
+    else if (phone.startsWith('33') && phone.length === 11) phone = '0' + phone.substring(2);
+    // Mettre à jour data pour que le telephone normalise soit sauvegarde
+    data.client_telephone = phone;
     console.log(`💾 Téléphone nettoyé: "${phone}"`);
-    if (isPlaceholder(data.client_telephone) || !/^0[1-9][0-9]{8}$/.test(phone)) {
+    if (isPlaceholder(phone) || !/^0[1-9][0-9]{8}$/.test(phone)) {
       console.log(`💾 ❌ ÉCHEC: Téléphone invalide`);
       return { success: false, error: "Le numéro de téléphone doit contenir 10 chiffres commençant par 0 (ex: 0612345678)." };
     }
@@ -2095,11 +2101,12 @@ export async function createReservationUnified(data, channel = 'web', options = 
       }
     }
 
-    // 11b. ACOMPTE: Si tenant a deposit_enabled et RDV en 'demande', envoyer demande d'acompte
+    // 11b. RDV en 'demande': soit envoyer demande d'acompte, soit accuse de reception
     if (sendSMS && statutFinal === 'demande' && (data.client_telephone || data.client_email)) {
       try {
         const depositConfig = await getDepositConfig(data.tenant_id);
         if (depositConfig.enabled && depositConfig.paymentUrl && prixTotal > 0) {
+          // Acompte actif: envoyer demande de paiement
           const montantAcompte = calculateDeposit(prixTotal, depositConfig.rate);
           console.log(`[NEXUS CORE] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${prixTotal / 100}€)`);
 
@@ -2114,9 +2121,27 @@ export async function createReservationUnified(data, channel = 'web', options = 
           }, data.client_email || null);
 
           console.log('[NEXUS CORE] ✅ Demande d\'acompte envoyee');
+        } else {
+          // Pas d'acompte: envoyer accuse de reception (le client sait que sa demande est prise en compte)
+          console.log('[NEXUS CORE] 📧 Pas d\'acompte — envoi accuse de reception');
+          const datesFormatees = reservationDates.map(d => {
+            const dateObj = new Date(d);
+            return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
+          }).join(' et ');
+
+          await sendConfirmationNotification(data.tenant_id, data.client_telephone, {
+            service: service.name,
+            date: nbJours > 1 ? datesFormatees : data.date,
+            heure: data.heure,
+            prixTotal: prixTotal / 100,
+            fraisDeplacement: fraisDeplacement,
+            adresse: data.adresse || null,
+            nbJours: nbJours
+          }, data.client_email || null);
+          console.log('[NEXUS CORE] ✅ Accuse de reception envoye');
         }
-      } catch (depositError) {
-        console.error('[NEXUS CORE] ❌ Erreur envoi demande acompte:', depositError.message);
+      } catch (notifError) {
+        console.error('[NEXUS CORE] ❌ Erreur envoi notification demande:', notifError.message);
         // Ne pas echouer la reservation pour une notification
       }
     }
@@ -2182,10 +2207,10 @@ export async function createReservationUnified(data, channel = 'web', options = 
         distanceKm,
         fraisDeplacement,
         prixTotal: prixTotal / 100,
-        acompte: depositInfo ? depositInfo.montant : pricing.deposit,
+        acompte: depositInfo ? depositInfo.montant : 0,
         acompteTexte: depositInfo
           ? `${depositInfo.montant}€ (${depositInfo.taux}%) — acompte requis avant confirmation`
-          : `${pricing.deposit}€ (${BOOKING_RULES.DEPOSIT_PERCENT}%)`
+          : null
       },
       facture: facture ? { id: facture.id, numero: facture.numero, statut: facture.statut } : null
     };

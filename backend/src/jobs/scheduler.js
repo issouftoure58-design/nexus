@@ -645,7 +645,7 @@ export async function sendRelance24hJob() {
 
         console.log(`[Scheduler] 📤 Envoi relance 24h RDV ${rdv.id} - ${rdv.date} ${rdv.heure} - Tel: ...${telephone.slice(-4)}`);
 
-        const acompte = rdv.acompte || 10;
+        const acompte = rdv.acompte || 0;
         // tenantId déjà validé plus haut (ligne 619-624)
         const result = await sendRappelJ1(rdv, acompte, tenantId);
 
@@ -708,7 +708,7 @@ export async function sendRappelsJ1Job() {
           continue;
         }
 
-        const acompte = rdv.acompte || 10;
+        const acompte = rdv.acompte || 0;
         // 🔒 TENANT ISOLATION: tenant_id obligatoire
         const tenantId = rdv.tenant_id;
         if (!tenantId) {

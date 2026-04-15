@@ -119,7 +119,7 @@ async function sendEmail(to, subject, html) {
  * @param {number} acompte - Montant de l'acompte payé (défaut: 10€)
  * @returns {Promise<{email: Object, whatsapp: Object}>}
  */
-export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
+export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
   const results = {
     email: { success: false, error: 'Non envoyé' },
     whatsapp: { success: false, error: 'Non envoyé' },
@@ -135,7 +135,12 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
   if (clientEmail) {
     try {
       const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
-      const reste = total - acompte;
+      const reste = acompte > 0 ? total - acompte : 0;
+
+      const acompteHtml = acompte > 0
+        ? `<li><strong>Acompte réglé :</strong> ${acompte}€</li>
+          ${reste > 0 ? `<li><strong>Reste à payer :</strong> ${reste}€</li>` : ''}`
+        : '';
 
       const emailHtml = `
         <h2>Réservation confirmée !</h2>
@@ -146,8 +151,7 @@ export async function sendConfirmation(rdv, acompte = 10, tenantId = null) {
           <li><strong>Service :</strong> ${rdv.service_nom}</li>
           <li><strong>Adresse :</strong> ${rdv.adresse_client || rdv.adresse_formatee}</li>
           <li><strong>Total :</strong> ${total}€</li>
-          <li><strong>Acompte réglé :</strong> ${acompte}€</li>
-          ${reste > 0 ? `<li><strong>Reste à payer :</strong> ${reste}€</li>` : ''}
+          ${acompteHtml}
         </ul>
         <p style="margin-top: 20px;">
           <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">🔗 Créer votre compte client</a><br>

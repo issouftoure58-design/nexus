@@ -76,11 +76,10 @@ function getPrenom(rdv) {
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function confirmationReservation(rdv, acompte = 10, tenantId = null) {
+export function confirmationReservation(rdv, acompte = 0, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const duree = formatDuree(rdv.duree_minutes);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
-  const reste = total - acompte;
   const tenant = getTenantInfo(tenantId);
 
   let message = `✅ Réservation confirmée !
@@ -88,13 +87,17 @@ export function confirmationReservation(rdv, acompte = 10, tenantId = null) {
 📅 ${dateFr} à ${rdv.heure}
 📍 ${rdv.adresse_client || rdv.adresse_formatee}
 💇‍♀️ ${rdv.service_nom} (${duree})
-💰 Total : ${total}€
+💰 Total : ${total}€`;
+
+  if (acompte > 0) {
+    const reste = total - acompte;
+    message += `
 
 Acompte réglé : ${acompte}€`;
-
-  if (reste > 0) {
-    message += `
+    if (reste > 0) {
+      message += `
 Reste à payer : ${reste}€ (espèces/virement/PayPal)`;
+    }
   }
 
   message += `
@@ -116,20 +119,23 @@ ${tenant.gerant}`;
  * @param {string} tenantId - ID du tenant (V2)
  * @returns {string} Message formaté
  */
-export function rappelJ1(rdv, acompte = 10, tenantId = null) {
+export function rappelJ1(rdv, acompte = 0, tenantId = null) {
   const prenom = getPrenom(rdv);
   const dateFr = formatDateFr(rdv.date);
   const duree = formatDuree(rdv.duree_minutes);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
-  const reste = total - acompte;
   const tenant = getTenantInfo(tenantId);
+
+  const prixLine = acompte > 0
+    ? `💰 Reste : ${total - acompte}€`
+    : `💰 Total : ${total}€`;
 
   return `Bonjour ${prenom} ! 👋
 
 Petit rappel pour demain :
 📅 ${dateFr} à ${rdv.heure}
 📍 ${rdv.adresse_client || rdv.adresse_formatee}
-💰 Reste : ${reste}€
+${prixLine}
 
 N'oubliez pas :
 • Cheveux propres et démêlés si possible
