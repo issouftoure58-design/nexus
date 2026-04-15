@@ -881,10 +881,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       membre_id
     } = req.body;
 
-    // Récupérer la réservation actuelle avec téléphone client (🔒 TENANT ISOLATION)
+    // Récupérer la réservation actuelle avec infos client (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
-      .select('*, clients(telephone)')
+      .select('*, clients(nom, prenom, telephone, email)')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .single();
@@ -1014,8 +1014,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     // 📩 Notification client — confirmation ou modification
     {
-      const telephone = currentRdv.clients?.telephone;
-      const email = currentRdv.clients?.email;
+      // Fallback chain: clients join peut etre null (client supprime, FK manquant)
+      const telephone = currentRdv.clients?.telephone || currentRdv.telephone;
+      const email = currentRdv.clients?.email || currentRdv.client_email;
       const statutChanged = updates.statut && updates.statut !== currentRdv.statut;
       const becameConfirme = statutChanged && updates.statut === 'confirme';
       const detailsChanged = updates.service_nom || updates.date || updates.heure;
@@ -1028,8 +1029,8 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
             await sendConfirmation({
               client_telephone: telephone,
               client_email: email,
-              client_prenom: currentRdv.clients?.prenom,
-              client_nom: currentRdv.clients?.nom,
+              client_prenom: currentRdv.clients?.prenom || currentRdv.client_prenom,
+              client_nom: currentRdv.clients?.nom || currentRdv.client_nom,
               service_nom: updates.service_nom || currentRdv.service_nom,
               date: updates.date || currentRdv.date_rdv || currentRdv.date,
               heure: updates.heure || currentRdv.heure_rdv || currentRdv.heure,
@@ -1437,15 +1438,17 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // 📩 Notification client sur changement de statut → confirme
     if (statut === 'confirme' && currentRdv.statut !== 'confirme') {
       try {
-        const clientPhone = currentRdv.clients?.telephone;
-        const clientEmail = currentRdv.clients?.email;
+        // Fallback chain: clients join peut etre null (client supprime, FK manquant)
+        const clientPhone = currentRdv.clients?.telephone || currentRdv.telephone;
+        const clientEmail = currentRdv.clients?.email || currentRdv.client_email;
+        console.log(`[ADMIN STATUT] Resolution contact: phone=${clientPhone || 'NULL'}, email=${clientEmail || 'NULL'}, clients=${!!currentRdv.clients}`);
         if (clientPhone || clientEmail) {
           const { sendConfirmation } = await import('../services/notificationService.js');
           await sendConfirmation({
             client_telephone: clientPhone,
             client_email: clientEmail,
-            client_prenom: currentRdv.clients?.prenom,
-            client_nom: currentRdv.clients?.nom,
+            client_prenom: currentRdv.clients?.prenom || currentRdv.client_prenom,
+            client_nom: currentRdv.clients?.nom || currentRdv.client_nom,
             service_nom: currentRdv.service_nom,
             date: currentRdv.date_rdv || currentRdv.date,
             heure: currentRdv.heure_rdv || currentRdv.heure,
@@ -1455,6 +1458,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
             adresse_client: currentRdv.adresse_client,
           }, 0, tenantId);
           console.log(`[ADMIN STATUT] Confirmation envoyée au client (cascade Email→WA→SMS)`);
+        } else {
+          console.warn(`[ADMIN STATUT] Aucun contact client trouvé pour RDV ${req.params.id} — notification impossible`);
         }
       } catch (notifErr) {
         console.error('[ADMIN STATUT] Notification confirmation échouée (non bloquant):', notifErr.message);
