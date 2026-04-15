@@ -76,7 +76,7 @@ export function handleMediaStream(twilioWs) {
           activeSessions.set(streamSid, { openaiWs, tenantId, callSid, startTime, from, isAISpeaking: false });
 
           // Pipe les reponses OpenAI -> Twilio
-          setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid);
+          setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid, from);
 
           break;
         }
@@ -244,7 +244,7 @@ function sendGreeting(openaiWs, tenantId) {
 /**
  * Configure les listeners pour les messages OpenAI -> Twilio
  */
-function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) {
+function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid, callerPhone = null) {
   // Tracking pour barge-in intelligent
   let lastResponseId = null;
   let responseAudioStartedAt = 0;  // Quand l'audio de reponse a commence
@@ -398,7 +398,7 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
           }
 
           // Executer le tool via NEXUS CORE processMessage
-          const toolResult = await executeRealtimeTool(toolName, toolArgs, tenantId, callSid);
+          const toolResult = await executeRealtimeTool(toolName, toolArgs, tenantId, callSid, callerPhone);
 
           // Purger l'audio buffer avant de renvoyer le resultat du tool
           // Evite que du bruit capture pendant l'execution du tool ne declenche une interruption
@@ -461,9 +461,10 @@ function setupOpenAIListeners(openaiWs, twilioWs, streamSid, tenantId, callSid) 
  * @param {object} toolArgs
  * @param {string} tenantId
  * @param {string} callSid
+ * @param {string} [callerPhone] - Numéro de l'appelant (From Twilio) pour fallback
  * @returns {Promise<object>}
  */
-async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid) {
+async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid, callerPhone = null) {
   try {
     switch (toolName) {
       case 'consulter_services': {
@@ -491,13 +492,18 @@ async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid) {
       }
 
       case 'creer_reservation': {
+        // Utiliser le numéro appelant Twilio (From) comme fallback si l'IA n'a pas capté le numéro
+        const clientPhone = toolArgs.client_telephone || callerPhone;
+        if (!clientPhone) {
+          logger.warn(`REALTIME creer_reservation sans téléphone client (call=${callSid})`);
+        }
         const result = await createReservationUnified({
           tenant_id: tenantId,
           service_name: toolArgs.service_name,
           date: toolArgs.date,
           heure: toolArgs.heure,
           client_nom: toolArgs.client_nom,
-          client_telephone: toolArgs.client_telephone,
+          client_telephone: clientPhone,
           lieu: toolArgs.lieu || 'salon',
           adresse: toolArgs.adresse || null,
           nb_couverts: toolArgs.nb_couverts || null,

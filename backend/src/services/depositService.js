@@ -94,10 +94,10 @@ export async function handleDepositReceived(reservationId, tenantId) {
   const acompte = calculateDeposit(prixTotal, depositConfig.rate);
 
   const notifResult = await sendConfirmation({
-    client_telephone: rdv.clients?.telephone || rdv.client_telephone,
-    client_email: rdv.clients?.email || rdv.client_email,
-    client_prenom: rdv.clients?.prenom || rdv.client_prenom,
-    client_nom: rdv.clients?.nom || rdv.client_nom,
+    client_telephone: rdv.clients?.telephone || rdv.telephone || rdv.client_telephone,
+    client_email: rdv.clients?.email || rdv.email || rdv.client_email,
+    client_prenom: rdv.clients?.prenom || rdv.prenom || rdv.client_prenom,
+    client_nom: rdv.clients?.nom || rdv.nom || rdv.client_nom,
     service_nom: rdv.service_nom,
     date: rdv.date,
     heure: rdv.heure,
