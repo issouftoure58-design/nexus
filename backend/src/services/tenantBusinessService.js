@@ -230,15 +230,19 @@ export function getBusinessInfoSync(tenantId) {
   const urlsConfig = staticConfig?.urls || {};
   const assistantConfig = staticConfig?.assistant || {};
 
+  // Le config JSONB contient souvent les champs metier (assistantName, gerante, etc.)
+  const configJsonb = dbConfig?.config || {};
+
   return {
     id: tenantId,
     nom: dbConfig?.nom || dbConfig?.name || staticConfig?.name || tenantId,
     description: dbConfig?.description || dbConfig?.concept || staticConfig?.description || '',
     businessType: businessType,
     businessTypeLabel: typeConfig?.label || businessType,
-    gerant: staticConfig?.gerante || staticConfig?.manager || dbConfig?.assistant_name || 'Nexus',
+    gerant: configJsonb?.gerante || staticConfig?.gerante || staticConfig?.manager || 'le responsable',
     telephone: dbConfig?.telephone || staticConfig?.telephone || '',
-    whatsapp: staticConfig?.whatsapp || '',
+    telephone_transfert: configJsonb?.telephone || staticConfig?.telephone || '',
+    whatsapp: configJsonb?.whatsapp || staticConfig?.whatsapp || '',
     email: dbConfig?.email || staticConfig?.email || '',
     adresse: dbConfig?.adresse || locationConfig?.base_address || staticConfig?.adresse || '',
     zone: locationConfig?.zone || '',
@@ -255,13 +259,14 @@ export function getBusinessInfoSync(tenantId) {
       reviews: urlsConfig?.reviews || '/avis'
     },
     assistant: {
-      name: dbConfig?.assistant_name || staticConfig?.assistantName || assistantConfig?.name || 'Nexus',
-      voiceId: assistantConfig?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
-      personality: assistantConfig?.personality || 'friendly',
-      language: assistantConfig?.language || 'fr'
+      name: configJsonb?.assistantName || dbConfig?.assistant_name || staticConfig?.assistantName || assistantConfig?.name || configJsonb?.assistant?.name || 'Nexus',
+      voiceId: assistantConfig?.voice_id || configJsonb?.assistant?.voice_id || 'FFXYdAYPzn8Tw8KiHZqg',
+      personality: assistantConfig?.personality || configJsonb?.assistant?.personality || 'friendly',
+      language: assistantConfig?.language || configJsonb?.assistant?.language || 'fr'
     },
+    assistant_name: configJsonb?.assistantName || staticConfig?.assistantName || assistantConfig?.name || configJsonb?.assistant?.name || null,
     features: typeConfig?.features || {},
-    horaires: staticConfig?.horaires || {}
+    horaires: staticConfig?.horaires || configJsonb?.horaires || {}
   };
 }
 

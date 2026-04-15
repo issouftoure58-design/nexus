@@ -30,7 +30,9 @@ export function getVoiceSystemPrompt(tenantId) {
     const businessName = info.nom || 'Notre établissement';
     const ownerName = info.gerant || 'le responsable';
     const address = info.adresse || '';
-    const isFeminine = info.assistant_gender === 'f' || assistantName === 'Halimah';
+    const isFeminine = info.assistant_gender === 'f' || ['Halimah', 'Sofia', 'Emma', 'Lea'].includes(assistantName);
+
+    logger.info(`[VOICE_PROMPT] Tenant: ${tenantId}, assistant: ${assistantName}, business: ${businessName}`, { tag: 'VOICE_PROMPT' });
 
     return `Tu es ${assistantName}, l'assistant${isFeminine ? 'e' : ''} vocal${isFeminine ? 'e' : ''} de ${businessName}.
 
