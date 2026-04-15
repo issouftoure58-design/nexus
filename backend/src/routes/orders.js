@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { sendConfirmation } from '../services/notificationService.js';
+import { sendConfirmation, sendDepositRequest } from '../services/notificationService.js';
+import { getDepositConfig, calculateDeposit } from '../services/depositService.js';
 // 🔒 NEXUS CORE - Fonction unique de création RDV
 import { createReservationUnified } from '../core/unified/nexusCore.js';
 // 🔒 Config publique pour le checkout + règles métier
@@ -591,48 +592,66 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
 // ============= ENVOYER CONFIRMATION COMMANDE =============
 async function sendOrderConfirmation(order, items, telephone, email, tenantId = null) {
   try {
-    // Formater la liste des services
-    const servicesList = items.map(item => {
-      const nom = item.service_nom || item.serviceNom;
-      const prix = (item.prix / 100).toFixed(0);
-      return `- ${nom} (${prix}€)`;
-    }).join('\n');
-
-    const dateFormatted = new Date(order.date_rdv).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
+    const effectiveTenantId = tenantId || order.tenant_id;
 
     let defaultAddress = 'Sur place';
     try {
-      const info = getDefaultLocation(tenantId);
+      const info = getDefaultLocation(effectiveTenantId);
       defaultAddress = info || defaultAddress;
     } catch (e) { /* fallback */ }
     const lieuText = order.lieu === 'sur_place'
       ? defaultAddress
       : order.adresse_client;
 
-    const totalEuros = (order.total / 100).toFixed(0);
-    const paiementText = order.paiement_methode === 'sur_place'
-      ? 'À régler sur place'
-      : 'Payé en ligne';
+    const totalEuros = order.total / 100; // Convertir centimes en euros
+    const serviceNom = items.map(i => i.service_nom || i.serviceNom).join(', ');
 
-    // Envoyer notification (Email + WhatsApp) via notificationService
+    // Construire les données de notification
+    const rdvForNotification = {
+      client_telephone: telephone,
+      client_email: email,
+      client_nom: order.client_nom,
+      date: order.date_rdv,
+      heure: order.heure_debut,
+      service_nom: serviceNom,
+      adresse_client: lieuText,
+      total: totalEuros,
+    };
+
     try {
-      const rdvForNotification = {
-        client_telephone: telephone,
-        client_email: email,
-        client_nom: order.client_nom,
-        date: order.date_rdv,
-        heure: order.heure_debut,
-        service_nom: items.map(i => i.service_nom || i.serviceNom).join(', '),
-        adresse_client: lieuText,
-        total: order.total / 100, // Convertir centimes en euros
-      };
+      const isPaidOnline = order.paiement_methode !== 'sur_place';
 
-      const acompte = order.paiement_methode === 'sur_place' ? 0 : 10;
-      await sendConfirmation(rdvForNotification, acompte, tenantId || order.tenant_id);
+      if (isPaidOnline) {
+        // Paiement en ligne (Stripe/PayPal) → le client paie le montant complet
+        // Pas besoin de demande d'acompte, envoyer confirmation directe
+        await sendConfirmation(rdvForNotification, 0, effectiveTenantId);
+        console.log('[ORDERS] ✅ Confirmation envoyee (paiement en ligne)');
+      } else {
+        // Paiement sur place → verifier si acompte est active
+        const depositConfig = await getDepositConfig(effectiveTenantId);
+
+        if (depositConfig.enabled && depositConfig.paymentUrl && totalEuros > 0) {
+          // Acompte actif → envoyer demande de paiement
+          const montantAcompte = calculateDeposit(order.total, depositConfig.rate);
+          console.log(`[ORDERS] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${totalEuros}€)`);
+
+          await sendDepositRequest(effectiveTenantId, telephone, {
+            montant: montantAcompte,
+            total: totalEuros,
+            lien: depositConfig.paymentUrl,
+            service: serviceNom,
+            date: order.date_rdv,
+            heure: order.heure_debut,
+            clientNom: order.client_prenom || order.client_nom || null,
+          }, email);
+
+          console.log('[ORDERS] ✅ Demande d\'acompte envoyee (paiement sur place)');
+        } else {
+          // Pas d'acompte → envoyer accuse de reception
+          await sendConfirmation(rdvForNotification, 0, effectiveTenantId);
+          console.log('[ORDERS] ✅ Accuse de reception envoye (sur place, pas d\'acompte)');
+        }
+      }
     } catch (notifError) {
       console.error('[ORDERS] Erreur notification:', notifError);
     }

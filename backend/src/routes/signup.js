@@ -479,8 +479,9 @@ router.post('/', signupLimiter, async (req, res) => {
     // 3. CREER TENANT
     // ═══════════════════════════════════════════════════
 
-    const essai_fin = new Date();
-    essai_fin.setDate(essai_fin.getDate() + 14); // 14 jours
+    // Tous les plans sont actifs immediatement
+    // Free = gratuit a vie (avec quotas), Basic/Business = paiement immediat
+    const isFree = plan_id === 'free';
 
     // Construire modules actifs depuis les flags du plan
     const modules_actifs = [];
@@ -504,15 +505,14 @@ router.post('/', signupLimiter, async (req, res) => {
         id: tenant_id,
         name: company_name,
         tier: plan_id, // Required field
-        status: 'trial',
+        status: 'active',
         domain: `${tenant_id}.nexus-ai-saas.com`,
         plan: plan_id,
         secteur_id,
         modules_actifs,
         modules_metier_actifs: secteur.modules_metier || [],
         periode_facturation: periode || 'monthly',
-        essai_fin: essai_fin.toISOString(),
-        statut: 'essai',
+        statut: 'actif',
         // Structure juridique et fiscalité
         structure_juridique: effectiveStructure,
         tax_status: effectiveTaxStatus,
@@ -593,7 +593,6 @@ router.post('/', signupLimiter, async (req, res) => {
               quantity: 1
             }],
             subscription_data: {
-              trial_period_days: 14,
               metadata: {
                 tenant_id,
                 plan_id,
@@ -892,7 +891,6 @@ router.post('/', signupLimiter, async (req, res) => {
         id: plan.id,
         nom: plan.nom
       },
-      essai_fin: essai_fin.toISOString(),
       checkout_url: checkoutUrl,
       dashboard_url: `https://app.nexus-ai-saas.com/admin`,
       onboarding: {

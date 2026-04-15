@@ -606,7 +606,7 @@ function StepPlan({
       </div>
 
       <p className="text-xs text-center text-gray-400">
-        Offre de lancement — 100 premiers clients. Vous ne serez pas facturé pendant les 14 premiers jours.
+        Envie de tester sans carte bancaire ? Choisissez le plan Free, sans engagement ni limite de temps. Une fois convaincu, passez sur le plan adapté à vos besoins en un clic.
       </p>
     </div>
   );
@@ -860,7 +860,7 @@ export default function Signup() {
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : step === 4 ? (
-                  "Commencer l'essai gratuit (14 jours)"
+                  selectedPlan === 'free' ? "Créer mon compte gratuit" : "Créer mon compte"
                 ) : (
                   <>Suivant <ArrowRight className="w-4 h-4 ml-2" /></>
                 )}
