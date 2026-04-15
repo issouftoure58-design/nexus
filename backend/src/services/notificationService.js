@@ -791,22 +791,17 @@ export async function sendDepositRequest(tenantId, phone, details, email = null)
     }
   }
 
-  // 3. SMS fallback (seulement si email ET WhatsApp ont echoue)
-  const emailDelivered = results.email?.success;
-  const whatsappDelivered = results.whatsapp?.success;
-
-  if (phone && !emailDelivered && !whatsappDelivered) {
+  // 3. SMS TOUJOURS envoye pour les acomptes (le client a besoin du lien de paiement par SMS)
+  if (phone) {
     try {
       const smsMessage = `${t.salonName}\nAcompte requis : ${montant}\u20AC\n\nRDV ${date} a ${heure}\n${service} - ${total}\u20AC\n\n${lien ? `Payer ici : ${lien}\n\n` : ''}Confirmation apres paiement.\n${t.telephone}`;
 
       results.sms = await sendSMS(phone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS acompte (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+      console.log(`[Notification] SMS acompte envoye a ${phone}:`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur SMS acompte:', error.message);
       results.sms = { success: false, error: error.message };
     }
-  } else if (phone) {
-    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
   }
 
   return results;

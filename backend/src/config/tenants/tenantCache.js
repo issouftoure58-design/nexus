@@ -195,9 +195,26 @@ async function loadPhoneNumbers() {
       }
     }
 
+    // Also load from tenants.twilio_phone_number column (migration 073)
+    const { data: twilioPhones } = await rawSupabase
+      .from('tenants')
+      .select('slug, id, twilio_phone_number')
+      .not('twilio_phone_number', 'is', null);
+
+    if (twilioPhones) {
+      for (const row of twilioPhones) {
+        const tenantId = row.slug || row.id;
+        if (row.twilio_phone_number && !phoneMap.has(row.twilio_phone_number)) {
+          phoneMap.set(row.twilio_phone_number, tenantId);
+          logger.info('Twilio phone mapping added', { tag: 'TenantCache', phone: row.twilio_phone_number, tenantId });
+        }
+      }
+    }
+
     // Static tenant phone numbers (fallback for tenants not yet in DB)
     const staticPhones = {
       '+33974995631': 'nexus-test',
+      '+33939240269': 'fatshairafro',
     };
     for (const [phone, tenantId] of Object.entries(staticPhones)) {
       if (!phoneMap.has(phone)) {
