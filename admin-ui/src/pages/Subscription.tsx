@@ -91,7 +91,7 @@ const PLANS = [
       { text: '10 réservations / mois', icon: Clock },
       { text: '10 factures / mois (avec watermark)', icon: FileText },
       { text: '30 clients max dans le CRM', icon: Users },
-      { text: '3 prestations max', icon: Sparkles },
+      { text: 'Prestations illimitées', icon: Sparkles },
       { text: '1 utilisateur', icon: Users },
       { text: 'Tous les modules visibles', icon: Globe },
       { text: 'Fonctions IA bloquées', icon: Shield },
@@ -182,7 +182,7 @@ export default function Subscription() {
     },
   });
 
-  // Mutation pour creer une Checkout Session (upgrade Free → Basic / Basic → Business)
+  // Mutation pour creer une Checkout Session (premiere souscription : Free → Basic/Business)
   const checkoutMutation = useMutation({
     mutationFn: (planId: 'basic' | 'business') => {
       const productCode = `nexus_${planId}_${billingCycle === 'yearly' ? 'yearly' : 'monthly'}`;
@@ -202,7 +202,25 @@ export default function Subscription() {
     },
   });
 
-  // Decide si on doit utiliser checkout (pas d'abo Stripe) ou portal (deja abo)
+  // Mutation pour changer de plan payant (Basic ↔ Business) sans passer par le portal Stripe
+  // Utilise l'API subscription update directement (prorata auto cote Stripe)
+  const changePlanMutation = useMutation({
+    mutationFn: (planId: 'basic' | 'business') =>
+      api.post<{ success: boolean; plan: string }>('/billing/change-plan', {
+        planId,
+        cycle: billingCycle === 'yearly' ? 'yearly' : 'monthly',
+      }),
+    onSuccess: () => {
+      // Refresh des donnees d'abonnement
+      window.location.href = `${window.location.pathname}?plan-changed=success`;
+    },
+    onError: (err: Error) => {
+      setError(err.message || 'Impossible de changer de plan');
+    },
+  });
+
+  // Decide quel flux Stripe utiliser : checkout (premiere souscription),
+  // change-plan (switch entre plans payants) ou portal (downgrade vers Free / annulation)
   const handleSelectPlan = (planId: string) => {
     if (planId === currentPlan) return;
     if (planId === 'free') {
@@ -211,8 +229,8 @@ export default function Subscription() {
       return;
     }
     if (subscriptionData?.has_subscription) {
-      // Deja un abo actif → portal pour switcher
-      portalMutation.mutate();
+      // Deja un abo payant → change-plan direct (pas besoin du portal)
+      changePlanMutation.mutate(planId as 'basic' | 'business');
       return;
     }
     // Sinon checkout direct (premier abo)
@@ -481,7 +499,7 @@ export default function Subscription() {
                     ) : (
                       <button
                         onClick={() => handleSelectPlan(plan.id)}
-                        disabled={checkoutMutation.isPending || portalMutation.isPending}
+                        disabled={checkoutMutation.isPending || portalMutation.isPending || changePlanMutation.isPending}
                         className={cn(
                           'w-full py-2.5 px-4 rounded-lg font-medium transition-colors disabled:opacity-60',
                           plan.id === 'business'
@@ -491,8 +509,8 @@ export default function Subscription() {
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                         )}
                       >
-                        {(checkoutMutation.isPending || portalMutation.isPending)
-                          ? 'Redirection...'
+                        {(checkoutMutation.isPending || portalMutation.isPending || changePlanMutation.isPending)
+                          ? 'Mise a jour...'
                           : PLANS.findIndex(p => p.id === plan.id) > PLANS.findIndex(p => p.id === currentPlan)
                           ? 'Passer à ce plan'
                           : 'Rétrograder'}

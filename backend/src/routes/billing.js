@@ -284,6 +284,35 @@ router.post('/payment-methods/:id/default', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// CHANGE PLAN (upgrade / downgrade direct)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/billing/change-plan
+ * Change le plan d'un abonnement existant (upgrade/downgrade direct).
+ * Body: { planId: 'basic' | 'business', cycle: 'monthly' | 'yearly' }
+ */
+router.post('/change-plan', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { planId, cycle = 'monthly' } = req.body;
+
+    if (!['basic', 'business'].includes(planId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'planId invalide (basic | business)'
+      });
+    }
+
+    const result = await billingService.changeSubscriptionPlan(tenantId, planId, cycle);
+    res.json(result);
+  } catch (error) {
+    logger.error('Billing Erreur POST change-plan:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // CUSTOMER PORTAL
 // ════════════════════════════════════════════════════════════════════
 

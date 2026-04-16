@@ -48,6 +48,45 @@ function toStripeAmount(centimes) {
   return Math.round(centimes);
 }
 
+/**
+ * Cree la config IA web par defaut pour un tenant (idempotent).
+ * Appelee quand le plan Basic/Business active `agent_ia_web` → le chat est
+ * self-service, le tenant doit pouvoir utiliser le widget sans config manuelle.
+ * Si une config existe deja, ne fait rien.
+ */
+async function createDefaultWebIAConfig(tenantId) {
+  const { data: existing } = await supabase
+    .from('tenant_ia_config')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('channel', 'web')
+    .maybeSingle();
+
+  if (existing) return; // deja configure
+
+  await supabase
+    .from('tenant_ia_config')
+    .insert({
+      tenant_id: tenantId,
+      channel: 'web',
+      config: {
+        greeting_message: "Bonjour ! Je suis l'assistant virtuel. Comment puis-je vous aider ?",
+        tone: 'professionnel',
+        language: 'fr-FR',
+        personality: 'Assistant professionnel et amical',
+        services_description: '',
+        booking_enabled: true,
+        show_typing_indicator: true,
+        auto_open_delay_ms: 0,
+        position: 'bottom-right',
+        theme: 'light',
+        active: true,
+      },
+    });
+
+  console.log(`[Stripe Webhook] Config IA web auto-creee pour ${tenantId}`);
+}
+
 // ════════════════════════════════════════════════════════════════════
 // CUSTOMERS
 // ════════════════════════════════════════════════════════════════════
@@ -559,6 +598,91 @@ export async function setDefaultPaymentMethod(tenantId, paymentMethodId) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// CHANGE PLAN (upgrade / downgrade direct sans portal)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Change le plan d'un abonnement existant (upgrade/downgrade entre plans payants).
+ * Evite de dependre de la config Stripe Customer Portal.
+ * Prorata automatique applique par Stripe.
+ *
+ * @param {string} tenantId
+ * @param {string} planId - 'basic' | 'business'
+ * @param {string} cycle - 'monthly' | 'yearly'
+ */
+export async function changeSubscriptionPlan(tenantId, planId, cycle = 'monthly') {
+  if (!stripe) throw new Error('Stripe not configured');
+  if (!['basic', 'business'].includes(planId)) {
+    throw new Error('Plan invalide (basic | business)');
+  }
+
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('stripe_subscription_id')
+    .eq('id', tenantId)
+    .single();
+
+  if (error) throw error;
+  if (!tenant?.stripe_subscription_id) {
+    throw new Error('Aucun abonnement actif — utilisez /billing/checkout pour souscrire');
+  }
+
+  // Resolve product_code → stripe_price_id
+  const productCode = `nexus_${planId}_${cycle === 'yearly' ? 'yearly' : 'monthly'}`;
+  const { data: product } = await supabase
+    .from('stripe_products')
+    .select('stripe_price_id')
+    .eq('product_code', productCode)
+    .single();
+
+  if (!product?.stripe_price_id) {
+    throw new Error(`Prix non trouve pour ${productCode}. Executer sync-stripe-products.mjs`);
+  }
+
+  // Recuperer la subscription pour obtenir l'item a modifier
+  const subscription = await stripe.subscriptions.retrieve(tenant.stripe_subscription_id);
+  if (!subscription.items?.data?.[0]?.id) {
+    throw new Error('Subscription sans items — etat invalide');
+  }
+  const itemId = subscription.items.data[0].id;
+
+  // Si deja sur le bon prix → no-op
+  if (subscription.items.data[0].price?.id === product.stripe_price_id) {
+    return {
+      success: true,
+      subscription_id: subscription.id,
+      plan: planId,
+      cycle,
+      message: 'Deja sur ce plan'
+    };
+  }
+
+  // Update subscription avec prorata automatique
+  const updated = await stripe.subscriptions.update(tenant.stripe_subscription_id, {
+    items: [{ id: itemId, price: product.stripe_price_id }],
+    proration_behavior: 'create_prorations',
+    // Si etait annule a la fin de periode, on re-active le renouvellement
+    cancel_at_period_end: false,
+    metadata: {
+      ...(subscription.metadata || {}),
+      plan: planId,
+      cycle,
+      plan_changed_at: new Date().toISOString()
+    }
+  });
+
+  console.log(`[Stripe] Plan change pour tenant ${tenantId}: → ${planId} ${cycle}`);
+
+  return {
+    success: true,
+    subscription_id: updated.id,
+    plan: planId,
+    cycle,
+    status: updated.status
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════
 // PORTAL
 // ════════════════════════════════════════════════════════════════════
 
@@ -613,17 +737,9 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
   // Recuperer ou creer le customer
   const customer = await getOrCreateCustomer(tenantId);
 
-  // Recuperer les infos du tenant pour le trial
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('plan, essai_fin, statut')
-    .eq('id', tenantId)
-    .single();
-
-  // 🔒 SÉCURITÉ: Ne JAMAIS accorder de trial Stripe si le tenant a déjà eu un essai
-  // (empêche le double trial: 14j NEXUS + 14j Stripe = 28j)
-  const hasHadTrial = tenant?.essai_fin != null;
-
+  // 🔒 SÉCURITÉ: Pas de trial Stripe. L'essai est gere cote NEXUS (statut='essai'
+  // + essai_fin). Un tenant qui arrive sur /subscription pour payer a deja
+  // consomme (ou refuse) son essai NEXUS — pas de double trial.
   const sessionParams = {
     customer: customer.id,
     payment_method_types: ['card'],
@@ -643,11 +759,6 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
       }
     }
   };
-
-  // Pas de trial Stripe si le tenant a déjà bénéficié d'un essai NEXUS
-  if (!hasHadTrial) {
-    sessionParams.subscription_data.trial_period_days = 14;
-  }
 
   const session = await stripe.checkout.sessions.create(sessionParams);
 
@@ -834,9 +945,10 @@ async function handleSubscriptionUpdate(subscription) {
 
   // Extraire le plan depuis les items de la subscription
   const planId = extractPlanFromSubscription(subscription);
-  const modulesActifs = computeModulesFromPlan(planId);
+  const planModules = computeModulesFromPlan(planId);
 
   const updateData = {
+    stripe_subscription_id: subscription.id,
     subscription_status: subscription.status,
     subscription_cancel_at: subscription.cancel_at
       ? new Date(subscription.cancel_at * 1000).toISOString()
@@ -849,15 +961,32 @@ async function handleSubscriptionUpdate(subscription) {
     updateData.plan_id = planId;
     updateData.plan = planId;
     updateData.tier = planId;
-    updateData.modules_actifs = modulesActifs;
     updateData.statut = subscription.status === 'trialing' ? 'essai' : 'actif';
 
-    // Extraire canaux depuis modules pour options_canaux_actifs
+    // Merger avec modules existants au lieu d'ecraser :
+    // - Les modules manuellement actives par super-admin (whatsapp, telephone, ...)
+    //   ne sont PAS dans planModules → ils sont preserves tels quels.
+    // - Les modules du plan ecrasent la valeur precedente (on veut pouvoir
+    //   les activer au upgrade et les desactiver au downgrade).
+    const { data: current } = await supabase
+      .from('tenants')
+      .select('modules_actifs')
+      .eq('id', tenantId)
+      .single();
+
+    const existingModules = (current?.modules_actifs && typeof current.modules_actifs === 'object')
+      ? current.modules_actifs
+      : {};
+
+    updateData.modules_actifs = { ...existingModules, ...planModules };
+
+    // Extraire canaux depuis modules_actifs mergés pour options_canaux_actifs
+    const mergedModules = updateData.modules_actifs;
     const canauxActifs = {};
-    if (modulesActifs.agent_ia_web) canauxActifs.agent_ia_web = true;
-    if (modulesActifs.agent_ia_whatsapp) canauxActifs.agent_ia_whatsapp = true;
-    if (modulesActifs.agent_ia_telephone) canauxActifs.agent_ia_telephone = true;
-    if (modulesActifs.site_web) canauxActifs.site_web = true;
+    if (mergedModules.agent_ia_web) canauxActifs.agent_ia_web = true;
+    if (mergedModules.agent_ia_whatsapp) canauxActifs.agent_ia_whatsapp = true;
+    if (mergedModules.agent_ia_telephone) canauxActifs.agent_ia_telephone = true;
+    if (mergedModules.site_web) canauxActifs.site_web = true;
     updateData.options_canaux_actifs = canauxActifs;
   }
 
@@ -866,40 +995,68 @@ async function handleSubscriptionUpdate(subscription) {
     .update(updateData)
     .eq('id', tenantId);
 
+  // Auto-creer la config IA web par defaut si le plan l'active (chat web = self-service)
+  if (
+    (subscription.status === 'active' || subscription.status === 'trialing') &&
+    planModules.agent_ia_web === true
+  ) {
+    try {
+      await createDefaultWebIAConfig(tenantId);
+    } catch (err) {
+      console.error(`[Stripe Webhook] Erreur creation config IA web pour ${tenantId}:`, err.message);
+      // Non-bloquant
+    }
+  }
+
   console.log(`[Stripe Webhook] Subscription ${subscription.id} mise a jour pour ${tenantId}: status=${subscription.status}, plan=${planId}`);
 
-  // 💳 Octroi des crédits IA mensuels Business à chaque renouvellement de période
-  // Détection : on grant uniquement quand on entre dans une nouvelle période active
-  // Pour éviter les doublons, on vérifie le marqueur monthly_reset_at dans ai_credits.
-  if (planId === 'business' && (subscription.status === 'active' || subscription.status === 'trialing')) {
+  // 💳 Octroi des crédits IA mensuels inclus (Basic & Business) a chaque renouvellement de periode
+  // - Premiere activation d'un plan payant : grant complet + init monthly_included
+  // - Renouvellement periode : grant complet (monthly_reset_at depassee)
+  // - Upgrade Basic -> Business en cours de periode : top-up de la difference
+  // - Downgrade Business -> Basic : pas de nouveau grant, monthly_included ajuste pour prochain reset
+  if (
+    ['basic', 'business'].includes(planId) &&
+    (subscription.status === 'active' || subscription.status === 'trialing')
+  ) {
     try {
-      const monthlyAmount = MONTHLY_INCLUDED.business || 0;
+      const monthlyAmount = MONTHLY_INCLUDED[planId] || 0;
       if (monthlyAmount > 0) {
         const balance = await creditsService.getBalance(tenantId);
         const now = new Date();
         const lastReset = balance.monthly_reset_at ? new Date(balance.monthly_reset_at) : null;
+        const periodExpired = !lastReset || lastReset <= now;
 
-        // Grant si jamais grant ou si la période de reset est passée
-        const shouldGrant = !lastReset || lastReset <= now;
+        const currentIncluded = balance.monthly_included || 0;
+        const isUpgrade = !periodExpired && monthlyAmount > currentIncluded;
 
-        if (shouldGrant) {
+        let granted = 0;
+        if (periodExpired) {
+          // Nouvelle periode : grant complet
           await creditsService.grantMonthlyIncluded(tenantId, monthlyAmount);
+          granted = monthlyAmount;
+        } else if (isUpgrade) {
+          // Upgrade en cours de periode : top-up de la difference
+          const delta = monthlyAmount - currentIncluded;
+          await creditsService.grantMonthlyIncluded(tenantId, delta);
+          granted = delta;
+        }
 
-          // Programmer le prochain reset au mois suivant
+        // Mettre a jour monthly_included (plan change) + reset cycle si nouvelle periode
+        const updates = { monthly_included: monthlyAmount };
+        if (periodExpired) {
           const nextReset = new Date(now);
           nextReset.setMonth(nextReset.getMonth() + 1);
           nextReset.setDate(1);
           nextReset.setHours(0, 0, 0, 0);
+          updates.monthly_reset_at = nextReset.toISOString();
+          updates.monthly_used = 0;
+        }
 
-          await supabase
-            .from('ai_credits')
-            .update({
-              monthly_reset_at: nextReset.toISOString(),
-              monthly_used: 0,
-            })
-            .eq('tenant_id', tenantId);
+        await supabase.from('ai_credits').update(updates).eq('tenant_id', tenantId);
 
-          console.log(`[Stripe Webhook] Grant mensuel Business: +${monthlyAmount} crédits à ${tenantId}`);
+        if (granted > 0) {
+          console.log(`[Stripe Webhook] Grant mensuel ${planId}: +${granted} credits a ${tenantId}`);
         }
       }
     } catch (err) {
@@ -907,7 +1064,7 @@ async function handleSubscriptionUpdate(subscription) {
         tags: { service: 'stripe', operation: 'grant_monthly_credits' },
         extra: { tenantId, planId },
       });
-      console.error(`[Stripe Webhook] Erreur grant mensuel Business pour ${tenantId}:`, err.message);
+      console.error(`[Stripe Webhook] Erreur grant mensuel ${planId} pour ${tenantId}:`, err.message);
       // Non-bloquant
     }
   }
@@ -968,6 +1125,12 @@ function computeModulesFromPlan(planId) {
     telephone: false,
   };
 
+  // NOTE: `whatsapp`, `telephone`, `agent_ia_whatsapp`, `agent_ia_telephone` ne
+  // sont PAS dans cette liste car ils necessitent un provisioning Twilio
+  // manuel (cf memory/activation-ia-protocol.md). Le tenant doit faire une
+  // demande d'activation depuis /ia-whatsapp ou /ia-telephone → super-admin
+  // approuve dans Sentinel apres avoir configure le numero Twilio.
+  // Seul `agent_ia_web` est auto-active (self-service, aucun provisioning).
   const BASIC_MODULES = {
     dashboard: true,
     clients: true,
@@ -978,12 +1141,8 @@ function computeModulesFromPlan(planId) {
     ecommerce: true,
     reviews: true,
     waitlist: true,
-    // ✨ IA débloquée (consomme des crédits)
+    // ✨ Chat web IA auto-active (self-service, pas de numero)
     agent_ia_web: true,
-    whatsapp: true,
-    telephone: true,
-    agent_ia_whatsapp: true,
-    agent_ia_telephone: true,
     // Modules avancés débloqués
     comptabilite: true,
     crm_avance: true,
@@ -1219,6 +1378,7 @@ export default {
   deletePaymentMethod,
   setDefaultPaymentMethod,
   createPortalSession,
+  changeSubscriptionPlan,
   createCheckoutSession,
   createOneTimeCheckout,
   handleWebhookEvent
