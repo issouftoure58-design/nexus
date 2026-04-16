@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
 
 export interface ServiceItem {
+  id?: number;       // présent si service chargé depuis la DB (créé par signup auto-onboarding)
   nom: string;
   duree_minutes: number;
   prix: number;

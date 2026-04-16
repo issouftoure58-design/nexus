@@ -559,20 +559,22 @@ export const BUSINESS_TEMPLATES = {
     // Prix indicatifs hôtel 3 étoiles France hors Paris (2025-2026)
     // Durée = 0 car l'hôtel fonctionne en nuitées (check-in/check-out), pas en créneaux horaires
     defaultServices: [
-      { name: 'Chambre Simple', duration: 0, price: 80, category: 'chambre' },
-      { name: 'Chambre Double', duration: 0, price: 120, category: 'chambre' },
-      { name: 'Chambre Twin', duration: 0, price: 120, category: 'chambre' },
-      { name: 'Chambre Familiale', duration: 0, price: 160, category: 'chambre' },
-      { name: 'Suite Junior', duration: 0, price: 180, category: 'suite' },
-      { name: 'Suite Prestige', duration: 0, price: 280, category: 'suite' },
-      { name: 'Petit-déjeuner', duration: 0, price: 15, category: 'restauration' },
-      { name: 'Demi-pension', duration: 0, price: 35, category: 'restauration' },
-      { name: 'Pension complète', duration: 0, price: 55, category: 'restauration' },
-      { name: 'Late check-out (14h)', duration: 0, price: 30, category: 'option' },
-      { name: 'Early check-in (10h)', duration: 0, price: 25, category: 'option' },
-      { name: 'Parking', duration: 0, price: 15, category: 'option' },
-      { name: 'Lit bébé', duration: 0, price: 0, category: 'option' },
-      { name: 'Transfert aéroport/gare', duration: 0, price: 40, category: 'option' },
+      // type_chambre + capacite_max requis pour apparaitre dans /admin/hotel/chambres
+      { name: 'Chambre Simple', duration: 0, price: 80, category: 'chambre', type_chambre: 'simple', capacite_max: 1 },
+      { name: 'Chambre Double', duration: 0, price: 120, category: 'chambre', type_chambre: 'double', capacite_max: 2 },
+      { name: 'Chambre Twin', duration: 0, price: 120, category: 'chambre', type_chambre: 'twin', capacite_max: 2 },
+      { name: 'Chambre Familiale', duration: 0, price: 160, category: 'chambre', type_chambre: 'familiale', capacite_max: 4 },
+      { name: 'Suite Junior', duration: 0, price: 180, category: 'suite', type_chambre: 'suite_junior', capacite_max: 2 },
+      { name: 'Suite Prestige', duration: 0, price: 280, category: 'suite', type_chambre: 'suite', capacite_max: 3 },
+      { name: 'Petit-déjeuner', duration: 0, price: 15, category: 'restauration', facturation: 'par_nuit' },
+      { name: 'Demi-pension', duration: 0, price: 35, category: 'restauration', facturation: 'par_nuit' },
+      { name: 'Pension complète', duration: 0, price: 55, category: 'restauration', facturation: 'par_nuit' },
+      { name: 'Late check-out (14h)', duration: 0, price: 30, category: 'option', facturation: 'forfait' },
+      { name: 'Early check-in (10h)', duration: 0, price: 25, category: 'option', facturation: 'forfait' },
+      { name: 'Parking', duration: 0, price: 15, category: 'option', facturation: 'par_nuit' },
+      { name: 'Lit bébé', duration: 0, price: 0, category: 'option', facturation: 'forfait' },
+      { name: 'Transfert aéroport/gare - Arrivée', duration: 0, price: 25, category: 'option', facturation: 'forfait' },
+      { name: 'Transfert aéroport/gare - Départ', duration: 0, price: 25, category: 'option', facturation: 'forfait' },
     ],
 
     defaultHours: {

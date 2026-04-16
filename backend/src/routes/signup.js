@@ -699,16 +699,29 @@ router.post('/', signupLimiter, async (req, res) => {
     };
 
     // 7a. CRÉER LES SERVICES PAR DÉFAUT
+    // IMPORTANT :
+    //  - la colonne canonique pour la catégorie est `categorie` (FR). On écrit
+    //    aussi `category` (EN) pour rétro-compat avec d'anciennes lectures IA.
+    //  - les prix dans les templates sont en EUROS, la colonne `services.prix`
+    //    stocke des CENTIMES (convention alignée avec adminServices/adminAuth/tenants).
     if (template.defaultServices && template.defaultServices.length > 0) {
       const servicesToInsert = template.defaultServices.map((svc, index) => ({
         tenant_id,
         nom: svc.name,
         description: svc.description || '',
         duree: svc.duration,
-        prix: svc.price,
+        prix: Math.round((svc.price || 0) * 100), // euros → centimes
+        categorie: svc.category || 'other',
         category: svc.category || 'other',
         actif: true,
         ordre: index + 1,
+        // Colonnes specifiques metier (hotel/restaurant). Si absentes du template,
+        // le undefined est ignore par Supabase → valeur par defaut DB.
+        ...(svc.type_chambre ? { type_chambre: svc.type_chambre } : {}),
+        ...(svc.capacite_max ? { capacite_max: svc.capacite_max } : {}),
+        ...(svc.capacite ? { capacite: svc.capacite } : {}),
+        ...(svc.zone ? { zone: svc.zone } : {}),
+        ...(svc.facturation ? { facturation: svc.facturation } : {}),
       }));
 
       const { error: servicesError } = await supabase
@@ -847,20 +860,33 @@ router.post('/', signupLimiter, async (req, res) => {
       }
     }
 
-    // Calculer si l'onboarding est complet
+    // Calculer si l'auto-onboarding a réussi (pour logs)
     const allStepsOk = Object.values(onboardingSteps).every(s => s.status === 'ok');
     const failedSteps = Object.entries(onboardingSteps)
       .filter(([, s]) => s.status === 'error')
       .map(([key]) => key);
 
-    // Sauvegarder l'état d'onboarding sur le tenant
-    await supabase
-      .from('tenants')
-      .update({
-        onboarding_completed: allStepsOk,
+    // Sauvegarder l'etat d'onboarding sur le tenant (diagnostic uniquement)
+    // NOTE: onboarding_completed reste FALSE (deja mis a jour plus haut)
+    // → user doit passer par /configuration a la 1ere connexion pour valider/personnaliser.
+    // La table tenants n'a pas de colonne `onboarding_steps` → on stocke dans config.onboarding_steps (JSONB).
+    try {
+      const { data: existingCfg } = await supabase
+        .from('tenants')
+        .select('config')
+        .eq('id', tenant_id)
+        .single();
+      const mergedConfig = {
+        ...(existingCfg?.config || {}),
         onboarding_steps: onboardingSteps,
-      })
-      .eq('id', tenant_id);
+      };
+      await supabase
+        .from('tenants')
+        .update({ onboarding_completed: false, config: mergedConfig })
+        .eq('id', tenant_id);
+    } catch (e) {
+      console.warn('[SIGNUP] Merge config.onboarding_steps failed:', e.message);
+    }
 
     if (failedSteps.length > 0) {
       console.warn(`[SIGNUP] ⚠️ Onboarding partiel pour ${tenant_id} — étapes en erreur: ${failedSteps.join(', ')}`);

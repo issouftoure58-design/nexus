@@ -129,6 +129,9 @@ export default function RoomCalendar() {
     setCurrentMonth(new Date());
   };
 
+  // Date du jour (YYYY-MM-DD) pour detecter le passe
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   // Obtenir le statut d'une cellule
   const getCellStatus = (chambre: Chambre, date: Date): {
     statut: string;
@@ -151,26 +154,33 @@ export default function RoomCalendar() {
       return { statut: 'reservee', reservation };
     }
 
+    // Dates passees (strictement avant aujourd'hui) sans occupation/resa = indisponible
+    if (dateStr < todayStr) {
+      return { statut: 'passee' };
+    }
+
     return { statut: 'libre' };
   };
 
   // Style de la cellule selon statut
   const getCellStyle = (statut: string, isFirstOfReservation: boolean, isLastOfReservation: boolean) => {
-    const baseStyle = 'h-8 border-r border-b border-gray-100 transition-colors cursor-pointer';
+    const baseStyle = 'h-8 border-r border-b border-gray-100 transition-colors';
+    const clickable = statut !== 'passee' ? 'cursor-pointer' : 'cursor-not-allowed';
 
     const statusStyles: Record<string, string> = {
       libre: 'bg-green-50 hover:bg-green-100',
       reservee: 'bg-blue-400 text-white',
       occupee: 'bg-orange-400 text-white',
       maintenance: 'bg-yellow-200',
-      bloquee: 'bg-gray-300'
+      bloquee: 'bg-gray-300',
+      passee: 'bg-gray-100 text-gray-300',
     };
 
     let roundedStyle = '';
     if (isFirstOfReservation) roundedStyle += ' rounded-l';
     if (isLastOfReservation) roundedStyle += ' rounded-r';
 
-    return cn(baseStyle, statusStyles[statut] || 'bg-gray-50', roundedStyle);
+    return cn(baseStyle, clickable, statusStyles[statut] || 'bg-gray-50', roundedStyle);
   };
 
   // Icône selon statut
@@ -180,6 +190,7 @@ export default function RoomCalendar() {
       case 'occupee': return <Users className="w-3 h-3" />;
       case 'maintenance': return <Wrench className="w-3 h-3" />;
       case 'bloquee': return <Lock className="w-3 h-3" />;
+      case 'passee': return <X className="w-2.5 h-2.5 opacity-40" />;
       default: return null;
     }
   };
@@ -298,6 +309,10 @@ export default function RoomCalendar() {
               <span className="flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-yellow-200 border border-yellow-300"></span>
                 Maintenance
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-gray-100 border border-gray-200"></span>
+                Passée
               </span>
             </div>
           </div>

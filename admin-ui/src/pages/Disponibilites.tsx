@@ -12,12 +12,14 @@ import {
 
 const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
+// Options de 00:00 a 23:30 par pas de 30min + 23:59 (utile pour les businesses 24/7 type hotel)
 const TIME_OPTIONS: string[] = [];
-for (let h = 6; h <= 23; h++) {
+for (let h = 0; h <= 23; h++) {
   for (const m of ['00', '30']) {
     TIME_OPTIONS.push(`${h.toString().padStart(2, '0')}:${m}`);
   }
 }
+TIME_OPTIONS.push('23:59');
 
 // Templates that use multi-period hours
 const MULTI_PERIOD_TEMPLATES = new Set(['restaurant', 'medical', 'garage']);

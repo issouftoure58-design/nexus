@@ -50,6 +50,9 @@ export default function Services() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Hotel: onglet actif (chambres = type_chambre != null, annexes = reste)
+  const [hotelTab, setHotelTab] = useState<'chambres' | 'annexes'>('chambres');
+
   // Filters - adaptatifs selon business type
   const [filters, setFilters] = useState({
     priceRange: 'all', // all, cheap (<25€), medium (25-50€), expensive (>50€)
@@ -135,9 +138,23 @@ export default function Services() {
         if (typeChambre !== filters.typeChambre) return false;
       }
 
+      // Hotel: separation chambres / prestations annexes par onglet
+      if (isBusinessType('hotel')) {
+        const isChambre = !!(service as ServiceExtended).type_chambre;
+        if (hotelTab === 'chambres' && !isChambre) return false;
+        if (hotelTab === 'annexes' && isChambre) return false;
+      }
+
       return true;
     });
-  }, [data?.services, searchInput, filters]);
+  }, [data?.services, searchInput, filters, isBusinessType, hotelTab]);
+
+  // Hotel: compteurs par onglet (sur donnees brutes, avant filtres)
+  const hotelChambresCount = useMemo(
+    () => data?.services?.filter(s => !!(s as ServiceExtended).type_chambre).length || 0,
+    [data?.services]
+  );
+  const hotelAnnexesCount = (data?.services?.length || 0) - hotelChambresCount;
 
   // Suggestions for search
   const suggestions = searchInput.length >= 1
@@ -179,13 +196,54 @@ export default function Services() {
     return mins > 0 ? `${hours}h${mins}` : `${hours}h`;
   };
 
+  const isHotel = isBusinessType('hotel');
+  const hotelTitle = hotelTab === 'chambres' ? 'Chambres' : 'Prestations annexes';
+  const hotelCount = hotelTab === 'chambres' ? hotelChambresCount : hotelAnnexesCount;
+  const hotelNoun = hotelTab === 'chambres' ? 'chambre' : 'prestation';
+
   return (
     <div className="p-6">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{String(t('service', true))}</h1>
-        <p className="text-sm text-gray-500">{data?.services?.length || 0} {String(t('service', true)).toLowerCase()} configurées</p>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isHotel ? hotelTitle : String(t('service', true))}
+        </h1>
+        <p className="text-sm text-gray-500">
+          {isHotel
+            ? `${hotelCount} ${hotelNoun}${hotelCount > 1 ? 's' : ''} configurée${hotelCount > 1 ? 's' : ''}`
+            : `${data?.services?.length || 0} ${String(t('service', true)).toLowerCase()} configurées`}
+        </p>
       </div>
+
+      {/* Hotel: onglets Chambres / Prestations annexes */}
+      {isHotel && (
+        <div className="mb-6 flex gap-1 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setHotelTab('chambres')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              hotelTab === 'chambres'
+                ? 'border-cyan-600 text-cyan-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            )}
+          >
+            Chambres <span className="ml-1 text-xs text-gray-400">({hotelChambresCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setHotelTab('annexes')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              hotelTab === 'annexes'
+                ? 'border-cyan-600 text-cyan-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            )}
+          >
+            Prestations annexes <span className="ml-1 text-xs text-gray-400">({hotelAnnexesCount})</span>
+          </button>
+        </div>
+      )}
       <div className="space-y-6">
         {/* Header with search */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
@@ -232,7 +290,9 @@ export default function Services() {
             className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
           >
             <Plus className="h-4 w-4" />
-            Nouvelle {String(t('service')).toLowerCase()}
+            {isHotel
+              ? (hotelTab === 'chambres' ? 'Nouvelle chambre' : 'Nouvelle prestation')
+              : `Nouvelle ${String(t('service')).toLowerCase()}`}
           </Button>
         </div>
 
@@ -539,22 +599,20 @@ export default function Services() {
                       </>
                     )}
 
-                    {/* Hotel: Type + Capacité + Prix/nuit */}
-                    {isBusinessType('hotel') && (
+                    {/* Hotel: Chambre = type + capacite + prix/nuit | Annexe = prix simple */}
+                    {isBusinessType('hotel') && (service as ServiceExtended).type_chambre && (
                       <>
-                        {(service as ServiceExtended).type_chambre && (
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                            {(service as ServiceExtended).type_chambre === 'simple' ? 'Simple' :
-                             (service as ServiceExtended).type_chambre === 'double' ? 'Double' :
-                             (service as ServiceExtended).type_chambre === 'twin' ? 'Twin' :
-                             (service as ServiceExtended).type_chambre === 'triple' ? 'Triple' :
-                             (service as ServiceExtended).type_chambre === 'familiale' ? 'Familiale' :
-                             (service as ServiceExtended).type_chambre === 'suite' ? 'Suite' :
-                             (service as ServiceExtended).type_chambre === 'suite_junior' ? 'Suite Jr.' :
-                             (service as ServiceExtended).type_chambre === 'deluxe' ? 'Deluxe' :
-                             (service as ServiceExtended).type_chambre}
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                          {(service as ServiceExtended).type_chambre === 'simple' ? 'Simple' :
+                           (service as ServiceExtended).type_chambre === 'double' ? 'Double' :
+                           (service as ServiceExtended).type_chambre === 'twin' ? 'Twin' :
+                           (service as ServiceExtended).type_chambre === 'triple' ? 'Triple' :
+                           (service as ServiceExtended).type_chambre === 'familiale' ? 'Familiale' :
+                           (service as ServiceExtended).type_chambre === 'suite' ? 'Suite' :
+                           (service as ServiceExtended).type_chambre === 'suite_junior' ? 'Suite Jr.' :
+                           (service as ServiceExtended).type_chambre === 'deluxe' ? 'Deluxe' :
+                           (service as ServiceExtended).type_chambre}
+                        </Badge>
                         <div className="flex items-center gap-2 text-gray-600">
                           <Users className="h-4 w-4 text-cyan-500" />
                           <span className="text-sm font-medium">{(service as ServiceExtended).capacite_max || 2} pers.</span>
@@ -562,6 +620,19 @@ export default function Services() {
                         <div className="flex items-center gap-2 text-gray-900">
                           <Euro className="h-4 w-4 text-green-500" />
                           <span className="text-lg font-bold">{formatCurrency(service.prix)}/nuit</span>
+                        </div>
+                      </>
+                    )}
+                    {isBusinessType('hotel') && !(service as ServiceExtended).type_chambre && (
+                      <>
+                        {service.categorie && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                            {service.categorie}
+                          </Badge>
+                        )}
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <Euro className="h-4 w-4 text-green-500" />
+                          <span className="text-lg font-bold">{formatCurrency(service.prix)}</span>
                         </div>
                       </>
                     )}
@@ -623,7 +694,7 @@ export default function Services() {
                     {isBusinessType('restaurant')
                       ? 'Aucune table configurée'
                       : isBusinessType('hotel')
-                        ? 'Aucune chambre configurée'
+                        ? (hotelTab === 'chambres' ? 'Aucune chambre configurée' : 'Aucune prestation annexe configurée')
                         : isBusinessType('commerce')
                           ? 'Aucun produit configuré'
                           : isBusinessType('security')
@@ -639,7 +710,7 @@ export default function Services() {
                     {isBusinessType('restaurant')
                       ? 'Créer votre première table'
                       : isBusinessType('hotel')
-                        ? 'Créer votre première chambre'
+                        ? (hotelTab === 'chambres' ? 'Créer votre première chambre' : 'Créer votre première prestation')
                         : `Créer votre première ${String(t('service')).toLowerCase()}`
                     }
                   </Button>

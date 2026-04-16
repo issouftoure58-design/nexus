@@ -10,7 +10,7 @@ import ConfigHoursSingle, { type DayHours } from '@/components/config/ConfigHour
 import ConfigHoursMulti, { type DayMultiHours } from '@/components/config/ConfigHoursMulti';
 import ConfigIAChannels, { type IAChannelConfig } from '@/components/config/ConfigIAChannels';
 import ConfigTableZones, { DEFAULT_ZONES, type TableZone } from '@/components/config/ConfigTableZones';
-import ConfigRoomTypes, { DEFAULT_ROOMS, DEFAULT_OPTIONS, type RoomType, type HotelOptions } from '@/components/config/ConfigRoomTypes';
+import ConfigRoomTypes, { DEFAULT_ROOMS, DEFAULT_OPTIONS, type RoomType, type HotelOptions, type AnnexService } from '@/components/config/ConfigRoomTypes';
 
 // ═══════════════════════════════════════════════════════════════
 // Mapping template → config type
@@ -79,7 +79,7 @@ function defaultMultiHours(mode: ConfigMode): DayMultiHours[] {
 
 export default function Configuration() {
   const navigate = useNavigate();
-  const { tenant, refetch } = useTenantContext();
+  const { tenant, refetch, hasPlan } = useTenantContext();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -93,26 +93,81 @@ export default function Configuration() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [singleHours, setSingleHours] = useState<DayHours[]>(defaultSingleHours());
   const [multiHours, setMultiHours] = useState<DayMultiHours[]>(defaultMultiHours(mode));
-  const [iaChannels, setIAChannels] = useState<IAChannelConfig>({ web: true, whatsapp: false, telephone: false });
+  // IA Web auto-accordé si plan Basic+ (voir activation-ia-protocol.md)
+  // WhatsApp & Téléphone nécessitent un provisioning manuel, donc OFF par défaut.
+  const [iaChannels, setIAChannels] = useState<IAChannelConfig>({
+    web: false,
+    whatsapp: false,
+    telephone: false,
+  });
   const [tableZones, setTableZones] = useState<TableZone[]>(DEFAULT_ZONES);
   const [rooms, setRooms] = useState<RoomType[]>(DEFAULT_ROOMS);
   const [hotelOptions, setHotelOptions] = useState<HotelOptions>(DEFAULT_OPTIONS);
+  const [annexServices, setAnnexServices] = useState<AnnexService[]>([]);
+
+  // Load IA channels state depuis la DB (tenant_ia_config créé par signup)
+  useEffect(() => {
+    api.get<{ channels: { web: boolean; whatsapp: boolean; telephone: boolean } }>('/admin/ia/channels-status')
+      .then(res => {
+        if (res?.channels) setIAChannels(res.channels);
+      })
+      .catch(() => {
+        // Fallback: IA Web auto-accordé si plan Basic+
+        setIAChannels(prev => ({ ...prev, web: hasPlan('basic') }));
+      });
+  }, [hasPlan]);
 
   // Load existing data
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load services
+        // Load services (tous modes sauf restaurant qui utilise tables/zones)
         if (mode !== 'restaurant') {
           try {
             const { services: existing } = await servicesApi.list();
             if (existing?.length > 0) {
-              setServices(existing.map(s => ({
-                nom: s.nom,
-                duree_minutes: s.duree || 30,
-                prix: (s.prix || 0) / 100, // centimes → euros
-                categorie: s.categorie || 'general',
-              })));
+              if (mode === 'hotel') {
+                // Hotel : mapper les services signup → rooms + annexServices (toggle + prix).
+                // Signup cree : categorie 'chambre'/'suite' = chambre, autres categories
+                // ('restauration', 'option', ...) = prestation annexe.
+                // On lit les DEUX colonnes (categorie FR + category EN legacy) pour couvrir
+                // les tenants crees avant l'unification.
+                const catOf = (s: any) => s.categorie || s.category;
+                const chambres = existing.filter(s =>
+                  catOf(s) === 'chambre' || catOf(s) === 'suite'
+                );
+                if (chambres.length > 0) {
+                  setRooms(chambres.map(s => ({
+                    type: s.nom,
+                    capacite: /famili|suite prestige/i.test(s.nom) ? 4
+                            : /suite/i.test(s.nom) ? 3
+                            : /simple/i.test(s.nom) ? 1
+                            : 2,
+                    quantite: 1, // signup ne stocke pas la quantité, l'admin l'ajuste
+                    prix_nuit: (s.prix || 0) / 100,
+                  })));
+                }
+                // Prestations annexes (non-chambre) : pilotees par toggle actif + prix + mode facturation
+                const annex = existing
+                  .filter(s => catOf(s) !== 'chambre' && catOf(s) !== 'suite')
+                  .map(s => ({
+                    id: s.id,
+                    nom: s.nom,
+                    prix: (s.prix || 0) / 100, // centimes → euros
+                    actif: s.actif !== false,
+                    facturation: ((s as any).facturation === 'par_nuit' ? 'par_nuit' : 'forfait') as 'par_nuit' | 'forfait',
+                  }));
+                setAnnexServices(annex);
+              } else {
+                // Autres modes : services classiques (avec id pour UPDATE plutot que CREATE)
+                setServices(existing.map(s => ({
+                  id: s.id,
+                  nom: s.nom,
+                  duree_minutes: s.duree || 30,
+                  prix: (s.prix || 0) / 100, // centimes → euros
+                  categorie: s.categorie || (s as any).category || 'general',
+                })));
+              }
             }
           } catch {
             // New tenant, no services yet — use template defaults loaded from backend
@@ -171,19 +226,45 @@ export default function Configuration() {
     setSaving(true);
     try {
       // 1. Save services (if applicable)
-      if (mode !== 'restaurant' && services.length > 0) {
-        // Delete existing and recreate (simple approach for onboarding)
+      // Si le service a un id → UPDATE (il vient du signup) ; sinon → CREATE (ajout manuel)
+      if (mode !== 'restaurant' && mode !== 'hotel' && services.length > 0) {
         for (const service of services) {
           try {
-            await servicesApi.create({
-              nom: service.nom,
-              duree_minutes: service.duree_minutes,
-              prix: Math.round(service.prix * 100), // euros → centimes
-              categorie: service.categorie,
-              actif: true,
+            if (service.id) {
+              await servicesApi.update(service.id, {
+                nom: service.nom,
+                duree: service.duree_minutes,
+                prix: Math.round(service.prix * 100),
+                categorie: service.categorie,
+                actif: true,
+              } as any);
+            } else {
+              await servicesApi.create({
+                nom: service.nom,
+                duree_minutes: service.duree_minutes,
+                prix: Math.round(service.prix * 100),
+                categorie: service.categorie,
+                actif: true,
+              } as any);
+            }
+          } catch {
+            // Ignore per-service errors, continue saving rest
+          }
+        }
+      }
+
+      // 1bis. Hotel : persister les prestations annexes (toggle actif + prix + mode facturation)
+      if (mode === 'hotel' && annexServices.length > 0) {
+        for (const a of annexServices) {
+          if (!a.id) continue; // CREATE non supporte ici (UI ne permet pas d'en ajouter)
+          try {
+            await servicesApi.update(a.id, {
+              prix: Math.round(a.prix * 100),
+              actif: a.actif,
+              facturation: a.facturation,
             } as any);
           } catch {
-            // Service may already exist from template provisioning, skip
+            // Ignore per-service errors, continue
           }
         }
       }
@@ -267,8 +348,8 @@ export default function Configuration() {
         </div>
 
         <div className="space-y-6">
-          {/* Services (tous sauf restaurant) */}
-          {mode !== 'restaurant' && mode !== 'commerce' && (
+          {/* Services (tous sauf restaurant/commerce/hôtel — hôtel utilise "Types de chambres") */}
+          {mode !== 'restaurant' && mode !== 'commerce' && mode !== 'hotel' && (
             <Card>
               <CardContent className="p-6">
                 <ConfigServicesList services={services} onChange={setServices} />
@@ -292,8 +373,10 @@ export default function Configuration() {
                 <ConfigRoomTypes
                   rooms={rooms}
                   options={hotelOptions}
+                  annexServices={annexServices}
                   onRoomsChange={setRooms}
                   onOptionsChange={setHotelOptions}
+                  onAnnexChange={setAnnexServices}
                 />
               </CardContent>
             </Card>

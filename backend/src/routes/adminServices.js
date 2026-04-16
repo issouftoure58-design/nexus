@@ -415,6 +415,8 @@ router.post('/', authenticateAdmin, requirePrestationsQuota, async (req, res) =>
       capacite, zone, service_dispo,
       // Hotel
       capacite_max, etage, vue, type_chambre, equipements,
+      // Mode facturation (par_nuit | forfait)
+      facturation,
     } = req.body;
 
     // Accepter duree_minutes OU duree pour la durée
@@ -461,6 +463,9 @@ router.post('/', authenticateAdmin, requirePrestationsQuota, async (req, res) =>
     if (vue) insertData.vue = vue;
     if (type_chambre) insertData.type_chambre = type_chambre;
     if (equipements) insertData.equipements = equipements;
+    if (facturation && ['par_nuit', 'forfait'].includes(facturation)) {
+      insertData.facturation = facturation;
+    }
 
     const { data: service, error } = await supabase
       .from('services')
@@ -500,6 +505,8 @@ router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req,
       capacite, zone, service_dispo,
       // Hotel
       capacite_max, etage, vue, type_chambre, equipements,
+      // Mode de facturation (hotel annexes surtout) : par_nuit | forfait
+      facturation,
     } = req.body;
 
     const updates = {};
@@ -526,6 +533,10 @@ router.put('/:id', authenticateAdmin, validate(updateServiceSchema), async (req,
     if (vue !== undefined) updates.vue = vue;
     if (type_chambre !== undefined) updates.type_chambre = type_chambre;
     if (equipements !== undefined) updates.equipements = equipements;
+    // Mode facturation (whitelist)
+    if (facturation !== undefined && ['par_nuit', 'forfait'].includes(facturation)) {
+      updates.facturation = facturation;
+    }
 
     // 🔒 TENANT ISOLATION
     const { data: service, error } = await supabase

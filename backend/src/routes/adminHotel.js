@@ -286,9 +286,10 @@ router.get('/occupation', async (req, res) => {
 
   try {
     // Récupérer les chambres
+    // NB: hotel utilise capacite_max (migration 038 hotels), capacite (migration 076 generic, default 4) est fallback
     let chambresQuery = supabase
       .from('services')
-      .select('id, nom, type_chambre, capacite, prix, actif')
+      .select('id, nom, type_chambre, capacite, capacite_max, prix, actif')
       .eq('tenant_id', tenantId)
       .not('type_chambre', 'is', null)
       .order('nom');
@@ -297,8 +298,14 @@ router.get('/occupation', async (req, res) => {
       chambresQuery = chambresQuery.eq('id', chambre_id);
     }
 
-    const { data: chambres, error: chambresError } = await chambresQuery;
+    const { data: chambresRaw, error: chambresError } = await chambresQuery;
     if (chambresError) throw chambresError;
+
+    // Normaliser: capacite finale = capacite_max si defini sinon capacite
+    const chambres = (chambresRaw || []).map(c => ({
+      ...c,
+      capacite: c.capacite_max ?? c.capacite ?? 1,
+    }));
 
     // Récupérer l'occupation
     let occupationQuery = supabase
@@ -331,7 +338,7 @@ router.get('/occupation', async (req, res) => {
       .eq('tenant_id', tenantId)
       .gte('date_depart', start)
       .lte('date_arrivee', end)
-      .in('statut', ['confirmee', 'en_cours']);
+      .in('statut', ['confirme', 'demande', 'en_cours']);
 
     if (resaError) throw resaError;
 

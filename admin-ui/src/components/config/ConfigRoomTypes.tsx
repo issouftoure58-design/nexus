@@ -14,16 +14,32 @@ export interface RoomType {
 export interface HotelOptions {
   check_in: string;
   check_out: string;
-  petit_dejeuner: boolean;
-  parking: boolean;
-  late_checkout: boolean;
 }
+
+// Prestation annexe (non-chambre) : petit-dej, parking, transfert, etc.
+// Pilotee par toggle actif + prix modifiable, persistee dans la table `services`.
+export interface AnnexService {
+  id?: number;        // si present = UPDATE, sinon = CREATE
+  nom: string;
+  prix: number;       // euros
+  actif: boolean;
+  facturation: 'par_nuit' | 'forfait';
+}
+
+// Regex de detection des 3 options "frequentes" mises en avant
+const FEATURED_OPTIONS = [
+  { key: 'petit_dejeuner', regex: /petit[\s-]?d[eé]jeuner/i, emoji: '🥐', label: 'Petit-déjeuner' },
+  { key: 'parking',        regex: /parking/i,                emoji: '🅿️', label: 'Parking' },
+  { key: 'late_checkout',  regex: /late[\s-]?check[\s-]?out/i, emoji: '🕐', label: 'Late check-out' },
+] as const;
 
 interface Props {
   rooms: RoomType[];
   options: HotelOptions;
+  annexServices: AnnexService[];
   onRoomsChange: (rooms: RoomType[]) => void;
   onOptionsChange: (options: HotelOptions) => void;
+  onAnnexChange: (annex: AnnexService[]) => void;
 }
 
 const DEFAULT_ROOMS: RoomType[] = [
@@ -36,21 +52,22 @@ const DEFAULT_ROOMS: RoomType[] = [
 const DEFAULT_OPTIONS: HotelOptions = {
   check_in: '15:00',
   check_out: '11:00',
-  petit_dejeuner: true,
-  parking: false,
-  late_checkout: false,
 };
 
 export { DEFAULT_ROOMS, DEFAULT_OPTIONS };
 
 const TIME_OPTIONS: string[] = [];
-for (let h = 6; h <= 23; h++) {
+for (let h = 0; h <= 23; h++) {
   for (const m of ['00', '30']) {
     TIME_OPTIONS.push(`${h.toString().padStart(2, '0')}:${m}`);
   }
 }
+TIME_OPTIONS.push('23:59');
 
-export default function ConfigRoomTypes({ rooms, options, onRoomsChange, onOptionsChange }: Props) {
+export default function ConfigRoomTypes({
+  rooms, options, annexServices,
+  onRoomsChange, onOptionsChange, onAnnexChange,
+}: Props) {
   const [newRoom, setNewRoom] = useState<RoomType>({ type: '', capacite: 2, quantite: 1, prix_nuit: 0 });
 
   const updateRoom = (index: number, field: keyof RoomType, value: string | number) => {
@@ -69,7 +86,23 @@ export default function ConfigRoomTypes({ rooms, options, onRoomsChange, onOptio
     setNewRoom({ type: '', capacite: 2, quantite: 1, prix_nuit: 0 });
   };
 
+  const updateAnnex = (nom: string, patch: Partial<AnnexService>) => {
+    onAnnexChange(annexServices.map(a => a.nom === nom ? { ...a, ...patch } : a));
+  };
+
   const totalRooms = rooms.reduce((sum, r) => sum + r.quantite, 0);
+
+  // Separer les annexes "featured" (3 options frequentes) du reste
+  const featuredByKey: Record<string, AnnexService | undefined> = {};
+  const otherAnnex: AnnexService[] = [];
+  for (const svc of annexServices) {
+    const match = FEATURED_OPTIONS.find(f => f.regex.test(svc.nom));
+    if (match && !featuredByKey[match.key]) {
+      featuredByKey[match.key] = svc;
+    } else {
+      otherAnnex.push(svc);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -139,9 +172,9 @@ export default function ConfigRoomTypes({ rooms, options, onRoomsChange, onOptio
         </div>
       </div>
 
-      {/* Options hôtel */}
+      {/* Horaires check-in/out */}
       <div className="space-y-3">
-        <h3 className="font-semibold text-gray-900">Options & horaires</h3>
+        <h3 className="font-semibold text-gray-900">Horaires</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Check-in à partir de</label>
@@ -164,23 +197,88 @@ export default function ConfigRoomTypes({ rooms, options, onRoomsChange, onOptio
             </select>
           </div>
         </div>
-
-        <div className="space-y-2">
-          {[
-            { key: 'petit_dejeuner' as const, label: 'Petit-déjeuner inclus', emoji: '🥐' },
-            { key: 'parking' as const, label: 'Parking disponible', emoji: '🅿️' },
-            { key: 'late_checkout' as const, label: 'Late check-out possible', emoji: '🕐' },
-          ].map(opt => (
-            <div key={opt.key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">{opt.emoji} {opt.label}</span>
-              <Switch
-                checked={options[opt.key]}
-                onCheckedChange={v => onOptionsChange({ ...options, [opt.key]: v })}
-              />
-            </div>
-          ))}
-        </div>
       </div>
+
+      {/* Options frequentes (3 toggles featured, pilotent les services DB) */}
+      {FEATURED_OPTIONS.some(f => featuredByKey[f.key]) && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-gray-900">Options fréquentes</h3>
+          <div className="space-y-2">
+            {FEATURED_OPTIONS.map(opt => {
+              const svc = featuredByKey[opt.key];
+              if (!svc) return null;
+              return (
+                <div key={opt.key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Switch
+                      checked={svc.actif}
+                      onCheckedChange={v => updateAnnex(svc.nom, { actif: v })}
+                    />
+                    <span className="text-sm text-gray-700">{opt.emoji} {svc.nom}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={svc.prix}
+                      onChange={e => updateAnnex(svc.nom, { prix: parseFloat(e.target.value) || 0 })}
+                      className="w-20 h-8 text-right"
+                      min={0}
+                    />
+                    <select
+                      value={svc.facturation}
+                      onChange={e => updateAnnex(svc.nom, { facturation: e.target.value as 'par_nuit' | 'forfait' })}
+                      className="h-8 px-2 border border-gray-200 rounded text-xs bg-white"
+                    >
+                      <option value="par_nuit">€/nuit</option>
+                      <option value="forfait">€ forfait</option>
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Autres prestations (restauration, lit bebe, transfert, etc.) */}
+      {otherAnnex.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-gray-900">Autres prestations</h3>
+          <p className="text-sm text-gray-500">
+            Activez et tarifez les prestations annexes proposées à vos clients. Choisissez "par nuit" (petit-dej, parking…) ou "forfait" (late checkout, transfert…).
+          </p>
+          <div className="space-y-2">
+            {otherAnnex.map(svc => (
+              <div key={svc.nom} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2 flex-1">
+                  <Switch
+                    checked={svc.actif}
+                    onCheckedChange={v => updateAnnex(svc.nom, { actif: v })}
+                  />
+                  <span className="text-sm text-gray-700">{svc.nom}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={svc.prix}
+                    onChange={e => updateAnnex(svc.nom, { prix: parseFloat(e.target.value) || 0 })}
+                    className="w-20 h-8 text-right"
+                    min={0}
+                  />
+                  <select
+                    value={svc.facturation}
+                    onChange={e => updateAnnex(svc.nom, { facturation: e.target.value as 'par_nuit' | 'forfait' })}
+                    className="h-8 px-2 border border-gray-200 rounded text-xs bg-white"
+                  >
+                    <option value="par_nuit">€/nuit</option>
+                    <option value="forfait">€ forfait</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
