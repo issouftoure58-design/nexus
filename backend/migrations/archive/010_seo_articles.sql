@@ -2,22 +2,30 @@
 -- Migration 010: SEO Articles & Keywords (Business Plan)
 -- SEMAINE 8 JOUR 5 - SEO & Visibilité
 -- =====================================================
+--
+-- ⚠️ OBSOLETE : le schema seo_articles documente ici ne correspond PLUS a
+-- la prod apres des ALTER TABLE non traces. Voir migration 112 pour le vrai
+-- schema (mots_cles_cibles[], image_principale, meta_title, vues, etc.).
+-- Ce fichier est garde a titre historique uniquement.
 
 -- Table articles SEO
+-- (Schema reel en prod, apres ALTER TABLE non traces — cf migration 112)
 CREATE TABLE IF NOT EXISTS seo_articles (
   id SERIAL PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   titre TEXT NOT NULL,
   slug TEXT NOT NULL,
-  meta_description TEXT,
   contenu TEXT NOT NULL,
-  mot_cle_principal TEXT,
-  mots_cles_secondaires TEXT[],
+  image_principale TEXT,
+  meta_title TEXT,
+  meta_description TEXT,
+  mots_cles_cibles TEXT[],  -- [0] = principal, [1..] = secondaires
+  categorie TEXT,
+  auteur TEXT DEFAULT 'IA',
+  temps_lecture INTEGER,
   statut TEXT DEFAULT 'brouillon' CHECK (statut IN ('brouillon', 'publie', 'archive')),
   date_publication TIMESTAMP,
-  auteur TEXT DEFAULT 'IA',
-  images TEXT[],
-  lectures INTEGER DEFAULT 0,
+  vues INTEGER DEFAULT 0,
   partages INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),

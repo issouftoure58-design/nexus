@@ -127,10 +127,11 @@ export async function generateSEORecommendations(tenant_id, data) {
   const existingTitles = new Set((existingRecos || []).map(r => r.titre));
 
   // Reco 1: Mots-clés non exploités
+  // FIX: le schema DB reel stocke tout dans mots_cles_cibles[] (pas
+  // mot_cle_principal/secondaires qui n'existent pas — cf migration 112).
   const keywordsNotUsed = (data.keywords || []).filter(k => {
     return !(data.articles || []).some(a =>
-      a.mot_cle_principal === k.mot_cle ||
-      (a.mots_cles_secondaires || []).includes(k.mot_cle)
+      (a.mots_cles_cibles || []).includes(k.mot_cle)
     );
   });
 

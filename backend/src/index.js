@@ -46,7 +46,6 @@ import commercialRoutes from './routes/commercial.js';
 import depensesRoutes from './routes/depenses.js';
 import facturesRoutes from './routes/factures.js';
 import stockRoutes from './routes/stock.js';
-import seoRoutes from './routes/seo.js';
 import rhRoutes from './routes/rh.js';
 import apiPublicRoutes from './routes/api-public.js';
 import brandingRoutes from './routes/branding.js';
@@ -571,8 +570,8 @@ app.use('/api/factures', facturesRoutes);
 // Routes Stock (produits, mouvements, inventaires)
 app.use('/api/stock', stockRoutes);
 
-// Routes SEO & Visibilité (articles, mots-clés, Google My Business)
-app.use('/api/seo', seoRoutes);
+// Routes SEO (articles/keywords/audits/recommendations) consolidees dans /api/admin/seo
+// (ancien /api/seo supprime — cf migration 112 et commit cleanup schema seo_articles)
 
 // Routes RH Multi-employés (employés, planning, congés, heures)
 app.use('/api/rh', rhRoutes);
@@ -815,17 +814,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('  GET  /api/stock/valorisation             - Valorisation');
   console.log('  GET  /api/stock/alertes                  - Alertes stock');
   console.log('');
-  console.log('🔍 SEO & Visibilité:');
-  console.log('  POST /api/seo/articles/generer           - Générer article IA');
-  console.log('  GET  /api/seo/articles                   - Liste articles');
-  console.log('  POST /api/seo/articles                   - Créer article');
-  console.log('  POST /api/seo/articles/:id/publier       - Publier article');
-  console.log('  GET  /api/seo/mots-cles                  - Mots-clés suivis');
-  console.log('  POST /api/seo/mots-cles                  - Ajouter mot-clé');
-  console.log('  GET  /api/seo/meta                       - Meta SEO pages');
-  console.log('  GET  /api/seo/gmb                        - Fiche GMB');
-  console.log('  POST /api/seo/gmb/posts                  - Posts GMB');
-  console.log('  GET  /api/seo/dashboard                  - Dashboard SEO');
+  console.log('🔍 SEO (voir /api/admin/seo/* — articles, keywords, audits, recommendations)');
   console.log('');
   console.log('👥 RH Multi-employés:');
   console.log('  POST /api/rh/employes                    - Créer employé');
