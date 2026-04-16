@@ -9,7 +9,7 @@ import {
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
   Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
   ShoppingBag, LayoutGrid, Bed, Banknote, Phone, MessageSquare, Share2,
-  UserCheck
+  UserCheck, Lock
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -47,8 +47,8 @@ const menuItems = [
   { type: 'separator', label: 'Marketing' },
   { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'basic' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'basic' },
-  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'basic' },
-  { icon: FileText, label: 'Devis', path: '/devis', plan: 'basic' },
+  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'basic', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
+  { icon: FileText, label: 'Devis', path: '/devis', plan: 'basic', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
   { icon: Search, label: 'SEO', path: '/seo', plan: 'basic' },
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', plan: 'basic' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'basic' },
@@ -65,6 +65,11 @@ const menuItems = [
   { icon: Settings, label: 'Paramètres', path: '/parametres' },
 ];
 
+const PLAN_NAMES: Record<string, string> = {
+  basic: 'Basic',
+  business: 'Business',
+};
+
 export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,6 +78,11 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
 
   const handleNavigate = (path: string) => {
     navigate(path);
+    onClose();
+  };
+
+  const handleLockedClick = () => {
+    navigate('/subscription');
     onClose();
   };
 
@@ -112,9 +122,11 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
         {/* Menu Items */}
         <nav className="p-2 overflow-y-auto h-[calc(100%-8rem)]">
           {menuItems.filter(item => {
+            // On ne filtre QUE sur le business type (pertinence metier).
+            // Les items non inclus dans le plan restent visibles en mode verrouille
+            // (effet vitrine + FOMO upgrade).
             if (item.businessType && !isBusinessType(item.businessType as any)) return false;
             if (item.hideFor && item.hideFor.some((t: string) => isBusinessType(t as any))) return false;
-            if (item.plan && !hasPlan(item.plan as any)) return false;
             return true;
           }).map((item, index) => {
             if (item.type === 'separator') {
@@ -132,21 +144,31 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
 
             const Icon = item.icon!;
             const isActive = location.pathname === item.path;
+            const isLocked = !!(item.plan && !hasPlan(item.plan as any));
+            const planLabel = item.plan ? (PLAN_NAMES[item.plan] || 'Basic') : '';
 
             return (
               <button
                 key={item.path}
-                onClick={() => handleNavigate(item.path!)}
+                onClick={() => isLocked ? handleLockedClick() : handleNavigate(item.path!)}
                 className={`
-                  w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors
+                  group w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors
                   ${isActive
                     ? 'bg-gray-100 dark:bg-gray-800 text-cyan-600 dark:text-cyan-400'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : isLocked
+                      ? 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }
                 `}
               >
                 <Icon className="w-5 h-5" />
                 <span className="flex-1">{item.label}</span>
+                {isLocked && (
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                    <Lock className="w-2.5 h-2.5" />
+                    {planLabel}
+                  </span>
+                )}
               </button>
             );
           })}

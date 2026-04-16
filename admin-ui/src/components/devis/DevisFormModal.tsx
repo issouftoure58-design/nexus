@@ -94,10 +94,13 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     enabled: clientSearch.length >= 2 && clientMode === 'existant'
   });
 
-  // Fetch services
+  // Fetch services — backend renvoie format pagine { data, pagination }
   const { data: servicesData } = useQuery<{ services: Service[] }>({
     queryKey: ['services'],
-    queryFn: () => api.get<{ services: Service[] }>('/admin/services'),
+    queryFn: async () => {
+      const { items } = await api.getPaginated<Service>('/admin/services?limit=200');
+      return { services: items };
+    },
   });
 
   // Fetch membres equipe pour assignation

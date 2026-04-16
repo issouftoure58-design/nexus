@@ -13,33 +13,44 @@ import { requireModule } from '../middleware/moduleProtection.js';
 import NotificationService from '../services/notificationService.js';
 import { validate } from '../middleware/validate.js';
 
+// Note: clients.id et services.id sont des bigint en DB (pas UUID).
+// Les IDs negatifs sont acceptes pour lignes.service_id (templates frontend -1, -2, ...).
 const createDevisSchema = z.object({
-  client_id: z.string().uuid().optional(),
+  client_id: z.number().int().optional().nullable(),
   client_nom: z.string().max(200).optional(),
-  client_email: z.string().email().optional().or(z.literal('')),
-  client_telephone: z.string().max(20).optional(),
-  client_adresse: z.string().max(500).optional(),
-  adresse_facturation: z.string().max(500).optional(),
-  service_id: z.string().uuid().optional(),
-  service_nom: z.string().max(200).optional(),
-  service_description: z.string().max(2000).optional(),
-  duree_minutes: z.number().int().positive().optional(),
-  lieu: z.string().max(200).optional(),
+  client_email: z.string().email().optional().or(z.literal('')).nullable(),
+  client_telephone: z.string().max(20).optional().nullable(),
+  client_adresse: z.string().max(500).optional().nullable(),
+  adresse_facturation: z.string().max(500).optional().nullable(),
+  service_id: z.union([z.number().int(), z.string()]).optional().nullable(),
+  service_nom: z.string().max(500).optional().nullable(),
+  service_description: z.string().max(2000).optional().nullable(),
+  duree_minutes: z.number().int().min(0).optional().nullable(),
+  lieu: z.string().max(200).optional().nullable(),
   montant_ht: z.number().min(0).optional(),
   taux_tva: z.number().min(0).max(100).optional(),
   frais_deplacement: z.number().min(0).optional(),
   validite_jours: z.number().int().positive().optional(),
-  notes: z.string().max(2000).optional(),
-  opportunite_id: z.string().uuid().optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  opportunite_id: z.number().int().optional().nullable(),
   lignes: z.array(z.object({
-    service_id: z.string().uuid().optional(),
-    description: z.string().optional(),
+    service_id: z.number().int().optional().nullable(),
+    service_nom: z.string().optional().nullable(),
+    description: z.string().optional().nullable(),
     quantite: z.number().optional(),
+    duree_minutes: z.number().int().min(0).optional().nullable(),
     prix_unitaire: z.number().optional(),
+    prix_total: z.number().optional(),
+    taux_horaire: z.number().optional().nullable(),
+    affectations: z.array(z.object({
+      membre_id: z.number().int().optional().nullable(),
+      heure_debut: z.string().optional().nullable(),
+      heure_fin: z.string().optional().nullable(),
+    })).optional(),
   })).optional(),
-  date_prestation: z.string().optional(),
-  heure_prestation: z.string().optional(),
-  acompte_pourcentage: z.number().int().min(0).max(100).optional(),
+  date_prestation: z.string().optional().nullable(),
+  heure_prestation: z.string().optional().nullable(),
+  acompte_pourcentage: z.number().int().min(0).max(100).optional().nullable(),
 }).passthrough();
 
 const router = express.Router();
@@ -434,7 +445,8 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
             lignesData.push({
               devis_id: devis.id,
               tenant_id: tenantId,
-              service_id: ligne.service_id || null,
+              // service_id < 0 = ligne de template frontend (pas un vrai service), mis a null pour respecter la FK services
+            service_id: (ligne.service_id && ligne.service_id > 0) ? ligne.service_id : null,
               service_nom: ligne.service_nom,
               quantite: 1, // Une ligne par affectation
               duree_minutes: ligne.duree_minutes || 60,
@@ -452,7 +464,8 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
           lignesData.push({
             devis_id: devis.id,
             tenant_id: tenantId,
-            service_id: ligne.service_id || null,
+            // service_id < 0 = ligne de template frontend (pas un vrai service), mis a null pour respecter la FK services
+            service_id: (ligne.service_id && ligne.service_id > 0) ? ligne.service_id : null,
             service_nom: ligne.service_nom,
             quantite: ligne.quantite || 1,
             duree_minutes: ligne.duree_minutes || 60,

@@ -50,6 +50,7 @@ import {
   ShoppingBag,
   Share2,
   UserCheck,
+  Lock,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, memo } from 'react';
 import { authApi } from '@/lib/api';
@@ -175,8 +176,8 @@ const marketingNav: NavItem[] = [
   { icon: Target, label: 'Analytics Mktg', path: '/marketing-analytics', requiredModule: 'marketing' },
   { icon: ClipboardList, label: 'Segments CRM', path: '/segments', requiredModule: 'marketing' },
   { icon: GitBranch, label: 'Workflows', path: '/workflows', requiredModule: 'marketing' },
-  { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'pipeline' },
-  { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'devis' },
+  { icon: Banknote, label: 'Pipeline', path: '/pipeline', requiredModule: 'pipeline', businessTypes: ['security', 'service', 'service_domicile'] },
+  { icon: Calculator, label: 'Devis', path: '/devis', requiredModule: 'devis', businessTypes: ['security', 'service', 'service_domicile'] },
   { icon: Search, label: 'SEO', path: '/seo', requiredModule: 'seo' },
   { icon: FileText, label: 'Articles SEO', path: '/seo/articles', requiredModule: 'seo' },
   { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', requiredModule: 'marketing' },
@@ -215,7 +216,15 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
       .catch(() => setUserPermissions(null));
   }, []);
 
+  const isItemLocked = useCallback((item: NavItem): boolean => {
+    if (item.alwaysShow) return false;
+    if (item.requiredModule) return !hasModule(item.requiredModule);
+    if (item.requiredPlan) return !hasPlan(item.requiredPlan);
+    return false;
+  }, [hasModule, hasPlan]);
+
   const shouldShowItem = useCallback((item: NavItem): boolean => {
+    // 1. Filtrer par business type (pertinence metier)
     if (item.businessTypes && item.businessTypes.length > 0) {
       if (!businessType || !item.businessTypes.includes(businessType)) {
         return false;
@@ -224,8 +233,10 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
     if (item.hideForBusinessTypes && businessType && item.hideForBusinessTypes.includes(businessType)) {
       return false;
     }
-    // Filtrer par permissions utilisateur
-    if (userPermissions && item.requiredModule) {
+    // 2. Filtrer par permissions RBAC — uniquement si l'item n'est PAS locke.
+    // Si le tenant n'a pas le module (plan Free par ex.), on affiche quand meme
+    // l'item en mode verrouille → effet vitrine + FOMO upgrade.
+    if (userPermissions && item.requiredModule && !isItemLocked(item)) {
       const rbacModule = MODULE_TO_RBAC[item.requiredModule];
       if (rbacModule) {
         const perms = userPermissions[rbacModule];
@@ -233,14 +244,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
       }
     }
     return true;
-  }, [businessType, userPermissions]);
-
-  const isItemLocked = useCallback((item: NavItem): boolean => {
-    if (item.alwaysShow) return false;
-    if (item.requiredModule) return !hasModule(item.requiredModule);
-    if (item.requiredPlan) return !hasPlan(item.requiredPlan);
-    return false;
-  }, [hasModule, hasPlan]);
+  }, [businessType, userPermissions, isItemLocked]);
 
   const getRequiredPlanForItem = useCallback((item: NavItem): PlanType => {
     if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'basic';
@@ -266,20 +270,27 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
     const locked = isItemLocked(item);
 
     if (locked) {
-      // Item verrouillé - cliquable mais ouvre le modal
+      const requiredPlan = getRequiredPlanForItem(item);
+      // Item verrouille - cliquable mais ouvre le modal d'upgrade
       return (
         <button
           onClick={() => handleLockedItemClick(item)}
           className={cn(
             'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
-            'hover:bg-white/10 text-white/50 hover:text-white/70',
+            'hover:bg-white/10 text-white/40 hover:text-white/60 group',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? `${item.label}` : undefined}
+          title={collapsed ? `${item.label} (${PLAN_NAMES[requiredPlan] || 'Basic'})` : undefined}
         >
           <Icon className="h-5 w-5 flex-shrink-0" />
           {!collapsed && (
-            <span className="flex-1 truncate text-left">{item.label}</span>
+            <>
+              <span className="flex-1 truncate text-left">{item.label}</span>
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-white/40 group-hover:text-cyan-300 bg-white/5 px-1.5 py-0.5 rounded">
+                <Lock className="w-2.5 h-2.5" />
+                {PLAN_NAMES[requiredPlan] || 'Basic'}
+              </span>
+            </>
           )}
         </button>
       );
