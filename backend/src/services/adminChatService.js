@@ -313,6 +313,9 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // Flush immediat pour demarrer le stream sans attendre le premier write
+  // (evite le lag avant le premier token)
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
   let conversationMessages = messages.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',

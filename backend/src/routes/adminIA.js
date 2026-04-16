@@ -100,6 +100,53 @@ const requireProPlan = async (req, res, next) => {
 };
 
 // ============================================
+// CHANNELS STATUS — Vue unifiée des 3 canaux
+// ============================================
+
+/**
+ * GET /api/admin/ia/channels-status
+ * Retourne l'état actif/inactif des 3 canaux IA (web, whatsapp, telephone)
+ * pour refléter ce que le signup a créé.
+ *
+ * Accessible à tous les admins (pas de requireProPlan) : en Free, les lignes
+ * peuvent exister mais la toggle sera bloquée côté UI par la garde de plan.
+ */
+router.get('/channels-status', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const { data, error } = await supabase
+      .from('tenant_ia_config')
+      .select('channel, config')
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+
+    // Le flag `active` est stocke dans la colonne JSONB `config.active`
+    // (pas une colonne top-level). On defaut a true si un row existe.
+    const byChannel = new Map(
+      (data || []).map(r => [r.channel, r.config?.active !== false])
+    );
+
+    res.json({
+      success: true,
+      channels: {
+        web: byChannel.get('web') ?? false,
+        whatsapp: byChannel.get('whatsapp') ?? false,
+        telephone: byChannel.get('telephone') ?? false,
+      },
+    });
+  } catch (error) {
+    console.error('[IA Config] Erreur GET channels-status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // TELEPHONE IA CONFIG
 // ============================================
 

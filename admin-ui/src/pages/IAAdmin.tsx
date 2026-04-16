@@ -212,16 +212,27 @@ export default function IAAdmin() {
     );
   }
 
+  // Aucun agent personnalise en DB → on affiche tout de meme le guide d'install
+  // du widget web chat, qui ne depend que du tenant.id. Le tenant peut ainsi
+  // coller le code sur son site immediatement apres l'activation du module.
   if (agents.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto p-8">
-        <Card className="p-8 text-center">
-          <Bot className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Aucun agent IA configure</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Les agents IA seront crees automatiquement lors de l'activation du module.
+      <div className="max-w-4xl mx-auto p-8 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Configuration IA</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Installez le chat IA sur votre site — la personnalisation avancee (voix, ton, proactivite)
+            sera disponible ici des que vous la configurez.
           </p>
-        </Card>
+        </div>
+        {tenant?.id ? (
+          <WidgetInstallGuide tenantId={String(tenant.id)} />
+        ) : (
+          <Card className="p-8 text-center">
+            <Bot className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Chargement...</h2>
+          </Card>
+        )}
       </div>
     );
   }

@@ -128,6 +128,56 @@ const SECONDARY_ACTIONS = [
   { label: 'Créer un document', prompt: 'Aide-moi à créer un document professionnel' },
 ];
 
+// Intercepte les liens vers des endpoints API protegés (PDF factures, etc.) pour
+// les telecharger via fetch authentifié — un <a href target=_blank> standard ne
+// passerait pas le Bearer token et tomberait sur 401/tenant_required.
+const AUTH_DOWNLOAD_PATTERNS = [
+  /\/api\/factures\/[^/?]+\/pdf/,
+  /\/api\/devis\/[^/?]+\/pdf/,
+  /\/api\/journaux\/fec/,
+];
+
+function isAuthDownloadUrl(href: string): boolean {
+  return AUTH_DOWNLOAD_PATTERNS.some((p) => p.test(href));
+}
+
+function extractFilename(href: string): string {
+  const match = href.match(/\/api\/(factures|devis)\/([^/?]+)\/pdf/);
+  if (match) return `${match[1]}_${match[2]}.pdf`;
+  if (/\/journaux\/fec/.test(href)) return 'journaux_fec.txt';
+  return 'download';
+}
+
+const markdownComponents = {
+  a: ({ href, children, ...props }: { href?: string; children?: React.ReactNode }) => {
+    if (href && isAuthDownloadUrl(href)) {
+      return (
+        <a
+          href={href}
+          {...props}
+          onClick={(e) => {
+            e.preventDefault();
+            // Retirer le prefixe /api car api.downloadFile l'ajoute via API_BASE
+            const endpoint = href.replace(/^\/api/, '');
+            api.downloadFile(endpoint, extractFilename(href)).catch((err) => {
+              console.error('[Download] Erreur telechargement:', err);
+              alert(`Echec du telechargement: ${err.message}`);
+            });
+          }}
+          className="text-cyan-600 hover:text-cyan-700 underline cursor-pointer"
+        >
+          {children}
+        </a>
+      );
+    }
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+      </a>
+    );
+  },
+};
+
 // Memoized message — ne re-render que quand content/isStreaming changent
 const ChatMessage = memo(({ message }: { message: Message }) => (
   <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -147,9 +197,15 @@ const ChatMessage = memo(({ message }: { message: Message }) => (
       }`}>
         {message.role === 'user' ? (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        ) : message.isStreaming ? (
+          // Pendant le streaming : rendu plain text (performant) — evite la re-parse
+          // complete du markdown a chaque token qui rendait la cascade tres lente.
+          <div className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+            {message.content}
+          </div>
         ) : (
           <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-table:text-xs prose-th:px-2 prose-td:px-2">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{message.content}</ReactMarkdown>
           </div>
         )}
         {message.isStreaming && <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse ml-1 rounded-sm" />}
@@ -492,6 +548,17 @@ export function Home() {
       if (response.status === 401) {
         window.location.href = '/login';
         return;
+      }
+      if (response.status === 403) {
+        // Module verrouille (Free plan) → message upsell cible au lieu d'erreur generique
+        const body = await response.json().catch(() => ({}));
+        if (body?.code === 'MODULE_NOT_ACTIVATED') {
+          const upsell = 'L\'Assistant IA admin necessite le plan **Basic**.\n\n[Passer a Basic →](/subscription)';
+          setMessages(prev => prev.map(m =>
+            m.id === assistantId ? { ...m, content: upsell, isStreaming: false } : m
+          ));
+          return;
+        }
       }
       if (!response.ok) throw new Error('Stream failed');
 

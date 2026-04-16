@@ -236,6 +236,39 @@ class ApiClient {
     };
   }
 
+  /**
+   * Télécharge un fichier binaire via fetch authentifié et déclenche le download.
+   * Utilisé pour les routes protegees qui renvoient du binaire (PDF, FEC, etc.) quand
+   * un simple <a href> ne passerait pas le token (ouverture nouvelle tab).
+   *
+   * @param endpoint - chemin relatif (ex: '/factures/123/pdf?download=true')
+   * @param filename - nom du fichier propose au navigateur
+   */
+  async downloadFile(endpoint: string, filename: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+      const { tenant_id, tenant_slug } = extractTenantFromJWT(this.token);
+      if (tenant_id) headers['X-Tenant-ID'] = tenant_id;
+      if (tenant_slug) headers['X-Tenant-Slug'] = tenant_slug;
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, { method: 'GET', headers });
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   // Upload FormData (file upload) - ne set pas Content-Type pour laisser le browser gérer le boundary
   async upload<T>(endpoint: string, formData: FormData, options: ApiOptions = {}): Promise<T> {
     const { skipAuth, skipTenant, ...fetchOptions } = options;
