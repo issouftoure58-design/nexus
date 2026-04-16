@@ -40,6 +40,9 @@ export interface Service {
   zone?: string;
   capacite_max?: number;
   vue?: string;
+  type_chambre?: string | null;
+  categorie?: string;
+  facturation?: 'par_nuit' | 'forfait';
 }
 
 export interface Membre {
@@ -185,6 +188,9 @@ export interface Reservation {
   date_arrivee?: string;
   date_depart?: string;
   heure_arrivee?: string;
+  // Multi-jours (hotel / security / mission)
+  date_fin?: string;
+  heure_fin?: string;
 }
 
 // === Formulaires ===
@@ -336,6 +342,16 @@ export const calculateDays = (startDate: string, endDate: string): number => {
   const diffTime = Math.abs(end.getTime() - start.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays + 1;
+};
+
+// Nuits hotelieres : checkout - checkin (17 -> 19 = 2 nuits)
+export const calculateNights = (checkin: string, checkout: string): number => {
+  if (!checkin || !checkout) return 0;
+  const start = new Date(checkin);
+  const end = new Date(checkout);
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 };
 
 export const DEFAULT_NEW_RDV_FORM: NewRdvForm = {

@@ -13,7 +13,7 @@ import type {
   Client, Service, Membre, ServiceLigne, ServiceAffectation,
   NewRdvForm, NewClientForm, Totals,
 } from './types';
-import { calculateHours, calculateDays } from './types';
+import { calculateHours, calculateDays, calculateNights } from './types';
 
 interface ProfileLike {
   id?: string;
@@ -429,7 +429,27 @@ export default function NewReservationModal({
           )}
 
           {/* HOTEL: Sélection chambre + dates séjour + extras */}
-          {isBusinessType('hotel') && (
+          {isBusinessType('hotel') && (() => {
+            // Chambres = services avec type_chambre non null (meme critere que IA et /admin/hotel/chambres)
+            const chambres = services.filter(s => s.actif !== false && !!s.type_chambre);
+            // Annexes = services actifs SANS type_chambre (petit-dej, parking, lit bebe, etc.)
+            const annexes = services.filter(s => s.actif !== false && !s.type_chambre);
+            const selectedChambre = chambres.find(c => c.id === newRdvForm.chambre_id);
+            const maxPersonnes = selectedChambre?.capacite_max || 10;
+            const nbNuits = calculateNights(newRdvForm.date_rdv, newRdvForm.date_checkout);
+            // Extras : par_nuit → prix × nb_nuits, forfait → prix × 1
+            const nuitsForExtras = Math.max(1, nbNuits);
+            const extrasTotal = annexes
+              .filter(a => newRdvForm.extras.includes(a.nom))
+              .reduce((sum, a) => {
+                const mult = a.facturation === 'par_nuit' ? nuitsForExtras : 1;
+                return sum + (a.prix || 0) * mult;
+              }, 0);
+            const totalCents = selectedChambre
+              ? (selectedChambre.prix || 0) * Math.max(1, nbNuits) + extrasTotal
+              : 0;
+
+            return (
             <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-blue-600">{'\uD83C\uDFE8'}</span>
@@ -442,29 +462,45 @@ export default function NewReservationModal({
                 </label>
                 <select
                   value={newRdvForm.chambre_id}
-                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, chambre_id: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const id = parseInt(e.target.value) || 0;
+                    const room = chambres.find(c => c.id === id);
+                    // Cap nb_personnes a capacite_max de la nouvelle chambre
+                    const cap = room?.capacite_max || 10;
+                    const nb = Math.min(newRdvForm.nb_personnes || 1, cap);
+                    onNewRdvFormChange({ ...newRdvForm, chambre_id: id, nb_personnes: nb });
+                  }}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value={0}>-- Sélectionner une chambre --</option>
-                  {services.filter(s => s.actif !== false).map((chambre) => (
+                  {chambres.map((chambre) => (
                     <option key={chambre.id} value={chambre.id}>
                       {chambre.nom} ({chambre.capacite_max || 2} pers.) - {(chambre.prix / 100).toFixed(0)}€/nuit
                       {chambre.vue && ` - Vue ${chambre.vue}`}
                     </option>
                   ))}
                 </select>
+                {chambres.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Aucune chambre configurée. Ajoutez-en dans Configuration.</p>
+                )}
               </div>
 
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Nombre de personnes *
+                  {selectedChambre && (
+                    <span className="text-xs text-gray-500 ml-2">(max {maxPersonnes} pour cette chambre)</span>
+                  )}
                 </label>
                 <Input
                   type="number"
                   min={1}
-                  max={10}
+                  max={maxPersonnes}
                   value={newRdvForm.nb_personnes}
-                  onChange={(e) => onNewRdvFormChange({ ...newRdvForm, nb_personnes: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value) || 1;
+                    onNewRdvFormChange({ ...newRdvForm, nb_personnes: Math.min(v, maxPersonnes) });
+                  }}
                   placeholder="2"
                 />
               </div>
@@ -504,41 +540,50 @@ export default function NewReservationModal({
                   />
                 </div>
               </div>
-              {newRdvForm.date_rdv && newRdvForm.date_checkout && (
+              {nbNuits > 0 && selectedChambre && (
                 <p className="text-sm text-blue-600 font-medium">
-                  {calculateDays(newRdvForm.date_rdv, newRdvForm.date_checkout)} nuit(s)
-                  {newRdvForm.chambre_id > 0 && services.find(s => s.id === newRdvForm.chambre_id) && (
-                    <> - Total: {((services.find(s => s.id === newRdvForm.chambre_id)?.prix || 0) / 100 * calculateDays(newRdvForm.date_rdv, newRdvForm.date_checkout)).toFixed(0)}€</>
-                  )}
+                  {nbNuits} nuit{nbNuits > 1 ? 's' : ''} × {(selectedChambre.prix / 100).toFixed(0)}€
+                  {extrasTotal > 0 && <> + {(extrasTotal / 100).toFixed(0)}€ extras</>}
+                  <> = <strong>{(totalCents / 100).toFixed(2)}€</strong></>
                 </p>
               )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                  Extras
+                  Prestations annexes
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Petit-déjeuner', 'Parking', 'Spa', 'Transfert aéroport'].map(extra => (
-                    <label key={extra} className="flex items-center gap-2 text-sm cursor-pointer p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={newRdvForm.extras.includes(extra)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            onNewRdvFormChange({ ...newRdvForm, extras: [...newRdvForm.extras, extra] });
-                          } else {
-                            onNewRdvFormChange({ ...newRdvForm, extras: newRdvForm.extras.filter(ex => ex !== extra) });
-                          }
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      {extra}
-                    </label>
-                  ))}
-                </div>
+                {annexes.length === 0 ? (
+                  <p className="text-xs text-gray-500">Aucune prestation configurée. Ajoutez-en dans Configuration.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {annexes.map(extra => (
+                      <label key={extra.id} className="flex items-center gap-2 text-sm cursor-pointer p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={newRdvForm.extras.includes(extra.nom)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onNewRdvFormChange({ ...newRdvForm, extras: [...newRdvForm.extras, extra.nom] });
+                            } else {
+                              onNewRdvFormChange({ ...newRdvForm, extras: newRdvForm.extras.filter(ex => ex !== extra.nom) });
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="flex-1">{extra.nom}</span>
+                        {extra.prix > 0 && (
+                          <span className="text-xs text-gray-500">
+                            +{(extra.prix / 100).toFixed(0)}€{extra.facturation === 'par_nuit' ? '/nuit' : ''}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* === MULTI-SERVICES === (Salon/Service domicile/Security) */}
           {(isBusinessType('salon') || isBusinessType('service_domicile') || isBusinessType('security')) && (

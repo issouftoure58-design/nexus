@@ -204,6 +204,15 @@ router.get('/', authenticateAdmin, async (req, res) => {
         id: r.id,
         date_rdv: r.date,
         heure_rdv: r.heure,
+        // Hotel : dates et heures de sejour multi-jours
+        // Note: colonne "date_fin" n'existe pas en DB — on expose date_depart sous date_fin pour compat frontend
+        date_fin: r.date_depart || null,
+        heure_fin: r.heure_fin || null,
+        date_arrivee: r.date_arrivee || null,
+        date_depart: r.date_depart || null,
+        nb_personnes: r.nb_personnes || null,
+        nb_couverts: r.nb_couverts || null,
+        nb_nuitees: r.nb_nuitees || null,
         statut: r.statut,
         lieu: r.lieu || defaultLieu,
         prix_total: r.prix_total ? r.prix_total / 100 : 0,
@@ -600,8 +609,33 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       dureeConflictCheck = duree_totale_minutes;
     }
 
-    // Vérifier les conflits horaires AVANT création (même pour admin)
-    if (heureEffective && !isHourlyMode) {
+    // Vérifier les conflits
+    // - Hotel (date_fin fourni): check chevauchement PERIODE sur la meme chambre
+    // - Autres (salon/restaurant/service): check chevauchement CRENEAU HORAIRE single-day
+    if (date_fin) {
+      // Hotel: la chambre est le 1er service (services[0].service_id) ou service_id top-level
+      const chambreId = services?.[0]?.service_id || null;
+      if (chambreId) {
+        const { data: overlapping } = await supabase
+          .from('reservations')
+          .select('id, client_nom, client_prenom, service_nom, date_arrivee, date_depart')
+          .eq('tenant_id', tenantId)
+          .eq('service_id', chambreId)
+          .in('statut', ['confirme', 'demande', 'en_cours'])
+          .lt('date_arrivee', date_fin)      // resa existante commence AVANT notre depart
+          .gt('date_depart', date_rdv);      // resa existante finit APRES notre arrivee
+
+        if (overlapping && overlapping.length > 0) {
+          const c = overlapping[0];
+          const who = `${c.client_prenom || ''} ${c.client_nom || ''}`.trim() || 'Un client';
+          return apiError(
+            res,
+            `Chambre occupée : ${who} a déjà "${c.service_nom}" du ${c.date_arrivee} au ${c.date_depart}.`,
+            'CONFLICT', 409
+          );
+        }
+      }
+    } else if (heureEffective && !isHourlyMode) {
       const conflictResult = await checkConflicts(
         supabase, date_rdv, heureEffective, dureeConflictCheck, null, tenantId
       );
@@ -651,8 +685,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       statut: effectiveRequireDeposit ? 'demande' : 'confirme',
       // Durée totale (somme de tous les services × quantités)
       duree_totale_minutes: dureeConflictCheck,
-      // Restaurant
-      nb_couverts: nb_couverts || nb_personnes || null
+      // Restaurant UNIQUEMENT (pas de fallback nb_personnes -> hotel ne doit pas declencher findAvailableTable)
+      nb_couverts: nb_couverts || null
     }, 'admin', {
       sendSMS: true,
       // Skip validation horaires d'ouverture pour admin (sécurité 24/7, etc.)
@@ -677,6 +711,29 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       adresse_facturation: adresse_facturation || null
     };
 
+    // Hotel / multiday: persister colonnes dediees date_arrivee/date_depart/heure_fin
+    // (consommees par /admin/hotel/occupation et les outils IA de reservation hotel)
+    // Note: la colonne "date_fin" n'existe PAS en DB — on utilise date_depart (hotel) ou multiday_group_id (security).
+    if (date_fin) {
+      updateData.heure_fin = heure_fin || null;
+      updateData.date_arrivee = date_rdv;
+      updateData.date_depart = date_fin;
+      // Calcul nb_nuitees pour hotel (utile pour reporting)
+      try {
+        const d1 = new Date(date_rdv);
+        const d2 = new Date(date_fin);
+        const diff = Math.round((d2 - d1) / 86400000);
+        if (diff > 0) updateData.nb_nuitees = diff;
+      } catch { /* noop */ }
+    }
+    if (nb_personnes) updateData.nb_personnes = nb_personnes;
+
+    // Hotel: forcer service_id = chambre (1er service) pour que le calendrier /chambres
+    // puisse matcher la resa a la bonne chambre via r.service_id === chambre.id
+    if (hasServices && services?.[0]?.service_id) {
+      updateData.service_id = services[0].service_id;
+    }
+
     // Ajouter les totaux si fournis
     if (montant_ht !== undefined) updateData.montant_ht = montant_ht;
     if (montant_tva !== undefined) updateData.montant_tva = montant_tva;
@@ -685,9 +742,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     updateData.duree_totale_minutes = duree_totale_minutes || dureeConflictCheck;
     if (frais_deplacement !== undefined) updateData.frais_deplacement = frais_deplacement;
 
-    // Restaurant: persister nb_couverts et table assignée
+    // Restaurant: persister nb_couverts et table assignée (UNIQUEMENT si nb_couverts fourni explicitement)
+    // Ne PAS faire fallback nb_couverts = nb_personnes (hotel a son propre champ nb_personnes)
     if (nb_couverts) updateData.nb_couverts = nb_couverts;
-    if (nb_personnes) updateData.nb_couverts = nb_personnes;
 
     // Ajouter les infos de remise
     if (remise_type) {
@@ -710,6 +767,15 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     // === INSERTION MULTI-SERVICES (reservation_lignes) avec membre assigné ===
     if (hasServices && services.length > 0) {
       console.log('[ADMIN RESERVATIONS] Services reçus:', JSON.stringify(services, null, 2));
+
+      // createReservationUnified a deja insere une ligne auto pour service_nom principal
+      // On la supprime pour eviter duplication avec les lignes detaillees qu'on va inserer
+      await supabase
+        .from('reservation_lignes')
+        .delete()
+        .eq('reservation_id', reservationId)
+        .eq('tenant_id', tenantId);
+
       const lignesData = [];
 
       for (const s of services) {
@@ -749,13 +815,14 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
           }
         } else {
           // Mode classique: une ligne par service
+          // NB: ?? au lieu de || pour preserver duree_minutes=0 (hotel : chambre/extras = 0 min)
           lignesData.push({
             reservation_id: reservationId,
             tenant_id: tenantId,
             service_id: s.service_id || null,
             service_nom: s.service_nom,
             quantite: s.quantite || 1,
-            duree_minutes: s.duree_minutes || 60,
+            duree_minutes: s.duree_minutes ?? 60,
             prix_unitaire: s.prix_unitaire || 0,
             prix_total: (s.prix_unitaire || 0) * (s.quantite || 1),
             membre_id: s.membre_id || null
@@ -897,10 +964,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       membre_id
     } = req.body;
 
-    // Récupérer la réservation actuelle avec infos client (🔒 TENANT ISOLATION)
+    // Récupérer la réservation actuelle avec infos client + lignes (chambre + extras pour hotel) (🔒 TENANT ISOLATION)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
-      .select('*, clients(nom, prenom, telephone, email)')
+      .select('*, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .single();
@@ -919,7 +986,11 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     };
 
     // Si changement de date/heure, vérifier chevauchements (durée incluse)
-    if (date_rdv || heure_rdv) {
+    // NB: pour hotel, le conflit se mesure par chambre_id + date range (pas par heure/salarie).
+    // On skippe donc le check generique ici — la gestion d'occupation chambre est deportee
+    // (chaque chambre a une capacite independante, 2 sejours en chambres differentes ne sont pas en conflit).
+    const isHotelReservation = !!(currentRdv.date_arrivee || currentRdv.date_depart || currentRdv.nb_nuitees);
+    if ((date_rdv || heure_rdv) && !isHotelReservation) {
       const newDate = date_rdv || currentRdv.date;
       const newHeure = heure_rdv || currentRdv.heure;
       const duree = currentRdv.duree_minutes || 60;
@@ -929,10 +1000,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         const c = conflictResult.rdv;
         return apiError(res, `Conflit : ${c.client} (${c.service}) jusqu'à ${c.fin}`, 'CONFLICT', 409);
       }
-
-      if (date_rdv) updates.date = date_rdv;
-      if (heure_rdv) updates.heure = heure_rdv;
     }
+    if (date_rdv) updates.date = date_rdv;
+    if (heure_rdv) updates.heure = heure_rdv;
 
     // Si changement de service, recalculer le prix (🔒 TENANT ISOLATION)
     if (service && service !== currentRdv.service_nom) {
@@ -1050,6 +1120,20 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
               service_nom: updates.service_nom || currentRdv.service_nom,
               date: updates.date || currentRdv.date_rdv || currentRdv.date,
               heure: updates.heure || currentRdv.heure_rdv || currentRdv.heure,
+              // Champs hotel (multi-jours) - passes si presents
+              date_arrivee: currentRdv.date_arrivee || null,
+              date_depart: currentRdv.date_depart || null,
+              heure_fin: currentRdv.heure_fin || null,
+              nb_nuitees: currentRdv.nb_nuitees || null,
+              nb_personnes: currentRdv.nb_personnes || null,
+              // Multi-services (chambre + extras) — normaliser les lignes au format attendu par notificationService
+              services: Array.isArray(currentRdv.reservation_lignes) && currentRdv.reservation_lignes.length > 0
+                ? currentRdv.reservation_lignes.map(l => ({
+                    service_nom: l.service_nom,
+                    quantite: l.quantite || 1,
+                    prix_total: l.prix_total ? l.prix_total / 100 : null,
+                  }))
+                : null,
               total: (updates.prix_total || currentRdv.prix_total || 0) / 100,
               prix_service: (updates.prix_total || currentRdv.prix_total || 0) / 100,
               frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
@@ -1059,10 +1143,17 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           } else if (detailsChanged) {
             // Modification date/heure/service : envoyer modification
             const { sendModification } = await import('../services/notificationService.js');
+            const lignesEdit = Array.isArray(currentRdv.reservation_lignes) ? currentRdv.reservation_lignes : [];
+            const totalEditCentimes = lignesEdit.length > 0
+              ? lignesEdit.reduce((sum, l) => sum + (Number(l.prix_total) || 0), 0)
+              : (updates.prix_total || currentRdv.prix_total || 0);
             const ancienRdv = {
               date: currentRdv.date,
               heure: currentRdv.heure,
               service_nom: currentRdv.service_nom,
+              // Hotel: etat ancien
+              date_arrivee: currentRdv.date_arrivee || null,
+              date_depart: currentRdv.date_depart || null,
             };
             const nouveauRdv = {
               client_telephone: telephone,
@@ -1072,13 +1163,26 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
               date: updates.date || currentRdv.date,
               heure: updates.heure || currentRdv.heure,
               service_nom: updates.service_nom || currentRdv.service_nom,
-              total: (updates.prix_total || currentRdv.prix_total || 0) / 100,
-              prix_service: (updates.prix_total || currentRdv.prix_total || 0) / 100,
+              total: totalEditCentimes / 100,
+              prix_service: totalEditCentimes / 100,
               frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
               adresse_client: currentRdv.adresse_client,
+              // Hotel: etat nouveau
+              date_arrivee: updates.date_arrivee || currentRdv.date_arrivee || null,
+              date_depart: updates.date_depart || currentRdv.date_depart || null,
+              heure_fin: updates.heure_fin || currentRdv.heure_fin || null,
+              nb_nuitees: updates.nb_nuitees || currentRdv.nb_nuitees || null,
+              nb_personnes: updates.nb_personnes || currentRdv.nb_personnes || null,
+              services: lignesEdit.length > 0
+                ? lignesEdit.map(l => ({
+                    service_nom: l.service_nom,
+                    quantite: l.quantite || 1,
+                    prix_total: l.prix_total ? l.prix_total / 100 : null,
+                  }))
+                : null,
             };
             await sendModification(ancienRdv, nouveauRdv, tenantId);
-            console.log(`[ADMIN EDIT] Notification modification envoyée (cascade Email→WA→SMS)`);
+            console.log(`[ADMIN EDIT] Notification modification envoyée (cascade Email→WA→SMS, total=${(totalEditCentimes/100).toFixed(2)}€)`);
           }
         } catch (notifErr) {
           console.error('[ADMIN EDIT] Notification échouée (non bloquant):', notifErr.message);
@@ -1364,9 +1468,10 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // Le paiement sera enregistré séparément via POST /factures/:id/paiement
 
     // Récupérer la réservation actuelle (🔒 TENANT ISOLATION)
+    // reservation_lignes inclus pour notifications multi-services (hotel extras, etc.)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
-      .select('*, clients(nom, prenom, telephone, email)')
+      .select('*, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .single();
@@ -1381,11 +1486,22 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     }
 
     // ⚠️ VALIDATION: Personnel obligatoire pour terminer une réservation
-    // Exception: checkout restaurant (encaissement de table) — pas de membre requis
+    // UNIQUEMENT pour business types qui ont une prestation assuree par un membre :
+    //   salon (coiffeur), service_domicile (technicien), service (consultant/formateur), security (agent)
+    // Exemption (pas de membre requis) : hotel (check-out client), restaurant (checkout table), commerce (click&collect)
     if (statut === 'termine' && !checkout) {
-      const membreAssigne = membre_id || currentRdv.membre_id;
-      if (!membreAssigne) {
-        return apiError(res, 'Affectation du personnel obligatoire pour terminer la prestation', 'MEMBRE_REQUIS', 400);
+      const { data: tenantRow } = await supabase
+        .from('tenants')
+        .select('business_profile')
+        .eq('id', tenantId)
+        .single();
+      const membreRequiredProfiles = ['salon', 'service_domicile', 'service', 'security'];
+      const businessProfile = tenantRow?.business_profile || 'salon';
+      if (membreRequiredProfiles.includes(businessProfile)) {
+        const membreAssigne = membre_id || currentRdv.membre_id;
+        if (!membreAssigne) {
+          return apiError(res, 'Affectation du personnel obligatoire pour terminer la prestation', 'MEMBRE_REQUIS', 400);
+        }
       }
     }
 
@@ -1459,6 +1575,11 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         const clientEmail = currentRdv.clients?.email || currentRdv.client_email;
         console.log(`[ADMIN STATUT] Resolution contact: phone=${clientPhone || 'NULL'}, email=${clientEmail || 'NULL'}, clients=${!!currentRdv.clients}`);
         if (clientPhone || clientEmail) {
+          // Recalcul total a partir des lignes si disponible (fix cas ou prix_total stale/partiel)
+          const lignes = Array.isArray(currentRdv.reservation_lignes) ? currentRdv.reservation_lignes : [];
+          const totalCentimes = lignes.length > 0
+            ? lignes.reduce((sum, l) => sum + (Number(l.prix_total) || 0), 0)
+            : (currentRdv.prix_total || 0);
           const { sendConfirmation } = await import('../services/notificationService.js');
           await sendConfirmation({
             client_telephone: clientPhone,
@@ -1468,17 +1589,58 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
             service_nom: currentRdv.service_nom,
             date: currentRdv.date_rdv || currentRdv.date,
             heure: currentRdv.heure_rdv || currentRdv.heure,
-            total: (currentRdv.prix_total || 0) / 100,
-            prix_service: (currentRdv.prix_total || 0) / 100,
+            total: totalCentimes / 100,
+            prix_service: totalCentimes / 100,
             frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
             adresse_client: currentRdv.adresse_client,
+            // Hotel-specific fields (safe no-op pour autres business types)
+            date_arrivee: currentRdv.date_arrivee || null,
+            date_depart: currentRdv.date_depart || null,
+            heure_fin: currentRdv.heure_fin || null,
+            nb_nuitees: currentRdv.nb_nuitees || null,
+            nb_personnes: currentRdv.nb_personnes || null,
+            // Multi-services (reservation_lignes) pour templates adaptatifs
+            services: lignes.length > 0
+              ? lignes.map(l => ({
+                  service_nom: l.service_nom,
+                  quantite: l.quantite || 1,
+                  prix_total: l.prix_total ? l.prix_total / 100 : null,
+                }))
+              : null,
           }, 0, tenantId);
-          console.log(`[ADMIN STATUT] Confirmation envoyée au client (cascade Email→WA→SMS)`);
+          console.log(`[ADMIN STATUT] Confirmation envoyée au client (cascade Email→WA→SMS, total=${(totalCentimes/100).toFixed(2)}€, services=${lignes.length})`);
         } else {
           console.warn(`[ADMIN STATUT] Aucun contact client trouvé pour RDV ${req.params.id} — notification impossible`);
         }
       } catch (notifErr) {
         console.error('[ADMIN STATUT] Notification confirmation échouée (non bloquant):', notifErr.message);
+      }
+    }
+
+    // 📩 Notification client sur annulation
+    if (statut === 'annule' && currentRdv.statut !== 'annule') {
+      try {
+        const clientPhone = currentRdv.clients?.telephone || currentRdv.telephone;
+        const clientEmail = currentRdv.clients?.email || currentRdv.client_email;
+        if (clientPhone || clientEmail) {
+          const { sendAnnulation } = await import('../services/notificationService.js');
+          await sendAnnulation({
+            client_telephone: clientPhone,
+            client_email: clientEmail,
+            client_prenom: currentRdv.clients?.prenom || currentRdv.client_prenom,
+            client_nom: currentRdv.clients?.nom || currentRdv.client_nom,
+            date: currentRdv.date_rdv || currentRdv.date,
+            heure: currentRdv.heure_rdv || currentRdv.heure,
+            // Hotel-specific
+            date_arrivee: currentRdv.date_arrivee || null,
+            date_depart: currentRdv.date_depart || null,
+          }, 0, tenantId);
+          console.log(`[ADMIN STATUT] Annulation envoyée au client (cascade Email→WA→SMS)`);
+        } else {
+          console.warn(`[ADMIN STATUT] Aucun contact client trouvé pour RDV ${req.params.id} — annulation non envoyée`);
+        }
+      } catch (notifErr) {
+        console.error('[ADMIN STATUT] Notification annulation échouée (non bloquant):', notifErr.message);
       }
     }
 

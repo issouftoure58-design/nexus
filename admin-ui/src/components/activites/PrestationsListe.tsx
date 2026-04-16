@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EntityLink } from '@/components/EntityLink';
-import { useProfile } from '@/contexts/ProfileContext';
+import { useProfile, useBusinessTypeChecks } from '@/contexts/ProfileContext';
 import { api } from '@/lib/api';
 import type { Reservation, ReservationService, ReservationMembre, Filters, Stats } from './types';
 import { STATUS_CONFIG, formatDate, formatCurrency, DEFAULT_FILTERS } from './types';
@@ -52,6 +52,7 @@ export default function PrestationsListe({
   onOpenNew,
 }: PrestationsListeProps) {
   const { t } = useProfile();
+  const { isHotel } = useBusinessTypeChecks();
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositRate, setDepositRate] = useState(30);
   const [confirmingDeposit, setConfirmingDeposit] = useState<number | null>(null);
@@ -226,8 +227,21 @@ export default function PrestationsListe({
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                           <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(rdv.date || '')}</div>
-                            <div className="text-sm text-gray-500">{rdv.heure || '-'}</div>
+                            {isHotel && rdv.date_fin ? (
+                              <>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {formatDate(rdv.date || '')} <span className="text-gray-400">→</span> {formatDate(rdv.date_fin)}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  Check-in {rdv.heure || '14:00'} · Check-out {rdv.heure_fin || '11:00'}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(rdv.date || '')}</div>
+                                <div className="text-sm text-gray-500">{rdv.heure || '-'}</div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -279,12 +293,14 @@ export default function PrestationsListe({
                                     {s.service_nom}
                                   </span>
                                   {s.quantite > 1 && <span className="text-xs text-gray-500">x{s.quantite}</span>}
-                                  <span className="text-xs text-gray-400">
-                                    {s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)} min` : ''}
-                                  </span>
+                                  {!isHotel && (
+                                    <span className="text-xs text-gray-400">
+                                      {s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)} min` : ''}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
-                                  {s.heure_debut && s.heure_fin && (
+                                  {!isHotel && s.heure_debut && s.heure_fin && (
                                     <span className="text-gray-500">{s.heure_debut} → {s.heure_fin}</span>
                                   )}
                                   {s.membre && (
@@ -295,7 +311,9 @@ export default function PrestationsListe({
                                 </div>
                               </div>
                             ))}
-                            <div className="text-xs font-medium text-gray-500 pt-0.5">Total : {rdv.duree_totale || rdv.duree || 60} min</div>
+                            {!isHotel && (
+                              <div className="text-xs font-medium text-gray-500 pt-0.5">Total : {rdv.duree_totale || rdv.duree || 60} min</div>
+                            )}
                           </div>
                         ) : (
                           <>
@@ -314,7 +332,7 @@ export default function PrestationsListe({
                             ) : (
                               <span className="text-sm">{rdv.service_nom || '-'}</span>
                             )}
-                            {rdv.duree && <div className="text-xs text-gray-500">{rdv.duree} min</div>}
+                            {!isHotel && rdv.duree && <div className="text-xs text-gray-500">{rdv.duree} min</div>}
                           </>
                         )}
                       </td>
@@ -479,15 +497,23 @@ export default function PrestationsListe({
                               <div className="flex items-center gap-1">
                                 <span className="text-gray-700 dark:text-gray-300">{s.service_nom}</span>
                                 {s.quantite > 1 && <span className="text-xs text-gray-400">x{s.quantite}</span>}
-                                {s.heure_debut && s.heure_fin && (
+                                {!isHotel && s.heure_debut && s.heure_fin && (
                                   <span className="text-xs text-gray-400">({s.heure_debut}→{s.heure_fin})</span>
                                 )}
                               </div>
-                              <span className="text-xs text-gray-400">{s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)}min` : ''}</span>
+                              {!isHotel && (
+                                <span className="text-xs text-gray-400">{s.duree_minutes ? `${s.duree_minutes * (s.quantite || 1)}min` : ''}</span>
+                              )}
                             </div>
                           ))}
                           <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
-                            <span className="text-xs text-gray-500">Total : {rdv.duree_totale || rdv.duree || 60} min</span>
+                            {!isHotel ? (
+                              <span className="text-xs text-gray-500">Total : {rdv.duree_totale || rdv.duree || 60} min</span>
+                            ) : (
+                              <span className="text-xs text-gray-500">
+                                {rdv.date_fin ? `${formatDate(rdv.date || '')} → ${formatDate(rdv.date_fin)}` : ''}
+                              </span>
+                            )}
                             <span className="font-medium text-green-600">{formatCurrency(rdv.prix || 0)}</span>
                           </div>
                         </>

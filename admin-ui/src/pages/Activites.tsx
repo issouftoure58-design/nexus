@@ -48,6 +48,7 @@ import {
   calculateEndTime,
   calculateHours,
   calculateDays,
+  calculateNights,
   DEFAULT_NEW_RDV_FORM,
   DEFAULT_NEW_CLIENT_FORM,
   DEFAULT_FILTERS,
@@ -823,12 +824,15 @@ export default function Activites() {
     setEditingRdv(rdv);
 
     // Charger les champs restaurant/hotel via RPC (bypass PostgREST schema cache)
-    let extra: Record<string, any> = {};
+    // api.get unwrappe { data: {...} } → retourne directement le record
+    let extraRaw: any = {};
     if (isBusinessType('restaurant') || isBusinessType('hotel')) {
       try {
-        extra = await api.get<Record<string, any>>(`/admin/reservations/${rdv.id}/extra`) || {};
+        extraRaw = await api.get<any>(`/admin/reservations/${rdv.id}/extra`) || {};
       } catch { /* fallback aux donnees rdv */ }
     }
+    // Gestion des 2 formats possibles : { data: {...} } ou {...} direct
+    const extra: Record<string, any> = extraRaw?.data && typeof extraRaw.data === 'object' ? extraRaw.data : extraRaw;
 
     setEditForm({
       service_nom: rdv.service_nom || (typeof rdv.service === 'object' ? rdv.service?.nom : rdv.service) || '',
@@ -844,7 +848,8 @@ export default function Activites() {
       chambre_id: extra.chambre_id || rdv.chambre_id || extra.service_id || rdv.service_id || 0,
       nb_personnes: extra.nb_personnes || rdv.nb_personnes || 2,
       date_checkout: extra.date_depart || rdv.date_depart || '',
-      heure_checkout: extra.heure_arrivee || rdv.heure_arrivee || '',
+      // Fix: heure_fin = heure de depart (check-out), pas heure_arrivee
+      heure_checkout: extra.heure_fin || rdv.heure_fin || extra.heure_depart || rdv.heure_depart || '',
     });
 
     const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({
@@ -889,6 +894,7 @@ export default function Activites() {
           nb_personnes: editForm.nb_personnes || null,
           chambre_id: editForm.chambre_id || null,
           date_depart: editForm.date_checkout || null,
+          heure_fin: editForm.heure_checkout || null,
         } : {}),
       });
       setShowEditModal(false);
@@ -1006,8 +1012,25 @@ export default function Activites() {
           require_deposit: requireDeposit && depositEnabled,
         });
       } else if (isBusinessType('hotel')) {
-        // Hotel: chambre + check-in/check-out + extras
+        // Hotel: chambre (type_chambre != null) + check-in/check-out + extras (annexes)
         const selectedRoom = services.find(s => s.id === newRdvForm.chambre_id);
+        // Calcul nuits (checkout - checkin, min 1 pour eviter prix 0 si dates identiques)
+        const nbNuits = Math.max(1, calculateNights(newRdvForm.date_rdv, newRdvForm.date_checkout));
+        // Extras = services annexes dont le nom est dans form.extras
+        // Quantite : nb_nuits si facturation=par_nuit, sinon 1
+        const selectedExtras = (newRdvForm.extras || [])
+          .map(nom => services.find(s => s.nom === nom && !s.type_chambre))
+          .filter((s): s is typeof services[0] => !!s)
+          .map(s => ({
+            ...s,
+            quantite: s.facturation === 'par_nuit' ? nbNuits : 1,
+          }));
+        const extrasTotal = selectedExtras.reduce(
+          (sum, s) => sum + (s.prix || 0) * s.quantite,
+          0
+        );
+        const prixTotal = (selectedRoom?.prix || 0) * nbNuits + extrasTotal;
+
         await api.post('/admin/reservations', {
           client_id: clientId,
           service: selectedRoom?.nom || `Chambre #${newRdvForm.chambre_id}`,
@@ -1016,19 +1039,28 @@ export default function Activites() {
           date_fin: newRdvForm.date_checkout,
           heure_fin: newRdvForm.heure_checkout || '11:00',
           notes: newRdvForm.notes,
-          services: [{
-            service_id: newRdvForm.chambre_id,
-            service_nom: selectedRoom?.nom || `Chambre #${newRdvForm.chambre_id}`,
-            quantite: 1,
-            prix_unitaire: selectedRoom?.prix || 0,
-            duree_minutes: 0,
-          }],
+          services: [
+            {
+              service_id: newRdvForm.chambre_id,
+              service_nom: selectedRoom?.nom || `Chambre #${newRdvForm.chambre_id}`,
+              quantite: nbNuits,
+              prix_unitaire: selectedRoom?.prix || 0,
+              duree_minutes: 0,
+            },
+            ...selectedExtras.map(extra => ({
+              service_id: extra.id,
+              service_nom: extra.nom,
+              quantite: extra.quantite,
+              prix_unitaire: extra.prix || 0,
+              duree_minutes: 0,
+            })),
+          ],
           nb_personnes: newRdvForm.nb_personnes || 2,
           extras: newRdvForm.extras || [],
           remise_type: newRdvForm.remise_type || null,
           remise_valeur: newRdvForm.remise_valeur || 0,
           remise_motif: newRdvForm.remise_motif || null,
-          prix_total: selectedRoom ? (selectedRoom.prix || 0) : 0,
+          prix_total: prixTotal,
           require_deposit: requireDeposit && depositEnabled,
         });
       } else {

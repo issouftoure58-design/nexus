@@ -180,7 +180,12 @@ export default function EditModal({
           )}
 
           {/* HOTEL: Chambre + dates sejour */}
-          {isHotel && (
+          {isHotel && (() => {
+            // Chambres = services avec type_chambre non null
+            const chambres = services.filter(s => s.actif !== false && !!(s as any).type_chambre);
+            const selectedChambre = chambres.find(c => c.id === editForm.chambre_id);
+            const maxPersonnes = (selectedChambre as any)?.capacite_max || 10;
+            return (
             <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-blue-600">{'\uD83C\uDFE8'}</span>
@@ -191,11 +196,17 @@ export default function EditModal({
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Chambre</label>
                 <select
                   value={editForm.chambre_id || 0}
-                  onChange={(e) => onEditFormChange({ ...editForm, chambre_id: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const id = parseInt(e.target.value) || 0;
+                    const room = chambres.find(c => c.id === id);
+                    const cap = (room as any)?.capacite_max || 10;
+                    const nb = Math.min(editForm.nb_personnes || 1, cap);
+                    onEditFormChange({ ...editForm, chambre_id: id, nb_personnes: nb });
+                  }}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value={0}>-- Selectionner une chambre --</option>
-                  {services.filter(s => s.actif !== false).map((chambre) => (
+                  {chambres.map((chambre) => (
                     <option key={chambre.id} value={chambre.id}>
                       {chambre.nom} ({(chambre as any).capacite_max || 2} pers.) - {(chambre.prix / 100).toFixed(0)}/nuit
                       {(chambre as any).vue && ` - Vue ${(chambre as any).vue}`}
@@ -205,13 +216,21 @@ export default function EditModal({
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nombre de personnes</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Nombre de personnes
+                  {selectedChambre && (
+                    <span className="text-xs text-gray-500 ml-2">(max {maxPersonnes})</span>
+                  )}
+                </label>
                 <Input
                   type="number"
                   min={1}
-                  max={10}
+                  max={maxPersonnes}
                   value={editForm.nb_personnes || 2}
-                  onChange={(e) => onEditFormChange({ ...editForm, nb_personnes: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value) || 1;
+                    onEditFormChange({ ...editForm, nb_personnes: Math.min(v, maxPersonnes) });
+                  }}
                 />
               </div>
 
@@ -253,7 +272,8 @@ export default function EditModal({
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* GENERIQUE (salon, services, etc.): Date + heures salaries */}
           {!isRestaurant && !isHotel && (
