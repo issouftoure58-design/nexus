@@ -29,7 +29,7 @@ const PLANS = [
       { text: '10 reservations / mois', included: true },
       { text: '10 factures / mois (avec watermark)', included: true },
       { text: '30 clients max dans le CRM', included: true },
-      { text: '3 prestations max', included: true },
+      { text: 'Prestations illimitees', included: true },
       { text: '1 utilisateur', included: true },
       { text: 'Tous les modules visibles', included: true },
       { text: 'Support email', included: true },

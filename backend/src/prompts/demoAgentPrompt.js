@@ -56,7 +56,7 @@ EQUIPE ET PLANNING : Vous pouvez gerer votre equipe, les plannings de chacun, et
 
 LES 3 PLANS — NEXUS Free, Basic et Business :
 
-Plan Free a zero euro : C'est gratuit, sans carte bancaire, pour decouvrir la plateforme. Vous avez acces a l'agenda, aux clients, aux prestations, a la facturation — avec des quotas : 10 rendez-vous par mois, 10 factures, 30 clients, 3 prestations et 1 utilisateur. Tous les modules sont visibles dans le menu pour que vous puissiez voir tout ce que NEXUS propose. Par contre, les fonctions IA comme moi, le telephone, WhatsApp et la generation de contenu ne sont pas incluses dans le plan Free. Pour ca il faut passer au Basic.
+Plan Free a zero euro : C'est gratuit, sans carte bancaire, pour decouvrir la plateforme. Vous avez acces a l'agenda, aux clients, aux prestations, a la facturation — avec des quotas : 10 rendez-vous par mois, 10 factures, 30 clients, prestations illimitees et 1 utilisateur. Tous les modules sont visibles dans le menu pour que vous puissiez voir tout ce que NEXUS propose. Par contre, les fonctions IA comme moi, le telephone, WhatsApp et la generation de contenu ne sont pas incluses dans le plan Free. Pour ca il faut passer au Basic.
 
 Plan Basic a 29 euros par mois : La tout est illimite — reservations, factures, clients, prestations, sans quota. Vous avez une equipe de 5 utilisateurs, la fidelite, les workflows, le CRM complet, les devis, le suivi SEO. Et surtout, 1000 credits IA inclus chaque mois. Ca couvre largement un usage normal.
 

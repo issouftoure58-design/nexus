@@ -198,7 +198,7 @@ const FREE_LIMITS = {
   clients_max:        30,
   reservations_mois:  10,
   factures_mois:      10,
-  prestations_max:    3,
+  prestations_max:    -1,  // illimite (catalogue non contraint, seul le volume RDV est limite)
   users_max:          1,
   chat_admin_questions_mois: 5,  // 5 questions decouverte/mois
 

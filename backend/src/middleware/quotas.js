@@ -380,7 +380,7 @@ export async function requireFacturesQuota(req, res, next) {
  * @returns {Promise<Object>} Résultat de la vérification
  */
 export async function checkPrestationsQuota(tenant_id, plan) {
-  const limit = PLAN_LIMITS[plan]?.prestations_max ?? PLAN_LIMITS.free.prestations_max ?? 3;
+  const limit = PLAN_LIMITS[plan]?.prestations_max ?? PLAN_LIMITS.free.prestations_max ?? -1;
   if (limit === -1) return { ok: true, current: 0, limit: -1 };
 
   const { count, error } = await supabase

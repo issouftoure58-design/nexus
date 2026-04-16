@@ -100,7 +100,7 @@ Pour chaque métier, l'interface, les outils IA et la terminologie s'adaptent au
 - 10 réservations / mois
 - 10 factures / mois (avec watermark "Propulsé par NEXUS")
 - CRM jusqu'à 30 clients
-- 3 prestations max
+- Prestations illimitées
 - Tous les modules visibles dans le menu (effet découverte)
 - Fonctions IA bloquées (nécessitent un upgrade vers Basic ou Business)
 - Sans carte bancaire requise

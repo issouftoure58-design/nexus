@@ -36,7 +36,7 @@ export default function PricingSection() {
                 '10 reservations / mois',
                 '10 factures / mois (avec watermark)',
                 '30 clients max dans le CRM',
-                '3 prestations max',
+                'Prestations illimitees',
                 'Tous les modules visibles',
                 'Fonctions IA bloquees',
                 'Support email',

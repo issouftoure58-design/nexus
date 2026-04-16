@@ -5,7 +5,7 @@
  *   • 10 réservations / mois
  *   • 10 factures / mois
  *   • 30 clients max (compteur global, pas mensuel)
- *   • 3 prestations max
+ *   • Prestations illimitees (catalogue non contraint, seul le volume RDV est limite)
  *   • 5 questions chat IA admin / mois
  *   • 1 utilisateur (équipe désactivée)
  *
@@ -26,7 +26,7 @@ export const PLAN_QUOTAS = {
     reservations_max_mois: 10,
     factures_max_mois: 10,
     clients_max: 30,
-    prestations_max: 3,
+    prestations_max: -1,  // illimite (catalogue non contraint)
     chat_admin_questions_mois: 5,
     storage_mb: 1024,
     utilisateurs_max: 1,

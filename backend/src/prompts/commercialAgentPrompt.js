@@ -34,7 +34,7 @@ const PRICING = {
         'Reservations (10/mois)',
         'Facturation (10/mois, avec watermark)',
         'CRM 30 clients',
-        '3 prestations max',
+        'Prestations illimitees',
         'Tous les modules visibles (lecture / decouverte)',
         'Support email'
       ],
@@ -154,7 +154,7 @@ NEXUS a 3 niveaux d'acces:
 - 10 reservations / mois
 - 10 factures / mois (avec watermark "Propulse par NEXUS")
 - 30 clients max dans le CRM
-- 3 prestations max
+- Prestations illimitees
 - Tous les modules visibles dans le menu (effet decouverte)
 - Fonctions IA bloquees (necessitent un upgrade)
 - Sans carte bancaire
