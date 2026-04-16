@@ -224,7 +224,9 @@ function calculateClientRFM(client, reservations, orders, factures) {
   const validOrders = (orders || []).filter(o =>
     ['completed', 'ready'].includes(o.statut)
   );
-  const validFactures = (factures || []).filter(f => f.statut === 'payee');
+  // Factures STANDALONE uniquement (sans reservation_id) — sinon double comptage
+  // (les factures liees a une resa sont deja comptees via r.prix_total)
+  const validFactures = (factures || []).filter(f => f.statut === 'payee' && !f.reservation_id);
 
   // Trouver la dernière visite (toutes sources)
   const allDates = [
@@ -319,7 +321,7 @@ export async function analyzeRFM(tenantId) {
         .eq('tenant_id', tenantId)
         .in('statut', ['completed', 'ready']),
       supabase.from('factures')
-        .select('id, client_id, date_paiement, statut, montant_ttc')
+        .select('id, client_id, date_paiement, statut, montant_ttc, reservation_id')
         .eq('tenant_id', tenantId)
         .eq('statut', 'payee')
     ]);
@@ -327,12 +329,16 @@ export async function analyzeRFM(tenantId) {
     if (resError) throw resError;
 
     // 3. Calculer RFM pour chaque client (multi-source)
-    const clientsRFM = clients.map(client => {
+    // Les clients sans AUCUNE transaction sont exclus du RFM (ce sont des prospects,
+    // pas des hibernants). On les comptera separement dans stats.
+    const clientsRFMAll = clients.map(client => {
       const clientReservations = (reservations || []).filter(r => r.client_id === client.id);
       const clientOrders = (orders || []).filter(o => o.client_id === client.id);
       const clientFactures = (factures || []).filter(f => f.client_id === client.id);
       return calculateClientRFM(client, clientReservations, clientOrders, clientFactures);
     });
+    const clientsRFM = clientsRFMAll.filter(c => c.days_since_last_visit !== null);
+    const prospectsCount = clientsRFMAll.length - clientsRFM.length;
 
     // 4. Grouper par segment
     const segmentGroups = {};
@@ -353,14 +359,18 @@ export async function analyzeRFM(tenantId) {
       }
     }
 
-    // 5. Stats globales
+    // 5. Stats globales (base : clients avec transactions uniquement)
+    const nbRFM = clientsRFM.length;
     const stats = {
       total_clients: clients.length,
       clients_with_visits: clientsRFM.filter(c => c.visits_last_year > 0).length,
+      prospects: prospectsCount, // clients sans aucune transaction
       total_ca: clientsRFM.reduce((sum, c) => sum + parseFloat(c.total_spent_euros), 0).toFixed(2),
-      avg_rfm_score: (clientsRFM.reduce((sum, c) =>
-        sum + (c.recency_score + c.frequency_score + c.monetary_score), 0
-      ) / (clients.length * 3)).toFixed(2)
+      avg_rfm_score: nbRFM > 0
+        ? (clientsRFM.reduce((sum, c) =>
+            sum + (c.recency_score + c.frequency_score + c.monetary_score), 0
+          ) / (nbRFM * 3)).toFixed(2)
+        : '0.00'
     };
 
     return {

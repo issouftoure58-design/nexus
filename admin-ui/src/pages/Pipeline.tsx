@@ -10,7 +10,7 @@ import {
   Calendar, GripVertical, X, Check, AlertCircle, Target, FileText,
   Edit2
 } from 'lucide-react';
-import { useProfile } from '@/contexts/ProfileContext';
+import { useProfile, useBusinessTypeChecks } from '@/contexts/ProfileContext';
 import { api } from '../lib/api';
 
 interface Client {
@@ -88,6 +88,7 @@ export default function PipelinePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t: _t, hasFeature: _hasFeature } = useProfile();
+  const { isServiceDomicile } = useBusinessTypeChecks();
   const [draggedItem, setDraggedItem] = useState<Opportunite | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Opportunite | null>(null);
@@ -530,7 +531,7 @@ export default function PipelinePage() {
                 </div>
 
                 {/* Lieu et Date */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`grid grid-cols-1 ${isServiceDomicile ? 'md:grid-cols-3' : 'md:grid-cols-1'} gap-4`}>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date debut</label>
                     <Input
@@ -539,22 +540,26 @@ export default function PipelinePage() {
                       onChange={(e) => setNewOpp({ ...newOpp, date_debut: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Lieu</label>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant={lieu === 'salon' ? 'default' : 'outline'} onClick={() => setLieu('salon')} className="flex-1">
-                        <MapPin className="h-4 w-4 mr-1" /> Salon
-                      </Button>
-                      <Button size="sm" variant={lieu === 'domicile' ? 'default' : 'outline'} onClick={() => setLieu('domicile')} className="flex-1">
-                        <MapPin className="h-4 w-4 mr-1" /> Domicile
-                      </Button>
-                    </div>
-                  </div>
-                  {lieu === 'domicile' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Adresse client</label>
-                      <Input placeholder="Adresse..." value={adresseClient} onChange={(e) => setAdresseClient(e.target.value)} />
-                    </div>
+                  {isServiceDomicile && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lieu</label>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant={lieu === 'salon' ? 'default' : 'outline'} onClick={() => setLieu('salon')} className="flex-1">
+                            <MapPin className="h-4 w-4 mr-1" /> Salon
+                          </Button>
+                          <Button size="sm" variant={lieu === 'domicile' ? 'default' : 'outline'} onClick={() => setLieu('domicile')} className="flex-1">
+                            <MapPin className="h-4 w-4 mr-1" /> Domicile
+                          </Button>
+                        </div>
+                      </div>
+                      {lieu === 'domicile' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Adresse client</label>
+                          <Input placeholder="Adresse..." value={adresseClient} onChange={(e) => setAdresseClient(e.target.value)} />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
