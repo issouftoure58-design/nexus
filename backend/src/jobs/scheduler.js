@@ -199,7 +199,7 @@ async function getRdvDans24h() {
       // Même jour : simple query
       const { data, error } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, date_arrivee, date_depart, heure_fin, nb_nuitees, nb_personnes, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date24h)
         .gte('heure', heure24h)
@@ -217,7 +217,7 @@ async function getRdvDans24h() {
       // Partie 1 : date24h de heure24h à 23:59
       const { data: data1, error: error1 } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, date_arrivee, date_depart, heure_fin, nb_nuitees, nb_personnes, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date24h)
         .gte('heure', heure24h)
@@ -227,7 +227,7 @@ async function getRdvDans24h() {
       // Partie 2 : date30h de 00:00 à heure30h
       const { data: data2, error: error2 } = await db
         .from('reservations')
-        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, clients(nom, prenom, telephone, email)')
+        .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, adresse_client, duree_minutes, date_arrivee, date_depart, heure_fin, nb_nuitees, nb_personnes, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
         .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
         .eq('date', date30h)
         .lte('heure', heure30h)
@@ -248,6 +248,14 @@ async function getRdvDans24h() {
     client_prenom: r.clients?.prenom || '',
     client_telephone: r.telephone || r.clients?.telephone || '',
     client_email: r.clients?.email || '',
+    // Mapper reservation_lignes -> services[] (format template notifications)
+    services: Array.isArray(r.reservation_lignes) && r.reservation_lignes.length > 0
+      ? r.reservation_lignes.map(l => ({
+          service_nom: l.service_nom,
+          quantite: l.quantite || 1,
+          prix_total: l.prix_total ? l.prix_total / 100 : null,
+        }))
+      : null,
   }));
 }
 
@@ -282,7 +290,7 @@ async function getRdvDemain() {
   for (const tenantId of tenantIds) {
     const { data, error } = await db
       .from('reservations')
-      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, clients(nom, prenom, telephone, email)')
+      .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, rappel_j1_envoye, date_arrivee, date_depart, heure_fin, nb_nuitees, nb_personnes, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
       .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
       .eq('date', demainStr)
       .in('statut', ['demande', 'confirme'])
@@ -294,7 +302,7 @@ async function getRdvDemain() {
         console.log('[Scheduler] ⚠️ Colonne rappel_j1_envoye manquante, query sans filtre');
         const { data: fallback } = await db
           .from('reservations')
-          .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, clients(nom, prenom, telephone, email)')
+          .select('id, service_nom, date, heure, prix_total, client_id, telephone, statut, tenant_id, date_arrivee, date_depart, heure_fin, nb_nuitees, nb_personnes, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
           .eq('tenant_id', tenantId)  // 🔒 TENANT ISOLATION
           .eq('date', demainStr)
           .in('statut', ['demande', 'confirme']);
@@ -326,6 +334,14 @@ async function getRdvDemain() {
     client_prenom: r.clients?.prenom || '',
     client_telephone: r.telephone || r.clients?.telephone || '',
     client_email: r.clients?.email || '',
+    // Mapper reservation_lignes -> services[] (format template notifications)
+    services: Array.isArray(r.reservation_lignes) && r.reservation_lignes.length > 0
+      ? r.reservation_lignes.map(l => ({
+          service_nom: l.service_nom,
+          quantite: l.quantite || 1,
+          prix_total: l.prix_total ? l.prix_total / 100 : null,
+        }))
+      : null,
   }));
 }
 

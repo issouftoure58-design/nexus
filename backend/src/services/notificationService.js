@@ -50,14 +50,64 @@ function resolveTenant(tenantId) {
 function getBusinessLabels(businessProfile) {
   const bp = businessProfile || 'generic';
   const labels = {
-    salon: { rdv: 'rendez-vous', lieu: 'chez', accueil: 'Nous avons hate de vous accueillir !' },
-    service_domicile: { rdv: 'rendez-vous', lieu: 'chez vous', accueil: 'Nous avons hate de vous retrouver !' },
-    restaurant: { rdv: 'reservation', lieu: 'au restaurant', accueil: 'Nous avons hate de vous accueillir !' },
-    hotel: { rdv: 'reservation', lieu: 'dans notre etablissement', accueil: 'Nous avons hate de vous accueillir !' },
-    commerce: { rdv: 'commande', lieu: 'chez', accueil: 'Votre commande sera prete a temps !' },
-    security: { rdv: 'mission', lieu: 'sur site', accueil: 'Notre equipe sera prete.' },
+    salon: { rdv: 'rendez-vous', sejour: 'rendez-vous', serviceLabel: 'Service', lieu: 'chez', accueil: 'Nous avons hate de vous accueillir !' },
+    service_domicile: { rdv: 'rendez-vous', sejour: 'rendez-vous', serviceLabel: 'Prestation', lieu: 'chez vous', accueil: 'Nous avons hate de vous retrouver !' },
+    restaurant: { rdv: 'reservation', sejour: 'reservation', serviceLabel: 'Formule', lieu: 'au restaurant', accueil: 'Nous avons hate de vous accueillir !' },
+    hotel: { rdv: 'sejour', sejour: 'sejour', serviceLabel: 'Chambre', lieu: 'dans notre etablissement', accueil: 'Nous avons hate de vous accueillir !' },
+    commerce: { rdv: 'commande', sejour: 'commande', serviceLabel: 'Article', lieu: 'chez', accueil: 'Votre commande sera prete a temps !' },
+    security: { rdv: 'mission', sejour: 'mission', serviceLabel: 'Mission', lieu: 'sur site', accueil: 'Notre equipe sera prete.' },
+    service: { rdv: 'rendez-vous', sejour: 'rendez-vous', serviceLabel: 'Prestation', lieu: 'chez', accueil: 'A bientot !' },
   };
-  return labels[bp] || { rdv: 'rendez-vous', lieu: 'chez', accueil: 'A bientot !' };
+  return labels[bp] || labels.salon;
+}
+
+/**
+ * Construit un bloc HTML detaille adapte au business type.
+ * Hotel: check-in → check-out + prestations (chambre + extras)
+ * Autre: date/heure + service unique
+ */
+function buildDetailsHtml(rdv, t, labels) {
+  const isHotel = t.businessProfile === 'hotel';
+  const items = [];
+
+  if (isHotel && (rdv.date_depart || rdv.date_arrivee)) {
+    const checkinDate = rdv.date_arrivee || rdv.date;
+    const checkinHour = rdv.heure || rdv.heure_arrivee || '14:00';
+    const checkoutDate = rdv.date_depart || rdv.date;
+    const checkoutHour = rdv.heure_fin || '11:00';
+    items.push(`<li><strong>Check-in :</strong> ${checkinDate} a ${checkinHour}</li>`);
+    items.push(`<li><strong>Check-out :</strong> ${checkoutDate} a ${checkoutHour}</li>`);
+    if (rdv.nb_nuitees) {
+      items.push(`<li><strong>Duree :</strong> ${rdv.nb_nuitees} nuit${rdv.nb_nuitees > 1 ? 's' : ''}</li>`);
+    }
+    if (rdv.nb_personnes) {
+      items.push(`<li><strong>Personnes :</strong> ${rdv.nb_personnes}</li>`);
+    }
+  } else {
+    items.push(`<li><strong>Date :</strong> ${rdv.date} a ${rdv.heure}</li>`);
+  }
+
+  // Prestations : liste multi-items (chambre + extras) si dispo, sinon service unique
+  if (Array.isArray(rdv.services) && rdv.services.length > 0) {
+    const presta = rdv.services.map(s => {
+      const qty = s.quantite && s.quantite > 1 ? ` x${s.quantite}` : '';
+      const prix = s.prix_total ? ` — ${s.prix_total}€` : '';
+      return `<li>${s.service_nom}${qty}${prix}</li>`;
+    }).join('');
+    items.push(`<li><strong>${isHotel ? 'Prestations' : labels.serviceLabel} :</strong><ul style="margin:6px 0 0;">${presta}</ul></li>`);
+  } else if (rdv.service_nom) {
+    items.push(`<li><strong>${labels.serviceLabel} :</strong> ${rdv.service_nom}</li>`);
+  }
+
+  // Adresse : hotel = adresse etablissement, autre = adresse client (si service a domicile) ou adresse etablissement
+  const adresse = isHotel
+    ? (t.adresse || '')
+    : (rdv.adresse_client || rdv.adresse_formatee || t.adresse || '');
+  if (adresse) {
+    items.push(`<li><strong>Adresse :</strong> ${adresse}</li>`);
+  }
+
+  return items.join('\n          ');
 }
 
 // ============= CONFIGURATION EMAIL AVEC RESEND =============
@@ -142,27 +192,32 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
           ${reste > 0 ? `<li><strong>Reste à payer :</strong> ${reste}€</li>` : ''}`
         : '';
 
+      // Template adaptatif selon business type (hotel: check-in/out + extras, autre: date+service)
+      const labels = getBusinessLabels(t.businessProfile);
+      const detailsHtml = buildDetailsHtml(rdv, t, labels);
+      const titre = t.businessProfile === 'hotel' ? 'Sejour confirme !' : 'Reservation confirmee !';
+      const introText = `Votre ${labels.sejour} ${labels.lieu} ${t.salonName} est confirme :`;
+      const avisText = `Laissez un avis apres votre ${labels.sejour}`;
+
       const emailHtml = `
-        <h2>Réservation confirmée !</h2>
+        <h2>${titre}</h2>
         <p>Bonjour ${clientNom},</p>
-        <p>Votre rendez-vous chez ${t.salonName} est confirmé :</p>
+        <p>${introText}</p>
         <ul>
-          <li><strong>Date :</strong> ${rdv.date} à ${rdv.heure}</li>
-          <li><strong>Service :</strong> ${rdv.service_nom}</li>
-          <li><strong>Adresse :</strong> ${rdv.adresse_client || rdv.adresse_formatee}</li>
+          ${detailsHtml}
           <li><strong>Total :</strong> ${total}€</li>
           ${acompteHtml}
         </ul>
         <p style="margin-top: 20px;">
-          <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">🔗 Créer votre compte client</a><br>
-          <a href="https://${t.domain}/avis" style="color: #8B5CF6; text-decoration: none;">⭐ Laissez un avis après votre RDV</a>
+          <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">Creer votre compte client</a><br>
+          <a href="https://${t.domain}/avis" style="color: #8B5CF6; text-decoration: none;">${avisText}</a>
         </p>
-        <p>À bientôt !<br>${t.signataire} - ${t.salonName}</p>
+        <p>${labels.accueil}<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
         clientEmail,
-        `Confirmation de votre réservation - ${t.salonName}`,
+        `Confirmation de votre ${labels.sejour} - ${t.salonName}`,
         emailHtml
       );
 
@@ -235,22 +290,25 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   // 1. Envoyer Email
   if (clientEmail) {
     try {
+      // Template adaptatif (hotel: check-in/out + prestations, autre: date + service)
+      const labels = getBusinessLabels(t.businessProfile);
+      const detailsHtml = buildDetailsHtml(rdv, t, labels);
+      const isHotel = t.businessProfile === 'hotel';
+      const titre = isHotel ? 'Rappel : votre arrivee demain !' : 'Rappel : votre RDV demain !';
+      const introText = isHotel
+        ? `Un petit rappel pour votre ${labels.sejour} qui commence demain :`
+        : 'Un petit rappel pour votre rendez-vous de demain :';
+
       const emailHtml = `
-        <h2>Rappel : votre RDV demain !</h2>
+        <h2>${titre}</h2>
         <p>Bonjour ${clientNom},</p>
-        <p>Un petit rappel pour votre rendez-vous de demain :</p>
+        <p>${introText}</p>
         <ul>
-          <li><strong>Date :</strong> ${rdv.date} à ${rdv.heure}</li>
-          <li><strong>Service :</strong> ${rdv.service_nom}</li>
-          <li><strong>Adresse :</strong> ${rdv.adresse_client || rdv.adresse_formatee}</li>
-          <li><strong>Reste à payer :</strong> ${reste}€</li>
+          ${detailsHtml}
+          ${reste > 0 ? `<li><strong>Reste a payer :</strong> ${reste}€</li>` : ''}
         </ul>
-        <p><strong>Conseils :</strong></p>
-        <ul>
-          <li>Prevoir environ ${Math.floor(rdv.duree_minutes / 60)}h${rdv.duree_minutes % 60 || ''}</li>
-        </ul>
-        <p>Si vous devez annuler, prévenez-nous rapidement.</p>
-        <p>À demain !<br>${t.signataire} - ${t.salonName}</p>
+        <p>Si vous devez annuler, prevenez-nous rapidement.</p>
+        <p>A demain !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
@@ -337,18 +395,24 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
         `;
       }
 
+      const labels = getBusinessLabels(t.businessProfile);
+      const isHotel = t.businessProfile === 'hotel';
+      const dateAnnule = isHotel && rdv.date_arrivee
+        ? `du ${rdv.date_arrivee}${rdv.date_depart ? ` au ${rdv.date_depart}` : ''}`
+        : `du ${rdv.date} a ${rdv.heure}`;
+
       const emailHtml = `
-        <h2>Annulation de votre rendez-vous</h2>
+        <h2>Annulation de votre ${labels.sejour}</h2>
         <p>Bonjour ${clientNom},</p>
-        <p>Votre rendez-vous du ${rdv.date} à ${rdv.heure} a été annulé.</p>
+        <p>Votre ${labels.sejour} ${dateAnnule} a ete annule.</p>
         ${remboursementHtml}
-        <p>N'hésitez pas à reprendre rendez-vous quand vous le souhaitez !</p>
-        <p>À bientôt,<br>${t.signataire} - ${t.salonName}</p>
+        <p>N'hesitez pas a revenir quand vous le souhaitez !</p>
+        <p>A bientot,<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
         clientEmail,
-        `Annulation de votre rendez-vous - ${t.salonName}`,
+        `Annulation de votre ${labels.sejour} - ${t.salonName}`,
         emailHtml
       );
 
@@ -397,33 +461,42 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
   // 1. Envoyer Email
   if (clientEmail) {
     try {
+      const labels = getBusinessLabels(t.businessProfile);
+      const isHotel = t.businessProfile === 'hotel';
+      const detailsHtml = buildDetailsHtml(nouveauRdv, t, labels);
+      const ancienLabel = isHotel && ancienRdv.date_arrivee
+        ? `du ${ancienRdv.date_arrivee}${ancienRdv.date_depart ? ` au ${ancienRdv.date_depart}` : ''}`
+        : `${ancienRdv.date} a ${ancienRdv.heure}`;
+      const nouveauLabel = isHotel && nouveauRdv.date_arrivee
+        ? `du ${nouveauRdv.date_arrivee}${nouveauRdv.date_depart ? ` au ${nouveauRdv.date_depart}` : ''}`
+        : `${nouveauRdv.date} a ${nouveauRdv.heure}`;
+
       const emailHtml = `
-        <h2>Modification de votre rendez-vous</h2>
+        <h2>Modification de votre ${labels.sejour}</h2>
         <p>Bonjour ${clientNom},</p>
-        <p>Votre rendez-vous a été modifié :</p>
+        <p>Votre ${labels.sejour} a ete modifie :</p>
         <table style="border-collapse: collapse; margin: 20px 0;">
           <tr>
             <td style="padding: 10px; background: #ffe6e6;">
-              <strong>Ancien :</strong> ${ancienRdv.date} à ${ancienRdv.heure}
+              <strong>Ancien :</strong> ${ancienLabel}
             </td>
           </tr>
           <tr>
             <td style="padding: 10px; background: #e6ffe6;">
-              <strong>Nouveau :</strong> ${nouveauRdv.date} à ${nouveauRdv.heure}
+              <strong>Nouveau :</strong> ${nouveauLabel}
             </td>
           </tr>
         </table>
         <ul>
-          <li><strong>Service :</strong> ${nouveauRdv.service_nom}</li>
-          <li><strong>Adresse :</strong> ${nouveauRdv.adresse_client || nouveauRdv.adresse_formatee}</li>
+          ${detailsHtml}
           <li><strong>Total :</strong> ${total}€</li>
         </ul>
-        <p>À bientôt !<br>${t.signataire} - ${t.salonName}</p>
+        <p>A bientot !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
       results.email = await sendEmail(
         clientEmail,
-        `Modification de votre rendez-vous - ${t.salonName}`,
+        `Modification de votre ${labels.sejour} - ${t.salonName}`,
         emailHtml
       );
 
