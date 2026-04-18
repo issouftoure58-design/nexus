@@ -12,7 +12,9 @@ import { TAUX_2026 } from './payrollEngine.js';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  return dateStr.replace(/-/g, '').slice(0, 8);
+  const clean = dateStr.replace(/-/g, '').slice(0, 8); // YYYYMMDD
+  if (clean.length !== 8) return clean;
+  return clean.slice(6, 8) + clean.slice(4, 6) + clean.slice(0, 4); // DDMMYYYY (norme JJMMAAAA)
 }
 
 function formatMontant(centimes) {
@@ -89,8 +91,9 @@ export async function generateDSN(tenantId, periode, nature = '01', options = {}
   };
 
   const [year, month] = periode.split('-');
-  const dateGen = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const moisDecl = `${year}${month}`;
+  const now = new Date();
+  const dateGen = pad(now.getDate(), 2) + pad(now.getMonth() + 1, 2) + now.getFullYear(); // DDMMYYYY
+  const moisDecl = `${month}${year}`; // MMYYYY — pour construire les dates DDMMYYYY
   const dernierJour = new Date(parseInt(year), parseInt(month), 0).getDate();
 
   // =====================================================
@@ -106,11 +109,11 @@ export async function generateDSN(tenantId, periode, nature = '01', options = {}
   add('S20.G00.05.002', '01'); // Type: normal
   add('S20.G00.05.003', params.fraction || '11');
   add('S20.G00.05.004', '00');
-  add('S20.G00.05.005', `01${moisDecl}`);
-  add('S20.G00.05.007', '01'); // Euro
-  add('S20.G00.05.008', '01'); // Regime general
-  add('S20.G00.05.009', params.urssaf_code || '');
-  add('S20.G00.05.010', dateGen);
+  add('S20.G00.05.005', `01${moisDecl}`); // Date mois principal DDMMYYYY
+  add('S20.G00.05.007', dateGen); // Date constitution du fichier DDMMYYYY
+  add('S20.G00.05.008', '01'); // Champ: 01=Total
+  add('S20.G00.05.009', params.urssaf_code || ''); // Identifiant metier
+  add('S20.G00.05.010', '01'); // Devise: 01=Euro
 
   // Contact declaration
   add('S20.G00.07.001', params.contact_nom);
@@ -234,10 +237,11 @@ export function generateBlocEmetteur(params, dateGen) {
   // Emetteur
   lines.push(['S10.G00.01.001', params.siren]);
   lines.push(['S10.G00.01.002', params.nic || params.siret?.slice(9)]);
-  lines.push(['S10.G00.01.004', params.raison_sociale]);
-  lines.push(['S10.G00.01.005', params.adresse_siege]);
-  lines.push(['S10.G00.01.006', params.code_postal_siege]);
-  lines.push(['S10.G00.01.007', params.ville_siege]);
+  lines.push(['S10.G00.01.003', params.raison_sociale]);
+  lines.push(['S10.G00.01.004', params.adresse_siege]);
+  lines.push(['S10.G00.01.005', params.code_postal_siege]);
+  lines.push(['S10.G00.01.006', params.ville_siege]);
+  lines.push(['S10.G00.01.007', 'FR']); // Code pays
 
   // Contact emetteur
   if (params.contact_nom) lines.push(['S10.G00.02.001', params.contact_nom]);
@@ -250,23 +254,24 @@ export function generateBlocEmetteur(params, dateGen) {
 export function generateBlocEntreprise(params, membres) {
   const lines = [];
   lines.push(['S21.G00.06.001', params.siren]);
-  lines.push(['S21.G00.06.002', params.code_naf]);
-  lines.push(['S21.G00.06.003', params.adresse_siege]);
-  lines.push(['S21.G00.06.004', params.code_postal_siege]);
-  lines.push(['S21.G00.06.005', params.ville_siege]);
-  lines.push(['S21.G00.06.006', pad(params.effectif_moyen || membres?.length || 0, 5)]);
-  if (params.raison_sociale) lines.push(['S21.G00.06.007', params.raison_sociale]);
+  lines.push(['S21.G00.06.002', params.nic || params.siret?.slice(9)]); // NIC du siege
+  lines.push(['S21.G00.06.003', params.code_naf]); // Code APEN
+  lines.push(['S21.G00.06.004', params.adresse_siege]);
+  lines.push(['S21.G00.06.005', params.code_postal_siege]);
+  lines.push(['S21.G00.06.006', params.ville_siege]);
+  lines.push(['S21.G00.06.009', pad(params.effectif_moyen || membres?.length || 0, 5)]); // Effectif moyen
+  lines.push(['S21.G00.06.010', 'FR']); // Code pays
   return lines;
 }
 
 export function generateBlocEtablissement(params, membres) {
   const lines = [];
-  lines.push(['S21.G00.11.001', params.nic || params.siret?.slice(9)]);
-  lines.push(['S21.G00.11.003', params.code_naf]);
-  lines.push(['S21.G00.11.004', params.adresse_etablissement || params.adresse_siege]);
-  lines.push(['S21.G00.11.005', params.code_postal_etablissement || params.code_postal_siege]);
-  lines.push(['S21.G00.11.006', params.ville_etablissement || params.ville_siege]);
-  lines.push(['S21.G00.11.008', pad(params.effectif_moyen || membres?.length || 0, 5)]);
+  lines.push(['S21.G00.11.001', params.nic || params.siret?.slice(9)]); // NIC
+  lines.push(['S21.G00.11.002', params.code_naf]); // Code APET
+  lines.push(['S21.G00.11.003', params.adresse_etablissement || params.adresse_siege]);
+  lines.push(['S21.G00.11.004', params.code_postal_etablissement || params.code_postal_siege]);
+  lines.push(['S21.G00.11.005', params.ville_etablissement || params.ville_siege]);
+  lines.push(['S21.G00.11.008', pad(params.effectif_moyen || membres?.length || 0, 5)]); // Effectif
   return lines;
 }
 
