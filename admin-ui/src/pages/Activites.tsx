@@ -849,7 +849,7 @@ export default function Activites() {
       nb_personnes: extra.nb_personnes || rdv.nb_personnes || 2,
       date_checkout: extra.date_depart || rdv.date_depart || '',
       // Fix: heure_fin = heure de depart (check-out), pas heure_arrivee
-      heure_checkout: extra.heure_fin || rdv.heure_fin || extra.heure_depart || rdv.heure_depart || '',
+      heure_checkout: extra.heure_fin || rdv.heure_fin || '',
     });
 
     const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({
