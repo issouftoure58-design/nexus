@@ -434,7 +434,9 @@ router.post('/membres', authenticateAdmin, async (req, res) => {
       // Contact urgence
       contact_urgence_nom, contact_urgence_tel, contact_urgence_lien,
       // Autre
-      nir, notes
+      nir, notes,
+      // Primes
+      primes_mensuelles
     } = req.body;
 
     if (!nom || !prenom) {
@@ -494,6 +496,8 @@ router.post('/membres', authenticateAdmin, async (req, res) => {
         contact_urgence_lien: emptyToNull(contact_urgence_lien),
         // Autre
         notes: emptyToNull(notes),
+        // Primes mensuelles
+        primes_mensuelles: primes_mensuelles || [],
         statut: 'actif'
       })
       .select()
@@ -549,7 +553,9 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
       // Contact urgence
       contact_urgence_nom, contact_urgence_tel, contact_urgence_lien,
       // Autre
-      nir, notes, statut
+      nir, notes, statut,
+      // Primes mensuelles
+      primes_mensuelles
     } = req.body;
 
     // Construire l'objet de mise à jour (seulement les champs présents, chaînes vides → null)
@@ -613,6 +619,9 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
     // Autre
     if (notes !== undefined) updateData.notes = notes;
     if (statut !== undefined) updateData.statut = statut;
+
+    // Primes mensuelles
+    if (primes_mensuelles !== undefined) updateData.primes_mensuelles = primes_mensuelles || [];
 
     const { data: membre, error } = await supabase
       .from('rh_membres')
@@ -5205,14 +5214,15 @@ router.get('/bulletins', authenticateAdmin, paginate(), async (req, res) => {
 router.post('/bulletins/generer', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { membre_id, periode, primes } = req.body;
+    const { membre_id, periode, primes, absences } = req.body;
+    // absences format: [{ type: 'maladie'|'accident_travail'|'maladie_pro'|'maternite'|'paternite', jours: N, subrogation: bool }]
 
     if (!membre_id || !periode) {
       return res.status(400).json({ error: 'membre_id et periode requis' });
     }
 
-    // Utiliser le moteur de calcul paie
-    const payrollResult = await payrollEngine.calculatePayroll(tenantId, membre_id, periode, { primes });
+    // Utiliser le moteur de calcul paie (avec primes manuelles + absences)
+    const payrollResult = await payrollEngine.calculatePayroll(tenantId, membre_id, periode, { primes, absences });
 
     // Convertir en format bulletin DB
     const bulletinData = payrollEngine.payrollToBulletinData(payrollResult);
@@ -5233,6 +5243,34 @@ router.post('/bulletins/generer', authenticateAdmin, async (req, res) => {
     console.error('[RH BULLETINS] Erreur génération:', error);
     res.status(500).json({ error: error.message || 'Erreur génération bulletin' });
   }
+});
+
+/**
+ * GET /api/admin/rh/primes/types
+ * Liste des types de primes disponibles
+ */
+router.get('/primes/types', authenticateAdmin, async (req, res) => {
+  const types = Object.entries(payrollEngine.PRIMES_TYPES).map(([code, config]) => ({
+    code,
+    ...config,
+  }));
+  res.json(types);
+});
+
+/**
+ * GET /api/admin/rh/absences/types
+ * Liste des types d'absences pour la paie
+ */
+router.get('/absences/types', authenticateAdmin, async (req, res) => {
+  const types = Object.entries(payrollEngine.ABSENCE_CONFIG)
+    .filter(([key]) => !key.startsWith('csg') && !key.startsWith('crds'))
+    .map(([code, config]) => ({
+      code,
+      label: config.label,
+      carenceSS: config.carenceSS,
+      carenceEmployeur: config.carenceEmployeur,
+    }));
+  res.json(types);
 });
 
 /**

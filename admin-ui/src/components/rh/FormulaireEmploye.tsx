@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   User,
   MapPin,
@@ -34,6 +35,32 @@ export interface Diplome {
   domaine: string;
   document_url?: string;
 }
+
+interface PrimeMensuelle {
+  code: string;
+  nom: string;
+  montant: string; // en euros (string pour le formulaire)
+  type: 'forfait' | 'pourcentage';
+  taux: string; // pour type pourcentage
+  exonere: boolean;
+  par_jour_travaille: boolean;
+}
+
+const PRIMES_DISPONIBLES = [
+  { code: 'PANIER', nom: 'Prime panier / Titre-restaurant', exonere: true, parJour: true },
+  { code: 'TRANSPORT', nom: 'Prime transport', exonere: true, parJour: false },
+  { code: 'ANCIENNETE', nom: "Prime d'ancienneté", exonere: false, parJour: false, typeCalcul: 'pourcentage' },
+  { code: 'EXCEPTIONNELLE', nom: 'Prime exceptionnelle', exonere: false, parJour: false },
+  { code: 'VACANCES', nom: 'Prime de vacances', exonere: false, parJour: false },
+  { code: 'TREIZIEME_MOIS', nom: '13ème mois', exonere: false, parJour: false },
+  { code: 'ASSIDUITE', nom: "Prime d'assiduité", exonere: false, parJour: false },
+  { code: 'NUIT', nom: 'Majoration nuit', exonere: false, parJour: false },
+  { code: 'DIMANCHE', nom: 'Majoration dimanche', exonere: false, parJour: false },
+  { code: 'FERIE', nom: 'Majoration jour férié', exonere: false, parJour: false },
+  { code: 'HABILLAGE', nom: 'Prime habillage/déshabillage', exonere: false, parJour: false },
+  { code: 'SALISSURE', nom: 'Prime de salissure', exonere: true, parJour: false },
+  { code: 'TELETRAVAIL', nom: 'Indemnité télétravail', exonere: true, parJour: true },
+];
 
 interface EmployeFormData {
   // Identité
@@ -138,6 +165,15 @@ interface MembreData {
   contact_urgence_tel?: string;
   contact_urgence_lien?: string;
   notes?: string;
+  primes_mensuelles?: Array<{
+    code: string;
+    nom: string;
+    montant: number;
+    type: string;
+    taux?: number;
+    exonere: boolean;
+    par_jour_travaille: boolean;
+  }>;
 }
 
 // Extended form data that includes computed fields sent to the API
@@ -147,6 +183,15 @@ export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensue
   heures_mensuelles: number;
   classification_coefficient: number | null;
   diplomes: Diplome[];
+  primes_mensuelles: Array<{
+    code: string;
+    nom: string;
+    montant: number;
+    type: string;
+    taux?: number;
+    exonere: boolean;
+    par_jour_travaille: boolean;
+  }>;
 }
 
 interface FormulaireEmployeProps {
@@ -223,6 +268,7 @@ export default function FormulaireEmploye({
 }: FormulaireEmployeProps) {
   const [formData, setFormData] = useState<EmployeFormData>(initialFormData);
   const [diplomes, setDiplomes] = useState<Diplome[]>([]);
+  const [primesMensuelles, setPrimesMensuelles] = useState<PrimeMensuelle[]>([]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identite: true,
     adresse: false,
@@ -230,6 +276,7 @@ export default function FormulaireEmploye({
     contrat: true,
     classification: false,
     remuneration: true,
+    primes: false,
     urgence: false,
     diplomes: false
   });
@@ -288,6 +335,18 @@ export default function FormulaireEmploye({
 
         notes: editMembre.notes || ''
       });
+      // Load primes
+      if (editMembre.primes_mensuelles && Array.isArray(editMembre.primes_mensuelles)) {
+        setPrimesMensuelles(editMembre.primes_mensuelles.map(p => ({
+          code: p.code,
+          nom: p.nom,
+          montant: p.montant ? (p.montant / 100).toString() : '0',
+          type: (p.type as 'forfait' | 'pourcentage') || 'forfait',
+          taux: p.taux ? p.taux.toString() : '0',
+          exonere: p.exonere || false,
+          par_jour_travaille: p.par_jour_travaille || false,
+        })));
+      }
     }
   }, [editMembre]);
 
@@ -358,7 +417,18 @@ export default function FormulaireEmploye({
       classification_coefficient: formData.classification_coefficient ? parseInt(formData.classification_coefficient) : null,
       nir: formData.nir.replace(/\s/g, ''),
       iban: formData.iban.replace(/\s/g, '').toUpperCase(),
-      diplomes
+      diplomes,
+      primes_mensuelles: primesMensuelles
+        .filter(p => p.code && (parseFloat(p.montant) > 0 || parseFloat(p.taux) > 0))
+        .map(p => ({
+          code: p.code,
+          nom: p.nom,
+          montant: Math.round(parseFloat(p.montant || '0') * 100), // en centimes
+          type: p.type,
+          taux: parseFloat(p.taux || '0'),
+          exonere: p.exonere,
+          par_jour_travaille: p.par_jour_travaille,
+        })),
     };
 
     await onSubmit(submitData);
@@ -382,6 +452,31 @@ export default function FormulaireEmploye({
 
   const removeDiplome = (index: number) => {
     setDiplomes(diplomes.filter((_, i) => i !== index));
+  };
+
+  const addPrime = (code: string) => {
+    const def = PRIMES_DISPONIBLES.find(p => p.code === code);
+    if (!def) return;
+    if (primesMensuelles.some(p => p.code === code)) return; // déjà ajouté
+    setPrimesMensuelles([...primesMensuelles, {
+      code: def.code,
+      nom: def.nom,
+      montant: '',
+      type: def.typeCalcul === 'pourcentage' ? 'pourcentage' : 'forfait',
+      taux: '',
+      exonere: def.exonere,
+      par_jour_travaille: def.parJour,
+    }]);
+  };
+
+  const updatePrime = (index: number, field: keyof PrimeMensuelle, value: string | boolean) => {
+    const newPrimes = [...primesMensuelles];
+    newPrimes[index] = { ...newPrimes[index], [field]: value };
+    setPrimesMensuelles(newPrimes);
+  };
+
+  const removePrime = (index: number) => {
+    setPrimesMensuelles(primesMensuelles.filter((_, i) => i !== index));
   };
 
   const SectionHeader = ({ title, icon: Icon, section }: { title: string; icon: React.ElementType; section: string }) => (
@@ -817,6 +912,91 @@ export default function FormulaireEmploye({
                   placeholder="BNPAFRPP"
                   maxLength={11}
                 />
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Section Primes mensuelles */}
+      <Card className="overflow-hidden">
+        <SectionHeader title="Primes mensuelles" icon={Euro} section="primes" />
+        {expandedSections.primes && (
+          <div className="p-4 space-y-4">
+            <p className="text-sm text-gray-500">
+              Configurez les primes récurrentes versées chaque mois. Elles seront automatiquement ajoutées au bulletin de paie.
+            </p>
+
+            {primesMensuelles.map((prime, index) => (
+              <div key={index} className="border rounded-lg p-3 relative bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => removePrime(index)}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium mb-1 text-gray-600">{prime.nom}</label>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      {prime.exonere && <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Exonérée</Badge>}
+                      {prime.par_jour_travaille && <Badge variant="outline" className="text-xs">Par jour travaillé</Badge>}
+                    </div>
+                  </div>
+                  {prime.type === 'pourcentage' ? (
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Taux (%)</label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={prime.taux}
+                        onChange={e => updatePrime(index, 'taux', e.target.value)}
+                        placeholder="Ex: 3"
+                        className="text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {prime.par_jour_travaille ? 'Montant/jour (€)' : 'Montant mensuel (€)'}
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={prime.montant}
+                        onChange={e => updatePrime(index, 'montant', e.target.value)}
+                        placeholder="0.00"
+                        className="text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Sélection d'une nouvelle prime */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Ajouter une prime</label>
+                <select
+                  id="add-prime-select"
+                  className="w-full border rounded-md px-3 py-2 text-sm"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addPrime(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">Sélectionner un type de prime...</option>
+                  {PRIMES_DISPONIBLES
+                    .filter(p => !primesMensuelles.some(pm => pm.code === p.code))
+                    .map(p => (
+                      <option key={p.code} value={p.code}>{p.nom}</option>
+                    ))}
+                </select>
               </div>
             </div>
           </div>

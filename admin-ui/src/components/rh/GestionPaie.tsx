@@ -17,7 +17,10 @@ import {
   Play,
   Check,
   Send,
-  FileEdit
+  FileEdit,
+  Plus,
+  Trash2,
+  Stethoscope
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -65,6 +68,18 @@ interface CotisationLine {
   plafonne: boolean;
 }
 
+interface AbsenceDetail {
+  type: string;
+  joursAbsence: number;
+  retenue: number;
+  ijssBrutes: number;
+  ijssNettes: number;
+  csgCrdsIJSS: number;
+  complementEmployeur: number;
+  subrogation: boolean;
+  label?: string;
+}
+
 interface Bulletin {
   id: number;
   membre_id: number;
@@ -78,7 +93,11 @@ interface Bulletin {
   montant_hs_25: number;
   heures_supp_50: number;
   montant_hs_50: number;
-  primes: Array<{ code: string; nom: string; montant: number }>;
+  primes: Array<{ code: string; nom: string; montant: number; exonere?: boolean }>;
+  absences: AbsenceDetail[];
+  retenue_absences: number;
+  ijss_brutes: number;
+  complement_employeur: number;
   cotisations_salariales: CotisationLine[];
   cotisations_patronales: CotisationLine[];
   total_cotisations_salariales: number;
@@ -104,6 +123,22 @@ interface Bulletin {
   };
 }
 
+interface AbsenceInput {
+  type: string;
+  jours: string;
+  subrogation: boolean;
+}
+
+const ABSENCE_TYPES = [
+  { code: 'maladie', label: 'Maladie' },
+  { code: 'accident_travail', label: 'Accident du travail' },
+  { code: 'maladie_pro', label: 'Maladie professionnelle' },
+  { code: 'maternite', label: 'Maternité' },
+  { code: 'paternite', label: 'Paternité' },
+  { code: 'conge_sans_solde', label: 'Congé sans solde' },
+  { code: 'formation', label: 'Formation (CPF)' },
+];
+
 interface Membre {
   id: number;
   nom: string;
@@ -112,6 +147,7 @@ interface Membre {
   statut: string;
   heures_hebdo: number;
   salaire_mensuel: number;
+  categorie_sociopro?: string;
 }
 
 // API Functions
@@ -145,6 +181,10 @@ export function GestionPaie() {
 
   const [selectedMembre, setSelectedMembre] = useState<number | null>(null);
   const [selectedBulletin, setSelectedBulletin] = useState<Bulletin | null>(null);
+
+  // Absences pour génération bulletin
+  const [showAbsenceForm, setShowAbsenceForm] = useState<number | null>(null); // membre_id
+  const [absencesForm, setAbsencesForm] = useState<AbsenceInput[]>([]);
 
   // Navigation période
   const navigatePeriode = (direction: 'prev' | 'next') => {
@@ -223,12 +263,18 @@ export function GestionPaie() {
   });
 
   const genererBulletinMutation = useMutation({
-    mutationFn: async (membreId: number) => {
-      return api.post('/admin/rh/bulletins/generer', { membre_id: membreId, periode });
+    mutationFn: async ({ membreId, absences }: { membreId: number; absences?: Array<{ type: string; jours: number; subrogation: boolean }> }) => {
+      return api.post('/admin/rh/bulletins/generer', {
+        membre_id: membreId,
+        periode,
+        ...(absences && absences.length > 0 ? { absences } : {}),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bulletins'] });
       setMessage({ type: 'success', text: 'Bulletin généré avec succès' });
+      setShowAbsenceForm(null);
+      setAbsencesForm([]);
       setTimeout(() => setMessage(null), 3000);
     },
     onError: () => {
@@ -237,7 +283,7 @@ export function GestionPaie() {
     }
   });
 
-  // Générer tous les bulletins pour les employés actifs
+  // Générer tous les bulletins pour les employés actifs (sans absences — pour les absences, générer individuellement)
   const genererTousBulletinsMutation = useMutation({
     mutationFn: async () => {
       const membresActifs = membres.filter((m: Membre) => m.statut === 'actif');
@@ -697,29 +743,133 @@ export function GestionPaie() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 mb-4">
-                Cliquez sur un employé pour régénérer son bulletin, ou utilisez le bouton ci-dessus pour générer tous les bulletins.
+                Cliquez sur un employé pour générer son bulletin. Utilisez le bouton d'absence pour déclarer des absences avant la génération.
               </p>
               <div className="flex flex-wrap gap-2">
                 {membres.filter((m: Membre) => m.statut === 'actif').map((m: Membre) => {
                   const hasBulletin = bulletins.some(b => b.membre_id === m.id);
                   return (
-                    <Button
-                      key={m.id}
-                      variant={hasBulletin ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => genererBulletinMutation.mutate(m.id)}
-                      disabled={genererBulletinMutation.isPending}
-                    >
-                      {hasBulletin ? (
-                        <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                      ) : (
-                        <Play className="w-4 h-4 mr-2" />
-                      )}
-                      {m.prenom} {m.nom}
-                    </Button>
+                    <div key={m.id} className="flex items-center gap-1">
+                      <Button
+                        variant={hasBulletin ? "outline" : "default"}
+                        size="sm"
+                        onClick={() => genererBulletinMutation.mutate({ membreId: m.id })}
+                        disabled={genererBulletinMutation.isPending}
+                      >
+                        {hasBulletin ? (
+                          <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                        ) : (
+                          <Play className="w-4 h-4 mr-2" />
+                        )}
+                        {m.prenom} {m.nom}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        title="Générer avec absences"
+                        onClick={() => {
+                          setShowAbsenceForm(showAbsenceForm === m.id ? null : m.id);
+                          setAbsencesForm([]);
+                        }}
+                      >
+                        <Stethoscope className={cn("w-4 h-4", showAbsenceForm === m.id ? "text-blue-600" : "text-gray-400")} />
+                      </Button>
+                    </div>
                   );
                 })}
               </div>
+
+              {/* Formulaire absences inline */}
+              {showAbsenceForm && (
+                <div className="mt-4 border rounded-lg p-4 bg-orange-50 border-orange-200">
+                  <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                    <Stethoscope className="w-4 h-4 text-orange-600" />
+                    Absences - {membres.find(m => m.id === showAbsenceForm)?.prenom} {membres.find(m => m.id === showAbsenceForm)?.nom}
+                  </h4>
+
+                  {absencesForm.map((abs, i) => (
+                    <div key={i} className="flex items-center gap-3 mb-2">
+                      <select
+                        className="border rounded px-2 py-1.5 text-sm flex-1"
+                        value={abs.type}
+                        onChange={e => {
+                          const newAbs = [...absencesForm];
+                          newAbs[i] = { ...newAbs[i], type: e.target.value };
+                          setAbsencesForm(newAbs);
+                        }}
+                      >
+                        <option value="">Type d'absence</option>
+                        {ABSENCE_TYPES.map(t => (
+                          <option key={t.code} value={t.code}>{t.label}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          className="border rounded px-2 py-1.5 text-sm w-20"
+                          placeholder="Jours"
+                          value={abs.jours}
+                          onChange={e => {
+                            const newAbs = [...absencesForm];
+                            newAbs[i] = { ...newAbs[i], jours: e.target.value };
+                            setAbsencesForm(newAbs);
+                          }}
+                        />
+                        <span className="text-xs text-gray-500">j</span>
+                      </div>
+                      <label className="flex items-center gap-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={abs.subrogation}
+                          onChange={e => {
+                            const newAbs = [...absencesForm];
+                            newAbs[i] = { ...newAbs[i], subrogation: e.target.checked };
+                            setAbsencesForm(newAbs);
+                          }}
+                          className="rounded"
+                        />
+                        Subrogation
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAbsencesForm(absencesForm.filter((_, idx) => idx !== i))}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAbsencesForm([...absencesForm, { type: 'maladie', jours: '', subrogation: true }])}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Ajouter une absence
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={genererBulletinMutation.isPending || absencesForm.some(a => !a.type || !a.jours)}
+                      onClick={() => {
+                        genererBulletinMutation.mutate({
+                          membreId: showAbsenceForm,
+                          absences: absencesForm
+                            .filter(a => a.type && a.jours)
+                            .map(a => ({ type: a.type, jours: parseInt(a.jours), subrogation: a.subrogation })),
+                        });
+                      }}
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      Générer avec absences
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -894,6 +1044,73 @@ export function GestionPaie() {
                     </div>
                   </div>
                 </div>
+
+                {/* Primes */}
+                {selectedBulletin.primes && selectedBulletin.primes.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-2">Primes</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                      {selectedBulletin.primes.map((p, i) => (
+                        <div key={i} className={cn("p-2 rounded", p.exonere ? "bg-green-50 border border-green-100" : "bg-gray-50")}>
+                          <span className="text-gray-600 text-xs">{p.nom}</span>
+                          {p.exonere && <span className="text-[10px] text-green-600 ml-1">(exo)</span>}
+                          <p className="font-medium">{formatCurrency(p.montant)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Absences */}
+                {selectedBulletin.absences && selectedBulletin.absences.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-2">Absences</h4>
+                    <div className="space-y-2">
+                      {selectedBulletin.absences.map((a, i) => (
+                        <div key={i} className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium">{a.label || ABSENCE_TYPES.find(t => t.code === a.type)?.label || a.type}</span>
+                            <Badge variant="outline" className="text-xs">{a.joursAbsence}j</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-500">Retenue</span>
+                              <p className="font-medium text-red-600">-{formatCurrency(a.retenue)}</p>
+                            </div>
+                            {a.ijssBrutes > 0 && (
+                              <div>
+                                <span className="text-gray-500">IJSS brutes</span>
+                                <p className="font-medium text-blue-600">{formatCurrency(a.ijssBrutes)}</p>
+                              </div>
+                            )}
+                            {a.complementEmployeur > 0 && (
+                              <div>
+                                <span className="text-gray-500">Complément empl.</span>
+                                <p className="font-medium text-green-600">{formatCurrency(a.complementEmployeur)}</p>
+                              </div>
+                            )}
+                            {a.subrogation && (
+                              <div>
+                                <span className="text-gray-500">Subrogation</span>
+                                <p className="font-medium text-purple-600">Oui</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {/* Totaux absences */}
+                      <div className="flex gap-4 text-xs bg-orange-100 p-2 rounded">
+                        <span>Retenue totale: <strong className="text-red-600">-{formatCurrency(selectedBulletin.retenue_absences || 0)}</strong></span>
+                        {(selectedBulletin.ijss_brutes || 0) > 0 && (
+                          <span>IJSS brutes: <strong className="text-blue-600">{formatCurrency(selectedBulletin.ijss_brutes)}</strong></span>
+                        )}
+                        {(selectedBulletin.complement_employeur || 0) > 0 && (
+                          <span>Complément: <strong className="text-green-600">{formatCurrency(selectedBulletin.complement_employeur)}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cotisations salariales */}
                 {selectedBulletin.cotisations_salariales && Array.isArray(selectedBulletin.cotisations_salariales) && (

@@ -1,6 +1,7 @@
 /**
  * Moteur de calcul paie production-ready
  * Gestion des tranches PMSS, reduction Fillon, PAS, cumuls annuels
+ * Primes mensuelles, absences maladie/AT/maternite
  * Tous les montants sont en CENTIMES (1€ = 100)
  */
 
@@ -63,6 +64,114 @@ export const TAUX_2026 = {
   majoration_hs_25: 25,
   majoration_hs_50: 50,
   contingent_annuel_hs: 220,
+};
+
+// ============================================
+// CONSTANTES ABSENCES / IJSS 2026
+// ============================================
+
+export const ABSENCE_CONFIG = {
+  maladie: {
+    label: 'Maladie',
+    carenceSS: 3,             // 3 jours avant versement IJSS
+    carenceEmployeur: 7,       // 7 jours avant complement
+    ijssTaux: 0.50,           // 50% du SJB
+    ijssMaxJour: 4195,        // 41,95€/jour max en centimes
+    ancienneteMinComplement: 12, // 1 an = 12 mois
+  },
+  accident_travail: {
+    label: 'Accident du travail',
+    carenceSS: 0,             // Pas de carence
+    carenceEmployeur: 0,       // Pas de carence
+    ijssTauxJ1_28: 0.60,     // 60% J1-J28
+    ijssTauxJ29plus: 0.80,   // 80% J29+
+    ijssMaxJ1_28: 24049,     // 240,49€/jour
+    ijssMaxJ29plus: 32066,   // 320,66€/jour
+    ancienneteMinComplement: 0, // Pas de condition
+    jourAccidentPayeEmployeur: true,
+  },
+  maladie_pro: {
+    label: 'Maladie professionnelle',
+    carenceSS: 0,
+    carenceEmployeur: 0,
+    ijssTauxJ1_28: 0.60,
+    ijssTauxJ29plus: 0.80,
+    ijssMaxJ1_28: 24049,
+    ijssMaxJ29plus: 32066,
+    ancienneteMinComplement: 0,
+    jourAccidentPayeEmployeur: false,
+  },
+  maternite: {
+    label: 'Maternite',
+    carenceSS: 0,
+    carenceEmployeur: 0,
+    ijssTaux: 0.79,           // ~79% du SJB (apres abattement 21%)
+    ijssMaxJour: 10402,       // 104,02€/jour
+    ancienneteMinComplement: 0,
+    complementLegal: false,    // Pas de maintien legal (verifier convention)
+  },
+  paternite: {
+    label: 'Paternite',
+    carenceSS: 0,
+    carenceEmployeur: 0,
+    ijssTaux: 0.79,
+    ijssMaxJour: 10402,
+    ancienneteMinComplement: 0,
+    complementLegal: false,
+  },
+  conge_sans_solde: {
+    label: 'Conge sans solde',
+    carenceSS: 0,
+    carenceEmployeur: 0,
+    ijssTaux: 0,
+    ijssMaxJour: 0,
+    ancienneteMinComplement: 9999, // Pas de complement
+    complementLegal: false,
+  },
+  formation: {
+    label: 'Formation (CPF)',
+    carenceSS: 0,
+    carenceEmployeur: 0,
+    ijssTaux: 0,           // Pas d'IJSS, finance par OPCO/CPF
+    ijssMaxJour: 0,
+    ancienneteMinComplement: 0,
+    complementLegal: true,   // Maintien salaire pendant formation
+  },
+  // CSG/CRDS sur IJSS (taux specifiques revenus de remplacement)
+  csgDeductibleIJSS: 3.80,   // 3,80%
+  csgNonDeductibleIJSS: 2.40, // 2,40%
+  crdsIJSS: 0.50,            // 0,50%
+};
+
+// Bareme maintien employeur (jours calendaires) — Article D1226-1 Code du travail
+const BAREME_MAINTIEN = [
+  { min: 12, max: 60,  jours90: 30, jours66: 30 },  // 1-5 ans
+  { min: 61, max: 120, jours90: 40, jours66: 40 },  // 6-10 ans
+  { min: 121, max: 180, jours90: 50, jours66: 50 }, // 11-15 ans
+  { min: 181, max: 240, jours90: 60, jours66: 60 }, // 16-20 ans
+  { min: 241, max: 300, jours90: 70, jours66: 70 }, // 21-25 ans
+  { min: 301, max: 360, jours90: 80, jours66: 80 }, // 26-30 ans
+  { min: 361, max: 9999, jours90: 90, jours66: 90 }, // 31+ ans
+];
+
+// ============================================
+// PRIMES PREDEFINIES (codes standards)
+// ============================================
+
+export const PRIMES_TYPES = {
+  PANIER: { nom: 'Prime panier / Titre-restaurant', exonere: true, parJourTravaille: true, plafondExo: 732 },
+  TRANSPORT: { nom: 'Prime transport', exonere: true, parJourTravaille: false, plafondExo: 5000 },
+  ANCIENNETE: { nom: "Prime d'anciennete", exonere: false, parJourTravaille: false, typeCalcul: 'pourcentage' },
+  EXCEPTIONNELLE: { nom: 'Prime exceptionnelle', exonere: false, parJourTravaille: false },
+  VACANCES: { nom: 'Prime de vacances', exonere: false, parJourTravaille: false },
+  TREIZIEME_MOIS: { nom: '13eme mois', exonere: false, parJourTravaille: false },
+  ASSIDUITE: { nom: "Prime d'assiduite", exonere: false, parJourTravaille: false },
+  NUIT: { nom: 'Majoration nuit', exonere: false, parJourTravaille: false },
+  DIMANCHE: { nom: 'Majoration dimanche', exonere: false, parJourTravaille: false },
+  FERIE: { nom: 'Majoration jour ferie', exonere: false, parJourTravaille: false },
+  HABILLAGE: { nom: 'Prime habillage/deshabillage', exonere: false, parJourTravaille: false },
+  SALISSURE: { nom: 'Prime de salissure', exonere: true, parJourTravaille: false },
+  TELETRAVAIL: { nom: 'Indemnite teletravail', exonere: true, parJourTravaille: true, plafondExo: 250 },
 };
 
 // ============================================
@@ -177,7 +286,205 @@ export function isMembreDansPeriode(membre, periode) {
   return true;
 }
 
-export function calculateBrut(membre, pointage = {}, primes = [], convention = null, prorata = null) {
+// ============================================
+// CALCUL ABSENCES (Maladie, AT, Maternite)
+// ============================================
+
+/**
+ * Retourne les durees de maintien employeur selon l'anciennete
+ */
+function getMaintenanceDurations(ancienneteMois) {
+  for (const b of BAREME_MAINTIEN) {
+    if (ancienneteMois >= b.min && ancienneteMois <= b.max) {
+      return { jours90: b.jours90, jours66: b.jours66 };
+    }
+  }
+  return { jours90: 0, jours66: 0 };
+}
+
+/**
+ * Calcule la retenue pour absence et les IJSS/complement
+ * @param {Object} params
+ * @param {string} params.type - 'maladie', 'accident_travail', 'maladie_pro', 'maternite', 'paternite'
+ * @param {number} params.joursAbsence - Nombre de jours calendaires d'absence
+ * @param {number} params.salaireMensuel - Salaire brut mensuel en centimes
+ * @param {number} params.ancienneteMois - Anciennete en mois
+ * @param {boolean} params.subrogation - Si l'employeur subroge les IJSS (defaut true)
+ * @returns {Object} Detail de l'absence
+ */
+/**
+ * Calcule les montants d'une absence (retenue, IJSS, complement employeur)
+ * @param {Object} params
+ * @param {string} params.type - Type d'absence (maladie, accident_travail, etc.)
+ * @param {number} params.joursAbsence - Nombre de jours calendaires d'absence
+ * @param {number} params.salaireMensuel - Salaire mensuel brut en centimes
+ * @param {number} params.ancienneteMois - Anciennete en mois
+ * @param {boolean} params.subrogation - Subrogation employeur (defaut: true)
+ * @param {string} params.categorie - Categorie socioprofessionnelle (cadre, employe, etc.)
+ */
+export function calculateAbsence({ type, joursAbsence, salaireMensuel, ancienneteMois, subrogation = true, categorie = '' }) {
+  if (!joursAbsence || joursAbsence <= 0) {
+    return { retenue: 0, ijssBrutes: 0, ijssNettes: 0, complementEmployeur: 0, joursAbsence: 0, detail: null };
+  }
+
+  const config = ABSENCE_CONFIG[type] || ABSENCE_CONFIG.maladie;
+  const isCadre = categorie === 'cadre' || categorie === 'agent_maitrise';
+
+  // 1. Retenue sur salaire (methode du 30eme)
+  const retenue = Math.round((salaireMensuel / 30) * joursAbsence);
+
+  // 2. Calcul IJSS
+  // SJB = salaire 3 derniers mois / 91.25 (on approxime avec salaire mensuel * 3 / 91.25)
+  const sjb = Math.round((salaireMensuel * 3) / 91.25);
+  let ijssBrutesJour = 0;
+  let totalIJSSBrutes = 0;
+
+  if (type === 'accident_travail' || type === 'maladie_pro') {
+    // AT/MP: 60% J1-28, 80% J29+
+    const joursIndemnises = joursAbsence - config.carenceSS;
+    if (joursIndemnises > 0) {
+      const joursPhase1 = Math.min(joursIndemnises, 28);
+      const joursPhase2 = Math.max(0, joursIndemnises - 28);
+      const ijssJ1 = Math.min(Math.round(sjb * config.ijssTauxJ1_28), config.ijssMaxJ1_28);
+      const ijssJ2 = Math.min(Math.round(sjb * config.ijssTauxJ29plus), config.ijssMaxJ29plus);
+      totalIJSSBrutes = (ijssJ1 * joursPhase1) + (ijssJ2 * joursPhase2);
+      ijssBrutesJour = joursPhase1 > 0 ? ijssJ1 : ijssJ2;
+    }
+  } else {
+    // Maladie / Maternite / Paternite: taux fixe
+    const taux = config.ijssTaux || 0.50;
+    const max = config.ijssMaxJour || 4195;
+    ijssBrutesJour = Math.min(Math.round(sjb * taux), max);
+    const joursIndemnises = Math.max(0, joursAbsence - (config.carenceSS || 0));
+    totalIJSSBrutes = ijssBrutesJour * joursIndemnises;
+  }
+
+  // 3. CSG/CRDS sur IJSS (6,70% total)
+  const csgCrdsIJSS = Math.round(totalIJSSBrutes * (ABSENCE_CONFIG.csgDeductibleIJSS + ABSENCE_CONFIG.csgNonDeductibleIJSS + ABSENCE_CONFIG.crdsIJSS) / 100);
+  const ijssNettes = totalIJSSBrutes - csgCrdsIJSS;
+
+  // 4. Complement employeur (maintien de salaire)
+  // Convention collective cadres: maintien a 100% sans carence (selon CCN applicable)
+  // Non-cadres: maintien legal Article D1226-1 Code du travail (90% puis 66,66%)
+  let complementEmployeur = 0;
+  const complementLegal = config.complementLegal !== false; // true par defaut (maladie, AT)
+  // Maternite/paternite: complement uniquement si convention le prevoit
+  const isCongeParental = type === 'maternite' || type === 'paternite';
+
+  // Cadres: complement pour maternite/paternite aussi (100% du salaire garanti par convention)
+  const forceComplement = isCadre && isCongeParental;
+
+  if ((complementLegal || forceComplement) && ancienneteMois >= (config.ancienneteMinComplement || 0)) {
+    if (isCadre) {
+      // Convention cadres: maintien a 100% sans carence employeur
+      // Duree selon anciennete mais sans carence
+      const { jours90, jours66 } = getMaintenanceDurations(ancienneteMois);
+      const totalJoursMaintien = jours90 + jours66;
+      const joursIndemnisables = Math.min(joursAbsence, totalJoursMaintien);
+
+      // Maintien 100% pour cadres
+      const objectif100 = Math.round(salaireMensuel / 30 * joursIndemnisables);
+      const joursIndemnisesSS = Math.max(0, joursIndemnisables - (config.carenceSS || 0));
+      const ijssPeriode = ijssBrutesJour * joursIndemnisesSS;
+      complementEmployeur = Math.max(0, objectif100 - ijssPeriode);
+    } else {
+      // Non-cadres: maintien legal 90% puis 66,66%
+      const { jours90, jours66 } = getMaintenanceDurations(ancienneteMois);
+      const carenceComp = config.carenceEmployeur || 0;
+      const joursIndemnisables = Math.max(0, joursAbsence - carenceComp);
+
+      // Periode 1 : maintien a 90%
+      const j90 = Math.min(joursIndemnisables, jours90);
+      if (j90 > 0) {
+        const objectif90 = Math.round(salaireMensuel * 0.90 / 30 * j90);
+        const ijssPeriode = ijssBrutesJour * Math.min(j90, Math.max(0, joursAbsence - (config.carenceSS || 0)));
+        complementEmployeur += Math.max(0, objectif90 - ijssPeriode);
+      }
+
+      // Periode 2 : maintien a 66,66%
+      const joursRestants = Math.max(0, joursIndemnisables - jours90);
+      const j66 = Math.min(joursRestants, jours66);
+      if (j66 > 0) {
+        const objectif66 = Math.round(salaireMensuel * 0.6666 / 30 * j66);
+        const ijssPeriode = ijssBrutesJour * j66;
+        complementEmployeur += Math.max(0, objectif66 - ijssPeriode);
+      }
+    }
+  }
+
+  return {
+    type,
+    label: config.label,
+    joursAbsence,
+    retenue,
+    ijssBrutes: totalIJSSBrutes,
+    ijssNettes,
+    csgCrdsIJSS,
+    ijssBrutesJour,
+    complementEmployeur,
+    subrogation,
+    categorie: isCadre ? 'cadre' : 'non-cadre',
+    detail: {
+      sjb,
+      carenceSS: config.carenceSS || 0,
+      carenceEmployeur: isCadre ? 0 : (config.carenceEmployeur || 0),
+    },
+  };
+}
+
+// ============================================
+// CALCUL PRIMES AUTOMATIQUES
+// ============================================
+
+/**
+ * Calcule les primes mensuelles d'un employe a partir de sa config
+ * @param {Array} primesConfig - Config primes du membre (rh_membres.primes_mensuelles)
+ * @param {Object} membre - Donnees employe
+ * @param {number} joursOuvres - Jours ouvres du mois (pour primes par jour)
+ * @param {number} joursAbsence - Jours d'absence (pour deduire paniers repas)
+ * @param {number} ancienneteMois - Anciennete en mois
+ * @returns {Array} Primes calculees [{code, nom, montant, exonere}]
+ */
+export function calculatePrimes(primesConfig = [], membre = {}, joursOuvres = 22, joursAbsence = 0, ancienneteMois = 0) {
+  const primes = [];
+
+  for (const p of primesConfig) {
+    if (!p.code || (!p.montant && p.type !== 'pourcentage')) continue;
+
+    let montant = 0;
+    const config = PRIMES_TYPES[p.code] || {};
+
+    if (p.type === 'pourcentage' || config.typeCalcul === 'pourcentage') {
+      // Prime en % du salaire de base (ex: anciennete)
+      const taux = p.taux || 0;
+      montant = Math.round((membre.salaire_mensuel || 0) * taux / 100);
+    } else if (config.parJourTravaille || p.par_jour_travaille) {
+      // Prime par jour travaille (ex: panier repas, teletravail)
+      const joursEffectifs = Math.max(0, joursOuvres - joursAbsence);
+      montant = (p.montant || 0) * joursEffectifs;
+    } else {
+      // Forfait mensuel
+      montant = p.montant || 0;
+    }
+
+    if (montant > 0) {
+      primes.push({
+        code: p.code,
+        nom: p.nom || config.nom || p.code,
+        montant,
+        exonere: p.exonere !== undefined ? p.exonere : (config.exonere || false),
+      });
+    }
+  }
+
+  return primes;
+}
+
+// ============================================
+// CALCUL BRUT
+// ============================================
+
+export function calculateBrut(membre, pointage = {}, primes = [], convention = null, prorata = null, absenceData = null) {
   const salaireComplet = membre.salaire_mensuel || 0;
   const heuresNormales = membre.heures_mensuelles || 151.67;
   const tauxHoraire = Math.round(salaireComplet / heuresNormales);
@@ -192,10 +499,22 @@ export function calculateBrut(membre, pointage = {}, primes = [], convention = n
   const montantHS25 = pointage.montant_25 || Math.round(hs25 * tauxHoraire * 1.25);
   const montantHS50 = pointage.montant_50 || Math.round(hs50 * tauxHoraire * 1.50);
 
-  // Primes (peuvent venir de la convention ou etre manuelles)
-  const totalPrimes = primes.reduce((sum, p) => sum + (p.montant || 0), 0);
+  // Primes: separer soumises et exonerees
+  const primesExonerees = primes.filter(p => p.exonere);
+  const primesSoumises = primes.filter(p => !p.exonere);
+  const totalPrimesExonerees = primesExonerees.reduce((sum, p) => sum + (p.montant || 0), 0);
+  const totalPrimesSoumises = primesSoumises.reduce((sum, p) => sum + (p.montant || 0), 0);
+  const totalPrimes = totalPrimesExonerees + totalPrimesSoumises;
 
-  const totalBrut = salaireBase + montantHS25 + montantHS50 + totalPrimes;
+  // Retenue absence (si applicable)
+  const retenueAbsence = absenceData?.retenue || 0;
+  // Complement employeur (soumis aux cotisations)
+  const complementEmployeur = absenceData?.complementEmployeur || 0;
+
+  // Brut soumis aux cotisations = base + HS + primes soumises + complement - retenue
+  const brutSoumis = Math.max(0, salaireBase + montantHS25 + montantHS50 + totalPrimesSoumises + complementEmployeur - retenueAbsence);
+  // Total brut (pour affichage) = brutSoumis + primes exonerees
+  const totalBrut = brutSoumis + totalPrimesExonerees;
 
   return {
     salaireBase,
@@ -208,8 +527,15 @@ export function calculateBrut(membre, pointage = {}, primes = [], convention = n
     montantHS25,
     montantHS50,
     primes,
+    primesExonerees,
+    primesSoumises,
     totalPrimes,
-    totalBrut,
+    totalPrimesExonerees,
+    totalPrimesSoumises,
+    retenueAbsence,
+    complementEmployeur,
+    brutSoumis,      // Base pour cotisations
+    totalBrut,       // Total affiche sur bulletin
   };
 }
 
@@ -489,6 +815,41 @@ export function calculateCotisations(brut, membre = {}, parametres = {}, cumulsA
     });
   }
 
+  // APEC (cadres uniquement)
+  const isCadre = membre.categorie_sociopro === 'cadre' || membre.categorie_sociopro === 'agent_maitrise';
+  if (isCadre) {
+    // APEC salarial: 0.024% sur brut
+    salariales.push({
+      code: 'APEC',
+      libelle: 'APEC (cadres)',
+      base: brut,
+      taux: 0.024,
+      montant: Math.round(brut * 0.024 / 100),
+      plafonne: false,
+    });
+
+    // APEC patronal: 0.036% sur brut
+    patronales.push({
+      code: 'APEC',
+      libelle: 'APEC (cadres)',
+      base: brut,
+      taux: 0.036,
+      montant: Math.round(brut * 0.036 / 100),
+      plafonne: false,
+    });
+
+    // Prevoyance cadres obligatoire: 1,50% T1 (minimum)
+    // Part patronale minimum: 1,50% T1
+    patronales.push({
+      code: 'PREVOYANCE_CADRE',
+      libelle: 'Prevoyance cadres (1,50% min.)',
+      base: tranche1,
+      taux: 1.50,
+      montant: Math.round(tranche1 * 1.50 / 100),
+      plafonne: true,
+    });
+  }
+
   // Formation professionnelle
   const tauxFormation = effectif >= 11 ? TAUX_2026.patronales.formation.taux_11_plus : TAUX_2026.patronales.formation.taux;
   patronales.push({
@@ -702,21 +1063,53 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
     return fin.getFullYear() === y && (fin.getMonth() + 1) === m;
   })();
 
-  // Primes (manuelles + convention)
-  const primes = options.primes || [];
+  // Anciennete (calculee tot pour les primes et absences)
+  const dateEmbauche = new Date(membre.date_embauche);
+  const datePeriode = new Date(periode + '-01');
+  const ancienneteMois = Math.floor((datePeriode - dateEmbauche) / (1000 * 60 * 60 * 24 * 30.44));
 
-  // 1. Calcul brut (avec prorata)
+  // Primes: auto-load from membre config + manuelles
+  const primesConfig = membre.primes_mensuelles || [];
+  const joursOuvresMois = getJoursOuvres(periode);
+  const joursAbsenceTotal = (options.absences || []).reduce((sum, a) => sum + (a.jours || 0), 0);
+  const primesAuto = calculatePrimes(primesConfig, membre, joursOuvresMois, joursAbsenceTotal, ancienneteMois);
+  const primesManuelles = options.primes || [];
+  const primes = [...primesAuto, ...primesManuelles];
+
+  // Absences (maladie, AT, maternite, etc.)
+  const absencesInput = options.absences || [];
+  const categorie = membre.categorie_sociopro || '';
+  const absencesDetail = absencesInput.map(a => calculateAbsence({
+    type: a.type || 'maladie',
+    joursAbsence: a.jours || 0,
+    salaireMensuel: membre.salaire_mensuel || 0,
+    ancienneteMois,
+    subrogation: a.subrogation !== false,
+    categorie,
+  }));
+  // Agreger les absences
+  const absenceAgregee = {
+    retenue: absencesDetail.reduce((s, a) => s + a.retenue, 0),
+    complementEmployeur: absencesDetail.reduce((s, a) => s + a.complementEmployeur, 0),
+    ijssBrutes: absencesDetail.reduce((s, a) => s + a.ijssBrutes, 0),
+    ijssNettes: absencesDetail.reduce((s, a) => s + a.ijssNettes, 0),
+    csgCrdsIJSS: absencesDetail.reduce((s, a) => s + a.csgCrdsIJSS, 0),
+    joursTotal: absencesDetail.reduce((s, a) => s + a.joursAbsence, 0),
+  };
+
+  // 1. Calcul brut (avec prorata + absences)
   const brutDetail = calculateBrut(
     membre,
     heuresSupp || options.heures_supp || {},
     primes,
     null,
-    prorata
+    prorata,
+    absenceAgregee
   );
 
-  // 2. Calcul cotisations
+  // 2. Calcul cotisations (sur brut soumis uniquement, IJSS exclues)
   const cotisations = calculateCotisations(
-    brutDetail.totalBrut,
+    brutDetail.brutSoumis,
     membre,
     parametres || {},
     cumulsAnnuels,
@@ -726,9 +1119,16 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
   // 3. Reduction Fillon
   const fillon = calculateReductionFillon(brutDetail.totalBrut, TAUX_2026.smic_mensuel, effectif);
 
-  // 4. Calcul nets
+  // 4. Calcul nets (IJSS subrogees ajoutees au net a payer)
   const tauxPAS = membre.taux_ir || parametres?.taux_ir_defaut || 0;
-  const nets = calculateNets(brutDetail.totalBrut, cotisations, tauxPAS);
+  const nets = calculateNets(brutDetail.brutSoumis, cotisations, tauxPAS);
+  // Ajouter IJSS nettes au net a payer si subrogation
+  const hasSubrogation = absencesDetail.some(a => a.subrogation);
+  if (hasSubrogation && absenceAgregee.ijssNettes > 0) {
+    nets.netAPayer += absenceAgregee.ijssNettes;
+  }
+  // Ajouter primes exonerees au net (elles n'ont pas de cotisations)
+  nets.netAPayer += brutDetail.totalPrimesExonerees;
 
   // 5. Cumuls annuels mis a jour
   const newCumuls = {
@@ -749,12 +1149,7 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
     .eq('annee', annee)
     .maybeSingle();
 
-  // 7. Anciennete
-  const dateEmbauche = new Date(membre.date_embauche);
-  const datePeriode = new Date(periode + '-01');
-  const ancienneteMois = Math.floor((datePeriode - dateEmbauche) / (1000 * 60 * 60 * 24 * 30.44));
-
-  // 8. Solde de tout compte (si derniere paie)
+  // 7. Solde de tout compte (si derniere paie)
   let soldeToutCompte = null;
   if (isDernierePaie) {
     const cpSolde = (compteur?.cp_acquis || 0) - (compteur?.cp_pris || 0);
@@ -799,6 +1194,10 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
     // Brut
     brut: brutDetail,
 
+    // Absences
+    absences: absencesDetail,
+    absenceAgregee,
+
     // Cotisations
     cotisations,
 
@@ -825,13 +1224,27 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
     soldeToutCompte,
 
     // Cout employeur
-    coutEmployeur: brutDetail.totalBrut + cotisations.totalPatronal - fillon.montant,
+    coutEmployeur: brutDetail.brutSoumis + cotisations.totalPatronal - fillon.montant + brutDetail.totalPrimesExonerees,
   };
 }
 
 // ============================================
 // CUMULS MENSUELS
 // ============================================
+
+/**
+ * Calcule le nombre de jours ouvres dans un mois
+ */
+function getJoursOuvres(periode) {
+  const [year, month] = periode.split('-').map(Number);
+  const joursMois = new Date(year, month, 0).getDate();
+  let ouvres = 0;
+  for (let d = 1; d <= joursMois; d++) {
+    const day = new Date(year, month - 1, d).getDay();
+    if (day !== 0 && day !== 6) ouvres++;
+  }
+  return ouvres;
+}
 
 /**
  * Recupere les cumuls annuels anterieurs au mois donne
@@ -933,6 +1346,12 @@ export function payrollToBulletinData(payroll) {
     montant_hs_50: p.brut.montantHS50,
     primes: p.brut.primes,
     brut_total: p.brut.totalBrut,
+    // Absences
+    absences: p.absences || [],
+    retenue_absences: p.absenceAgregee?.retenue || 0,
+    ijss_brutes: p.absenceAgregee?.ijssBrutes || 0,
+    complement_employeur: p.absenceAgregee?.complementEmployeur || 0,
+    // Cotisations
     cotisations_salariales: cotisationsSalariales,
     cotisations_patronales: cotisationsPatronales,
     total_cotisations_salariales: p.cotisations.totalSalarial,
@@ -961,10 +1380,14 @@ export function payrollToBulletinData(payroll) {
 
 export default {
   TAUX_2026,
+  ABSENCE_CONFIG,
+  PRIMES_TYPES,
   calculateProrata,
   isMembreDansPeriode,
   calculateTranchesPMSS,
   calculateBrut,
+  calculateAbsence,
+  calculatePrimes,
   calculateCotisations,
   calculateReductionFillon,
   calculatePAS,
