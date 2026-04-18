@@ -455,6 +455,8 @@ export default function FormulaireEmploye({
                 type="date"
                 value={formData.date_naissance}
                 onChange={e => updateField('date_naissance', e.target.value)}
+                min="1920-01-01"
+                max={new Date().toISOString().split('T')[0]}
               />
             </div>
             <div>
