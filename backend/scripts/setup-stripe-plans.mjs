@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * NEXUS — Creation des plans Stripe (prix promo 100 premiers clients)
+ * NEXUS — Creation des plans Stripe (revision finale 9 avril 2026)
  *
- * Cree les 3 plans (Starter/Pro/Business) en mensuel + annuel sur Stripe
- * + les packs SMS et Voix IA
+ * Cree les plans (Basic 29€/Business 149€) en mensuel + annuel sur Stripe
+ * + le pack credits unique (Pack 1000 — 15€)
  * Met a jour stripe_products et plans en DB
  *
  * Usage:
- *   node scripts/setup-stripe-plans.mjs
+ *   STRIPE_SECRET_KEY=sk_live_xxx node scripts/setup-stripe-plans.mjs
  *
  * Variables d'environnement requises:
- *   STRIPE_SECRET_KEY
+ *   STRIPE_SECRET_KEY  (DOIT etre la cle LIVE pour la production)
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  */
@@ -34,74 +34,104 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!STRIPE_SECRET_KEY) { console.error('STRIPE_SECRET_KEY manquante'); process.exit(1); }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) { console.error('Variables Supabase manquantes'); process.exit(1); }
 
+const isLive = STRIPE_SECRET_KEY.startsWith('sk_live');
+
 const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // ════════════════════════════════════════════════════════════════════
-// PRIX PROMO — 100 premiers clients
-// Prix affiche barre dans l'UI : 99€/249€/499€
-// Prix reel facture par Stripe : 79€/199€/399€
+// PRICING REVISION FINALE — 9 avril 2026
+// Source de verite : memory/business-model-2026.md + config/pricing.js
+//
+// Free  : 0€    (pas de produit Stripe, pas de checkout)
+// Basic : 29€/mois  | 290€/an  (2 mois offerts)
+// Business : 149€/mois | 1490€/an (2 mois offerts)
 // ════════════════════════════════════════════════════════════════════
 
 const PLANS = [
   {
-    code: 'nexus_starter',
-    name: 'NEXUS Starter',
-    description: 'Plan Starter — 1 utilisateur, 200 clients, 200 SMS/mois',
-    monthlyAmount: 7900,   // 79€ promo (au lieu de 99€)
-    yearlyAmount: 75800,   // 758€/an promo (79€ x 12 x 0.8)
-    planId: 'starter',
-    trialDays: 14,
-  },
-  {
-    code: 'nexus_pro',
-    name: 'NEXUS Pro',
-    description: 'Plan Pro — 5 utilisateurs, 2000 clients, 500 SMS/mois, Voix IA 60min',
-    monthlyAmount: 19900,  // 199€ promo (au lieu de 249€)
-    yearlyAmount: 191000,  // 1910€/an promo (199€ x 12 x 0.8)
-    planId: 'pro',
-    trialDays: 14,
+    code: 'nexus_basic',
+    name: 'NEXUS Basic',
+    description: 'Tout illimite — 1 000 credits IA inclus/mois',
+    monthlyAmount: 2900,    // 29€
+    yearlyAmount: 29000,    // 290€/an (2 mois offerts)
+    planId: 'basic',
+    trialDays: 0,
   },
   {
     code: 'nexus_business',
     name: 'NEXUS Business',
-    description: 'Plan Business — 20 utilisateurs, illimite, 2000 SMS/mois, Voix IA 300min',
-    monthlyAmount: 39900,  // 399€ promo (au lieu de 499€)
-    yearlyAmount: 383000,  // 3830€/an promo (399€ x 12 x 0.8)
+    description: 'Multi-site + white-label + API + SSO + 10 000 credits IA inclus/mois',
+    monthlyAmount: 14900,   // 149€
+    yearlyAmount: 149000,   // 1490€/an (2 mois offerts)
     planId: 'business',
-    trialDays: 14,
+    trialDays: 0,
   },
 ];
 
 const PACKS = [
-  { code: 'nexus_sms_100',   name: 'Pack 100 SMS',         amount: 800,   desc: '100 SMS supplementaires' },
-  { code: 'nexus_sms_500',   name: 'Pack 500 SMS',         amount: 3500,  desc: '500 SMS supplementaires' },
-  { code: 'nexus_sms_1000',  name: 'Pack 1000 SMS',        amount: 6000,  desc: '1000 SMS supplementaires' },
-  { code: 'nexus_sms_5000',  name: 'Pack 5000 SMS',        amount: 25000, desc: '5000 SMS supplementaires' },
-  { code: 'nexus_voice_30',  name: 'Pack 30 min Voix IA',  amount: 600,   desc: '30 minutes IA vocale' },
-  { code: 'nexus_voice_60',  name: 'Pack 60 min Voix IA',  amount: 1000,  desc: '60 minutes IA vocale' },
-  { code: 'nexus_voice_120', name: 'Pack 120 min Voix IA', amount: 1800,  desc: '120 minutes IA vocale' },
-  { code: 'nexus_voice_300', name: 'Pack 300 min Voix IA', amount: 3900,  desc: '300 minutes IA vocale' },
+  {
+    code: 'nexus_credits_1000',
+    name: 'Pack 1000 credits',
+    amount: 1500,  // 15€
+    desc: '1 000 credits IA (taux base, sans bonus)',
+  },
+];
+
+// Anciens product_codes a desactiver (plans et packs obsoletes)
+const DEPRECATED_CODES = [
+  'nexus_starter_monthly', 'nexus_starter_yearly',
+  'nexus_pro_monthly', 'nexus_pro_yearly',
+  'nexus_sms_100', 'nexus_sms_500', 'nexus_sms_1000', 'nexus_sms_5000',
+  'nexus_voice_30', 'nexus_voice_60', 'nexus_voice_120', 'nexus_voice_300',
+  'nexus_credits_s', 'nexus_credits_m', 'nexus_credits_l',
 ];
 
 // ════════════════════════════════════════════════════════════════════
 
 async function main() {
   console.log('='.repeat(60));
-  console.log('NEXUS — Configuration Stripe Plans & Packs');
+  console.log('NEXUS — Configuration Stripe Plans & Pack Credits');
   console.log('='.repeat(60));
-  console.log(`Mode: ${STRIPE_SECRET_KEY.startsWith('sk_live') ? 'PRODUCTION' : 'TEST'}`);
+  console.log(`Mode: ${isLive ? '🔴 PRODUCTION (LIVE)' : '🟢 TEST'}`);
+  console.log('');
+
+  if (!isLive) {
+    console.log('⚠️  ATTENTION: Cle TEST detectee. Les price IDs crees ne fonctionneront PAS en production.');
+    console.log('   Pour la production, utiliser: STRIPE_SECRET_KEY=sk_live_xxx node scripts/setup-stripe-plans.mjs');
+    console.log('');
+  }
+
+  // ── 0. DESACTIVER ANCIENS PRODUITS ──
+  console.log('--- Nettoyage anciens produits ---');
+  const { error: cleanErr } = await supabase
+    .from('stripe_products')
+    .update({ active: false, updated_at: new Date().toISOString() })
+    .in('product_code', DEPRECATED_CODES);
+
+  if (cleanErr) {
+    console.log(`  (!) Nettoyage: ${cleanErr.message}`);
+  } else {
+    console.log(`  ✓ ${DEPRECATED_CODES.length} anciens produits desactives`);
+  }
+
+  // Aussi nettoyer les anciennes references dans plans (starter/pro)
+  await supabase
+    .from('plans')
+    .update({ stripe_price_id_monthly: null, stripe_price_id_yearly: null })
+    .in('id', ['starter', 'pro']);
+  console.log('  ✓ Anciennes references plans (starter/pro) nettoyees');
   console.log('');
 
   // ── 1. PLANS (mensuel + annuel) ──
   for (const plan of PLANS) {
-    console.log(`\n--- ${plan.name} ---`);
+    console.log(`\n--- ${plan.name} (${plan.monthlyAmount / 100}EUR/mois) ---`);
 
     // Creer le produit Stripe
     const product = await stripe.products.create({
       name: plan.name,
       description: plan.description,
-      metadata: { plan_id: plan.planId, source: 'nexus-setup' },
+      metadata: { plan_id: plan.planId, source: 'nexus-setup-2026', pricing_version: '2026-04-09' },
     });
     console.log(`  Produit: ${product.id}`);
 
@@ -126,7 +156,7 @@ async function main() {
     console.log(`  Prix annuel: ${yearlyPrice.id} (${plan.yearlyAmount / 100}EUR/an)`);
 
     // Sauvegarder en DB — stripe_products (mensuel)
-    await supabase.from('stripe_products').upsert({
+    const { error: e1 } = await supabase.from('stripe_products').upsert({
       product_code: `${plan.code}_monthly`,
       stripe_product_id: product.id,
       stripe_price_id: monthlyPrice.id,
@@ -138,10 +168,12 @@ async function main() {
       interval: 'month',
       trial_days: plan.trialDays,
       active: true,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'product_code' });
+    if (e1) console.log(`  (!) stripe_products monthly: ${e1.message}`);
 
     // stripe_products (annuel)
-    await supabase.from('stripe_products').upsert({
+    const { error: e2 } = await supabase.from('stripe_products').upsert({
       product_code: `${plan.code}_yearly`,
       stripe_product_id: product.id,
       stripe_price_id: yearlyPrice.id,
@@ -153,7 +185,9 @@ async function main() {
       interval: 'year',
       trial_days: plan.trialDays,
       active: true,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'product_code' });
+    if (e2) console.log(`  (!) stripe_products yearly: ${e2.message}`);
 
     // Mettre a jour la table plans avec les stripe_price_id
     const { error: planErr } = await supabase
@@ -167,17 +201,17 @@ async function main() {
     if (planErr) {
       console.log(`  (!) Table plans update: ${planErr.message}`);
     } else {
-      console.log(`  Table plans mise a jour (${plan.planId})`);
+      console.log(`  ✓ Table plans mise a jour (${plan.planId})`);
     }
   }
 
-  // ── 2. PACKS SMS & VOIX ──
-  console.log('\n--- Packs SMS & Voix IA ---');
+  // ── 2. PACK CREDITS ──
+  console.log('\n--- Pack Credits ---');
   for (const pack of PACKS) {
     const product = await stripe.products.create({
       name: pack.name,
       description: pack.desc,
-      metadata: { pack_code: pack.code, source: 'nexus-setup' },
+      metadata: { pack_code: pack.code, source: 'nexus-setup-2026' },
     });
 
     const price = await stripe.prices.create({
@@ -187,7 +221,7 @@ async function main() {
       metadata: { pack_code: pack.code },
     });
 
-    await supabase.from('stripe_products').upsert({
+    const { error: e3 } = await supabase.from('stripe_products').upsert({
       product_code: pack.code,
       stripe_product_id: product.id,
       stripe_price_id: price.id,
@@ -197,25 +231,30 @@ async function main() {
       billing_type: 'one_time',
       amount: pack.amount,
       active: true,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'product_code' });
+    if (e3) console.log(`  (!) ${pack.code}: ${e3.message}`);
 
-    console.log(`  ${pack.name}: ${price.id} (${pack.amount / 100}EUR)`);
+    console.log(`  ✓ ${pack.name}: ${price.id} (${pack.amount / 100}EUR)`);
   }
 
   // ── RESUME ──
   console.log('\n' + '='.repeat(60));
   console.log('TERMINE !');
   console.log('');
-  console.log('Plans crees (prix promo 100 premiers clients):');
-  console.log('  Starter: 79EUR/mois  (au lieu de 99EUR)');
-  console.log('  Pro:     199EUR/mois (au lieu de 249EUR)');
-  console.log('  Business: 399EUR/mois (au lieu de 499EUR)');
+  console.log('Plans crees (revision finale 9 avril 2026):');
+  console.log('  Free:     0EUR        (pas de produit Stripe)');
+  console.log('  Basic:    29EUR/mois  | 290EUR/an');
+  console.log('  Business: 149EUR/mois | 1490EUR/an');
   console.log('');
-  console.log(`Packs: ${PACKS.length} crees`);
+  console.log('Pack credits:');
+  console.log('  Pack 1000: 15EUR (1000 credits, 0% bonus)');
   console.log('');
   console.log('Les stripe_price_id sont sauvegardes dans:');
   console.log('  - Table stripe_products (product_code + stripe_price_id)');
   console.log('  - Table plans (stripe_price_id_monthly + stripe_price_id_yearly)');
+  console.log('');
+  console.log(`Mode: ${isLive ? '🔴 LIVE — pret pour la production' : '🟢 TEST — ne pas utiliser en production'}`);
   console.log('='.repeat(60));
 }
 
