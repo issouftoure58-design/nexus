@@ -85,8 +85,10 @@ const fetchDocuments = async (filters: { type?: string; statut?: string; membre_
   return api.get(`/admin/rh/documents?${params}`);
 };
 
-const fetchMembres = async (): Promise<Membre[]> =>
-  api.get('/admin/rh/membres');
+const fetchMembres = async (): Promise<Membre[]> => {
+  const res = await api.get<any>('/admin/rh/membres');
+  return Array.isArray(res) ? res : (res?.data || []);
+};
 
 const fetchDPAE = async (): Promise<DPAE[]> =>
   api.get('/admin/rh/dpae');

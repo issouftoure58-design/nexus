@@ -629,17 +629,17 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
     const payload = {
       type_client: typeClient,
       telephone: formData.telephone,
-      email: formData.email || null,
-      adresse: formData.adresse || null,
-      code_postal: formData.code_postal || null,
-      ville: formData.ville || null,
-      complement_adresse: formData.complement_adresse || null,
+      email: formData.email,
+      adresse: formData.adresse || undefined,
+      code_postal: formData.code_postal || undefined,
+      ville: formData.ville || undefined,
+      complement_adresse: formData.complement_adresse || undefined,
       ...(typeClient === 'particulier'
         ? { prenom: formData.prenom, nom: formData.nom }
         : {
             raison_sociale: formData.raison_sociale,
-            siret: formData.siret || null,
-            prenom: formData.prenom || null,
+            siret: formData.siret || undefined,
+            prenom: formData.prenom || undefined,
             nom: formData.nom || formData.raison_sociale
           }
       )
@@ -768,12 +768,13 @@ function NewClientModal({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(d => ({ ...d, email: e.target.value }))}
                 placeholder={typeClient === 'professionnel' ? 'contact@entreprise.com' : 'client@email.com'}
+                required
               />
             </div>
             {/* Adresse */}

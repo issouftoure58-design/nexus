@@ -14,17 +14,17 @@ import { validateSort, validateOrder, validatePagination } from '../utils/queryV
 const CLIENTS_SORT_FIELDS = ['created_at', 'nom', 'prenom', 'email', 'telephone', 'updated_at'];
 
 const createClientSchema = z.object({
-  prenom: z.string().max(100).optional(),
-  nom: z.string().max(100).optional(),
+  prenom: z.string().max(100).optional().nullable(),
+  nom: z.string().max(100).optional().nullable(),
   telephone: z.string().min(1, 'Téléphone requis').max(20),
-  email: z.string().email('Email invalide').optional().or(z.literal('')),
-  adresse: z.string().max(500).optional(),
-  code_postal: z.string().max(10).optional(),
-  ville: z.string().max(100).optional(),
-  complement_adresse: z.string().max(500).optional(),
+  email: z.string().email('Email invalide').min(1, 'Email requis'),
+  adresse: z.string().max(500).optional().nullable(),
+  code_postal: z.string().max(10).optional().nullable(),
+  ville: z.string().max(100).optional().nullable(),
+  complement_adresse: z.string().max(500).optional().nullable(),
   type_client: z.enum(['particulier', 'professionnel']).optional(),
-  raison_sociale: z.string().max(200).optional(),
-  siret: z.string().max(20).optional(),
+  raison_sociale: z.string().max(200).optional().nullable(),
+  siret: z.string().max(20).optional().nullable(),
 }).passthrough();
 
 const router = express.Router();
@@ -143,6 +143,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
     }
     if (!telephone?.trim()) {
       return apiError(res, 'Le téléphone est requis', 'BAD_REQUEST', 400);
+    }
+    if (!email?.trim()) {
+      return apiError(res, 'L\'email est requis', 'BAD_REQUEST', 400);
     }
 
     // Vérifier si le téléphone existe déjà (🔒 TENANT ISOLATION)
