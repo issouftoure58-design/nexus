@@ -2104,16 +2104,31 @@ router.post('/paie/generer', authenticateAdmin, async (req, res) => {
 
     const [year, month] = periode.split('-');
     const dateDepense = `${year}-${month}-01`;
+    const finMois = new Date(parseInt(year), parseInt(month), 0);
+    const debutMois = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const joursMois = finMois.getDate();
 
-    // Récupérer les membres actifs
-    const { data: membres } = await supabase
+    // Récupérer les membres (actifs OU avec fin de contrat dans/apres ce mois)
+    const { data: allMembres } = await supabase
       .from('rh_membres')
       .select('*')
       .eq('tenant_id', req.admin.tenant_id)
-      .eq('statut', 'actif');
+      .in('statut', ['actif', 'inactif']);
+
+    // Filtrer : embauche <= fin du mois ET (pas de fin OU fin >= debut du mois)
+    const membres = (allMembres || []).filter(m => {
+      if (!m.date_embauche) return m.statut === 'actif';
+      const embauche = new Date(m.date_embauche);
+      if (embauche > finMois) return false;
+      if (m.date_fin_contrat) {
+        const fin = new Date(m.date_fin_contrat);
+        if (fin < debutMois) return false;
+      }
+      return true;
+    });
 
     if (!membres || membres.length === 0) {
-      return res.status(400).json({ error: 'Aucun employé actif' });
+      return res.status(400).json({ error: 'Aucun employé pour cette période' });
     }
 
     let totalSalairesNets = 0;
@@ -2123,12 +2138,31 @@ router.post('/paie/generer', authenticateAdmin, async (req, res) => {
 
     // Calculer pour chaque membre
     for (const membre of membres) {
-      const salaireBrut = membre.salaire_mensuel || 0;
-      if (salaireBrut === 0) continue;
+      const salaireComplet = membre.salaire_mensuel || 0;
+      if (salaireComplet === 0) continue;
+
+      // Prorata si mois partiel (entree ou sortie en cours de mois)
+      let premierJour = 1;
+      let dernierJour = joursMois;
+      if (membre.date_embauche) {
+        const d = new Date(membre.date_embauche);
+        if (d.getFullYear() === parseInt(year) && (d.getMonth() + 1) === parseInt(month)) {
+          premierJour = d.getDate();
+        }
+      }
+      if (membre.date_fin_contrat) {
+        const d = new Date(membre.date_fin_contrat);
+        if (d.getFullYear() === parseInt(year) && (d.getMonth() + 1) === parseInt(month)) {
+          dernierJour = d.getDate();
+        }
+      }
+      const joursTravailes = dernierJour - premierJour + 1;
+      const ratioProrata = joursTravailes / joursMois;
+      const salaireBrut = ratioProrata < 1 ? Math.round(salaireComplet * ratioProrata) : salaireComplet;
 
       // Heures supp pour ce membre
       const hs = heures_supp?.find(h => h.membre_id === membre.id) || { heures_25: 0, heures_50: 0 };
-      const tauxHoraire = salaireBrut / 15167; // 151.67h en centimes
+      const tauxHoraire = salaireComplet / 15167; // 151.67h en centimes (taux sur salaire complet)
       const montantHS = Math.round((hs.heures_25 * tauxHoraire * 1.25) + (hs.heures_50 * tauxHoraire * 1.50));
 
       const brutTotal = salaireBrut + montantHS;

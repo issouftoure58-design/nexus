@@ -113,10 +113,78 @@ export function calculateTranchesPMSS(brutMensuel, cumulBrutAnnuel = 0, moisEcou
  * @param {Object} convention - Config convention collective (optionnel)
  * @returns {Object} Detail du brut
  */
-export function calculateBrut(membre, pointage = {}, primes = [], convention = null) {
-  const salaireBase = membre.salaire_mensuel || 0;
+/**
+ * Calcule le prorata pour un mois partiel (entree ou sortie en cours de mois)
+ * @param {string} periode - Format YYYY-MM
+ * @param {string|null} dateEmbauche - Date d'embauche ISO
+ * @param {string|null} dateFinContrat - Date de fin de contrat ISO
+ * @returns {{ ratio: number, joursTravailes: number, joursMois: number, premierJour: number, dernierJour: number }}
+ */
+export function calculateProrata(periode, dateEmbauche, dateFinContrat) {
+  const [year, month] = periode.split('-').map(Number);
+  const joursMois = new Date(year, month, 0).getDate();
+  let premierJour = 1;
+  let dernierJour = joursMois;
+
+  // Si embauche dans ce mois
+  if (dateEmbauche) {
+    const d = new Date(dateEmbauche);
+    if (d.getFullYear() === year && (d.getMonth() + 1) === month) {
+      premierJour = d.getDate();
+    } else if (d > new Date(year, month - 1, joursMois)) {
+      // Embauche apres ce mois — pas encore employe
+      return { ratio: 0, joursTravailes: 0, joursMois, premierJour: 0, dernierJour: 0 };
+    }
+  }
+
+  // Si fin de contrat dans ce mois
+  if (dateFinContrat) {
+    const d = new Date(dateFinContrat);
+    if (d.getFullYear() === year && (d.getMonth() + 1) === month) {
+      dernierJour = d.getDate();
+    } else if (d < new Date(year, month - 1, 1)) {
+      // Contrat fini avant ce mois — ne doit pas etre paye
+      return { ratio: 0, joursTravailes: 0, joursMois, premierJour: 0, dernierJour: 0 };
+    }
+  }
+
+  const joursTravailes = Math.max(0, dernierJour - premierJour + 1);
+  const ratio = joursTravailes / joursMois;
+
+  return { ratio, joursTravailes, joursMois, premierJour, dernierJour };
+}
+
+/**
+ * Verifie si un membre est concerne par une periode de paie
+ */
+export function isMembreDansPeriode(membre, periode) {
+  const [year, month] = periode.split('-').map(Number);
+  const debutMois = new Date(year, month - 1, 1);
+  const finMois = new Date(year, month, 0);
+
+  // Embauche apres la fin du mois → pas concerne
+  if (membre.date_embauche) {
+    const embauche = new Date(membre.date_embauche);
+    if (embauche > finMois) return false;
+  }
+
+  // Fin de contrat avant le debut du mois → pas concerne
+  if (membre.date_fin_contrat) {
+    const finContrat = new Date(membre.date_fin_contrat);
+    if (finContrat < debutMois) return false;
+  }
+
+  return true;
+}
+
+export function calculateBrut(membre, pointage = {}, primes = [], convention = null, prorata = null) {
+  const salaireComplet = membre.salaire_mensuel || 0;
   const heuresNormales = membre.heures_mensuelles || 151.67;
-  const tauxHoraire = Math.round(salaireBase / heuresNormales);
+  const tauxHoraire = Math.round(salaireComplet / heuresNormales);
+
+  // Prorata si mois partiel (entree/sortie en cours de mois)
+  const ratio = prorata?.ratio ?? 1;
+  const salaireBase = ratio < 1 ? Math.round(salaireComplet * ratio) : salaireComplet;
 
   // Heures supplementaires
   const hs25 = pointage.heures_25 || 0;
@@ -131,8 +199,10 @@ export function calculateBrut(membre, pointage = {}, primes = [], convention = n
 
   return {
     salaireBase,
+    salaireComplet,
     heuresNormales,
     tauxHoraire,
+    prorata: ratio < 1 ? prorata : null,
     heuresSupp25: hs25,
     heuresSupp50: hs50,
     montantHS25,
@@ -618,14 +688,30 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
     .eq('statut', 'actif');
   const effectif = effectifCount || 1;
 
+  // Prorata si mois partiel
+  const prorata = calculateProrata(periode, membre.date_embauche, membre.date_fin_contrat);
+
+  if (prorata.ratio === 0) {
+    throw new Error(`L'employe n'est pas concerne par la periode ${periode}`);
+  }
+
+  // Derniere paie ?
+  const isDernierePaie = membre.date_fin_contrat && (() => {
+    const [y, m] = periode.split('-').map(Number);
+    const fin = new Date(membre.date_fin_contrat);
+    return fin.getFullYear() === y && (fin.getMonth() + 1) === m;
+  })();
+
   // Primes (manuelles + convention)
   const primes = options.primes || [];
 
-  // 1. Calcul brut
+  // 1. Calcul brut (avec prorata)
   const brutDetail = calculateBrut(
     membre,
     heuresSupp || options.heures_supp || {},
-    primes
+    primes,
+    null,
+    prorata
   );
 
   // 2. Calcul cotisations
@@ -668,6 +754,28 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
   const datePeriode = new Date(periode + '-01');
   const ancienneteMois = Math.floor((datePeriode - dateEmbauche) / (1000 * 60 * 60 * 24 * 30.44));
 
+  // 8. Solde de tout compte (si derniere paie)
+  let soldeToutCompte = null;
+  if (isDernierePaie) {
+    const cpSolde = (compteur?.cp_acquis || 0) - (compteur?.cp_pris || 0);
+    // Indemnite CP = jours restants × salaire journalier (base 21.67 jours ouvres/mois)
+    const salaireJournalier = Math.round((membre.salaire_mensuel || 0) / 21.67);
+    const indemniteCP = Math.max(0, Math.round(cpSolde * salaireJournalier));
+    // Prime de precarite CDD = 10% du total brut cumule (cumuls + brut du mois)
+    const isCDD = membre.type_contrat && membre.type_contrat !== 'cdi';
+    const totalBrutCumule = newCumuls.brut;
+    const primePrecarite = isCDD ? Math.round(totalBrutCumule * 0.10) : 0;
+
+    soldeToutCompte = {
+      salaireDu: brutDetail.totalBrut,
+      indemniteCP,
+      cpRestants: cpSolde,
+      primePrecarite,
+      isCDD,
+      total: brutDetail.totalBrut + indemniteCP + primePrecarite,
+    };
+  }
+
   return {
     // Identite
     tenantId,
@@ -681,9 +789,12 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
       classification: membre.classification_niveau,
       type_contrat: membre.type_contrat,
       date_embauche: membre.date_embauche,
+      date_fin_contrat: membre.date_fin_contrat,
       adresse: [membre.adresse_rue, membre.adresse_cp, membre.adresse_ville].filter(Boolean).join(', '),
     },
     ancienneteMois,
+    prorata: prorata.ratio < 1 ? prorata : null,
+    isDernierePaie: !!isDernierePaie,
 
     // Brut
     brut: brutDetail,
@@ -709,6 +820,9 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
       pris: compteur?.cp_pris || 0,
       solde: (compteur?.cp_acquis || 0) - (compteur?.cp_pris || 0),
     },
+
+    // Solde de tout compte (derniere paie uniquement)
+    soldeToutCompte,
 
     // Cout employeur
     coutEmployeur: brutDetail.totalBrut + cotisations.totalPatronal - fillon.montant,
@@ -837,6 +951,9 @@ export function payrollToBulletinData(payroll) {
     cp_acquis: p.conges.acquis,
     cp_pris: p.conges.pris,
     cp_solde: p.conges.solde,
+    prorata: p.prorata || null,
+    derniere_paie: p.isDernierePaie || false,
+    solde_tout_compte: p.soldeToutCompte || null,
     statut: 'brouillon',
     updated_at: new Date().toISOString(),
   };
@@ -844,6 +961,8 @@ export function payrollToBulletinData(payroll) {
 
 export default {
   TAUX_2026,
+  calculateProrata,
+  isMembreDansPeriode,
   calculateTranchesPMSS,
   calculateBrut,
   calculateCotisations,
