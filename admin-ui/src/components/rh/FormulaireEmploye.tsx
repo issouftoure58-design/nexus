@@ -117,6 +117,28 @@ interface EmployeFormData {
   contact_urgence_tel: string;
   contact_urgence_lien: string;
 
+  // DSN - Données déclaratives
+  nom_usage: string;
+  dept_naissance: string;
+  code_pays_naissance: string;
+  codification_ue: string;
+  code_pcs: string;
+  statut_conventionnel: string;
+  statut_categoriel: string;
+  numero_contrat: string;
+  dispositif_politique: string;
+  unite_quotite: string;
+  quotite_reference: string;
+  quotite_contrat: string;
+  modalite_temps: string;
+  regime_maladie: string;
+  regime_vieillesse: string;
+  regime_at: string;
+  code_risque_at: string;
+  taux_at: string;
+  emplois_multiples: string;
+  employeurs_multiples: string;
+
   // Autre
   notes: string;
 }
@@ -164,6 +186,27 @@ interface MembreData {
   contact_urgence_nom?: string;
   contact_urgence_tel?: string;
   contact_urgence_lien?: string;
+  // DSN
+  nom_usage?: string;
+  dept_naissance?: string;
+  code_pays_naissance?: string;
+  codification_ue?: string;
+  code_pcs?: string;
+  statut_conventionnel?: string;
+  statut_categoriel?: string;
+  numero_contrat?: string;
+  dispositif_politique?: string;
+  unite_quotite?: string;
+  quotite_reference?: number;
+  quotite_contrat?: number;
+  modalite_temps?: string;
+  regime_maladie?: string;
+  regime_vieillesse?: string;
+  regime_at?: string;
+  code_risque_at?: string;
+  taux_at?: number;
+  emplois_multiples?: string;
+  employeurs_multiples?: string;
   notes?: string;
   primes_mensuelles?: Array<{
     code: string;
@@ -177,11 +220,14 @@ interface MembreData {
 }
 
 // Extended form data that includes computed fields sent to the API
-export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensuel' | 'heures_hebdo' | 'heures_mensuelles' | 'classification_coefficient'> {
+export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensuel' | 'heures_hebdo' | 'heures_mensuelles' | 'classification_coefficient' | 'quotite_reference' | 'quotite_contrat' | 'taux_at'> {
   salaire_mensuel: number;
   heures_hebdo: number;
   heures_mensuelles: number;
   classification_coefficient: number | null;
+  quotite_reference: number;
+  quotite_contrat: number | null;
+  taux_at: number | null;
   diplomes: Diplome[];
   primes_mensuelles: Array<{
     code: string;
@@ -256,6 +302,28 @@ const initialFormData: EmployeFormData = {
   contact_urgence_tel: '',
   contact_urgence_lien: '',
 
+  // DSN - Données déclaratives
+  nom_usage: '',
+  dept_naissance: '',
+  code_pays_naissance: 'FR',
+  codification_ue: '01',
+  code_pcs: '',
+  statut_conventionnel: '',
+  statut_categoriel: '',
+  numero_contrat: '',
+  dispositif_politique: '99',
+  unite_quotite: '10',
+  quotite_reference: '151.67',
+  quotite_contrat: '',
+  modalite_temps: '01',
+  regime_maladie: '200',
+  regime_vieillesse: '200',
+  regime_at: '200',
+  code_risque_at: '',
+  taux_at: '',
+  emplois_multiples: '02',
+  employeurs_multiples: '02',
+
   // Autre
   notes: ''
 };
@@ -278,7 +346,8 @@ export default function FormulaireEmploye({
     remuneration: true,
     primes: false,
     urgence: false,
-    diplomes: false
+    diplomes: false,
+    dsn: false
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -332,6 +401,28 @@ export default function FormulaireEmploye({
         contact_urgence_nom: editMembre.contact_urgence_nom || '',
         contact_urgence_tel: editMembre.contact_urgence_tel || '',
         contact_urgence_lien: editMembre.contact_urgence_lien || '',
+
+        // DSN
+        nom_usage: editMembre.nom_usage || '',
+        dept_naissance: editMembre.dept_naissance || '',
+        code_pays_naissance: editMembre.code_pays_naissance || 'FR',
+        codification_ue: editMembre.codification_ue || '01',
+        code_pcs: editMembre.code_pcs || '',
+        statut_conventionnel: editMembre.statut_conventionnel || '',
+        statut_categoriel: editMembre.statut_categoriel || '',
+        numero_contrat: editMembre.numero_contrat || '',
+        dispositif_politique: editMembre.dispositif_politique || '99',
+        unite_quotite: editMembre.unite_quotite || '10',
+        quotite_reference: editMembre.quotite_reference?.toString() || '151.67',
+        quotite_contrat: editMembre.quotite_contrat?.toString() || '',
+        modalite_temps: editMembre.modalite_temps || '01',
+        regime_maladie: editMembre.regime_maladie || '200',
+        regime_vieillesse: editMembre.regime_vieillesse || '200',
+        regime_at: editMembre.regime_at || '200',
+        code_risque_at: editMembre.code_risque_at || '',
+        taux_at: editMembre.taux_at?.toString() || '',
+        emplois_multiples: editMembre.emplois_multiples || '02',
+        employeurs_multiples: editMembre.employeurs_multiples || '02',
 
         notes: editMembre.notes || ''
       });
@@ -415,6 +506,9 @@ export default function FormulaireEmploye({
       heures_hebdo: parseFloat(formData.heures_hebdo) || 35,
       heures_mensuelles: parseFloat(formData.heures_mensuelles) || 151.67,
       classification_coefficient: formData.classification_coefficient ? parseInt(formData.classification_coefficient) : null,
+      quotite_reference: parseFloat(formData.quotite_reference) || 151.67,
+      quotite_contrat: formData.quotite_contrat ? parseFloat(formData.quotite_contrat) : null,
+      taux_at: formData.taux_at ? parseFloat(formData.taux_at) : null,
       nir: formData.nir.replace(/\s/g, ''),
       iban: formData.iban.replace(/\s/g, '').toUpperCase(),
       diplomes,
@@ -1113,6 +1207,291 @@ export default function FormulaireEmploye({
               <Plus className="w-4 h-4 mr-2" />
               Ajouter un diplôme
             </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* Section DSN - Données déclaratives */}
+      <Card className="overflow-hidden">
+        <SectionHeader title="DSN - Déclarations sociales" icon={FileText} section="dsn" />
+        {expandedSections.dsn && (
+          <div className="p-4 space-y-6">
+            <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg">
+              Ces champs sont obligatoires pour la DSN (Déclaration Sociale Nominative).
+              Les valeurs par défaut conviennent à la majorité des cas.
+            </p>
+
+            {/* Identité complémentaire */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Identité complémentaire</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nom d'usage</label>
+                  <Input
+                    value={formData.nom_usage}
+                    onChange={e => updateField('nom_usage', e.target.value)}
+                    placeholder="Si différent du nom de famille"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Dept. naissance</label>
+                  <Input
+                    value={formData.dept_naissance}
+                    onChange={e => updateField('dept_naissance', e.target.value)}
+                    placeholder="Ex: 75, 93, 971"
+                    maxLength={3}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Déduit du NIR si vide</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Pays naissance</label>
+                  <Input
+                    value={formData.code_pays_naissance}
+                    onChange={e => updateField('code_pays_naissance', e.target.value.toUpperCase())}
+                    placeholder="FR"
+                    maxLength={5}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Codification UE</label>
+                  <select
+                    value={formData.codification_ue}
+                    onChange={e => updateField('codification_ue', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="01">01 - Ressortissant UE</option>
+                    <option value="02">02 - Hors UE</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Classification DSN */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Classification DSN</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Code PCS-ESE *</label>
+                  <Input
+                    value={formData.code_pcs}
+                    onChange={e => updateField('code_pcs', e.target.value)}
+                    placeholder="Ex: 641a, 561b"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    <a href="https://www.insee.fr/fr/information/2497952" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Nomenclature INSEE</a>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Statut conventionnel</label>
+                  <select
+                    value={formData.statut_conventionnel}
+                    onChange={e => updateField('statut_conventionnel', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="">Auto (selon catégorie)</option>
+                    <option value="03">03 - Cadre dirigeant</option>
+                    <option value="04">04 - Autre cadre (art. 4/4bis)</option>
+                    <option value="05">05 - Profession intermédiaire</option>
+                    <option value="06">06 - Employé</option>
+                    <option value="07">07 - Ouvrier</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Statut catégoriel retraite</label>
+                  <select
+                    value={formData.statut_categoriel}
+                    onChange={e => updateField('statut_categoriel', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="">Auto (selon catégorie)</option>
+                    <option value="01">01 - Cadre (art. 4/4bis)</option>
+                    <option value="02">02 - Non-cadre</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Contrat DSN */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Contrat</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">N° de contrat</label>
+                  <Input
+                    value={formData.numero_contrat}
+                    onChange={e => updateField('numero_contrat', e.target.value)}
+                    placeholder="Ex: 00001"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Min 5 caractères, auto-généré si vide</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Dispositif politique publique</label>
+                  <select
+                    value={formData.dispositif_politique}
+                    onChange={e => updateField('dispositif_politique', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="99">99 - Non concerné</option>
+                    <option value="21">21 - CUI-CIE</option>
+                    <option value="31">31 - Contrat d'apprentissage (secteur privé)</option>
+                    <option value="32">32 - Contrat de professionnalisation</option>
+                    <option value="41">41 - CUI-CAE</option>
+                    <option value="64">64 - Emploi d'avenir</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Temps de travail DSN */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Temps de travail DSN</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Unité quotité</label>
+                  <select
+                    value={formData.unite_quotite}
+                    onChange={e => updateField('unite_quotite', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="10">10 - Heure</option>
+                    <option value="12">12 - Journée</option>
+                    <option value="21">21 - Forfait heure</option>
+                    <option value="32">32 - Forfait jour</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quotité référence</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.quotite_reference}
+                    onChange={e => updateField('quotite_reference', e.target.value)}
+                    placeholder="151.67"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Temps plein = 151.67h</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quotité contrat</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.quotite_contrat}
+                    onChange={e => updateField('quotite_contrat', e.target.value)}
+                    placeholder="151.67"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Heures du salarié</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Modalité temps</label>
+                  <select
+                    value={formData.modalite_temps}
+                    onChange={e => updateField('modalite_temps', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="01">01 - Temps complet</option>
+                    <option value="02">02 - Temps partiel</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Régimes sociaux */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Régimes de base</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Régime maladie</label>
+                  <select
+                    value={formData.regime_maladie}
+                    onChange={e => updateField('regime_maladie', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="200">200 - Régime général</option>
+                    <option value="300">300 - Régime agricole (MSA)</option>
+                    <option value="134">134 - Alsace-Moselle</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Régime vieillesse</label>
+                  <select
+                    value={formData.regime_vieillesse}
+                    onChange={e => updateField('regime_vieillesse', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="200">200 - Régime général</option>
+                    <option value="300">300 - Régime agricole (MSA)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Régime AT/MP</label>
+                  <select
+                    value={formData.regime_at}
+                    onChange={e => updateField('regime_at', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="200">200 - Régime général</option>
+                    <option value="300">300 - Régime agricole (MSA)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Accident du travail */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Accident du travail</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Code risque AT *</label>
+                  <Input
+                    value={formData.code_risque_at}
+                    onChange={e => updateField('code_risque_at', e.target.value)}
+                    placeholder="Ex: 852AA, 602MC"
+                    maxLength={6}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Code activité CARSAT (sur votre taux AT)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Taux AT (%)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.taux_at}
+                    onChange={e => updateField('taux_at', e.target.value)}
+                    placeholder="Ex: 1.50"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Taux notifié par la CARSAT</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Emplois multiples */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Situation multi-employeurs</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Emplois multiples</label>
+                  <select
+                    value={formData.emplois_multiples}
+                    onChange={e => updateField('emplois_multiples', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="02">02 - Non</option>
+                    <option value="01">01 - Oui</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Employeurs multiples</label>
+                  <select
+                    value={formData.employeurs_multiples}
+                    onChange={e => updateField('employeurs_multiples', e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="02">02 - Non</option>
+                    <option value="01">01 - Oui</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </Card>

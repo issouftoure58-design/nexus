@@ -554,6 +554,14 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
       contact_urgence_nom, contact_urgence_tel, contact_urgence_lien,
       // Autre
       nir, notes, statut,
+      // DSN - Données déclaratives
+      nom_usage, dept_naissance, code_pays_naissance, codification_ue,
+      code_pcs, statut_conventionnel, statut_categoriel,
+      numero_contrat, dispositif_politique,
+      unite_quotite, quotite_reference, quotite_contrat, modalite_temps,
+      regime_maladie, regime_vieillesse, regime_at,
+      code_risque_at, taux_at,
+      emplois_multiples, employeurs_multiples,
       // Primes mensuelles
       primes_mensuelles
     } = req.body;
@@ -619,6 +627,28 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
     // Autre
     if (notes !== undefined) updateData.notes = notes;
     if (statut !== undefined) updateData.statut = statut;
+
+    // DSN - Données déclaratives
+    if (nom_usage !== undefined) updateData.nom_usage = emptyToNull(nom_usage);
+    if (dept_naissance !== undefined) updateData.dept_naissance = emptyToNull(dept_naissance);
+    if (code_pays_naissance !== undefined) updateData.code_pays_naissance = emptyToNull(code_pays_naissance);
+    if (codification_ue !== undefined) updateData.codification_ue = emptyToNull(codification_ue);
+    if (code_pcs !== undefined) updateData.code_pcs = emptyToNull(code_pcs);
+    if (statut_conventionnel !== undefined) updateData.statut_conventionnel = emptyToNull(statut_conventionnel);
+    if (statut_categoriel !== undefined) updateData.statut_categoriel = emptyToNull(statut_categoriel);
+    if (numero_contrat !== undefined) updateData.numero_contrat = emptyToNull(numero_contrat);
+    if (dispositif_politique !== undefined) updateData.dispositif_politique = emptyToNull(dispositif_politique);
+    if (unite_quotite !== undefined) updateData.unite_quotite = emptyToNull(unite_quotite);
+    if (quotite_reference !== undefined) updateData.quotite_reference = quotite_reference;
+    if (quotite_contrat !== undefined) updateData.quotite_contrat = quotite_contrat;
+    if (modalite_temps !== undefined) updateData.modalite_temps = emptyToNull(modalite_temps);
+    if (regime_maladie !== undefined) updateData.regime_maladie = emptyToNull(regime_maladie);
+    if (regime_vieillesse !== undefined) updateData.regime_vieillesse = emptyToNull(regime_vieillesse);
+    if (regime_at !== undefined) updateData.regime_at = emptyToNull(regime_at);
+    if (code_risque_at !== undefined) updateData.code_risque_at = emptyToNull(code_risque_at);
+    if (taux_at !== undefined) updateData.taux_at = taux_at;
+    if (emplois_multiples !== undefined) updateData.emplois_multiples = emptyToNull(emplois_multiples);
+    if (employeurs_multiples !== undefined) updateData.employeurs_multiples = emptyToNull(employeurs_multiples);
 
     // Primes mensuelles
     if (primes_mensuelles !== undefined) updateData.primes_mensuelles = primes_mensuelles || [];
@@ -3883,7 +3913,7 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
       siret, nic, code_naf, effectif_moyen, adresse_etablissement, code_postal_etablissement, ville_etablissement,
       contact_nom, contact_email, contact_tel,
       logiciel_paie, version_norme, fraction,
-      urssaf_code, caisse_retraite_code, caisse_retraite_nom, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
+      urssaf_code, urssaf_siret, caisse_retraite_code, caisse_retraite_nom, caisse_retraite_siret, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
       idcc, convention_libelle,
       date_creation_etablissement, date_premiere_embauche
     } = req.body;
@@ -3898,7 +3928,7 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
         logiciel_paie: logiciel_paie || 'NEXUS SIRH',
         version_norme: version_norme || 'P26V01',
         fraction: fraction || '11',
-        urssaf_code, caisse_retraite_code, caisse_retraite_nom, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
+        urssaf_code, urssaf_siret, caisse_retraite_code, caisse_retraite_nom, caisse_retraite_siret, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
         idcc, convention_libelle,
         date_creation_etablissement, date_premiere_embauche,
         updated_at: new Date().toISOString()

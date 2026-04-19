@@ -46,8 +46,10 @@ interface DSNParametres {
   version_norme: string;
   fraction: string;
   urssaf_code: string;
+  urssaf_siret: string;
   caisse_retraite_code: string;
   caisse_retraite_nom: string;
+  caisse_retraite_siret: string;
   prevoyance_code: string;
   prevoyance_nom: string;
   mutuelle_code: string;
@@ -118,8 +120,10 @@ export function GenerateurDSN() {
     idcc: '',
     convention_libelle: '',
     urssaf_code: '',
+    urssaf_siret: '',
     caisse_retraite_code: '',
-    caisse_retraite_nom: ''
+    caisse_retraite_nom: '',
+    caisse_retraite_siret: ''
   });
 
   // Queries
@@ -451,12 +455,35 @@ export function GenerateurDSN() {
                   />
                 </div>
                 <div>
+                  <label className="text-sm font-medium">SIRET URSSAF *</label>
+                  <Input
+                    value={formData.urssaf_siret || ''}
+                    onChange={(e) => handleInputChange('urssaf_siret', e.target.value.replace(/\D/g, ''))}
+                    placeholder="78abordeaux0001"
+                    maxLength={14}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">SIRET de votre URSSAF (14 caractères) — obligatoire pour la DSN</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="text-sm font-medium">Caisse retraite complémentaire</label>
                   <Input
                     value={formData.caisse_retraite_nom || ''}
                     onChange={(e) => handleInputChange('caisse_retraite_nom', e.target.value)}
                     placeholder="AGIRC-ARRCO"
                   />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">SIRET Caisse retraite *</label>
+                  <Input
+                    value={formData.caisse_retraite_siret || ''}
+                    onChange={(e) => handleInputChange('caisse_retraite_siret', e.target.value.replace(/\D/g, ''))}
+                    placeholder="77569201600012"
+                    maxLength={14}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">SIRET de votre caisse AGIRC-ARRCO (14 caractères) — obligatoire pour la DSN</p>
                 </div>
               </div>
             </CardContent>
