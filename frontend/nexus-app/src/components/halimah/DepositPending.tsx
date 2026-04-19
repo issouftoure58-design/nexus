@@ -1,13 +1,12 @@
-import { CheckCircle2, Calendar, Clock, MapPin, User, CreditCard, Phone } from 'lucide-react';
+import { Clock, Calendar, MapPin, User, Phone, CreditCard, MessageSquare } from 'lucide-react';
 import { useChatBooking } from '@/contexts/ChatBookingContext';
 
-export default function BookingConfirmation() {
+export default function DepositPending() {
   const {
     service,
     selectedDate,
     selectedTime,
     clientInfo,
-    paymentMethod,
     orderId,
     formatPrice,
     formatDuration,
@@ -25,43 +24,39 @@ export default function BookingConfirmation() {
     });
   };
 
-  const getPaymentLabel = () => {
-    switch (paymentMethod) {
-      case 'sur_place':
-        return 'Paiement sur place';
-      case 'stripe':
-        return 'Carte bancaire';
-      case 'paypal':
-        return 'PayPal';
-      default:
-        return '';
-    }
-  };
-
   return (
-    <div className="bg-white rounded-xl border border-green-200 shadow-sm overflow-hidden">
-      {/* Header succes */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-6 text-white text-center">
+    <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+      {/* Header acompte */}
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-6 text-white text-center">
         <div className="flex justify-center mb-3">
           <div className="p-3 bg-white/20 rounded-full">
-            <CheckCircle2 className="h-8 w-8" />
+            <CreditCard className="h-8 w-8" />
           </div>
         </div>
-        <h3 className="text-xl font-bold">
-          {paymentMethod === 'sur_place' ? 'Demande enregistree !' : 'Reservation confirmee !'}
-        </h3>
-        <p className="text-green-100 mt-1">
-          {paymentMethod === 'sur_place'
-            ? 'Vous recevrez une confirmation apres validation'
-            : 'Vous allez recevoir une confirmation par SMS'}
+        <h3 className="text-xl font-bold">Acompte requis</h3>
+        <p className="text-amber-100 mt-1">
+          Un lien de paiement vous a ete envoye par SMS
         </p>
       </div>
 
       {/* Details */}
       <div className="p-4 space-y-4">
-        {/* Service */}
-        <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg">
+        {/* Info acompte */}
+        <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
           <div className="p-2 bg-amber-100 rounded-full text-amber-600">
+            <MessageSquare className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-amber-800">Consultez vos SMS</div>
+            <div className="text-sm text-amber-700 mt-1">
+              Votre reservation sera confirmee des reception du paiement de l'acompte.
+            </div>
+          </div>
+        </div>
+
+        {/* Service */}
+        <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
+          <div className="p-2 bg-zinc-200 rounded-full text-zinc-600">
             <Calendar className="h-4 w-4" />
           </div>
           <div className="flex-1">
@@ -95,8 +90,7 @@ export default function BookingConfirmation() {
             <MapPin className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-medium text-zinc-800">Chez Fatou</div>
-            <div className="text-sm text-zinc-500">Adresse communiquee par SMS</div>
+            <div className="font-medium text-zinc-800">Sur place</div>
           </div>
         </div>
 
@@ -113,25 +107,6 @@ export default function BookingConfirmation() {
               <Phone className="h-3 w-3" />
               {clientInfo.telephone}
             </div>
-          </div>
-        </div>
-
-        {/* Paiement */}
-        <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg">
-          <div className="p-2 bg-zinc-200 rounded-full text-zinc-600">
-            <CreditCard className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="font-medium text-zinc-800">{getPaymentLabel()}</div>
-            {paymentMethod === 'sur_place' && (
-              <div className="text-sm text-zinc-500">A regler lors du rendez-vous</div>
-            )}
-            {(paymentMethod === 'stripe' || paymentMethod === 'paypal') && (
-              <div className="text-sm text-green-600">Paiement effectue</div>
-            )}
-            {paymentMethod === 'sur_place' && (
-              <div className="text-xs text-amber-600 mt-1">En attente de confirmation</div>
-            )}
           </div>
         </div>
       </div>

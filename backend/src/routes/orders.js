@@ -282,48 +282,70 @@ router.post('/', async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // CRÉER LES RÉSERVATIONS POUR TOUS LES MODES DE PAIEMENT
-    // Statut différent selon le mode de paiement:
-    // - sur_place → 'demande' (confirmé immédiatement)
-    // - paypal avec paiementId → 'demande' (paiement déjà capturé)
-    // - stripe/paypal sans paiementId → 'en_attente_paiement' (confirmé après paiement)
+    // RÈGLE UNIQUE — TOUS CANAUX, TOUS TENANTS :
+    // - Acompte activé + sur_place → 'en_attente_paiement' + envoi lien acompte
+    // - Acompte désactivé + sur_place → 'demande' + aucune notif (admin confirme)
+    // - Paiement en ligne capturé (PayPal) → 'demande' + auto-confirmé
+    // - Paiement en ligne non capturé → 'en_attente_paiement'
     // ═══════════════════════════════════════════════════════════════════════
     const isPaymentAlreadyCaptured = paiementMethode === 'paypal' && paiementId;
-    const statutReservation = (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) ? 'demande' : 'en_attente_paiement';
+
+    // Vérifier config acompte du tenant
+    let depositRequired = false;
+    if (paiementMethode === 'sur_place') {
+      const depositConfig = await getDepositConfig(tenantId);
+      depositRequired = depositConfig.enabled && !!depositConfig.paymentUrl;
+    }
+
+    let statutReservation;
+    if (isPaymentAlreadyCaptured) {
+      statutReservation = 'demande';
+    } else if (paiementMethode === 'sur_place' && depositRequired) {
+      statutReservation = 'en_attente_paiement';
+    } else if (paiementMethode === 'sur_place') {
+      statutReservation = 'demande';
+    } else {
+      statutReservation = 'en_attente_paiement';
+    }
+
     // 🔒 TENANT ISOLATION: Passer le tenantId
     await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation, {}, tenantId);
     console.log(`[ORDERS] ✅ Réservations créées avec statut: ${statutReservation}`);
 
-    // 📱 Toujours envoyer SMS de confirmation (même en attente de paiement)
-    await sendOrderConfirmation(order, items, cleanPhone, clientEmail, tenantId);
+    // 📱 Notification selon la règle unique :
+    // - Acompte activé → envoi lien acompte (via sendOrderConfirmation)
+    // - Acompte désactivé + sur_place → AUCUNE notif (admin confirme plus tard)
+    // - Paiement en ligne → confirmation après capture
+    if (paiementMethode !== 'sur_place' || depositRequired) {
+      await sendOrderConfirmation(order, items, cleanPhone, clientEmail, tenantId);
+    } else {
+      console.log('[ORDERS] 📧 Sur place sans acompte — pas de notification, admin confirmera');
+    }
 
-    if (paiementMethode === 'sur_place' || isPaymentAlreadyCaptured) {
-      // Mettre à jour statut commande (🔒 TENANT ISOLATION)
-      const updateData = {
-        statut: 'confirme',
-        ...(isPaymentAlreadyCaptured && {
+    // Confirmer automatiquement UNIQUEMENT si paiement déjà capturé (PayPal)
+    if (isPaymentAlreadyCaptured) {
+      await supabase
+        .from('orders')
+        .update({
+          statut: 'confirme',
           paiement_statut: 'paye',
           paiement_id: paiementId,
           paiement_date: new Date().toISOString(),
-        }),
-      };
-      await supabase
-        .from('orders')
-        .update(updateData)
+        })
         .eq('id', order.id)
         .eq('tenant_id', tenantId);
-
-      if (isPaymentAlreadyCaptured) {
-        console.log(`[ORDERS] ✅ Commande PayPal confirmée automatiquement (paiement déjà capturé)`);
-      }
+      console.log(`[ORDERS] ✅ Commande PayPal confirmée automatiquement (paiement déjà capturé)`);
     }
 
     res.json({
       success: true,
       orderId: order.id,
-      message: paiementMethode === 'sur_place'
-        ? 'Commande confirmée ! Vous recevrez une confirmation par SMS.'
-        : 'Commande créée. Procédez au paiement.',
+      depositRequired,
+      message: depositRequired
+        ? 'Un lien de paiement d\'acompte vous a été envoyé par SMS.'
+        : paiementMethode === 'sur_place'
+          ? 'Votre demande a été enregistrée. Vous recevrez une confirmation.'
+          : 'Commande créée. Procédez au paiement.',
     });
 
   } catch (error) {
@@ -618,39 +640,33 @@ async function sendOrderConfirmation(order, items, telephone, email, tenantId = 
       total: totalEuros,
     };
 
+    // RÈGLE UNIQUE — cette fonction n'est appelée que si :
+    // - Paiement en ligne (Stripe/PayPal) → confirmation
+    // - Sur place + acompte activé → envoi lien acompte
+    // (sur place sans acompte = aucune notif, admin confirme)
     try {
-      const isPaidOnline = order.paiement_methode !== 'sur_place';
+      const depositConfig = await getDepositConfig(effectiveTenantId);
+      const depositActive = depositConfig.enabled && !!depositConfig.paymentUrl && totalEuros > 0;
 
-      if (isPaidOnline) {
-        // Paiement en ligne (Stripe/PayPal) → le client paie le montant complet
-        // Pas besoin de demande d'acompte, envoyer confirmation directe
+      if (order.paiement_methode === 'sur_place' && depositActive) {
+        // Acompte requis → envoi lien de paiement
+        const montantAcompte = calculateDeposit(order.total, depositConfig.rate);
+        console.log(`[ORDERS] 💰 Acompte: ${montantAcompte}€ (${depositConfig.rate}% de ${totalEuros}€)`);
+
+        await sendDepositRequest(effectiveTenantId, telephone, {
+          montant: montantAcompte,
+          total: totalEuros,
+          lien: depositConfig.paymentUrl,
+          service: serviceNom,
+          date: order.date_rdv,
+          heure: order.heure_debut,
+          clientNom: order.client_prenom || order.client_nom || null,
+        }, email);
+        console.log('[ORDERS] ✅ Lien acompte envoyé');
+      } else if (order.paiement_methode !== 'sur_place') {
+        // Paiement en ligne capturé → confirmation
         await sendConfirmation(rdvForNotification, 0, effectiveTenantId);
-        console.log('[ORDERS] ✅ Confirmation envoyee (paiement en ligne)');
-      } else {
-        // Paiement sur place → verifier si acompte est active
-        const depositConfig = await getDepositConfig(effectiveTenantId);
-
-        if (depositConfig.enabled && depositConfig.paymentUrl && totalEuros > 0) {
-          // Acompte actif → envoyer demande de paiement
-          const montantAcompte = calculateDeposit(order.total, depositConfig.rate);
-          console.log(`[ORDERS] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${totalEuros}€)`);
-
-          await sendDepositRequest(effectiveTenantId, telephone, {
-            montant: montantAcompte,
-            total: totalEuros,
-            lien: depositConfig.paymentUrl,
-            service: serviceNom,
-            date: order.date_rdv,
-            heure: order.heure_debut,
-            clientNom: order.client_prenom || order.client_nom || null,
-          }, email);
-
-          console.log('[ORDERS] ✅ Demande d\'acompte envoyee (paiement sur place)');
-        } else {
-          // Pas d'acompte → envoyer accuse de reception
-          await sendConfirmation(rdvForNotification, 0, effectiveTenantId);
-          console.log('[ORDERS] ✅ Accuse de reception envoye (sur place, pas d\'acompte)');
-        }
+        console.log('[ORDERS] ✅ Confirmation envoyée (paiement en ligne)');
       }
     } catch (notifError) {
       console.error('[ORDERS] Erreur notification:', notifError);

@@ -1956,6 +1956,14 @@ export async function createReservationUnified(data, channel = 'web', options = 
     // 9. INSÉRER LES RÉSERVATIONS (une par jour ouvrable)
     console.log(`💾 STEP BOOKING 4.5: Insertion réservation(s)...`);
     console.log(`💾 Nombre de jours à réserver: ${reservationDates.length}`);
+
+    // Règle unique acompte — même logique pour TOUS les canaux
+    let depositRequired_flag = false;
+    if (!data.statut) {
+      const depCheck = await getDepositConfig(data.tenant_id);
+      depositRequired_flag = depCheck.enabled && !!depCheck.paymentUrl && prixTotal > 0;
+    }
+
     const createdReservations = [];
     const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Sur place');
 
@@ -1978,7 +1986,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         prix_total: isFirstDay ? prixTotal : 0,  // En centimes
         adresse_client: data.lieu === 'domicile' ? data.adresse : null,
         telephone: telephone.replace('+33', '0'),
-        statut: data.statut || 'demande',
+        statut: data.statut || (depositRequired_flag ? 'en_attente_paiement' : 'demande'),
         created_via: `nexus-${channel}`,
         notes: nbJours > 1
           ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]${multidayGroupId ? ` [Group: ${multidayGroupId}]` : ''}`
@@ -2100,31 +2108,27 @@ export async function createReservationUnified(data, channel = 'web', options = 
       }
     }
 
-    // 11b. RDV en 'demande': soit envoyer demande d'acompte, soit accuse de reception
-    if (sendSMS && statutFinal === 'demande' && (data.client_telephone || data.client_email)) {
+    // 11b. RÈGLE UNIQUE ACOMPTE — même pour tous les canaux :
+    // - Acompte activé → envoi lien acompte (statut = en_attente_paiement)
+    // - Acompte désactivé → aucune notif (admin confirme → message de confirmation)
+    const statutEffectif = data.statut || (depositRequired_flag ? 'en_attente_paiement' : 'demande');
+    if (sendSMS && depositRequired_flag && (data.client_telephone || data.client_email)) {
       try {
         const depositConfig = await getDepositConfig(data.tenant_id);
-        if (depositConfig.enabled && depositConfig.paymentUrl && prixTotal > 0) {
-          // Acompte actif: envoyer demande de paiement
-          const montantAcompte = calculateDeposit(prixTotal, depositConfig.rate);
-          console.log(`[NEXUS CORE] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${prixTotal / 100}€)`);
+        const montantAcompte = calculateDeposit(prixTotal, depositConfig.rate);
+        console.log(`[NEXUS CORE] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${prixTotal / 100}€)`);
 
-          await _sendDepositRequest(data.tenant_id, data.client_telephone, {
-            montant: montantAcompte,
-            total: prixTotal / 100,
-            lien: depositConfig.paymentUrl,
-            service: service.name,
-            date: data.date,
-            heure: data.heure,
-            clientNom: data.client_prenom || data.client_nom || null,
-          }, data.client_email || null);
+        await _sendDepositRequest(data.tenant_id, data.client_telephone, {
+          montant: montantAcompte,
+          total: prixTotal / 100,
+          lien: depositConfig.paymentUrl,
+          service: service.name,
+          date: data.date,
+          heure: data.heure,
+          clientNom: data.client_prenom || data.client_nom || null,
+        }, data.client_email || null);
 
-          console.log('[NEXUS CORE] ✅ Demande d\'acompte envoyee');
-        } else {
-          // Pas d'acompte: PAS de notification auto pour 'demande'
-          // L'admin confirmera le RDV manuellement → la notification partira a ce moment
-          console.log('[NEXUS CORE] 📧 Pas d\'acompte, statut=demande — notification a la confirmation admin');
-        }
+        console.log('[NEXUS CORE] ✅ Demande d\'acompte envoyee');
       } catch (notifError) {
         console.error('[NEXUS CORE] ❌ Erreur envoi notification demande:', notifError.message);
         // Ne pas echouer la reservation pour une notification

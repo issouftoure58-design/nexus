@@ -31,7 +31,7 @@ export interface WeekAvailability {
   [date: string]: DayAvailability;
 }
 
-export type BookingStage = 'idle' | 'service' | 'date' | 'client' | 'payment' | 'processing' | 'confirmed' | 'error';
+export type BookingStage = 'idle' | 'service' | 'date' | 'client' | 'payment' | 'processing' | 'confirmed' | 'deposit_pending' | 'error';
 export type PaymentMethod = 'sur_place' | 'stripe' | 'paypal';
 
 export interface BookingState {
@@ -57,6 +57,7 @@ type BookingAction =
   | { type: 'SELECT_PAYMENT'; payload: PaymentMethod }
   | { type: 'PROCESSING' }
   | { type: 'CONFIRMED'; payload: string }
+  | { type: 'DEPOSIT_PENDING'; payload: string }
   | { type: 'ERROR'; payload: string }
   | { type: 'RESET' }
   | { type: 'GO_BACK' };
@@ -126,6 +127,13 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return {
         ...state,
         stage: 'confirmed',
+        orderId: action.payload,
+      };
+
+    case 'DEPOSIT_PENDING':
+      return {
+        ...state,
+        stage: 'deposit_pending',
         orderId: action.payload,
       };
 
@@ -262,7 +270,11 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
         const result = await response.json();
 
         if (result.success) {
-          dispatch({ type: 'CONFIRMED', payload: result.orderId });
+          if (result.depositRequired) {
+            dispatch({ type: 'DEPOSIT_PENDING', payload: result.orderId });
+          } else {
+            dispatch({ type: 'CONFIRMED', payload: result.orderId });
+          }
         } else {
           dispatch({ type: 'ERROR', payload: result.error || 'Erreur création commande' });
         }

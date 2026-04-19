@@ -6,6 +6,7 @@ import PaymentSelector from './PaymentSelector';
 import ChatStripePayment from './ChatStripePayment';
 import ChatPayPalPayment from './ChatPayPalPayment';
 import BookingConfirmation from './BookingConfirmation';
+import DepositPending from './DepositPending';
 import { Loader2 } from 'lucide-react';
 
 export default function InteractiveMessage() {
@@ -48,6 +49,9 @@ export default function InteractiveMessage() {
 
     case 'confirmed':
       return <BookingConfirmation />;
+
+    case 'deposit_pending':
+      return <DepositPending />;
 
     case 'error':
       return (
