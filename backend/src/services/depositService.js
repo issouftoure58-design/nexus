@@ -18,19 +18,20 @@ export async function getDepositConfig(tenantId) {
 
   const { data, error } = await supabase
     .from('tenants')
-    .select('deposit_enabled, deposit_rate, deposit_payment_url')
+    .select('deposit_enabled, deposit_rate, deposit_payment_url, stripe_secret_key')
     .eq('id', tenantId)
     .single();
 
   if (error) {
     logger.warn('Erreur lecture deposit config', { tag: 'DepositService', tenantId, error: error.message });
-    return { enabled: false, rate: 30, paymentUrl: null };
+    return { enabled: false, rate: 30, paymentUrl: null, hasStripeKey: false };
   }
 
   return {
     enabled: !!data.deposit_enabled,
     rate: data.deposit_rate || 30,
     paymentUrl: data.deposit_payment_url || null,
+    hasStripeKey: !!data.stripe_secret_key,
   };
 }
 

@@ -1959,7 +1959,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
 
     // Règle unique acompte — même logique pour TOUS les canaux, SANS exception
     const depCheck = await getDepositConfig(data.tenant_id);
-    const depositRequired_flag = depCheck.enabled && !!depCheck.paymentUrl && prixTotal > 0;
+    const depositRequired_flag = depCheck.enabled && (!!depCheck.paymentUrl || depCheck.hasStripeKey) && prixTotal > 0;
 
     const createdReservations = [];
     const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Sur place');
@@ -2113,12 +2113,36 @@ export async function createReservationUnified(data, channel = 'web', options = 
       try {
         const depositConfig = await getDepositConfig(data.tenant_id);
         const montantAcompte = calculateDeposit(prixTotal, depositConfig.rate);
+        const montantAcompteCentimes = Math.round(montantAcompte * 100);
         console.log(`[NEXUS CORE] 💰 Acompte actif: ${montantAcompte}€ (${depositConfig.rate}% de ${prixTotal / 100}€)`);
+
+        // Tenter de créer une session Stripe dynamique (montant exact)
+        let lienPaiement = depositConfig.paymentUrl; // fallback lien statique
+        try {
+          const { createDepositCheckoutSession } = await import('../../services/depositCheckoutService.js');
+          const primaryId = createdReservations[0]?.id;
+          const session = await createDepositCheckoutSession(data.tenant_id, {
+            montantCentimes: montantAcompteCentimes,
+            serviceName: service.name,
+            clientNom: data.client_prenom || data.client_nom || null,
+            clientEmail: data.client_email || null,
+            reservationId: primaryId,
+            date: data.date,
+            heure: data.heure,
+            salonName: (await getBusinessInfo(data.tenant_id))?.nom || data.tenant_id,
+          });
+          if (session?.url) {
+            lienPaiement = session.url;
+            console.log(`[NEXUS CORE] 🔗 Checkout Session dynamique créée: ${session.sessionId}`);
+          }
+        } catch (stripeErr) {
+          console.warn(`[NEXUS CORE] ⚠️ Checkout dynamique indisponible, fallback lien statique: ${stripeErr.message}`);
+        }
 
         await _sendDepositRequest(data.tenant_id, data.client_telephone, {
           montant: montantAcompte,
           total: prixTotal / 100,
-          lien: depositConfig.paymentUrl,
+          lien: lienPaiement,
           service: service.name,
           date: data.date,
           heure: data.heure,

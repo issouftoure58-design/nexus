@@ -124,6 +124,7 @@ import nexusProspectionRoutes, { prospectionPublicRouter, prospectionWebhookRout
 import employeeAuthRoutes from './routes/employeeAuth.js';
 import employeePortalRoutes from './routes/employeePortal.js';
 import cgvRoutes from './routes/cgv.js';
+import depositCallbackRoutes from './routes/depositCallback.js';
 import adminLoyaltyRoutes from './routes/adminLoyalty.js';
 import adminWaitlistRoutes from './routes/adminWaitlist.js';
 import exercicesRoutes from './routes/exercices.js';
@@ -369,6 +370,10 @@ app.use('/api/landing', landingAgentRoutes);
 // ============= PUBLIC PAYMENT (Widget reservation, tenant via header) =============
 // Paiement public pour le widget de reservation client - gere sa propre resolution tenant
 app.use('/api/public/payment', publicPaymentRoutes);
+
+// ============= DEPOSIT CALLBACK (public, avant tenant shield) =============
+// Retour Stripe après paiement d'acompte — tenant_id passé en query param
+app.use('/api/deposit', depositCallbackRoutes);
 
 // ============= CGV (public, avant tenant shield) =============
 app.use('/api/cgv', cgvRoutes);

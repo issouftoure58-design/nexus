@@ -320,7 +320,7 @@ router.get('/deposit-config', async (req, res) => {
 
     const { data, error } = await supabase
       .from('tenants')
-      .select('deposit_enabled, deposit_rate, deposit_payment_url')
+      .select('deposit_enabled, deposit_rate, deposit_payment_url, stripe_secret_key')
       .eq('id', tenantId)
       .single();
 
@@ -330,6 +330,7 @@ router.get('/deposit-config', async (req, res) => {
       enabled: !!data.deposit_enabled,
       rate: data.deposit_rate || 30,
       payment_url: data.deposit_payment_url || '',
+      stripe_connected: !!data.stripe_secret_key,
     });
   } catch (error) {
     console.error('[ADMIN PROFILE] Erreur deposit-config:', error);
@@ -357,6 +358,15 @@ router.patch('/deposit-config', async (req, res) => {
     if (typeof payment_url === 'string') {
       updates.deposit_payment_url = payment_url.trim() || null;
     }
+    // Clé Stripe du tenant pour checkout dynamique (montant exact acompte)
+    const { stripe_secret_key } = req.body;
+    if (typeof stripe_secret_key === 'string') {
+      const trimmed = stripe_secret_key.trim();
+      if (trimmed && !trimmed.startsWith('sk_')) {
+        return res.status(400).json({ error: 'La clé Stripe doit commencer par sk_test_ ou sk_live_' });
+      }
+      updates.stripe_secret_key = trimmed || null;
+    }
 
     const { error } = await supabase
       .from('tenants')
@@ -372,7 +382,7 @@ router.patch('/deposit-config', async (req, res) => {
     // Relire la config mise a jour
     const { data } = await supabase
       .from('tenants')
-      .select('deposit_enabled, deposit_rate, deposit_payment_url')
+      .select('deposit_enabled, deposit_rate, deposit_payment_url, stripe_secret_key')
       .eq('id', tenantId)
       .single();
 
@@ -381,6 +391,7 @@ router.patch('/deposit-config', async (req, res) => {
       enabled: !!data.deposit_enabled,
       rate: data.deposit_rate || 30,
       payment_url: data.deposit_payment_url || '',
+      stripe_connected: !!data.stripe_secret_key,
     });
   } catch (error) {
     console.error('[ADMIN PROFILE] Erreur update deposit-config:', error);

@@ -294,7 +294,7 @@ router.post('/', async (req, res) => {
     let depositRequired = false;
     if (paiementMethode === 'sur_place') {
       const depositConfig = await getDepositConfig(tenantId);
-      depositRequired = depositConfig.enabled && !!depositConfig.paymentUrl;
+      depositRequired = depositConfig.enabled && (!!depositConfig.paymentUrl || depositConfig.hasStripeKey);
     }
 
     let statutReservation;
@@ -646,17 +646,50 @@ async function sendOrderConfirmation(order, items, telephone, email, tenantId = 
     // (sur place sans acompte = aucune notif, admin confirme)
     try {
       const depositConfig = await getDepositConfig(effectiveTenantId);
-      const depositActive = depositConfig.enabled && !!depositConfig.paymentUrl && totalEuros > 0;
+      const depositActive = depositConfig.enabled && (!!depositConfig.paymentUrl || depositConfig.hasStripeKey) && totalEuros > 0;
 
       if (order.paiement_methode === 'sur_place' && depositActive) {
         // Acompte requis → envoi lien de paiement
         const montantAcompte = calculateDeposit(order.total, depositConfig.rate);
+        const montantAcompteCentimes = Math.round(montantAcompte * 100);
         console.log(`[ORDERS] 💰 Acompte: ${montantAcompte}€ (${depositConfig.rate}% de ${totalEuros}€)`);
+
+        // Tenter checkout Stripe dynamique (montant exact)
+        let lienPaiement = depositConfig.paymentUrl;
+        try {
+          const { createDepositCheckoutSession } = await import('../services/depositCheckoutService.js');
+          // Récupérer reservation_id depuis order_items
+          const { data: orderItems } = await supabase
+            .from('order_items')
+            .select('reservation_id')
+            .eq('order_id', order.id)
+            .eq('tenant_id', effectiveTenantId)
+            .not('reservation_id', 'is', null)
+            .limit(1);
+          const reservationId = orderItems?.[0]?.reservation_id || order.id;
+
+          const session = await createDepositCheckoutSession(effectiveTenantId, {
+            montantCentimes: montantAcompteCentimes,
+            serviceName: serviceNom,
+            clientNom: order.client_prenom || order.client_nom || null,
+            clientEmail: email,
+            reservationId,
+            date: order.date_rdv,
+            heure: order.heure_debut,
+            salonName: effectiveTenantId,
+          });
+          if (session?.url) {
+            lienPaiement = session.url;
+            console.log(`[ORDERS] 🔗 Checkout Session dynamique: ${session.sessionId}`);
+          }
+        } catch (stripeErr) {
+          console.warn(`[ORDERS] ⚠️ Checkout dynamique indisponible, fallback lien statique: ${stripeErr.message}`);
+        }
 
         await sendDepositRequest(effectiveTenantId, telephone, {
           montant: montantAcompte,
           total: totalEuros,
-          lien: depositConfig.paymentUrl,
+          lien: lienPaiement,
           service: serviceNom,
           date: order.date_rdv,
           heure: order.heure_debut,
