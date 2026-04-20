@@ -185,7 +185,6 @@ export async function verifyDepositPayment(sessionId, tenantId) {
       .from('reservations')
       .update({
         statut: 'confirme',
-        paiement_statut: 'acompte',
         updated_at: new Date().toISOString(),
       })
       .eq('id', reservationId)
