@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Star, ChevronLeft, ChevronRight, Quote, Sparkles, Heart, MessageCircle, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-config';
+import PublicReviewForm from './PublicReviewForm';
 
 interface Testimonial {
   id: number;
@@ -112,7 +113,7 @@ export default function Testimonials() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchReviews = useCallback(() => {
     apiFetch('/api/reviews')
       .then(r => r.json())
       .then(data => {
@@ -141,6 +142,10 @@ export default function Testimonials() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
 
   const stats = [
     { value: "500+", label: "Clientes satisfaites" },
@@ -370,6 +375,9 @@ export default function Testimonials() {
             </div>
           ))}
         </div>
+
+        {/* Formulaire avis public */}
+        <PublicReviewForm onSuccess={fetchReviews} />
 
         {/* Decorative bottom line */}
         <div className="mt-16 flex items-center justify-center gap-4">

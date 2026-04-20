@@ -10,8 +10,12 @@
 
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import multer from 'multer';
+import crypto from 'crypto';
 import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
-import { publicChatLimiter } from '../middleware/rateLimiter.js';
+import { publicChatLimiter, publicReviewLimiter } from '../middleware/rateLimiter.js';
+import { supabase } from '../config/supabase.js';
+import { containsProfanity } from '../services/profanityFilter.js';
 
 const router = express.Router();
 
@@ -371,6 +375,196 @@ router.get('/health', (req, res) => {
     status: hasApiKey ? 'ready' : 'missing_api_key',
     timestamp: new Date().toISOString()
   });
+});
+
+// ============================================
+// AVIS LANDING NEXUS
+// ============================================
+
+const NEXUS_TENANT_ID = '__nexus__';
+
+// Config multer pour upload photo avis landing (5MB max, images uniquement)
+const uploadLandingPhoto = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
+/**
+ * GET /api/landing/reviews
+ * Avis approuvés sur la landing NEXUS
+ */
+router.get('/reviews', async (req, res) => {
+  try {
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select('id, client_prenom, author_name, rating, comment, photo_url, created_at')
+      .eq('status', 'approved')
+      .eq('tenant_id', NEXUS_TENANT_ID)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    const ratings = (reviews || []).map(r => r.rating);
+    const moyenne = ratings.length > 0
+      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+      : 0;
+
+    res.json({
+      success: true,
+      reviews: (reviews || []).map(r => ({
+        ...r,
+        name: r.author_name || r.client_prenom,
+      })),
+      stats: { total: ratings.length, moyenne }
+    });
+  } catch (error) {
+    console.error('[LANDING] Erreur GET /reviews:', error.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/landing/reviews
+ * Soumettre un avis sur la landing NEXUS (public, sans token)
+ */
+router.post('/reviews', publicReviewLimiter, (req, res, next) => {
+  uploadLandingPhoto.single('photo')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Photo trop volumineuse (max 5MB)' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const { rating, comment, name, website } = req.body;
+
+    // 🍯 Honeypot
+    if (website) {
+      return res.status(201).json({
+        success: true,
+        message: 'Merci pour votre avis ! Il sera publié après modération.'
+      });
+    }
+
+    // Validation
+    const ratingNum = parseInt(rating);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: 'Note entre 1 et 5 requise' });
+    }
+
+    const trimmedName = (name || '').trim();
+    if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 50) {
+      return res.status(400).json({ error: 'Nom requis (1-50 caractères)' });
+    }
+
+    const trimmedComment = (comment || '').trim();
+    if (!trimmedComment || trimmedComment.length < 5 || trimmedComment.length > 500) {
+      return res.status(400).json({ error: 'Commentaire requis (5-500 caractères)' });
+    }
+
+    // Filtre anti-injures
+    const nameProfanity = containsProfanity(trimmedName);
+    if (nameProfanity.hasProfanity) {
+      return res.status(400).json({
+        error: 'Le nom contient des termes inappropriés. Merci de corriger.'
+      });
+    }
+    const commentProfanity = containsProfanity(trimmedComment);
+    if (commentProfanity.hasProfanity) {
+      return res.status(400).json({
+        error: 'Votre commentaire contient des termes inappropriés. Merci de reformuler.'
+      });
+    }
+
+    // Anti-spam DB : max 3 avis/24h/IP
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentReviews } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('ip_hash', ipHash)
+      .eq('tenant_id', NEXUS_TENANT_ID)
+      .gte('created_at', oneDayAgo);
+
+    if (recentReviews && recentReviews.length >= 3) {
+      return res.status(429).json({
+        error: 'Vous avez déjà soumis plusieurs avis récemment. Réessayez demain.'
+      });
+    }
+
+    // Upload photo si présente
+    let photoUrl = null;
+    if (req.file) {
+      const ext = req.file.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : req.file.mimetype.split('/')[1];
+      const reviewId = crypto.randomUUID();
+      const storagePath = `${NEXUS_TENANT_ID}/${reviewId}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('review-photos')
+        .upload(storagePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        if (uploadError.message?.includes('not found') || uploadError.statusCode === '404') {
+          await supabase.storage.createBucket('review-photos', { public: true, fileSizeLimit: 5242880 });
+          const { error: retryErr } = await supabase.storage
+            .from('review-photos')
+            .upload(storagePath, req.file.buffer, {
+              contentType: req.file.mimetype,
+              upsert: true,
+            });
+          if (retryErr) throw retryErr;
+        } else {
+          throw uploadError;
+        }
+      }
+
+      const { data: urlData } = supabase.storage.from('review-photos').getPublicUrl(storagePath);
+      photoUrl = urlData.publicUrl;
+    }
+
+    const { data: review, error: insertErr } = await supabase
+      .from('reviews')
+      .insert({
+        tenant_id: NEXUS_TENANT_ID,
+        client_id: null,
+        reservation_id: null,
+        client_prenom: trimmedName,
+        author_name: trimmedName,
+        rating: ratingNum,
+        comment: trimmedComment,
+        photo_url: photoUrl,
+        service_name: null,
+        status: 'pending',
+        source: 'public',
+        ip_hash: ipHash,
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    res.status(201).json({
+      success: true,
+      message: 'Merci pour votre avis ! Il sera publié après modération.',
+      review: { id: review.id, rating: review.rating }
+    });
+  } catch (error) {
+    console.error('[LANDING] Erreur POST /reviews:', error.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 export default router;

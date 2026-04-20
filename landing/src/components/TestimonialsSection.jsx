@@ -1,6 +1,10 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Star } from 'lucide-react'
+import NexusReviewForm from './NexusReviewForm'
 
-const TESTIMONIALS = [
+const API_URL = import.meta.env.VITE_API_URL || ''
+
+const FALLBACK_TESTIMONIALS = [
   {
     name: 'Sophie L.',
     role: 'Salon de coiffure, Paris',
@@ -40,6 +44,34 @@ const TESTIMONIALS = [
 ]
 
 export default function TestimonialsSection() {
+  const [testimonials, setTestimonials] = useState(FALLBACK_TESTIMONIALS)
+
+  const fetchReviews = useCallback(() => {
+    fetch(`${API_URL}/api/landing/reviews`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.reviews && data.reviews.length > 0) {
+          const mapped = data.reviews
+            .filter(r => r.comment)
+            .map(r => ({
+              name: r.name || r.author_name || r.client_prenom || 'Utilisateur',
+              role: '',
+              quote: r.comment,
+              rating: r.rating,
+              photoUrl: r.photo_url || null,
+            }))
+          if (mapped.length > 0) {
+            setTestimonials(mapped)
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchReviews()
+  }, [fetchReviews])
+
   return (
     <section className="py-20 px-4" id="temoignages">
       <div className="max-w-6xl mx-auto">
@@ -55,7 +87,7 @@ export default function TestimonialsSection() {
           </p>
         </div>
         <div className="grid md:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((t, i) => (
+          {testimonials.map((t, i) => (
             <div key={i} className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 hover:border-neon-cyan/30 transition-colors">
               <div className="flex gap-1 mb-4">
                 {Array.from({ length: t.rating }).map((_, j) => (
@@ -63,18 +95,29 @@ export default function TestimonialsSection() {
                 ))}
               </div>
               <p className="text-gray-300 text-sm leading-relaxed mb-4">"{t.quote}"</p>
+              {t.photoUrl && (
+                <img
+                  src={t.photoUrl}
+                  alt={`Photo de ${t.name}`}
+                  className="w-full h-32 object-cover rounded-lg mb-4 border border-white/10"
+                  loading="lazy"
+                />
+              )}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-cyan to-primary-500 flex items-center justify-center text-white font-bold text-sm">
                   {t.name[0]}
                 </div>
                 <div>
                   <p className="font-medium text-sm">{t.name}</p>
-                  <p className="text-xs text-gray-500">{t.role}</p>
+                  {t.role && <p className="text-xs text-gray-500">{t.role}</p>}
                 </div>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Formulaire avis public */}
+        <NexusReviewForm onSuccess={fetchReviews} />
       </div>
     </section>
   )

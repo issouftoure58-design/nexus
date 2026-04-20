@@ -177,6 +177,34 @@ export const checkLimiter = rateLimit({
   }
 });
 
+/**
+ * Rate limiter pour les avis publics
+ * 5 par heure par IP (anti-spam avis)
+ */
+export const publicReviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 heure
+  max: 5,
+  message: {
+    success: false,
+    error: 'Trop d\'avis soumis. Réessayez dans 1 heure.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createStore('publicReview'),
+  handler: (req, res) => {
+    logger.info('Public review bloqué', { tag: 'RATE LIMIT', ip: req.ip });
+    res.status(429).json({
+      success: false,
+      error: 'Trop d\'avis soumis depuis cette adresse',
+      message: 'Veuillez réessayer dans 1 heure',
+      retryAfter: 60 * 60
+    });
+  },
+  skip: (req) => {
+    return process.env.SKIP_RATE_LIMIT === 'true';
+  }
+});
+
 export const publicChatLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 10,
@@ -195,5 +223,6 @@ export default {
   notificationLimiter,
   signupLimiter,
   checkLimiter,
+  publicReviewLimiter,
   publicChatLimiter
 };

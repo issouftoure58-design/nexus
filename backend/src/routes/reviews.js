@@ -4,6 +4,7 @@
  * GET  /api/reviews              - Avis approuvés (public, avec photo_url + service_name)
  * GET  /api/reviews/info         - Infos réservation pour formulaire avis (via token)
  * POST /api/reviews              - Soumettre un avis avec photo optionnelle (via token)
+ * POST /api/reviews/public       - Soumettre un avis public (sans token, rate limited)
  * GET  /api/admin/reviews        - Tous les avis (admin)
  * PATCH /api/admin/reviews/:id   - Approuver/rejeter (admin)
  */
@@ -12,6 +13,8 @@ import express from 'express';
 import multer from 'multer';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { publicReviewLimiter } from '../middleware/rateLimiter.js';
+import { containsProfanity } from '../services/profanityFilter.js';
 import crypto from 'crypto';
 
 // Config multer pour upload photo avis (5MB max, images uniquement)
@@ -78,7 +81,7 @@ router.get('/', async (req, res) => {
 
     const { data: reviews, error } = await supabase
       .from('reviews')
-      .select('id, client_prenom, rating, comment, photo_url, service_name, created_at')
+      .select('id, client_prenom, author_name, rating, comment, photo_url, service_name, source, created_at')
       .eq('status', 'approved')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
@@ -186,6 +189,16 @@ router.post('/', (req, res, next) => {
       return res.status(404).json({ error: 'Lien invalide ou expiré' });
     }
 
+    // Filtre anti-injures sur le commentaire
+    if (comment) {
+      const profanityCheck = containsProfanity(comment);
+      if (profanityCheck.hasProfanity) {
+        return res.status(400).json({
+          error: 'Votre commentaire contient des termes inappropriés. Merci de reformuler.'
+        });
+      }
+    }
+
     // Vérifier qu'un avis n'a pas déjà été soumis pour cette réservation (🔒 TENANT ISOLATION)
     const { data: existing } = await supabase
       .from('reviews')
@@ -272,6 +285,146 @@ router.post('/', (req, res, next) => {
     });
   } catch (error) {
     console.error('[REVIEWS] Erreur POST /:', error.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ============================================
+// POST /api/reviews/public - Avis public (sans token, avec photo optionnelle)
+// ============================================
+router.post('/public', publicReviewLimiter, (req, res, next) => {
+  uploadPhoto.single('photo')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Photo trop volumineuse (max 5MB)' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { rating, comment, name, website } = req.body;
+
+    // 🍯 Honeypot: si le champ caché "website" est rempli = bot → silent 201
+    if (website) {
+      return res.status(201).json({
+        success: true,
+        message: 'Merci pour votre avis ! Il sera publié après modération.'
+      });
+    }
+
+    // Validation
+    const ratingNum = parseInt(rating);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: 'Note entre 1 et 5 requise' });
+    }
+
+    const trimmedName = (name || '').trim();
+    if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 50) {
+      return res.status(400).json({ error: 'Nom requis (1-50 caractères)' });
+    }
+
+    const trimmedComment = (comment || '').trim();
+    if (!trimmedComment || trimmedComment.length < 5 || trimmedComment.length > 500) {
+      return res.status(400).json({ error: 'Commentaire requis (5-500 caractères)' });
+    }
+
+    // Filtre anti-injures sur nom + commentaire
+    const nameProfanity = containsProfanity(trimmedName);
+    if (nameProfanity.hasProfanity) {
+      return res.status(400).json({
+        error: 'Le nom contient des termes inappropriés. Merci de corriger.'
+      });
+    }
+    const commentProfanity = containsProfanity(trimmedComment);
+    if (commentProfanity.hasProfanity) {
+      return res.status(400).json({
+        error: 'Votre commentaire contient des termes inappropriés. Merci de reformuler.'
+      });
+    }
+
+    // Anti-spam DB : max 3 avis/24h/IP/tenant
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentReviews } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('ip_hash', ipHash)
+      .eq('tenant_id', tenantId)
+      .gte('created_at', oneDayAgo);
+
+    if (recentReviews && recentReviews.length >= 3) {
+      return res.status(429).json({
+        error: 'Vous avez déjà soumis plusieurs avis récemment. Réessayez demain.'
+      });
+    }
+
+    // Upload photo si présente
+    let photoUrl = null;
+    if (req.file) {
+      const ext = req.file.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : req.file.mimetype.split('/')[1];
+      const reviewId = crypto.randomUUID();
+      const storagePath = `${tenantId}/${reviewId}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('review-photos')
+        .upload(storagePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        if (uploadError.message?.includes('not found') || uploadError.statusCode === '404') {
+          await supabase.storage.createBucket('review-photos', { public: true, fileSizeLimit: 5242880 });
+          const { error: retryErr } = await supabase.storage
+            .from('review-photos')
+            .upload(storagePath, req.file.buffer, {
+              contentType: req.file.mimetype,
+              upsert: true,
+            });
+          if (retryErr) throw retryErr;
+        } else {
+          throw uploadError;
+        }
+      }
+
+      const { data: urlData } = supabase.storage.from('review-photos').getPublicUrl(storagePath);
+      photoUrl = urlData.publicUrl;
+    }
+
+    // 🔒 TENANT ISOLATION: Créer l'avis public
+    const { data: review, error: insertErr } = await supabase
+      .from('reviews')
+      .insert({
+        tenant_id: tenantId,
+        client_id: null,
+        reservation_id: null,
+        client_prenom: trimmedName,
+        author_name: trimmedName,
+        rating: ratingNum,
+        comment: trimmedComment,
+        photo_url: photoUrl,
+        service_name: null,
+        status: 'pending',
+        source: 'public',
+        ip_hash: ipHash,
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    res.status(201).json({
+      success: true,
+      message: 'Merci pour votre avis ! Il sera publié après modération.',
+      review: { id: review.id, rating: review.rating }
+    });
+  } catch (error) {
+    console.error('[REVIEWS] Erreur POST /public:', error.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

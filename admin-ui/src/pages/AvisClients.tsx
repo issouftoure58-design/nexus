@@ -16,11 +16,13 @@ import { reviewsApi } from '@/lib/api';
 interface Review {
   id: string;
   client_prenom: string;
+  author_name: string | null;
   rating: number;
   comment: string | null;
   photo_url: string | null;
   service_name: string | null;
   status: 'pending' | 'approved' | 'rejected';
+  source: 'token' | 'public';
   created_at: string;
   approved_at: string | null;
 }
@@ -136,6 +138,7 @@ export default function AvisClients() {
                   <tr className="border-b bg-gray-50 text-left">
                     <th className="py-3 px-4">Client</th>
                     <th className="py-3 px-4">Note</th>
+                    <th className="py-3 px-4">Source</th>
                     <th className="py-3 px-4">Service</th>
                     <th className="py-3 px-4">Commentaire</th>
                     <th className="py-3 px-4">Photo</th>
@@ -147,8 +150,16 @@ export default function AvisClients() {
                 <tbody>
                   {reviews.map(review => (
                     <tr key={review.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium">{review.client_prenom || '-'}</td>
+                      <td className="py-3 px-4 font-medium">{review.author_name || review.client_prenom || '-'}</td>
                       <td className="py-3 px-4"><Stars rating={review.rating} /></td>
+                      <td className="py-3 px-4">
+                        <Badge className={review.source === 'public'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }>
+                          {review.source === 'public' ? 'Site web' : 'Réservation'}
+                        </Badge>
+                      </td>
                       <td className="py-3 px-4 text-gray-500">{review.service_name || '-'}</td>
                       <td className="py-3 px-4 text-gray-600 max-w-xs truncate">{review.comment || '-'}</td>
                       <td className="py-3 px-4">
