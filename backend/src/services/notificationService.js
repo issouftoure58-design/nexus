@@ -837,7 +837,8 @@ export async function sendDepositRequest(tenantId, phone, details, email = null)
           <li><strong>Total :</strong> ${total}\u20AC</li>
           <li><strong>Acompte a regler :</strong> ${montant}\u20AC</li>
         </ul>
-        ${lien ? `<p style="margin-top: 20px;"><a href="${lien}" style="display: inline-block; background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Regler l'acompte</a></p>` : ''}
+        ${lien ? `<p style="margin-top: 20px;"><a href="${lien}" style="display: inline-block; background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Regler l'acompte de ${montant}\u20AC</a></p>` : ''}
+        <p style="color: #e65100; font-size: 14px; font-weight: bold;">⚠️ Merci de saisir le montant exact de ${montant}\u20AC sur la page de paiement.</p>
         <p style="color: #666; font-size: 14px;">Votre rendez-vous sera confirme des reception du paiement.</p>
         <p>A bientot !<br>${t.signataire} - ${t.salonName}</p>
       `;
@@ -858,7 +859,7 @@ export async function sendDepositRequest(tenantId, phone, details, email = null)
   // 2. WhatsApp
   if (phone) {
     try {
-      const waMessage = `Bonjour ${nom},\n\nPour confirmer votre RDV du ${date} a ${heure} (${service}, ${total}\u20AC), merci de regler l'acompte de ${montant}\u20AC.\n\n${lien ? `Lien de paiement : ${lien}\n\n` : ''}Votre RDV sera confirme des reception.\n\nA bientot !\n${t.signataire} - ${t.salonName}`;
+      const waMessage = `Bonjour ${nom},\n\nPour confirmer votre RDV du ${date} a ${heure} (${service}, ${total}\u20AC), merci de regler l'acompte de *${montant}\u20AC*.\n\n${lien ? `Lien de paiement : ${lien}\n\n` : ''}⚠️ Saisissez le montant exact de *${montant}\u20AC* sur la page de paiement.\n\nVotre RDV sera confirme des reception.\n\nA bientot !\n${t.signataire} - ${t.salonName}`;
       results.whatsapp = await sendWhatsAppNotification(phone, waMessage, tenantId);
 
       console.log(`[Notification] WhatsApp acompte envoye a ${phone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
@@ -871,7 +872,7 @@ export async function sendDepositRequest(tenantId, phone, details, email = null)
   // 3. SMS TOUJOURS envoye pour les acomptes (le client a besoin du lien de paiement par SMS)
   if (phone) {
     try {
-      const smsMessage = `${t.salonName}\nAcompte requis : ${montant}\u20AC\n\nRDV ${date} a ${heure}\n${service} - ${total}\u20AC\n\n${lien ? `Payer ici : ${lien}\n\n` : ''}Confirmation apres paiement.\n${t.telephone}`;
+      const smsMessage = `${t.salonName}\nAcompte : ${montant}\u20AC a regler\n\nRDV ${date} a ${heure}\n${service} - ${total}\u20AC\n\n${lien ? `Payer ici : ${lien}\n\n` : ''}Saisissez ${montant}\u20AC sur la page.\nConfirmation apres paiement.\n${t.telephone}`;
 
       results.sms = await sendSMS(phone, smsMessage, tenantId, { essential: true });
       console.log(`[Notification] SMS acompte envoye a ${phone}:`, results.sms.success ? 'OK' : results.sms.error);
