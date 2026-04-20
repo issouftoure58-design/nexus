@@ -71,7 +71,7 @@ export async function createDepositCheckoutSession(tenantId, params) {
         price_data: {
           currency: 'eur',
           product_data: {
-            name: `Acompte - ${serviceName}`,
+            name: `Reservation - ${serviceName}`,
             description: `RDV du ${date} a ${heure} - ${salonName}`,
           },
           unit_amount: Math.round(montantCentimes),
