@@ -536,17 +536,20 @@ function DepositConfig() {
   const [enabled, setEnabled] = useState(false);
   const [rate, setRate] = useState(30);
   const [paymentUrl, setPaymentUrl] = useState('');
+  const [stripeKey, setStripeKey] = useState('');
+  const [stripeConnected, setStripeConnected] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     if (!loaded) {
-      api.get<{ enabled: boolean; rate: number; payment_url: string }>('/admin/profile/deposit-config')
+      api.get<{ enabled: boolean; rate: number; payment_url: string; stripe_connected: boolean }>('/admin/profile/deposit-config')
         .then((res) => {
           setEnabled(!!res?.enabled);
           setRate(res?.rate || 30);
           setPaymentUrl(res?.payment_url || '');
+          setStripeConnected(!!res?.stripe_connected);
           setLoaded(true);
         })
         .catch(() => setLoaded(true));
@@ -556,11 +559,19 @@ function DepositConfig() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.patch('/admin/profile/deposit-config', {
+      const payload: Record<string, unknown> = {
         enabled,
         rate,
         payment_url: paymentUrl,
-      });
+      };
+      if (stripeKey) {
+        payload.stripe_secret_key = stripeKey;
+      }
+      await api.patch('/admin/profile/deposit-config', payload);
+      if (stripeKey) {
+        setStripeConnected(true);
+        setStripeKey('');
+      }
       setFeedback({ message: 'Configuration acompte enregistree', type: 'success' });
     } catch {
       setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
@@ -626,10 +637,40 @@ function DepositConfig() {
             </div>
           </div>
 
-          {/* URL paiement */}
+          {/* Cle Stripe */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Lien de paiement
+              Cle Stripe (recommande)
+            </label>
+            {stripeConnected && !stripeKey && (
+              <p className="text-xs text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 bg-green-500 rounded-full" /> Stripe connecte — le montant exact sera affiche au client
+              </p>
+            )}
+            <Input
+              type="password"
+              placeholder={stripeConnected ? 'Cle configuree (laisser vide pour garder)' : 'sk_live_... ou sk_test_...'}
+              value={stripeKey}
+              onChange={e => setStripeKey(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Votre cle secrete Stripe permet d'afficher le montant exact au client. Trouvez-la sur dashboard.stripe.com &gt; Developpeurs &gt; Cles API.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white dark:bg-gray-900 px-2 text-gray-400">ou lien statique (montant libre)</span>
+            </div>
+          </div>
+
+          {/* URL paiement (fallback) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lien de paiement (fallback)
             </label>
             <Input
               type="url"
@@ -638,7 +679,7 @@ function DepositConfig() {
               onChange={e => setPaymentUrl(e.target.value)}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Collez le lien de votre page de paiement. Ce lien sera envoye au client avec le montant de l'acompte.
+              Utilise uniquement si la cle Stripe n'est pas configuree. Le client devra saisir le montant manuellement.
             </p>
           </div>
         </div>
