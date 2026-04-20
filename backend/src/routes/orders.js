@@ -646,15 +646,22 @@ async function sendOrderConfirmation(order, items, telephone, email, tenantId = 
         let lienPaiement = depositConfig.paymentUrl;
         try {
           const { createDepositCheckoutSession } = await import('../services/depositCheckoutService.js');
-          // Récupérer reservation_id depuis order_items
-          const { data: orderItems } = await supabase
-            .from('order_items')
-            .select('reservation_id')
-            .eq('order_id', order.id)
+          // Récupérer la vraie reservation_id depuis la table reservations (liée via created_via + date/heure)
+          const { data: linkedReservations } = await supabase
+            .from('reservations')
+            .select('id')
             .eq('tenant_id', effectiveTenantId)
-            .not('reservation_id', 'is', null)
+            .eq('date', order.date_rdv)
+            .eq('heure', order.heure_debut)
+            .eq('statut', 'en_attente_paiement')
+            .order('created_at', { ascending: false })
             .limit(1);
-          const reservationId = orderItems?.[0]?.reservation_id || order.id;
+          const reservationId = linkedReservations?.[0]?.id;
+          if (!reservationId) {
+            console.warn(`[ORDERS] ⚠️ Aucune réservation en_attente_paiement trouvée pour order ${order.id}`);
+            throw new Error('Réservation non trouvée pour lier au checkout');
+          }
+          console.log(`[ORDERS] 📋 Réservation liée: id=${reservationId} pour order ${order.id}`);
 
           const session = await createDepositCheckoutSession(effectiveTenantId, {
             montantCentimes: montantAcompteCentimes,
