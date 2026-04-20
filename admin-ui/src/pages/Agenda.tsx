@@ -177,8 +177,8 @@ export default function Agenda() {
       </div>
 
       {/* Navigation */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigateWeek(-1)}>
               <ChevronLeft className="w-4 h-4" />
@@ -189,7 +189,7 @@ export default function Agenda() {
             <Button variant="outline" size="sm" onClick={() => navigateWeek(1)}>
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <span className="ml-4 text-lg font-semibold text-gray-900 dark:text-white capitalize">
+            <span className="ml-2 sm:ml-4 text-base sm:text-lg font-semibold text-gray-900 dark:text-white capitalize">
               {formatMonthYear(currentDate)}
             </span>
           </div>
