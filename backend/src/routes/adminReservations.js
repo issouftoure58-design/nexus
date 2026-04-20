@@ -1092,7 +1092,12 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       const email = currentRdv.clients?.email || currentRdv.client_email;
       const statutChanged = updates.statut && updates.statut !== currentRdv.statut;
       const becameConfirme = statutChanged && updates.statut === 'confirme';
-      const detailsChanged = updates.service_nom || updates.date || updates.heure;
+      // Comparer avec les valeurs actuelles pour éviter les faux positifs
+      // (le frontend peut envoyer date/heure inchangées dans le body)
+      const detailsChanged =
+        (updates.service_nom && updates.service_nom !== currentRdv.service_nom) ||
+        (updates.date && updates.date !== currentRdv.date) ||
+        (updates.heure && updates.heure !== currentRdv.heure);
 
       if ((becameConfirme || detailsChanged) && (telephone || email)) {
         try {

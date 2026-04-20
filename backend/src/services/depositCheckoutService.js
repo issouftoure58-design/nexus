@@ -145,10 +145,10 @@ export async function verifyDepositPayment(sessionId, tenantId) {
       return { success: false, error: 'reservation_id manquant dans metadata' };
     }
 
-    // Vérifier que la réservation appartient bien au tenant
+    // Vérifier que la réservation appartient bien au tenant (avec client + adresse)
     const { data: rdv, error: rdvError } = await supabase
       .from('reservations')
-      .select('id, statut, client_id, telephone, service_nom, date, heure, prix_total')
+      .select('id, statut, client_id, telephone, service_nom, date, heure, prix_total, prix_service, frais_deplacement, adresse_client, clients(nom, prenom, telephone, email)')
       .eq('id', reservationId)
       .eq('tenant_id', tenantId)
       .single();
@@ -157,21 +157,25 @@ export async function verifyDepositPayment(sessionId, tenantId) {
       return { success: false, error: 'Réservation non trouvée' };
     }
 
-    // Passer en confirmé
-    const { error: updateError } = await supabase
+    // Passer en confirmé — .select() pour vérifier que l'update a bien affecté la ligne
+    const { data: updated, error: updateError } = await supabase
       .from('reservations')
       .update({
         statut: 'confirme',
+        paiement_statut: 'acompte',
         updated_at: new Date().toISOString(),
       })
       .eq('id', reservationId)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .select('id, statut')
+      .single();
 
-    if (updateError) {
-      return { success: false, error: `Erreur mise à jour: ${updateError.message}` };
+    if (updateError || !updated) {
+      console.error(`[DepositCheckout] ❌ Update statut failed: ${updateError?.message || 'Aucune ligne affectée'} (rdv=${reservationId}, tenant=${tenantId})`);
+      return { success: false, error: `Erreur mise à jour: ${updateError?.message || 'Aucune ligne affectée'}` };
     }
 
-    console.log(`[DepositCheckout] Acompte payé — RDV ${reservationId} confirmé pour tenant ${tenantId}`);
+    console.log(`[DepositCheckout] ✅ Acompte payé — RDV ${reservationId} statut=${updated.statut} pour tenant ${tenantId}`);
 
     const { calculateDeposit, getDepositConfig } = await import('./depositService.js');
     const depositConfig = await getDepositConfig(tenantId);
@@ -182,11 +186,16 @@ export async function verifyDepositPayment(sessionId, tenantId) {
       const { sendConfirmation } = await import('./notificationService.js');
 
       await sendConfirmation({
-        client_telephone: rdv.telephone,
+        client_telephone: rdv.clients?.telephone || rdv.telephone,
+        client_email: rdv.clients?.email || null,
+        client_prenom: rdv.clients?.prenom || null,
+        client_nom: rdv.clients?.nom || null,
         service_nom: rdv.service_nom,
         date: rdv.date,
         heure: rdv.heure,
-        prix_service: rdv.prix_total,
+        prix_service: rdv.prix_service || rdv.prix_total,
+        frais_deplacement: (rdv.frais_deplacement || 0) / 100,
+        adresse_client: rdv.adresse_client,
         total: (rdv.prix_total || 0) / 100,
       }, acompte, tenantId);
     } catch (notifError) {

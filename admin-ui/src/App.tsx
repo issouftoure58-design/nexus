@@ -98,6 +98,7 @@ import { EmployeeLayout } from './components/employee/EmployeeLayout';
 // Layout
 import { AppLayout } from './components/layout/AppLayout';
 import CookieBanner from './components/CookieBanner';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 
 // Page loader for Suspense fallback
 function PageLoader() {
@@ -301,6 +302,7 @@ function App() {
           </Routes>
           </Suspense>
           <CookieBanner />
+          <PWAInstallPrompt />
         </div>
         </ProfileProvider>
       </TenantProvider>

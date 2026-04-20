@@ -68,8 +68,8 @@ export async function handleDepositReceived(reservationId, tenantId) {
     throw new Error(`Reservation ${reservationId} non trouvee`);
   }
 
-  if (rdv.statut !== 'demande') {
-    throw new Error(`Reservation ${reservationId} n'est pas en demande (statut: ${rdv.statut})`);
+  if (rdv.statut === 'confirme' || rdv.statut === 'annule' || rdv.statut === 'termine') {
+    throw new Error(`Reservation ${reservationId} deja ${rdv.statut}, pas de changement`);
   }
 
   // Passer en confirme
