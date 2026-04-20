@@ -106,7 +106,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="min-h-screen bg-white dark:bg-gray-950 overflow-x-hidden">
       {/* Global Menu (slide-out) */}
       <GlobalMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
