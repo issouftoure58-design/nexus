@@ -734,7 +734,7 @@ function SegmentationTab({ analyticsData }: { analyticsData: AnalyticsData | nul
       </div>
 
       {/* Résumé Base Clients - avec boutons d'action */}
-      <Card className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+      <Card className="p-3 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
         <h3 className="font-semibold mb-4">Résumé de la Base Clients</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
           <button

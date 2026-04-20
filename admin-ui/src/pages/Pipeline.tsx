@@ -345,7 +345,7 @@ export default function PipelinePage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
+      <div className="p-3 sm:p-6 flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
@@ -369,10 +369,10 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pipeline Commercial</h1>
             <p className="text-sm text-gray-500 flex items-center gap-2">
@@ -689,7 +689,7 @@ export default function PipelinePage() {
         )}
 
         {/* Pipeline Kanban */}
-        <div className="grid grid-cols-4 gap-4 min-h-[600px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 min-h-[400px] lg:min-h-[600px]">
           {ETAPES.map((etape) => {
             const opps = data?.pipeline[etape.key as keyof typeof data.pipeline] || [];
             const stats = data?.stats[etape.key];
@@ -849,7 +849,7 @@ export default function PipelinePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               {ETAPES.map((etape) => {
                 const stats = data?.stats[etape.key];
                 return (

@@ -2,7 +2,7 @@ import { CRMSegments } from '@/components/CRMSegments';
 
 export default function SegmentsPage() {
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Segmentation CRM</h1>

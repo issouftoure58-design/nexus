@@ -75,7 +75,7 @@ export default function EmailTemplates() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -175,7 +175,7 @@ export default function EmailTemplates() {
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-3 sm:p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom du template *</label>
                 <Input value={formNom} onChange={e => setFormNom(e.target.value)} placeholder="Ex: Confirmation RDV" />

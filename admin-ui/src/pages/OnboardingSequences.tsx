@@ -131,9 +131,9 @@ export default function OnboardingSequences() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-3 sm:p-6">
       {/* Header + Bouton Paiement recu */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Onboarding Sequences</h2>
           <p className="text-sm text-muted-foreground">Suivi des enrollments post-paiement</p>

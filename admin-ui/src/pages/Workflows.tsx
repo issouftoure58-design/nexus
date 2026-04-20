@@ -249,7 +249,7 @@ export default function WorkflowsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
+      <div className="p-3 sm:p-6 flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
@@ -257,7 +257,7 @@ export default function WorkflowsPage() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <Card>
           <CardContent className="p-12 text-center">
             <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
@@ -273,7 +273,7 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
@@ -501,7 +501,7 @@ export default function WorkflowsPage() {
         {selectedWorkflowId && workflowDetail && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-2xl max-h-[80vh] overflow-hidden">
-              <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <div className="p-3 sm:p-6 border-b border-white/10 flex justify-between items-center">
                 <div>
                   <h2 className="text-xl font-bold text-white">{workflowDetail.workflow.nom}</h2>
                   <p className="text-sm text-white/60">{workflowDetail.workflow.description}</p>
@@ -515,7 +515,7 @@ export default function WorkflowsPage() {
                 </Button>
               </div>
 
-              <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="p-3 sm:p-6 overflow-y-auto max-h-[60vh]">
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-white/70 mb-2">Configuration</h3>
                   <div className="bg-zinc-800/50 rounded-lg p-4 text-sm">

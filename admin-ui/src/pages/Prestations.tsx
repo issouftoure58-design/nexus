@@ -374,7 +374,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={handleBackdropClick}>
       <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b flex justify-between items-start">
+        <div className="p-3 sm:p-6 border-b flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold">{prestation.numero}</h2>
@@ -392,7 +392,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-3 sm:p-6 space-y-6">
           {/* Info Client */}
           <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -534,7 +534,7 @@ function PrestationDetailModal({ prestation, onClose }: { prestation: Prestation
         </div>
 
         {/* Actions */}
-        <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
+        <div className="p-3 sm:p-6 border-t bg-gray-50 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2 text-gray-700 bg-white border rounded-lg hover:bg-gray-50"

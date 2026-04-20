@@ -114,7 +114,7 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
+      <div className="p-3 sm:p-6 flex items-center justify-center min-h-[400px]">
         <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -122,7 +122,7 @@ export default function Analytics() {
 
   if (isError || !data) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <Card className="p-8 text-center">
           <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-4" />
           <p className="text-gray-600">Erreur lors du chargement des données analytiques</p>
@@ -135,7 +135,7 @@ export default function Analytics() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

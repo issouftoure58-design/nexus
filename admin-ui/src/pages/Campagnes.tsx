@@ -135,7 +135,7 @@ export default function Campagnes() {
   const formatPercent = (v?: number) => v != null ? `${v.toFixed(1)}%` : '-';
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -302,7 +302,7 @@ export default function Campagnes() {
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-3 sm:p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
                 <Input value={formNom} onChange={e => setFormNom(e.target.value)} placeholder="Ex: Promo été 2026" />
@@ -399,7 +399,7 @@ export default function Campagnes() {
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-3 sm:p-6 space-y-6">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                   <p className="text-2xl font-bold">{detailData.campagne.total_envois || 0}</p>

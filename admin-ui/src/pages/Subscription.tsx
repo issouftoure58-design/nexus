@@ -291,7 +291,7 @@ export default function Subscription() {
   const hasQueryError = isSubError || isPmError || isInvError;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-6xl mx-auto">
       {/* Error banner */}
       {(error || hasQueryError) && (
         <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
@@ -414,7 +414,7 @@ export default function Subscription() {
               </div>
             </div>
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               {PLANS.map((plan) => {
                 const isCurrentPlan = plan.id === currentPlan;
                 const Icon = plan.id === 'business' ? Crown : plan.id === 'basic' ? Sparkles : Zap;
@@ -558,7 +558,7 @@ export default function Subscription() {
 
             <div className="divide-y divide-gray-200">
               {invoicesData?.invoices?.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
+                <div className="p-3 sm:p-6 text-center text-gray-500">
                   Aucune facture pour le moment
                 </div>
               ) : invoicesData?.invoices ? (
@@ -597,7 +597,7 @@ export default function Subscription() {
                   </div>
                 ))
               ) : (
-                <div className="p-6 text-center text-gray-500">
+                <div className="p-3 sm:p-6 text-center text-gray-500">
                   Chargement...
                 </div>
               )}

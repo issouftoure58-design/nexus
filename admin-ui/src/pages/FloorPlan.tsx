@@ -186,7 +186,7 @@ export default function FloorPlanPage() {
   const fetchError = tablesError || reservationsError;
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Error banner */}
       {fetchError && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3">

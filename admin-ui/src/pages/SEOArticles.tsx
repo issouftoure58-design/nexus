@@ -166,7 +166,7 @@ export default function SEOArticles() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -220,7 +220,7 @@ export default function SEOArticles() {
 
       {/* Generateur */}
       {showGenerator && (
-        <Card className="p-6 space-y-4 border-2 border-blue-200">
+        <Card className="p-3 sm:p-6 space-y-4 border-2 border-blue-200">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold text-lg">Generer un article SEO</h3>
             <Button variant="outline" size="sm" onClick={() => setShowGenerator(false)}>

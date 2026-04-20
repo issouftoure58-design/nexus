@@ -544,14 +544,14 @@ export default function RH() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center h-64">
+      <div className="p-3 sm:p-6 flex items-center justify-center h-64">
         <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -778,7 +778,7 @@ export default function RH() {
           </div>
 
           {showForm && (
-            <Card className="p-6 mb-4">
+            <Card className="p-3 sm:p-6 mb-4">
               <h3 className="font-semibold text-lg mb-4">{editMembre ? 'Modifier l\'employé' : 'Nouvel employé'}</h3>
               <FormulaireEmploye
                 editMembre={editMembre}
@@ -1375,7 +1375,7 @@ export default function RH() {
           </Card>
 
           {/* Génération paie vers compta */}
-          <Card className="p-6 bg-gradient-to-r from-green-50 to-blue-50">
+          <Card className="p-3 sm:p-6 bg-gradient-to-r from-green-50 to-blue-50">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Euro className="w-5 h-5 text-green-600" />
               Génération de la paie vers comptabilité
