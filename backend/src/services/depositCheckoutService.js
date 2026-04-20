@@ -120,9 +120,23 @@ export async function verifyDepositPayment(sessionId, tenantId) {
   const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    // Retry avec délai — Stripe peut rediriger le client AVANT que payment_status passe à 'paid'
+    let session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== 'paid') {
+      // Attendre 2s puis réessayer (race condition classique Stripe)
+      await new Promise(r => setTimeout(r, 2000));
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    }
+
+    if (session.payment_status !== 'paid') {
+      // Dernier essai après 3s supplémentaires
+      await new Promise(r => setTimeout(r, 3000));
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    }
+
+    if (session.payment_status !== 'paid') {
+      console.warn(`[DepositCheckout] Paiement toujours non confirmé après retries (statut: ${session.payment_status})`);
       return { success: false, error: `Paiement non complété (statut: ${session.payment_status})` };
     }
 

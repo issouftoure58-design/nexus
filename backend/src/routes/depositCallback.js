@@ -67,6 +67,23 @@ function buildPage(title, message, type) {
   };
   const c = colors[type] || colors.pending;
 
+  // Auto-refresh pour la page pending (re-vérifie toutes les 5s, max 3 fois)
+  const autoRefreshScript = type === 'pending' ? `
+  <script>
+    (function() {
+      var attempts = 0;
+      var maxAttempts = 3;
+      var interval = setInterval(function() {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          return;
+        }
+        window.location.reload();
+      }, 5000);
+    })();
+  </script>` : '';
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -87,7 +104,7 @@ function buildPage(title, message, type) {
     <div class="icon">${c.icon}</div>
     <h1>${title}</h1>
     <p>${message}</p>
-  </div>
+  </div>${autoRefreshScript}
 </body>
 </html>`;
 }
