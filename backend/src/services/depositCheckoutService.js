@@ -159,12 +159,13 @@ export async function verifyDepositPayment(sessionId, tenantId) {
 
     console.log(`[DepositCheckout] Acompte payé — RDV ${reservationId} confirmé pour tenant ${tenantId}`);
 
+    const { calculateDeposit, getDepositConfig } = await import('./depositService.js');
+    const depositConfig = await getDepositConfig(tenantId);
+    const acompte = calculateDeposit(rdv.prix_total || 0, depositConfig.rate);
+
     // Envoyer confirmation au client
     try {
       const { sendConfirmation } = await import('./notificationService.js');
-      const { calculateDeposit, getDepositConfig } = await import('./depositService.js');
-      const depositConfig = await getDepositConfig(tenantId);
-      const acompte = calculateDeposit(rdv.prix_total || 0, depositConfig.rate);
 
       await sendConfirmation({
         client_telephone: rdv.telephone,
@@ -175,7 +176,39 @@ export async function verifyDepositPayment(sessionId, tenantId) {
         total: (rdv.prix_total || 0) / 100,
       }, acompte, tenantId);
     } catch (notifError) {
-      console.error('[DepositCheckout] Erreur envoi confirmation:', notifError.message);
+      console.error('[DepositCheckout] Erreur envoi confirmation client:', notifError.message);
+    }
+
+    // Notifier le tenant (in-app + SMS admin)
+    try {
+      const { notifyAllAdmins } = await import('./inboxService.js');
+      await notifyAllAdmins(tenantId, {
+        type: 'success',
+        title: 'Paiement recu',
+        message: `Acompte de ${acompte}\u20AC regle pour ${rdv.service_nom} le ${rdv.date} a ${rdv.heure}. RDV confirme automatiquement.`,
+        link: '/activites',
+        icon: 'credit-card',
+      });
+
+      // SMS au premier admin qui a un telephone
+      const { data: admins } = await supabase
+        .from('admin_users')
+        .select('telephone')
+        .eq('tenant_id', tenantId)
+        .not('telephone', 'is', null)
+        .limit(1);
+
+      if (admins?.[0]?.telephone) {
+        const { sendSMS } = await import('./notificationService.js');
+        await sendSMS(
+          admins[0].telephone,
+          `Paiement recu : ${acompte}\u20AC\n${rdv.service_nom} - ${rdv.date} a ${rdv.heure}\nRDV confirme automatiquement.`,
+          tenantId,
+          { essential: true }
+        );
+      }
+    } catch (adminNotifError) {
+      console.error('[DepositCheckout] Erreur notif admin:', adminNotifError.message);
     }
 
     return { success: true, reservationId };
