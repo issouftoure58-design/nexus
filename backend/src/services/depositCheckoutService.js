@@ -112,38 +112,52 @@ export async function verifyDepositPayment(sessionId, tenantId) {
   if (!tenantId) throw new Error('tenant_id requis');
   if (!sessionId) throw new Error('session_id requis');
 
+  console.log(`[DepositCheckout] 🔍 verifyDepositPayment(session=${sessionId}, tenant=${tenantId})`);
+
   const stripeKey = await getTenantStripeKey(tenantId);
   if (!stripeKey) {
+    console.error(`[DepositCheckout] ❌ Pas de stripe_secret_key pour tenant ${tenantId}`);
     return { success: false, error: 'Clé Stripe tenant non configurée' };
   }
 
+  console.log(`[DepositCheckout] ✅ Clé Stripe trouvée (${stripeKey.substring(0, 7)}...)`);
   const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
 
   try {
-    // Retry avec délai — Stripe peut rediriger le client AVANT que payment_status passe à 'paid'
-    let session = await stripe.checkout.sessions.retrieve(sessionId);
+    // Retry avec délai progressif — Stripe peut rediriger AVANT que payment_status passe à 'paid'
+    // Surtout avec 3D Secure, le paiement peut prendre plusieurs secondes
+    let session;
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+      console.log(`[DepositCheckout] Session récupérée: payment_status=${session.payment_status}, status=${session.status}`);
+    } catch (stripeErr) {
+      console.error(`[DepositCheckout] ❌ Erreur retrieve session: ${stripeErr.message}`);
+      return { success: false, error: `Erreur Stripe: ${stripeErr.message}` };
+    }
 
-    if (session.payment_status !== 'paid') {
-      // Attendre 2s puis réessayer (race condition classique Stripe)
-      await new Promise(r => setTimeout(r, 2000));
+    // Retries progressifs pour les paiements 3D Secure
+    const delays = [2000, 3000, 5000];
+    for (const delay of delays) {
+      if (session.payment_status === 'paid') break;
+      console.log(`[DepositCheckout] ⏳ payment_status=${session.payment_status}, retry dans ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
       session = await stripe.checkout.sessions.retrieve(sessionId);
     }
 
     if (session.payment_status !== 'paid') {
-      // Dernier essai après 3s supplémentaires
-      await new Promise(r => setTimeout(r, 3000));
-      session = await stripe.checkout.sessions.retrieve(sessionId);
-    }
-
-    if (session.payment_status !== 'paid') {
-      console.warn(`[DepositCheckout] Paiement toujours non confirmé après retries (statut: ${session.payment_status})`);
+      console.warn(`[DepositCheckout] ❌ Paiement non confirmé après retries (payment_status=${session.payment_status}, status=${session.status})`);
       return { success: false, error: `Paiement non complété (statut: ${session.payment_status})` };
     }
 
+    console.log(`[DepositCheckout] ✅ Paiement confirmé !`);
+
     const reservationId = session.metadata?.reservation_id;
     if (!reservationId) {
+      console.error(`[DepositCheckout] ❌ reservation_id manquant dans metadata:`, JSON.stringify(session.metadata));
       return { success: false, error: 'reservation_id manquant dans metadata' };
     }
+
+    console.log(`[DepositCheckout] 📋 reservation_id=${reservationId}, metadata:`, JSON.stringify(session.metadata));
 
     // Vérifier que la réservation appartient bien au tenant (avec client + adresse)
     const { data: rdv, error: rdvError } = await supabase
@@ -154,7 +168,16 @@ export async function verifyDepositPayment(sessionId, tenantId) {
       .single();
 
     if (rdvError || !rdv) {
-      return { success: false, error: 'Réservation non trouvée' };
+      console.error(`[DepositCheckout] ❌ Réservation non trouvée: rdv=${reservationId}, tenant=${tenantId}, err=${rdvError?.message}`);
+      return { success: false, error: `Réservation non trouvée (${rdvError?.message || 'aucun résultat'})` };
+    }
+
+    console.log(`[DepositCheckout] 📋 RDV trouvé: id=${rdv.id}, statut=${rdv.statut}, service=${rdv.service_nom}`);
+
+    // Idempotent: si déjà confirmé, renvoyer succès sans re-update
+    if (rdv.statut === 'confirme') {
+      console.log(`[DepositCheckout] ℹ️ RDV déjà confirmé, skip update`);
+      return { success: true, reservationId };
     }
 
     // Passer en confirmé — .select() pour vérifier que l'update a bien affecté la ligne
