@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  User, Bell, Shield, Palette, Key, Globe, AlertCircle,
+  User, Bell, Shield, Palette, Key, Globe, AlertCircle, Phone,
   Loader2, Webhook, CheckCircle, X, Plus, Trash2, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase, RotateCcw, Type
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -1331,6 +1331,27 @@ function SecuritySubSection() {
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [adminPhone, setAdminPhone] = useState('');
+  const [phoneSaving, setPhoneSaving] = useState(false);
+
+  // Load admin phone
+  useEffect(() => {
+    api.get<{ admin: { telephone?: string } }>('/admin/auth/me')
+      .then(res => setAdminPhone(res?.admin?.telephone || ''))
+      .catch(() => {});
+  }, []);
+
+  const handleSavePhone = async () => {
+    setPhoneSaving(true);
+    try {
+      await api.patch('/admin/auth/phone', { telephone: adminPhone });
+      setFeedback({ message: 'Telephone mis a jour', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur sauvegarde telephone', type: 'error' });
+    } finally {
+      setPhoneSaving(false);
+    }
+  };
 
   // Load password policy
   const { data: policyData } = useQuery({
@@ -1391,6 +1412,29 @@ function SecuritySubSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           {feedback && <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />}
+
+          {/* Telephone admin */}
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+            <div className="flex items-center gap-3">
+              <Phone className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">Telephone</p>
+                <p className="text-sm text-gray-500">Pour recevoir les notifications par SMS (paiements, alertes)</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="tel"
+                placeholder="06 12 34 56 78"
+                value={adminPhone}
+                onChange={e => setAdminPhone(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={handleSavePhone} disabled={phoneSaving} variant="outline" size="sm">
+                {phoneSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}
+              </Button>
+            </div>
+          </div>
 
           {/* Change password */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">

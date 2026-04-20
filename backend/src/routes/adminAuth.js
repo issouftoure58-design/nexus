@@ -1052,6 +1052,31 @@ router.get('/2fa/status', authenticateAdmin, async (req, res) => {
   }
 });
 
+// PATCH /api/admin/auth/phone (mettre à jour le téléphone admin)
+router.patch('/phone', authenticateAdmin, async (req, res) => {
+  try {
+    const { telephone } = req.body;
+    if (typeof telephone !== 'string') {
+      return res.status(400).json({ error: 'Telephone requis' });
+    }
+
+    const cleaned = telephone.replace(/\s+/g, '').trim() || null;
+
+    const { error } = await supabase
+      .from('admin_users')
+      .update({ telephone: cleaned, updated_at: new Date().toISOString() })
+      .eq('id', req.admin.id)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+
+    res.json({ success: true, telephone: cleaned });
+  } catch (error) {
+    console.error('[ADMIN AUTH] Erreur update phone:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/admin/auth/me (vérifier token)
 router.get('/me', authenticateAdmin, async (req, res) => {
   // 🔒 Empêcher le cache (fix Chrome/Service Worker)
@@ -1063,7 +1088,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
     let admin;
     const { data, error } = await supabase
       .from('admin_users')
-      .select('id, email, nom, role, totp_enabled, custom_permissions')
+      .select('id, email, nom, role, totp_enabled, custom_permissions, telephone')
       .eq('id', req.admin.id)
       .eq('tenant_id', req.admin.tenant_id)
       .single();
@@ -1072,7 +1097,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       // Fallback si custom_permissions n'existe pas encore
       const { data: fallback } = await supabase
         .from('admin_users')
-        .select('id, email, nom, role, totp_enabled')
+        .select('id, email, nom, role, totp_enabled, telephone')
         .eq('id', req.admin.id)
         .eq('tenant_id', req.admin.tenant_id)
         .single();
