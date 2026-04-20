@@ -655,21 +655,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     // Créer via createReservationUnified (même logique que tous les canaux)
     const { createReservationUnified } = await import('../core/unified/nexusCore.js');
 
-    // Auto-détection acompte si pas explicitement défini par l'admin UI
-    let effectiveRequireDeposit = require_deposit;
-    if (effectiveRequireDeposit === undefined || effectiveRequireDeposit === null) {
-      try {
-        const { getDepositConfig } = await import('../services/depositService.js');
-        const depositConfig = await getDepositConfig(tenantId);
-        effectiveRequireDeposit = depositConfig.enabled && !!depositConfig.paymentUrl && (prix_total || 0) > 0;
-        if (effectiveRequireDeposit) {
-          console.log(`[ADMIN RESERVATIONS] Auto-détection acompte: tenant ${tenantId} a deposit_enabled=true → statut=demande`);
-        }
-      } catch (depErr) {
-        console.warn('[ADMIN RESERVATIONS] Erreur auto-détection acompte:', depErr.message);
-        effectiveRequireDeposit = false;
-      }
-    }
+    // Acompte géré par nexusCore (règle unique pour tous les canaux)
+    // Ne PAS passer de statut — nexusCore décide selon la config acompte du tenant
 
     const result = await createReservationUnified({
       tenant_id: tenantId,  // 🔒 TENANT ISOLATION
@@ -682,7 +669,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       lieu: lieu || getDefaultLocation(tenantId),
       adresse: adresse_client || null,
       notes: notes || '[Via admin]',
-      statut: effectiveRequireDeposit ? 'demande' : 'confirme',
+      // Pas de statut explicite — nexusCore gère selon la config acompte
       // Durée totale (somme de tous les services × quantités)
       duree_totale_minutes: dureeConflictCheck,
       // Restaurant UNIQUEMENT (pas de fallback nb_personnes -> hotel ne doit pas declencher findAvailableTable)

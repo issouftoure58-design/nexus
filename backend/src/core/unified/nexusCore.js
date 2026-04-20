@@ -1957,12 +1957,9 @@ export async function createReservationUnified(data, channel = 'web', options = 
     console.log(`💾 STEP BOOKING 4.5: Insertion réservation(s)...`);
     console.log(`💾 Nombre de jours à réserver: ${reservationDates.length}`);
 
-    // Règle unique acompte — même logique pour TOUS les canaux
-    let depositRequired_flag = false;
-    if (!data.statut) {
-      const depCheck = await getDepositConfig(data.tenant_id);
-      depositRequired_flag = depCheck.enabled && !!depCheck.paymentUrl && prixTotal > 0;
-    }
+    // Règle unique acompte — même logique pour TOUS les canaux, SANS exception
+    const depCheck = await getDepositConfig(data.tenant_id);
+    const depositRequired_flag = depCheck.enabled && !!depCheck.paymentUrl && prixTotal > 0;
 
     const createdReservations = [];
     const baseNotes = data.notes || (data.lieu === 'domicile' ? `Domicile: ${data.adresse}` : 'Sur place');
@@ -1986,7 +1983,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
         prix_total: isFirstDay ? prixTotal : 0,  // En centimes
         adresse_client: data.lieu === 'domicile' ? data.adresse : null,
         telephone: telephone.replace('+33', '0'),
-        statut: data.statut || (depositRequired_flag ? 'en_attente_paiement' : 'demande'),
+        statut: depositRequired_flag ? 'en_attente_paiement' : (data.statut || 'demande'),
         created_via: `nexus-${channel}`,
         notes: nbJours > 1
           ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]${multidayGroupId ? ` [Group: ${multidayGroupId}]` : ''}`
@@ -2111,7 +2108,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
     // 11b. RÈGLE UNIQUE ACOMPTE — même pour tous les canaux :
     // - Acompte activé → envoi lien acompte (statut = en_attente_paiement)
     // - Acompte désactivé → aucune notif (admin confirme → message de confirmation)
-    const statutEffectif = data.statut || (depositRequired_flag ? 'en_attente_paiement' : 'demande');
+    const statutEffectif = depositRequired_flag ? 'en_attente_paiement' : (data.statut || 'demande');
     if (sendSMS && depositRequired_flag && (data.client_telephone || data.client_email)) {
       try {
         const depositConfig = await getDepositConfig(data.tenant_id);
