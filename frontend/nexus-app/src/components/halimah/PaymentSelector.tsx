@@ -27,8 +27,9 @@ export default function PaymentSelector() {
     selectPaymentMethod(method);
 
     // Pour paiement sur place, créer directement la commande
+    // On passe method en override car state.paymentMethod n'est pas encore à jour après dispatch
     if (method === 'sur_place') {
-      await createOrder();
+      await createOrder(undefined, method);
     }
     // Pour Stripe/PayPal, le composant de paiement sera affiché par InteractiveMessage
   };

@@ -172,7 +172,7 @@ interface BookingContextType extends BookingState {
   selectDateTime: (date: string, time: string) => void;
   setClientInfo: (info: ClientInfo) => void;
   selectPaymentMethod: (method: PaymentMethod) => void;
-  createOrder: (paiementId?: string) => Promise<void>;
+  createOrder: (paiementId?: string, paymentMethodOverride?: PaymentMethod) => Promise<void>;
   resetBooking: () => void;
   goBack: () => void;
   formatPrice: (cents: number) => string;
@@ -227,11 +227,15 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SELECT_PAYMENT', payload: method });
     },
 
-    createOrder: async (paiementId?: string) => {
+    createOrder: async (paiementId?: string, paymentMethodOverride?: PaymentMethod) => {
       if (!state.service || !state.selectedDate || !state.selectedTime) {
         dispatch({ type: 'ERROR', payload: 'Informations manquantes' });
         return;
       }
+
+      // Utiliser l'override si fourni (évite le bug de timing React où
+      // state.paymentMethod n'est pas encore mis à jour après dispatch)
+      const effectivePaymentMethod = paymentMethodOverride || state.paymentMethod;
 
       dispatch({ type: 'PROCESSING' });
 
@@ -257,7 +261,7 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
           clientPrenom: state.clientInfo.prenom,
           clientTelephone: state.clientInfo.telephone,
           clientEmail: state.clientInfo.email || null,
-          paiementMethode: state.paymentMethod,
+          paiementMethode: effectivePaymentMethod,
           ...(paiementId && { paiementId }),
         };
 
