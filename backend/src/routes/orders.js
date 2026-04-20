@@ -282,31 +282,18 @@ router.post('/', async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // RÈGLE UNIQUE — TOUS CANAUX, TOUS TENANTS :
-    // - Acompte activé + sur_place → 'en_attente_paiement' + envoi lien acompte
-    // - Acompte désactivé + sur_place → 'demande' + aucune notif (admin confirme)
-    // - Paiement en ligne capturé (PayPal) → 'demande' + auto-confirmé
-    // - Paiement en ligne non capturé → 'en_attente_paiement'
+    // RÈGLE UNIQUE — MÊME LOGIQUE QUE TOUS LES CANAUX :
+    // nexusCore décide du statut selon la config acompte du tenant.
+    // Seul cas explicite: PayPal capturé → 'confirme' (paiement déjà reçu)
     // ═══════════════════════════════════════════════════════════════════════
     const isPaymentAlreadyCaptured = paiementMethode === 'paypal' && paiementId;
 
-    // Vérifier config acompte du tenant
-    let depositRequired = false;
-    if (paiementMethode === 'sur_place') {
-      const depositConfig = await getDepositConfig(tenantId);
-      depositRequired = depositConfig.enabled && (!!depositConfig.paymentUrl || depositConfig.hasStripeKey);
-    }
+    // Config acompte pour le routing des notifications (pas pour le statut — nexusCore décide)
+    const depositConfig = await getDepositConfig(tenantId);
+    const depositRequired = depositConfig.enabled && (!!depositConfig.paymentUrl || depositConfig.hasStripeKey);
 
-    let statutReservation;
-    if (isPaymentAlreadyCaptured) {
-      statutReservation = 'demande';
-    } else if (paiementMethode === 'sur_place' && depositRequired) {
-      statutReservation = 'en_attente_paiement';
-    } else if (paiementMethode === 'sur_place') {
-      statutReservation = 'demande';
-    } else {
-      statutReservation = 'en_attente_paiement';
-    }
+    // PayPal capturé → 'confirme' directement. Tout le reste → nexusCore décide.
+    const statutReservation = isPaymentAlreadyCaptured ? 'confirme' : undefined;
 
     // 🔒 TENANT ISOLATION: Passer le tenantId
     await createReservationsFromOrder(order.id, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statutReservation, {}, tenantId);
@@ -537,8 +524,9 @@ router.post('/:id/confirm-payment', async (req, res) => {
 });
 
 // ============= CRÉER LES RÉSERVATIONS DEPUIS UNE COMMANDE =============
-// 🔒 Utilise createReservationUnified (NEXUS CORE)
-// statut: 'demande' (paiement sur place) ou 'en_attente_paiement' (paiement en ligne)
+// 🔒 Utilise createReservationUnified (NEXUS CORE) — même règle que tous les canaux
+// statut: undefined → nexusCore décide (dépôt → 'en_attente_paiement', sinon 'demande')
+//         'confirme' → PayPal capturé (paiement déjà reçu)
 // 🔒 TENANT ISOLATION: Ajout du paramètre tenantId
 async function createReservationsFromOrder(orderId, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statut = 'demande', clientInfo = {}, tenantId = null) {
   let currentTime = heureDebut;

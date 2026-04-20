@@ -1983,7 +1983,9 @@ export async function createReservationUnified(data, channel = 'web', options = 
         prix_total: isFirstDay ? prixTotal : 0,  // En centimes
         adresse_client: data.lieu === 'domicile' ? data.adresse : null,
         telephone: telephone.replace('+33', '0'),
-        statut: depositRequired_flag ? 'en_attente_paiement' : (data.statut || 'demande'),
+        // Règle unique statut: si explicitement 'confirme' (ex: PayPal capturé) → respecter
+        // Sinon: dépôt requis → 'en_attente_paiement', sinon → 'demande'
+        statut: data.statut === 'confirme' ? 'confirme' : (depositRequired_flag ? 'en_attente_paiement' : (data.statut || 'demande')),
         created_via: `nexus-${channel}`,
         notes: nbJours > 1
           ? `${baseNotes} [Jour ${dayIndex + 1}/${nbJours}]${multidayGroupId ? ` [Group: ${multidayGroupId}]` : ''}`
