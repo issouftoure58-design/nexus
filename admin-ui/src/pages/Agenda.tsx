@@ -220,9 +220,9 @@ export default function Agenda() {
 
       {/* Calendar Grid - Week View */}
       {view === 'week' && (
-        <Card className="overflow-hidden">
+        <Card className="overflow-x-auto">
           {/* Days Header */}
-          <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-8 min-w-[600px] border-b border-gray-200 dark:border-gray-700">
             <div className="p-3 text-center text-xs text-gray-500 border-r border-gray-200 dark:border-gray-700">
               {/* Empty corner */}
             </div>
@@ -246,7 +246,7 @@ export default function Agenda() {
           {/* Time Grid */}
           <div className="max-h-[600px] overflow-y-auto">
             {HOURS.map((hour) => (
-              <div key={hour} className="grid grid-cols-8 border-b border-gray-100 dark:border-gray-800">
+              <div key={hour} className="grid grid-cols-8 min-w-[600px] border-b border-gray-100 dark:border-gray-800">
                 <div className="p-2 text-xs text-gray-400 text-right pr-3 border-r border-gray-200 dark:border-gray-700">
                   {hour}:00
                 </div>

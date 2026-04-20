@@ -201,7 +201,7 @@ export default function OnboardingSequences() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {[
           { value: '', label: 'Tous' },
           { value: 'active', label: 'En cours' },

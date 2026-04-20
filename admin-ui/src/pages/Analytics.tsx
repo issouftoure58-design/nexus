@@ -167,7 +167,7 @@ export default function Analytics() {
       </div>
 
       {/* Onglets */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto pb-px">
         {ONGLETS.map((o) => {
           const Icon = o.icon;
           return (

@@ -155,7 +155,7 @@ export default function Fidelite() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b overflow-x-auto pb-px">
         {(['overview', 'config', 'leaderboard'] as const).map(tab => (
           <button
             key={tab}

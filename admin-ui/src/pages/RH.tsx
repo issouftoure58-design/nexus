@@ -630,7 +630,7 @@ export default function RH() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b">
+      <div className="flex gap-2 mb-4 border-b overflow-x-auto pb-px">
         <button
           className={`px-4 py-2 -mb-px ${tab === 'equipe' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
           onClick={() => setTab('equipe')}
