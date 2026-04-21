@@ -93,8 +93,8 @@ export default function Configuration() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [singleHours, setSingleHours] = useState<DayHours[]>(defaultSingleHours());
   const [multiHours, setMultiHours] = useState<DayMultiHours[]>(defaultMultiHours(mode));
-  // IA Web auto-accordé si plan Basic+ (voir activation-ia-protocol.md)
-  // WhatsApp & Téléphone nécessitent un provisioning manuel, donc OFF par défaut.
+  // IA Web auto-accorde si plan Starter+ (voir activation-ia-protocol.md)
+  // WhatsApp & Telephone necessitent un provisioning manuel, donc OFF par defaut.
   const [iaChannels, setIAChannels] = useState<IAChannelConfig>({
     web: false,
     whatsapp: false,
@@ -112,8 +112,8 @@ export default function Configuration() {
         if (res?.channels) setIAChannels(res.channels);
       })
       .catch(() => {
-        // Fallback: IA Web auto-accordé si plan Basic+
-        setIAChannels(prev => ({ ...prev, web: hasPlan('basic') }));
+        // Fallback: IA Web auto-accorde si plan Starter+
+        setIAChannels(prev => ({ ...prev, web: hasPlan('starter') }));
       });
   }, [hasPlan]);
 

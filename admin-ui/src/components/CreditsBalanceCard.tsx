@@ -1,13 +1,14 @@
 /**
- * CreditsBalanceCard — Affichage du solde de crédits IA + achat de pack additionnel
+ * CreditsBalanceCard — Affichage du solde de credits IA + achat de pack additionnel
  *
- * Modèle 2026 (révision finale 9 avril 2026) :
- *   • 1,5€ = 100 crédits (0,015€/crédit — taux base)
- *   • Free     : 0 crédit inclus (IA bloquée)
- *   • Basic    : 1 000 crédits inclus / mois (valeur 15€)
- *   • Business : 10 000 crédits inclus / mois (valeur 150€)
+ * Modele 2026 (revision 21 avril 2026) :
+ *   • 1,5€ = 100 credits (0,015€/credit — taux base)
+ *   • Free     : 200 credits (limite)
+ *   • Starter  : 1 000 credits inclus / mois
+ *   • Pro      : 5 000 credits inclus / mois
+ *   • Business : 20 000 credits inclus / mois
  *
- * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 crédits (0% bonus, taux base)
+ * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 credits (0% bonus, taux base)
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -169,7 +170,7 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
             {balance.monthly_included > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-white/20 backdrop-blur rounded-full">
                 <Crown className="w-3 h-3" />
-                {balance.monthly_included >= 10000 ? 'Business' : 'Basic'}
+                {balance.monthly_included >= 20000 ? 'Business' : balance.monthly_included >= 5000 ? 'Pro' : 'Starter'}
               </span>
             )}
           </div>

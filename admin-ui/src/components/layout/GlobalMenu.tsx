@@ -40,24 +40,24 @@ const menuItems = [
   { icon: Star, label: 'Avis Clients', path: '/avis-clients' },
   { type: 'separator', label: 'Business' },
   { icon: CreditCard, label: 'Facturation', path: '/facturation' },
-  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'basic' },
-  { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'basic' },
-  { icon: Package, label: 'Stock', path: '/stock', plan: 'basic' },
+  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'starter' },
+  { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'business' },
+  { icon: Package, label: 'Stock', path: '/stock', plan: 'starter' },
   { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'business' },
   { type: 'separator', label: 'Marketing' },
-  { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'basic' },
-  { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'basic' },
-  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'basic', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
-  { icon: FileText, label: 'Devis', path: '/devis', plan: 'basic', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
-  { icon: Search, label: 'SEO', path: '/seo', plan: 'basic' },
-  { icon: FileText, label: 'Articles SEO', path: '/seo/articles', plan: 'basic' },
-  { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'basic' },
-  { icon: Share2, label: 'Réseaux Sociaux', path: '/reseaux-sociaux', plan: 'basic' },
-  { icon: UserCheck, label: 'Onboarding', path: '/onboarding-sequences', plan: 'basic' },
+  { icon: Target, label: 'Segments CRM', path: '/segments', plan: 'starter' },
+  { icon: GitBranch, label: 'Workflows', path: '/workflows', plan: 'starter' },
+  { icon: Megaphone, label: 'Pipeline', path: '/pipeline', plan: 'starter', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
+  { icon: FileText, label: 'Devis', path: '/devis', plan: 'starter', hideFor: ['salon', 'restaurant', 'hotel', 'commerce'] },
+  { icon: Search, label: 'SEO', path: '/seo', plan: 'starter' },
+  { icon: FileText, label: 'Articles SEO', path: '/seo/articles', plan: 'starter' },
+  { icon: AlertTriangle, label: 'Anti-Churn', path: '/churn', plan: 'starter' },
+  { icon: Share2, label: 'Réseaux Sociaux', path: '/reseaux-sociaux', plan: 'starter' },
+  { icon: UserCheck, label: 'Onboarding', path: '/onboarding-sequences', plan: 'starter' },
   { type: 'separator', label: 'Système' },
-  { icon: Bot, label: 'Agent IA Web', path: '/ia-admin', plan: 'basic' },
-  { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', plan: 'basic' },
-  { icon: Phone, label: 'Téléphone IA', path: '/ia-telephone', plan: 'basic' },
+  { icon: Bot, label: 'Agent IA Web', path: '/ia-admin', plan: 'starter' },
+  { icon: MessageSquare, label: 'WhatsApp IA', path: '/ia-whatsapp', plan: 'starter' },
+  { icon: Phone, label: 'Téléphone IA', path: '/ia-telephone', plan: 'starter' },
   { icon: Shield, label: 'Sentinel', path: '/sentinel', plan: 'business' },
   { type: 'separator' },
   { icon: CreditCard, label: 'Mon abonnement', path: '/subscription' },
@@ -66,7 +66,8 @@ const menuItems = [
 ];
 
 const PLAN_NAMES: Record<string, string> = {
-  basic: 'Basic',
+  starter: 'Starter',
+  pro: 'Pro',
   business: 'Business',
 };
 
@@ -145,7 +146,7 @@ export function GlobalMenu({ isOpen, onClose }: GlobalMenuProps) {
             const Icon = item.icon!;
             const isActive = location.pathname === item.path;
             const isLocked = !!(item.plan && !hasPlan(item.plan as any));
-            const planLabel = item.plan ? (PLAN_NAMES[item.plan] || 'Basic') : '';
+            const planLabel = item.plan ? (PLAN_NAMES[item.plan] || 'Starter') : '';
 
             return (
               <button

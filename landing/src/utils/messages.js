@@ -4,15 +4,15 @@ export const MESSAGES_CONFIG = {
     audio: "/audio/welcome.mp3"
   },
   prix: {
-    text: "NEXUS propose 3 niveaux : Free gratuit a vie avec 10 reservations et 10 factures par mois pour decouvrir, Basic a 29€/mois pour un acces illimite a toutes les fonctions non-IA avec 1 000 credits IA inclus chaque mois, et Business a 149€/mois pour les multi-sites avec white-label, API et 10 000 credits IA inclus chaque mois (valeur 150€). Les fonctions IA consomment des credits (1,5€ = 100 credits). Un pack unique additionnel est disponible : Pack 1000 a 15€ pour 1 000 credits.",
+    text: "NEXUS propose 4 plans : Free gratuit a vie avec 5 clients, 5 RDV et 5 factures pour decouvrir, Starter a 69€/mois avec toutes les IA et 200 limites, Pro a 199€/mois tout illimite avec multi-sites et 20 users, et Business a 599€/mois avec RH, compta, analytique, Sentinel, white-label, API, SSO et account manager dedie. Si vous depassez les limites de votre plan, des packs d'utilisation supplementaire sont disponibles : 50€ (-10%), 200€ (-20%) et 500€ (-30%).",
     audio: null
   },
   telephone: {
-    text: "Je reponds a vos appels 24h/24, 7j/7. Je prends des rendez-vous, je reponds aux questions frequentes, et je transfere vers vous si necessaire. Je prends aussi les messages vocaux et je vous les envoie transcrits. Disponible dans les plans Basic et Business : 1 minute = 18 credits.",
+    text: "Je reponds a vos appels 24h/24, 7j/7. Je prends des rendez-vous, je reponds aux questions frequentes, et je transfere vers vous si necessaire. Je prends aussi les messages vocaux et je vous les envoie transcrits. Disponible a partir du plan Starter a 69€/mois.",
     audio: null
   },
   whatsapp: {
-    text: "Je reponds instantanement a vos clients sur WhatsApp. Je prends des RDV, j'envoie des confirmations, et je reponds a toutes les questions. Disponible dans Basic et Business : 1 message = 7 credits.",
+    text: "Je reponds instantanement a vos clients sur WhatsApp. Je prends des RDV, j'envoie des confirmations, et je reponds a toutes les questions. Disponible a partir du plan Starter a 69€/mois.",
     audio: null
   },
   reservation: {
@@ -20,11 +20,11 @@ export const MESSAGES_CONFIG = {
     audio: null
   },
   essai: {
-    text: "NEXUS a un plan Free 100% gratuit a vie sans carte bancaire. Vous pouvez decouvrir toute la plateforme avec 10 reservations et 10 factures par mois. Cliquez sur 'Demarrer gratuitement' pour creer votre compte !",
+    text: "NEXUS a un plan Free 100% gratuit a vie sans carte bancaire. Vous pouvez decouvrir toute la plateforme avec 5 clients, 5 RDV et 5 factures par mois. Cliquez sur 'Demarrer gratuitement' pour creer votre compte !",
     audio: "/audio/faq-essai.mp3"
   },
   default: {
-    text: "Je suis la pour repondre a toutes vos questions ! Vous pouvez me demander des infos sur les plans (Free gratuit, Basic 29 euros, Business 149 euros), les credits IA, mes fonctionnalites, ou comment demarrer.",
+    text: "Je suis la pour repondre a toutes vos questions ! Vous pouvez me demander des infos sur les plans (Free gratuit, Starter 69 euros, Pro 199 euros, Business 599 euros), les fonctionnalites, ou comment demarrer.",
     audio: null
   }
 }

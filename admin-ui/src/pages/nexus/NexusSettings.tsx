@@ -9,19 +9,24 @@ interface SystemStatus {
   tenants?: number;
 }
 
-// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
+// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
+// Free / Starter 69€ / Pro 199€ / Business 599€
 const PLANS = [
   {
     name: 'Free', price: 0, color: 'gray',
-    features: ['10 reservations / mois', '10 factures / mois', '30 clients max', 'Tous les modules visibles', 'Support email'],
+    features: ['Dashboard, Clients, Reservations', 'Facturation (avec watermark)', '1 utilisateur', '200 credits IA (limite)', 'Support email'],
   },
   {
-    name: 'Basic', price: 29, color: 'cyan', popular: true,
-    features: ['Tout illimite (reservations, factures, clients)', 'CRM, Comptabilite, Stock', 'Workflows, Pipeline, Devis, SEO', '1 000 credits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
+    name: 'Starter', price: 69, color: 'cyan', popular: true,
+    features: ['Toutes les fonctions IA', 'Stock, Workflows, Pipeline, Devis, SEO', 'Fidelite, Equipe (5 max)', '1 000 credits IA inclus / mois', 'Support email prioritaire'],
   },
   {
-    name: 'Business', price: 149, color: 'purple',
-    features: ['Tout Basic +', 'RH & Planning complet', 'Multi-sites + White-label + API + SSO', '10 000 credits IA inclus / mois (valeur 150€)', 'Account Manager dedie'],
+    name: 'Pro', price: 199, color: 'blue',
+    features: ['Tout Starter +', 'Multi-sites, tout illimite', 'Equipe (20 max)', '5 000 credits IA inclus / mois', 'Support prioritaire'],
+  },
+  {
+    name: 'Business', price: 599, color: 'purple',
+    features: ['Tout Pro +', 'RH complet + Compta & Analytique', 'Sentinel, White-label, API, SSO', '20 000 credits IA inclus / mois', 'Account Manager dedie, 50 users'],
   },
 ];
 

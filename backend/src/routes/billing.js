@@ -290,17 +290,17 @@ router.post('/payment-methods/:id/default', async (req, res) => {
 /**
  * POST /api/billing/change-plan
  * Change le plan d'un abonnement existant (upgrade/downgrade direct).
- * Body: { planId: 'basic' | 'business', cycle: 'monthly' | 'yearly' }
+ * Body: { planId: 'starter' | 'pro' | 'business', cycle: 'monthly' | 'yearly' }
  */
 router.post('/change-plan', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { planId, cycle = 'monthly' } = req.body;
 
-    if (!['basic', 'business'].includes(planId)) {
+    if (!['starter', 'pro', 'business', 'basic'].includes(planId)) {
       return res.status(400).json({
         success: false,
-        error: 'planId invalide (basic | business)'
+        error: 'planId invalide (starter | pro | business)'
       });
     }
 

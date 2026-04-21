@@ -1,6 +1,6 @@
 /**
  * Middleware de gestion des quotas NEXUS
- * Modèle 2026 : Free / Basic / Business (voir memory/business-model-2026.md)
+ * Modèle 2026 (21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
  *
  * @module middleware/quotas
  */
@@ -12,19 +12,16 @@ import { PLAN_LIMITS as CANONICAL_PLAN_LIMITS } from '../config/planFeatures.js'
 
 /**
  * Limites par plan tarifaire — re-exporte la source unique de vérité (planFeatures.js)
- * pour garder les imports historiques (`import { PLAN_LIMITS } from 'middleware/quotas.js'`)
  */
 export const PLAN_LIMITS = CANONICAL_PLAN_LIMITS;
 
 /**
- * Normalise un nom de plan vers les noms canoniques (free|basic|business)
- * Mappe les anciens noms 'starter'→'free' et 'pro'→'basic' pour rétrocompat.
+ * Normalise un nom de plan vers les noms canoniques.
+ * 'basic' est un alias legacy de 'starter'.
  */
 function normalizePlan(plan) {
   const p = (plan || '').toLowerCase();
-  if (p === 'starter') return 'free';
-  if (p === 'pro') return 'basic';
-  if (p === 'free' || p === 'basic' || p === 'business') return p;
+  if (CANONICAL_PLAN_LIMITS[p]) return p;
   return 'free';
 }
 

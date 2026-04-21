@@ -8,6 +8,7 @@
 import { Resend } from 'resend';
 import { sendWhatsAppNotification } from './whatsappService.js';
 import { sendSMS } from './smsService.js';
+import { consume as consumeCredits } from './creditsService.js';
 import logger from '../config/logger.js';
 import {
   confirmationReservation,
@@ -222,18 +223,27 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
       );
 
       console.log(`[Notification] Email confirmation envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email confirmation — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email confirmation:', error.message);
       results.email = { success: false, error: error.message };
     }
   }
 
-  // 2. Envoyer WhatsApp (ne bloque pas si erreur)
+  // 2. Envoyer WhatsApp (simultané, pas de cascade)
   if (clientPhone) {
     try {
       const whatsappMessage = confirmationReservation(rdv, acompte, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
-
+      if (results.whatsapp.success) {
+        consumeCredits(tenantId, 'whatsapp_notification', {
+          description: `Notification confirmation WhatsApp — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction WA failed: ${err.message}`));
+      }
       console.log(`[Notification] WhatsApp confirmation envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp confirmation:', error.message);
@@ -241,26 +251,24 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
     }
   }
 
-  // 3. SMS en dernier recours (cascade: seulement si email ET WhatsApp ont echoue)
-  const emailDelivered = results.email?.success;
-  const whatsappDelivered = results.whatsapp?.success;
-
-  if (clientPhone && !emailDelivered && !whatsappDelivered) {
+  // 3. SMS (envoi simultané — plus de cascade, payé par crédits du tenant)
+  if (clientPhone) {
     try {
       const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
       const lieuText = rdv.adresse_client || t.adresse;
-
       const smsMessage = `${t.salonName}\nVotre RDV est confirmé !\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS confirmation (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+      if (results.sms.success) {
+        consumeCredits(tenantId, 'sms_notification', {
+          description: `SMS confirmation — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction SMS failed: ${err.message}`));
+      }
+      console.log(`[Notification] SMS confirmation envoyé à ${clientPhone}:`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi SMS:', error.message);
       results.sms = { success: false, error: error.message };
     }
-  } else if (clientPhone) {
-    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
-    console.log(`[Notification] SMS confirmation skipped (${emailDelivered ? 'email' : 'whatsapp'} already delivered)`);
   }
 
   return results;
@@ -318,18 +326,27 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
       );
 
       console.log(`[Notification] Email rappel J-1 envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email rappel J-1 — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email rappel:', error.message);
       results.email = { success: false, error: error.message };
     }
   }
 
-  // 2. Envoyer WhatsApp
+  // 2. Envoyer WhatsApp (simultané)
   if (clientPhone) {
     try {
       const whatsappMessage = rappelJ1(rdv, acompte, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
-
+      if (results.whatsapp.success) {
+        consumeCredits(tenantId, 'whatsapp_notification', {
+          description: `Notification rappel J-1 WhatsApp — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction WA failed: ${err.message}`));
+      }
       console.log(`[Notification] WhatsApp rappel J-1 envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp rappel:', error.message);
@@ -337,25 +354,23 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
     }
   }
 
-  // 3. SMS en dernier recours (cascade: seulement si email ET WhatsApp ont echoue)
-  const emailDelivered = results.email?.success;
-  const whatsappDelivered = results.whatsapp?.success;
-
-  if (clientPhone && !emailDelivered && !whatsappDelivered) {
+  // 3. SMS (simultané — payé par crédits du tenant)
+  if (clientPhone) {
     try {
       const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
-
       const smsMessage = `${t.salonName}\nRappel: RDV demain!\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS rappel J-1 (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+      if (results.sms.success) {
+        consumeCredits(tenantId, 'sms_notification', {
+          description: `SMS rappel J-1 — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction SMS failed: ${err.message}`));
+      }
+      console.log(`[Notification] SMS rappel J-1 envoyé à ${clientPhone}:`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi SMS rappel:', error.message);
       results.sms = { success: false, error: error.message };
     }
-  } else if (clientPhone) {
-    results.sms = { success: false, skipped: true, reason: `cascade: ${emailDelivered ? 'email' : 'whatsapp'} delivered` };
-    console.log(`[Notification] SMS rappel J-1 skipped (${emailDelivered ? 'email' : 'whatsapp'} already delivered)`);
   }
 
   return results;
@@ -372,6 +387,7 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
   const results = {
     email: { success: false, error: 'Non envoyé' },
     whatsapp: { success: false, error: 'Non envoyé' },
+    sms: { success: false, error: 'Non envoyé' },
   };
 
   const t = resolveTenant(tenantId);
@@ -417,22 +433,47 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
       );
 
       console.log(`[Notification] Email annulation envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email annulation — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email annulation:', error.message);
       results.email = { success: false, error: error.message };
     }
   }
 
-  // 2. Envoyer WhatsApp
+  // 2. Envoyer WhatsApp (simultané)
   if (clientPhone) {
     try {
       const whatsappMessage = annulation(rdv, montantRembourse);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
-
+      if (results.whatsapp.success) {
+        consumeCredits(tenantId, 'whatsapp_notification', {
+          description: `Notification annulation WhatsApp — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction WA failed: ${err.message}`));
+      }
       console.log(`[Notification] WhatsApp annulation envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp annulation:', error.message);
       results.whatsapp = { success: false, error: error.message };
+    }
+  }
+
+  // 3. SMS (simultané — payé par crédits du tenant)
+  if (clientPhone) {
+    try {
+      const labels = getBusinessLabels(t.businessProfile);
+      const smsMessage = `${t.salonName}\nVotre ${labels.sejour} a été annulé.${montantRembourse > 0 ? `\nRemboursement: ${montantRembourse}€` : ''}\n\nÀ bientôt !\n${t.signataire}`;
+      results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
+      if (results.sms?.success) {
+        consumeCredits(tenantId, 'sms_notification', {
+          description: `SMS annulation — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction SMS failed: ${err.message}`));
+      }
+    } catch (error) {
+      logger.warn(`[Notification] Erreur envoi SMS annulation: ${error.message}`);
     }
   }
 
@@ -501,18 +542,27 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
       );
 
       console.log(`[Notification] Email modification envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email modification — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email modification:', error.message);
       results.email = { success: false, error: error.message };
     }
   }
 
-  // 2. Envoyer WhatsApp
+  // 2. Envoyer WhatsApp (simultané)
   if (clientPhone) {
     try {
       const whatsappMessage = modificationRdv(ancienRdv, nouveauRdv, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
-
+      if (results.whatsapp.success) {
+        consumeCredits(tenantId, 'whatsapp_notification', {
+          description: `Notification modification WhatsApp — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction WA failed: ${err.message}`));
+      }
       console.log(`[Notification] WhatsApp modification envoyé à ${clientPhone}:`, results.whatsapp.success ? 'OK' : results.whatsapp.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi WhatsApp modification:', error.message);
@@ -520,15 +570,18 @@ export async function sendModification(ancienRdv, nouveauRdv, tenantId = null) {
     }
   }
 
-  // 3. SMS fallback (si email ET WhatsApp ont echoue)
-  const emailOk = results.email?.success;
-  const whatsappOk = results.whatsapp?.success;
-  if (clientPhone && !emailOk && !whatsappOk) {
+  // 3. SMS (simultané — payé par crédits du tenant)
+  if (clientPhone) {
     try {
       const total = nouveauRdv.total || (nouveauRdv.prix_service + (nouveauRdv.frais_deplacement || 0));
       const smsMessage = `${t.salonName}\nVotre RDV a été modifié !\n\n${nouveauRdv.date} à ${nouveauRdv.heure}\n${nouveauRdv.service_nom}\n${total}€\n\nÀ bientôt !\n${t.signataire}`;
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
-      console.log(`[Notification] SMS modification (fallback):`, results.sms.success ? 'OK' : results.sms.error);
+      if (results.sms.success) {
+        consumeCredits(tenantId, 'sms_notification', {
+          description: `SMS modification — ${clientPhone}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction SMS failed: ${err.message}`));
+      }
+      console.log(`[Notification] SMS modification envoyé à ${clientPhone}:`, results.sms.success ? 'OK' : results.sms.error);
     } catch (error) {
       console.error('[Notification] Erreur envoi SMS modification:', error.message);
       results.sms = { success: false, error: error.message };
@@ -627,6 +680,11 @@ export async function sendRemerciement(rdv, tenantId = null) {
       );
 
       console.log(`[Notification] Email remerciement envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email remerciement — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email remerciement:', error.message);
       results.email = { success: false, error: error.message };
@@ -691,6 +749,11 @@ export async function sendDemandeAvis(rdv, lienAvis = null, tenantId = null) {
       );
 
       console.log(`[Notification] Email demande avis envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email demande avis — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email demande avis:', error.message);
       results.email = { success: false, error: error.message };
@@ -779,6 +842,11 @@ export async function sendStatusChange(rdv, action, tenantId = null) {
       );
 
       console.log(`[Notification] Email changement statut (${action}) envoyé à ${clientEmail}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email statut ${action} — ${clientEmail}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur email changement statut:', error.message);
       results.email = { success: false, error: error.message };
@@ -849,6 +917,11 @@ export async function sendDepositRequest(tenantId, phone, details, email = null)
       );
 
       console.log(`[Notification] Email acompte envoye a ${email}:`, results.email.success ? 'OK' : results.email.error);
+      if (results.email.success) {
+        consumeCredits(tenantId, 'email_notification', {
+          description: `Email acompte — ${email}`,
+        }).catch(err => logger.warn(`[Notification] Credit deduction email failed: ${err.message}`));
+      }
     } catch (error) {
       console.error('[Notification] Erreur envoi email acompte:', error.message);
       results.email = { success: false, error: error.message };

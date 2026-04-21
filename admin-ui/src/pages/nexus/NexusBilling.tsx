@@ -11,19 +11,19 @@ interface TenantInfo {
   quota: { percentage: number; status: string };
 }
 
-// Modèle pricing 2026 — révision finale 9 avril 2026 — Free / Basic / Business + crédits IA
-// Basic 29€/mois (1 000 cr inclus) / Business 149€/mois (10 000 cr inclus)
-const PLAN_PRICES: Record<string, number> = { free: 0, basic: 29, business: 149 };
+// Modele pricing 2026 — revision 21 avril 2026 — Free / Starter / Pro / Business + credits IA
+// Starter 69€/mois (1 000 cr) / Pro 199€/mois (5 000 cr) / Business 599€/mois (20 000 cr)
+const PLAN_PRICES: Record<string, number> = { free: 0, starter: 69, pro: 199, business: 599 };
 const PLAN_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
   free: { bar: 'bg-slate-500', text: 'text-slate-400', bg: 'bg-slate-950/30 border-slate-800' },
-  basic: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },
+  starter: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },
+  pro: { bar: 'bg-blue-500', text: 'text-blue-400', bg: 'bg-blue-950/30 border-blue-800' },
   business: { bar: 'bg-purple-500', text: 'text-purple-400', bg: 'bg-purple-950/30 border-purple-800' },
 };
 
 // Retro-compat : plans legacy mappes vers nouveaux noms
 const normalizePlan = (plan: string): string => {
-  if (plan === 'starter') return 'free';
-  if (plan === 'pro') return 'basic';
+  if (plan === 'basic') return 'starter';
   return plan;
 };
 
@@ -90,7 +90,7 @@ export default function NexusBilling() {
             <div className="bg-slate-900 rounded-lg border border-slate-800 mb-6 p-4">
               <h2 className="font-semibold text-white mb-4">Revenus par plan</h2>
               <div className="space-y-4">
-                {(['free', 'basic', 'business'] as const).map((plan) => {
+                {(['free', 'starter', 'pro', 'business'] as const).map((plan) => {
                   const count = planCounts[plan] || 0;
                   const total = tenants.length || 1;
                   const pct = (count / total) * 100;

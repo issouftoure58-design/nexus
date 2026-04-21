@@ -2,9 +2,9 @@
  * InsufficientCreditsModal — Modal affichée quand une action IA est bloquée
  * faute de crédits suffisants. Propose l'achat du Pack 1000 additionnel.
  *
- * Modèle 2026 (révision finale 9 avril 2026) :
- *   • Pack unique additionnel : Pack 1000 → 15€ pour 1 000 crédits (0% bonus)
- *   • Business 149€/mois inclut déjà 10 000 crédits (upsell si usage intensif)
+ * Modele 2026 (revision 21 avril 2026) :
+ *   • Pack unique additionnel : Pack 1000 → 15€ pour 1 000 credits (0% bonus)
+ *   • Business 599€/mois inclut deja 20 000 credits (upsell si usage intensif)
  *
  * Usage :
  *   const [showModal, setShowModal] = useState(false);
@@ -185,7 +185,7 @@ export function InsufficientCreditsModal({
                   Vous consommez beaucoup de crédits ?
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                  Le plan <strong>Business 149€/mois</strong> inclut <strong>10 000 crédits/mois</strong> (valeur 150€) + tous les modules premium (multi-sites, white-label, API, SSO).
+                  Le plan <strong>Business 599€/mois</strong> inclut <strong>20 000 credits/mois</strong> + tous les modules premium (RH, Compta, Sentinel, White-label, API, SSO).
                 </p>
                 <a
                   href="/admin/subscription"

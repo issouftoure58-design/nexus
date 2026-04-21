@@ -25,84 +25,116 @@ const PRICING = {
       price_monthly: 0,
       price_yearly: 0,
       users: 1,
-      clients_max: 30,
-      reservations_mois: 10,
-      factures_mois: 10,
-      ia_included: false,
+      clients_max: 5,
+      reservations_mois: 5,
+      factures_mois: 5,
+      prestations_max: 5,
+      ia_included: 'Limitee (chat admin uniquement)',
       features: [
         'Dashboard',
-        'Reservations (10/mois)',
-        'Facturation (10/mois, avec watermark)',
-        'CRM 30 clients',
-        'Prestations illimitees',
+        'Reservations (5/mois)',
+        'Facturation (5/mois, avec watermark)',
+        'CRM 5 clients',
+        '5 prestations max',
         'Tous les modules visibles (lecture / decouverte)',
         'Support email'
       ],
-      limits: 'Quotas mensuels stricts. Fonctions IA bloquees.',
+      limits: 'Quotas stricts. IA Telephone/WhatsApp/Web bloquees.',
       target: 'Decouverte, freelance qui demarre, test produit'
     },
-    basic: {
-      name: 'Basic',
-      price_monthly: 29,
-      price_yearly: 290, // 2 mois offerts
-      users: 5, // 5 utilisateurs max
+    starter: {
+      name: 'Starter',
+      price_monthly: 69,
+      price_yearly: 690, // 2 mois offerts
+      users: 5,
+      clients_max: 200,
+      reservations_mois: 200,
+      factures_mois: 200,
+      credits_ia_inclus_mois: 1000,
+      ia_included: 'Toutes les IA debloquees — utilisation incluse dans l\'abonnement',
+      features: [
+        'Reservations (200/mois)',
+        'Facturation (200/mois, sans watermark)',
+        'CRM 200 clients',
+        '200 prestations',
+        'Toutes les IA debloquees (Telephone, WhatsApp, Web, Chat, SEO, Devis...)',
+        'CRM, Equipe (5 max), Fidelite',
+        'Stock complet',
+        'Workflows, Pipeline, Devis, SEO',
+        'Support email prioritaire'
+      ],
+      blocked: 'RH & Planning complet, Compta, Compta analytique, Sentinel, Multi-sites, White-label, API, SSO',
+      limits: 'Utilisation IA incluse. Achat supplementaire possible si besoin.',
+      target: 'PME qui demarre avec l\'IA — salons, restaurants, hotels, services'
+    },
+    pro: {
+      name: 'Pro',
+      price_monthly: 199,
+      price_yearly: 1990, // 2 mois offerts
+      users: 20,
       clients_max: -1,
       reservations_mois: -1,
       factures_mois: -1,
-      credits_ia_inclus_mois: 1000,
-      ia_included: '1 000 credits IA inclus chaque mois (valeur 15€)',
+      credits_ia_inclus_mois: 5000,
+      ia_included: 'Utilisation IA x5 — toutes les IA debloquees',
       features: [
-        'Reservations illimitees',
-        'Facturation illimitee (sans watermark)',
-        '1 000 credits IA inclus / mois (valeur 15€)',
-        'CRM, Equipe (5 max), Fidelite',
-        'Comptabilite, Stock complets',
-        'Workflows, Pipeline, Devis, SEO',
-        'Toutes les fonctions IA disponibles via credits',
-        'Support email prioritaire'
+        'Tout Starter +',
+        'Tout illimite (clients, reservations, factures, prestations)',
+        'Equipe (20 max), Multi-sites',
+        'Utilisation IA x5',
+        'Support prioritaire'
       ],
-      limits: 'Aucun quota non-IA. 1 000 credits IA inclus/mois + pack additionnel au besoin.',
-      target: 'PME, salons, restaurants, hotels, services — le plan principal'
+      blocked: 'RH complet (paie, conges, recrutement), Compta, Compta analytique, Sentinel, White-label, API, SSO',
+      target: 'PME etablie, usage IA intensif, multi-site'
     },
     business: {
       name: 'Business',
-      price_monthly: 149,
-      price_yearly: 1490,
-      users: 20, // 20 utilisateurs max
+      price_monthly: 599,
+      price_yearly: 5990, // 2 mois offerts
+      users: 50,
       clients_max: -1,
       reservations_mois: -1,
       factures_mois: -1,
-      credits_ia_inclus_mois: 10000,
-      ia_included: '10 000 credits IA inclus chaque mois (valeur 150€)',
+      credits_ia_inclus_mois: 20000,
+      ia_included: 'Utilisation IA x20 — toutes les IA debloquees',
       features: [
-        'Tout Basic +',
-        'RH & Planning complet',
-        'Equipe (20 max), Multi-sites',
+        'Tout Pro +',
+        'Equipe (50 max)',
+        'RH complet (paie, conges, recrutement, DSN, planning avance)',
+        'Compta complete + Compta analytique',
+        'Sentinel monitoring complet',
         'White-label (logo + domaine custom)',
         'API + Webhooks',
         'SSO entreprise',
         'Support prioritaire 1h',
         'Account manager dedie',
-        '10 000 credits IA inclus / mois (valeur 150€)'
+        'Utilisation IA x20'
       ],
+      blocked: 'Rien — acces complet a tout',
       target: 'Multi-sites, chaines, franchises, entreprises structurees'
     }
   },
 
-  // Pack unique additionnel — depuis la revision du 9 avril 2026
-  credit_packs: {
-    pack_1000: { price: 15, credits: 1000, bonus: 0, label: 'Pack 1000 crédits', code: 'nexus_credits_1000' },
+  // Utilisation supplementaire (modele Claude)
+  usage_topup: {
+    topup_50:  { price: 50,  discount_pct: 10, label: '50€ d\'utilisation IA' },
+    topup_200: { price: 200, discount_pct: 20, label: '200€ d\'utilisation IA' },
+    topup_500: { price: 500, discount_pct: 30, label: '500€ d\'utilisation IA' },
   },
 
   credit_costs: {
+    email_notif: '1 credit / email notification',
+    whatsapp_notif: '5 credits / notification WhatsApp',
     chat_admin: '7 credits / question',
-    whatsapp:   '7 credits / message repondu',
+    whatsapp:   '7 credits / message IA repondu',
     devis_ia:   '9 credits / devis IA',
-    email_ia:   '9 credits / email genere et envoye',
-    agent_web:  '12 credits / conversation (~5 messages)',
+    email_ia:   '9 credits / email IA genere et envoye',
+    sms_notif:  '15 credits / SMS notification',
+    agent_web:  '15 credits / conversation (~5 messages)',
     social:     '12 credits / post genere (texte + image)',
-    phone:      '18 credits / minute',
-    seo_article: '69 credits / article 1500 mots',
+    phone:      '22 credits / minute appel IA',
+    sms_antichurn: '25 credits / SMS Anti-Churn',
+    seo_article: '75 credits / article 1500 mots',
   },
 };
 
@@ -111,17 +143,17 @@ const PRICING = {
 // ============================================
 
 const PROFILE_RECOMMENDATIONS = {
-  'coiffeur_solo':       { plan: 'free',     total: 0,   note: 'Demarre gratuitement, passe a Basic 29€ (1 000 credits IA inclus) quand tu depasses les quotas Free' },
-  'salon_equipe':        { plan: 'basic',    total: 29,  note: 'Acces illimite a tout + 1 000 credits IA inclus/mois. Pack 1000 a 15€ si besoin.' },
-  'coiffeur_domicile':   { plan: 'basic',    total: 29,  note: 'Tournees, GPS, frais deplacement inclus + 1 000 credits IA/mois' },
-  'restaurant':          { plan: 'basic',    total: 29,  note: 'Tables, menus, services midi/soir + 1 000 credits IA/mois' },
-  'hotel_petit':         { plan: 'basic',    total: 29,  note: 'Chambres, tarifs saisonniers, check-in/out + 1 000 credits IA/mois' },
-  'multi_sites':         { plan: 'business', total: 149, note: 'Multi-sites + 10 000 credits IA inclus chaque mois (valeur 150€)' },
-  'spa_institut':        { plan: 'basic',    total: 29 },
-  'artisan':             { plan: 'basic',    total: 29 },
-  'cabinet_medical':     { plan: 'basic',    total: 29 },
-  'auto_ecole':          { plan: 'basic',    total: 29 },
-  'chaine_franchise':    { plan: 'business', total: 149 },
+  'coiffeur_solo':       { plan: 'free',     total: 0,   note: 'Demarre gratuitement, passe a Starter 69€ quand tu depasses les quotas Free' },
+  'salon_equipe':        { plan: 'starter',  total: 69,  note: 'Toutes les IA debloquees + utilisation incluse' },
+  'coiffeur_domicile':   { plan: 'starter',  total: 69,  note: 'Tournees, GPS, frais deplacement + toutes les IA' },
+  'restaurant':          { plan: 'starter',  total: 69,  note: 'Tables, menus, services midi/soir + toutes les IA' },
+  'hotel_petit':         { plan: 'starter',  total: 69,  note: 'Chambres, tarifs saisonniers, check-in/out + toutes les IA' },
+  'multi_sites':         { plan: 'pro',      total: 199, note: 'Tout illimite + multi-sites + RH + utilisation IA x5' },
+  'spa_institut':        { plan: 'starter',  total: 69 },
+  'artisan':             { plan: 'starter',  total: 69 },
+  'cabinet_medical':     { plan: 'starter',  total: 69 },
+  'auto_ecole':          { plan: 'starter',  total: 69 },
+  'chaine_franchise':    { plan: 'business', total: 599, note: 'Tout illimite + 50 postes + white-label + API + SSO + utilisation IA x20' },
 };
 
 // ============================================

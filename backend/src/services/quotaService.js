@@ -1,15 +1,11 @@
 /**
- * Quota Service — Gestion des quotas mensuels Free tier (modèle 2026)
+ * Quota Service — Gestion des quotas mensuels par plan (modèle 2026 — révisé 21 avril)
  *
- * Quotas Free :
- *   • 10 réservations / mois
- *   • 10 factures / mois
- *   • 30 clients max (compteur global, pas mensuel)
- *   • Prestations illimitees (catalogue non contraint, seul le volume RDV est limite)
- *   • 5 questions chat IA admin / mois
- *   • 1 utilisateur (équipe désactivée)
- *
- * Plans Basic et Business : tout illimité (-1).
+ * Quotas par plan :
+ *   • Free     : 5 presta / 5 factures / 5 clients / 1 user — IA limitée (chat admin 5 q/mois)
+ *   • Starter  : 200 presta / 200 factures / 200 clients / 5 postes — toutes IA
+ *   • Pro      : illimité / 20 postes — multi-site, RH
+ *   • Business : illimité / 50 postes — RH complet, compta, Sentinel, white-label, API, SSO
  *
  * TENANT SHIELD : tenantId est TOUJOURS le 1er paramètre, JAMAIS de fallback.
  */
@@ -23,24 +19,35 @@ import logger from '../config/logger.js';
 
 export const PLAN_QUOTAS = {
   free: {
-    reservations_max_mois: 10,
-    factures_max_mois: 10,
-    clients_max: 30,
-    prestations_max: -1,  // illimite (catalogue non contraint)
+    reservations_max_mois: 5,
+    factures_max_mois: 5,
+    clients_max: 5,
+    prestations_max: 5,
     chat_admin_questions_mois: 5,
-    storage_mb: 1024,
+    storage_mb: 512,
     utilisateurs_max: 1,
     posts_ia_mois: 0,
     images_ia_mois: 0,
   },
-  basic: {
+  starter: {
+    reservations_max_mois: 200,
+    factures_max_mois: 200,
+    clients_max: 200,
+    prestations_max: 200,
+    chat_admin_questions_mois: -1,
+    storage_mb: 10240,
+    utilisateurs_max: 5,
+    posts_ia_mois: -1,
+    images_ia_mois: -1,
+  },
+  pro: {
     reservations_max_mois: -1,
     factures_max_mois: -1,
     clients_max: -1,
     prestations_max: -1,
     chat_admin_questions_mois: -1,
     storage_mb: 51200,
-    utilisateurs_max: 5,
+    utilisateurs_max: 20,
     posts_ia_mois: -1,
     images_ia_mois: -1,
   },
@@ -51,7 +58,19 @@ export const PLAN_QUOTAS = {
     prestations_max: -1,
     chat_admin_questions_mois: -1,
     storage_mb: 512000,
-    utilisateurs_max: 20,
+    utilisateurs_max: 50,
+    posts_ia_mois: -1,
+    images_ia_mois: -1,
+  },
+  // Legacy alias
+  basic: {
+    reservations_max_mois: -1,
+    factures_max_mois: -1,
+    clients_max: -1,
+    prestations_max: -1,
+    chat_admin_questions_mois: -1,
+    storage_mb: 10240,
+    utilisateurs_max: 5,
     posts_ia_mois: -1,
     images_ia_mois: -1,
   },
@@ -63,9 +82,7 @@ export const PLAN_QUOTAS = {
 
 function normalizePlan(plan) {
   const p = (plan || '').toLowerCase();
-  if (p === 'starter') return 'free';
-  if (p === 'pro') return 'basic';
-  if (p === 'free' || p === 'basic' || p === 'business') return p;
+  if (PLAN_QUOTAS[p]) return p;
   return 'free';
 }
 
@@ -81,8 +98,8 @@ async function getTenantPlan(tenantId) {
     .eq('id', tenantId)
     .single();
 
-  // Essai = déverrouille comme Basic
-  if (tenant?.statut === 'essai') return 'basic';
+  // Essai = déverrouille comme Starter
+  if (tenant?.statut === 'essai') return 'starter';
   return normalizePlan(tenant?.plan);
 }
 
@@ -326,7 +343,7 @@ export function enforceQuota(resource, amount = 1) {
       if (!check.ok) {
         return res.status(429).json({
           error: 'QUOTA_EXCEEDED',
-          message: `Quota ${resource} atteint pour ce mois (${check.used}/${check.limit}). Passez en NEXUS Basic pour un accès illimité.`,
+          message: `Quota ${resource} atteint pour ce mois (${check.used}/${check.limit}). Passez à NEXUS Starter pour augmenter vos limites.`,
           resource,
           limit: check.limit,
           used: check.used,

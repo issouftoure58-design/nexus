@@ -50,12 +50,11 @@ export function requireModule(moduleName) {
       }
 
       // PLAN_FEATURES et PLAN_LIMITS importés depuis config/planFeatures.js (source unique de vérité)
-      // ═══ Modèle 2026 : Free / Basic / Business ═══
-      // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+      // ═══ Modèle 2026 (21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€ ═══
+      // En essai, on déverrouille comme Starter (le tenant teste pleinement avant de payer)
       const rawPlan = (tenant.plan || 'free').toLowerCase();
-      // Aliases retro-compat : starter→free, pro→basic
-      const normalized = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
-      const planName = tenant.statut === 'essai' ? 'basic' : normalized;
+      const normalized = PLAN_FEATURES[rawPlan] ? rawPlan : 'free';
+      const planName = tenant.statut === 'essai' ? 'starter' : normalized;
       const plan = {
         nom: planName,
         modules: PLAN_FEATURES[planName] || PLAN_FEATURES.free,

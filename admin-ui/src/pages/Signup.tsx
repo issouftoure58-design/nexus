@@ -147,33 +147,38 @@ const CATEGORIES: Record<string, { label: string; emoji: string }> = {
   autre: { label: 'Autre', emoji: '🏪' },
 };
 
-// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimite non-IA + 1 000 credits IA / Business 149€ multi-sites + 10 000 credits IA
+// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Starter 69€ / Pro 199€ / Business 599€
+// Credits inclus : Free 200cr, Starter 1000cr, Pro 5000cr, Business 20000cr
 const PLANS = {
   free: {
     name: 'Free', price: 0, originalPrice: 0,
-    features: ['10 réservations / mois', '10 factures / mois', '30 clients max', 'Tous les modules visibles', 'Support email'],
+    features: ['Dashboard, Clients, Reservations', 'Facturation (avec watermark)', '1 utilisateur', '200 credits IA (limite)', 'Support email'],
   },
-  basic: {
-    name: 'Basic', price: 29, originalPrice: 29, popular: true,
-    features: ['Tout illimité (réservations, factures, clients)', 'CRM, Comptabilité, Stock', 'Workflows, Pipeline, Devis, SEO', '1 000 crédits IA inclus / mois (valeur 15€)', 'Support email prioritaire'],
+  starter: {
+    name: 'Starter', price: 69, originalPrice: 69, popular: true,
+    features: ['Toutes les fonctions IA', 'Stock, Workflows, Pipeline, Devis, SEO', 'Fidelite, Equipe (5 max)', '1 000 credits IA inclus / mois', 'Support email prioritaire'],
+  },
+  pro: {
+    name: 'Pro', price: 199, originalPrice: 199,
+    features: ['Tout Starter +', 'Multi-sites, tout illimite', 'Equipe (20 max)', '5 000 credits IA inclus / mois', 'Support prioritaire'],
   },
   business: {
-    name: 'Business', price: 149, originalPrice: 149,
-    features: ['Tout Basic +', 'RH & Planning complet', 'Multi-sites + White-label + API + SSO', '10 000 crédits IA inclus / mois (valeur 150€)', 'Account Manager dédié'],
+    name: 'Business', price: 599, originalPrice: 599,
+    features: ['Tout Pro +', 'RH complet + Compta & Analytique', 'Sentinel, White-label, API, SSO', '20 000 credits IA inclus / mois', 'Account Manager dedie, 50 users'],
   },
 };
 
 // Template → suggested plan (modele 2026)
 const TEMPLATE_SUGGESTED_PLAN: Record<string, keyof typeof PLANS> = {
-  salon_coiffure: 'basic',
-  institut_beaute: 'basic',
-  restaurant: 'basic',
-  medical: 'basic',
-  garage: 'basic',
-  artisan: 'basic',
-  hotel: 'basic',
-  commerce: 'basic',
+  salon_coiffure: 'starter',
+  institut_beaute: 'starter',
+  restaurant: 'starter',
+  medical: 'starter',
+  garage: 'starter',
+  artisan: 'starter',
+  hotel: 'starter',
+  commerce: 'starter',
   autre: 'free',
 };
 
@@ -637,7 +642,7 @@ export default function Signup() {
     confirmPassword: '',
     accept_cgv: false,
   });
-  const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLANS>('basic');
+  const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLANS>('starter');
   const [smsState, setSmsState] = useState<{
     sent: boolean;
     sending: boolean;
@@ -648,14 +653,14 @@ export default function Signup() {
   // Template technique déduit de la profession
   const selectedProfession = PROFESSIONS.find(p => p.id === professionId);
   const templateType = selectedProfession?.template || 'autre';
-  const suggestedPlan = TEMPLATE_SUGGESTED_PLAN[templateType] || 'basic';
+  const suggestedPlan = TEMPLATE_SUGGESTED_PLAN[templateType] || 'starter';
 
   // Quand on sélectionne un métier, pré-sélectionner le plan recommandé
   const handleSelectProfession = (id: string) => {
     setProfessionId(id);
     const prof = PROFESSIONS.find(p => p.id === id);
     if (prof) {
-      const suggested = TEMPLATE_SUGGESTED_PLAN[prof.template] || 'basic';
+      const suggested = TEMPLATE_SUGGESTED_PLAN[prof.template] || 'starter';
       setSelectedPlan(suggested);
     }
   };

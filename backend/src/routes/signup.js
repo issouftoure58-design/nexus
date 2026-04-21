@@ -21,6 +21,7 @@ import {
   verifyPhoneCode,
   consumePhoneToken,
 } from '../services/signupVerificationService.js';
+import { validatePasswordStrength } from '../sentinel/security/passwordPolicy.js';
 
 const router = express.Router();
 
@@ -322,6 +323,16 @@ router.post('/', signupLimiter, async (req, res) => {
       return res.status(400).json({
         error: 'Champs requis manquants',
         required: ['company_name', 'secteur_id', 'email', 'password', 'plan_id']
+      });
+    }
+
+    // 🔒 SECURITY: Valider la complexité du mot de passe
+    const pwdCheck = validatePasswordStrength(password);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({
+        error: 'Mot de passe trop faible',
+        code: 'WEAK_PASSWORD',
+        details: pwdCheck.errors,
       });
     }
 

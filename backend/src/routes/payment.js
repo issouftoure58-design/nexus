@@ -307,7 +307,7 @@ async function sendConfirmationEmail(rdvId, tenantId, paymentInfo) {
   const acompte = paymentInfo.type === 'acompte' ? paymentInfo.montant : 0;
 
   try {
-    const result = await sendConfirmation(rdvData, acompte);
+    const result = await sendConfirmation(rdvData, acompte, tenantId);
     logger.info(`[Payment] Confirmation envoyée pour RDV #${rdvId}`);
   } catch (err) {
     logger.error(`[Payment] Erreur envoi confirmation RDV #${rdvId}:`, { error: err.message });
@@ -335,7 +335,7 @@ async function sendCancellationEmail(rdvId, tenantId, refundInfo) {
   };
 
   try {
-    const result = await sendAnnulation(rdvData, refundInfo.montant_rembourse || 0);
+    const result = await sendAnnulation(rdvData, refundInfo.montant_rembourse || 0, tenantId);
     logger.info(`[Payment] Annulation envoyée pour RDV #${rdvId}`);
   } catch (err) {
     logger.error(`[Payment] Erreur envoi annulation RDV #${rdvId}:`, { error: err.message });

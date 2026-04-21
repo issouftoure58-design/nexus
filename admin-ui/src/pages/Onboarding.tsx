@@ -83,25 +83,31 @@ const DAY_LABELS: Record<string, string> = {
   sunday: 'Dimanche',
 };
 
-// Prix conformes à config/pricing.js (source de vérité — modèle 2026 Free/Basic/Business)
+// Prix conformes a config/pricing.js (source de verite — modele 2026 Free/Starter/Pro/Business)
 const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number }> = {
   free: {
     name: 'Free',
-    description: 'Freemium à vie pour démarrer',
+    description: 'Freemium a vie pour demarrer',
     color: 'from-gray-400 to-gray-500',
     price: 0,
   },
-  basic: {
-    name: 'Basic',
-    description: 'Tout illimité + IA via crédits',
+  starter: {
+    name: 'Starter',
+    description: 'Toute l\'IA + modules essentiels, 1 000 credits inclus',
     color: 'from-cyan-500 to-blue-500',
-    price: 29,
+    price: 69,
+  },
+  pro: {
+    name: 'Pro',
+    description: 'Multi-sites, tout illimite, 5 000 credits IA inclus',
+    color: 'from-blue-500 to-indigo-500',
+    price: 199,
   },
   business: {
     name: 'Business',
-    description: 'Multi-site, white-label, API + 10 000 crédits IA inclus (valeur 150€)',
+    description: 'RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus',
     color: 'from-purple-500 to-pink-500',
-    price: 149,
+    price: 599,
   },
 };
 
@@ -223,17 +229,17 @@ function ServiceCard({
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Canaux IA accessibles par plan (modèle 2026 — IA débloquée à partir de Basic)
+// Canaux IA accessibles par plan (modele 2026 — IA debloquee a partir de Starter)
 const PLAN_CHANNELS: Record<string, string[]> = {
   free: [],
-  basic: ['web', 'whatsapp', 'telephone'],
+  starter: ['web', 'whatsapp', 'telephone'],
+  pro: ['web', 'whatsapp', 'telephone'],
   business: ['web', 'whatsapp', 'telephone'],
 };
 
 // Mapping retro-compat vers les nouveaux noms de plans
 const normalizePlan = (plan: string): string => {
-  if (plan === 'starter') return 'free';
-  if (plan === 'pro') return 'basic';
+  if (plan === 'basic') return 'starter';
   return plan;
 };
 
@@ -676,9 +682,9 @@ export default function Onboarding() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 {[
-                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site', minPlan: 'basic' },
-                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Réponses auto 24/7', minPlan: 'basic' },
-                  { id: 'telephone', icon: PhoneCall, label: 'Téléphone', desc: 'Standard IA vocal', minPlan: 'basic' },
+                  { id: 'web', icon: Globe, label: 'Chatbot Web', desc: 'Sur votre site', minPlan: 'starter' },
+                  { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', desc: 'Reponses auto 24/7', minPlan: 'starter' },
+                  { id: 'telephone', icon: PhoneCall, label: 'Telephone', desc: 'Standard IA vocal', minPlan: 'starter' },
                 ].map((channel) => {
                   const isAvailable = availableChannels.includes(channel.id);
                   const isSelected = selectedChannels.has(channel.id);
@@ -707,7 +713,7 @@ export default function Onboarding() {
                     >
                       {!isAvailable && (
                         <span className="absolute top-2 right-2 text-[10px] font-bold bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">
-                          Plan Basic
+                          Plan Starter
                         </span>
                       )}
                       <channel.icon className={cn(

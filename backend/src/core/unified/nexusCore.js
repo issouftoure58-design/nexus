@@ -76,7 +76,7 @@ import {
 import { findAvailableTable, getTableAvailability, isRestaurantFull, getServiceType, getRestaurantCapacityForDay } from '../../services/restaurantAvailability.js';
 import { getBusinessInfo, getBusinessInfoSync } from '../../services/tenantBusinessService.js';
 
-// 📱 Notification de confirmation (cascade: Email → WhatsApp → SMS)
+// 📱 Notification de confirmation (tous canaux simultanés — payé par crédits)
 import { sendConfirmation as _sendConfirmationCascade, sendDepositRequest as _sendDepositRequest } from '../../services/notificationService.js';
 
 // 💰 Acompte: config + calcul
@@ -93,7 +93,7 @@ async function sendConfirmationNotification(tenantId, phone, details, clientEmai
       prix_total: (details.prixTotal || 0) * 100,
     });
   }
-  // Cascade: Email → WhatsApp → SMS (comme les rappels J-1)
+  // Tous canaux simultanés (Email + WhatsApp + SMS) — payé par crédits du tenant
   return _sendConfirmationCascade({
     client_telephone: phone,
     client_email: clientEmail,
@@ -1873,8 +1873,23 @@ export async function createReservationUnified(data, channel = 'web', options = 
         data.client_email = existingClient.email;
         console.log(`💾 📧 Email client récupéré depuis la BDD: ${existingClient.email}`);
       }
+      // Si le client existant n'a pas d'email et qu'on en a un → mettre à jour
+      if (data.client_email && !existingClient.email) {
+        await db.from('clients').update({ email: data.client_email }).eq('id', clientId).eq('tenant_id', data.tenant_id);
+        console.log(`💾 📧 Email client mis à jour: ${data.client_email}`);
+      }
       console.log(`💾 ✅ Client existant trouvé: ID=${clientId}`);
     } else {
+      // 🔒 Email obligatoire pour la création d'un nouveau client (notifications + facturation crédits)
+      if (!data.client_email) {
+        console.log(`💾 ❌ Email manquant — requis pour créer un client`);
+        return {
+          success: false,
+          error: 'EMAIL_REQUIRED',
+          response: 'J\'ai besoin de votre adresse email pour finaliser la réservation. Pouvez-vous me la communiquer ?',
+        };
+      }
+
       console.log(`💾 Client non trouvé, création...`);
       // Extraire prénom/nom
       const prenom = data.client_prenom || data.client_nom.split(' ')[0] || 'Client';
@@ -1888,7 +1903,7 @@ export async function createReservationUnified(data, channel = 'web', options = 
           prenom,
           nom,
           telephone: telephone.replace('+33', '0'),
-          email: data.client_email || null
+          email: data.client_email,
         })
         .select('id')
         .single();

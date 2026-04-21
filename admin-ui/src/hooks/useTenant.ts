@@ -16,19 +16,19 @@ import { api } from '@/lib/api';
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Modele 2026 revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Basic 29€ illimite non-IA + 1 000 credits IA / Business 149€ multi-sites + 10 000 credits IA
-// 'starter' et 'pro' sont DEPRECATED — gardes pour retro-compat consumer
-export type PlanType = 'free' | 'basic' | 'business' | 'starter' | 'pro';
+// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
+// Free freemium / Starter 69€ / Pro 199€ / Business 599€
+// Credits inclus : Free 200cr, Starter 1000cr, Pro 5000cr, Business 20000cr
+// 'basic' est DEPRECATED — garde pour retro-compat (alias de starter)
+export type PlanType = 'free' | 'starter' | 'pro' | 'business' | 'basic';
 
 /**
  * Normalise les anciens noms de plan vers les nouveaux
- * starter → free, pro → basic
+ * basic → starter (retro-compat)
  */
-export function normalizePlan(plan: PlanType | string | undefined): 'free' | 'basic' | 'business' {
-  if (plan === 'starter') return 'free';
-  if (plan === 'pro') return 'basic';
-  if (plan === 'free' || plan === 'basic' || plan === 'business') return plan;
+export function normalizePlan(plan: PlanType | string | undefined): 'free' | 'starter' | 'pro' | 'business' {
+  if (plan === 'basic') return 'starter';
+  if (plan === 'free' || plan === 'starter' || plan === 'pro' || plan === 'business') return plan;
   return 'free';
 }
 
@@ -195,7 +195,7 @@ function detectTenantSlug(): string {
 // PLAN HIERARCHY
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PLAN_ORDER: Array<'free' | 'basic' | 'business'> = ['free', 'basic', 'business'];
+const PLAN_ORDER: Array<'free' | 'starter' | 'pro' | 'business'> = ['free', 'starter', 'pro', 'business'];
 
 /**
  * Vérifie si le plan actuel inclut le plan requis
@@ -211,11 +211,12 @@ function hasPlanAccess(currentPlan: PlanType, requiredPlan: PlanType): boolean {
 // DEFAULT QUOTAS BY PLAN
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Quotas par defaut (modele 2026 — revision finale 9 avril 2026)
-// Free     : freemium strict (10 RDV/mois, 30 clients), IA bloquee (0 credit)
-// Basic    : tout illimite non-IA + 1 000 credits IA inclus / mois (valeur 15€)
-// Business : Basic + multi-sites + 10 000 credits IA inclus / mois (valeur 150€)
-const DEFAULT_QUOTAS: Record<'free' | 'basic' | 'business', TenantQuotas> = {
+// Quotas par defaut (modele 2026 — revision 21 avril 2026)
+// Free     : freemium strict, IA bloquee (200 credits limite)
+// Starter  : toute IA + modules essentiels, 200 limites, 1 000 credits IA inclus
+// Pro      : multi-sites, tout illimite, 5 000 credits IA inclus
+// Business : RH, Compta, Sentinel, White-label, API, SSO, 20 000 credits IA inclus
+const DEFAULT_QUOTAS: Record<'free' | 'starter' | 'pro' | 'business', TenantQuotas> = {
   free: {
     clients_max: 30,
     storage_gb: 1,
@@ -224,18 +225,26 @@ const DEFAULT_QUOTAS: Record<'free' | 'basic' | 'business', TenantQuotas> = {
     reservations_month: 10,
     messages_ia_month: 0,
   },
-  basic: {
-    clients_max: -1, // Illimite
-    storage_gb: 50,
+  starter: {
+    clients_max: 200,
+    storage_gb: 10,
     posts_ia_month: 0, // 1 000 credits IA inclus (gere via ai_credits)
     images_ia_month: 0,
-    reservations_month: -1, // Illimite
+    reservations_month: 200,
     messages_ia_month: 0, // 1 000 credits IA inclus (gere via ai_credits)
+  },
+  pro: {
+    clients_max: -1, // Illimite
+    storage_gb: 50,
+    posts_ia_month: 0, // 5 000 credits IA inclus (gere via ai_credits)
+    images_ia_month: 0,
+    reservations_month: -1, // Illimite
+    messages_ia_month: 0, // 5 000 credits IA inclus (gere via ai_credits)
   },
   business: {
     clients_max: -1, // Illimite
     storage_gb: -1, // Illimite
-    posts_ia_month: 0, // 10 000 credits IA inclus (gere via ai_credits)
+    posts_ia_month: 0, // 20 000 credits IA inclus (gere via ai_credits)
     images_ia_month: 0,
     reservations_month: -1, // Illimite
     messages_ia_month: 0,
@@ -343,12 +352,13 @@ export function useTenant() {
     quotas: currentQuotas,
     statut: tenant?.statut || 'actif',
 
-    // Helpers plan — basés sur le plan effectif (modele 2026)
+    // Helpers plan — bases sur le plan effectif (modele 2026)
     hasPlan: (requiredPlan: PlanType) => hasPlanAccess(currentPlan, requiredPlan),
-    isBasic: hasPlanAccess(currentPlan, 'basic'),
+    isStarter: hasPlanAccess(currentPlan, 'starter'),
+    isPro: hasPlanAccess(currentPlan, 'pro'),
     isBusiness: hasPlanAccess(currentPlan, 'business'),
     // DEPRECATED — alias retro-compat (a supprimer apres migration consumers)
-    isPro: hasPlanAccess(currentPlan, 'basic'),
+    isBasic: hasPlanAccess(currentPlan, 'starter'),
 
     // Helpers modules
     hasModule: (moduleName: string) => currentModules[moduleName] === true,

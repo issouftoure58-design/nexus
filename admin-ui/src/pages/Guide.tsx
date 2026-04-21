@@ -41,7 +41,7 @@ interface GuideSection {
   icon: React.ElementType;
   title: string;
   path?: string;
-  badge?: 'Basic' | 'Business';
+  badge?: 'Starter' | 'Pro' | 'Business';
   condition: (checks: ReturnType<typeof useBusinessTypeChecks>) => boolean;
   content: (term: typeof TERMINOLOGY[string]) => string[];
   tip?: (term: typeof TERMINOLOGY[string]) => string;
@@ -90,11 +90,12 @@ function getQuickLinks(businessType: string): { label: string; path: string; ico
 // Badge couleur plan
 // ---------------------------------------------------------------------------
 function PlanBadge({ plan }: { plan: string }) {
-  // Modele 2026 : free / basic / business + aliases retro-compat
-  const normalized = plan === 'starter' ? 'free' : plan === 'pro' ? 'basic' : plan;
+  // Modele 2026 : free / starter / pro / business + aliases retro-compat
+  const normalized = plan === 'basic' ? 'starter' : plan;
   const colors: Record<string, string> = {
     free: 'bg-gray-100 text-gray-700',
-    basic: 'bg-cyan-100 text-cyan-700',
+    starter: 'bg-cyan-100 text-cyan-700',
+    pro: 'bg-blue-100 text-blue-700',
     business: 'bg-purple-100 text-purple-700',
   };
   return (
@@ -306,7 +307,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: FileText,
     title: 'Devis',
     path: '/devis',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: (t) => [
       `Creez des devis professionnels pour vos ${t.client}s. Chaque devis peut etre converti en facture en un clic.`,
@@ -319,7 +320,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: CreditCard,
     title: 'Comptabilite',
     path: '/comptabilite',
-    badge: 'Basic',
+    badge: 'Business',
     condition: always,
     content: () => [
       `5 onglets : Compte de Resultat, Bilan, Rapprochement bancaire, Comptes Auxiliaires et Espace Expert-comptable.`,
@@ -333,7 +334,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Package,
     title: 'Stock & Inventaire',
     path: '/stock',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: () => [
       `Gerez vos produits avec suivi des quantites, alertes de stock bas et historique des mouvements.`,
@@ -350,8 +351,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     condition: always,
     content: (t) => [
       `L'Agent IA Web est un chatbot 24/7 integre a votre site. Il repond aux questions et prend les ${t.booking}s automatiquement.`,
-      `L'Agent IA Telephone (Basic) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain. Consomme des credits IA a l'usage.`,
-      `L'Agent IA WhatsApp (Basic) repond a vos ${t.client}s sur WhatsApp avec les memes capacites. Consomme des credits IA a l'usage.`,
+      `L'Agent IA Telephone (Starter) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain. Consomme des credits IA a l'usage.`,
+      `L'Agent IA WhatsApp (Starter) repond a vos ${t.client}s sur WhatsApp avec les memes capacites. Consomme des credits IA a l'usage.`,
       `Tous les agents sont entraines sur vos donnees (services, horaires, FAQ) et respectent votre ton de communication.`,
     ],
     tip: (t) => `Astuce : renseignez bien vos services et horaires — plus l'IA a d'informations, mieux elle repond a vos ${t.client}s.`,
@@ -362,7 +363,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Megaphone,
     title: 'Marketing & CRM',
     path: '/segments',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: (t) => [
       `Segmentez vos ${t.client}s avec le CRM : par CA, frequence, anciennete ou tags personnalises.`,
@@ -376,7 +377,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: TrendingUp,
     title: 'Pipeline Commercial',
     path: '/pipeline',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: () => [
       `Suivez vos opportunites de vente avec un pipeline visuel : prospection → contact → devis → negociation → gagne/perdu.`,
@@ -389,7 +390,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Share2,
     title: 'Reseaux Sociaux',
     path: '/reseaux-sociaux',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: () => [
       `Planifiez et publiez vos posts sur vos reseaux sociaux directement depuis NEXUS.`,
@@ -416,7 +417,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: PieChart,
     title: 'Analytics & SEO',
     path: '/seo',
-    badge: 'Basic',
+    badge: 'Starter',
     condition: always,
     content: () => [
       `L'Analytics affiche votre rentabilite par service, marges et seuil de rentabilite.`,
@@ -448,7 +449,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     content: (t) => [
       `Gerez votre profil, mot de passe et authentification a deux facteurs (2FA).`,
       `La section Equipe permet d'inviter des ${t.staff}s avec des roles et permissions personnalises.`,
-      `Consultez et gerez votre abonnement (Free, Basic 29€/mois avec 1 000 credits IA inclus, Business 149€/mois avec 10 000 credits IA inclus) dans "Mon abonnement". L'essai Basic gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
+      `Consultez et gerez votre abonnement (Free, Starter 69€/mois avec 1 000 credits IA inclus, Pro 199€/mois avec 5 000 credits, Business 599€/mois avec 20 000 credits) dans "Mon abonnement". L'essai Starter gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
       `La section Activite permet de decrire votre etablissement — ces informations sont utilisees par l'IA pour renseigner vos ${t.client}s.`,
     ],
   },
@@ -482,7 +483,8 @@ export default function Guide() {
   const quickLinks = useMemo(() => getQuickLinks(businessType), [businessType]);
 
   const badgeColor: Record<string, string> = {
-    Basic: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    Starter: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    Pro: 'bg-blue-100 text-blue-700 border-blue-200',
     Business: 'bg-purple-100 text-purple-700 border-purple-200',
   };
 

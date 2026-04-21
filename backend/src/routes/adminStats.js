@@ -28,6 +28,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .select('montant_ttc')
       .eq('tenant_id', tenantId)
       .eq('statut', 'payee')
+      .is('reservation_id', null)
       .gte('date_paiement', `${startOfMonth}T00:00:00`);
 
     const { data: ordersMois } = await supabase
@@ -55,6 +56,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .select('montant_ttc')
       .eq('tenant_id', tenantId)
       .eq('statut', 'payee')
+      .is('reservation_id', null)
       .gte('date_paiement', `${today}T00:00:00`)
       .lt('date_paiement', `${today}T23:59:59`);
 

@@ -77,40 +77,42 @@ interface UpgradeModalData {
   requiredModule?: string;
 }
 
-// Prix des plans pour le modal (modele 2026)
+// Prix des plans pour le modal (modele 2026 — revision 21 avril 2026)
 const PLAN_PRICES: Record<string, number> = {
   free: 0,
-  basic: 29,
-  business: 149,
+  starter: 69,
+  pro: 199,
+  business: 599,
 };
 
 const PLAN_NAMES: Record<string, string> = {
   free: 'Free',
-  basic: 'Basic',
+  starter: 'Starter',
+  pro: 'Pro',
   business: 'Business',
 };
 
-// Mapping modules vers plans requis (modele 2026 — revision finale 9 avril 2026)
-// Free : modules de base visibles. Basic : tout illimite + 1 000 credits IA inclus. Business : multi-site + 10 000 credits IA inclus.
+// Mapping modules vers plans requis (modele 2026 — revision 21 avril 2026)
+// Free : modules de base. Starter : toute IA + modules essentiels. Pro : multi-sites, illimite. Business : RH, Compta, Sentinel, White-label, API, SSO.
 const MODULE_TO_PLAN: Record<string, PlanType> = {
   // Free (modules de base, accessibles meme en gratuit avec quotas)
   'reservations': 'free',
   'facturation': 'free',
   'ecommerce': 'free',
-  // Basic (tout debloque + IA pay-as-you-go)
-  'agent_ia_web': 'basic',
-  'whatsapp': 'basic',
-  'telephone': 'basic',
-  'comptabilite': 'basic',
-  'stock': 'basic',
-  'devis': 'basic',
-  'crm_avance': 'basic',
-  'marketing': 'basic',
-  'analytics': 'basic',
+  // Starter (toute IA + modules essentiels)
+  'agent_ia_web': 'starter',
+  'whatsapp': 'starter',
+  'telephone': 'starter',
+  'stock': 'starter',
+  'devis': 'starter',
+  'crm_avance': 'starter',
+  'marketing': 'starter',
+  'analytics': 'starter',
+  'seo': 'starter',
+  'pipeline': 'starter',
+  // Business (modules premium)
+  'comptabilite': 'business',
   'rh': 'business',
-  'seo': 'basic',
-  'pipeline': 'basic',
-  // Business (premium)
   'sentinel': 'business',
 };
 
@@ -247,8 +249,8 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
   }, [businessType, userPermissions, isItemLocked]);
 
   const getRequiredPlanForItem = useCallback((item: NavItem): PlanType => {
-    if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'basic';
-    return item.requiredPlan || 'basic';
+    if (item.requiredModule) return MODULE_TO_PLAN[item.requiredModule] || 'starter';
+    return item.requiredPlan || 'starter';
   }, []);
 
   const getVisibleItems = useCallback((items: NavItem[]): NavItem[] => {
@@ -280,7 +282,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
             'hover:bg-white/10 text-white/40 hover:text-white/60 group',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? `${item.label} (${PLAN_NAMES[requiredPlan] || 'Basic'})` : undefined}
+          title={collapsed ? `${item.label} (${PLAN_NAMES[requiredPlan] || 'Starter'})` : undefined}
         >
           <Icon className="h-5 w-5 flex-shrink-0" />
           {!collapsed && (
@@ -288,7 +290,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
               <span className="flex-1 truncate text-left">{item.label}</span>
               <span className="flex items-center gap-1 text-[10px] font-semibold text-white/40 group-hover:text-cyan-300 bg-white/5 px-1.5 py-0.5 rounded">
                 <Lock className="w-2.5 h-2.5" />
-                {PLAN_NAMES[requiredPlan] || 'Basic'}
+                {PLAN_NAMES[requiredPlan] || 'Starter'}
               </span>
             </>
           )}
@@ -342,23 +344,23 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
     );
   };
 
-  // Plan badge — Modèle 2026 (Free / Basic / Business)
+  // Plan badge — Modele 2026 (Free / Starter / Pro / Business)
   const PlanBadge = () => {
     const colors: Record<string, string> = {
       free: 'bg-gray-500',
-      basic: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+      starter: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+      pro: 'bg-gradient-to-r from-blue-500 to-indigo-500',
       business: 'bg-gradient-to-r from-yellow-500 to-orange-500',
-      // Legacy aliases
-      starter: 'bg-gray-500',
-      pro: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+      // Legacy alias
+      basic: 'bg-gradient-to-r from-cyan-500 to-blue-500',
     };
 
     const labels: Record<string, string> = {
       free: 'Free',
-      basic: 'Basic',
+      starter: 'Starter',
+      pro: 'Pro',
       business: 'Business',
-      starter: 'Free',
-      pro: 'Basic',
+      basic: 'Starter',
     };
 
     return (
@@ -497,7 +499,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
               <p className="text-gray-600 mb-6">
                 Cette fonctionnalite est disponible a partir du plan{' '}
                 <span className="font-semibold text-gray-900">
-                  {PLAN_NAMES[upgradeModal.requiredPlan || 'basic']}
+                  {PLAN_NAMES[upgradeModal.requiredPlan || 'starter']}
                 </span>.
               </p>
 
@@ -505,19 +507,21 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-xl mb-6 border border-purple-100">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-gray-900">
-                    Plan {PLAN_NAMES[upgradeModal.requiredPlan || 'basic']}
+                    Plan {PLAN_NAMES[upgradeModal.requiredPlan || 'starter']}
                   </span>
                   <div className="flex items-baseline">
                     <span className="text-3xl font-bold text-gray-900">
-                      {PLAN_PRICES[upgradeModal.requiredPlan || 'basic']}€
+                      {PLAN_PRICES[upgradeModal.requiredPlan || 'starter']}€
                     </span>
                     <span className="text-gray-500 ml-1">/mois</span>
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">
                   {upgradeModal.requiredPlan === 'business'
-                    ? 'Multi-sites, white-label, API + 10 000 credits IA inclus / mois (valeur 150€)'
-                    : 'Tout illimite (RDV, factures, CRM, comptabilite) + 1 000 credits IA inclus / mois'}
+                    ? 'RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus / mois'
+                    : upgradeModal.requiredPlan === 'pro'
+                    ? 'Multi-sites, tout illimite, 20 users + 5 000 credits IA inclus / mois'
+                    : 'Toute l\'IA + stock, workflows, pipeline, devis, SEO + 1 000 credits IA inclus / mois'}
                 </p>
               </div>
 

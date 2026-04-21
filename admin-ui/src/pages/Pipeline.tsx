@@ -359,9 +359,9 @@ export default function PipelinePage() {
             <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Pipeline Commercial</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Cette fonctionnalite est disponible a partir du plan Basic (29€/mois).
+              Cette fonctionnalite est disponible a partir du plan Starter (69€/mois).
             </p>
-            <Button onClick={() => navigate('/subscription')}>Passer au plan Basic</Button>
+            <Button onClick={() => navigate('/subscription')}>Passer au plan Starter</Button>
           </CardContent>
         </Card>
       </div>

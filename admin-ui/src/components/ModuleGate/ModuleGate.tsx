@@ -2,7 +2,7 @@
  * ModuleGate - Bloque l'accès aux modules selon plan/modules
  *
  * Usage:
- *   <ModuleGate requiredPlan="basic">
+ *   <ModuleGate requiredPlan="starter">
  *     <CRMPage />
  *   </ModuleGate>
  *
@@ -38,36 +38,45 @@ interface ModuleGateProps {
 // PLAN INFO
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md)
-const PLAN_INFO: Record<'free' | 'basic' | 'business', { name: string; color: string; price: number }> = {
+// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
+// Free / Starter 69€ / Pro 199€ / Business 599€
+const PLAN_INFO: Record<'free' | 'starter' | 'pro' | 'business', { name: string; color: string; price: number }> = {
   free: { name: 'Free', color: 'gray', price: 0 },
-  basic: { name: 'Basic', color: 'cyan', price: 29 },
-  business: { name: 'Business', color: 'purple', price: 149 },
+  starter: { name: 'Starter', color: 'cyan', price: 69 },
+  pro: { name: 'Pro', color: 'blue', price: 199 },
+  business: { name: 'Business', color: 'purple', price: 599 },
 };
 
-const PLAN_FEATURES: Record<'free' | 'basic' | 'business', string[]> = {
+const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> = {
   free: [
-    '10 réservations / mois',
-    '10 factures / mois (avec watermark)',
-    '30 clients max dans le CRM',
-    'Tous les modules visibles (lecture)',
+    'Dashboard, Clients, Reservations',
+    'Facturation (avec watermark)',
+    '1 utilisateur',
+    '200 credits IA (limite)',
     'Support email',
   ],
-  basic: [
-    'Réservations illimitées',
-    'Facturation illimitée (sans watermark)',
-    'CRM, Équipe (5 max), Fidélité, Comptabilité, Stock',
-    'Workflows, Pipeline, Devis, SEO',
-    '1 000 crédits IA inclus chaque mois (valeur 15€)',
+  starter: [
+    'Toutes les fonctions IA',
+    'Stock, Workflows, Pipeline, Devis, SEO',
+    'Fidelite, Equipe (5 max)',
+    '1 000 credits IA inclus chaque mois',
+    '200 limites (reservations, factures, clients)',
     'Support email prioritaire',
   ],
+  pro: [
+    'Tout Starter +',
+    'Multi-sites, tout illimite',
+    'Equipe (20 max)',
+    '5 000 credits IA inclus chaque mois',
+    'Support prioritaire',
+  ],
   business: [
-    'Tout Basic + RH & Planning',
-    'Équipe (20 max), Multi-sites',
+    'Tout Pro + RH complet + Compta & Analytique',
+    'SENTINEL monitoring',
     'White-label (logo + domaine custom)',
     'API + Webhooks + SSO entreprise',
-    '10 000 crédits IA inclus chaque mois (valeur 150€)',
-    'Account Manager dédié + support prioritaire 1h',
+    '20 000 credits IA inclus chaque mois',
+    'Account Manager dedie, 50 users',
   ],
 };
 
@@ -178,7 +187,7 @@ export function ModuleGate({
 
   // Vérif module optionnel activé
   if (module && !hasModule(module)) {
-    const hasRequiredPlan = hasPlan('basic');
+    const hasRequiredPlan = hasPlan('starter');
 
     // Modules self-service (pas de numéro OVH nécessaire) → activation directe
     const SELF_SERVICE_MODULES = ['agent_ia_web'];
@@ -217,7 +226,7 @@ export function ModuleGate({
           </h2>
 
           <p className="text-xl text-gray-600 mb-8">
-            {moduleDescription || "Ce module nécessite un plan Basic ou Business"}
+            {moduleDescription || "Ce module necessite un plan Starter ou superieur"}
           </p>
 
           <Link
@@ -225,7 +234,7 @@ export function ModuleGate({
             className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
           >
             <Crown className="w-6 h-6" />
-            Passer en Basic — 29€/mois
+            Passer en Starter — 69€/mois
           </Link>
 
           <p className="mt-6 text-sm text-gray-500">
@@ -325,7 +334,7 @@ function SelfServiceActivation({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MODULE ACTIVATION REQUEST — Formulaire de demande pour tenants Basic/Business
+// MODULE ACTIVATION REQUEST — Formulaire de demande pour tenants Starter/Pro/Business
 // ══════════════════════════════════════════════════════════════════════════════
 
 const MODULE_LABELS: Record<string, { name: string; description: string; icon: string }> = {

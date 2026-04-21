@@ -42,7 +42,7 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       supabase.from('reservations').select('prix_total')
         .eq('tenant_id', tenantId).gte('date', startOfMonth).in('statut', ['confirme', 'termine']),
       supabase.from('factures').select('montant_ttc')
-        .eq('tenant_id', tenantId).eq('statut', 'payee').gte('date_paiement', `${startOfMonth}T00:00:00`),
+        .eq('tenant_id', tenantId).eq('statut', 'payee').is('reservation_id', null).gte('date_paiement', `${startOfMonth}T00:00:00`),
       supabase.from('orders').select('total')
         .eq('tenant_id', tenantId).in('statut', ['completed', 'ready']).gte('created_at', `${startOfMonth}T00:00:00`),
     ]);
@@ -56,7 +56,7 @@ router.get('/overview', authenticateAdmin, async (req, res) => {
       supabase.from('reservations').select('prix_total')
         .eq('tenant_id', tenantId).gte('date', startOfLastMonth).lt('date', endOfLastMonth).in('statut', ['confirme', 'termine']),
       supabase.from('factures').select('montant_ttc')
-        .eq('tenant_id', tenantId).eq('statut', 'payee').gte('date_paiement', `${startOfLastMonth}T00:00:00`).lt('date_paiement', `${endOfLastMonth}T00:00:00`),
+        .eq('tenant_id', tenantId).eq('statut', 'payee').is('reservation_id', null).gte('date_paiement', `${startOfLastMonth}T00:00:00`).lt('date_paiement', `${endOfLastMonth}T00:00:00`),
       supabase.from('orders').select('total')
         .eq('tenant_id', tenantId).in('statut', ['completed', 'ready']).gte('created_at', `${startOfLastMonth}T00:00:00`).lt('created_at', `${endOfLastMonth}T00:00:00`),
     ]);

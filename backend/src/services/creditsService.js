@@ -24,16 +24,20 @@ import logger from '../config/logger.js';
 // ════════════════════════════════════════════════════════════════════
 
 export const CREDIT_COSTS = {
+  email_notification: 1,     // 1 email notification (coût NEXUS: 0,001€)
+  whatsapp_notification: 5,  // 1 notification WhatsApp sortante (coût NEXUS: 0,005€)
   chat_admin_question: 7,    // 1 question chat IA admin
   whatsapp_message: 7,       // 1 message WhatsApp IA répondu
   devis_ia: 9,               // 1 devis IA généré
   antichurn_whatsapp: 9,     // 1 message Anti-Churn WhatsApp
   email_ia_sent: 9,          // 1 email IA généré + envoi
-  web_chat_conversation: 12, // 1 conversation Agent IA Web (~5 messages Sonnet)
+  whatsapp_voice_note: 10,   // 1 note vocale WhatsApp (7 msg + 3 Whisper transcription)
   social_post_generated: 12, // 1 post réseaux généré (Sonnet + image)
-  phone_minute: 18,          // 1 minute appel Téléphone IA
-  antichurn_sms_fr: 19,      // 1 message Anti-Churn SMS FR (cher)
-  seo_article: 69,           // 1 article SEO complet (1500 mots)
+  sms_notification: 15,      // 1 SMS notification sortant FR (coût NEXUS: 0,0725€)
+  web_chat_conversation: 15, // 1 conversation Agent IA Web (~5 messages Sonnet)
+  phone_minute: 22,          // 1 minute appel Téléphone IA
+  antichurn_sms_fr: 25,      // 1 message Anti-Churn SMS FR (IA + envoi)
+  seo_article: 75,           // 1 article SEO complet (1500 mots)
 };
 
 // Utilisation supplémentaire — montants preset avec réductions volume (modèle Claude)
@@ -327,6 +331,37 @@ async function creditTenant(tenantId, amount, { type, source, refId = null, desc
 // HELPERS
 // ════════════════════════════════════════════════════════════════════
 
+// Features bloquées sur le plan Free (IA tel/WA/web non incluses)
+const FREE_BLOCKED_CHANNELS = ['phone', 'whatsapp', 'web_chat'];
+
+/**
+ * Vérifie si le plan du tenant autorise un canal IA donné.
+ * Free = pas d'accès phone / whatsapp / web_chat (uniquement chat admin limité).
+ * Essai = accès complet (comme Starter).
+ *
+ * @param {string} tenantId
+ * @param {string} channel - 'phone' | 'whatsapp' | 'web_chat'
+ * @returns {Promise<boolean>}
+ */
+export async function isPlanAllowed(tenantId, channel) {
+  if (!tenantId) return false;
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('plan, statut')
+    .eq('id', tenantId)
+    .single();
+
+  // Essai = full access
+  if (tenant?.statut === 'essai') return true;
+
+  const plan = (tenant?.plan || 'free').toLowerCase();
+  if (plan === 'free') {
+    return !FREE_BLOCKED_CHANNELS.includes(channel);
+  }
+  return true;
+}
+
 /**
  * Récupère les crédits inclus mensuels selon le plan du tenant.
  */
@@ -350,6 +385,7 @@ export default {
   getTransactions,
   hasCredits,
   consume,
+  isPlanAllowed,
   purchasePack,
   purchaseTopup,
   grantMonthlyIncluded,

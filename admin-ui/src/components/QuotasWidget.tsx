@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, TrendingUp, Users, HardDrive, Image, FileText, Crown, Infinity } from 'lucide-react';
 
-type PlanType = 'free' | 'basic' | 'business';
+type PlanType = 'free' | 'starter' | 'pro' | 'business';
 
 interface QuotaData {
-  plan: PlanType | 'starter' | 'pro';
+  plan: PlanType | 'basic';
   limits: {
     clients: number;
     storage_gb: number;
@@ -24,22 +24,23 @@ interface QuotaData {
   };
 }
 
-// Retro-compat : starter→free, pro→basic
+// Retro-compat : basic→starter
 const normalizePlan = (plan: string): PlanType => {
-  if (plan === 'starter') return 'free';
-  if (plan === 'pro') return 'basic';
+  if (plan === 'basic') return 'starter';
   return plan as PlanType;
 };
 
 const PLAN_LABELS: Record<PlanType, string> = {
   free: 'Free',
-  basic: 'Basic',
+  starter: 'Starter',
+  pro: 'Pro',
   business: 'Business',
 };
 
 const PLAN_COLORS: Record<PlanType, 'secondary' | 'default' | 'success'> = {
   free: 'secondary',
-  basic: 'default',
+  starter: 'default',
+  pro: 'default',
   business: 'success',
 };
 
@@ -146,7 +147,7 @@ export function QuotasWidget() {
           <Alert className="mb-6 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50">
             <Crown className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
-              <strong>Plan Business</strong> - Multi-site, white-label, API + 10 000 credits IA inclus / mois (valeur 150€)
+              <strong>Plan Business</strong> - RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus / mois
               <div className="flex items-center gap-1 mt-1 text-sm text-amber-600">
                 <Infinity className="h-3 w-3" /> Aucune limite sur vos ressources principales
               </div>
@@ -190,23 +191,37 @@ export function QuotasWidget() {
             <div className="flex items-start gap-3">
               <TrendingUp className="h-5 w-5 text-cyan-600 mt-0.5" />
               <div>
-                <p className="font-medium text-cyan-900">Passez au plan Basic — 29€/mois</p>
+                <p className="font-medium text-cyan-900">Passez au plan Starter — 69€/mois</p>
                 <p className="text-sm text-cyan-700 mt-1">
-                  Tout illimite (RDV, factures, clients) + IA debloquee via credits pay-as-you-go.
+                  Toute l'IA + stock, workflows, pipeline, devis, SEO, fidelite + 1 000 credits IA inclus.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {normalizePlan(quotas.plan) === 'basic' && hasWarnings && (
+        {normalizePlan(quotas.plan) === 'starter' && hasWarnings && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-blue-900">Passez au plan Pro — 199€/mois</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Multi-sites, tout illimite, 20 users + 5 000 credits IA inclus chaque mois.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {normalizePlan(quotas.plan) === 'pro' && hasWarnings && (
           <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <div className="flex items-start gap-3">
               <TrendingUp className="h-5 w-5 text-purple-600 mt-0.5" />
               <div>
-                <p className="font-medium text-purple-900">Passez au plan Business — 149€/mois</p>
+                <p className="font-medium text-purple-900">Passez au plan Business — 599€/mois</p>
                 <p className="text-sm text-purple-700 mt-1">
-                  Multi-site, white-label, API, SSO + 10 000 credits IA inclus chaque mois (valeur 150€).
+                  RH complet, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus chaque mois.
                 </p>
               </div>
             </div>

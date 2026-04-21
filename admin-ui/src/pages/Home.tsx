@@ -553,7 +553,7 @@ export function Home() {
         // Module verrouille (Free plan) → message upsell cible au lieu d'erreur generique
         const body = await response.json().catch(() => ({}));
         if (body?.code === 'MODULE_NOT_ACTIVATED') {
-          const upsell = 'L\'Assistant IA admin necessite le plan **Basic**.\n\n[Passer a Basic →](/subscription)';
+          const upsell = 'L\'Assistant IA admin necessite le plan **Starter**.\n\n[Passer a Starter →](/subscription)';
           setMessages(prev => prev.map(m =>
             m.id === assistantId ? { ...m, content: upsell, isStreaming: false } : m
           ));

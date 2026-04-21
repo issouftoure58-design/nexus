@@ -1,13 +1,14 @@
 /**
- * useCredits — Hook React pour accéder au solde et aux opérations de crédits IA
+ * useCredits — Hook React pour acceder au solde et aux operations de credits IA
  *
- * Modèle 2026 (révision finale 9 avril 2026) :
- *   • 1,5€ = 100 crédits (0,015€/crédit — taux base)
- *   • Free     : 0 crédit inclus (IA bloquée)
- *   • Basic    : 1 000 crédits inclus / mois (valeur 15€)
- *   • Business : 10 000 crédits inclus / mois (valeur 150€)
+ * Modele 2026 (revision 21 avril 2026) :
+ *   • 1,5€ = 100 credits (0,015€/credit — taux base)
+ *   • Free     : 200 credits (limite)
+ *   • Starter  : 1 000 credits inclus / mois
+ *   • Pro      : 5 000 credits inclus / mois
+ *   • Business : 20 000 credits inclus / mois
  *
- * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 crédits (0% bonus)
+ * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 credits (0% bonus)
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

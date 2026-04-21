@@ -607,13 +607,13 @@ export async function setDefaultPaymentMethod(tenantId, paymentMethodId) {
  * Prorata automatique applique par Stripe.
  *
  * @param {string} tenantId
- * @param {string} planId - 'basic' | 'business'
+ * @param {string} planId - 'starter' | 'pro' | 'business'
  * @param {string} cycle - 'monthly' | 'yearly'
  */
 export async function changeSubscriptionPlan(tenantId, planId, cycle = 'monthly') {
   if (!stripe) throw new Error('Stripe not configured');
-  if (!['basic', 'business'].includes(planId)) {
-    throw new Error('Plan invalide (basic | business)');
+  if (!['starter', 'pro', 'business', 'basic'].includes(planId)) {
+    throw new Error('Plan invalide (starter | pro | business)');
   }
 
   const { data: tenant, error } = await supabase
@@ -1013,10 +1013,10 @@ async function handleSubscriptionUpdate(subscription) {
   // 💳 Octroi des crédits IA mensuels inclus (Basic & Business) a chaque renouvellement de periode
   // - Premiere activation d'un plan payant : grant complet + init monthly_included
   // - Renouvellement periode : grant complet (monthly_reset_at depassee)
-  // - Upgrade Basic -> Business en cours de periode : top-up de la difference
-  // - Downgrade Business -> Basic : pas de nouveau grant, monthly_included ajuste pour prochain reset
+  // - Upgrade : top-up de la difference
+  // - Downgrade : pas de nouveau grant, monthly_included ajuste pour prochain reset
   if (
-    ['basic', 'business'].includes(planId) &&
+    ['starter', 'pro', 'business', 'basic'].includes(planId) &&
     (subscription.status === 'active' || subscription.status === 'trialing')
   ) {
     try {
@@ -1072,19 +1072,18 @@ async function handleSubscriptionUpdate(subscription) {
 
 /**
  * Extrait le plan_id depuis les items de la subscription Stripe
- * Modèle 2026 : Free / Basic / Business
- * Aliases retro-compat : 'starter' → 'free', 'pro' → 'basic'
+ * Modèle 2026 (révisé 21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
  */
 function extractPlanFromSubscription(subscription) {
   const items = subscription.items?.data || [];
 
   const normalize = (raw) => {
     if (raw.includes('business')) return 'business';
-    if (raw.includes('basic')) return 'basic';
+    if (raw.includes('pro')) return 'pro';
+    if (raw.includes('starter')) return 'starter';
+    // Legacy alias : basic → starter
+    if (raw.includes('basic')) return 'starter';
     if (raw.includes('free')) return 'free';
-    // Legacy aliases
-    if (raw.includes('starter')) return 'free';
-    if (raw.includes('pro')) return 'basic';
     return null;
   };
 
@@ -1106,7 +1105,7 @@ function extractPlanFromSubscription(subscription) {
 
 /**
  * Calcule les modules actifs selon le plan
- * Modèle 2026 : Free (limité) / Basic (tout débloqué + IA pay-as-you-go) / Business (Basic + premium)
+ * Modèle 2026 (révisé 21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
  */
 function computeModulesFromPlan(planId) {
   const FREE_MODULES = {
@@ -1125,13 +1124,10 @@ function computeModulesFromPlan(planId) {
     telephone: false,
   };
 
-  // NOTE: `whatsapp`, `telephone`, `agent_ia_whatsapp`, `agent_ia_telephone` ne
-  // sont PAS dans cette liste car ils necessitent un provisioning Twilio
-  // manuel (cf memory/activation-ia-protocol.md). Le tenant doit faire une
-  // demande d'activation depuis /ia-whatsapp ou /ia-telephone → super-admin
-  // approuve dans Sentinel apres avoir configure le numero Twilio.
-  // Seul `agent_ia_web` est auto-active (self-service, aucun provisioning).
-  const BASIC_MODULES = {
+  // NOTE: `whatsapp`, `telephone` necessitent un provisioning Twilio
+  // manuel (cf memory/activation-ia-protocol.md). Seul `agent_ia_web`
+  // est auto-active (self-service, aucun provisioning).
+  const STARTER_MODULES = {
     dashboard: true,
     clients: true,
     reservations: true,
@@ -1141,9 +1137,7 @@ function computeModulesFromPlan(planId) {
     ecommerce: true,
     reviews: true,
     waitlist: true,
-    // ✨ Chat web IA auto-active (self-service, pas de numero)
     agent_ia_web: true,
-    // Modules avancés débloqués
     comptabilite: true,
     crm_avance: true,
     marketing: true,
@@ -1154,27 +1148,33 @@ function computeModulesFromPlan(planId) {
     devis: true,
     equipe: true,
     fidelite: true,
-    rh: true,
     seo: true,
     workflows: true,
-    sentinel: true,
+  };
+
+  const PRO_MODULES = {
+    ...STARTER_MODULES,
+    multi_site: true,
   };
 
   const BUSINESS_MODULES = {
-    ...BASIC_MODULES,
-    api: true,
-    multi_site: true,
+    ...PRO_MODULES,
+    rh: true,
+    comptabilite: true,
+    compta_analytique: true,
+    sentinel: true,
     whitelabel: true,
+    api: true,
     sso: true,
   };
 
   const PLAN_MODULES = {
     free: FREE_MODULES,
-    basic: BASIC_MODULES,
+    starter: STARTER_MODULES,
+    pro: PRO_MODULES,
     business: BUSINESS_MODULES,
-    // ⚠️ DEPRECATED — alias retro-compat
-    starter: FREE_MODULES,
-    pro: BASIC_MODULES,
+    // Legacy alias
+    basic: STARTER_MODULES,
   };
 
   return PLAN_MODULES[planId] || PLAN_MODULES.free;

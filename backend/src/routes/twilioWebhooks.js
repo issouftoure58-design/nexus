@@ -28,6 +28,7 @@ import openaiTTS from '../services/openaiTTSService.js';
 import { logCallStart, logCallEnd, logSMS, logSMSStatus } from '../modules/twilio/callLogService.js';
 import { saveVoiceRecording } from '../services/voiceRecordingService.js';
 import usageTracking from '../services/usageTrackingService.js';
+import { isPlanAllowed } from '../services/creditsService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 // V2 - Multi-tenant dynamic messages
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
@@ -482,6 +483,17 @@ router.all('/voice/realtime', validateTwilioSignature, async (req, res) => {
     return res.send(twiml.toString());
   }
 
+  // Plan check (Free = pas d'IA téléphone)
+  const rtPhoneAllowed = await isPlanAllowed(tenantId, 'phone');
+  if (!rtPhoneAllowed) {
+    logger.info(`REALTIME Free plan — IA téléphone bloquée pour ${tenantId}`);
+    const twiml = new VoiceResponse();
+    twiml.say(VOICE_CONFIG, "Désolé, le service d'assistant téléphonique n'est pas disponible avec votre forfait actuel. Au revoir.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
+
   return handleRealtimeCall(req, res, { From, To, CallSid, CallerCity, CallerCountry, tenantId, tenantConfig });
 });
 
@@ -510,6 +522,17 @@ router.all('/voice', validateTwilioSignature, async (req, res) => {
     logger.error(`VOICE TENANT_NOT_FOUND: Rejecting call from ${From} to unknown number ${To}`);
     const twiml = new VoiceResponse();
     twiml.say(VOICE_CONFIG, "Désolé, ce numéro n'est plus en service. Au revoir.");
+    twiml.hangup();
+    res.type('text/xml');
+    return res.send(twiml.toString());
+  }
+
+  // ── PLAN CHECK (Free plan = pas d'IA téléphone) ──
+  const phoneAllowed = await isPlanAllowed(tenantId, 'phone');
+  if (!phoneAllowed) {
+    logger.info(`VOICE Free plan — IA téléphone bloquée pour ${tenantId}`);
+    const twiml = new VoiceResponse();
+    twiml.say(VOICE_CONFIG, "Désolé, le service d'assistant téléphonique n'est pas disponible avec votre forfait actuel. Passez à un forfait supérieur pour activer cette fonctionnalité. Au revoir.");
     twiml.hangup();
     res.type('text/xml');
     return res.send(twiml.toString());

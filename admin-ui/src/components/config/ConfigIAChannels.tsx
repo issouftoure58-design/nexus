@@ -23,28 +23,30 @@ const CHANNELS = [
     label: 'Agent IA Web',
     description: 'Chatbot IA 24/7 intégré sur votre site web (consomme des crédits)',
     emoji: '🌐',
-    plan: 'basic' as PlanType,
+    plan: 'starter' as PlanType,
   },
   {
     key: 'whatsapp' as const,
     label: 'Agent IA WhatsApp',
     description: 'Assistant IA sur WhatsApp pour vos clients (consomme des crédits)',
     emoji: '📱',
-    plan: 'basic' as PlanType,
+    plan: 'starter' as PlanType,
   },
   {
     key: 'telephone' as const,
     label: 'Agent IA Téléphone',
     description: 'Assistant vocal IA pour les appels entrants (consomme des crédits)',
     emoji: '📞',
-    plan: 'basic' as PlanType,
+    plan: 'starter' as PlanType,
   },
 ];
 
-const PLAN_LABELS: Record<PlanType, string> = {
+const PLAN_LABELS: Record<string, string> = {
   free: 'Free',
-  basic: 'Basic',
+  starter: 'Starter',
+  pro: 'Pro',
   business: 'Business',
+  basic: 'Starter',
 };
 
 export default function ConfigIAChannels({ channels, onChange }: Props) {

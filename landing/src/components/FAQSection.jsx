@@ -11,27 +11,27 @@ const FAQS = [
   },
   {
     q: 'Puis-je essayer NEXUS gratuitement ?',
-    a: "Oui, NEXUS propose une offre Free 100% gratuite a vie, sans carte bancaire. Elle inclut jusqu'a 10 reservations par mois, 10 factures, un CRM jusqu'a 30 clients et l'acces a tous les modules en lecture / decouverte. Vous pouvez passer a Basic 29€/mois quand vous etes pret, sans interruption de service et sans perdre vos donnees."
+    a: "Oui, NEXUS propose une offre Free 100% gratuite a vie, sans carte bancaire. Elle inclut 5 reservations par mois, 5 factures, un CRM jusqu'a 5 clients et l'IA chat admin en decouverte. Vous pouvez passer a Starter 69€/mois quand vous etes pret, sans interruption de service et sans perdre vos donnees."
   },
   {
     q: "Comment fonctionne l'assistant telephone IA ?",
-    a: "L'assistant telephone IA de NEXUS repond automatiquement a 100% de vos appels, 24h/24 et 7j/7. Il comprend le francais naturellement, prend les reservations, repond aux questions frequentes sur vos services et horaires, et peut meme gerer les modifications de rendez-vous. Vos clients parlent a un assistant vocal intelligent qui connait parfaitement votre activite."
+    a: "L'assistant telephone IA de NEXUS repond automatiquement a 100% de vos appels, 24h/24 et 7j/7. Il comprend le francais naturellement, prend les reservations, repond aux questions frequentes sur vos services et horaires, et peut meme gerer les modifications de rendez-vous. Vos clients parlent a un assistant vocal intelligent qui connait parfaitement votre activite. Disponible a partir du plan Starter."
   },
   {
     q: "Comment fonctionne l'integration WhatsApp Business ?",
-    a: "NEXUS se connecte a votre numero WhatsApp Business pour repondre automatiquement a vos clients. L'IA conversationnelle gere les demandes de rendez-vous, les questions sur vos tarifs, les confirmations et rappels automatiques. Vos clients interagissent sur leur application preferee sans que vous ayez a intervenir manuellement."
+    a: "NEXUS se connecte a votre numero WhatsApp Business pour repondre automatiquement a vos clients. L'IA conversationnelle gere les demandes de rendez-vous, les questions sur vos tarifs, les confirmations et rappels automatiques. Vos clients interagissent sur leur application preferee sans que vous ayez a intervenir manuellement. Disponible a partir du plan Starter."
   },
   {
     q: 'Combien coute NEXUS ?',
-    a: "NEXUS propose 3 niveaux d'acces : Free gratuit a vie (10 reservations et 10 factures par mois), Basic a 29 euros par mois pour un acces illimite a toutes les fonctions non-IA avec 1 000 credits IA inclus chaque mois, et Business a 149 euros par mois pour les multi-sites avec white-label, API et 10 000 credits IA inclus chaque mois (valeur 150 euros). Les fonctions IA (telephone IA, WhatsApp IA, marketing IA, articles SEO) consomment des credits. Vous ne payez que ce que vous consommez au-dela des credits inclus."
+    a: "NEXUS propose 4 plans : Free gratuit a vie (5 clients, 5 RDV, 5 factures, IA chat admin uniquement), Starter a 69 euros par mois (200 limites, 5 users, toutes les IA), Pro a 199 euros par mois (tout illimite, 20 users, multi-sites) et Business a 599 euros par mois (tout illimite, 50 users, RH, compta, analytique, Sentinel, white-label, API, SSO, account manager dedie). Sans engagement, sans frais caches."
   },
   {
-    q: 'Quelle est la difference entre les plans Free, Basic et Business ?',
-    a: "Le plan Free est gratuit a vie et permet de decouvrir NEXUS avec 10 reservations et 10 factures par mois — ideal pour demarrer. Le plan Basic a 29 euros par mois debloque l'acces illimite a toutes les fonctions non-IA (reservations, facturation, CRM, comptabilite, equipe, fidelite, workflows, devis, SEO) et inclut 1 000 credits IA chaque mois (valeur 15 euros). Le plan Business a 149 euros par mois ajoute le module RH complet, la gestion multi-sites, le white-label avec votre propre domaine, l'API et les webhooks, le SSO entreprise, le support prioritaire 1 heure, un account manager dedie et 10 000 credits IA inclus chaque mois (valeur 150 euros)."
+    q: 'Quelle est la difference entre les plans Free, Starter, Pro et Business ?',
+    a: "Le plan Free est gratuit a vie et permet de decouvrir NEXUS avec 5 clients, 5 RDV et 5 factures par mois — ideal pour tester. Le plan Starter a 69 euros par mois debloque toutes les IA (telephone, WhatsApp, chat, SEO, marketing) avec 200 limites et 5 utilisateurs. Le plan Pro a 199 euros par mois passe tout en illimite, ajoute le multi-sites et monte a 20 utilisateurs. Le plan Business a 599 euros par mois ajoute le module RH, la comptabilite avancee, l'analytique, Sentinel, le white-label, l'API, les webhooks, le SSO entreprise, un account manager dedie et monte a 50 utilisateurs."
   },
   {
-    q: 'Comment fonctionnent les credits IA NEXUS ?',
-    a: "NEXUS utilise un systeme de credits universels pour toutes les fonctions IA, similaire a Twilio ou OpenAI. 1,5 euro = 100 credits. Chaque plan payant inclut deja des credits : Basic 1 000 credits par mois (valeur 15 euros), Business 10 000 credits par mois (valeur 150 euros). Si vous avez besoin de plus, un pack unique additionnel est disponible : Pack 1000 a 15 euros pour 1 000 credits (taux base, sans bonus). Exemples de consommation : 1 question chat IA = 7 credits, 1 message WhatsApp IA = 7 credits, 1 minute de telephone IA = 18 credits, 1 post reseaux sociaux = 12 credits, 1 article SEO complet = 69 credits. Mode degrade gracieux a 0 credit (aucune surprise)."
+    q: 'Comment fonctionne la tarification IA de NEXUS ?',
+    a: "L'usage IA est inclus dans les plans Starter, Pro et Business. Chaque plan inclut un volume genereux d'utilisation IA (telephone, WhatsApp, chat, marketing, SEO). Si vous depassez les limites de votre plan, des packs d'utilisation supplementaire sont disponibles : 50 euros (-10%), 200 euros (-20%) et 500 euros (-30%). Le plan Free inclut uniquement l'IA chat admin en decouverte."
   },
   {
     q: "L'assistant IA comprend-il le francais ?",
@@ -63,7 +63,7 @@ const FAQS = [
   },
   {
     q: 'Comment fonctionne le support client NEXUS ?',
-    a: "Le plan Free et le plan Basic incluent le support par email avec reponse sous 24 heures. Le plan Business beneficie d'un support prioritaire avec premiere reponse en 1 heure, d'un account manager dedie, de sessions de formation personnalisees et d'un support telephonique direct. Notre equipe est basee en France et communique en francais."
+    a: "Le plan Free et le plan Starter incluent le support par email avec reponse sous 24 heures. Le plan Pro beneficie d'un support prioritaire. Le plan Business ajoute un support prioritaire avec premiere reponse en 1 heure, un account manager dedie, des sessions de formation personnalisees et un support telephonique direct. Notre equipe est basee en France et communique en francais."
   },
 ]
 
@@ -79,7 +79,7 @@ export default function FAQSection() {
             </span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Retrouvez les reponses aux questions les plus posees sur NEXUS — l'IA qui repond au telephone, gere vos messages WhatsApp et prend vos reservations 24/7. Tarifs, fonctionnalites, credits IA, securite des donnees — tout est explique ici.
+            Retrouvez les reponses aux questions les plus posees sur NEXUS — l'IA qui repond au telephone, gere vos messages WhatsApp et prend vos reservations 24/7. Tarifs, fonctionnalites, securite des donnees — tout est explique ici.
           </p>
         </div>
         <div className="space-y-4">

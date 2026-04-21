@@ -1,15 +1,15 @@
 /**
- * NEXUS AI — Simulateur de cout credits IA (révisé 9 avril 2026)
+ * NEXUS AI — Simulateur de cout IA (revise 21 avril 2026)
  *
  * Permet aux visiteurs de la landing d'estimer leur consommation mensuelle
- * de credits IA et de choisir entre Basic (1 000 cr inclus), Business (10 000 cr inclus),
- * et un pack additionnel unique Pack 1000 (15€/1000cr).
+ * et de choisir entre Starter (69€), Pro (199€) et Business (599€).
+ * Les credits internes ne sont JAMAIS montres au client.
  */
 
 import { useState, useMemo } from 'react'
 import { Calculator, Phone, MessageCircle, Globe, Megaphone, FileText, Sparkles, ArrowRight } from 'lucide-react'
 
-// Couts en credits — alignés avec backend/src/config/pricing.js (modele 2026)
+// Couts en credits — internes uniquement (JAMAIS visible client)
 const CREDIT_COSTS = {
   whatsapp: 7,        // 1 message WhatsApp IA = 7 credits
   webChat: 12,        // 1 conversation chat web = 12 credits (~5 messages)
@@ -19,29 +19,28 @@ const CREDIT_COSTS = {
   seoArticle: 69,     // 1 article SEO complet (1500 mots) = 69 credits
 }
 
-// Credits inclus par plan (source de verite : creditsService.js)
-const BASIC_INCLUDED = 1000
-const BUSINESS_INCLUDED = 10000
-
-// Pack unique additionnel
-const PACK_1000 = { credits: 1000, price: 15 }
+// Credits inclus par plan — internes (JAMAIS visible client)
+const STARTER_INCLUDED = 1000
+const PRO_INCLUDED = 5000
+const BUSINESS_INCLUDED = 20000
 
 // Prix mensuels
-const BASIC_PRICE = 29
-const BUSINESS_PRICE = 149
+const STARTER_PRICE = 69
+const PRO_PRICE = 199
+const BUSINESS_PRICE = 599
 
 const USAGE_PRESETS = [
   {
-    id: 'starter',
+    id: 'light',
     label: 'Demarrage',
     description: 'Premiers tests, quelques canaux IA',
-    values: { whatsapp: 100, webChat: 20, phoneMin: 30, socialPost: 0, email: 0, seoArticle: 0 },
+    values: { whatsapp: 50, webChat: 10, phoneMin: 15, socialPost: 0, email: 0, seoArticle: 0 },
   },
   {
     id: 'regular',
     label: 'Usage regulier',
     description: 'Activite stable, IA quotidienne',
-    values: { whatsapp: 500, webChat: 100, phoneMin: 120, socialPost: 8, email: 50, seoArticle: 2 },
+    values: { whatsapp: 300, webChat: 60, phoneMin: 80, socialPost: 8, email: 30, seoArticle: 2 },
   },
   {
     id: 'intensive',
@@ -52,54 +51,58 @@ const USAGE_PRESETS = [
 ]
 
 const ITEMS = [
-  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois', cost: CREDIT_COSTS.whatsapp, costLabel: '7 cr / msg' },
-  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois', cost: CREDIT_COSTS.webChat, costLabel: '12 cr / conv' },
-  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois', cost: CREDIT_COSTS.phoneMin, costLabel: '18 cr / min' },
-  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois', cost: CREDIT_COSTS.socialPost, costLabel: '12 cr / post' },
-  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois', cost: CREDIT_COSTS.email, costLabel: '9 cr / email' },
-  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois', cost: CREDIT_COSTS.seoArticle, costLabel: '69 cr / article' },
+  { key: 'whatsapp', icon: MessageCircle, label: 'Messages WhatsApp IA', unit: 'msg/mois' },
+  { key: 'webChat', icon: Globe, label: 'Conversations chat web', unit: 'conv/mois' },
+  { key: 'phoneMin', icon: Phone, label: 'Minutes telephone IA', unit: 'min/mois' },
+  { key: 'socialPost', icon: Megaphone, label: 'Posts reseaux sociaux', unit: 'posts/mois' },
+  { key: 'email', icon: FileText, label: 'Emails IA personnalises', unit: 'emails/mois' },
+  { key: 'seoArticle', icon: FileText, label: 'Articles SEO complets', unit: 'articles/mois' },
 ]
 
 export default function CreditsSimulator() {
   const [usage, setUsage] = useState(USAGE_PRESETS[1].values)
   const [activePreset, setActivePreset] = useState('regular')
 
+  // Total credits internes (pour la logique de recommandation uniquement)
   const totalCredits = useMemo(() => {
-    return ITEMS.reduce((sum, item) => sum + (usage[item.key] || 0) * item.cost, 0)
+    return ITEMS.reduce((sum, item) => sum + (usage[item.key] || 0) * CREDIT_COSTS[item.key], 0)
   }, [usage])
 
-  // Recommandation :
-  //   • ≤ 1 000 cr    → Basic suffit (aucun pack nécessaire)
-  //   • ≤ 10 000 cr   → Basic + n packs additionnels OU Business selon rentabilité
-  //   • > 10 000 cr   → Business + packs 1000 pour le surplus
+  // Recommandation basee sur les credits internes
   const recommendation = useMemo(() => {
     if (totalCredits === 0) {
       return { type: 'none' }
     }
 
-    // Option A : Basic + packs additionnels pour couvrir le besoin
-    const basicOverflow = Math.max(0, totalCredits - BASIC_INCLUDED)
-    const basicPacksNeeded = Math.ceil(basicOverflow / PACK_1000.credits)
-    const basicTotalCost = BASIC_PRICE + basicPacksNeeded * PACK_1000.price
-
-    // Option B : Business + packs additionnels
-    const businessOverflow = Math.max(0, totalCredits - BUSINESS_INCLUDED)
-    const businessPacksNeeded = Math.ceil(businessOverflow / PACK_1000.credits)
-    const businessTotalCost = BUSINESS_PRICE + businessPacksNeeded * PACK_1000.price
-
-    if (businessTotalCost < basicTotalCost) {
+    if (totalCredits <= STARTER_INCLUDED) {
       return {
-        type: 'business',
-        cost: businessTotalCost,
-        packsExtra: businessPacksNeeded,
-        savings: basicTotalCost - businessTotalCost,
+        type: 'starter',
+        cost: STARTER_PRICE,
+        description: 'Votre usage rentre dans le plan Starter.',
       }
     }
 
+    if (totalCredits <= PRO_INCLUDED) {
+      return {
+        type: 'pro',
+        cost: PRO_PRICE,
+        description: 'Votre usage necessite le plan Pro pour une couverture optimale.',
+      }
+    }
+
+    if (totalCredits <= BUSINESS_INCLUDED) {
+      return {
+        type: 'business',
+        cost: BUSINESS_PRICE,
+        description: 'Votre usage intensif est couvert par le plan Business.',
+      }
+    }
+
+    // Au-dela de Business included
     return {
-      type: 'basic',
-      cost: basicTotalCost,
-      packsExtra: basicPacksNeeded,
+      type: 'business_plus',
+      cost: BUSINESS_PRICE,
+      description: 'Votre usage depasse les inclusions Business. Un pack d\'utilisation supplementaire sera necessaire.',
     }
   }, [totalCredits])
 
@@ -112,6 +115,25 @@ export default function CreditsSimulator() {
   const applyPreset = (preset) => {
     setUsage(preset.values)
     setActivePreset(preset.id)
+  }
+
+  const getRecommendedPlan = () => {
+    if (recommendation.type === 'starter') return 'starter'
+    if (recommendation.type === 'pro') return 'pro'
+    return 'business'
+  }
+
+  const getRecommendedColor = () => {
+    if (recommendation.type === 'starter') return { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', icon: 'text-cyan-400' }
+    if (recommendation.type === 'pro') return { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', icon: 'text-cyan-400' }
+    return { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', icon: 'text-purple-400' }
+  }
+
+  const getRecommendedLabel = () => {
+    if (recommendation.type === 'starter') return 'Plan Starter recommande'
+    if (recommendation.type === 'pro') return 'Plan Pro recommande'
+    if (recommendation.type === 'business') return 'Plan Business recommande'
+    return 'Plan Business + supplement recommande'
   }
 
   return (
@@ -129,8 +151,8 @@ export default function CreditsSimulator() {
             </span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Basic inclut 1 000 credits/mois, Business inclut 10 000 credits/mois.
-            Estimez votre consommation et nous vous dirons quel plan est le plus avantageux.
+            Estimez votre consommation mensuelle et decouvrez quel plan est le plus adapte a vos besoins.
+            Starter a 69€, Pro a 199€ ou Business a 599€ — nous vous guidons.
           </p>
         </div>
 
@@ -160,7 +182,6 @@ export default function CreditsSimulator() {
               {ITEMS.map((item) => {
                 const Icon = item.icon
                 const count = usage[item.key] || 0
-                const subtotal = count * item.cost
                 return (
                   <div key={item.key} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-3">
@@ -168,7 +189,6 @@ export default function CreditsSimulator() {
                         <Icon className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                         <span className="text-sm text-gray-300 truncate">{item.label}</span>
                       </div>
-                      <span className="text-xs text-gray-500">{item.costLabel}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <input
@@ -179,9 +199,6 @@ export default function CreditsSimulator() {
                         className="w-24 px-3 py-1.5 bg-dark-900 border border-white/10 rounded-lg text-white text-sm focus:border-neon-cyan focus:outline-none"
                       />
                       <span className="text-xs text-gray-500">{item.unit}</span>
-                      <span className="ml-auto text-xs text-gray-400 font-mono">
-                        = {subtotal.toLocaleString('fr-FR')} cr
-                      </span>
                     </div>
                   </div>
                 )
@@ -193,61 +210,33 @@ export default function CreditsSimulator() {
           <div className="bg-gradient-to-b from-neon-cyan/5 to-dark-800/50 border border-neon-cyan/20 rounded-2xl p-6 flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-white">Notre recommandation</h3>
 
-            <div className="text-center py-6">
-              <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Credits necessaires</div>
-              <div className="text-5xl font-bold text-neon-cyan mb-2">
-                {totalCredits.toLocaleString('fr-FR')}
-              </div>
-              <div className="text-sm text-gray-400">credits / mois</div>
-            </div>
-
             {recommendation.type === 'none' ? (
-              <div className="text-center text-sm text-gray-500 py-6">
+              <div className="text-center text-sm text-gray-500 py-6 flex-1 flex items-center justify-center">
                 Ajustez votre consommation pour obtenir une recommandation.
               </div>
-            ) : recommendation.type === 'business' ? (
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-5 mt-auto">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span className="text-purple-400 text-xs font-bold uppercase tracking-wider">
-                    Plan Business recommande
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-white mb-1">
-                  {recommendation.cost}€<span className="text-sm text-gray-400">/mois</span>
-                </div>
-                <p className="text-xs text-gray-400 mb-3">
-                  Plan Business {BUSINESS_PRICE}€ ({BUSINESS_INCLUDED.toLocaleString('fr-FR')} credits inclus, valeur 150€)
-                  {recommendation.packsExtra > 0 && ` + ${recommendation.packsExtra} Pack 1000 additionnel${recommendation.packsExtra > 1 ? 's' : ''}`}.
-                  {recommendation.savings > 0 && ` Economie de ${recommendation.savings}€/mois vs Basic + packs.`}
-                </p>
-                <a
-                  href="https://app.nexus-ai-saas.com/signup?plan=business"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-purple-300 hover:text-purple-200"
-                >
-                  Choisir Business <ArrowRight className="w-4 h-4" />
-                </a>
-              </div>
             ) : (
-              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-5 mt-auto">
+              <div className={`${getRecommendedColor().bg} border ${getRecommendedColor().border} rounded-xl p-5 mt-auto`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-cyan-400" />
-                  <span className="text-cyan-400 text-xs font-bold uppercase tracking-wider">
-                    Plan Basic {recommendation.packsExtra > 0 ? `+ ${recommendation.packsExtra} Pack 1000` : 'suffit'}
+                  <Sparkles className={`w-4 h-4 ${getRecommendedColor().icon}`} />
+                  <span className={`${getRecommendedColor().text} text-xs font-bold uppercase tracking-wider`}>
+                    {getRecommendedLabel()}
                   </span>
                 </div>
                 <div className="text-2xl font-bold text-white mb-1">
                   {recommendation.cost}€<span className="text-sm text-gray-400">/mois</span>
                 </div>
                 <p className="text-xs text-gray-400 mb-3">
-                  Plan Basic {BASIC_PRICE}€ (tout illimite non-IA + {BASIC_INCLUDED} credits inclus)
-                  {recommendation.packsExtra > 0 && ` + ${recommendation.packsExtra} Pack 1000 additionnel${recommendation.packsExtra > 1 ? 's' : ''} (${recommendation.packsExtra * PACK_1000.price}€)`}.
+                  {recommendation.description}
                 </p>
                 <a
-                  href="https://app.nexus-ai-saas.com/signup?plan=basic"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200"
+                  href={`https://app.nexus-ai-saas.com/signup?plan=${getRecommendedPlan()}`}
+                  className={`inline-flex items-center gap-2 text-sm font-semibold ${
+                    recommendation.type === 'starter' || recommendation.type === 'pro'
+                      ? 'text-cyan-300 hover:text-cyan-200'
+                      : 'text-purple-300 hover:text-purple-200'
+                  }`}
                 >
-                  Demarrer avec Basic <ArrowRight className="w-4 h-4" />
+                  Choisir {recommendation.type === 'starter' ? 'Starter' : recommendation.type === 'pro' ? 'Pro' : 'Business'} <ArrowRight className="w-4 h-4" />
                 </a>
               </div>
             )}
@@ -255,8 +244,8 @@ export default function CreditsSimulator() {
         </div>
 
         <p className="text-center text-xs text-gray-500 mt-6 max-w-2xl mx-auto">
-          Estimation indicative. Mode degrade gracieux a 0 credit (les autres fonctions continuent de marcher).
-          Pas de surfacturation, pas de surprise.
+          Estimation indicative. L'usage IA est inclus dans votre plan. Si vous depassez les limites,
+          des packs d'utilisation supplementaire sont disponibles (50€ / 200€ / 500€ avec reductions).
         </p>
       </div>
     </section>

@@ -13,7 +13,7 @@ import {
 } from '../services/whatsappService.js';
 import { transcribeFromUrl } from '../services/whisperService.js';
 import usageTracking from '../services/usageTrackingService.js';
-import { hasCredits, consume as consumeCredits } from '../services/creditsService.js';
+import { hasCredits, consume as consumeCredits, isPlanAllowed } from '../services/creditsService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
 import { authenticateAdmin } from './adminAuth.js';
@@ -91,6 +91,14 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
 
     if (!tenantId || tenantError) {
       console.error('[WhatsApp Webhook] TENANT_NOT_FOUND:', { toNumber: To, fromPhone: clientPhone, error: tenantError });
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
+    // ── PLAN CHECK (Free plan = pas d'IA WhatsApp) ──
+    const whatsappAllowed = await isPlanAllowed(tenantId, 'whatsapp');
+    if (!whatsappAllowed) {
+      logger.info(`[WhatsApp] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
       res.type('text/xml');
       return res.send('<Response></Response>');
     }
@@ -354,6 +362,13 @@ router.post('/meta', async (req, res) => {
 
           if (!tenantId) {
             logger.error(`[META WA] Tenant non trouve pour ${cleanDisplay}`);
+            continue;
+          }
+
+          // Plan check (Free = pas d'IA WhatsApp)
+          const metaWaAllowed = await isPlanAllowed(tenantId, 'whatsapp');
+          if (!metaWaAllowed) {
+            logger.info(`[META WA] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
             continue;
           }
 

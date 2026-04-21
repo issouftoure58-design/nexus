@@ -43,43 +43,53 @@ export const PRICING = {
 };
 
 /**
- * Budgets mensuels par plan (EUR/mois par tenant)
+ * Budgets mensuels par plan (EUR/mois par tenant) — modele Claude
  *
- * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
- * - free : aucun acces IA (bloque)
- * - basic : 1 000 credits IA inclus (~15€ valeur) + IA additionnelle via pack unique
- * - business : 10 000 credits IA inclus (~150€ valeur) + IA additionnelle via pack unique
+ * Modele 2026 (revise 21 avril 2026 — voir memory/business-model-2026.md) :
+ * - Free     : 200 credits (chat admin limité, pas tel/WA/web)
+ * - Starter  : 1 000 credits (toutes IA débloquées)
+ * - Pro      : 5 000 credits (5x Starter)
+ * - Business : 20 000 credits (20x Starter)
  */
 export const PLAN_BUDGETS = {
-  free:     { ai: 0,   sms: 0,  voice: 0,  total: 0 },
-  basic:    { ai: 15, sms: 0,  voice: 0,  total: 15 },  // 1 000 credits IA inclus
-  business: { ai: 150, sms: 0,  voice: 0,  total: 150 },  // 10 000 credits IA inclus
-  // ⚠️ DEPRECATED — Aliases retro-compat (a supprimer apres migration consommateurs)
-  starter:  { ai: 0,   sms: 0,  voice: 0,  total: 0 },
-  pro:      { ai: 15, sms: 0,  voice: 0,  total: 15 },
+  free:     { ai: 3,    sms: 0,  voice: 0,  total: 3 },     // 200 credits
+  starter:  { ai: 15,   sms: 0,  voice: 0,  total: 15 },    // 1 000 credits
+  pro:      { ai: 75,   sms: 0,  voice: 0,  total: 75 },    // 5 000 credits
+  business: { ai: 300,  sms: 0,  voice: 0,  total: 300 },   // 20 000 credits
+  // Legacy alias
+  basic:    { ai: 15,   sms: 0,  voice: 0,  total: 15 },
 };
 
 /**
  * Prix des abonnements (EUR)
  *
- * Modele 2026 (revise 9 avril 2026 — voir memory/business-model-2026.md) :
- * - Free 0€ (freemium a vie, 10 RDV/mois, 10 factures/mois)
- * - Basic 29€/mois (acces illimite non-IA + 1 000 credits IA inclus)
- * - Business 149€/mois (Basic + multi-site + white-label + API + SSO + 10 000 credits IA inclus)
+ * Modele 2026 (revise 21 avril 2026 — voir memory/business-model-2026.md) :
+ * - Free     0€ (freemium, 5 RDV/factures/clients/presta/mois, chat admin limité)
+ * - Starter  69€/mois (toutes IA, 200 limites)
+ * - Pro     199€/mois (illimité, 20 postes, multi-site, RH)
+ * - Business 599€/mois (illimité, 50 postes, RH complet, compta, Sentinel, white-label, API, SSO, AM)
  */
 export const PLAN_PRICES = {
   free:     { monthly: 0,   yearly: 0 },
-  basic:    { monthly: 29,  yearly: 290 },   // 2 mois offerts en annuel
-  business: { monthly: 149, yearly: 1490 },  // 2 mois offerts en annuel
-  // ⚠️ DEPRECATED — Aliases retro-compat (a supprimer apres migration consommateurs)
-  starter:  { monthly: 0,   yearly: 0 },     // alias de free
-  pro:      { monthly: 29,  yearly: 290 },   // alias de basic
+  starter:  { monthly: 69,  yearly: 690 },   // 2 mois offerts en annuel
+  pro:      { monthly: 199, yearly: 1990 },  // 2 mois offerts en annuel
+  business: { monthly: 599, yearly: 5990 },  // 2 mois offerts en annuel
+  // Legacy alias
+  basic:    { monthly: 69,  yearly: 690 },
 };
 
 /**
- * Pack de credits IA additionnel (one-shot) — UN SEUL pack depuis la revision du 9 avril 2026.
- *
+ * Utilisation supplementaire (modele Claude) — presets avec réductions volume
  * Base : 1,5€ = 100 credits (0,015€/credit). Voir memory/business-model-2026.md.
+ */
+export const USAGE_TOPUP = {
+  topup_50:  { price: 50,  discount_pct: 10, label: '50€ d\'utilisation IA',  code: 'nexus_usage_50' },
+  topup_200: { price: 200, discount_pct: 20, label: '200€ d\'utilisation IA', code: 'nexus_usage_200' },
+  topup_500: { price: 500, discount_pct: 30, label: '500€ d\'utilisation IA', code: 'nexus_usage_500' },
+};
+
+/**
+ * Legacy — Pack de credits (retro-compat, a retirer quand tous les tenants sont migrés)
  */
 export const CREDIT_PACKS = {
   pack_1000: { price: 15, credits: 1000, bonus: 0, label: 'Pack 1000 crédits', code: 'nexus_credits_1000' },
@@ -89,17 +99,20 @@ export const CREDIT_PACKS = {
  * Cout en credits IA par action (voir business-model-2026.md pour le detail des marges)
  */
 export const CREDIT_COSTS = {
-  chat_admin_haiku:        7,   // 1 question chat IA admin
+  email_notification:      1,   // 1 email notification (cout NEXUS: 0,001€)
+  whatsapp_notification:   5,   // 1 notification WhatsApp sortante (cout NEXUS: 0,005€)
+  chat_admin_question:     7,   // 1 question chat IA admin
   whatsapp_message:        7,   // 1 message WhatsApp IA repondu
-  whatsapp_voice_note:    10,   // 1 note vocale WhatsApp (7 msg + 3 Whisper transcription)
   devis_ia:                9,   // 1 devis IA
-  anti_churn_whatsapp:     9,   // 1 message Anti-Churn WhatsApp
+  antichurn_whatsapp:      9,   // 1 message Anti-Churn WhatsApp
   email_ia_sent:           9,   // 1 email IA genere + envoi Resend
-  agent_web_conversation: 12,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
+  whatsapp_voice_note:    10,   // 1 note vocale WhatsApp (7 msg + 3 Whisper transcription)
   social_post_generated:  12,   // 1 post reseaux genere (Sonnet + image)
-  phone_minute:           18,   // 1 minute appel Telephone IA
-  anti_churn_sms_fr:      19,   // 1 message Anti-Churn SMS FR (cher)
-  seo_article_full:       69,   // 1 article SEO complet (1500 mots, Sonnet)
+  sms_notification:       15,   // 1 SMS notification sortant FR (cout NEXUS: 0,0725€)
+  web_chat_conversation:  15,   // 1 conversation Agent IA Web (~5 msgs Sonnet)
+  phone_minute:           22,   // 1 minute appel Telephone IA
+  antichurn_sms_fr:       25,   // 1 message Anti-Churn SMS FR (IA + envoi)
+  seo_article:            75,   // 1 article SEO complet (1500 mots, Sonnet)
 };
 
 /**
