@@ -20,14 +20,15 @@ ${domicileEnabled ? `- Le client peut choisir :
 - Quand ${gerante} ne travaille pas → "${gerante} ne travaille pas ce jour-là" (jamais "fermé")`,
 
     bookingProcess: `=== PROCESSUS RÉSERVATION (SERVICE À DOMICILE) ===
-1. Identifier le service demandé
-2. Vérifier les disponibilités (get_upcoming_days puis check_availability)
+1. Identifier le(s) service(s) demandé(s) — le client peut combiner plusieurs prestations
+1b. Demander : "Souhaitez-vous ajouter une autre prestation ?" avant les dispos
+2. Vérifier les disponibilités (get_upcoming_days puis check_availability) avec la durée TOTALE
 3. Demander le lieu : domicile ou chez ${gerante}
 4. Si domicile : collecter l'adresse complète + calculer les frais (calculate_travel_fee)
-5. Collecter nom complet + téléphone (10 chiffres)
-6. RÉCAPITULER avec le prix total (service + frais déplacement si applicable)
+5. Collecter nom complet + téléphone (10 chiffres) + email
+6. RÉCAPITULER avec tous les services + prix total (services + frais déplacement si applicable)
 7. Demander confirmation du client
-8. Créer avec create_booking → vérifier success=true`,
+8. Créer avec create_booking (utiliser "services" si plusieurs) → vérifier success=true`,
 
     terminology: {
       booking: 'rendez-vous',

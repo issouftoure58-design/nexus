@@ -529,8 +529,7 @@ router.post('/:id/confirm-payment', async (req, res) => {
 //         'confirme' → PayPal capturé (paiement déjà reçu)
 // 🔒 TENANT ISOLATION: Ajout du paramètre tenantId
 async function createReservationsFromOrder(orderId, clientId, items, dateRdv, heureDebut, lieu, adresseClient, statut = 'demande', clientInfo = {}, tenantId = null) {
-  let currentTime = heureDebut;
-  console.log(`[ORDERS] Création de ${items.length} réservation(s) pour commande #${orderId} avec statut: ${statut}`);
+  console.log(`[ORDERS] Création d'1 réservation multi-service (${items.length} services) pour commande #${orderId} avec statut: ${statut}`);
 
   // Récupérer les infos client si pas fournies (🔒 TENANT ISOLATION)
   let clientData = clientInfo;
@@ -555,47 +554,45 @@ async function createReservationsFromOrder(orderId, clientId, items, dateRdv, he
     }
   }
 
-  for (const item of items) {
-    const dureeMinutes = item.duree_minutes || item.dureeMinutes;
-    const serviceNom = item.service_nom || item.serviceNom;
+  // Construire le tableau services[] pour une seule réservation multi-service
+  const services = items.map(item => ({
+    name: item.service_nom || item.serviceNom,
+  }));
 
-    // Utiliser createReservationUnified via NEXUS CORE
-    // 🔒 TENANT ISOLATION: Passer le tenant_id pour la création de réservation
-    const result = await createReservationUnified({
-      tenant_id: tenantId,  // 🔒 CRITICAL: tenant_id requis pour créer la réservation
-      service_name: serviceNom,
-      date: dateRdv,
-      heure: currentTime,
-      client_nom: clientData.nom || 'Client Panier',
-      client_telephone: clientData.telephone || '',
-      client_email: clientData.email || null,
-      lieu: lieu === 'domicile' ? 'domicile' : getDefaultLocation(tenantId),
-      adresse: adresseClient || null,
-      order_id: orderId,
-      statut: statut,
-      notes: `Commande panier #${orderId}`,
-      duree_minutes: dureeMinutes
-    }, 'panier', {
-      sendSMS: false,  // SMS envoyé séparément pour la commande complète
-      skipValidation: true  // Validation déjà faite au niveau panier
-    });
+  // Calculer la durée totale pour la réservation
+  const totalDuree = items.reduce((sum, item) => sum + (item.duree_minutes || item.dureeMinutes || 0), 0);
 
-    if (result.success) {
-      // Mettre à jour l'item avec l'ID de réservation
+  // Utiliser createReservationUnified via NEXUS CORE avec services[]
+  // 🔒 TENANT ISOLATION: Passer le tenant_id pour la création de réservation
+  const result = await createReservationUnified({
+    tenant_id: tenantId,  // 🔒 CRITICAL: tenant_id requis pour créer la réservation
+    services: services,
+    date: dateRdv,
+    heure: heureDebut,
+    client_nom: clientData.nom || 'Client Panier',
+    client_telephone: clientData.telephone || '',
+    client_email: clientData.email || null,
+    lieu: lieu === 'domicile' ? 'domicile' : getDefaultLocation(tenantId),
+    adresse: adresseClient || null,
+    order_id: orderId,
+    statut: statut,
+    notes: `Commande panier #${orderId}`,
+    duree_minutes: totalDuree
+  }, 'panier', {
+    sendSMS: false,  // SMS envoyé séparément pour la commande complète
+    skipValidation: true  // Validation déjà faite au niveau panier
+  });
+
+  if (result.success) {
+    // Mettre à jour TOUS les items avec l'ID de la réservation unique
+    for (const item of items) {
       await supabase
         .from('order_items')
         .update({ reservation_id: result.reservationId })
         .eq('id', item.id);
-    } else {
-      console.error('[ORDERS] Erreur création réservation:', result.error);
     }
-
-    // Calculer l'heure du prochain service (+10 min pause)
-    const [hours, minutes] = currentTime.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes + dureeMinutes + 10;
-    const nextHours = Math.floor(totalMinutes / 60);
-    const nextMinutes = totalMinutes % 60;
-    currentTime = `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`;
+  } else {
+    console.error('[ORDERS] Erreur création réservation multi-service:', result.error);
   }
 }
 

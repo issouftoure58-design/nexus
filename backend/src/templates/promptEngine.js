@@ -123,13 +123,16 @@ Cet outil te donne les dates EXACTES (ex: "Lundi 2 février", "Mardi 3 février"
  */
 function buildBookingProcessRules() {
   return `=== PROCESSUS DE RÉSERVATION (UNIVERSEL) ===
-1. Identifier le service/produit demandé
-2. Vérifier les disponibilités (get_upcoming_days → check_availability)
-3. Collecter les informations client (nom complet, téléphone 10 chiffres, email)
-4. RÉCAPITULER toutes les infos et demander confirmation
-5. Créer avec create_booking UNIQUEMENT après confirmation du client
-6. Vérifier success=true avant de confirmer
+1. Identifier le(s) service(s) demandé(s) — le client peut en vouloir plusieurs
+2. Demander : "Souhaitez-vous ajouter une autre prestation ?" avant de passer aux dispos
+3. Vérifier les disponibilités (get_upcoming_days → check_availability) avec la durée TOTALE
+4. Collecter les informations client (nom complet, téléphone 10 chiffres, email)
+5. RÉCAPITULER toutes les infos (tous les services + prix total) et demander confirmation
+6. Créer avec create_booking UNIQUEMENT après confirmation du client
+7. Vérifier success=true avant de confirmer
 
+⚠️ Si plusieurs services → utiliser le paramètre "services" (tableau [{name: "..."}]) dans create_booking
+⚠️ Si un seul service → "service_name" suffit (backward compat)
 ⚠️ Le téléphone DOIT être 10 chiffres commençant par 0 (ex: 0612345678)
 ⚠️ L'email est OBLIGATOIRE — toujours le demander avant de créer la réservation`;
 }

@@ -13,12 +13,13 @@ export function getPromptRules(tc) {
 - Si multi-staff : propose les professionnels disponibles`,
 
     bookingProcess: `=== PROCESSUS RÉSERVATION (SALON) ===
-1. Identifier le service demandé
-2. Vérifier les disponibilités (get_upcoming_days puis check_availability)
+1. Identifier le(s) service(s) demandé(s) — le client peut combiner plusieurs prestations
+1b. Demander : "Souhaitez-vous ajouter une autre prestation ?" avant les dispos
+2. Vérifier les disponibilités (get_upcoming_days puis check_availability) avec la durée TOTALE
 3. Proposer les créneaux disponibles
-4. Collecter nom complet + téléphone (10 chiffres)
-5. RÉCAPITULER toutes les infos et demander confirmation
-6. Créer avec create_booking → vérifier success=true`,
+4. Collecter nom complet + téléphone (10 chiffres) + email
+5. RÉCAPITULER tous les services + prix total et demander confirmation
+6. Créer avec create_booking (utiliser "services" si plusieurs) → vérifier success=true`,
 
     terminology: {
       booking: 'rendez-vous',

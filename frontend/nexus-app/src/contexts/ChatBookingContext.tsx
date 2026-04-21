@@ -36,7 +36,8 @@ export type PaymentMethod = 'sur_place' | 'stripe' | 'paypal';
 
 export interface BookingState {
   stage: BookingStage;
-  service: Service | null;
+  service: Service | null;     // Backward compat — premier service ou null
+  services: Service[];          // Multi-service: tous les services sélectionnés
   selectedDate: string | null;
   selectedTime: string | null;
   weekAvailability: WeekAvailability | null;
@@ -51,6 +52,8 @@ export interface BookingState {
 type BookingAction =
   | { type: 'START_BOOKING' }
   | { type: 'SELECT_SERVICE'; payload: Service }
+  | { type: 'TOGGLE_SERVICE'; payload: Service }
+  | { type: 'DONE_SELECTING' }
   | { type: 'SET_WEEK_AVAILABILITY'; payload: { week: WeekAvailability; startDate: string } }
   | { type: 'SELECT_DATETIME'; payload: { date: string; time: string } }
   | { type: 'SET_CLIENT_INFO'; payload: ClientInfo }
@@ -66,6 +69,7 @@ type BookingAction =
 const initialState: BookingState = {
   stage: 'idle',
   service: null,
+  services: [],
   selectedDate: null,
   selectedTime: null,
   weekAvailability: null,
@@ -83,9 +87,31 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return { ...initialState, stage: 'service' };
 
     case 'SELECT_SERVICE':
+      // Backward compat: single select → services array of 1, move to date
       return {
         ...state,
         service: action.payload,
+        services: [action.payload],
+        stage: 'date',
+      };
+
+    case 'TOGGLE_SERVICE': {
+      const exists = state.services.find(s => s.id === action.payload.id);
+      const newServices = exists
+        ? state.services.filter(s => s.id !== action.payload.id)
+        : [...state.services, action.payload];
+      return {
+        ...state,
+        services: newServices,
+        service: newServices.length > 0 ? newServices[0] : null,
+      };
+    }
+
+    case 'DONE_SELECTING':
+      // Move from service selection to date when ≥1 service selected
+      if (state.services.length === 0) return state;
+      return {
+        ...state,
         stage: 'date',
       };
 
@@ -150,7 +176,7 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'GO_BACK':
       switch (state.stage) {
         case 'date':
-          return { ...state, stage: 'service', service: null };
+          return { ...state, stage: 'service', service: null, services: [] };
         case 'client':
           return { ...state, stage: 'date', selectedDate: null, selectedTime: null };
         case 'payment':
@@ -168,6 +194,8 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
 interface BookingContextType extends BookingState {
   startBooking: () => void;
   selectService: (service: Service) => void;
+  toggleService: (service: Service) => void;
+  doneSelecting: () => void;
   fetchWeekAvailability: (startDate: string) => Promise<void>;
   selectDateTime: (date: string, time: string) => void;
   setClientInfo: (info: ClientInfo) => void;
@@ -177,6 +205,8 @@ interface BookingContextType extends BookingState {
   goBack: () => void;
   formatPrice: (cents: number) => string;
   formatDuration: (minutes: number) => string;
+  totalDuration: number;
+  totalPrice: number;
 }
 
 const BookingContext = createContext<BookingContextType | null>(null);
@@ -185,6 +215,10 @@ const BookingContext = createContext<BookingContextType | null>(null);
 export function ChatBookingProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(bookingReducer, initialState);
 
+  // Computed totals for multi-service
+  const totalDuration = useMemo(() => state.services.reduce((sum, s) => sum + s.duree, 0), [state.services]);
+  const totalPrice = useMemo(() => state.services.reduce((sum, s) => sum + s.prix, 0), [state.services]);
+
   const actions = useMemo(() => ({
     startBooking: () => dispatch({ type: 'START_BOOKING' }),
 
@@ -192,12 +226,21 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SELECT_SERVICE', payload: service });
     },
 
+    toggleService: (service: Service) => {
+      dispatch({ type: 'TOGGLE_SERVICE', payload: service });
+    },
+
+    doneSelecting: () => {
+      dispatch({ type: 'DONE_SELECTING' });
+    },
+
     fetchWeekAvailability: async (startDate: string) => {
-      if (!state.service) return;
+      if (state.services.length === 0) return;
 
       try {
-        const duration = state.service.duree;
-        const blocksDays = state.service.blocksDays || 1;
+        // Utiliser la durée TOTALE de tous les services sélectionnés
+        const duration = state.services.reduce((sum, s) => sum + s.duree, 0);
+        const blocksDays = Math.max(...state.services.map(s => s.blocksDays || 1));
 
         const response = await apiFetch(
           `/api/orders/checkout/week-availability?startDate=${startDate}&duration=${duration}&blocksDays=${blocksDays}`
@@ -228,7 +271,7 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
     },
 
     createOrder: async (paiementId?: string, paymentMethodOverride?: PaymentMethod) => {
-      if (!state.service || !state.selectedDate || !state.selectedTime) {
+      if (state.services.length === 0 || !state.selectedDate || !state.selectedTime) {
         dispatch({ type: 'ERROR', payload: 'Informations manquantes' });
         return;
       }
@@ -240,23 +283,27 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'PROCESSING' });
 
       try {
+        const items = state.services.map((s, i) => ({
+          serviceNom: s.nom,
+          serviceDescription: s.description || '',
+          dureeMinutes: s.duree,
+          prix: s.prix,
+          ordre: i,
+        }));
+
+        const sousTotal = state.services.reduce((sum, s) => sum + s.prix, 0);
+
         const orderData = {
-          items: [{
-            serviceNom: state.service.nom,
-            serviceDescription: state.service.description || '',
-            dureeMinutes: state.service.duree,
-            prix: state.service.prix,
-            ordre: 0,
-          }],
+          items,
           clientId: null,
           lieu: 'chez_fatou',  // Par défaut dans le chat
           adresseClient: null,
           distanceKm: null,
           dateRdv: state.selectedDate,
           heureDebut: state.selectedTime,
-          sousTotal: state.service.prix,
+          sousTotal,
           fraisDeplacement: 0,
-          total: state.service.prix,
+          total: sousTotal,
           clientNom: state.clientInfo.nom,
           clientPrenom: state.clientInfo.prenom,
           clientTelephone: state.clientInfo.telephone,
@@ -305,12 +352,14 @@ export function ChatBookingProvider({ children }: { children: ReactNode }) {
       if (mins === 0) return `${hours}h`;
       return `${hours}h${mins}`;
     },
-  }), [state.service, state.selectedDate, state.selectedTime, state.clientInfo, state.paymentMethod]);
+  }), [state.services, state.selectedDate, state.selectedTime, state.clientInfo, state.paymentMethod]);
 
   const value = useMemo(() => ({
     ...state,
     ...actions,
-  }), [state, actions]);
+    totalDuration,
+    totalPrice,
+  }), [state, actions, totalDuration, totalPrice]);
 
   return (
     <BookingContext.Provider value={value}>

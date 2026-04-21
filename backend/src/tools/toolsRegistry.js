@@ -104,11 +104,22 @@ export const TOOLS_CLIENT = [
   },
   {
     name: "create_booking",
-    description: "Crée une réservation quand TOUTES les infos sont confirmées. Pour un restaurant: nb_couverts est OBLIGATOIRE.",
+    description: "Crée une réservation quand TOUTES les infos sont confirmées. Supporte plusieurs services en un seul RDV via le paramètre 'services' (tableau). Pour un restaurant: nb_couverts est OBLIGATOIRE.",
     input_schema: {
       type: "object",
       properties: {
-        service_name: { type: "string", description: "Nom du service ou de la table (restaurant)" },
+        service_name: { type: "string", description: "Nom du service (si un seul service). Utiliser 'services' si plusieurs." },
+        services: {
+          type: "array",
+          description: "Liste des services demandés (si le client veut plusieurs prestations en un RDV). Chaque élément a un champ 'name'.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Nom du service" }
+            },
+            required: ["name"]
+          }
+        },
         date: { type: "string", description: "YYYY-MM-DD" },
         heure: { type: "string", description: "HH:MM" },
         lieu: { type: "string", enum: ["domicile", "salon", "restaurant"] },
@@ -120,7 +131,7 @@ export const TOOLS_CLIENT = [
         nb_couverts: { type: "integer", description: "Nombre de personnes (restaurant uniquement)" },
         zone_preference: { type: "string", description: "Zone préférée (interieur, terrasse, salon_prive)" }
       },
-      required: ["service_name", "date", "heure", "lieu", "client_nom", "client_telephone", "client_email"]
+      required: ["date", "heure", "lieu", "client_nom", "client_telephone", "client_email"]
     }
   },
   {

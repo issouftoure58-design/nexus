@@ -3,7 +3,7 @@ import { useChatBooking } from '@/contexts/ChatBookingContext';
 
 export default function BookingConfirmation() {
   const {
-    service,
+    services,
     selectedDate,
     selectedTime,
     clientInfo,
@@ -12,6 +12,8 @@ export default function BookingConfirmation() {
     formatPrice,
     formatDuration,
     resetBooking,
+    totalDuration,
+    totalPrice,
   } = useChatBooking();
 
   const formatSelectedDate = () => {
@@ -59,21 +61,44 @@ export default function BookingConfirmation() {
 
       {/* Details */}
       <div className="p-4 space-y-4">
-        {/* Service */}
-        <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg">
-          <div className="p-2 bg-amber-100 rounded-full text-amber-600">
-            <Calendar className="h-4 w-4" />
-          </div>
-          <div className="flex-1">
-            <div className="font-medium text-zinc-800">{service?.nom}</div>
-            <div className="text-sm text-zinc-500 flex items-center gap-2 mt-1">
-              <Clock className="h-3.5 w-3.5" />
-              {service && formatDuration(service.duree)}
+        {/* Services — list all */}
+        <div className="p-3 bg-amber-50 rounded-lg space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-2 bg-amber-100 rounded-full text-amber-600">
+              <Calendar className="h-4 w-4" />
             </div>
+            <span className="font-medium text-zinc-700">
+              {services.length > 1 ? `${services.length} prestations` : 'Prestation'}
+            </span>
           </div>
-          <div className="text-amber-600 font-bold">
-            {service && formatPrice(service.prix)}
-          </div>
+
+          {services.map((s) => (
+            <div key={s.id} className="flex items-center justify-between pl-10">
+              <div>
+                <div className="text-sm font-medium text-zinc-800">{s.nom}</div>
+                <div className="text-xs text-zinc-500 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatDuration(s.duree)}
+                </div>
+              </div>
+              <div className="text-sm text-amber-600 font-semibold">
+                {formatPrice(s.prix)}
+              </div>
+            </div>
+          ))}
+
+          {/* Total line if multi-service */}
+          {services.length > 1 && (
+            <div className="flex items-center justify-between pl-10 pt-2 border-t border-amber-200">
+              <div className="text-sm font-bold text-zinc-800">
+                Total
+                <span className="text-xs text-zinc-500 font-normal ml-2">
+                  {formatDuration(totalDuration)}
+                </span>
+              </div>
+              <div className="text-amber-600 font-bold">{formatPrice(totalPrice)}</div>
+            </div>
+          )}
         </div>
 
         {/* Date & Heure */}

@@ -1657,7 +1657,8 @@ async function calculateTravelFeeUnified(distanceKm, tenantId) {
  * Utilisée par TOUS les canaux (WhatsApp, Téléphone, Web, Admin, Panier)
  *
  * @param {Object} data - Données du RDV
- * @param {string} data.service_name - Nom du service
+ * @param {string} [data.service_name] - Nom du service (single-service, backward compat)
+ * @param {Array<{name: string}>} [data.services] - Liste des services (multi-service)
  * @param {string} data.date - Date (YYYY-MM-DD)
  * @param {string} data.heure - Heure (HH:MM ou HHh)
  * @param {string} data.client_nom - Nom du client
@@ -1731,66 +1732,102 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
     console.log(`💾 ✅ Validation nom/tel OK`);
 
-    // 1. VALIDER LE SERVICE (config hardcodée → fallback BDD avec tenant_id)
-    console.log(`💾 STEP BOOKING 2.3: Validation service "${data.service_name}"...`);
-    let service = findServiceByName(data.service_name);
-    console.log(`💾 Service trouvé en config: ${service ? '✅ ' + service.name : '❌ NON'}`);
-    if (!service) {
-      // Fallback: chercher dans la table services de la BDD (services ajoutés via admin)
-      // 🔒 TENANT ISOLATION: Filtrer par tenant_id
-      console.log(`💾 Recherche en BDD pour tenant ${data.tenant_id}...`);
-      // 🔒 TENANT ISOLATION: tenant_id est OBLIGATOIRE pour la recherche de service
-      if (!data.tenant_id) {
-        console.error(`[NEXUS CORE] ❌ CRITICAL: tenant_id manquant pour recherche service`);
-        return { success: false, error: 'tenant_id est requis pour rechercher un service' };
-      }
-
-      let serviceQuery = db
-        .from('services')
-        .select('id, nom, duree, prix, description')
-        .eq('tenant_id', data.tenant_id)  // 🔒 TENANT ISOLATION: Toujours filtrer
-        .ilike('nom', `%${data.service_name}%`);  // Recherche partielle avec wildcards
-
-      const { data: dbService, error: serviceError } = await serviceQuery.limit(1).maybeSingle();
-
-      if (serviceError) {
-        console.error(`[NEXUS CORE] ❌ Erreur recherche service:`, serviceError.message);
-      }
-
-      if (dbService) {
-        // Note: dbService.prix est en CENTIMES dans la BDD (ex: 6000 = 60€)
-        service = {
-          key: `db_${dbService.id}`,
-          id: `db_${dbService.id}`,
-          name: dbService.nom,
-          durationMinutes: dbService.duree,
-          price: dbService.prix / 100,  // Convertir centimes → euros
-          priceInCents: dbService.prix,  // Déjà en centimes
-          priceIsMinimum: false,
-          category: 'other',
-          blocksFullDay: dbService.duree >= 480,
-          blocksDays: 1,
-        };
-        console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix / 100}€)`);
-      } else {
-        console.error(`[NEXUS CORE] ❌ Service non trouvé ni en config ni en BDD: "${data.service_name}" (tenant: ${data.tenant_id})`);
-        return { success: false, error: `Service non trouvé: "${data.service_name}"` };
-      }
+    // 1. NORMALISER L'INPUT (multi-service support)
+    // Si data.services[] est fourni → utiliser, sinon data.service_name → [{name}]
+    let serviceRequests = [];
+    if (Array.isArray(data.services) && data.services.length > 0) {
+      serviceRequests = data.services.map(s => ({ name: s.name || s.service_name || s.nom }));
+      console.log(`💾 STEP BOOKING 2.3: Multi-service détecté: ${serviceRequests.length} services`);
+    } else if (data.service_name) {
+      serviceRequests = [{ name: data.service_name }];
+      console.log(`💾 STEP BOOKING 2.3: Single-service: "${data.service_name}"`);
+    } else {
+      return { success: false, error: 'Au moins un service est requis (service_name ou services[])' };
     }
 
-    // 2. VÉRIFIER AMBIGUÏTÉ
-    console.log(`💾 STEP BOOKING 2.4: Vérification ambiguïté...`);
-    const ambiguity = checkAmbiguousTerm(data.service_name);
-    if (ambiguity && !skipValidation) {
-      console.log(`💾 ❌ ÉCHEC: Service ambigu - ${ambiguity.message}`);
-      return {
-        success: false,
-        needsClarification: true,
-        message: ambiguity.message,
-        options: ambiguity.options
-      };
+    // 🔒 TENANT ISOLATION: tenant_id est OBLIGATOIRE pour la recherche de service
+    if (!data.tenant_id) {
+      console.error(`[NEXUS CORE] ❌ CRITICAL: tenant_id manquant pour recherche service`);
+      return { success: false, error: 'tenant_id est requis pour rechercher un service' };
     }
-    console.log(`💾 ✅ Pas d'ambiguïté`);
+
+    // RÉSOUDRE TOUS LES SERVICES
+    const resolvedServices = [];
+    for (const req of serviceRequests) {
+      console.log(`💾 Résolution service: "${req.name}"...`);
+      let svc = findServiceByName(req.name);
+      console.log(`💾 Service trouvé en config: ${svc ? '✅ ' + svc.name : '❌ NON'}`);
+      if (!svc) {
+        // Fallback: chercher dans la table services de la BDD
+        // 🔒 TENANT ISOLATION: Filtrer par tenant_id
+        let serviceQuery = db
+          .from('services')
+          .select('id, nom, duree, prix, description')
+          .eq('tenant_id', data.tenant_id)
+          .ilike('nom', `%${req.name}%`);
+
+        const { data: dbService, error: serviceError } = await serviceQuery.limit(1).maybeSingle();
+
+        if (serviceError) {
+          console.error(`[NEXUS CORE] ❌ Erreur recherche service:`, serviceError.message);
+        }
+
+        if (dbService) {
+          svc = {
+            key: `db_${dbService.id}`,
+            id: `db_${dbService.id}`,
+            name: dbService.nom,
+            durationMinutes: dbService.duree,
+            price: dbService.prix / 100,
+            priceInCents: dbService.prix,
+            priceIsMinimum: false,
+            category: 'other',
+            blocksFullDay: dbService.duree >= 480,
+            blocksDays: 1,
+          };
+          console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix / 100}€)`);
+        } else {
+          console.error(`[NEXUS CORE] ❌ Service non trouvé: "${req.name}" (tenant: ${data.tenant_id})`);
+          return { success: false, error: `Service non trouvé: "${req.name}"` };
+        }
+      }
+
+      // Vérifier ambiguïté
+      if (!skipValidation) {
+        const ambiguity = checkAmbiguousTerm(req.name);
+        if (ambiguity) {
+          console.log(`💾 ❌ ÉCHEC: Service ambigu - ${ambiguity.message}`);
+          return {
+            success: false,
+            needsClarification: true,
+            message: ambiguity.message,
+            options: ambiguity.options
+          };
+        }
+      }
+
+      resolvedServices.push(svc);
+    }
+
+    // AGRÉGER LES SERVICES
+    const totalDurationMinutes = resolvedServices.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const totalPriceInCents = resolvedServices.reduce((sum, s) => sum + (s.priceInCents || Math.round(s.price * 100)), 0);
+    const joinedNames = resolvedServices.map(s => s.name).join(' + ');
+    const isMultiService = resolvedServices.length > 1;
+
+    // Pour backward compat, "service" principal = premier service (ou agrégé)
+    const service = isMultiService ? {
+      ...resolvedServices[0],
+      name: joinedNames,
+      durationMinutes: totalDurationMinutes,
+      price: totalPriceInCents / 100,
+      priceInCents: totalPriceInCents,
+      priceIsMinimum: resolvedServices.some(s => s.priceIsMinimum),
+      blocksFullDay: totalDurationMinutes >= 480,
+      blocksDays: Math.max(...resolvedServices.map(s => s.blocksDays || 1)),
+    } : resolvedServices[0];
+
+    console.log(`💾 ✅ ${resolvedServices.length} service(s) résolu(s): "${joinedNames}" (${totalDurationMinutes}min, ${totalPriceInCents / 100}€)`);
 
     // 3. VALIDER DATE/HEURE/DISPONIBILITÉ (sauf si skipValidation)
     console.log(`💾 STEP BOOKING 3: Validation date/heure/dispo (skipValidation=${skipValidation})...`);
@@ -2045,39 +2082,52 @@ export async function createReservationUnified(data, channel = 'web', options = 
       createdReservations.push({ id: newBooking.id, date: reservationDate });
       console.log(`[NEXUS CORE] ✅ RDV jour ${dayIndex + 1}/${nbJours} créé ! ID: ${newBooking.id}, Date: ${reservationDate}`);
 
-      // 9.1 INSERTION reservation_lignes (détail du service pour affichage multi-services)
+      // 9.1 INSERTION reservation_lignes (N lignes si multi-service, séquentielles)
       try {
-        const ligneData = {
-          reservation_id: newBooking.id,
-          tenant_id: data.tenant_id,
-          service_id: null, // Set below if DB service
-          service_nom: service.name,
-          quantite: 1,
-          duree_minutes: data.duree_minutes || service.durationMinutes,
-          prix_unitaire: isFirstDay ? (service.priceInCents || Math.round(service.price * 100)) : 0,
-          prix_total: isFirstDay ? (service.priceInCents || Math.round(service.price * 100)) : 0,
-          membre_id: null,
-          heure_debut: data.heure || null,
-          heure_fin: data.heure ? (() => {
-            const [h, m] = data.heure.split(':').map(Number);
-            const totalMin = h * 60 + (m || 0) + (data.duree_minutes || service.durationMinutes);
-            return `${String(Math.floor(totalMin / 60) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
-          })() : null
-        };
+        let currentLigneTime = data.heure || null;
+        const lignesData = resolvedServices.map((svc, svcIndex) => {
+          const svcDuration = svc.durationMinutes;
+          const svcPriceCents = isFirstDay ? (svc.priceInCents || Math.round(svc.price * 100)) : 0;
+          const ligneHeureDebut = currentLigneTime;
+          let ligneHeureFin = null;
 
-        // Ajouter service_id si c'est un service BDD (pas config hardcodée)
-        if (service.id && String(service.id).startsWith('db_')) {
-          ligneData.service_id = parseInt(String(service.id).replace('db_', ''));
-        }
+          if (currentLigneTime) {
+            const [h, m] = currentLigneTime.split(':').map(Number);
+            const endMin = h * 60 + (m || 0) + svcDuration;
+            ligneHeureFin = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+            // Avancer le curseur pour le service suivant
+            currentLigneTime = ligneHeureFin;
+          }
+
+          const ligne = {
+            reservation_id: newBooking.id,
+            tenant_id: data.tenant_id,
+            service_id: null,
+            service_nom: svc.name,
+            quantite: 1,
+            duree_minutes: svcDuration,
+            prix_unitaire: svcPriceCents,
+            prix_total: svcPriceCents,
+            membre_id: null,
+            heure_debut: ligneHeureDebut,
+            heure_fin: ligneHeureFin,
+          };
+
+          if (svc.id && String(svc.id).startsWith('db_')) {
+            ligne.service_id = parseInt(String(svc.id).replace('db_', ''));
+          }
+
+          return ligne;
+        });
 
         const { error: ligneError } = await db
           .from('reservation_lignes')
-          .insert(ligneData);
+          .insert(lignesData);
 
         if (ligneError) {
           console.warn(`[NEXUS CORE] ⚠️ Erreur insertion reservation_lignes:`, ligneError.message);
         } else {
-          console.log(`[NEXUS CORE] ✅ reservation_lignes créée pour RDV ${newBooking.id}`);
+          console.log(`[NEXUS CORE] ✅ ${lignesData.length} reservation_lignes créée(s) pour RDV ${newBooking.id}`);
         }
       } catch (ligneErr) {
         console.warn(`[NEXUS CORE] ⚠️ Exception reservation_lignes:`, ligneErr.message);
@@ -2236,7 +2286,14 @@ export async function createReservationUnified(data, channel = 'web', options = 
         acompte: depositInfo ? depositInfo.montant : 0,
         acompteTexte: depositInfo
           ? `${depositInfo.montant}€ (${depositInfo.taux}%) — acompte requis avant confirmation`
-          : null
+          : null,
+        // Multi-service detail
+        services: resolvedServices.map(s => ({
+          name: s.name,
+          prix: s.price,
+          prixInCents: s.priceInCents || Math.round(s.price * 100),
+          dureeMinutes: s.durationMinutes,
+        })),
       },
       facture: facture ? { id: facture.id, numero: facture.numero, statut: facture.statut } : null
     };
