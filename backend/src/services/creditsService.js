@@ -1,14 +1,17 @@
 /**
- * Credits Service — Gestion des crédits IA (modèle 2026 — révisé 9 avril 2026)
+ * Credits Service — Gestion des crédits IA (modèle 2026 — révisé 21 avril 2026)
  *
- * Modèle :
- *   • 1,5€ = 100 crédits (taux interne de référence — 0,015€/crédit)
- *   • Free     : 0 crédit (IA bloquée)
- *   • Basic    : 1 000 crédits inclus/mois (valeur 15€) + pack additionnel
- *   • Business : 10 000 crédits inclus/mois (valeur 150€) + pack additionnel
+ * Modèle (inspiré Claude) :
+ *   • Interne : 0,015€/crédit — JAMAIS visible au client (il voit "utilisation IA" en %)
+ *   • Free     : 200 crédits/mois (IA limitée, pas tel/WA/web)
+ *   • Starter  : 1 000 crédits/mois (toutes IA débloquées)
+ *   • Pro      : 5 000 crédits/mois (5x Starter)
+ *   • Business : 20 000 crédits/mois (20x Starter)
  *
- * Pack unique disponible :
- *   • Pack 1000 : 15€ → 1 000 crédits (taux base, sans bonus)
+ * Utilisation supplémentaire (modèle Claude) :
+ *   • 50€  → 10% réduction
+ *   • 200€ → 20% réduction
+ *   • 500€ → 30% réduction
  *
  * TENANT SHIELD : tenantId est TOUJOURS le 1er paramètre, JAMAIS de fallback.
  */
@@ -33,16 +36,26 @@ export const CREDIT_COSTS = {
   seo_article: 69,           // 1 article SEO complet (1500 mots)
 };
 
-// Pack unique disponible (taux base, sans bonus)
+// Utilisation supplémentaire — montants preset avec réductions volume (modèle Claude)
+export const USAGE_TOPUP = {
+  topup_50:  { code: 'nexus_usage_50',  price_cents: 5000,  discount_pct: 10, credits: Math.round(5000 / 1.5 * (100 / 90)) },   // ~3 700 cr
+  topup_200: { code: 'nexus_usage_200', price_cents: 20000, discount_pct: 20, credits: Math.round(20000 / 1.5 * (100 / 80)) },  // ~16 600 cr
+  topup_500: { code: 'nexus_usage_500', price_cents: 50000, discount_pct: 30, credits: Math.round(50000 / 1.5 * (100 / 70)) },  // ~47 600 cr
+};
+
+// Legacy pack (backward compat)
 export const CREDIT_PACKS = {
   pack_1000: { code: 'nexus_credits_1000', credits: 1000, price_cents: 1500, bonus_pct: 0 },
 };
 
 // Crédits inclus mensuels par plan
 export const MONTHLY_INCLUDED = {
-  free: 0,
+  free: 200,
+  starter: 1000,
+  pro: 5000,
+  business: 20000,
+  // Legacy aliases
   basic: 1000,
-  business: 10000,
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -213,17 +226,55 @@ export async function purchasePack(tenantId, packId, { stripeInvoiceId = null, m
 }
 
 /**
- * Octroi mensuel des crédits inclus pour les plans Business.
- * Appelé par un cron en début de mois.
+ * Octroi mensuel des crédits inclus selon le plan du tenant.
+ * Appelé par le cron mensuel (scheduler).
+ * Reset monthly_used à 0 et ajoute les crédits inclus.
  */
 export async function grantMonthlyIncluded(tenantId, amount) {
   if (!tenantId) throw new Error('tenant_id requis');
   if (!amount || amount <= 0) return { added: 0 };
 
+  // Reset monthly_used counter
+  const balance = await getBalance(tenantId);
+  const nextReset = new Date();
+  nextReset.setMonth(nextReset.getMonth() + 1);
+  nextReset.setDate(1);
+  nextReset.setHours(0, 0, 0, 0);
+
+  await supabase
+    .from('ai_credits')
+    .update({
+      monthly_used: 0,
+      monthly_included: amount,
+      monthly_reset_at: nextReset.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('tenant_id', tenantId);
+
   return creditTenant(tenantId, amount, {
     type: 'monthly_grant',
-    source: 'business_monthly',
-    description: `Crédits mensuels Business inclus : ${amount} crédits`,
+    source: 'monthly_included',
+    description: `Crédits mensuels inclus : ${amount} crédits`,
+  });
+}
+
+/**
+ * Achat d'utilisation supplémentaire (modèle Claude).
+ * @param {string} tenantId
+ * @param {string} topupId - clé dans USAGE_TOPUP (topup_50, topup_200, topup_500)
+ * @param {object} options - { stripeInvoiceId, metadata }
+ */
+export async function purchaseTopup(tenantId, topupId, { stripeInvoiceId = null, metadata = {} } = {}) {
+  if (!tenantId) throw new Error('tenant_id requis');
+  const topup = USAGE_TOPUP[topupId];
+  if (!topup) throw new Error(`Topup inconnu: ${topupId}`);
+
+  return creditTenant(tenantId, topup.credits, {
+    type: 'purchase',
+    source: topupId,
+    refId: stripeInvoiceId,
+    description: `Utilisation supplémentaire ${topup.price_cents / 100}€ (-${topup.discount_pct}%) : ${topup.credits} crédits`,
+    metadata: { ...metadata, topup: topupId, price_cents: topup.price_cents, discount_pct: topup.discount_pct },
   });
 }
 
@@ -286,23 +337,21 @@ async function getMonthlyIncludedForTenant(tenantId) {
     .eq('id', tenantId)
     .single();
 
-  const rawPlan = (tenant?.plan || 'free').toLowerCase();
-  const normalized = rawPlan === 'starter' ? 'free'
-                   : rawPlan === 'pro' ? 'basic'
-                   : rawPlan;
-
-  return MONTHLY_INCLUDED[normalized] || 0;
+  const plan = (tenant?.plan || 'free').toLowerCase();
+  return MONTHLY_INCLUDED[plan] || 0;
 }
 
 export default {
   CREDIT_COSTS,
   CREDIT_PACKS,
+  USAGE_TOPUP,
   MONTHLY_INCLUDED,
   getBalance,
   getTransactions,
   hasCredits,
   consume,
   purchasePack,
+  purchaseTopup,
   grantMonthlyIncluded,
   adjust,
 };

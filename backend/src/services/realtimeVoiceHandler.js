@@ -21,6 +21,7 @@ import { createReservationUnified, clearConversation } from '../core/unified/nex
 import { getServicesListForTenant, getHorairesForTenant, checkAvailability } from '../services/bookingService.js';
 import { logCallStart, logCallEnd } from '../modules/twilio/callLogService.js';
 import usageTracking from '../services/usageTrackingService.js';
+import { consume as consumeCredits } from '../services/creditsService.js';
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -674,11 +675,18 @@ function cleanupSession(streamSid) {
   const conversationId = `realtime_${callSid}`;
   clearConversation(conversationId);
 
-  // Tracker la duree
+  // Tracker la duree + consommer les crédits IA
   const durationSec = Math.round((Date.now() - startTime) / 1000);
   if (tenantId && durationSec > 0) {
+    const minutes = Math.ceil(durationSec / 60);
     usageTracking.trackPhoneCall(tenantId, durationSec, callSid, 'inbound').catch(() => {});
     logCallEnd({ CallSid: callSid, CallStatus: 'completed', CallDuration: durationSec }).catch(() => {});
+    // Déduire les crédits IA (18 cr/minute)
+    consumeCredits(tenantId, 'phone_minute', {
+      quantity: minutes,
+      refId: callSid,
+      description: `Appel IA ${minutes}min (${durationSec}s)`,
+    }).catch(err => logger.warn(`[REALTIME] Credit deduction failed: ${err.message}`, { tenantId, callSid }));
   }
 
   logger.info(`REALTIME Session cleaned: stream=${streamSid}, tenant=${tenantId}, duration=${durationSec}s`);

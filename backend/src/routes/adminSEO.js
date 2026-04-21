@@ -9,6 +9,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
+import { hasCredits, consume as consumeCredits } from '../services/creditsService.js';
 import { generateArticle, generateArticleIdeas, improveArticle } from '../ai/seoArticleGenerator.js';
 import { analyzeKeywords, generateSEORecommendations, analyzeCompetition } from '../ai/keywordAnalyzer.js';
 import { checkKeywordPosition } from '../modules/seo/seoService.js';
@@ -68,22 +69,39 @@ router.use(authenticateAdmin, requireModule('seo'));
  */
 router.post('/articles/generate', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.admin.tenant_id;
     const { mot_cle_principal, mots_cles_secondaires, longueur } = req.body;
 
     if (!mot_cle_principal) {
       return res.status(400).json({ error: 'Mot-clé principal requis' });
     }
 
-    const seoContext = await getTenantSEOContext(req.admin.tenant_id);
+    // Vérifier crédits AVANT génération (69 cr/article)
+    const creditCheck = await hasCredits(tenantId, 'seo_article');
+    if (!creditCheck.ok) {
+      return res.status(402).json({
+        error: 'Crédits IA insuffisants',
+        code: 'INSUFFICIENT_CREDITS',
+        required: creditCheck.cost,
+        available: creditCheck.balance,
+      });
+    }
+
+    const seoContext = await getTenantSEOContext(tenantId);
 
     const result = await generateArticle({
-      tenant_id: req.admin.tenant_id,
+      tenant_id: tenantId,
       secteur: seoContext.secteur,
       description: seoContext.description,
       businessName: seoContext.businessName,
       mot_cle_principal,
       mots_cles_secondaires: mots_cles_secondaires || [],
       longueur: longueur || 'moyen'
+    });
+
+    // Déduire crédits après génération réussie
+    await consumeCredits(tenantId, 'seo_article', {
+      description: `Article SEO : ${mot_cle_principal}`,
     });
 
     res.json(result);

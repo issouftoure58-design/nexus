@@ -13,6 +13,7 @@ import {
 } from '../services/whatsappService.js';
 import { transcribeFromUrl } from '../services/whisperService.js';
 import usageTracking from '../services/usageTrackingService.js';
+import { hasCredits, consume as consumeCredits } from '../services/creditsService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
 import { authenticateAdmin } from './adminAuth.js';
@@ -148,10 +149,16 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
     // ── TRAITEMENT IA ──
     const result = await handleIncomingMessageNexus(clientPhone, messageText, ProfileName, tenantId);
 
-    // Tracker l'utilisation (coût différencié pour notes vocales)
+    // Tracker l'utilisation (legacy) + consommer crédits IA
     await usageTracking.trackWhatsAppMessage(tenantId, MessageSid, 'inbound');
     if (result.response) {
       await usageTracking.trackWhatsAppMessage(tenantId, `${MessageSid}-reply`, 'outbound');
+      // Déduire crédits IA (7 cr/message, 10 cr si note vocale)
+      const action = isVoiceNote ? 'whatsapp_voice_note' : 'whatsapp_message';
+      consumeCredits(tenantId, action, {
+        refId: MessageSid,
+        description: `WhatsApp IA ${isVoiceNote ? '(vocal)' : '(texte)'} — ${clientPhone}`,
+      }).catch(err => logger.warn(`[WhatsApp] Credit deduction failed: ${err.message}`, { tenantId }));
     }
 
     console.log('[WhatsApp Webhook] Réponse:', {
@@ -363,13 +370,18 @@ router.post('/meta', async (req, res) => {
           // Traitement IA (meme handler que Twilio)
           const result = await handleIncomingMessageNexus(clientPhone, messageText, profileName, tenantId);
 
-          // Tracker usage
+          // Tracker usage (legacy) + consommer crédits IA
           await usageTracking.trackWhatsAppMessage(tenantId, messageId, 'inbound');
 
           // Envoyer la reponse via Meta Cloud API
           if (result.response && phoneNumberId) {
             await sendMetaWhatsAppMessage(phoneNumberId, clientPhone, result.response);
             await usageTracking.trackWhatsAppMessage(tenantId, `${messageId}-reply`, 'outbound');
+            // Déduire crédits IA (7 cr/message)
+            consumeCredits(tenantId, 'whatsapp_message', {
+              refId: messageId,
+              description: `WhatsApp IA (Meta) — ${clientPhone}`,
+            }).catch(err => logger.warn(`[META WA] Credit deduction failed: ${err.message}`, { tenantId }));
           }
 
           logger.info(`[META WA] Reponse envoyee a ${clientPhone} (tenant ${tenantId})`);

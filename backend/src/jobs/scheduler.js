@@ -17,6 +17,7 @@ import { runTrialNurtureJob } from './trialNurtureJob.js';
 import { sentinelCollector } from '../services/sentinelCollector.js';
 import { sentinelInsights } from '../services/sentinelInsights.js';
 import { runRgpdDeletionJob } from './rgpdDeletionJob.js';
+import { grantMonthlyIncluded, MONTHLY_INCLUDED } from '../services/creditsService.js';
 import { createClient } from '@supabase/supabase-js';
 
 import crypto from 'crypto';
@@ -57,6 +58,7 @@ const JOBS_SCHEDULE = {
   sentinelInsights: { dayOfWeek: 1, hour: 9, minute: 0 }, // Lundi 9h - SENTINEL insights hebdo (Business)
   operatorReport: { dayOfWeek: 1, hour: 8, minute: 0 }, // Lundi 8h - Rapport hebdo operateur
   rgpdDeletion: { hour: 3, minute: 0 }, // 03h00 - Suppressions RGPD planifiees
+  creditsMonthlyGrant: { dayOfMonth: 1, hour: 0, minute: 15 }, // 1er du mois 00h15 - Recharge crédits IA mensuels
   plteHourly:  { interval: 60 },                       // Toutes les heures - PLTE v2 tests plateforme (H1-H6, sans IA)
   plteNightly: { hour: 2, minute: 0 },                 // 02h00 - PLTE v2 stress tests
   plteWeekly:  { dayOfWeek: 1, hour: 3, minute: 0 },   // Lundi 03h00 - PLTE v2 tests IA profonds
@@ -1131,6 +1133,15 @@ function shouldRunJob(jobName, schedule) {
  * @param {Object} schedule - { dayOfWeek (0=dim, 1=lun), hour, minute }
  * @returns {boolean}
  */
+function shouldRunMonthlyJob(jobName, schedule) {
+  const now = new Date();
+  if (now.getDate() !== schedule.dayOfMonth) return false;
+  if (now.getHours() !== schedule.hour || now.getMinutes() !== schedule.minute) return false;
+  const monthKey = `${jobName}_${now.getFullYear()}_${now.getMonth()}`;
+  if (executedToday.has(monthKey)) return false;
+  return true;
+}
+
 function shouldRunWeeklyJob(jobName, schedule) {
   const now = new Date();
   const currentDay = now.getDay();
@@ -1358,6 +1369,39 @@ async function runScheduler() {
     }
   }
 
+  // Job: Recharge crédits IA mensuels (1er du mois à 00h15)
+  if (shouldRunMonthlyJob('creditsMonthlyGrant', JOBS_SCHEDULE.creditsMonthlyGrant)) {
+    const monthKey = `creditsMonthlyGrant_${new Date().getFullYear()}_${new Date().getMonth()}`;
+    executedToday.add(monthKey);
+    try {
+      console.log('[Scheduler] 💳 Recharge crédits IA mensuels — tous les tenants payants');
+      const sb = getSupabase();
+      if (sb) {
+        const { data: tenants } = await sb
+          .from('tenants')
+          .select('id, plan')
+          .in('plan', ['starter', 'pro', 'business', 'basic']);
+
+        let granted = 0;
+        for (const tenant of (tenants || [])) {
+          const plan = tenant.plan.toLowerCase();
+          const amount = MONTHLY_INCLUDED[plan] || 0;
+          if (amount > 0) {
+            try {
+              await grantMonthlyIncluded(tenant.id, amount);
+              granted++;
+            } catch (err) {
+              console.error(`[Scheduler] Erreur recharge crédits ${tenant.id}:`, err.message);
+            }
+          }
+        }
+        console.log(`[Scheduler] ✅ Crédits mensuels rechargés pour ${granted} tenants`);
+      }
+    } catch (err) {
+      console.error('[Scheduler] Erreur recharge crédits mensuels:', err.message);
+    }
+  }
+
   // ===== PLTE TESTS DÉSACTIVÉS — économie tokens IA (5 avril 2026) =====
   // Réactiver quand nécessaire en décommentant les blocs ci-dessous
   //
@@ -1422,6 +1466,7 @@ export function startScheduler() {
   console.log(`  ⏸️  Prospection Auto-Scrape: DÉSACTIVÉ (économie Google Places API)`);
   console.log(`  ⏸️  Prospection Auto-Emails: DÉSACTIVÉ (économie Google Places API)`);
   console.log(`  ⏸️  Prospection Auto-Campaign: DÉSACTIVÉ (économie Google Places API)`);
+  console.log(`  ✅ Crédits IA mensuels: 1er du mois à 00h15 (tous tenants payants)`);
   console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
 
   // Job optionnel - demandes d'avis

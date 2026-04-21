@@ -21,6 +21,7 @@ import OpenAI from 'openai';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
+import { hasCredits, consume as consumeCredits } from '../services/creditsService.js';
 import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
@@ -211,6 +212,18 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
       });
     }
 
+    // Vérifier crédits AVANT génération (12 cr/post)
+    const creditCheck = await hasCredits(tenantId, 'social_post_generated');
+    if (!creditCheck.ok) {
+      return res.status(402).json({
+        success: false,
+        error: 'Crédits IA insuffisants',
+        code: 'INSUFFICIENT_CREDITS',
+        required: creditCheck.cost,
+        available: creditCheck.balance,
+      });
+    }
+
     // Récupérer contexte métier du tenant
     const { secteur, label, nomEntreprise } = await getSocialContext(tenantId);
 
@@ -239,6 +252,11 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
     });
 
     const contenuGenere = message.content[0].text;
+
+    // Déduire crédits après génération réussie
+    await consumeCredits(tenantId, 'social_post_generated', {
+      description: `Post ${plateforme} : ${sujet.substring(0, 50)}`,
+    });
 
     console.log(`[SOCIAL] Post généré: ${contenuGenere.substring(0, 50)}...`);
 
