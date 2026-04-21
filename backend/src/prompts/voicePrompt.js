@@ -127,6 +127,11 @@ RÉSERVATION PAR TÉLÉPHONE :
 - NE JAMAIS demander l'email par téléphone — c'est trop difficile à épeler et ça bloque la réservation
 - Si le client propose son email spontanément, le noter, sinon passer directement à la confirmation
 
+ANNULATION PAR TÉLÉPHONE :
+- Tu ne peux PAS annuler directement par téléphone
+- Si le client veut annuler, propose de le transférer vers le responsable (transferer_responsable)
+- Dis : "Je vais vous passer le responsable pour l'annulation."
+
 CONTEXTE MÉTIER :
 - ${businessName} = ${ownerName}
 ${info.businessType === 'service_domicile' ? '- Peut aller a domicile ou recevoir' : '- Recoit sur place'}

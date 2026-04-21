@@ -168,46 +168,30 @@ function openOpenAISession(tenantId, callSid) {
       clearTimeout(timeout);
       logger.info(`REALTIME OpenAI WS connected for tenant=${tenantId}`);
 
-      // 1. D'abord configurer la voix + audio (léger, rapide)
-      ws.send(JSON.stringify({
-        type: 'session.update',
-        session: {
-          voice: config.voice,
-          input_audio_format: config.input_audio_format,
-          output_audio_format: config.output_audio_format,
-          temperature: config.temperature,
-        },
-      }));
-
-      // 2. Envoyer le greeting IMMÉDIATEMENT (avant les tools)
-      // Le client entend la voix en ~1s pendant que les tools se chargent
-      sendGreeting(ws, tenantId);
-
-      // 3. Configurer les tools et le prompt complet APRÈS le greeting
+      // Configurer la session (1 seul session.update)
       const systemInstructions = buildSystemInstructions(tenantId);
       const tenantCfg = getTenantConfig(tenantId);
       const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
       const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
 
-      // Envoyer session.update complet après un court délai pour laisser le greeting partir
-      setTimeout(() => {
-        ws.send(JSON.stringify({
-          type: 'session.update',
-          session: {
-            voice: config.voice,
-            instructions: systemInstructions,
-            input_audio_format: config.input_audio_format,
-            output_audio_format: config.output_audio_format,
-            input_audio_transcription: config.input_audio_transcription,
-            turn_detection: config.turn_detection,
-            tools,
-            tool_choice: isDemoTenant ? 'none' : 'auto',
-            temperature: config.temperature,
-            max_response_output_tokens: config.max_response_output_tokens,
-          },
-        }));
-        logger.info(`REALTIME Session fully configured with ${tools.length} tools (tenant=${tenantId})`);
-      }, 200);
+      ws.send(JSON.stringify({
+        type: 'session.update',
+        session: {
+          voice: config.voice,
+          instructions: systemInstructions,
+          input_audio_format: config.input_audio_format,
+          output_audio_format: config.output_audio_format,
+          input_audio_transcription: config.input_audio_transcription,
+          turn_detection: config.turn_detection,
+          tools,
+          tool_choice: isDemoTenant ? 'none' : 'auto',
+          temperature: config.temperature,
+          max_response_output_tokens: config.max_response_output_tokens,
+        },
+      }));
+
+      // Envoyer le message d'accueil initial
+      sendGreeting(ws, tenantId);
 
       resolve(ws);
     });
@@ -638,31 +622,9 @@ export function buildRealtimeTools(tenantId) {
         required: ['service_name', 'date', 'heure', 'client_nom', 'client_telephone'],
       },
     },
-    {
-      type: 'function',
-      name: 'find_appointment',
-      description: "Recherche les rendez-vous d'un client par son numero de telephone. Utiliser quand le client veut consulter, modifier ou annuler un rendez-vous.",
-      parameters: {
-        type: 'object',
-        properties: {
-          telephone: { type: 'string', description: 'Numero de telephone du client (format 06... ou +33...)' },
-        },
-        required: ['telephone'],
-      },
-    },
-    {
-      type: 'function',
-      name: 'cancel_appointment',
-      description: "Annule un rendez-vous existant. IMPORTANT: toujours utiliser find_appointment d'abord pour obtenir l'appointment_id, puis confirmer avec le client avant d'annuler.",
-      parameters: {
-        type: 'object',
-        properties: {
-          appointment_id: { type: 'string', description: "L'identifiant unique du rendez-vous a annuler (obtenu via find_appointment)" },
-          reason: { type: 'string', description: "Raison de l'annulation" },
-        },
-        required: ['appointment_id'],
-      },
-    },
+    // NOTE: find_appointment et cancel_appointment retires des tools voice
+    // car 7 tools = +10s latence OpenAI Realtime. Les handlers restent dans executeRealtimeTool()
+    // Pour annuler par tel, l'IA utilise transferer_responsable.
     {
       type: 'function',
       name: 'transferer_responsable',
