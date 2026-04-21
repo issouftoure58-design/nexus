@@ -3,7 +3,7 @@ import { User, Phone, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { useChatBooking } from '@/contexts/ChatBookingContext';
 
 export default function ClientInfoForm() {
-  const { setClientInfo, service, selectedDate, selectedTime, formatPrice, formatDuration } = useChatBooking();
+  const { setClientInfo, services, selectedDate, selectedTime, formatPrice, formatDuration, totalPrice, totalDuration } = useChatBooking();
 
   const [form, setForm] = useState({
     nom: '',
@@ -77,17 +77,34 @@ export default function ClientInfoForm() {
         </div>
 
         {/* Recapitulatif */}
-        {service && selectedDate && selectedTime && (
+        {services.length > 0 && selectedDate && selectedTime && (
           <div className="mt-2 p-2 bg-white/60 rounded-lg text-sm">
-            <div className="font-medium text-zinc-700">{service.nom}</div>
+            <div className="font-medium text-zinc-700">
+              {services.map(s => s.nom).join(' + ')}
+            </div>
             <div className="text-zinc-500 flex items-center gap-2 mt-0.5">
               <span className="capitalize">{formatSelectedDate()}</span>
               <span>a</span>
               <span className="font-medium text-amber-600">{selectedTime}</span>
             </div>
-            <div className="text-amber-600 font-semibold mt-1">
-              {formatPrice(service.prix)} - {formatDuration(service.duree)}
-            </div>
+            {services.length > 1 ? (
+              <div className="mt-1 space-y-0.5">
+                {services.map((s, i) => (
+                  <div key={i} className="text-zinc-500 text-xs flex justify-between">
+                    <span>{s.nom}</span>
+                    <span>{formatPrice(s.prix)} - {formatDuration(s.duree)}</span>
+                  </div>
+                ))}
+                <div className="text-amber-600 font-semibold border-t border-amber-100 pt-1 flex justify-between">
+                  <span>Total</span>
+                  <span>{formatPrice(totalPrice)} - {formatDuration(totalDuration)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-amber-600 font-semibold mt-1">
+                {formatPrice(services[0].prix)} - {formatDuration(services[0].duree)}
+              </div>
+            )}
           </div>
         )}
       </div>
