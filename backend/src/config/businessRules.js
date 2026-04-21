@@ -641,10 +641,16 @@ export function checkAmbiguousTerm(term) {
       // Verifier que ce n'est pas un terme specifique
       // Normaliser les tirets/espaces pour matcher "micro-locks" avec "microlocks"
       const termNoHyphens = normalizedTerm.replace(/-/g, '');
+      const termWords = termNoHyphens.split(/\s+/);
       const isSpecific = ambiguous.options.some(opt => {
         const optNorm = opt.toLowerCase();
         const optNoHyphens = optNorm.replace(/-/g, '');
-        return normalizedTerm.includes(optNorm) || termNoHyphens.includes(optNoHyphens);
+        // Match direct : "reprise racines locks" includes "reprise racines locks"
+        if (normalizedTerm.includes(optNorm) || termNoHyphens.includes(optNoHyphens)) return true;
+        // Match raccourci : "reprise locks" → tous les mots du terme sont dans l'option
+        // Ex: "reprise" in "reprise racines locks" ET "locks" in "reprise racines locks"
+        if (termWords.length >= 2 && termWords.every(w => optNoHyphens.includes(w))) return true;
+        return false;
       });
       if (!isSpecific) {
         return { term: key, ...ambiguous };

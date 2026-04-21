@@ -514,6 +514,8 @@ async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid, caller
           reservationId: result.reservationId || null,
           recap: result.recap || null,
           error: result.error || null,
+          needsClarification: result.needsClarification || false,
+          options: result.options || null,
         };
       }
 
@@ -606,7 +608,7 @@ export function buildRealtimeTools(tenantId) {
     {
       type: 'function',
       name: 'creer_reservation',
-      description: 'Cree une reservation quand toutes les informations sont confirmees par le client (service, date, heure, nom, telephone).',
+      description: 'Cree une reservation. Infos requises: service, date, heure, nom du client, telephone. NE PAS demander email.',
       parameters: {
         type: 'object',
         properties: {
