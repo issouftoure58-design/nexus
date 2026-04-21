@@ -15,6 +15,7 @@ import {
 } from '../middleware/apiAuth.js';
 import { requireClientsQuota, requireReservationsQuota } from '../middleware/quotas.js';
 import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+import { createReservationUnified } from '../core/unified/nexusCore.js';
 
 const API_CLIENTS_SORT_FIELDS = ['created_at', 'nom', 'prenom', 'email', 'telephone', 'updated_at'];
 const API_RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'updated_at'];
@@ -328,7 +329,7 @@ router.get('/reservations', requireScope('read:reservations'), async (req, res) 
     const { page, limit, offset } = validatePagination(req.query.page, req.query.limit);
 
     let query = supabase
-      .from('rendezvous')
+      .from('reservations')
       .select(`
         *,
         client:clients(id, nom, prenom, telephone, email)
@@ -373,7 +374,7 @@ router.get('/reservations/:id', requireScope('read:reservations'), async (req, r
     const { id } = req.params;
 
     const { data: reservation, error } = await supabase
-      .from('rendezvous')
+      .from('reservations')
       .select(`
         *,
         client:clients(id, nom, prenom, telephone, email)
@@ -405,13 +406,15 @@ router.post('/reservations', requireScope('write:reservations'), requireReservat
   try {
     const {
       client_id,
-      service_id,
       service_name,
+      services,
       date,
       heure,
       duree,
       notes,
-      employee_id
+      employee_id,
+      lieu,
+      adresse
     } = req.body;
 
     // Validation
@@ -422,10 +425,17 @@ router.post('/reservations', requireScope('write:reservations'), requireReservat
       });
     }
 
-    // Verifier que le client existe
+    if (!service_name && (!services || !services.length)) {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: 'service_name or services[] is required'
+      });
+    }
+
+    // Verifier que le client existe et recuperer ses infos
     const { data: client } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, nom, prenom, telephone, email')
       .eq('id', client_id)
       .eq('tenant_id', req.tenantId)
       .single();
@@ -437,27 +447,32 @@ router.post('/reservations', requireScope('write:reservations'), requireReservat
       });
     }
 
-    const { data: reservation, error } = await supabase
-      .from('rendezvous')
-      .insert({
-        tenant_id: req.tenantId,
-        client_id,
-        service_id,
-        service_name,
-        date,
-        heure,
-        duree: duree || 60,
-        notes,
-        employee_id,
-        statut: 'confirme',
-        source: 'api'
-      })
-      .select()
-      .single();
+    // Passer par createReservationUnified — meme logique que tous les autres canaux
+    const result = await createReservationUnified({
+      tenant_id: req.tenantId,
+      service_name: service_name || undefined,
+      services: services || undefined,
+      date,
+      heure,
+      duree_totale_minutes: duree || undefined,
+      client_nom: `${client.prenom || ''} ${client.nom || ''}`.trim(),
+      client_telephone: client.telephone,
+      client_email: client.email,
+      client_id: client.id,
+      lieu: lieu || undefined,
+      adresse: adresse || undefined,
+      notes: notes ? `${notes} [via API]` : '[via API]',
+      employee_id: employee_id || undefined,
+    }, 'api', { sendSMS: true, skipValidation: false });
 
-    if (error) throw error;
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'booking_error',
+        message: result.error || 'Reservation creation failed'
+      });
+    }
 
-    res.status(201).json({ success: true, data: reservation });
+    res.status(201).json({ success: true, data: result.reservation });
 
   } catch (error) {
     console.error('[API] Create reservation error:', error);
@@ -480,7 +495,7 @@ router.patch('/reservations/:id', requireScope('write:reservations'), async (req
     delete updates.created_at;
 
     const { data: reservation, error } = await supabase
-      .from('rendezvous')
+      .from('reservations')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('tenant_id', req.tenantId)
@@ -512,7 +527,7 @@ router.delete('/reservations/:id', requireScope('delete:reservations'), async (r
 
     // Soft delete - on met le statut a "annule"
     const { data: reservation, error } = await supabase
-      .from('rendezvous')
+      .from('reservations')
       .update({
         statut: 'annule',
         cancelled_at: new Date().toISOString(),
