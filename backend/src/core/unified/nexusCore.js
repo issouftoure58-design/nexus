@@ -2401,9 +2401,10 @@ async function findAppointmentByPhone(telephone, tenantId) {
   }
 }
 
-// --- CANCEL APPOINTMENT ---
+// --- CANCEL APPOINTMENT (UNIFIED) ---
 // 🔒 TENANT ISOLATION: Vérifier propriété du RDV par tenant_id
-async function cancelAppointmentById(appointmentId, reason, tenantId) {
+// ⚡ FONCTION UNIQUE pour TOUS les canaux (IA, admin, API, chat)
+async function cancelAppointmentById(appointmentId, reason, tenantId, options = {}) {
   if (!tenantId) {
     console.error('[NEXUS CORE] ❌ cancel_appointment: tenant_id manquant');
     return { success: false, error: "tenant_id requis pour annuler un rendez-vous" };
@@ -2412,11 +2413,13 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
   const db = getSupabase();
   if (!db) return { success: false, error: "Base de données non disponible" };
 
+  const { channel = 'ia', sendNotifications = true } = options;
+
   try {
     // Fetch appointment - 🔒 Filtrer par tenant_id
     const { data: rdv, error: fetchErr } = await db
       .from('reservations')
-      .select('id, date, heure, service_nom, statut, client_id, telephone, clients(nom, prenom, telephone)')
+      .select('id, date, heure, service_nom, statut, notes, client_id, telephone, client_email, date_arrivee, date_depart, clients(nom, prenom, telephone, email)')
       .eq('id', appointmentId)
       .eq('tenant_id', tenantId)
       .single();
@@ -2428,40 +2431,70 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
       return { success: false, error: "Ce rendez-vous est déjà annulé." };
     }
 
-    // Cancel - 🔒 Filtrer par tenant_id pour éviter annulation cross-tenant
-    const noteAnnulation = reason
-      ? `Annulé via assistant IA: ${reason}`
-      : 'Annulé via assistant IA (demande client)';
+    // Cancel - 🔒 Filtrer par tenant_id pour ��viter annulation cross-tenant
+    const noteAnnulation = reason || `Annulé via ${channel} (demande client)`;
     const existingNotes = rdv.notes ? rdv.notes + ' | ' : '';
 
     const { error: updateErr } = await db
       .from('reservations')
-      .update({ statut: 'annule', notes: existingNotes + noteAnnulation })
+      .update({
+        statut: 'annule',
+        notes: existingNotes + noteAnnulation,
+        cancelled_at: new Date().toISOString(),
+        cancelled_via: channel,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', appointmentId)
       .eq('tenant_id', tenantId);
 
     if (updateErr) throw updateErr;
 
-    // Envoyer notifications annulation (Email + WhatsApp + SMS cascade)
+    // Avoir auto si facture liée
+    let avoir = null;
     try {
-      const { sendAnnulation } = await import('../../services/notificationService.js');
-      await sendAnnulation({
-        client_telephone: rdv.clients?.telephone || rdv.telephone,
-        client_email: rdv.clients?.email || null,
-        client_nom: rdv.clients?.nom || '',
-        client_prenom: rdv.clients?.prenom || '',
-        date: rdv.date,
-        heure: rdv.heure,
-        service_nom: rdv.service_nom,
-      }, 0, tenantId);
-    } catch (notifErr) {
-      logger.warn('Notification annulation non envoyée', { tag: 'NEXUS CORE', error: notifErr.message });
+      const { cancelFactureFromReservation } = await import('../../routes/factures.js');
+      const { createAvoir } = await import('../../routes/factures.js');
+      const cancelResult = await cancelFactureFromReservation(appointmentId, tenantId, false);
+      if (cancelResult.requiresAvoir) {
+        const avoirResult = await createAvoir(tenantId, cancelResult.factureId, 'Annulation prestation');
+        if (avoirResult.success) {
+          avoir = avoirResult.avoir;
+          logger.info(`[CANCEL] Avoir auto-créé: ${avoirResult.avoir.numero}`, { tenantId, appointmentId });
+        }
+      }
+    } catch (avoirErr) {
+      // Pas de facture liée = normal, pas d'erreur
+      if (!avoirErr.message?.includes('not found') && !avoirErr.message?.includes('aucune facture')) {
+        logger.warn('Avoir auto non créé', { tag: 'NEXUS CORE', error: avoirErr.message });
+      }
     }
 
-    console.log(`[NEXUS CORE] ✅ RDV #${appointmentId} annulé`);
+    // Notifications annulation (Email + WhatsApp + SMS cascade)
+    if (sendNotifications) {
+      try {
+        const { sendAnnulation } = await import('../../services/notificationService.js');
+        await sendAnnulation({
+          client_telephone: rdv.clients?.telephone || rdv.telephone,
+          client_email: rdv.clients?.email || rdv.client_email || null,
+          client_nom: rdv.clients?.nom || '',
+          client_prenom: rdv.clients?.prenom || '',
+          date: rdv.date,
+          heure: rdv.heure,
+          service_nom: rdv.service_nom,
+          date_arrivee: rdv.date_arrivee || null,
+          date_depart: rdv.date_depart || null,
+        }, 0, tenantId);
+      } catch (notifErr) {
+        logger.warn('Notification annulation non envoyée', { tag: 'NEXUS CORE', error: notifErr.message });
+      }
+    }
+
+    console.log(`[NEXUS CORE] ✅ RDV #${appointmentId} annulé via ${channel}`);
     return {
       success: true,
-      message: `Rendez-vous du ${rdv.date} à ${rdv.heure} (${rdv.service_nom}) annulé avec succès.`
+      message: `Rendez-vous du ${rdv.date} à ${rdv.heure} (${rdv.service_nom}) annulé avec succès.`,
+      rdv: { id: rdv.id, date: rdv.date, heure: rdv.heure, service: rdv.service_nom, statut: 'annule' },
+      avoir: avoir || null,
     };
   } catch (error) {
     console.error('[NEXUS CORE] Erreur cancel_appointment:', error.message);
@@ -3605,6 +3638,9 @@ export {
   // 🆕 Remplace SALON_INFO hardcode
   getBusinessInfoForTenant,
   getBusinessInfoForTenantSync,
+
+  // 🆕 Annulation unifiée — UNE SEULE R��GLE pour tous les canaux
+  cancelAppointmentById,
 };
 
 // ============================================
@@ -3667,6 +3703,8 @@ export default {
   invalidateCache,
   // 🔒 Fonction unique de création RDV
   createReservationUnified,
+  // 🔒 Fonction unique d'annulation RDV
+  cancelAppointmentById,
   // Compatibilité avec ancien nexusCore
   CONVERSATION_STATES,
   createConversationContext

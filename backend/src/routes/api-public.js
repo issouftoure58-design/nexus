@@ -15,7 +15,7 @@ import {
 } from '../middleware/apiAuth.js';
 import { requireClientsQuota, requireReservationsQuota } from '../middleware/quotas.js';
 import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
-import { createReservationUnified } from '../core/unified/nexusCore.js';
+import { createReservationUnified, cancelAppointmentById } from '../core/unified/nexusCore.js';
 
 const API_CLIENTS_SORT_FIELDS = ['created_at', 'nom', 'prenom', 'email', 'telephone', 'updated_at'];
 const API_RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'updated_at'];
@@ -519,33 +519,26 @@ router.patch('/reservations/:id', requireScope('write:reservations'), async (req
 
 /**
  * DELETE /api/v1/reservations/:id
- * Annuler une reservation
+ * Annuler une reservation — meme logique unifiee que tous les canaux
  */
 router.delete('/reservations/:id', requireScope('delete:reservations'), async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body || {};
 
-    // Soft delete - on met le statut a "annule"
-    const { data: reservation, error } = await supabase
-      .from('reservations')
-      .update({
-        statut: 'annule',
-        cancelled_at: new Date().toISOString(),
-        cancelled_via: 'api'
-      })
-      .eq('id', id)
-      .eq('tenant_id', req.tenantId)
-      .select()
-      .single();
+    const result = await cancelAppointmentById(id, reason || 'Annulé via API', req.tenantId, {
+      channel: 'api',
+      sendNotifications: true,
+    });
 
-    if (error || !reservation) {
-      return res.status(404).json({
-        error: 'not_found',
-        message: 'Reservation not found'
+    if (!result.success) {
+      return res.status(result.error?.includes('non trouvé') ? 404 : 400).json({
+        error: result.error?.includes('non trouvé') ? 'not_found' : 'cancellation_error',
+        message: result.error,
       });
     }
 
-    res.json({ success: true, data: reservation });
+    res.json({ success: true, data: result.rdv, avoir: result.avoir });
 
   } catch (error) {
     console.error('[API] Cancel reservation error:', error);

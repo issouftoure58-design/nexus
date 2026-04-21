@@ -1062,6 +1062,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // Statut
     if (statut && statut !== currentRdv.statut) {
       updates.statut = statut;
+      if (statut === 'annule') {
+        updates.cancelled_at = new Date().toISOString();
+        updates.cancelled_via = 'admin';
+      }
       console.log(`[ADMIN EDIT] Statut: ${currentRdv.statut} → ${statut}`);
     }
 

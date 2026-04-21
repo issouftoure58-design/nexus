@@ -10,6 +10,7 @@ import { supabase } from '../../config/supabase.js';
 import logger from '../../config/logger.js';
 import { checkDisponibilite, getCreneauxDisponibles } from '../../services/dispoService.js';
 import { createReservationUnified } from '../../services/bookingService.js';
+import { cancelAppointmentById } from '../../core/unified/nexusCore.js';
 import { search as halimahSearch, buildMemoryContext } from '../../services/halimahMemory.js';
 import { sendWhatsAppNotification } from '../../services/whatsappService.js';
 
@@ -411,56 +412,27 @@ async function find_appointment(toolInput, tenantId, adminId) {
 }
 
 /**
- * Annule un rendez-vous par ID (statut -> 'annule').
+ * Annule un rendez-vous par ID — délègue à cancelAppointmentById (règle unique).
  */
 async function cancel_appointment(toolInput, tenantId, adminId) {
   if (!tenantId) throw new Error('TENANT_SHIELD: tenant_id requis');
 
-  try {
-    const appointmentId = toolInput.appointment_id || toolInput.rdv_id || toolInput.id;
-
-    if (!appointmentId) {
-      return { success: false, error: 'appointment_id requis' };
-    }
-
-    const { data, error } = await supabase
-      .from('reservations')
-      .update({
-        statut: 'annule',
-        notes: toolInput.reason ? `Annulé: ${toolInput.reason}` : 'Annulé via admin chat',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', appointmentId)
-      .eq('tenant_id', tenantId)
-      .select('id, date, heure, statut, service_nom')
-      .single();
-
-    if (error) {
-      logger.error('[CLIENT HANDLER] Erreur cancel_appointment:', { error, tenantId });
-      return { success: false, error: error.message };
-    }
-
-    if (!data) {
-      return { success: false, error: 'RDV non trouvé ou accès refusé' };
-    }
-
-    logger.info('[CLIENT HANDLER] RDV annulé', { tenantId, adminId, appointmentId });
-
-    return {
-      success: true,
-      message: 'Rendez-vous annulé avec succès',
-      rdv: {
-        id: data.id,
-        date: data.date,
-        heure: data.heure,
-        service: data.service_nom,
-        statut: data.statut
-      }
-    };
-  } catch (error) {
-    logger.error('[CLIENT HANDLER] Erreur cancel_appointment:', { error: error.message, tenantId });
-    return { success: false, error: error.message };
+  const appointmentId = toolInput.appointment_id || toolInput.rdv_id || toolInput.id;
+  if (!appointmentId) {
+    return { success: false, error: 'appointment_id requis' };
   }
+
+  const reason = toolInput.reason
+    ? `Annulé via admin chat: ${toolInput.reason}`
+    : 'Annulé via admin chat (demande admin)';
+
+  const result = await cancelAppointmentById(appointmentId, reason, tenantId, { channel: 'admin_chat' });
+
+  if (result.success) {
+    logger.info('[CLIENT HANDLER] RDV annulé', { tenantId, adminId, appointmentId });
+  }
+
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════════
