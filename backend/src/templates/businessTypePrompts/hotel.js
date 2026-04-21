@@ -20,7 +20,7 @@ export function getPromptRules(tc) {
 3. Vérifier la disponibilité (check_room_availability)
 4. Proposer les chambres disponibles avec les tarifs
 5. Demander les extras éventuels
-6. Collecter le nom + téléphone + email
+6. Collecter le nom + téléphone. Email optionnel (ne PAS demander par téléphone)
 7. RÉCAPITULER : dates, type chambre, prix total, extras
 8. Créer avec create_booking → vérifier success=true`,
 

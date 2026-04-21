@@ -17,7 +17,7 @@ export function getPromptRules(tc) {
 1b. Demander : "Souhaitez-vous ajouter une autre prestation ?" avant les dispos
 2. Vérifier les disponibilités (get_upcoming_days puis check_availability) avec la durée TOTALE
 3. Proposer les créneaux disponibles
-4. Collecter nom complet + téléphone (10 chiffres) + email
+4. Collecter nom complet + téléphone (10 chiffres). Email optionnel (ne PAS demander par téléphone)
 5. RÉCAPITULER tous les services + prix total et demander confirmation
 6. Créer avec create_booking (utiliser "services" si plusieurs) → vérifier success=true`,
 

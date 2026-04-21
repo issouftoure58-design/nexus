@@ -25,7 +25,7 @@ ${domicileEnabled ? `- Le client peut choisir :
 2. Vérifier les disponibilités (get_upcoming_days puis check_availability) avec la durée TOTALE
 3. Demander le lieu : domicile ou chez ${gerante}
 4. Si domicile : collecter l'adresse complète + calculer les frais (calculate_travel_fee)
-5. Collecter nom complet + téléphone (10 chiffres) + email
+5. Collecter nom complet + téléphone (10 chiffres). Email optionnel (ne PAS demander par téléphone)
 6. RÉCAPITULER avec tous les services + prix total (services + frais déplacement si applicable)
 7. Demander confirmation du client
 8. Créer avec create_booking (utiliser "services" si plusieurs) → vérifier success=true`,
