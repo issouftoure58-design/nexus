@@ -17,7 +17,7 @@ import { getVoiceSystemPrompt } from '../prompts/voicePrompt.js';
 import { getDemoPrompt } from '../prompts/demoAgentPrompt.js';
 import { getTenantConfig } from '../config/tenants/index.js';
 import { TOOLS_CLIENT } from '../tools/toolsRegistry.js';
-import { createReservationUnified, clearConversation } from '../core/unified/nexusCore.js';
+import { createReservationUnified, clearConversation, executeTool } from '../core/unified/nexusCore.js';
 import { getServicesListForTenant, getHorairesForTenant, checkAvailability } from '../services/bookingService.js';
 import { logCallStart, logCallEnd } from '../modules/twilio/callLogService.js';
 import usageTracking from '../services/usageTrackingService.js';
@@ -499,7 +499,8 @@ async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid, caller
         }
         const result = await createReservationUnified({
           tenant_id: tenantId,
-          service_name: toolArgs.service_name,
+          service_name: toolArgs.service_name || undefined,
+          services: toolArgs.services || undefined,
           date: toolArgs.date,
           heure: toolArgs.heure,
           client_nom: toolArgs.client_nom,
@@ -518,6 +519,23 @@ async function executeRealtimeTool(toolName, toolArgs, tenantId, callSid, caller
           recap: result.recap || null,
           error: result.error || null,
         };
+      }
+
+      case 'find_appointment': {
+        // Utiliser le numéro appelant Twilio comme fallback
+        const phoneToSearch = toolArgs.telephone || callerPhone;
+        if (!phoneToSearch) {
+          return { success: false, error: 'Numéro de téléphone requis pour rechercher un rendez-vous.' };
+        }
+        return await executeTool('find_appointment', { ...toolArgs, telephone: phoneToSearch }, 'phone', tenantId);
+      }
+
+      case 'cancel_appointment': {
+        if (!toolArgs.appointment_id) {
+          return { success: false, error: 'appointment_id requis. Rechercher le rendez-vous d\'abord avec find_appointment.' };
+        }
+        const reason = toolArgs.reason || 'Annulation par téléphone (demande client)';
+        return await executeTool('cancel_appointment', { ...toolArgs, reason }, 'phone', tenantId);
       }
 
       case 'transferer_responsable': {
@@ -606,6 +624,31 @@ export function buildRealtimeTools(tenantId) {
           nb_couverts: { type: 'integer', description: 'Nombre de personnes (restaurant)' },
         },
         required: ['service_name', 'date', 'heure', 'client_nom', 'client_telephone'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'find_appointment',
+      description: "Recherche les rendez-vous d'un client par son numero de telephone. Utiliser quand le client veut consulter, modifier ou annuler un rendez-vous.",
+      parameters: {
+        type: 'object',
+        properties: {
+          telephone: { type: 'string', description: 'Numero de telephone du client (format 06... ou +33...)' },
+        },
+        required: ['telephone'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'cancel_appointment',
+      description: "Annule un rendez-vous existant. IMPORTANT: toujours utiliser find_appointment d'abord pour obtenir l'appointment_id, puis confirmer avec le client avant d'annuler.",
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string', description: "L'identifiant unique du rendez-vous a annuler (obtenu via find_appointment)" },
+          reason: { type: 'string', description: "Raison de l'annulation" },
+        },
+        required: ['appointment_id'],
       },
     },
     {

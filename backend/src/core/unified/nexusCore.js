@@ -2442,17 +2442,20 @@ async function cancelAppointmentById(appointmentId, reason, tenantId) {
 
     if (updateErr) throw updateErr;
 
-    // Send cancellation SMS
+    // Envoyer notifications annulation (Email + WhatsApp + SMS cascade)
     try {
-      const clientPhone = rdv.clients?.telephone || rdv.telephone;
-      const clientNom = rdv.clients?.nom || '';
-      const clientPrenom = rdv.clients?.prenom || '';
-      if (clientPhone) {
-        const { sendCancellationSMS } = await import('../../server/sms-service.ts');
-        await sendCancellationSMS(clientPhone, clientNom, clientPrenom, rdv.service_nom, rdv.date, rdv.heure);
-      }
-    } catch (smsErr) {
-      logger.warn('SMS annulation non envoyé', { tag: 'NEXUS CORE', error: smsErr.message });
+      const { sendAnnulation } = await import('../../services/notificationService.js');
+      await sendAnnulation({
+        client_telephone: rdv.clients?.telephone || rdv.telephone,
+        client_email: rdv.clients?.email || null,
+        client_nom: rdv.clients?.nom || '',
+        client_prenom: rdv.clients?.prenom || '',
+        date: rdv.date,
+        heure: rdv.heure,
+        service_nom: rdv.service_nom,
+      }, 0, tenantId);
+    } catch (notifErr) {
+      logger.warn('Notification annulation non envoyée', { tag: 'NEXUS CORE', error: notifErr.message });
     }
 
     console.log(`[NEXUS CORE] ✅ RDV #${appointmentId} annulé`);
