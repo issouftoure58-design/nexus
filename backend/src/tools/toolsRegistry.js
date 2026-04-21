@@ -127,11 +127,11 @@ export const TOOLS_CLIENT = [
         client_nom: { type: "string" },
         client_prenom: { type: "string" },
         client_telephone: { type: "string" },
-        client_email: { type: "string", description: "Email du client (OBLIGATOIRE — pour confirmation et facturation)" },
+        client_email: { type: "string", description: "Email du client (optionnel par telephone — le demander seulement si le client le propose spontanement)" },
         nb_couverts: { type: "integer", description: "Nombre de personnes (restaurant uniquement)" },
         zone_preference: { type: "string", description: "Zone préférée (interieur, terrasse, salon_prive)" }
       },
-      required: ["date", "heure", "lieu", "client_nom", "client_telephone", "client_email"]
+      required: ["date", "heure", "lieu", "client_nom", "client_telephone"]
     }
   },
   {

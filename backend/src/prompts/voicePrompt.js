@@ -122,6 +122,11 @@ CONFIRMATION (45 chars max) :
 EMPATHIE (30 chars max) :
 "Ah mince... Attendez, je regarde..."
 
+RÉSERVATION PAR TÉLÉPHONE :
+- Collecter : nom + téléphone (tu as déjà le numéro appelant en fallback)
+- NE JAMAIS demander l'email par téléphone — c'est trop difficile à épeler et ça bloque la réservation
+- Si le client propose son email spontanément, le noter, sinon passer directement à la confirmation
+
 CONTEXTE MÉTIER :
 - ${businessName} = ${ownerName}
 ${info.businessType === 'service_domicile' ? '- Peut aller a domicile ou recevoir' : '- Recoit sur place'}
