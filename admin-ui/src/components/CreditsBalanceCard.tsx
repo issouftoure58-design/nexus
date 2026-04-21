@@ -12,7 +12,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Sparkles, Zap, TrendingUp, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag } from 'lucide-react';
+import { Sparkles, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreditsBalance {
@@ -27,24 +27,25 @@ interface CreditsBalance {
   auto_recharge_pack: string | null;
 }
 
-interface CreditPack {
-  id: 'pack_1000';
+interface UsageTopup {
+  id: string;
   code: string;
-  credits: number;
+  label: string;
   price_cents: number;
   price_eur: number;
-  bonus_pct: number;
-  cost_per_credit_cents: number;
+  discount_pct: number;
+  description: string;
+  popular: boolean;
 }
 
 interface PacksResponse {
-  packs: CreditPack[];
+  packs: UsageTopup[];
   costs: Record<string, number>;
 }
 
 interface CheckoutResponse {
   url: string;
-  pack: { id: string; credits: number; price_cents: number };
+  pack: { id: string; price_cents: number };
 }
 
 interface CreditsBalanceCardProps {
@@ -233,7 +234,7 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
         </div>
       </div>
 
-      {/* Utilisation supplementaire — montants en € (modele Claude) */}
+      {/* Utilisation supplementaire — 3 montants preset en € (modele Claude) */}
       {showPacks && packsData?.packs && packsData.packs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -246,33 +247,52 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
             </p>
           </div>
 
-          <div className="p-6 flex justify-center">
-            {packsData.packs.map((pack) => (
+          <div className="p-6 grid grid-cols-3 gap-3">
+            {packsData.packs.map((topup) => (
               <div
-                key={pack.id}
-                className="relative rounded-xl border-2 border-purple-400 overflow-hidden transition-all hover:shadow-lg max-w-xs w-full"
+                key={topup.id}
+                className={cn(
+                  'relative rounded-xl border-2 overflow-hidden transition-all hover:shadow-lg',
+                  topup.popular ? 'border-purple-500' : 'border-gray-200'
+                )}
               >
-                <div className="h-2 bg-gradient-to-r from-purple-400 to-indigo-500" />
+                {topup.popular && (
+                  <div className="absolute -top-px left-1/2 -translate-x-1/2">
+                    <span className="px-2.5 py-0.5 bg-purple-500 text-white text-[10px] font-bold rounded-b-md uppercase">
+                      Populaire
+                    </span>
+                  </div>
+                )}
 
-                <div className="p-6 text-center">
-                  <div className="my-3">
-                    <span className="text-4xl font-bold text-gray-900">{pack.price_eur}€</span>
+                <div className="p-4 text-center">
+                  <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mt-1 mb-2">
+                    {topup.label}
+                  </p>
+
+                  <div className="mb-2">
+                    <span className="text-3xl font-bold text-gray-900">{topup.price_eur}€</span>
                   </div>
 
-                  <p className="text-sm text-gray-500 mb-4">
-                    Utilisation IA supplementaire
+                  <p className="text-xs text-green-600 font-medium mb-1">
+                    -{topup.discount_pct}% de reduction
+                  </p>
+
+                  <p className="text-xs text-gray-400 mb-3">
+                    {topup.description}
                   </p>
 
                   <button
-                    onClick={() => checkoutMutation.mutate(pack.id)}
+                    onClick={() => checkoutMutation.mutate(topup.id)}
                     disabled={checkoutMutation.isPending}
                     className={cn(
-                      'w-full py-2.5 px-4 rounded-lg font-medium text-white transition-all',
-                      'bg-gradient-to-r from-purple-500 to-indigo-600',
+                      'w-full py-2 px-3 rounded-lg text-sm font-medium text-white transition-all',
+                      topup.popular
+                        ? 'bg-gradient-to-r from-purple-500 to-indigo-600'
+                        : 'bg-gray-700 hover:bg-gray-800',
                       'hover:shadow-md disabled:opacity-50'
                     )}
                   >
-                    {checkoutMutation.isPending ? 'Redirection...' : `Acheter pour ${pack.price_eur}€`}
+                    {checkoutMutation.isPending ? '...' : `Acheter`}
                   </button>
                 </div>
               </div>

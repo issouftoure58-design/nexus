@@ -40,11 +40,12 @@ export const CREDIT_COSTS = {
   seo_article: 75,           // 1 article SEO complet (1500 mots)
 };
 
-// Utilisation supplémentaire — montants preset avec réductions volume (modèle Claude)
+// Utilisation supplémentaire — 3 montants preset avec réductions volume
+// Pack S/M/L — le client voit des €, jamais des crédits
 export const USAGE_TOPUP = {
-  topup_50:  { code: 'nexus_usage_50',  price_cents: 5000,  discount_pct: 10, credits: Math.round(5000 / 1.5 * (100 / 90)) },   // ~3 700 cr
-  topup_200: { code: 'nexus_usage_200', price_cents: 20000, discount_pct: 20, credits: Math.round(20000 / 1.5 * (100 / 80)) },  // ~16 600 cr
-  topup_500: { code: 'nexus_usage_500', price_cents: 50000, discount_pct: 30, credits: Math.round(50000 / 1.5 * (100 / 70)) },  // ~47 600 cr
+  topup_50:  { code: 'nexus_usage_50',  label: 'Pack S', price_cents: 5000,  discount_pct: 10, credits: Math.round(5000 / 1.5 * (100 / 90)),  description: 'Ideal pour un complement ponctuel' },
+  topup_200: { code: 'nexus_usage_200', label: 'Pack M', price_cents: 20000, discount_pct: 20, credits: Math.round(20000 / 1.5 * (100 / 80)), description: 'Le plus choisi par nos clients', popular: true },
+  topup_500: { code: 'nexus_usage_500', label: 'Pack L', price_cents: 50000, discount_pct: 30, credits: Math.round(50000 / 1.5 * (100 / 70)), description: 'Pour les gros consommateurs' },
 };
 
 // Legacy pack (backward compat)

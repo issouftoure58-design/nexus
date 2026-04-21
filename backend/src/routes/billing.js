@@ -21,7 +21,7 @@ import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
 import * as billingService from '../services/stripeBillingService.js';
-import creditsService, { CREDIT_PACKS, CREDIT_COSTS } from '../services/creditsService.js';
+import creditsService, { CREDIT_PACKS, USAGE_TOPUP, CREDIT_COSTS } from '../services/creditsService.js';
 
 const router = express.Router();
 
@@ -467,19 +467,21 @@ router.get('/credits/transactions', async (req, res) => {
 
 /**
  * GET /api/billing/credits/packs
- * Liste des packs disponibles + grille tarifaire (sans authentification spéciale).
+ * Liste des montants d'utilisation supplémentaire disponibles (modèle Claude).
+ * Le client voit des €, jamais des crédits.
  */
 router.get('/credits/packs', (req, res) => {
   res.json({
     success: true,
-    packs: Object.entries(CREDIT_PACKS).map(([id, pack]) => ({
+    packs: Object.entries(USAGE_TOPUP).map(([id, topup]) => ({
       id,
-      code: pack.code,
-      credits: pack.credits,
-      price_cents: pack.price_cents,
-      price_eur: pack.price_cents / 100,
-      bonus_pct: pack.bonus_pct,
-      cost_per_credit_cents: pack.price_cents / pack.credits,
+      code: topup.code,
+      label: topup.label,
+      price_cents: topup.price_cents,
+      price_eur: topup.price_cents / 100,
+      discount_pct: topup.discount_pct,
+      description: topup.description || '',
+      popular: topup.popular || false,
     })),
     costs: CREDIT_COSTS,
   });
@@ -487,30 +489,29 @@ router.get('/credits/packs', (req, res) => {
 
 /**
  * POST /api/billing/credits/checkout
- * Crée une Checkout Session pour acheter un pack de crédits IA.
- * Body: { packId: 'pack_1000', successUrl?, cancelUrl? }
- *
- * Modèle pricing 2026 — révision finale 9 avril 2026 :
- * Pack unique 1000 crédits — 15€ (taux base 0,015€/crédit, 0% bonus).
+ * Crée une Checkout Session pour acheter de l'utilisation supplémentaire.
+ * Body: { packId: 'topup_15' | 'topup_50' | 'topup_100', successUrl?, cancelUrl? }
  */
 router.post('/credits/checkout', async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { packId, successUrl, cancelUrl } = req.body;
 
-    const validPackIds = Object.keys(CREDIT_PACKS); // ex: ['pack_1000']
-    if (!packId || !CREDIT_PACKS[packId]) {
+    // Accepter topup IDs et legacy pack IDs
+    const allPacks = { ...USAGE_TOPUP, ...CREDIT_PACKS };
+    if (!packId || !allPacks[packId]) {
+      const validIds = Object.keys(allPacks);
       return res.status(400).json({
         success: false,
-        error: `packId requis (${validPackIds.join(' | ')}). Reçu: ${packId}`,
+        error: `packId requis (${validIds.join(' | ')}). Reçu: ${packId}`,
       });
     }
 
-    const pack = CREDIT_PACKS[packId];
+    const pack = allPacks[packId];
 
     const result = await billingService.createOneTimeCheckout(
       tenantId,
-      pack.code, // ex: 'nexus_credits_1000'
+      pack.code,
       1,
       successUrl,
       cancelUrl
@@ -520,7 +521,6 @@ router.post('/credits/checkout', async (req, res) => {
       success: true,
       pack: {
         id: packId,
-        credits: pack.credits,
         price_cents: pack.price_cents,
       },
       ...result,
