@@ -1,19 +1,18 @@
 /**
- * CreditsBalanceCard — Affichage du solde de credits IA + achat de pack additionnel
+ * CreditsBalanceCard — Affichage "Utilisation IA" (modele Claude)
  *
- * Modele 2026 (revision 21 avril 2026) :
- *   • 1,5€ = 100 credits (0,015€/credit — taux base)
- *   • Free     : 200 credits (limite)
- *   • Starter  : 1 000 credits inclus / mois
- *   • Pro      : 5 000 credits inclus / mois
- *   • Business : 20 000 credits inclus / mois
+ * REGLE ABSOLUE : le mot "credit" n'apparait JAMAIS cote client.
+ * Le client voit :
+ *   - Barre de progression en % ("42% utilise")
+ *   - "Reinitialisation dans X jours"
+ *   - "Acheter de l'utilisation supplementaire" en € (15€ / 50€ / 100€)
  *
- * Pack unique additionnel : Pack 1000 → 15€ pour 1 000 credits (0% bonus, taux base)
+ * En interne on compte en credits, mais tout est converti en % pour l'affichage.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Sparkles, Zap, TrendingUp, Calendar, RefreshCw, AlertCircle, Crown } from 'lucide-react';
+import { Sparkles, Zap, TrendingUp, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreditsBalance {
@@ -49,9 +48,7 @@ interface CheckoutResponse {
 }
 
 interface CreditsBalanceCardProps {
-  /** Si true, affiche aussi le pack additionnel sous le solde. Par défaut: true */
   showPacks?: boolean;
-  /** Si true, version compacte pour sidebar. Par défaut: false */
   compact?: boolean;
 }
 
@@ -86,7 +83,6 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
   // Refresh sur retour du checkout Stripe
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('credits') === 'success') {
     queryClient.invalidateQueries({ queryKey: ['credits-balance'] });
-    // Nettoyer l'URL
     window.history.replaceState({}, '', window.location.pathname);
   }
 
@@ -105,18 +101,31 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
       <div className="bg-white border border-red-200 rounded-xl p-6">
         <div className="flex items-center gap-2 text-red-600">
           <AlertCircle className="w-5 h-5" />
-          <span className="text-sm">Impossible de charger le solde de crédits</span>
+          <span className="text-sm">Impossible de charger l'utilisation IA</span>
         </div>
       </div>
     );
   }
 
-  const isLowBalance = balance.balance < 100;
-  const isCriticalBalance = balance.balance < 20;
+  // Calcul du % utilise (sur le quota mensuel inclus)
+  const usedPercent = balance.monthly_included > 0
+    ? Math.min(100, Math.round((balance.monthly_used / balance.monthly_included) * 100))
+    : 0;
+  const remainingPercent = 100 - usedPercent;
 
-  const formatNumber = (n: number) => n.toLocaleString('fr-FR');
+  const isLow = remainingPercent <= 20;
+  const isCritical = remainingPercent <= 5;
+
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
+  const daysUntilReset = balance.monthly_reset_at
+    ? Math.max(0, Math.ceil((new Date(balance.monthly_reset_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+  const planLabel = balance.monthly_included >= 20000 ? 'Business'
+    : balance.monthly_included >= 5000 ? 'Pro'
+    : balance.monthly_included >= 1000 ? 'Starter' : 'Free';
 
   // Mode compact pour sidebar/header
   if (compact) {
@@ -124,21 +133,27 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
       <div
         className={cn(
           'rounded-xl p-4 text-white',
-          isCriticalBalance
+          isCritical
             ? 'bg-gradient-to-br from-red-500 to-rose-600'
-            : isLowBalance
+            : isLow
             ? 'bg-gradient-to-br from-amber-500 to-orange-600'
             : 'bg-gradient-to-br from-purple-500 to-indigo-600'
         )}
       >
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-medium opacity-90">Crédits IA</span>
+          <span className="text-xs font-medium opacity-90">Utilisation IA</span>
         </div>
-        <div className="text-2xl font-bold">{formatNumber(balance.balance)}</div>
-        {balance.monthly_included > 0 && (
+        <div className="text-2xl font-bold">{usedPercent}%</div>
+        <div className="w-full bg-white/20 rounded-full h-1.5 mt-2">
+          <div
+            className="h-1.5 rounded-full bg-white transition-all"
+            style={{ width: `${usedPercent}%` }}
+          />
+        </div>
+        {daysUntilReset !== null && (
           <div className="text-xs opacity-80 mt-1">
-            +{formatNumber(balance.monthly_included)} / mois inclus
+            Reinitialisation dans {daysUntilReset}j
           </div>
         )}
       </div>
@@ -147,13 +162,13 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
 
   return (
     <div className="space-y-4">
-      {/* Header card — Solde principal */}
+      {/* Header card — Utilisation IA */}
       <div
         className={cn(
           'relative overflow-hidden rounded-2xl p-6 text-white bg-gradient-to-br',
-          isCriticalBalance
+          isCritical
             ? 'from-red-500 to-rose-600'
-            : isLowBalance
+            : isLow
             ? 'from-amber-500 to-orange-600'
             : 'from-purple-500 to-indigo-600'
         )}
@@ -165,85 +180,69 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5" />
-              <h3 className="font-semibold">Crédits IA</h3>
+              <h3 className="font-semibold">Utilisation IA</h3>
             </div>
             {balance.monthly_included > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-white/20 backdrop-blur rounded-full">
                 <Crown className="w-3 h-3" />
-                {balance.monthly_included >= 20000 ? 'Business' : balance.monthly_included >= 5000 ? 'Pro' : 'Starter'}
+                {planLabel}
               </span>
             )}
           </div>
 
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-5xl font-bold">{formatNumber(balance.balance)}</span>
-            <span className="text-lg opacity-80">crédits</span>
+          {/* Barre de progression principale */}
+          <div className="mb-3">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-4xl font-bold">{usedPercent}%</span>
+              <span className="text-sm opacity-80">utilise ce mois</span>
+            </div>
+            <div className="w-full bg-white/20 rounded-full h-3">
+              <div
+                className={cn(
+                  'h-3 rounded-full transition-all',
+                  isCritical ? 'bg-red-300' : isLow ? 'bg-amber-300' : 'bg-white'
+                )}
+                style={{ width: `${usedPercent}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5 text-xs opacity-75">
+              <span>{remainingPercent}% restant</span>
+              {daysUntilReset !== null && (
+                <span>Reinitialisation dans {daysUntilReset} jour{daysUntilReset > 1 ? 's' : ''}</span>
+              )}
+            </div>
           </div>
 
-          {balance.monthly_included > 0 && (
-            <div className="flex items-center gap-2 text-sm opacity-90 mb-1">
-              <Calendar className="w-4 h-4" />
-              <span>
-                {formatNumber(balance.monthly_included)} crédits inclus / mois
-                {balance.monthly_used > 0 && (
-                  <> · {formatNumber(balance.monthly_used)} utilisés</>
-                )}
-              </span>
-            </div>
-          )}
-
           {balance.monthly_reset_at && balance.monthly_included > 0 && (
-            <div className="text-xs opacity-75 mt-1">
-              Prochain renouvellement : {formatDate(balance.monthly_reset_at)}
+            <div className="flex items-center gap-2 text-xs opacity-75 mt-1">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Prochain renouvellement : {formatDate(balance.monthly_reset_at)}</span>
             </div>
           )}
 
-          {isLowBalance && (
+          {isLow && (
             <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-white/15 backdrop-blur rounded-lg text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>
-                {isCriticalBalance
-                  ? 'Solde critique — rechargez pour éviter l\'interruption des services IA'
-                  : 'Solde faible — pensez à recharger'}
+                {isCritical
+                  ? 'Utilisation presque atteinte — achetez de l\'utilisation supplementaire'
+                  : 'Utilisation elevee — pensez a recharger'}
               </span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Stats secondaires */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-            <Zap className="w-3.5 h-3.5" />
-            <span>Consommé total</span>
-          </div>
-          <div className="text-xl font-bold text-gray-900">
-            {formatNumber(balance.total_consumed)}
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Acheté total</span>
-          </div>
-          <div className="text-xl font-bold text-gray-900">
-            {formatNumber(balance.total_purchased)}
-          </div>
-        </div>
-      </div>
-
-      {/* Pack unique additionnel à l'achat */}
+      {/* Utilisation supplementaire — montants en € (modele Claude) */}
       {showPacks && packsData?.packs && packsData.packs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-500" />
-              Recharger en crédits IA
+              <ShoppingBag className="w-5 h-5 text-purple-500" />
+              Utilisation supplementaire
             </h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              Pack unique additionnel — taux base, sans bonus, sans engagement
+              Continuez a utiliser l'IA au-dela de votre limite mensuelle
             </p>
           </div>
 
@@ -253,32 +252,16 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
                 key={pack.id}
                 className="relative rounded-xl border-2 border-purple-400 overflow-hidden transition-all hover:shadow-lg max-w-xs w-full"
               >
-                <div className="absolute -top-px left-1/2 -translate-x-1/2">
-                  <span className="px-3 py-1 bg-purple-500 text-white text-xs font-bold rounded-b-md">
-                    PACK UNIQUE
-                  </span>
-                </div>
-
                 <div className="h-2 bg-gradient-to-r from-purple-400 to-indigo-500" />
 
                 <div className="p-6 text-center">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Pack 1000
-                  </p>
-
                   <div className="my-3">
-                    <span className="text-4xl font-bold text-gray-900">
-                      {formatNumber(pack.credits)}
-                    </span>
-                    <span className="text-sm text-gray-500 ml-1">crédits</span>
+                    <span className="text-4xl font-bold text-gray-900">{pack.price_eur}€</span>
                   </div>
 
-                  <div className="my-4 py-3 border-y border-gray-100">
-                    <span className="text-3xl font-bold text-gray-900">{pack.price_eur}€</span>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {(pack.cost_per_credit_cents / 100).toFixed(3)}€ / crédit · taux base
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Utilisation IA supplementaire
+                  </p>
 
                   <button
                     onClick={() => checkoutMutation.mutate(pack.id)}
@@ -289,32 +272,12 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
                       'hover:shadow-md disabled:opacity-50'
                     )}
                   >
-                    {checkoutMutation.isPending ? 'Redirection...' : 'Acheter 1 000 crédits'}
+                    {checkoutMutation.isPending ? 'Redirection...' : `Acheter pour ${pack.price_eur}€`}
                   </button>
                 </div>
               </div>
             ))}
           </div>
-
-          {packsData.costs && (
-            <div className="px-6 pb-6">
-              <details className="bg-gray-50 rounded-lg">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900">
-                  Combien coûte chaque action IA ?
-                </summary>
-                <div className="px-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-600">
-                  <div className="flex justify-between"><span>Question chat IA admin</span><span className="font-semibold">7 cr</span></div>
-                  <div className="flex justify-between"><span>Message WhatsApp IA</span><span className="font-semibold">7 cr</span></div>
-                  <div className="flex justify-between"><span>Devis IA</span><span className="font-semibold">9 cr</span></div>
-                  <div className="flex justify-between"><span>Email IA</span><span className="font-semibold">9 cr</span></div>
-                  <div className="flex justify-between"><span>Conversation chat web</span><span className="font-semibold">12 cr</span></div>
-                  <div className="flex justify-between"><span>Post réseaux généré</span><span className="font-semibold">12 cr</span></div>
-                  <div className="flex justify-between"><span>Minute téléphone IA</span><span className="font-semibold">18 cr</span></div>
-                  <div className="flex justify-between"><span>Article SEO complet</span><span className="font-semibold">69 cr</span></div>
-                </div>
-              </details>
-            </div>
-          )}
         </div>
       )}
     </div>

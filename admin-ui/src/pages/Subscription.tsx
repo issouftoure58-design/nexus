@@ -92,7 +92,7 @@ const PLANS = [
       { text: 'Dashboard, Clients, Reservations', icon: Clock },
       { text: 'Facturation (avec watermark)', icon: FileText },
       { text: '1 utilisateur', icon: Users },
-      { text: '200 credits IA (limite)', icon: Zap },
+      { text: 'Utilisation IA limitee', icon: Zap },
       { text: 'IA bloquee', icon: Shield },
       { text: 'Support email', icon: Clock },
     ],
@@ -111,7 +111,7 @@ const PLANS = [
       { text: 'Toutes les fonctions IA', icon: Sparkles },
       { text: 'Stock, Workflows, Pipeline, Devis, SEO', icon: BarChart3 },
       { text: 'Fidelite, Equipe (5 max)', icon: Users },
-      { text: '1 000 credits IA inclus / mois', icon: Zap },
+      { text: 'Utilisation IA incluse (base)', icon: Zap },
       { text: '200 limites (reservations, factures, clients)', icon: Clock },
       { text: 'Support email prioritaire', icon: CheckCircle },
     ],
@@ -130,7 +130,7 @@ const PLANS = [
       { text: 'Multi-sites', icon: Globe },
       { text: 'Tout illimite (reservations, factures, clients)', icon: Sparkles },
       { text: 'Equipe (20 max)', icon: Users },
-      { text: '5 000 credits IA inclus / mois', icon: Zap },
+      { text: 'Utilisation IA 5x (intensif)', icon: Zap },
       { text: 'Support prioritaire', icon: CheckCircle },
     ],
   },
@@ -150,7 +150,7 @@ const PLANS = [
       { text: 'White-label (logo + domaine custom)', icon: Star },
       { text: 'API + Webhooks + SSO entreprise', icon: Shield },
       { text: 'Account Manager dedie, 50 users', icon: Crown },
-      { text: '20 000 credits IA inclus / mois', icon: Sparkles },
+      { text: 'Utilisation IA 20x (illimite)', icon: Sparkles },
     ],
   },
 ];
@@ -537,7 +537,7 @@ export default function Subscription() {
             </div>
           </div>
 
-          {/* Credits IA — Solde + packs d'achat (modele 2026) */}
+          {/* Utilisation IA — Solde + achat supplementaire (modele 2026) */}
           {currentPlan === 'free' ? (
             <div className="rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6">
               <div className="flex items-start gap-3">
@@ -546,7 +546,7 @@ export default function Subscription() {
                   <p className="font-semibold text-gray-900 text-lg">Debloquez l'IA NEXUS</p>
                   <p className="text-sm text-gray-600 mt-1">
                     Les fonctions IA (chat admin, WhatsApp, telephone, marketing, posts, SEO) sont bloquees sur le plan Free.
-                    Passez au plan <strong>Starter 69€/mois</strong> pour acceder a toute l'IA avec 1 000 credits inclus.
+                    Passez au plan <strong>Starter 69€/mois</strong> pour acceder a toute l'IA.
                   </p>
                   <button
                     onClick={() => handleSelectPlan('starter')}
