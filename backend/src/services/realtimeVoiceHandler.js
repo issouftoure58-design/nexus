@@ -168,34 +168,46 @@ function openOpenAISession(tenantId, callSid) {
       clearTimeout(timeout);
       logger.info(`REALTIME OpenAI WS connected for tenant=${tenantId}`);
 
-      // Configurer la session
-      const systemInstructions = buildSystemInstructions(tenantId);
-
-      // Demo tenant: pas de tools (la demo IA utilise uniquement son prompt, pas la DB)
-      const tenantCfg = getTenantConfig(tenantId);
-      const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
-      const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
-
-      const maxTokens = config.max_response_output_tokens;
-
+      // 1. D'abord configurer la voix + audio (léger, rapide)
       ws.send(JSON.stringify({
         type: 'session.update',
         session: {
           voice: config.voice,
-          instructions: systemInstructions,
           input_audio_format: config.input_audio_format,
           output_audio_format: config.output_audio_format,
-          input_audio_transcription: config.input_audio_transcription,
-          turn_detection: config.turn_detection,
-          tools,
-          tool_choice: isDemoTenant ? 'none' : 'auto',
           temperature: config.temperature,
-          max_response_output_tokens: maxTokens,
         },
       }));
 
-      // Envoyer le message d'accueil initial
+      // 2. Envoyer le greeting IMMÉDIATEMENT (avant les tools)
+      // Le client entend la voix en ~1s pendant que les tools se chargent
       sendGreeting(ws, tenantId);
+
+      // 3. Configurer les tools et le prompt complet APRÈS le greeting
+      const systemInstructions = buildSystemInstructions(tenantId);
+      const tenantCfg = getTenantConfig(tenantId);
+      const isDemoTenant = tenantCfg?.isDemoTenant || tenantId === 'nexus-test';
+      const tools = isDemoTenant ? [] : buildRealtimeTools(tenantId);
+
+      // Envoyer session.update complet après un court délai pour laisser le greeting partir
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            voice: config.voice,
+            instructions: systemInstructions,
+            input_audio_format: config.input_audio_format,
+            output_audio_format: config.output_audio_format,
+            input_audio_transcription: config.input_audio_transcription,
+            turn_detection: config.turn_detection,
+            tools,
+            tool_choice: isDemoTenant ? 'none' : 'auto',
+            temperature: config.temperature,
+            max_response_output_tokens: config.max_response_output_tokens,
+          },
+        }));
+        logger.info(`REALTIME Session fully configured with ${tools.length} tools (tenant=${tenantId})`);
+      }, 200);
 
       resolve(ws);
     });
