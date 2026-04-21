@@ -21,7 +21,6 @@ import {
   Trash2,
   Check,
   Zap,
-  Phone,
   Globe,
   Users,
   BarChart3,
