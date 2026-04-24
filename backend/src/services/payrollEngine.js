@@ -27,7 +27,7 @@ export const TAUX_2026 = {
   patronales: {
     maladie: { taux: 7.00, base: 'brut', seuil_haut: 2.5, taux_haut: 13.00 },
     vieillesse_plafonnee: { taux: 8.55, base: 'T1' },
-    vieillesse_deplafonnee: { taux: 2.02, base: 'brut' },
+    vieillesse_deplafonnee: { taux: 2.11, base: 'brut' },
     allocations_familiales: { taux: 3.45, base: 'brut', seuil_haut: 3.5, taux_haut: 5.25 },
     accidents_travail: { taux: 2.08, base: 'brut' },
     chomage: { taux: 4.05, base: 'T1' },
@@ -38,6 +38,7 @@ export const TAUX_2026 = {
     retraite_t2: { taux: 12.95, base: 'T2' },
     ceg_t1: { taux: 1.29, base: 'T1' },
     ceg_t2: { taux: 1.62, base: 'T2' },
+    cet: { taux: 0.21, base: 'brut' },
     formation: { taux: 0.55, base: 'brut', taux_11_plus: 1.00 },
     taxe_apprentissage: { taux: 0.68, base: 'brut' },
     dialogue_social: { taux: 0.016, base: 'brut' },
@@ -52,6 +53,7 @@ export const TAUX_2026 = {
     retraite_t2: { taux: 8.64, base: 'T2' },
     ceg_t1: { taux: 0.86, base: 'T1' },
     ceg_t2: { taux: 1.08, base: 'T2' },
+    cet: { taux: 0.14, base: 'brut' },
     csg_deductible: { taux: 6.80, base: 'CSG' },
     csg_non_deductible: { taux: 2.40, base: 'CSG' },
     crds: { taux: 0.50, base: 'CSG' },
@@ -643,6 +645,16 @@ export function calculateCotisations(brut, membre = {}, parametres = {}, cumulsA
     });
   }
 
+  // CET (Contribution d'Equilibre Technique)
+  salariales.push({
+    code: 'CET',
+    libelle: 'CET (Equilibre Technique)',
+    base: brut,
+    taux: TAUX_2026.salariales.cet.taux,
+    montant: Math.round(brut * TAUX_2026.salariales.cet.taux / 100),
+    plafonne: false,
+  });
+
   // CSG deductible
   salariales.push({
     code: 'CSG_DED',
@@ -814,6 +826,16 @@ export function calculateCotisations(brut, membre = {}, parametres = {}, cumulsA
       plafonne: true,
     });
   }
+
+  // CET (Contribution d'Equilibre Technique)
+  patronales.push({
+    code: 'CET',
+    libelle: 'CET (Equilibre Technique)',
+    base: brut,
+    taux: TAUX_2026.patronales.cet.taux,
+    montant: Math.round(brut * TAUX_2026.patronales.cet.taux / 100),
+    plafonne: false,
+  });
 
   // APEC (cadres uniquement)
   const isCadre = membre.categorie_sociopro === 'cadre' || membre.categorie_sociopro === 'agent_maitrise';

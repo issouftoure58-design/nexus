@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Calculator,
@@ -8,8 +10,13 @@ import {
   ExternalLink,
   Info,
   Building2,
-  Users
+  Users,
+  RefreshCw,
+  CheckCircle,
+  AlertTriangle,
+  ArrowRight
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 
 interface ParametresSociauxData {
@@ -46,11 +53,78 @@ const formatMoney = (amount: number) => {
   }).format(amount);
 };
 
+interface VerificationResult {
+  success: boolean;
+  a_jour: boolean;
+  differences: Array<{
+    champ: string;
+    actuel: number;
+    officiel: number;
+    ecart: number;
+  }>;
+  taux_officiels: Record<string, number>;
+  date_verification: string;
+}
+
+const LABELS_TAUX: Record<string, string> = {
+  smic_horaire: 'SMIC horaire',
+  smic_mensuel: 'SMIC mensuel',
+  plafond_ss_mensuel: 'Plafond SS mensuel',
+  plafond_ss_annuel: 'Plafond SS annuel',
+  sal_maladie: 'Maladie (sal.)',
+  sal_vieillesse_plafonnee: 'Vieillesse plaf. (sal.)',
+  sal_vieillesse_deplafonnee: 'Vieillesse déplaf. (sal.)',
+  sal_chomage: 'Chômage (sal.)',
+  sal_retraite_t1: 'Retraite T1 (sal.)',
+  sal_retraite_t2: 'Retraite T2 (sal.)',
+  sal_ceg_t1: 'CEG T1 (sal.)',
+  sal_ceg_t2: 'CEG T2 (sal.)',
+  sal_cet: 'CET (sal.)',
+  sal_csg_deductible: 'CSG déductible',
+  sal_csg_non_deductible: 'CSG non déductible',
+  sal_crds: 'CRDS',
+  pat_maladie: 'Maladie taux plein (pat.)',
+  pat_maladie_reduit: 'Maladie réduit < 2.5 SMIC (pat.)',
+  pat_vieillesse_plafonnee: 'Vieillesse plaf. (pat.)',
+  pat_vieillesse_deplafonnee: 'Vieillesse déplaf. (pat.)',
+  pat_allocations_familiales: 'Alloc. familiales (pat.)',
+  pat_allocations_familiales_reduit: 'Alloc. fam. réduit (pat.)',
+  pat_chomage: 'Chômage (pat.)',
+  pat_ags: 'AGS (pat.)',
+  pat_csa: 'CSA (pat.)',
+  pat_retraite_t1: 'Retraite T1 (pat.)',
+  pat_retraite_t2: 'Retraite T2 (pat.)',
+  pat_ceg_t1: 'CEG T1 (pat.)',
+  pat_ceg_t2: 'CEG T2 (pat.)',
+  pat_cet: 'CET (pat.)',
+  pat_formation_moins_11: 'Formation < 11 sal. (pat.)',
+  pat_formation_11_plus: 'Formation ≥ 11 sal. (pat.)',
+  pat_taxe_apprentissage: 'Taxe apprentissage (pat.)',
+};
+
 export function ParametresSociaux() {
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['parametres-sociaux'],
     queryFn: fetchParametresSociaux
   });
+
+  const verifierMutation = useMutation({
+    mutationFn: () => api.post<VerificationResult>('/admin/rh/parametres-sociaux/verifier', {}),
+    onSuccess: (result) => setVerificationResult(result),
+  });
+
+  const appliquerMutation = useMutation({
+    mutationFn: (taux_officiels: Record<string, number>) =>
+      api.post('/admin/rh/parametres-sociaux/appliquer', { taux_officiels }),
+    onSuccess: () => {
+      setVerificationResult(null);
+      queryClient.invalidateQueries({ queryKey: ['parametres-sociaux'] });
+    },
+  });
+
+  const queryClient = useQueryClient();
 
   if (isLoading) {
     return <div className="text-gray-500">Chargement des paramètres...</div>;
@@ -95,6 +169,100 @@ export function ParametresSociaux() {
           </div>
         </div>
       </div>
+
+      {/* Bouton vérification + résultats */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={() => verifierMutation.mutate()}
+          disabled={verifierMutation.isPending}
+          variant="outline"
+        >
+          <RefreshCw className={cn("w-4 h-4 mr-2", verifierMutation.isPending && "animate-spin")} />
+          {verifierMutation.isPending ? 'Vérification en cours...' : 'Vérifier les mises à jour'}
+        </Button>
+        <span className="text-xs text-gray-400">Consomme de l'utilisation IA</span>
+      </div>
+
+      {verifierMutation.isError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800 text-sm">
+          <AlertTriangle className="w-4 h-4" />
+          {(verifierMutation.error as any)?.message || 'Erreur lors de la vérification'}
+        </div>
+      )}
+
+      {verificationResult && (
+        <Card className={verificationResult.a_jour ? 'border-green-200' : 'border-orange-200'}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {verificationResult.a_jour ? (
+                <>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="text-green-800">Tous les taux sont à jour</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                  <span className="text-orange-800">{verificationResult.differences.length} différence(s) détectée(s)</span>
+                </>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Vérifié le {new Date(verificationResult.date_verification).toLocaleString('fr-FR')}
+            </CardDescription>
+          </CardHeader>
+          {!verificationResult.a_jour && (
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-2">Taux</th>
+                      <th className="pb-2 text-right">Actuel</th>
+                      <th className="pb-2 text-center"></th>
+                      <th className="pb-2 text-right">Officiel</th>
+                      <th className="pb-2 text-right">Écart</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {verificationResult.differences.map((d) => (
+                      <tr key={d.champ} className="border-b">
+                        <td className="py-2 font-medium">{LABELS_TAUX[d.champ] || d.champ}</td>
+                        <td className="py-2 text-right font-mono text-red-600">{d.actuel}</td>
+                        <td className="py-2 text-center"><ArrowRight className="w-4 h-4 text-gray-400 inline" /></td>
+                        <td className="py-2 text-right font-mono text-green-600 font-bold">{d.officiel}</td>
+                        <td className="py-2 text-right font-mono text-orange-600">
+                          {d.ecart > 0 ? '+' : ''}{d.ecart}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 flex items-center gap-3">
+                <Button
+                  onClick={() => verificationResult && appliquerMutation.mutate(verificationResult.taux_officiels)}
+                  disabled={appliquerMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {appliquerMutation.isPending ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Appliquer les taux officiels
+                </Button>
+                <span className="text-xs text-gray-500">Les bulletins futurs utiliseront les nouveaux taux.</span>
+              </div>
+              {appliquerMutation.isSuccess && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-800 text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Taux mis à jour avec succès.
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* SMIC et Plafonds */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -20,7 +20,9 @@ import {
   FileEdit,
   Plus,
   Trash2,
-  Stethoscope
+  Stethoscope,
+  Info,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -228,6 +230,26 @@ export function GestionPaie() {
   const { data: bulletinsData, isLoading: loadingBulletins } = useQuery({
     queryKey: ['bulletins', periode],
     queryFn: () => fetchBulletins(periode)
+  });
+
+  // Mode de calcul HS
+  const { data: configHS } = useQuery({
+    queryKey: ['config-hs'],
+    queryFn: () => api.get<{ mode: string }>('/admin/rh/config-hs')
+  });
+
+  const modeCalculHS = (configHS as any)?.mode || 'hebdomadaire';
+
+  const updateModeHSMutation = useMutation({
+    mutationFn: (mode: string) => api.patch('/admin/rh/config-hs', { mode }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['config-hs'] });
+      queryClient.invalidateQueries({ queryKey: ['pointage-resume'] });
+      queryClient.invalidateQueries({ queryKey: ['pointages'] });
+      queryClient.invalidateQueries({ queryKey: ['heures-supp'] });
+      setMessage({ type: 'success', text: 'Mode de calcul des heures supplémentaires mis à jour. Régénérez le pointage pour appliquer.' });
+      setTimeout(() => setMessage(null), 5000);
+    }
   });
 
   // État pour messages
@@ -501,8 +523,36 @@ export function GestionPaie() {
       {/* Tab Content */}
       {activeTab === 'pointage' && (
         <div className="space-y-4">
-          {/* Filtre employé */}
-          <div className="flex gap-4">
+          {/* Mode calcul HS + Filtre employé */}
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Settings className="w-3 h-3" />
+                Mode calcul HS
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  className="px-3 py-2 border rounded-lg text-sm"
+                  value={modeCalculHS}
+                  onChange={(e) => updateModeHSMutation.mutate(e.target.value)}
+                  disabled={updateModeHSMutation.isPending}
+                >
+                  <option value="hebdomadaire">Hebdomadaire (défaut)</option>
+                  <option value="mensuel">Mensuel (lissage)</option>
+                  <option value="annualisation">Annualisation</option>
+                </select>
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                  <div className="absolute left-6 top-0 z-50 hidden group-hover:block w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg">
+                    <p className="font-semibold mb-1">Modes de calcul :</p>
+                    <p className="mb-1"><strong>Hebdomadaire</strong> : &gt;35h/sem = HS (+25% h36→h43, +50% h44+). Code du travail.</p>
+                    <p className="mb-1"><strong>Mensuel</strong> : &gt;151,67h/mois = HS. Lissage sur le mois (convention collective).</p>
+                    <p><strong>Annualisation</strong> : &gt;1607h/an = HS. Bilan en fin de période de référence.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <select
               className="px-3 py-2 border rounded-lg"
               value={selectedMembre || ''}

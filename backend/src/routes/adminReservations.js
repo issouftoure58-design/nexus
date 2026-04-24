@@ -23,6 +23,7 @@ import { sendSMS } from '../services/smsService.js';
 import { sendEmail } from '../services/emailService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
+import { validateEmployeeConstraints } from '../utils/employeeConstraints.js';
 import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
 
 const RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'service_nom', 'updated_at'];
@@ -636,19 +637,228 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
         }
       }
     } else if (heureEffective && !isHourlyMode) {
-      const conflictResult = await checkConflicts(
-        supabase, date_rdv, heureEffective, dureeConflictCheck, null, tenantId
-      );
-      if (conflictResult.conflict) {
-        const c = conflictResult.rdv;
-        const suggestionsText = conflictResult.suggestions?.length > 0
-          ? ` Suggestions : ${conflictResult.suggestions.map(s => s.heure).join(', ')}`
-          : '';
-        return apiError(
-          res,
-          `Conflit horaire : ${c.client} a déjà "${c.service}" de ${c.heure} à ${c.fin}.${suggestionsText}`,
-          'CONFLICT', 409
+      // Skip le check de conflit global si des membres sont assignés via affectations
+      // (salon multi-employés : chaque employé travaille indépendamment)
+      // Le conflit par membre est vérifié plus bas via validateEmployeeConstraints
+      const hasMemberAssignments = membre_id || hasAffectationHeures ||
+        (hasServices && services.some(s => s.membre_id || s.affectations?.some(a => a.membre_id)));
+
+      if (!hasMemberAssignments) {
+        const conflictResult = await checkConflicts(
+          supabase, date_rdv, heureEffective, dureeConflictCheck, null, tenantId
         );
+        if (conflictResult.conflict) {
+          const c = conflictResult.rdv;
+          const suggestionsText = conflictResult.suggestions?.length > 0
+            ? ` Suggestions : ${conflictResult.suggestions.map(s => s.heure).join(', ')}`
+            : '';
+          return apiError(
+            res,
+            `Conflit horaire : ${c.client} a déjà "${c.service}" de ${c.heure} à ${c.fin}.${suggestionsText}`,
+            'CONFLICT', 409
+          );
+        }
+      }
+    }
+
+    // Validation contraintes employé (pause déjeuner, max heures, gap entre services)
+    // On construit la liste des créneaux PAR employé (pas un bloc global)
+    const membreCreneaux = {}; // { membreId: [{ heure, duree }] }
+
+    if (hasServices) {
+      for (const svc of services) {
+        // Multi-jours : les services avec date ≠ date_rdv sont pour un autre jour → skip
+        if (svc.date && svc.date !== date_rdv) continue;
+
+        const duree = svc.duree_minutes || 60;
+        const addSlot = (mid, aff) => {
+          if (!mid) return;
+          if (!membreCreneaux[mid]) membreCreneaux[mid] = [];
+          const h = aff?.heure_debut || heureEffective;
+          const d = aff?.heure_fin
+            ? (() => { const [hh,mm] = h.split(':').map(Number); const [fh,fm] = aff.heure_fin.split(':').map(Number); return (fh*60+fm) - (hh*60+mm); })()
+            : duree;
+          membreCreneaux[mid].push({ heure: h, dureeMinutes: Math.max(d, 1) });
+        };
+
+        if (svc.affectations && svc.affectations.length > 0) {
+          for (const aff of svc.affectations) {
+            addSlot(aff.membre_id, aff);
+          }
+        } else if (svc.membre_id) {
+          addSlot(svc.membre_id, svc);
+        }
+      }
+    }
+    // Fallback : membre unique sans services détaillés
+    if (membre_id && Object.keys(membreCreneaux).length === 0) {
+      membreCreneaux[Number(membre_id)] = [{ heure: heureEffective, dureeMinutes: dureeConflictCheck }];
+    }
+    if (membre_ids) {
+      for (const mid of membre_ids) {
+        if (!membreCreneaux[Number(mid)]) {
+          membreCreneaux[Number(mid)] = [{ heure: heureEffective, dureeMinutes: dureeConflictCheck }];
+        }
+      }
+    }
+
+    const uniqueMembreIds = Object.keys(membreCreneaux).map(Number).filter(Boolean);
+    if (uniqueMembreIds.length > 0 && heureEffective) {
+      const { data: membresData } = await supabase
+        .from('rh_membres')
+        .select('id, nom, prenom, pause_debut, pause_fin, max_heures_jour, pause_min_minutes')
+        .eq('tenant_id', tenantId)
+        .in('id', uniqueMembreIds);
+
+      if (membresData && membresData.length > 0) {
+        for (const membre of membresData) {
+          // Fetch créneaux déjà occupés du membre ce jour (DB)
+          const { data: membreResas } = await supabase
+            .from('reservations')
+            .select('id, heure, duree_minutes, duree_totale_minutes, heure_fin')
+            .eq('tenant_id', tenantId)
+            .eq('date', date_rdv)
+            .eq('membre_id', membre.id)
+            .not('statut', 'in', '("annule","no_show")');
+
+          // 1. Lignes classiques (résa du même jour)
+          const { data: membreLignes } = await supabase
+            .from('reservation_lignes')
+            .select('heure_debut, heure_fin, duree_minutes, reservation_id, date')
+            .eq('tenant_id', tenantId)
+            .eq('membre_id', membre.id);
+
+          // 2. Lignes multi-jours : lignes dont date = date_rdv (résa parente peut avoir une autre date)
+          const { data: multiDayLignes } = await supabase
+            .from('reservation_lignes')
+            .select('heure_debut, heure_fin, duree_minutes, reservation_id, date')
+            .eq('tenant_id', tenantId)
+            .eq('membre_id', membre.id)
+            .eq('date', date_rdv);
+
+          const creneauxOccupes = [];
+          const resaIds = (membreResas || []).map(r => r.id);
+
+          // Helper pour convertir une ligne en créneau occupé
+          const ligneToSlot = (l) => {
+            if (l.heure_debut && l.heure_fin) {
+              return { debut: l.heure_debut, fin: l.heure_fin };
+            } else if (l.heure_debut && l.duree_minutes) {
+              const [h, m] = l.heure_debut.split(':').map(Number);
+              const finMinutes = h * 60 + m + (l.duree_minutes || 60);
+              const fin = `${String(Math.floor(finMinutes / 60)).padStart(2, '0')}:${String(finMinutes % 60).padStart(2, '0')}`;
+              return { debut: l.heure_debut, fin };
+            }
+            return null;
+          };
+
+          // --- Traiter les lignes multi-jours (date = date_rdv, résa parente possiblement différente) ---
+          const multiDayResaIds = [...new Set((multiDayLignes || []).map(l => l.reservation_id))];
+          const processedMultiDayResaIds = new Set();
+          if (multiDayResaIds.length > 0) {
+            // Vérifier que les résas parentes ne sont pas annulées
+            const { data: parentResas } = await supabase
+              .from('reservations')
+              .select('id, statut')
+              .eq('tenant_id', tenantId)
+              .in('id', multiDayResaIds)
+              .not('statut', 'in', '("annule","no_show")');
+
+            const validParentIds = new Set((parentResas || []).map(r => r.id));
+            (multiDayLignes || []).forEach(l => {
+              if (!validParentIds.has(l.reservation_id)) return;
+              processedMultiDayResaIds.add(l.reservation_id);
+              const slot = ligneToSlot(l);
+              if (slot) creneauxOccupes.push(slot);
+            });
+          }
+
+          // --- Traiter les lignes classiques (résa du même jour) ---
+          let ligneResaIds = [];
+          if (membreLignes && membreLignes.length > 0) {
+            ligneResaIds = [...new Set(membreLignes.map(l => l.reservation_id))];
+            const allIds = [...new Set([...resaIds, ...ligneResaIds])];
+            if (allIds.length > 0) {
+              const { data: dateResas } = await supabase
+                .from('reservations')
+                .select('id, date, heure, duree_minutes, duree_totale_minutes, heure_fin')
+                .eq('tenant_id', tenantId)
+                .in('id', allIds)
+                .eq('date', date_rdv)
+                .not('statut', 'in', '("annule","no_show")');
+
+              const dateResaMap = {};
+              (dateResas || []).forEach(r => { dateResaMap[r.id] = r; });
+
+              const resaAvecLignes = new Set();
+              (membreLignes || []).forEach(l => {
+                if (!dateResaMap[l.reservation_id]) return;
+                // Skip lignes multi-jours qui appartiennent à un autre jour
+                // (date=NULL → jour de la résa parente, date=X → jour spécifique)
+                if (l.date && l.date !== date_rdv) return;
+                // Éviter double-comptage si déjà traité en multi-jours
+                if (processedMultiDayResaIds.has(l.reservation_id)) {
+                  resaAvecLignes.add(l.reservation_id);
+                  return;
+                }
+                resaAvecLignes.add(l.reservation_id);
+                const slot = ligneToSlot(l);
+                if (slot) creneauxOccupes.push(slot);
+              });
+
+              (membreResas || []).forEach(r => {
+                if (resaAvecLignes.has(r.id)) return;
+                const h = r.heure || '09:00';
+                const d = r.duree_totale_minutes || r.duree_minutes || 60;
+                if (r.heure_fin) {
+                  creneauxOccupes.push({ debut: h, fin: r.heure_fin });
+                } else {
+                  const [hh, mm] = h.split(':').map(Number);
+                  const finMinutes = hh * 60 + mm + d;
+                  const fin = `${String(Math.floor(finMinutes / 60)).padStart(2, '0')}:${String(finMinutes % 60).padStart(2, '0')}`;
+                  creneauxOccupes.push({ debut: h, fin });
+                }
+              });
+            }
+          } else {
+            (membreResas || []).forEach(r => {
+              const h = r.heure || '09:00';
+              const d = r.duree_totale_minutes || r.duree_minutes || 60;
+              if (r.heure_fin) {
+                creneauxOccupes.push({ debut: h, fin: r.heure_fin });
+              } else {
+                const [hh, mm] = h.split(':').map(Number);
+                const finMinutes = hh * 60 + mm + d;
+                const fin = `${String(Math.floor(finMinutes / 60)).padStart(2, '0')}:${String(finMinutes % 60).padStart(2, '0')}`;
+                creneauxOccupes.push({ debut: h, fin });
+              }
+            });
+          }
+
+          // Valider CHAQUE créneau de cet employé dans cette résa (pas un bloc global)
+          const slots = membreCreneaux[membre.id] || [];
+          let cumulOccupes = [...creneauxOccupes];
+          console.log(`[CONSTRAINTS] ${membre.prenom} ${membre.nom} date=${date_rdv} creneauxOccupes=`, JSON.stringify(creneauxOccupes), `slots=`, JSON.stringify(slots));
+
+          for (const slot of slots) {
+            const constraintResult = validateEmployeeConstraints({
+              membre,
+              heure: slot.heure,
+              dureeMinutes: slot.dureeMinutes,
+              creneauxOccupes: cumulOccupes,
+            });
+
+            if (!constraintResult.valid) {
+              return apiError(res, constraintResult.error, 'CONFLICT', 409);
+            }
+
+            // Ajouter ce créneau aux occupés pour valider le suivant
+            const [sh, sm] = slot.heure.split(':').map(Number);
+            const finMin = sh * 60 + sm + slot.dureeMinutes;
+            const fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
+            cumulOccupes.push({ debut: slot.heure, fin });
+          }
+        }
       }
     }
 
@@ -695,7 +905,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     const updateData = {
       client_id: client_id,
       adresse_client: adresse_client || null,
-      adresse_facturation: adresse_facturation || null
+      adresse_facturation: adresse_facturation || null,
+      // Forcer le nom de service correct (createReservationUnified peut avoir résolu un mauvais nom)
+      service_nom: servicePrincipal,
     };
 
     // Hotel / multiday: persister colonnes dediees date_arrivee/date_depart/heure_fin
@@ -778,7 +990,6 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
                 const [endH, endM] = aff.heure_fin.replace('--', '00').split(':').map(Number);
                 let startMinutes = startH * 60 + (startM || 0);
                 let endMinutes = endH * 60 + (endM || 0);
-                // Gestion passage minuit
                 if (endMinutes < startMinutes) endMinutes += 24 * 60;
                 dureeMinutes = endMinutes - startMinutes;
               }
@@ -788,22 +999,22 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
                 tenant_id: tenantId,
                 service_id: s.service_id || null,
                 service_nom: s.service_nom,
-                quantite: 1, // Chaque affectation = 1 agent
+                quantite: 1,
                 duree_minutes: dureeMinutes,
                 prix_unitaire: s.prix_unitaire || s.taux_horaire || 0,
                 prix_total: s.prix_unitaire || s.taux_horaire || 0,
                 membre_id: aff.membre_id
               };
-              // Ajouter heures si présentes (colonnes optionnelles)
               if (aff.heure_debut) ligneData.heure_debut = aff.heure_debut;
               if (aff.heure_fin) ligneData.heure_fin = aff.heure_fin;
+              // Multi-jours: date spécifique pour cette ligne
+              if (s.date) ligneData.date = s.date;
               lignesData.push(ligneData);
             }
           }
         } else {
           // Mode classique: une ligne par service
-          // NB: ?? au lieu de || pour preserver duree_minutes=0 (hotel : chambre/extras = 0 min)
-          lignesData.push({
+          const ligneData = {
             reservation_id: reservationId,
             tenant_id: tenantId,
             service_id: s.service_id || null,
@@ -813,14 +1024,24 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
             prix_unitaire: s.prix_unitaire || 0,
             prix_total: (s.prix_unitaire || 0) * (s.quantite || 1),
             membre_id: s.membre_id || null
-          });
+          };
+          if (s.date) ligneData.date = s.date;
+          lignesData.push(ligneData);
         }
       }
 
       if (lignesData.length > 0) {
-        const { error: lignesError } = await supabase
+        let { error: lignesError } = await supabase
           .from('reservation_lignes')
           .insert(lignesData);
+
+        // Si la colonne 'date' n'existe pas encore (migration 119 non appliquée), retenter sans
+        if (lignesError && lignesError.message?.includes('date')) {
+          console.warn('[ADMIN RESERVATIONS] Colonne date manquante — insertion sans date (appliquer migration 119)');
+          const lignesSansDate = lignesData.map(({ date, ...rest }) => rest); // tenant_id inclus dans rest
+          const retry = await supabase.from('reservation_lignes').insert(lignesSansDate); // eslint-disable-line tenant-shield
+          lignesError = retry.error;
+        }
 
         if (lignesError) {
           console.error('[ADMIN RESERVATIONS] Erreur insertion lignes:', lignesError);
@@ -1395,6 +1616,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
         .eq('tenant_id', tenantId);
 
       if (allLignes && allLignes.length > 0) {
+        console.log(`[ADMIN EDIT] allLignes DB:`, allLignes.map(l => ({ prix_total: l.prix_total, duree: l.duree_minutes, qty: l.quantite })));
         // Toujours mettre à jour la durée totale
         const dureeTotale = allLignes.reduce((sum, l) => sum + (l.duree_minutes || 0) * (l.quantite || 1), 0);
 
@@ -1409,6 +1631,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
             .from('reservations')
             .update({
               duree_minutes: dureeTotale,
+              duree_totale_minutes: dureeTotale,
               prix_total: prixTTC
             })
             .eq('id', req.params.id)
@@ -1416,14 +1639,13 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
           console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
         } else {
-          // Prix fixe: recalculer depuis les lignes
+          // Prix fixe: TOUJOURS recalculer depuis les lignes
           const prixFixeTotal = allLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
-          const updateData = { duree_minutes: dureeTotale };
-          // Mettre à jour le prix si un prix_total est envoyé ou si les lignes ont changé
-          if (req.body.prix_total !== undefined) {
-            updateData.prix_total = req.body.prix_total;
-          } else if (prixFixeTotal > 0) {
+          const updateData = { duree_minutes: dureeTotale, duree_totale_minutes: dureeTotale };
+          if (prixFixeTotal > 0) {
             updateData.prix_total = prixFixeTotal;
+          } else if (req.body.prix_total !== undefined) {
+            updateData.prix_total = req.body.prix_total;
           }
           await supabase
             .from('reservations')
@@ -1431,7 +1653,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId);
 
-          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${(updateData.prix_total || 0)/100}€`);
+          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix fixe lignes: ${prixFixeTotal/100}€, Final: ${(updateData.prix_total || 0)/100}€`);
         }
 
         // Auto-ajustement facture si prix a changé (seulement en mode horaire)

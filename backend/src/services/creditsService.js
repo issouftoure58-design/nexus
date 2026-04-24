@@ -38,6 +38,7 @@ export const CREDIT_COSTS = {
   phone_minute: 22,          // 1 minute appel Téléphone IA
   antichurn_sms_fr: 25,      // 1 message Anti-Churn SMS FR (IA + envoi)
   seo_article: 75,           // 1 article SEO complet (1500 mots)
+  verification_taux: 30,     // 1 vérification mise à jour taux sociaux (fetch + IA)
 };
 
 // Utilisation supplémentaire — 3 montants preset avec réductions volume

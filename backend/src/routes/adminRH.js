@@ -28,6 +28,8 @@ import {
   rouvrirClotureRH,
   getStatutClotureRH
 } from '../services/clotureRHService.js';
+import { consume, hasCredits } from '../services/creditsService.js';
+import Anthropic from '@anthropic-ai/sdk';
 
 const router = express.Router();
 
@@ -1294,23 +1296,49 @@ router.get('/planning/resume-hebdo', authenticateAdmin, async (req, res) => {
       .lte('date', dateFinStr)
       .not('statut', 'in', '("cancelled","no_show","annule")');
 
+    // Multi-jours : trouver les lignes dont date est dans la semaine (résa parente possiblement hors semaine)
+    const { data: multiDayLignesInWeek } = await supabase
+      .from('reservation_lignes')
+      .select('reservation_id, membre_id, duree_minutes, quantite, date')
+      .eq('tenant_id', req.admin.tenant_id)
+      .gte('date', dateDebutStr)
+      .lte('date', dateFinStr);
+
+    // Fusionner les IDs de réservations (directes + parents multi-jours)
+    const directResaIds = (reservations || []).map(r => r.id);
+    const multiDayParentIds = [...new Set((multiDayLignesInWeek || []).map(l => l.reservation_id))];
+    const missingParentIds = multiDayParentIds.filter(id => !directResaIds.includes(id));
+
+    // Charger les résas parentes multi-jours manquantes
+    let allReservations = [...(reservations || [])];
+    if (missingParentIds.length > 0) {
+      const { data: parentResas } = await supabase
+        .from('reservations')
+        .select('id, membre_id, heure, duree_minutes, duree_totale_minutes, date')
+        .eq('tenant_id', req.admin.tenant_id)
+        .in('id', missingParentIds)
+        .not('statut', 'in', '("cancelled","no_show","annule")');
+      if (parentResas) allReservations.push(...parentResas);
+    }
+
+    const allResaIds = allReservations.map(r => r.id);
+
     // Récupérer les membres multiples pour ces réservations
-    const reservationIds = (reservations || []).map(r => r.id);
-    const { data: reservationMembres } = reservationIds.length > 0
+    const { data: reservationMembres } = allResaIds.length > 0
       ? await supabase
           .from('reservation_membres')
           .select('reservation_id, membre_id')
           .eq('tenant_id', req.admin.tenant_id)
-          .in('reservation_id', reservationIds)
+          .in('reservation_id', allResaIds)
       : { data: [] };
 
     // Récupérer les lignes de services pour avoir la durée par membre
-    const { data: reservationLignes } = reservationIds.length > 0
+    const { data: reservationLignes } = allResaIds.length > 0
       ? await supabase
           .from('reservation_lignes')
-          .select('reservation_id, membre_id, duree_minutes, quantite')
+          .select('reservation_id, membre_id, duree_minutes, quantite, date')
           .eq('tenant_id', req.admin.tenant_id)
-          .in('reservation_id', reservationIds)
+          .in('reservation_id', allResaIds)
       : { data: [] };
 
     // Calculer les heures par employé
@@ -1318,7 +1346,7 @@ router.get('/planning/resume-hebdo', authenticateAdmin, async (req, res) => {
       let heuresPlanifiees = 0;
       let nbRdv = 0;
 
-      (reservations || []).forEach(r => {
+      allReservations.forEach(r => {
         // Vérifier si ce membre est assigné à cette réservation
         const estMembrePrincipal = r.membre_id === m.id;
         const estMembreMultiple = (reservationMembres || []).some(
@@ -1335,7 +1363,10 @@ router.get('/planning/resume-hebdo', authenticateAdmin, async (req, res) => {
 
           if (lignesMembre.length > 0) {
             // Utiliser la durée des services assignés à ce membre
+            // Filtrer par date : seules les lignes dans la semaine comptent
             lignesMembre.forEach(l => {
+              const ligneDate = l.date || r.date;
+              if (ligneDate < dateDebutStr || ligneDate > dateFinStr) return;
               const duree = (l.duree_minutes || 60) * (l.quantite || 1);
               heuresPlanifiees += duree / 60;
             });
@@ -2104,6 +2135,7 @@ const TAUX_COTISATIONS = {
   retraite_t2_employeur: 12.95,
   ceg_t1_employeur: 1.29,
   ceg_t2_employeur: 1.62,
+  cet_employeur: 0.21, // Contribution d'Equilibre Technique
   formation_moins_11: 0.55,
   formation_11_plus: 1.00,
   taxe_apprentissage: 0.68,
@@ -2118,6 +2150,7 @@ const TAUX_COTISATIONS = {
   retraite_t2_salarie: 8.64,
   ceg_t1_salarie: 0.86,
   ceg_t2_salarie: 1.08,
+  cet_salarie: 0.14, // Contribution d'Equilibre Technique
   csg_deductible: 6.80,
   csg_non_deductible: 2.40,
   crds: 0.50,
@@ -2937,6 +2970,7 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
         heure,
         service_nom,
         duree_minutes,
+        duree_totale_minutes,
         statut,
         prix_total,
         notes,
@@ -2947,10 +2981,20 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
           membre_id,
           role,
           membre:rh_membres(id, nom, prenom, role)
+        ),
+        reservation_lignes(
+          id,
+          service_nom,
+          duree_minutes,
+          heure_debut,
+          heure_fin,
+          prix_total,
+          membre_id,
+          date
         )
       `)
       .eq('tenant_id', tenantId)
-      .not('statut', 'eq', 'annule')
+      .not('statut', 'in', '("annule","cancelled")')
       .order('date', { ascending: true })
       .order('heure', { ascending: true });
 
@@ -2962,10 +3006,12 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
         query = query.eq('membre_id', membre_id);
       }
     }
-    if (date_debut) {
+    if (date_debut && date_fin) {
+      // Inclure résas multi-jours dont date_depart déborde dans la période
+      query = query.or(`and(date.gte.${date_debut},date.lte.${date_fin}),and(date.lt.${date_debut},date_depart.gte.${date_debut})`);
+    } else if (date_debut) {
       query = query.gte('date', date_debut);
-    }
-    if (date_fin) {
+    } else if (date_fin) {
       query = query.lte('date', date_fin);
     }
 
@@ -3015,11 +3061,33 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
           : `${client.prenom} ${client.nom}`;
       };
 
+      // Construire la liste des services depuis reservation_lignes
+      // Multi-jours: dispatcher les lignes avec date spécifique au bon jour
+      const allLignes = rdv.reservation_lignes || [];
+      const lignesJour1 = allLignes.filter(l => !l.date || l.date === jour);
+      const lignesAutresJours = allLignes.filter(l => l.date && l.date !== jour);
+
+      const services = lignesJour1.length > 0
+        ? lignesJour1.map(l => ({
+            nom: l.service_nom,
+            duree: l.duree_minutes,
+            heure_debut: l.heure_debut,
+            heure_fin: l.heure_fin,
+            prix: l.prix_total ? l.prix_total / 100 : 0,
+            membre_id: l.membre_id
+          }))
+        : [{ nom: rdv.service_nom, duree: rdv.duree_minutes, heure_debut: null, heure_fin: null, prix: rdv.prix_total ? rdv.prix_total / 100 : 0, membre_id: rdv.membre_id }];
+
+      const dureeTotale = lignesJour1.length > 0
+        ? lignesJour1.reduce((sum, l) => sum + (l.duree_minutes || 0), 0)
+        : rdv.duree_totale_minutes || rdv.duree_minutes || 60;
+
       planningParJour[jour].push({
         id: rdv.id,
         heure: rdv.heure,
         service: rdv.service_nom,
-        duree: rdv.duree_minutes,
+        services,
+        duree: dureeTotale,
         statut: rdv.statut,
         prix: rdv.prix_total ? rdv.prix_total / 100 : 0,
         client: formatClientName(rdv.client),
@@ -3028,15 +3096,56 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
           ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
           : 'Non assigné',
         employe_id: rdv.membre_id,
-        // Tous les membres assignés
         employes: tousLesMembres
       });
+
+      // Multi-jours: créer des entrées pour les jours suivants
+      // Grouper les lignes par date
+      const lignesParDate = {};
+      lignesAutresJours.forEach(l => {
+        if (!lignesParDate[l.date]) lignesParDate[l.date] = [];
+        lignesParDate[l.date].push(l);
+      });
+
+      for (const [dateJour, lignesJourN] of Object.entries(lignesParDate)) {
+        if (!planningParJour[dateJour]) planningParJour[dateJour] = [];
+        planningParJour[dateJour].push({
+          id: rdv.id,
+          heure: lignesJourN[0]?.heure_debut || rdv.heure,
+          service: rdv.service_nom,
+          services: lignesJourN.map(l => ({
+            nom: l.service_nom,
+            duree: l.duree_minutes,
+            heure_debut: l.heure_debut,
+            heure_fin: l.heure_fin,
+            prix: 0,
+            membre_id: l.membre_id
+          })),
+          duree: lignesJourN.reduce((sum, l) => sum + (l.duree_minutes || 0), 0),
+          statut: rdv.statut,
+          prix: 0, // prix déjà compté sur jour 1
+          client: formatClientName(rdv.client),
+          client_tel: rdv.client?.telephone,
+          employe: tousLesMembres.length > 0
+            ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
+            : 'Non assigné',
+          employe_id: rdv.membre_id,
+          employes: tousLesMembres,
+          multi_jour: true, // flag pour le frontend
+        });
+      }
     });
 
     // Calculer les stats
     const totalRdv = planning?.length || 0;
-    const totalHeures = (planning || []).reduce((sum, rdv) => sum + (rdv.duree_minutes || 60), 0) / 60;
-    const totalCA = (planning || []).filter(r => r.statut === 'termine').reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100;
+    const totalHeures = (planning || []).reduce((sum, rdv) => {
+      const lignes = rdv.reservation_lignes || [];
+      const duree = lignes.length > 0
+        ? lignes.reduce((s, l) => s + (l.duree_minutes || 0), 0)
+        : rdv.duree_totale_minutes || rdv.duree_minutes || 60;
+      return sum + duree;
+    }, 0) / 60;
+    const totalCA = (planning || []).reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100;
 
     res.json({
       planning: planningParJour,
@@ -3154,12 +3263,24 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
 
     const reservationMembreIds = (reservationsMembres || []).map(rm => rm.reservation_id);
 
+    // Multi-jours: trouver les résas dont une ligne a date dans la semaine (résa parente hors range)
+    const { data: multiDayLignes } = await supabase
+      .from('reservation_lignes')
+      .select('reservation_id')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('membre_id', id)
+      .gte('date', dateDebutStr)
+      .lte('date', dateFinStr);
+    const multiDayResaIds = [...new Set((multiDayLignes || []).map(l => l.reservation_id))];
+
     // Récupérer ces réservations supplémentaires (exclure celles déjà récupérées)
     const idsDejaRecuperes = (reservationsPrincipales || []).map(r => r.id);
-    const idsSupplementaires = reservationMembreIds.filter(rid => !idsDejaRecuperes.includes(rid));
+    const idsSupplementaires = [...new Set([...reservationMembreIds, ...multiDayResaIds])]
+      .filter(rid => !idsDejaRecuperes.includes(rid));
 
     let reservationsSupplementaires = [];
     if (idsSupplementaires.length > 0) {
+      // Pas de filtre date ici : les résas multi-jours ont date hors range mais lignes dans le range
       const { data: resasSupp } = await supabase
         .from('reservations')
         .select(`
@@ -3175,8 +3296,6 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
         `)
         .eq('tenant_id', req.admin.tenant_id)
         .in('id', idsSupplementaires)
-        .gte('date', dateVeilleStr)  // Inclure la veille pour les shifts de nuit
-        .lte('date', dateFinStr)
         .not('statut', 'eq', 'annule');
 
       reservationsSupplementaires = resasSupp || [];
@@ -3189,7 +3308,7 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
     if (allReservationIds.length > 0) {
       const { data: lignes } = await supabase
         .from('reservation_lignes')
-        .select('reservation_id, service_nom, duree_minutes, quantite, prix_total, heure_debut, heure_fin, membre_id')
+        .select('reservation_id, service_nom, duree_minutes, quantite, prix_total, heure_debut, heure_fin, membre_id, date')
         .eq('tenant_id', req.admin.tenant_id)
         .in('reservation_id', allReservationIds);
       allLignes = lignes || [];
@@ -3559,11 +3678,41 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
       if (lignesRdv.length > 0) {
         // Une entrée PAR ligne assignée
         for (const ligne of lignesRdv) {
+          const ligneDate = ligne.date || rdv.date; // Multi-jours: la ligne a sa propre date
+          const ligneInWeek = !!planningHebdo[ligneDate];
           const heureDebut = ligne.heure_debut || rdv.heure;
           const heureFin = ligne.heure_fin || rdv.heure_fin || null;
           const duree = (ligne.duree_minutes || 60) * (ligne.quantite || 1);
           const prix = (ligne.prix_total || 0) / 100;
-          addPlanningEntry(ligne.service_nom, heureDebut, heureFin, duree, prix);
+
+          if (ligneDate !== rdv.date && ligneInWeek) {
+            // Ligne multi-jours: ajouter directement au bon jour
+            if (!planningHebdo[ligneDate]) {
+              planningHebdo[ligneDate] = { rdv: [], absent: false, type_absence: null };
+            }
+            const heuresNuit = calculateNightMinutes(heureDebut, heureFin);
+            const breakdown = calculateHoursBreakdown(ligneDate, heureDebut, heureFin, duree);
+            planningHebdo[ligneDate].rdv.push({
+              id: rdv.id,
+              heure: heureDebut,
+              heure_fin: heureFin,
+              service: ligne.service_nom,
+              duree,
+              heures_nuit: heuresNuit,
+              hours_breakdown: breakdown,
+              statut: rdv.statut,
+              prix,
+              client: formatClientName(rdv.client),
+              client_tel: rdv.client?.telephone,
+              is_sunday: isSunday(ligneDate),
+              is_holiday: isHoliday(ligneDate),
+              multi_jour: true,
+            });
+          } else if (!ligne.date || ligne.date === rdv.date) {
+            // Ligne du jour principal ou sans date spécifique
+            addPlanningEntry(ligne.service_nom, heureDebut, heureFin, duree, prix);
+          }
+          // Sinon: ligne multi-jours hors semaine → ignorée
         }
       } else {
         // Fallback : anciens RDV sans lignes
@@ -3582,9 +3731,14 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
     (reservations || []).forEach(r => {
       const lignesRdv = getLignesForReservation(r.id);
       if (lignesRdv.length > 0) {
-        totalMinutes += lignesRdv.reduce((sum, l) => sum + (l.duree_minutes || 60) * (l.quantite || 1), 0);
+        // Ne compter que les lignes dont la date effective est dans la semaine
+        const lignesInWeek = lignesRdv.filter(l => {
+          const ld = l.date || r.date;
+          return ld >= dateDebutStr && ld <= dateFinStr;
+        });
+        totalMinutes += lignesInWeek.reduce((sum, l) => sum + (l.duree_minutes || 60) * (l.quantite || 1), 0);
         if (r.statut === 'termine') {
-          caRealise += lignesRdv.reduce((sum, l) => sum + (l.prix_total || 0), 0) / 100;
+          caRealise += lignesInWeek.reduce((sum, l) => sum + (l.prix_total || 0), 0) / 100;
         }
       } else {
         totalMinutes += r.duree_totale_minutes || r.duree_minutes || 60;
@@ -4176,12 +4330,59 @@ router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
       .maybeSingle();
 
     if (params) {
+      // Transformer les colonnes plates DB en format structuré attendu par le frontend
       res.json({
         source: 'database',
         annee: params.annee,
         date_application: params.date_application,
-        parametres: params,
-        updated_at: params.updated_at
+        parametres: {
+          smic_horaire_brut: parseFloat(params.smic_horaire_brut),
+          smic_mensuel_brut: parseFloat(params.smic_mensuel_brut),
+          plafond_ss_mensuel: parseFloat(params.plafond_ss_mensuel),
+          plafond_ss_annuel: parseFloat(params.plafond_ss_annuel),
+          cotisations_salariales: {
+            maladie: { taux: parseFloat(params.cot_sal_maladie), note: '0% depuis 2018' },
+            vieillesse_plafonnee: { taux: parseFloat(params.cot_sal_vieillesse_plafonnee) },
+            vieillesse_deplafonnee: { taux: parseFloat(params.cot_sal_vieillesse_deplafonnee) },
+            chomage: { taux: parseFloat(params.cot_sal_chomage), note: '0% depuis 2019' },
+            retraite_t1: { taux: parseFloat(params.cot_sal_retraite_t1) },
+            retraite_t2: { taux: parseFloat(params.cot_sal_retraite_t2) },
+            ceg_t1: { taux: parseFloat(params.cot_sal_ceg_t1) },
+            ceg_t2: { taux: parseFloat(params.cot_sal_ceg_t2) },
+            cet: { taux: parseFloat(params.cot_sal_cet), note: 'Contribution Equilibre Technique' },
+            csg_deductible: { taux: parseFloat(params.cot_sal_csg_deductible) },
+            csg_non_deductible: { taux: parseFloat(params.cot_sal_csg_non_deductible) },
+            crds: { taux: parseFloat(params.cot_sal_crds) },
+          },
+          cotisations_patronales: {
+            maladie: { taux: parseFloat(params.cot_pat_maladie), taux_haut_revenu: parseFloat(params.cot_pat_maladie_haut_revenu), note: `${params.cot_pat_maladie}% si < 2.5 SMIC, ${params.cot_pat_maladie_haut_revenu}% sinon` },
+            vieillesse_plafonnee: { taux: parseFloat(params.cot_pat_vieillesse_plafonnee) },
+            vieillesse_deplafonnee: { taux: parseFloat(params.cot_pat_vieillesse_deplafonnee), note: 'Augmenté à 2.11% en 2026' },
+            allocations_familiales: { taux: parseFloat(params.cot_pat_allocations_familiales), taux_reduit: parseFloat(params.cot_pat_allocations_familiales_reduit), note: `${params.cot_pat_allocations_familiales}% normal, ${params.cot_pat_allocations_familiales_reduit}% si < 3.5 SMIC` },
+            accidents_travail: { taux: parseFloat(params.cot_pat_accident_travail), note: 'Taux moyen, variable selon secteur' },
+            chomage: { taux: parseFloat(params.cot_pat_chomage) },
+            ags: { taux: parseFloat(params.cot_pat_ags) },
+            fnal_moins_50: { taux: parseFloat(params.cot_pat_fnal_moins_50) },
+            fnal_50_plus: { taux: parseFloat(params.cot_pat_fnal_50_plus) },
+            csa: { taux: parseFloat(params.cot_pat_csa) },
+            retraite_t1: { taux: parseFloat(params.cot_pat_retraite_t1) },
+            retraite_t2: { taux: parseFloat(params.cot_pat_retraite_t2) },
+            ceg_t1: { taux: parseFloat(params.cot_pat_ceg_t1) },
+            ceg_t2: { taux: parseFloat(params.cot_pat_ceg_t2) },
+            cet: { taux: parseFloat(params.cot_pat_cet), note: 'Contribution Equilibre Technique' },
+            formation_moins_11: { taux: parseFloat(params.cot_pat_formation_moins_11) },
+            formation_11_plus: { taux: parseFloat(params.cot_pat_formation_11_plus) },
+            taxe_apprentissage: { taux: parseFloat(params.cot_pat_taxe_apprentissage) },
+            dialogue_social: { taux: parseFloat(params.cot_pat_dialogue_social) },
+          },
+          heures_supplementaires: {
+            majoration_25: parseFloat(params.majoration_hs_25),
+            majoration_50: parseFloat(params.majoration_hs_50),
+            contingent_annuel: params.contingent_annuel_hs,
+          },
+        },
+        updated_at: params.updated_at,
+        sources: [params.source || 'URSSAF'],
       });
     } else {
       // Retourner les taux codés en dur
@@ -4208,6 +4409,7 @@ router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
             retraite_t2: { taux: TAUX_COTISATIONS.retraite_t2_salarie },
             ceg_t1: { taux: TAUX_COTISATIONS.ceg_t1_salarie },
             ceg_t2: { taux: TAUX_COTISATIONS.ceg_t2_salarie },
+            cet: { taux: TAUX_COTISATIONS.cet_salarie, note: 'Contribution Equilibre Technique' },
             csg_deductible: { taux: TAUX_COTISATIONS.csg_deductible },
             csg_non_deductible: { taux: TAUX_COTISATIONS.csg_non_deductible },
             crds: { taux: TAUX_COTISATIONS.crds }
@@ -4229,6 +4431,7 @@ router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
             retraite_t2: { taux: TAUX_COTISATIONS.retraite_t2_employeur },
             ceg_t1: { taux: TAUX_COTISATIONS.ceg_t1_employeur },
             ceg_t2: { taux: TAUX_COTISATIONS.ceg_t2_employeur },
+            cet: { taux: TAUX_COTISATIONS.cet_employeur, note: 'Contribution Equilibre Technique' },
             formation_moins_11: { taux: TAUX_COTISATIONS.formation_moins_11 },
             formation_11_plus: { taux: TAUX_COTISATIONS.formation_11_plus },
             taxe_apprentissage: { taux: TAUX_COTISATIONS.taxe_apprentissage },
@@ -4252,6 +4455,289 @@ router.get('/parametres-sociaux', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH] Erreur récupération paramètres sociaux:', error);
     res.status(500).json({ error: 'Erreur récupération paramètres sociaux' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/parametres-sociaux/verifier
+ * Vérifier si les taux sociaux sont à jour en comparant avec les sources officielles
+ * Coût : 30 crédits IA
+ */
+router.post('/parametres-sociaux/verifier', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    // Vérifier les crédits
+    const creditCheck = await hasCredits(tenantId, 'verification_taux');
+    if (!creditCheck.ok) {
+      return res.status(402).json({
+        error: 'Utilisation IA insuffisante pour cette action. Passez à un plan supérieur ou achetez un pack.',
+        required: creditCheck.cost,
+        available: creditCheck.balance
+      });
+    }
+
+    // Taux actuels du système
+    const tauxActuels = {
+      smic_horaire: TAUX_COTISATIONS.smic_horaire / 100,
+      smic_mensuel: TAUX_COTISATIONS.smic_mensuel / 100,
+      plafond_ss_mensuel: TAUX_COTISATIONS.plafond_ss_mensuel / 100,
+      plafond_ss_annuel: TAUX_COTISATIONS.plafond_ss_annuel / 100,
+      // Salariales
+      sal_maladie: TAUX_COTISATIONS.maladie_salarie,
+      sal_vieillesse_plafonnee: TAUX_COTISATIONS.vieillesse_plafonnee_salarie,
+      sal_vieillesse_deplafonnee: TAUX_COTISATIONS.vieillesse_deplafonnee_salarie,
+      sal_chomage: TAUX_COTISATIONS.chomage_salarie,
+      sal_retraite_t1: TAUX_COTISATIONS.retraite_t1_salarie,
+      sal_retraite_t2: TAUX_COTISATIONS.retraite_t2_salarie,
+      sal_ceg_t1: TAUX_COTISATIONS.ceg_t1_salarie,
+      sal_ceg_t2: TAUX_COTISATIONS.ceg_t2_salarie,
+      sal_cet: TAUX_COTISATIONS.cet_salarie,
+      sal_csg_deductible: TAUX_COTISATIONS.csg_deductible,
+      sal_csg_non_deductible: TAUX_COTISATIONS.csg_non_deductible,
+      sal_crds: TAUX_COTISATIONS.crds,
+      // Patronales
+      pat_maladie: TAUX_COTISATIONS.maladie_employeur_haut, // Comparer avec le taux plein (13%), le 7% est une réduction conditionnelle
+      pat_maladie_reduit: TAUX_COTISATIONS.maladie_employeur,
+      pat_vieillesse_plafonnee: TAUX_COTISATIONS.vieillesse_plafonnee_employeur,
+      pat_vieillesse_deplafonnee: TAUX_COTISATIONS.vieillesse_deplafonnee_employeur,
+      pat_allocations_familiales: TAUX_COTISATIONS.allocations_familiales,
+      pat_allocations_familiales_reduit: TAUX_COTISATIONS.allocations_familiales_reduit,
+      pat_accidents_travail: TAUX_COTISATIONS.accidents_travail,
+      pat_chomage: TAUX_COTISATIONS.chomage_employeur,
+      pat_ags: TAUX_COTISATIONS.ags,
+      pat_fnal_moins_50: TAUX_COTISATIONS.fnal_moins_50,
+      pat_fnal_50_plus: TAUX_COTISATIONS.fnal_50_plus,
+      pat_csa: TAUX_COTISATIONS.csa,
+      pat_retraite_t1: TAUX_COTISATIONS.retraite_t1_employeur,
+      pat_retraite_t2: TAUX_COTISATIONS.retraite_t2_employeur,
+      pat_ceg_t1: TAUX_COTISATIONS.ceg_t1_employeur,
+      pat_ceg_t2: TAUX_COTISATIONS.ceg_t2_employeur,
+      pat_cet: TAUX_COTISATIONS.cet_employeur,
+      pat_formation_moins_11: TAUX_COTISATIONS.formation_moins_11,
+      pat_formation_11_plus: TAUX_COTISATIONS.formation_11_plus,
+      pat_taxe_apprentissage: TAUX_COTISATIONS.taxe_apprentissage,
+      pat_dialogue_social: TAUX_COTISATIONS.dialogue_social,
+    };
+
+    // Fetcher les sources officielles
+    const sources = [
+      'https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html',
+      'https://bulletin-paie.com/cotisations/taux/',
+    ];
+
+    let pageContents = '';
+    for (const url of sources) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NEXUS-SaaS/3.25)' }
+        });
+        clearTimeout(timeout);
+        if (response.ok) {
+          const html = await response.text();
+          // Extraire le texte brut (supprimer les tags HTML)
+          const text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .substring(0, 8000);
+          pageContents += `\n--- Source: ${url} ---\n${text}\n`;
+        }
+      } catch (fetchErr) {
+        console.warn(`[RH TAUX] Impossible de fetcher ${url}:`, fetchErr.message);
+      }
+    }
+
+    if (!pageContents.trim()) {
+      return res.status(502).json({ error: 'Impossible de joindre les sources officielles. Réessayez plus tard.' });
+    }
+
+    // Appeler l'IA pour extraire les taux
+    const anthropic = new Anthropic();
+    const aiResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `Tu es un expert paie française. Extrais les taux de cotisations sociales actuels depuis ces pages officielles.
+
+SOURCES:
+${pageContents}
+
+Retourne UNIQUEMENT un JSON valide avec cette structure exacte (taux en %, montants en €) :
+{
+  "smic_horaire": number,
+  "smic_mensuel": number,
+  "plafond_ss_mensuel": number,
+  "plafond_ss_annuel": number,
+  "sal_maladie": number,
+  "sal_vieillesse_plafonnee": number,
+  "sal_vieillesse_deplafonnee": number,
+  "sal_chomage": number,
+  "sal_retraite_t1": number,
+  "sal_retraite_t2": number,
+  "sal_ceg_t1": number,
+  "sal_ceg_t2": number,
+  "sal_cet": number,
+  "sal_csg_deductible": number,
+  "sal_csg_non_deductible": number,
+  "sal_crds": number,
+  "pat_maladie": number, // taux plein (13% standard)
+  "pat_maladie_reduit": number, // taux réduit (7% si < 2.5 SMIC)
+  "pat_vieillesse_plafonnee": number,
+  "pat_vieillesse_deplafonnee": number,
+  "pat_allocations_familiales": number,
+  "pat_allocations_familiales_reduit": number,
+  "pat_chomage": number,
+  "pat_ags": number,
+  "pat_csa": number,
+  "pat_retraite_t1": number,
+  "pat_retraite_t2": number,
+  "pat_ceg_t1": number,
+  "pat_ceg_t2": number,
+  "pat_cet": number,
+  "pat_formation_moins_11": number,
+  "pat_formation_11_plus": number,
+  "pat_taxe_apprentissage": number
+}
+
+Si un taux n'est pas trouvé dans les sources, utilise null.
+Pas de commentaire, pas de markdown, UNIQUEMENT le JSON.`
+      }]
+    });
+
+    let tauxExtraits;
+    try {
+      const jsonStr = aiResponse.content[0].text.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      tauxExtraits = JSON.parse(jsonStr);
+    } catch {
+      return res.status(500).json({ error: 'Erreur extraction IA — format invalide. Réessayez.' });
+    }
+
+    // Comparer les taux
+    const differences = [];
+    for (const [key, valeurActuelle] of Object.entries(tauxActuels)) {
+      const valeurExtraite = tauxExtraits[key];
+      if (valeurExtraite === null || valeurExtraite === undefined) continue;
+      if (Math.abs(valeurActuelle - valeurExtraite) > 0.001) {
+        differences.push({
+          champ: key,
+          actuel: valeurActuelle,
+          officiel: valeurExtraite,
+          ecart: Math.round((valeurExtraite - valeurActuelle) * 1000) / 1000
+        });
+      }
+    }
+
+    // Consommer les crédits
+    await consume(tenantId, 'verification_taux', {
+      description: `Vérification taux sociaux — ${differences.length} différence(s) détectée(s)`
+    });
+
+    res.json({
+      success: true,
+      a_jour: differences.length === 0,
+      differences,
+      taux_actuels: tauxActuels,
+      taux_officiels: tauxExtraits,
+      date_verification: new Date().toISOString()
+    });
+  } catch (error) {
+    if (error.code === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({ error: 'Utilisation IA insuffisante pour cette action. Passez à un plan supérieur ou achetez un pack.', required: error.required, available: error.available });
+    }
+    console.error('[RH TAUX] Erreur vérification:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification des taux' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/parametres-sociaux/appliquer
+ * Appliquer les taux officiels vérifiés (sauvegarde en DB par tenant)
+ */
+router.post('/parametres-sociaux/appliquer', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { taux_officiels } = req.body;
+
+    if (!taux_officiels || typeof taux_officiels !== 'object') {
+      return res.status(400).json({ error: 'taux_officiels requis' });
+    }
+
+    const annee = new Date().getFullYear();
+
+    // Mapper les clés extraites vers les colonnes DB
+    const dbRow = {
+      tenant_id: tenantId,
+      annee,
+      date_application: `${annee}-01-01`,
+      actif: true,
+      source: 'Vérification automatique IA',
+      notes: `Mis à jour le ${new Date().toLocaleDateString('fr-FR')} via vérification automatique`,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Mapper taux_officiels → colonnes DB
+    const mapping = {
+      smic_horaire: 'smic_horaire_brut',
+      smic_mensuel: 'smic_mensuel_brut',
+      plafond_ss_mensuel: 'plafond_ss_mensuel',
+      plafond_ss_annuel: 'plafond_ss_annuel',
+      sal_maladie: 'cot_sal_maladie',
+      sal_vieillesse_plafonnee: 'cot_sal_vieillesse_plafonnee',
+      sal_vieillesse_deplafonnee: 'cot_sal_vieillesse_deplafonnee',
+      sal_chomage: 'cot_sal_chomage',
+      sal_retraite_t1: 'cot_sal_retraite_t1',
+      sal_retraite_t2: 'cot_sal_retraite_t2',
+      sal_ceg_t1: 'cot_sal_ceg_t1',
+      sal_ceg_t2: 'cot_sal_ceg_t2',
+      sal_cet: 'cot_sal_cet',
+      sal_csg_deductible: 'cot_sal_csg_deductible',
+      sal_csg_non_deductible: 'cot_sal_csg_non_deductible',
+      sal_crds: 'cot_sal_crds',
+      pat_maladie: 'cot_pat_maladie_haut_revenu',
+      pat_maladie_reduit: 'cot_pat_maladie',
+      pat_vieillesse_plafonnee: 'cot_pat_vieillesse_plafonnee',
+      pat_vieillesse_deplafonnee: 'cot_pat_vieillesse_deplafonnee',
+      pat_allocations_familiales: 'cot_pat_allocations_familiales',
+      pat_allocations_familiales_reduit: 'cot_pat_allocations_familiales_reduit',
+      pat_chomage: 'cot_pat_chomage',
+      pat_ags: 'cot_pat_ags',
+      pat_csa: 'cot_pat_csa',
+      pat_retraite_t1: 'cot_pat_retraite_t1',
+      pat_retraite_t2: 'cot_pat_retraite_t2',
+      pat_ceg_t1: 'cot_pat_ceg_t1',
+      pat_ceg_t2: 'cot_pat_ceg_t2',
+      pat_cet: 'cot_pat_cet',
+      pat_formation_moins_11: 'cot_pat_formation_moins_11',
+      pat_formation_11_plus: 'cot_pat_formation_11_plus',
+      pat_taxe_apprentissage: 'cot_pat_taxe_apprentissage',
+    };
+
+    for (const [key, col] of Object.entries(mapping)) {
+      const val = taux_officiels[key];
+      if (val !== null && val !== undefined && typeof val === 'number') {
+        dbRow[col] = val;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('rh_parametres_sociaux')
+      .upsert(dbRow, { onConflict: 'tenant_id,annee,date_application' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log(`[RH TAUX] Taux ${annee} mis à jour pour tenant ${tenantId}`);
+
+    res.json({ success: true, annee, updated: data });
+  } catch (error) {
+    console.error('[RH TAUX] Erreur application:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'application des taux' });
   }
 });
 
@@ -4660,11 +5146,21 @@ router.get('/pointage/resume', authenticateAdmin, async (req, res) => {
     const lastDay = new Date(parseInt(annee), parseInt(mois), 0).getDate();
     const dateFin = `${annee}-${mois}-${String(lastDay).padStart(2, '0')}`;
 
+    // Récupérer le mode de calcul HS
+    const { data: paramsHS } = await supabase
+      .from('rh_parametres_paie')
+      .select('mode_calcul_hs')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    const modeCalculHS = paramsHS?.mode_calcul_hs || 'hebdomadaire';
+
     // Récupérer tous les pointages du mois
     const { data: pointages, error } = await supabase
       .from('rh_pointage')
       .select(`
         membre_id,
+        date_travail,
         heures_travaillees,
         heures_supp,
         validated,
@@ -4680,6 +5176,9 @@ router.get('/pointage/resume', authenticateAdmin, async (req, res) => {
 
     // Agréger par employé
     const resume = {};
+    // Pour le mode hebdomadaire, grouper aussi par semaine
+    const parMembreSemaine = {};
+
     (pointages || []).forEach(p => {
       if (!resume[p.membre_id]) {
         resume[p.membre_id] = {
@@ -4692,15 +5191,47 @@ router.get('/pointage/resume', authenticateAdmin, async (req, res) => {
           jours_pointes: 0,
           jours_valides: 0
         };
+        parMembreSemaine[p.membre_id] = {};
       }
-      resume[p.membre_id].heures_travaillees += parseFloat(p.heures_travaillees || 0);
-      resume[p.membre_id].heures_supp += parseFloat(p.heures_supp || 0);
+      const heuresTrav = parseFloat(p.heures_travaillees || 0);
+      resume[p.membre_id].heures_travaillees += heuresTrav;
       resume[p.membre_id].jours_pointes += 1;
       if (p.validated) resume[p.membre_id].jours_valides += 1;
+
+      // Grouper par semaine pour recalcul hebdomadaire
+      if (modeCalculHS === 'hebdomadaire') {
+        const weekKey = getISOWeekKey(p.date_travail);
+        if (!parMembreSemaine[p.membre_id][weekKey]) parMembreSemaine[p.membre_id][weekKey] = 0;
+        parMembreSemaine[p.membre_id][weekKey] += heuresTrav;
+      }
     });
+
+    // Recalculer les HS selon le mode
+    for (const membreId of Object.keys(resume)) {
+      const heuresHebdo = resume[membreId].heures_hebdo_contrat;
+
+      if (modeCalculHS === 'hebdomadaire') {
+        // Sommer les excédents par semaine
+        let totalHS = 0;
+        for (const totalSemaine of Object.values(parMembreSemaine[membreId])) {
+          totalHS += Math.max(0, totalSemaine - heuresHebdo);
+        }
+        resume[membreId].heures_supp = Math.round(totalHS * 100) / 100;
+      } else if (modeCalculHS === 'mensuel') {
+        const heuresMensuelles = heuresHebdo * 52 / 12;
+        resume[membreId].heures_supp = Math.max(0, Math.round((resume[membreId].heures_travaillees - heuresMensuelles) * 100) / 100);
+      } else if (modeCalculHS === 'annualisation') {
+        // En mode annualisation, HS indicatives = proportion du dépassement annuel projeté
+        const heuresMois = resume[membreId].heures_travaillees;
+        const projetAnnuel = heuresMois * 12; // projection simplifiée
+        const excedentAnnuel = Math.max(0, projetAnnuel - 1607);
+        resume[membreId].heures_supp = Math.round((excedentAnnuel / 12) * 100) / 100;
+      }
+    }
 
     res.json({
       periode,
+      mode_calcul_hs: modeCalculHS,
       resume: Object.values(resume)
     });
   } catch (error) {
@@ -4837,7 +5368,8 @@ router.post('/pointage/valider-lot', authenticateAdmin, async (req, res) => {
 
 /**
  * POST /api/admin/rh/pointage/generer-depuis-planning
- * Générer le pointage depuis les réservations terminées
+ * Générer le pointage depuis les réservations (terminées + confirmées passées)
+ * Gère les réservations multi-jours via reservation_lignes
  */
 router.post('/pointage/generer-depuis-planning', authenticateAdmin, async (req, res) => {
   try {
@@ -4848,46 +5380,103 @@ router.post('/pointage/generer-depuis-planning', authenticateAdmin, async (req, 
       return res.status(400).json({ error: 'date_debut et date_fin requis' });
     }
 
-    // Récupérer toutes les réservations terminées avec un membre assigné
-    // Note: la table reservations utilise 'date', 'heure' et 'duree_minutes'
-    const { data: reservations, error: resError } = await supabase
+    // 1) Récupérer les réservations terminées OU confirmées dans la période
+    const { data: directResas, error: resError } = await supabase
       .from('reservations')
-      .select('id, date, heure, membre_id, duree_minutes')
+      .select('id, date, heure, membre_id, duree_minutes, statut')
       .eq('tenant_id', tenantId)
-      .eq('statut', 'termine')
-      .not('membre_id', 'is', null)
+      .in('statut', ['termine', 'confirme'])
       .gte('date', date_debut)
       .lte('date', date_fin);
 
     if (resError) throw resError;
 
-    console.log(`[RH POINTAGE] ${reservations?.length || 0} réservations trouvées pour ${date_debut} - ${date_fin}`);
+    // 2) Récupérer les lignes multi-jours dont la date tombe dans la période
+    //    (parents potentiellement hors période)
+    const { data: multiDayLignes, error: mlError } = await supabase
+      .from('reservation_lignes')
+      .select('reservation_id, membre_id, duree_minutes, quantite, date, heure_debut, heure_fin')
+      .eq('tenant_id', tenantId)
+      .gte('date', date_debut)
+      .lte('date', date_fin);
 
-    // Debug: afficher quelques réservations
-    if (reservations?.length > 0) {
-      console.log('[RH POINTAGE] Exemple réservation:', JSON.stringify(reservations[0]));
+    if (mlError) throw mlError;
+
+    // 3) Charger les réservations parentes manquantes (multi-jour dont parent hors période)
+    const directResaIds = new Set((directResas || []).map(r => r.id));
+    const missingParentIds = [...new Set((multiDayLignes || []).map(l => l.reservation_id))]
+      .filter(id => !directResaIds.has(id));
+
+    let allResas = [...(directResas || [])];
+    if (missingParentIds.length > 0) {
+      const { data: missingParents } = await supabase
+        .from('reservations')
+        .select('id, date, heure, membre_id, duree_minutes, statut')
+        .eq('tenant_id', tenantId)
+        .in('statut', ['termine', 'confirme'])
+        .in('id', missingParentIds);
+      if (missingParents) allResas = allResas.concat(missingParents);
     }
 
-    // Grouper par membre et date
+    // 4) Charger TOUTES les lignes des réservations concernées
+    const allResaIds = [...new Set(allResas.map(r => r.id))];
+    let allLignes = [];
+    if (allResaIds.length > 0) {
+      const { data: lignes } = await supabase
+        .from('reservation_lignes')
+        .select('reservation_id, membre_id, duree_minutes, quantite, date, heure_debut, heure_fin')
+        .eq('tenant_id', tenantId)
+        .in('reservation_id', allResaIds);
+      allLignes = lignes || [];
+    }
+
+    console.log(`[RH POINTAGE] ${allResas.length} résas, ${allLignes.length} lignes pour ${date_debut} → ${date_fin}`);
+
+    // 5) Grouper par membre et date en utilisant les lignes (précis par jour)
     const pointageParJour = {};
-    (reservations || []).forEach(r => {
-      const key = `${r.membre_id}-${r.date}`;
+
+    const addEntry = (membreId, dateTravail, dureeMinutes, resaId) => {
+      if (!membreId || !dateTravail) return;
+      // Filtrer : seules les dates dans la période demandée
+      if (dateTravail < date_debut || dateTravail > date_fin) return;
+      const key = `${membreId}-${dateTravail}`;
       if (!pointageParJour[key]) {
-        pointageParJour[key] = {
-          membre_id: r.membre_id,
-          date_travail: r.date,
-          heures: 0,
-          reservations: []
-        };
+        pointageParJour[key] = { membre_id: membreId, date_travail: dateTravail, heures: 0, reservations: new Set() };
       }
-      // Calculer durée en heures (duree_minutes ou 60 par défaut)
-      const dureeHeures = (r.duree_minutes || 60) / 60;
-      pointageParJour[key].heures += dureeHeures;
-      pointageParJour[key].reservations.push(r.id);
+      pointageParJour[key].heures += (dureeMinutes || 0) / 60;
+      pointageParJour[key].reservations.add(resaId);
+    };
+
+    // Indexer lignes par reservation_id
+    const lignesParResa = {};
+    allLignes.forEach(l => {
+      if (!lignesParResa[l.reservation_id]) lignesParResa[l.reservation_id] = [];
+      lignesParResa[l.reservation_id].push(l);
     });
 
-    // Récupérer infos employés pour heures théoriques
+    allResas.forEach(r => {
+      const lignes = lignesParResa[r.id];
+      if (lignes && lignes.length > 0) {
+        // Utiliser les lignes pour une répartition précise par jour/membre
+        lignes.forEach(l => {
+          const membreId = l.membre_id || r.membre_id;
+          const dateLigne = l.date || r.date;
+          const duree = l.duree_minutes || 0;
+          addEntry(membreId, dateLigne, duree, r.id);
+        });
+      } else {
+        // Pas de lignes → utiliser la réservation directement
+        addEntry(r.membre_id, r.date, r.duree_minutes, r.id);
+      }
+    });
+
+    // 6) Récupérer infos employés pour heures théoriques
     const membreIds = [...new Set(Object.values(pointageParJour).map(p => p.membre_id))];
+
+    if (membreIds.length === 0) {
+      return res.json({ success: true, message: '0 entrées de pointage générées', count: 0 });
+    }
+
     const { data: membres } = await supabase
       .from('rh_membres')
       .select('id, heures_hebdo, jours_travailles')
@@ -4896,30 +5485,42 @@ router.post('/pointage/generer-depuis-planning', authenticateAdmin, async (req, 
 
     const membresMap = {};
     (membres || []).forEach(m => {
-      const jours = m.jours_travailles?.length || 5;
-      membresMap[m.id] = (m.heures_hebdo || 35) / jours;
+      membresMap[m.id] = {
+        heuresHebdo: m.heures_hebdo || 35,
+        joursTravailles: m.jours_travailles?.length || 5,
+        heuresJour: (m.heures_hebdo || 35) / (m.jours_travailles?.length || 5)
+      };
     });
 
-    // Créer/mettre à jour les pointages
-    let created = 0;
-    let updated = 0;
+    // 6b) Récupérer le mode de calcul HS du tenant
+    const { data: paramsHS } = await supabase
+      .from('rh_parametres_paie')
+      .select('mode_calcul_hs')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
 
-    console.log(`[RH POINTAGE] ${Object.keys(pointageParJour).length} jours à créer pour ${membreIds.length} membres`);
+    const modeCalculHS = paramsHS?.mode_calcul_hs || 'hebdomadaire';
+
+    // 7) Créer/mettre à jour les pointages (heures_supp = 0, recalculées après)
+    let created = 0;
+
+    console.log(`[RH POINTAGE] ${Object.keys(pointageParJour).length} jours à créer pour ${membreIds.length} membres (mode HS: ${modeCalculHS})`);
 
     for (const p of Object.values(pointageParJour)) {
-      const heuresTheoriques = membresMap[p.membre_id] || 7;
+      const infos = membresMap[p.membre_id] || { heuresJour: 7 };
+      const nbRdv = p.reservations.size;
 
-      const { data: result, error } = await supabase
+      const { error } = await supabase
         .from('rh_pointage')
         .upsert({
           tenant_id: tenantId,
           membre_id: p.membre_id,
           date_travail: p.date_travail,
-          heures_travaillees: p.heures,
-          heures_theoriques: heuresTheoriques,
-          heures_supp: Math.max(0, p.heures - heuresTheoriques),
+          heures_travaillees: Math.round(p.heures * 100) / 100,
+          heures_theoriques: infos.heuresJour,
+          heures_supp: 0, // sera recalculé selon le mode
           source: 'planning',
-          notes: `Généré depuis ${p.reservations.length} RDV`
+          notes: `Généré depuis ${nbRdv} RDV`
         }, {
           onConflict: 'tenant_id,membre_id,date_travail'
         });
@@ -4931,10 +5532,14 @@ router.post('/pointage/generer-depuis-planning', authenticateAdmin, async (req, 
       }
     }
 
+    // 8) Recalculer les heures supp selon le mode du tenant
+    await recalculerHeuresSupp(tenantId, date_debut, date_fin, modeCalculHS, membresMap);
+
     res.json({
       success: true,
-      message: `${created} entrées de pointage générées`,
-      count: created
+      message: `${created} entrées de pointage générées (mode HS: ${modeCalculHS})`,
+      count: created,
+      mode_calcul_hs: modeCalculHS
     });
   } catch (error) {
     console.error('[RH POINTAGE] Erreur génération:', error);
@@ -4964,13 +5569,22 @@ router.post('/heures-supp/calculer', authenticateAdmin, async (req, res) => {
     const lastDay = new Date(parseInt(annee), parseInt(mois), 0).getDate();
     const dateFin = `${annee}-${mois}-${String(lastDay).padStart(2, '0')}`;
 
-    // Récupérer pointages validés
+    // Récupérer le mode de calcul HS
+    const { data: paramsHS } = await supabase
+      .from('rh_parametres_paie')
+      .select('mode_calcul_hs')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    const modeCalculHS = paramsHS?.mode_calcul_hs || 'hebdomadaire';
+
+    // Récupérer pointages validés (heures_travaillees, pas heures_supp)
     let query = supabase
       .from('rh_pointage')
       .select(`
         membre_id,
         date_travail,
-        heures_supp,
+        heures_travaillees,
         membre:rh_membres!rh_pointage_membre_id_fkey (
           id, nom, prenom, salaire_mensuel, heures_hebdo
         )
@@ -4985,7 +5599,7 @@ router.post('/heures-supp/calculer', authenticateAdmin, async (req, res) => {
     const { data: pointages, error: pError } = await query;
     if (pError) throw pError;
 
-    // Grouper par employé et semaine pour calcul 25%/50%
+    // Grouper par employé
     const parEmploye = {};
     (pointages || []).forEach(p => {
       if (!parEmploye[p.membre_id]) {
@@ -4993,36 +5607,61 @@ router.post('/heures-supp/calculer', authenticateAdmin, async (req, res) => {
           membre_id: p.membre_id,
           salaire_mensuel: p.membre?.salaire_mensuel || 0,
           heures_hebdo: p.membre?.heures_hebdo || 35,
-          heures_supp_total: 0,
-          semaines: {}
+          semaines: {},    // pour mode hebdomadaire
+          totalMois: 0     // pour mode mensuel
         };
       }
 
-      // Déterminer la semaine
-      const date = new Date(p.date_travail);
-      const semaine = getWeekNumber(date);
-      const semaineKey = `${annee}-S${semaine}`;
+      const heuresTrav = parseFloat(p.heures_travaillees || 0);
+      parEmploye[p.membre_id].totalMois += heuresTrav;
 
-      if (!parEmploye[p.membre_id].semaines[semaineKey]) {
-        parEmploye[p.membre_id].semaines[semaineKey] = 0;
+      // Grouper par semaine (utile pour mode hebdomadaire)
+      const weekKey = getISOWeekKey(p.date_travail);
+      if (!parEmploye[p.membre_id].semaines[weekKey]) {
+        parEmploye[p.membre_id].semaines[weekKey] = 0;
       }
-      parEmploye[p.membre_id].semaines[semaineKey] += parseFloat(p.heures_supp || 0);
-      parEmploye[p.membre_id].heures_supp_total += parseFloat(p.heures_supp || 0);
+      parEmploye[p.membre_id].semaines[weekKey] += heuresTrav;
     });
 
-    // Calculer heures 25% et 50% par semaine (8 premières = 25%, au-delà = 50%)
+    // Calculer heures 25% et 50% selon le mode
     const resultats = [];
 
     for (const [membreId, data] of Object.entries(parEmploye)) {
       let heures25 = 0;
       let heures50 = 0;
 
-      for (const [, heureSemaine] of Object.entries(data.semaines)) {
-        if (heureSemaine <= 8) {
-          heures25 += heureSemaine;
+      if (modeCalculHS === 'hebdomadaire') {
+        // >heures_hebdo contrat par semaine = HS, répartition 25%/50%
+        for (const totalSemaine of Object.values(data.semaines)) {
+          const hsSemaine = Math.max(0, totalSemaine - data.heures_hebdo);
+          if (hsSemaine <= 8) {
+            heures25 += hsSemaine;
+          } else {
+            heures25 += 8;
+            heures50 += hsSemaine - 8;
+          }
+        }
+      } else if (modeCalculHS === 'mensuel') {
+        // >heures_hebdo*52/12 par mois = HS
+        const heuresMensuelles = data.heures_hebdo * 52 / 12;
+        const hsMois = Math.max(0, data.totalMois - heuresMensuelles);
+        if (hsMois <= 8 * (52 / 12)) { // ~34.67h au taux 25%
+          heures25 = hsMois;
         } else {
-          heures25 += 8;
-          heures50 += heureSemaine - 8;
+          heures25 = 8 * (52 / 12);
+          heures50 = hsMois - heures25;
+        }
+      } else if (modeCalculHS === 'annualisation') {
+        // Calcul annualisé : projection depuis les heures du mois
+        // Les HS ne sont définitives qu'en fin de période de référence
+        const projectionAnnuelle = data.totalMois * 12;
+        const hsAnnuel = Math.max(0, projectionAnnuelle - 1607);
+        const hsMois = hsAnnuel / 12;
+        if (hsMois <= 8) {
+          heures25 = hsMois;
+        } else {
+          heures25 = 8;
+          heures50 = hsMois - 8;
         }
       }
 
@@ -5109,6 +5748,121 @@ function getWeekNumber(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+// Helper: clé de semaine ISO (YYYY-WNN)
+function getISOWeekKey(dateStr) {
+  const date = new Date(dateStr);
+  const weekNum = getWeekNumber(date);
+  const year = date.getFullYear();
+  // Si la semaine 1 tombe en décembre, elle appartient à l'année suivante
+  if (weekNum === 1 && date.getMonth() === 11) return `${year + 1}-W${String(weekNum).padStart(2, '0')}`;
+  // Si semaine 52/53 en janvier, elle appartient à l'année précédente
+  if (weekNum >= 52 && date.getMonth() === 0) return `${year - 1}-W${String(weekNum).padStart(2, '0')}`;
+  return `${year}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/**
+ * Recalculer les heures supplémentaires selon le mode du tenant
+ * Mode hebdomadaire : >heures_hebdo contrat par semaine = HS
+ * Mode mensuel : >heures_hebdo*52/12 par mois = HS
+ * Mode annualisation : >1607h par an = HS (calcul indicatif en cours d'année)
+ */
+async function recalculerHeuresSupp(tenantId, dateDebut, dateFin, mode, membresMap) {
+  // Récupérer tous les pointages de la période
+  const { data: pointages, error } = await supabase
+    .from('rh_pointage')
+    .select('id, membre_id, date_travail, heures_travaillees')
+    .eq('tenant_id', tenantId)
+    .gte('date_travail', dateDebut)
+    .lte('date_travail', dateFin)
+    .order('date_travail', { ascending: true });
+
+  if (error || !pointages?.length) return;
+
+  if (mode === 'hebdomadaire') {
+    // Grouper par (membre_id, semaine ISO)
+    const parSemaine = {};
+    pointages.forEach(p => {
+      const weekKey = getISOWeekKey(p.date_travail);
+      const key = `${p.membre_id}-${weekKey}`;
+      if (!parSemaine[key]) parSemaine[key] = { membreId: p.membre_id, entries: [] };
+      parSemaine[key].entries.push(p);
+    });
+
+    for (const group of Object.values(parSemaine)) {
+      const heuresHebdo = membresMap[group.membreId]?.heuresHebdo || 35;
+      const totalSemaine = group.entries.reduce((sum, e) => sum + parseFloat(e.heures_travaillees || 0), 0);
+      const excedent = Math.max(0, totalSemaine - heuresHebdo);
+
+      // Répartir HS sur les jours au prorata
+      for (const entry of group.entries) {
+        let hs = 0;
+        if (excedent > 0 && totalSemaine > 0) {
+          hs = Math.round((parseFloat(entry.heures_travaillees) / totalSemaine) * excedent * 100) / 100;
+        }
+        await supabase
+          .from('rh_pointage')
+          .update({ heures_supp: hs })
+          .eq('id', entry.id)
+          .eq('tenant_id', tenantId);
+      }
+    }
+  } else if (mode === 'mensuel') {
+    // Grouper par (membre_id, mois)
+    const parMois = {};
+    pointages.forEach(p => {
+      const moisKey = p.date_travail.substring(0, 7); // YYYY-MM
+      const key = `${p.membre_id}-${moisKey}`;
+      if (!parMois[key]) parMois[key] = { membreId: p.membre_id, entries: [] };
+      parMois[key].entries.push(p);
+    });
+
+    for (const group of Object.values(parMois)) {
+      const heuresHebdo = membresMap[group.membreId]?.heuresHebdo || 35;
+      const heuresMensuelles = heuresHebdo * 52 / 12; // 151,67h pour 35h/sem
+      const totalMois = group.entries.reduce((sum, e) => sum + parseFloat(e.heures_travaillees || 0), 0);
+      const excedent = Math.max(0, totalMois - heuresMensuelles);
+
+      for (const entry of group.entries) {
+        let hs = 0;
+        if (excedent > 0 && totalMois > 0) {
+          hs = Math.round((parseFloat(entry.heures_travaillees) / totalMois) * excedent * 100) / 100;
+        }
+        await supabase
+          .from('rh_pointage')
+          .update({ heures_supp: hs })
+          .eq('id', entry.id)
+          .eq('tenant_id', tenantId);
+      }
+    }
+  } else if (mode === 'annualisation') {
+    // Grouper par (membre_id, année)
+    const parAnnee = {};
+    pointages.forEach(p => {
+      const anneeKey = p.date_travail.substring(0, 4);
+      const key = `${p.membre_id}-${anneeKey}`;
+      if (!parAnnee[key]) parAnnee[key] = { membreId: p.membre_id, entries: [] };
+      parAnnee[key].entries.push(p);
+    });
+
+    for (const group of Object.values(parAnnee)) {
+      const totalAnnee = group.entries.reduce((sum, e) => sum + parseFloat(e.heures_travaillees || 0), 0);
+      const excedent = Math.max(0, totalAnnee - 1607);
+
+      for (const entry of group.entries) {
+        let hs = 0;
+        if (excedent > 0 && totalAnnee > 0) {
+          hs = Math.round((parseFloat(entry.heures_travaillees) / totalAnnee) * excedent * 100) / 100;
+        }
+        await supabase
+          .from('rh_pointage')
+          .update({ heures_supp: hs })
+          .eq('id', entry.id)
+          .eq('tenant_id', tenantId);
+      }
+    }
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // PARAMETRES PAIE
 // ════════════════════════════════════════════════════════════════════
@@ -5180,6 +5934,67 @@ router.put('/parametres-paie', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH PARAMS] Erreur mise à jour:', error);
     res.status(500).json({ error: 'Erreur mise à jour paramètres' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MODE CALCUL HEURES SUPPLEMENTAIRES
+// ════════════════════════════════════════════════════════════════════
+
+const MODES_CALCUL_HS = ['hebdomadaire', 'mensuel', 'annualisation'];
+
+/**
+ * GET /api/admin/rh/config-hs
+ * Récupérer le mode de calcul des heures supplémentaires
+ */
+router.get('/config-hs', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    const { data, error } = await supabase
+      .from('rh_parametres_paie')
+      .select('mode_calcul_hs')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ mode: data?.mode_calcul_hs || 'hebdomadaire' });
+  } catch (error) {
+    console.error('[RH CONFIG-HS] Erreur:', error);
+    res.status(500).json({ error: 'Erreur récupération config HS' });
+  }
+});
+
+/**
+ * PATCH /api/admin/rh/config-hs
+ * Mettre à jour le mode de calcul des heures supplémentaires
+ */
+router.patch('/config-hs', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { mode } = req.body;
+
+    if (!mode || !MODES_CALCUL_HS.includes(mode)) {
+      return res.status(400).json({ error: `Mode invalide. Valeurs acceptées: ${MODES_CALCUL_HS.join(', ')}` });
+    }
+
+    const { error } = await supabase
+      .from('rh_parametres_paie')
+      .upsert({
+        tenant_id: tenantId,
+        mode_calcul_hs: mode,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'tenant_id'
+      });
+
+    if (error) throw error;
+
+    res.json({ success: true, mode });
+  } catch (error) {
+    console.error('[RH CONFIG-HS] Erreur mise à jour:', error);
+    res.status(500).json({ error: 'Erreur mise à jour config HS' });
   }
 });
 
