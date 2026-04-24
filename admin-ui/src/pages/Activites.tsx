@@ -131,6 +131,7 @@ export default function Activites() {
   const [requireDeposit, setRequireDeposit] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // === Fermer dropdown au clic extérieur ===
   useEffect(() => {
@@ -289,23 +290,24 @@ export default function Activites() {
 
   // === CLIENTS ===
 
-  const searchClients = async (query: string) => {
-    if (!query || query.length < 2) {
-      setClients([]);
-      return;
-    }
-    try {
-      const { items } = await api.getPaginated<Client>(`/admin/clients?search=${encodeURIComponent(query)}&limit=10`);
-      setClients(items);
-    } catch {
-      setError('Impossible de rechercher les clients');
-    }
-  };
-
   const handleClientSearch = (value: string) => {
     setClientSearch(value);
     setShowClientDropdown(true);
-    searchClients(value);
+
+    // Debounce search API calls (300ms)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!value || value.length < 2) {
+      setClients([]);
+      return;
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const { items } = await api.getPaginated<Client>(`/admin/clients?search=${encodeURIComponent(value)}&limit=10`);
+        setClients(items);
+      } catch {
+        setError('Impossible de rechercher les clients');
+      }
+    }, 300);
   };
 
   const selectClient = (client: Client) => {
@@ -545,11 +547,49 @@ export default function Activites() {
         if (field === 'membre_id') {
           const membreId = value ? Number(value) : undefined;
           const membre = membreId ? membres.find(m => m.id === membreId) : null;
+
           newAffectations[affectationIndex] = {
             ...newAffectations[affectationIndex],
             membre_id: membreId,
             membre_nom: membre ? `${membre.prenom} ${membre.nom}` : undefined
           };
+
+          // Auto-fill async: chercher la prochaine dispo réelle (DB + lignes en cours)
+          if (membreId && !newAffectations[affectationIndex].heure_debut && newRdvForm.date_rdv) {
+            const currentDuree = sl.duree_minutes;
+            // Lancer la requête en arrière-plan (ne bloque pas le setState)
+            api.get<any>(`/admin/services/equipe/${membreId}/prochaine-dispo?date=${newRdvForm.date_rdv}`)
+              .then(res => {
+                const dbDispo = res?.prochaine_dispo || null;
+                // Aussi vérifier les lignes en cours dans le formulaire
+                setServiceLignes(current => {
+                  let latestEnd = dbDispo || '';
+                  for (const otherSl of current) {
+                    for (let i = 0; i < otherSl.affectations.length; i++) {
+                      const aff = otherSl.affectations[i];
+                      if (aff.membre_id === membreId && aff.heure_fin) {
+                        if (otherSl.service_id === serviceId && i === affectationIndex) continue;
+                        if (aff.heure_fin > latestEnd) latestEnd = aff.heure_fin;
+                      }
+                    }
+                  }
+                  if (!latestEnd) return current;
+                  return current.map(s => {
+                    if (s.service_id !== serviceId) return s;
+                    const affs = [...s.affectations];
+                    // Ne pas écraser si l'utilisateur a déjà saisi entre-temps
+                    if (affs[affectationIndex]?.heure_debut) return s;
+                    affs[affectationIndex] = {
+                      ...affs[affectationIndex],
+                      heure_debut: latestEnd,
+                      heure_fin: calculateEndTime(latestEnd, currentDuree)
+                    };
+                    return { ...s, affectations: affs };
+                  });
+                });
+              })
+              .catch(() => { /* silently fail — l'utilisateur peut saisir manuellement */ });
+          }
         } else if (field === 'heure_debut' && value) {
           let currentStart = value as string;
           for (let i = affectationIndex; i < newAffectations.length; i++) {
@@ -841,6 +881,7 @@ export default function Activites() {
       statut: rdv.statut || '',
       notes: rdv.notes || '',
       membre_id: rdv.membre?.id || rdv.membre_id || 0,
+      prix_total: Math.round((rdv.prix_total || 0) * 100),
       // Restaurant: extra (RPC) > rdv > service_id > 0
       table_id: extra.table_id || rdv.table_id || extra.service_id || rdv.service_id || 0,
       nb_couverts: extra.nb_couverts || rdv.nb_couverts || 2,
@@ -861,6 +902,8 @@ export default function Activites() {
       heure_debut: s.heure_debut || rdv.heure || rdv.heure_rdv || '',
       heure_fin: s.heure_fin || '',
       duree_minutes: s.duree_minutes,
+      prix_unitaire: Math.round((s.prix_unitaire || 0) * 100),
+      prix_total: Math.round((s.prix_total || 0) * 100),
     }));
     setEditLignes(lignes);
     setEditError('');
@@ -879,10 +922,14 @@ export default function Activites() {
         statut: editForm.statut,
         notes: editForm.notes,
         membre_id: editForm.membre_id || null,
+        prix_total: editForm.prix_total || undefined,
         lignes: editLignes.length > 0 ? editLignes.map(l => ({
           id: l.id,
+          service_nom: l.service_nom,
           heure_debut: l.heure_debut,
           heure_fin: l.heure_fin,
+          membre_id: l.membre_id || null,
+          prix_total: l.prix_total,
         })) : undefined,
         // Restaurant
         ...(isBusinessType('restaurant') ? {
@@ -957,8 +1004,8 @@ export default function Activites() {
           missing.push('Heures des agents (définir heure début/fin pour au moins un agent)');
         }
       } else if (pricingMode !== 'daily') {
-        if (isBusinessType('service_domicile')) {
-          // Domicile : l'heure vient des affectations, pas du champ global
+        if (isBusinessType('service_domicile') || isBusinessType('salon')) {
+          // Domicile & Salon : l'heure vient des affectations, pas du champ global
           const hasAffectationHeures = serviceLignes.some(sl =>
             sl.affectations.some(aff => aff.heure_debut && aff.heure_fin)
           );
@@ -967,6 +1014,32 @@ export default function Activites() {
           }
         } else {
           if (!newRdvForm.heure_rdv) missing.push('Heure');
+        }
+      }
+    }
+
+    // Bloquer les créneaux passés (marge 1h)
+    if (newRdvForm.date_rdv) {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (newRdvForm.date_rdv === today) {
+        const margeMin = (now.getHours() + 1) * 60 + now.getMinutes();
+        // Trouver l'heure la plus tôt de la résa
+        let earliestStart = newRdvForm.heure_rdv || '';
+        for (const sl of serviceLignes) {
+          for (const aff of sl.affectations) {
+            if (aff.heure_debut && (!earliestStart || aff.heure_debut < earliestStart)) {
+              earliestStart = aff.heure_debut;
+            }
+          }
+        }
+        if (earliestStart) {
+          const [h, m] = earliestStart.split(':').map(Number);
+          if (h * 60 + m < margeMin) {
+            const minStr = `${String(Math.floor(margeMin / 60)).padStart(2, '0')}:${String(margeMin % 60).padStart(2, '0')}`;
+            setCreateError(`Créneau passé — le prochain créneau disponible aujourd'hui est à partir de ${minStr}`);
+            return;
+          }
         }
       }
     }
@@ -1195,7 +1268,7 @@ export default function Activites() {
           ) : (
             <Button onClick={() => setShowNewModal(true)} size="sm">
               <Plus className="w-4 h-4 mr-2" />
-              {isBusinessType('security') ? 'Nouvelle mission' : `Nouveau ${t('reservation', false).toLowerCase()}`}
+              {isBusinessType('security') ? 'Nouvelle mission' : `Nouvelle ${t('reservation', false).toLowerCase()}`}
             </Button>
           )}
         </div>
@@ -1255,7 +1328,12 @@ export default function Activites() {
           businessType={businessType}
           isBusinessType={isBusinessType}
           onEditFormChange={setEditForm}
-          onEditLignesChange={setEditLignes}
+          onEditLignesChange={(newLignes) => {
+            setEditLignes(newLignes);
+            // Recalculer le prix total depuis les lignes
+            const total = newLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
+            if (total > 0) setEditForm(prev => ({ ...prev, prix_total: total }));
+          }}
           onSave={handleSaveEdit}
           onClose={() => { setShowEditModal(false); setEditLignes([]); }}
         />

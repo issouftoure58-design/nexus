@@ -3458,128 +3458,120 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
     };
 
     // Ajouter les RDV (avec gestion des prestations de nuit)
+    // Une entrée planning PAR ligne (= par affectation/service)
     (reservations || []).forEach(rdv => {
-      // Chercher les services spécifiques (priorité: assignés à ce membre, sinon tous)
       const lignesRdv = getLignesForReservation(rdv.id);
-
-      const serviceNoms = lignesRdv.length > 0
-        ? lignesRdv.map(l => l.service_nom).join(', ')
-        : rdv.service_nom;
-      const dureeTotale = lignesRdv.length > 0
-        ? lignesRdv.reduce((sum, l) => sum + (l.duree_minutes || 60) * (l.quantite || 1), 0)
-        : (rdv.duree_totale_minutes || rdv.duree_minutes || 60);
-      const prixTotal = lignesRdv.length > 0
-        ? lignesRdv.reduce((sum, l) => sum + (l.prix_total || 0), 0) / 100
-        : (rdv.prix_total ? rdv.prix_total / 100 : 0);
-      const heureDebut = lignesRdv[0]?.heure_debut || rdv.heure;
-      // Utiliser heure_fin de la ligne, sinon celle de la réservation
-      const heureFin = lignesRdv[0]?.heure_fin || rdv.heure_fin || null;
-
-      // Est-ce que la date de début est dans la semaine affichée?
       const dateInWeek = !!planningHebdo[rdv.date];
 
-      // Vérifier si c'est une prestation de nuit (passe minuit)
-      if (isOvernightShift(heureDebut, heureFin)) {
-        // Calculer la date du lendemain
-        const [annee, mois, jour] = rdv.date.split('-').map(Number);
-        const dateJour2 = new Date(annee, mois - 1, jour + 1);
-        const dateStrJour2 = `${dateJour2.getFullYear()}-${String(dateJour2.getMonth() + 1).padStart(2, '0')}-${String(dateJour2.getDate()).padStart(2, '0')}`;
+      // Helper pour ajouter une entrée planning (gère overnight)
+      const addPlanningEntry = (serviceNom, heureDebut, heureFin, duree, prix) => {
+        if (isOvernightShift(heureDebut, heureFin)) {
+          const [annee, mois, jour] = rdv.date.split('-').map(Number);
+          const dateJour2 = new Date(annee, mois - 1, jour + 1);
+          const dateStrJour2 = `${dateJour2.getFullYear()}-${String(dateJour2.getMonth() + 1).padStart(2, '0')}-${String(dateJour2.getDate()).padStart(2, '0')}`;
 
-        // Partie 1: Jour de début -> minuit (seulement si le jour de début est dans la semaine)
-        console.log(`[PLANNING] Overnight shift: ${rdv.date} ${heureDebut}-${heureFin}, dateInWeek=${dateInWeek}`);
-        if (dateInWeek) {
-          const minutesJour1 = (24 * 60) - toMinutes(heureDebut);
-          // Heures de nuit partie 1 (21:00 - 00:00)
-          const NUIT_DEBUT = 21 * 60;
-          const heuresNuitJour1 = Math.max(0, (24 * 60) - Math.max(toMinutes(heureDebut), NUIT_DEBUT));
-          // Calcul répartition heures (dimanche/férié/normal)
-          const breakdown1 = calculateHoursBreakdown(rdv.date, heureDebut, '00:00', minutesJour1);
+          console.log(`[PLANNING] Overnight shift: ${rdv.date} ${heureDebut}-${heureFin}, dateInWeek=${dateInWeek}`);
+          if (dateInWeek) {
+            const minutesJour1 = (24 * 60) - toMinutes(heureDebut);
+            const NUIT_DEBUT = 21 * 60;
+            const heuresNuitJour1 = Math.max(0, (24 * 60) - Math.max(toMinutes(heureDebut), NUIT_DEBUT));
+            const breakdown1 = calculateHoursBreakdown(rdv.date, heureDebut, '00:00', minutesJour1);
 
-          console.log(`[PLANNING] Ajout partie 1 (${rdv.date}): ${heureDebut} - 00:00`);
+            console.log(`[PLANNING] Ajout partie 1 (${rdv.date}): ${heureDebut} - 00:00`);
+            planningHebdo[rdv.date].rdv.push({
+              id: rdv.id,
+              heure: heureDebut,
+              heure_fin: '00:00',
+              service: serviceNom,
+              duree: minutesJour1,
+              heures_nuit: heuresNuitJour1,
+              hours_breakdown: breakdown1,
+              statut: rdv.statut,
+              prix: prix / 2,
+              client: formatClientName(rdv.client),
+              client_tel: rdv.client?.telephone,
+              is_overnight: true,
+              overnight_part: 1,
+              is_sunday: isSunday(rdv.date),
+              is_holiday: isHoliday(rdv.date)
+            });
+          }
+
+          const jour2InWeek = dateStrJour2 >= dateDebutStr && dateStrJour2 <= dateFinStr;
+          if (jour2InWeek) {
+            if (!planningHebdo[dateStrJour2]) {
+              planningHebdo[dateStrJour2] = {
+                rdv: [],
+                absent: false,
+                type_absence: null
+              };
+              console.log(`[PLANNING] Création jour ${dateStrJour2} pour suite nuit de ${rdv.date}`);
+            }
+
+            console.log(`[PLANNING] Ajout partie 2 (${rdv.date} -> ${dateStrJour2}): 00:00 - ${heureFin}`);
+            const minutesJour2 = toMinutes(heureFin);
+            const NUIT_FIN = 6 * 60;
+            const heuresNuitJour2 = Math.min(minutesJour2, NUIT_FIN);
+            const breakdown2 = calculateHoursBreakdown(dateStrJour2, '00:00', heureFin, minutesJour2);
+
+            planningHebdo[dateStrJour2].rdv.push({
+              id: rdv.id,
+              heure: '00:00',
+              heure_fin: heureFin,
+              service: serviceNom,
+              duree: minutesJour2,
+              heures_nuit: heuresNuitJour2,
+              hours_breakdown: breakdown2,
+              statut: rdv.statut,
+              prix: prix / 2,
+              client: formatClientName(rdv.client),
+              client_tel: rdv.client?.telephone,
+              is_overnight: true,
+              overnight_part: 2,
+              is_sunday: isSunday(dateStrJour2),
+              is_holiday: isHoliday(dateStrJour2)
+            });
+          }
+        } else {
+          if (!dateInWeek) return;
+
+          const heuresNuit = calculateNightMinutes(heureDebut, heureFin);
+          const breakdown = calculateHoursBreakdown(rdv.date, heureDebut, heureFin, duree);
+
           planningHebdo[rdv.date].rdv.push({
             id: rdv.id,
             heure: heureDebut,
-            heure_fin: '00:00',
-            service: serviceNoms,
-            duree: minutesJour1,
-            heures_nuit: heuresNuitJour1,
-            hours_breakdown: breakdown1,
+            heure_fin: heureFin,
+            service: serviceNom,
+            duree: duree,
+            heures_nuit: heuresNuit,
+            hours_breakdown: breakdown,
             statut: rdv.statut,
-            prix: prixTotal / 2,
+            prix: prix,
             client: formatClientName(rdv.client),
             client_tel: rdv.client?.telephone,
-            is_overnight: true,
-            overnight_part: 1,
             is_sunday: isSunday(rdv.date),
             is_holiday: isHoliday(rdv.date)
           });
         }
+      };
 
-        // Partie 2: Lendemain minuit -> heure de fin
-        // Vérifier si le lendemain est dans la semaine (ou existe déjà)
-        const jour2InWeek = dateStrJour2 >= dateDebutStr && dateStrJour2 <= dateFinStr;
-
-        if (jour2InWeek) {
-          // Créer l'entrée pour le lendemain si elle n'existe pas
-          if (!planningHebdo[dateStrJour2]) {
-            planningHebdo[dateStrJour2] = {
-              rdv: [],
-              absent: false,
-              type_absence: null
-            };
-            console.log(`[PLANNING] Création jour ${dateStrJour2} pour suite nuit de ${rdv.date}`);
-          }
-
-          console.log(`[PLANNING] Ajout partie 2 (${rdv.date} -> ${dateStrJour2}): 00:00 - ${heureFin}`);
-
-          const minutesJour2 = toMinutes(heureFin);
-          // Heures de nuit partie 2 (00:00 - 06:00)
-          const NUIT_FIN = 6 * 60;
-          const heuresNuitJour2 = Math.min(minutesJour2, NUIT_FIN);
-          // Calcul répartition heures pour jour 2 (dimanche/férié/normal)
-          const breakdown2 = calculateHoursBreakdown(dateStrJour2, '00:00', heureFin, minutesJour2);
-
-          planningHebdo[dateStrJour2].rdv.push({
-            id: rdv.id,
-            heure: '00:00',
-            heure_fin: heureFin,
-            service: serviceNoms,
-            duree: minutesJour2,
-            heures_nuit: heuresNuitJour2,
-            hours_breakdown: breakdown2,
-            statut: rdv.statut,
-            prix: prixTotal / 2,
-            client: formatClientName(rdv.client),
-            client_tel: rdv.client?.telephone,
-            is_overnight: true,
-            overnight_part: 2,
-            is_sunday: isSunday(dateStrJour2),
-            is_holiday: isHoliday(dateStrJour2)
-          });
+      if (lignesRdv.length > 0) {
+        // Une entrée PAR ligne assignée
+        for (const ligne of lignesRdv) {
+          const heureDebut = ligne.heure_debut || rdv.heure;
+          const heureFin = ligne.heure_fin || rdv.heure_fin || null;
+          const duree = (ligne.duree_minutes || 60) * (ligne.quantite || 1);
+          const prix = (ligne.prix_total || 0) / 100;
+          addPlanningEntry(ligne.service_nom, heureDebut, heureFin, duree, prix);
         }
       } else {
-        // Prestation normale (même jour) - seulement si dans la semaine
-        if (!dateInWeek) return;
-
-        const heuresNuit = calculateNightMinutes(heureDebut, heureFin);
-        // Calcul répartition heures (dimanche/férié/normal)
-        const breakdown = calculateHoursBreakdown(rdv.date, heureDebut, heureFin, dureeTotale);
-
-        planningHebdo[rdv.date].rdv.push({
-          id: rdv.id,
-          heure: heureDebut,
-          heure_fin: heureFin,
-          service: serviceNoms,
-          duree: dureeTotale,
-          heures_nuit: heuresNuit,
-          hours_breakdown: breakdown,
-          statut: rdv.statut,
-          prix: prixTotal,
-          client: formatClientName(rdv.client),
-          client_tel: rdv.client?.telephone,
-          is_sunday: isSunday(rdv.date),
-          is_holiday: isHoliday(rdv.date)
-        });
+        // Fallback : anciens RDV sans lignes
+        const heureDebut = rdv.heure;
+        const heureFin = rdv.heure_fin || null;
+        const duree = rdv.duree_totale_minutes || rdv.duree_minutes || 60;
+        const prix = rdv.prix_total ? rdv.prix_total / 100 : 0;
+        addPlanningEntry(rdv.service_nom, heureDebut, heureFin, duree, prix);
       }
     });
 

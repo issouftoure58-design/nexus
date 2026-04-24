@@ -101,7 +101,7 @@ router.get('/equipe', authenticateAdmin, async (req, res) => {
 
     const { data: membres, error } = await supabase
       .from('rh_membres')
-      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url')
+      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url, email, telephone, adresse_rue, adresse_cp, adresse_ville')
       .eq('tenant_id', tenantId)
       .order('nom');
 
@@ -111,6 +111,137 @@ router.get('/equipe', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error('[SERVICES] Erreur liste equipe:', err);
     apiError(res, 'Erreur recuperation equipe');
+  }
+});
+
+/**
+ * GET /api/admin/services/equipe/:id/prochaine-dispo
+ * Retourne la prochaine heure disponible d'un membre pour une date donnée
+ */
+router.get('/equipe/:id/prochaine-dispo', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const membreId = parseInt(req.params.id);
+    const { date } = req.query;
+
+    if (!date) {
+      return apiError(res, 'Date requise', 'BAD_REQUEST', 400);
+    }
+
+    // Récupérer toutes les résas du membre ce jour-là (non annulées)
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('id, heure, duree_minutes, duree_totale_minutes, heure_fin')
+      .eq('tenant_id', tenantId)
+      .eq('date', date)
+      .eq('membre_id', membreId)
+      .not('statut', 'in', '("annule","no_show")');
+
+    // Récupérer les lignes assignées à ce membre ce jour-là
+    const reservationIds = (reservations || []).map(r => r.id);
+
+    // Aussi chercher les lignes où ce membre est assigné via reservation_lignes
+    const { data: lignesMembre } = await supabase
+      .from('reservation_lignes')
+      .select('heure_debut, heure_fin, duree_minutes, reservation_id')
+      .eq('tenant_id', tenantId)
+      .eq('membre_id', membreId);
+
+    // Chercher les résas liées à ces lignes pour vérifier la date
+    const ligneReservationIds = [...new Set((lignesMembre || []).map(l => l.reservation_id))];
+    const allResaIds = [...new Set([...reservationIds, ...ligneReservationIds])];
+
+    let resasParDate = {};
+    if (allResaIds.length > 0) {
+      const { data: allResas } = await supabase
+        .from('reservations')
+        .select('id, date, heure, duree_minutes, duree_totale_minutes, heure_fin')
+        .eq('tenant_id', tenantId)
+        .in('id', allResaIds)
+        .eq('date', date)
+        .not('statut', 'in', '("annule","no_show")');
+      (allResas || []).forEach(r => { resasParDate[r.id] = r; });
+    }
+
+    // Construire la liste des créneaux occupés
+    const creneauxOccupes = [];
+
+    // Créneaux depuis les lignes (priorité: plus précis)
+    const resaAvecLignes = new Set();
+    (lignesMembre || []).forEach(l => {
+      if (!resasParDate[l.reservation_id]) return; // pas ce jour-là
+      resaAvecLignes.add(l.reservation_id);
+      if (l.heure_debut && l.heure_fin) {
+        creneauxOccupes.push({ debut: l.heure_debut, fin: l.heure_fin });
+      } else if (l.heure_debut && l.duree_minutes) {
+        const [h, m] = l.heure_debut.split(':').map(Number);
+        const finMin = h * 60 + m + (l.duree_minutes || 60);
+        const fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
+        creneauxOccupes.push({ debut: l.heure_debut, fin });
+      }
+    });
+
+    // Créneaux depuis les résas directes (sans lignes)
+    (reservations || []).forEach(r => {
+      if (resaAvecLignes.has(r.id)) return; // déjà couvert par les lignes
+      const heure = r.heure || '09:00';
+      const duree = r.duree_totale_minutes || r.duree_minutes || 60;
+      if (r.heure_fin) {
+        creneauxOccupes.push({ debut: heure, fin: r.heure_fin });
+      } else {
+        const [h, m] = heure.split(':').map(Number);
+        const finMin = h * 60 + m + duree;
+        const fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
+        creneauxOccupes.push({ debut: heure, fin });
+      }
+    });
+
+    // Trier par heure de début
+    creneauxOccupes.sort((a, b) => a.debut.localeCompare(b.debut));
+
+    // La prochaine dispo = après le dernier créneau occupé
+    let prochaineDispo = null;
+    if (creneauxOccupes.length > 0) {
+      let latestEnd = '00:00';
+      for (const c of creneauxOccupes) {
+        if (c.fin > latestEnd) latestEnd = c.fin;
+      }
+      prochaineDispo = latestEnd;
+    }
+
+    // Arrondir au prochain quart d'heure (ex: 10:42 → 10:45)
+    const roundUp15 = (timeStr) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      const totalMin = h * 60 + m;
+      const rounded = Math.ceil(totalMin / 15) * 15;
+      return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
+    };
+
+    // Si c'est aujourd'hui, appliquer une marge de 1h par rapport à maintenant
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (date === todayStr) {
+      const nowPlusMarge = (now.getHours() + 1) * 60 + now.getMinutes();
+      const margeStr = `${String(Math.floor(nowPlusMarge / 60)).padStart(2, '0')}:${String(nowPlusMarge % 60).padStart(2, '0')}`;
+      if (!prochaineDispo || prochaineDispo < margeStr) {
+        prochaineDispo = margeStr;
+      }
+    }
+
+    // Toujours arrondir au quart d'heure supérieur
+    if (prochaineDispo) {
+      prochaineDispo = roundUp15(prochaineDispo);
+    }
+
+    success(res, {
+      membre_id: membreId,
+      date,
+      prochaine_dispo: prochaineDispo,
+      creneaux_occupes: creneauxOccupes
+    });
+  } catch (err) {
+    console.error('[SERVICES] Erreur prochaine dispo:', err);
+    apiError(res, 'Erreur calcul prochaine dispo');
   }
 });
 
@@ -204,7 +335,7 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
 router.post('/equipe', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { nom, prenom, email, telephone, role } = req.body;
+    const { nom, prenom, email, telephone, role, adresse_rue, adresse_cp, adresse_ville } = req.body;
 
     if (!nom || !prenom) {
       return apiError(res, 'Nom et prenom requis', 'BAD_REQUEST', 400);
@@ -221,6 +352,9 @@ router.post('/equipe', authenticateAdmin, async (req, res) => {
         role: role || 'employe',
         statut: 'actif',
         jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
+        adresse_rue: adresse_rue || null,
+        adresse_cp: adresse_cp || null,
+        adresse_ville: adresse_ville || null,
       })
       .select()
       .single();
@@ -242,7 +376,7 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    const { nom, prenom, email, telephone, role, statut, jours_travailles } = req.body;
+    const { nom, prenom, email, telephone, role, statut, jours_travailles, adresse_rue, adresse_cp, adresse_ville } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
@@ -252,6 +386,9 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
     if (role !== undefined) updates.role = role;
     if (statut !== undefined) updates.statut = statut;
     if (jours_travailles !== undefined) updates.jours_travailles = jours_travailles;
+    if (adresse_rue !== undefined) updates.adresse_rue = adresse_rue || null;
+    if (adresse_cp !== undefined) updates.adresse_cp = adresse_cp || null;
+    if (adresse_ville !== undefined) updates.adresse_ville = adresse_ville || null;
 
     const { data: membre, error } = await supabase
       .from('rh_membres')

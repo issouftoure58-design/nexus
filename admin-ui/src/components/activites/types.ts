@@ -137,6 +137,8 @@ export interface EditLigne {
   heure_debut: string;
   heure_fin: string;
   duree_minutes?: number;
+  prix_unitaire?: number;
+  prix_total?: number;
 }
 
 export interface ReservationMembre {
@@ -238,6 +240,7 @@ export interface EditForm {
   statut: string;
   notes: string;
   membre_id: number;
+  prix_total?: number;
   // Restaurant
   table_id?: number;
   nb_couverts?: number;

@@ -1290,9 +1290,36 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
         const ligneUpdate = {};
 
+        // Mise à jour du service si fourni
+        if (ligne.service_nom !== undefined) {
+          ligneUpdate.service_nom = ligne.service_nom;
+          // Chercher le service correspondant pour mettre à jour service_id et prix
+          const { data: svcMatch } = await supabase
+            .from('services')
+            .select('id, prix, duree_minutes')
+            .eq('tenant_id', tenantId)
+            .eq('nom', ligne.service_nom)
+            .single();
+          if (svcMatch) {
+            ligneUpdate.service_id = svcMatch.id;
+            ligneUpdate.prix_unitaire = svcMatch.prix;
+            ligneUpdate.prix_total = svcMatch.prix * (currentLigne.quantite || 1);
+            ligneUpdate.duree_minutes = svcMatch.duree_minutes;
+          }
+        }
+
+        // Mise à jour du membre si fourni
+        if (ligne.membre_id !== undefined) {
+          ligneUpdate.membre_id = ligne.membre_id;
+        }
+
+        // Mise à jour du prix si fourni (saisie manuelle)
+        if (ligne.prix_total !== undefined && !ligneUpdate.prix_total) {
+          ligneUpdate.prix_total = ligne.prix_total;
+        }
+
         // Mise à jour des heures si fournies
         if (ligne.heure_debut !== undefined) {
-          // Tronquer au format HH:MM (VARCHAR(5))
           ligneUpdate.heure_debut = ligne.heure_debut ? ligne.heure_debut.slice(0, 5) : null;
         }
         if (ligne.heure_fin !== undefined) {
@@ -1389,14 +1416,22 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
           console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${prixHT/100}€ HT → ${prixTTC/100}€ TTC`);
         } else {
-          // Prix fixe: mettre à jour seulement la durée, pas le prix
+          // Prix fixe: recalculer depuis les lignes
+          const prixFixeTotal = allLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
+          const updateData = { duree_minutes: dureeTotale };
+          // Mettre à jour le prix si un prix_total est envoyé ou si les lignes ont changé
+          if (req.body.prix_total !== undefined) {
+            updateData.prix_total = req.body.prix_total;
+          } else if (prixFixeTotal > 0) {
+            updateData.prix_total = prixFixeTotal;
+          }
           await supabase
             .from('reservations')
-            .update({ duree_minutes: dureeTotale })
+            .update(updateData)
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId);
 
-          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min (prix inchangé — tarification fixe)`);
+          console.log(`[ADMIN EDIT] Durée totale: ${dureeTotale} min, Prix: ${(updateData.prix_total || 0)/100}€`);
         }
 
         // Auto-ajustement facture si prix a changé (seulement en mode horaire)

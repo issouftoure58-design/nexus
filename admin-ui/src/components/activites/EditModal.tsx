@@ -294,17 +294,77 @@ export default function EditModal({
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
                     Heures effectives par salarie
                   </label>
-                  {editLignes.map((ligne, idx) => (
+                  {editLignes.map((ligne, idx) => {
+                    const calcEndTime = (start: string, duree: number) => {
+                      if (!start) return '';
+                      const [h, m] = start.split(':').map(Number);
+                      const endMin = h * 60 + m + duree;
+                      return `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+                    };
+
+                    return (
                     <div key={ligne.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                          {ligne.service_nom}
-                        </span>
-                        {ligne.membre && (
-                          <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
-                            {ligne.membre.prenom} {ligne.membre.nom}
-                          </span>
-                        )}
+                      <div className="space-y-2">
+                        <select
+                          value={ligne.service_nom}
+                          onChange={(e) => {
+                            const newLignes = [...editLignes];
+                            const selectedService = services.find(s => s.nom === e.target.value);
+                            const duree = selectedService?.duree_minutes || ligne.duree_minutes || 60;
+                            const heureFin = ligne.heure_debut ? calcEndTime(ligne.heure_debut, duree) : ligne.heure_fin;
+                            newLignes[idx] = {
+                              ...newLignes[idx],
+                              service_nom: e.target.value,
+                              duree_minutes: duree,
+                              heure_fin: heureFin,
+                              prix_unitaire: selectedService?.prix ?? ligne.prix_unitaire,
+                              prix_total: selectedService ? selectedService.prix * (ligne.quantite || 1) : ligne.prix_total,
+                            };
+                            // Cascader sur les lignes suivantes du même membre
+                            if (heureFin) {
+                              let nextStart = heureFin;
+                              for (let i = idx + 1; i < newLignes.length; i++) {
+                                if (newLignes[i].membre_id && newLignes[i].membre_id === ligne.membre_id) {
+                                  const nextDuree = newLignes[i].duree_minutes || 60;
+                                  const nextEnd = calcEndTime(nextStart, nextDuree);
+                                  newLignes[i] = { ...newLignes[i], heure_debut: nextStart, heure_fin: nextEnd };
+                                  nextStart = nextEnd;
+                                }
+                              }
+                            }
+                            onEditLignesChange(newLignes);
+                          }}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                          {ligne.service_nom && !services.some(s => s.nom === ligne.service_nom) && (
+                            <option value={ligne.service_nom}>{ligne.service_nom} (actuel)</option>
+                          )}
+                          {services.filter(s => s.actif !== false).map((s) => (
+                            <option key={s.id} value={s.nom}>
+                              {s.nom} — {(s.prix / 100).toFixed(0)}€ ({s.duree_minutes}min)
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={ligne.membre_id || 0}
+                          onChange={(e) => {
+                            const newLignes = [...editLignes];
+                            const membreId = parseInt(e.target.value) || null;
+                            const membre = membreId ? membres.find(m => m.id === membreId) : null;
+                            newLignes[idx] = {
+                              ...newLignes[idx],
+                              membre_id: membreId,
+                              membre: membre ? { id: membre.id, nom: membre.nom, prenom: membre.prenom } : null
+                            };
+                            onEditLignesChange(newLignes);
+                          }}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value={0}>-- Assigner employe --</option>
+                          {membres.map((m) => (
+                            <option key={m.id} value={m.id}>{m.prenom} {m.nom} ({m.role})</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="flex gap-3">
                         <div className="flex-1">
@@ -314,7 +374,8 @@ export default function EditModal({
                             value={ligne.heure_debut}
                             onChange={(e) => {
                               const newLignes = [...editLignes];
-                              newLignes[idx] = { ...newLignes[idx], heure_debut: e.target.value };
+                              const duree = ligne.duree_minutes || 60;
+                              newLignes[idx] = { ...newLignes[idx], heure_debut: e.target.value, heure_fin: calcEndTime(e.target.value, duree) };
                               onEditLignesChange(newLignes);
                             }}
                             className="text-sm"
@@ -344,11 +405,14 @@ export default function EditModal({
                         return (
                           <p className="text-xs text-gray-500">
                             Duree: {heures}h{mins > 0 ? mins.toString().padStart(2, '0') : ''}
+                            {ligne.prix_total ? ` — ${(ligne.prix_total / 100).toFixed(2)}€` : ''}
                           </p>
                         );
                       })()}
                     </div>
-                  ))}
+                    );
+                  })}
+                  {/* supprimé — total global en bas */}
                 </div>
               ) : (
                 <>
@@ -422,6 +486,37 @@ export default function EditModal({
               </select>
             </div>
           )}
+
+          {/* Montant total */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Montant total</label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={(() => {
+                  // Si des lignes existent, calculer depuis les lignes
+                  if (editLignes.length > 0) {
+                    const total = editLignes.reduce((sum, l) => sum + (l.prix_total || 0), 0);
+                    return (total / 100).toFixed(2);
+                  }
+                  return ((editForm.prix_total || 0) / 100).toFixed(2);
+                })()}
+                onChange={(e) => {
+                  const cents = Math.round(parseFloat(e.target.value || '0') * 100);
+                  onEditFormChange({ ...editForm, prix_total: cents });
+                }}
+                className="text-sm"
+              />
+              <span className="text-sm text-gray-500 font-medium">€</span>
+            </div>
+            {editLignes.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                {editLignes.map(l => `${l.service_nom} ${((l.prix_total || 0) / 100).toFixed(0)}€`).join(' + ')}
+              </p>
+            )}
+          </div>
 
           {/* Notes */}
           <div>
