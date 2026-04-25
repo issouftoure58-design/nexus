@@ -12,6 +12,7 @@ import { requireModule } from '../middleware/moduleProtection.js';
 import { supabase } from '../config/supabase.js';
 import { sendEmail } from '../services/emailService.js';
 import { validerDSN, genererRapport } from '../services/dsnValidator.js';
+import { validateWithDSNVal } from '../services/dsnValService.js';
 import documentsRHService from '../services/documentsRHService.js';
 const { genererDocument, getOrCreateModeles, regenererPDF, MODELES_DEFAUT } = documentsRHService;
 import { paginate } from '../middleware/paginate.js';
@@ -432,7 +433,7 @@ router.post('/membres', authenticateAdmin, async (req, res) => {
       // Classification
       convention_collective, classification_niveau, classification_echelon, classification_coefficient, categorie_sociopro,
       // Rémunération
-      salaire_mensuel, regime_ss, mutuelle_obligatoire, mutuelle_dispense, prevoyance, iban, bic,
+      salaire_mensuel, taux_ir, regime_ss, mutuelle_obligatoire, mutuelle_dispense, prevoyance, iban, bic,
       // Contact urgence
       contact_urgence_nom, contact_urgence_tel, contact_urgence_lien,
       // Autre
@@ -486,6 +487,7 @@ router.post('/membres', authenticateAdmin, async (req, res) => {
         categorie_sociopro: emptyToNull(categorie_sociopro),
         // Rémunération
         salaire_mensuel: salaire_mensuel || 0,
+        taux_ir: taux_ir || 0,
         regime_ss: regime_ss || 'general',
         mutuelle_obligatoire: mutuelle_obligatoire !== false,
         mutuelle_dispense: mutuelle_dispense || false,
@@ -551,7 +553,7 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
       // Classification
       convention_collective, classification_niveau, classification_echelon, classification_coefficient, categorie_sociopro,
       // Rémunération
-      salaire_mensuel, regime_ss, mutuelle_obligatoire, mutuelle_dispense, prevoyance, iban, bic,
+      salaire_mensuel, taux_ir, regime_ss, mutuelle_obligatoire, mutuelle_dispense, prevoyance, iban, bic,
       // Contact urgence
       contact_urgence_nom, contact_urgence_tel, contact_urgence_lien,
       // Autre
@@ -614,6 +616,7 @@ router.put('/membres/:id', authenticateAdmin, async (req, res) => {
 
     // Rémunération
     if (salaire_mensuel !== undefined) updateData.salaire_mensuel = salaire_mensuel;
+    if (taux_ir !== undefined) updateData.taux_ir = taux_ir;
     if (regime_ss !== undefined) updateData.regime_ss = regime_ss;
     if (mutuelle_obligatoire !== undefined) updateData.mutuelle_obligatoire = mutuelle_obligatoire;
     if (mutuelle_dispense !== undefined) updateData.mutuelle_dispense = mutuelle_dispense;
@@ -4061,7 +4064,8 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
       logiciel_paie, version_norme, fraction,
       urssaf_code, urssaf_siret, caisse_retraite_code, caisse_retraite_nom, caisse_retraite_siret, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
       idcc, convention_libelle,
-      date_creation_etablissement, date_premiere_embauche
+      date_creation_etablissement, date_premiere_embauche,
+      bic, iban, contact_civilite, mode_paiement, code_regime_retraite, code_risque_at, taux_at_defaut
     } = req.body;
 
     const { data: params, error } = await supabase
@@ -4077,6 +4081,8 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
         urssaf_code, urssaf_siret, caisse_retraite_code, caisse_retraite_nom, caisse_retraite_siret, prevoyance_code, prevoyance_nom, mutuelle_code, mutuelle_nom,
         idcc, convention_libelle,
         date_creation_etablissement, date_premiere_embauche,
+        bic, iban, contact_civilite: contact_civilite || '01', mode_paiement: mode_paiement || '05',
+        code_regime_retraite: code_regime_retraite || 'RETA', code_risque_at, taux_at_defaut,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'tenant_id'
@@ -4099,7 +4105,7 @@ router.put('/dsn/parametres', authenticateAdmin, async (req, res) => {
  */
 router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
   try {
-    const { periode, nature, use_workflow } = req.body;
+    const { periode, nature, use_workflow, neant } = req.body;
 
     if (!periode) {
       return res.status(400).json({ error: 'Période requise (format: YYYY-MM)' });
@@ -4118,7 +4124,7 @@ router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
     }
 
     // Generation directe via dsnGenerator
-    const result = await generateDSN(req.admin.tenant_id, periode, nature || '01');
+    const result = await generateDSN(req.admin.tenant_id, periode, nature || '01', { neant: !!neant });
 
     // Sauvegarder dans l'historique
     const { data: historique, error } = await supabase
@@ -4126,7 +4132,7 @@ router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
       .insert({
         tenant_id: req.admin.tenant_id,
         periode,
-        type_declaration: 'mensuelle',
+        type_declaration: neant ? 'neant' : 'mensuelle',
         nature_envoi: nature || '01',
         nature: nature || '01',
         nb_salaries: result.stats.individus,
@@ -4151,6 +4157,35 @@ router.post('/dsn/generer', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH] Erreur génération DSN:', error);
     res.status(500).json({ error: error.message || 'Erreur génération DSN' });
+  }
+});
+
+/**
+ * GET /api/admin/rh/dsn/telecharger/:id
+ * Télécharger un fichier DSN en ISO-8859-1 (requis par DSN-Val/net-entreprises)
+ */
+router.get('/dsn/telecharger/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { data: historique, error } = await supabase
+      .from('rh_dsn_historique')
+      .select('contenu_dsn, fichier_nom')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('id', req.params.id)
+      .single();
+
+    if (error || !historique?.contenu_dsn) {
+      return res.status(404).json({ error: 'DSN non trouvée' });
+    }
+
+    // Conversion UTF-8 (stockage DB) → ISO-8859-1 (norme DSN)
+    const isoBuffer = Buffer.from(historique.contenu_dsn, 'latin1');
+
+    res.setHeader('Content-Type', 'text/plain; charset=ISO-8859-1');
+    res.setHeader('Content-Disposition', `attachment; filename="${historique.fichier_nom || 'dsn.dsn'}"`);
+    res.send(isoBuffer);
+  } catch (error) {
+    console.error('[RH] Erreur téléchargement DSN:', error);
+    res.status(500).json({ error: 'Erreur téléchargement DSN' });
   }
 });
 
@@ -4229,9 +4264,12 @@ router.post('/dsn/valider', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Contenu DSN requis (dsn_id ou contenu_dsn)' });
     }
 
-    // Valider la DSN
+    // Valider la DSN (pass 1 : validateur interne)
     const resultat = validerDSN(contenu);
     const rapport = genererRapport(resultat);
+
+    // Pass 2 : DSN-Val officiel (non-bloquant si indisponible)
+    const dsnval = await validateWithDSNVal(contenu);
 
     // Mettre à jour le statut si validation depuis historique
     if (dsn_id && resultat.valide) {
@@ -4251,7 +4289,14 @@ router.post('/dsn/valider', authenticateAdmin, async (req, res) => {
       erreurs: resultat.erreurs,
       avertissements: resultat.avertissements,
       stats: resultat.stats,
-      rapport
+      rapport,
+      dsnval: {
+        disponible: dsnval.disponible,
+        etat: dsnval.etat,
+        anomalies_bloquantes: dsnval.anomalies_bloquantes,
+        anomalies_non_bloquantes: dsnval.anomalies_non_bloquantes,
+        anomalies: dsnval.anomalies,
+      }
     });
   } catch (error) {
     console.error('[RH] Erreur validation DSN:', error);
@@ -4282,9 +4327,10 @@ router.get('/dsn/:id/valider', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Contenu DSN non disponible' });
     }
 
-    // Valider
+    // Valider (pass 1 : interne + pass 2 : DSN-Val)
     const resultat = validerDSN(dsn.contenu_dsn);
     const rapport = genererRapport(resultat);
+    const dsnval = await validateWithDSNVal(dsn.contenu_dsn);
 
     res.json({
       success: true,
@@ -4297,7 +4343,14 @@ router.get('/dsn/:id/valider', authenticateAdmin, async (req, res) => {
       erreurs: resultat.erreurs,
       avertissements: resultat.avertissements,
       stats: resultat.stats,
-      rapport
+      rapport,
+      dsnval: {
+        disponible: dsnval.disponible,
+        etat: dsnval.etat,
+        anomalies_bloquantes: dsnval.anomalies_bloquantes,
+        anomalies_non_bloquantes: dsnval.anomalies_non_bloquantes,
+        anomalies: dsnval.anomalies,
+      }
     });
   } catch (error) {
     console.error('[RH] Erreur validation DSN:', error);
@@ -6915,6 +6968,107 @@ router.post('/dsn/evenement', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('[RH DSN] Erreur événementielle:', error);
     res.status(500).json({ error: error.message || 'Erreur DSN événementielle' });
+  }
+});
+
+// ============================================
+// DSN OVERRIDES — Surcharges rubriques DSN
+// ============================================
+
+/**
+ * GET /api/admin/rh/dsn/overrides
+ * Liste toutes les surcharges DSN actives du tenant
+ */
+router.get('/dsn/overrides', authenticateAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('rh_dsn_overrides')
+      .select('*, rh_membres(nom, prenom)')
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('is_active', true)
+      .order('rubrique_code');
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error('[RH DSN] Erreur lecture overrides:', error);
+    res.status(500).json({ error: 'Erreur récupération surcharges DSN' });
+  }
+});
+
+/**
+ * POST /api/admin/rh/dsn/overrides
+ * Créer ou mettre à jour une surcharge DSN (upsert)
+ */
+router.post('/dsn/overrides', authenticateAdmin, async (req, res) => {
+  try {
+    const { rubrique_code, valeur, membre_id, description } = req.body;
+
+    if (!rubrique_code || !valeur) {
+      return res.status(400).json({ error: 'rubrique_code et valeur requis' });
+    }
+
+    // Validation format rubrique DSN: S21.G00.40.026
+    const rubriqueRegex = /^S\d{2}\.G\d{2}\.\d{2}\.\d{3}$/;
+    if (!rubriqueRegex.test(rubrique_code)) {
+      return res.status(400).json({ error: 'Format rubrique invalide (ex: S21.G00.40.026)' });
+    }
+
+    const membreIdVal = membre_id || null;
+
+    // Supprimer l'existant (upsert ne marche pas avec NULL dans UNIQUE)
+    let deleteQuery = supabase
+      .from('rh_dsn_overrides')
+      .delete()
+      .eq('tenant_id', req.admin.tenant_id)
+      .eq('rubrique_code', rubrique_code);
+
+    if (membreIdVal) {
+      deleteQuery = deleteQuery.eq('membre_id', membreIdVal);
+    } else {
+      deleteQuery = deleteQuery.is('membre_id', null);
+    }
+    await deleteQuery;
+
+    // Insérer la nouvelle surcharge
+    const { data, error } = await supabase
+      .from('rh_dsn_overrides')
+      .insert({
+        tenant_id: req.admin.tenant_id,
+        rubrique_code,
+        valeur,
+        membre_id: membreIdVal,
+        description: description || null,
+        is_active: true,
+      })
+      .select('*, rh_membres(nom, prenom)')
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error('[RH DSN] Erreur création override:', error);
+    res.status(500).json({ error: error.message || 'Erreur création surcharge DSN' });
+  }
+});
+
+/**
+ * DELETE /api/admin/rh/dsn/overrides/:id
+ * Supprimer une surcharge DSN
+ */
+router.delete('/dsn/overrides/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('rh_dsn_overrides')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('tenant_id', req.admin.tenant_id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[RH DSN] Erreur suppression override:', error);
+    res.status(500).json({ error: 'Erreur suppression surcharge DSN' });
   }
 });
 

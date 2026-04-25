@@ -7,6 +7,7 @@
 import { supabase } from '../config/supabase.js';
 import { generateDSN } from './dsnGenerator.js';
 import { validerDSN, genererRapport } from './dsnValidator.js';
+import { validateWithDSNVal } from './dsnValService.js';
 
 // Etats valides et transitions
 const TRANSITIONS = {
@@ -92,9 +93,12 @@ export async function validateDSN(tenantId, dsnId) {
     throw new Error(`Transition impossible: ${currentStatus} → validee`);
   }
 
-  // Valider avec le validateur existant
+  // Valider avec le validateur existant (pass 1)
   const validationResult = validerDSN(dsn.contenu_dsn);
   const rapport = genererRapport(validationResult);
+
+  // Pass 2 : DSN-Val officiel
+  const dsnval = await validateWithDSNVal(dsn.contenu_dsn);
 
   const newStatus = validationResult.valide ? 'validee' : 'brouillon';
 
@@ -110,6 +114,13 @@ export async function validateDSN(tenantId, dsnId) {
         stats: validationResult.stats,
         rapport,
         validated_at: new Date().toISOString(),
+        dsnval: {
+          disponible: dsnval.disponible,
+          etat: dsnval.etat,
+          anomalies_bloquantes: dsnval.anomalies_bloquantes,
+          anomalies_non_bloquantes: dsnval.anomalies_non_bloquantes,
+          anomalies: dsnval.anomalies,
+        },
       },
       statut: newStatus === 'validee' ? 'validee' : 'erreur',
     })
