@@ -17,6 +17,7 @@ import {
 } from './tenantEmailService.js';
 import { captureException, captureMessage } from '../config/sentry.js';
 import creditsService, { CREDIT_PACKS, MONTHLY_INCLUDED } from './creditsService.js';
+import { getFeaturesForPlan } from '../config/planFeatures.js';
 
 // Configuration Stripe
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -755,7 +756,8 @@ export async function createCheckoutSession(tenantId, priceId, successUrl, cance
     },
     subscription_data: {
       metadata: {
-        tenant_id: tenantId
+        tenant_id: tenantId,
+        product_code: typeof priceId === 'string' && !priceId.startsWith('price_') ? priceId : undefined
       }
     }
   };
@@ -880,13 +882,90 @@ export async function handleWebhookEvent(event) {
 
 /**
  * Traite un checkout.session.completed
- * Sert principalement aux achats one-time (packs de credits IA).
- * Les abonnements sont gérés via customer.subscription.created.
+ * Gère:
+ * - mode='subscription': upgrade du plan tenant (doublure fiable de customer.subscription.created)
+ * - mode='payment': achats one-time (packs de credits IA)
  */
 async function handleCheckoutCompleted(session) {
-  // Seuls les paiements one-time nous intéressent ici (mode='payment')
-  if (session.mode !== 'payment') {
-    console.log(`[Stripe Webhook] checkout.session.completed mode=${session.mode}, skip (handled by subscription events)`);
+  // Mode subscription: upgrade le plan directement depuis la session
+  // C'est la doublure fiable de customer.subscription.created qui peut arriver en retard
+  if (session.mode === 'subscription') {
+    const tenantId = session.metadata?.tenant_id;
+    if (!tenantId) {
+      console.warn('[Stripe Webhook] checkout.session.completed (subscription) sans tenant_id:', session.id);
+      return;
+    }
+
+    // Extraire le plan depuis le product_code dans metadata ou la subscription
+    const productCode = session.metadata?.product_code || '';
+    let planId = null;
+
+    // Tentative 1: extraire depuis product_code (e.g. "nexus_business_monthly" → "business")
+    const codeMatch = productCode.match(/^nexus_(\w+?)_(monthly|yearly)$/);
+    if (codeMatch) {
+      planId = codeMatch[1];
+    }
+
+    // Tentative 2: récupérer la subscription Stripe pour extraire le plan
+    if (!planId && session.subscription && stripe) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(session.subscription);
+        planId = await extractPlanFromSubscription(sub);
+      } catch (err) {
+        console.error(`[Stripe Webhook] Erreur récupération subscription ${session.subscription}:`, err.message);
+      }
+    }
+
+    if (planId && planId !== 'free') {
+      const updateData = {
+        plan: planId,
+        plan_id: planId,
+        tier: planId,
+        stripe_subscription_id: session.subscription || null,
+        subscription_status: 'active',
+        statut: 'actif',
+        updated_at: new Date().toISOString()
+      };
+
+      await supabase.from('tenants').update(updateData).eq('id', tenantId);
+
+      // Synchroniser modules
+      try {
+        const { syncModulesFromPlan } = await import('./moduleActivationService.js');
+        await syncModulesFromPlan(tenantId, planId);
+      } catch (err) {
+        console.error(`[Stripe Webhook] Erreur syncModulesFromPlan pour ${tenantId}:`, err.message);
+      }
+
+      // Auto-créer config IA web si le plan l'active
+      const planModules = computeModulesFromPlan(planId);
+      if (planModules.agent_ia_web === true) {
+        try {
+          await createDefaultWebIAConfig(tenantId);
+        } catch (err) {
+          console.error(`[Stripe Webhook] Erreur creation config IA web pour ${tenantId}:`, err.message);
+        }
+      }
+
+      // Crédits IA mensuels
+      if (['starter', 'pro', 'business', 'basic'].includes(planId)) {
+        try {
+          const monthlyAmount = MONTHLY_INCLUDED[planId] || 0;
+          if (monthlyAmount > 0) {
+            const balance = await creditsService.getBalance(tenantId);
+            if (!balance.monthly_reset_at || new Date(balance.monthly_reset_at) <= new Date()) {
+              await creditsService.grantMonthly(tenantId, monthlyAmount, `Plan ${planId} - activation`);
+            }
+          }
+        } catch (err) {
+          console.error(`[Stripe Webhook] Erreur credits pour ${tenantId}:`, err.message);
+        }
+      }
+
+      console.log(`[Stripe Webhook] ✅ checkout.session.completed → plan ${planId} activé pour ${tenantId}`);
+    } else {
+      console.warn(`[Stripe Webhook] checkout.session.completed: impossible d'extraire le plan pour ${tenantId}`);
+    }
     return;
   }
 
@@ -944,12 +1023,20 @@ async function handleSubscriptionUpdate(subscription) {
   }
 
   // Extraire le plan depuis les items de la subscription
-  const planId = extractPlanFromSubscription(subscription);
+  const planId = await extractPlanFromSubscription(subscription);
   const planModules = computeModulesFromPlan(planId);
+
+  // Ne jamais retrograder: si deja active, ignorer incomplete/past_due
+  const STATUS_RANK = { incomplete: 0, incomplete_expired: 0, past_due: 1, unpaid: 1, trialing: 2, active: 3, canceled: -1 };
+  const { data: currentTenant } = await supabase.from('tenants')
+    .select('subscription_status').eq('id', tenantId).single();
+  const currentRank = STATUS_RANK[currentTenant?.subscription_status] ?? -1;
+  const newRank = STATUS_RANK[subscription.status] ?? 0;
+  const effectiveStatus = newRank >= currentRank ? subscription.status : currentTenant.subscription_status;
 
   const updateData = {
     stripe_subscription_id: subscription.id,
-    subscription_status: subscription.status,
+    subscription_status: effectiveStatus,
     subscription_cancel_at: subscription.cancel_at
       ? new Date(subscription.cancel_at * 1000).toISOString()
       : null,
@@ -962,32 +1049,6 @@ async function handleSubscriptionUpdate(subscription) {
     updateData.plan = planId;
     updateData.tier = planId;
     updateData.statut = subscription.status === 'trialing' ? 'essai' : 'actif';
-
-    // Merger avec modules existants au lieu d'ecraser :
-    // - Les modules manuellement actives par super-admin (whatsapp, telephone, ...)
-    //   ne sont PAS dans planModules → ils sont preserves tels quels.
-    // - Les modules du plan ecrasent la valeur precedente (on veut pouvoir
-    //   les activer au upgrade et les desactiver au downgrade).
-    const { data: current } = await supabase
-      .from('tenants')
-      .select('modules_actifs')
-      .eq('id', tenantId)
-      .single();
-
-    const existingModules = (current?.modules_actifs && typeof current.modules_actifs === 'object')
-      ? current.modules_actifs
-      : {};
-
-    updateData.modules_actifs = { ...existingModules, ...planModules };
-
-    // Extraire canaux depuis modules_actifs mergés pour options_canaux_actifs
-    const mergedModules = updateData.modules_actifs;
-    const canauxActifs = {};
-    if (mergedModules.agent_ia_web) canauxActifs.agent_ia_web = true;
-    if (mergedModules.agent_ia_whatsapp) canauxActifs.agent_ia_whatsapp = true;
-    if (mergedModules.agent_ia_telephone) canauxActifs.agent_ia_telephone = true;
-    if (mergedModules.site_web) canauxActifs.site_web = true;
-    updateData.options_canaux_actifs = canauxActifs;
   }
 
   await supabase
@@ -995,16 +1056,23 @@ async function handleSubscriptionUpdate(subscription) {
     .update(updateData)
     .eq('id', tenantId);
 
-  // Auto-creer la config IA web par defaut si le plan l'active (chat web = self-service)
-  if (
-    (subscription.status === 'active' || subscription.status === 'trialing') &&
-    planModules.agent_ia_web === true
-  ) {
+  // Synchroniser modules via service unifié (merge plan features + preserve manual channels)
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
     try {
-      await createDefaultWebIAConfig(tenantId);
+      const { syncModulesFromPlan } = await import('./moduleActivationService.js');
+      await syncModulesFromPlan(tenantId, planId);
     } catch (err) {
-      console.error(`[Stripe Webhook] Erreur creation config IA web pour ${tenantId}:`, err.message);
-      // Non-bloquant
+      console.error(`[Stripe Webhook] Erreur syncModulesFromPlan pour ${tenantId}:`, err.message);
+      // Non-bloquant : le tenant update est déjà fait
+    }
+
+    // Auto-creer la config IA web par defaut si le plan l'active (chat web = self-service)
+    if (planModules.agent_ia_web === true) {
+      try {
+        await createDefaultWebIAConfig(tenantId);
+      } catch (err) {
+        console.error(`[Stripe Webhook] Erreur creation config IA web pour ${tenantId}:`, err.message);
+      }
     }
   }
 
@@ -1074,30 +1142,55 @@ async function handleSubscriptionUpdate(subscription) {
  * Extrait le plan_id depuis les items de la subscription Stripe
  * Modèle 2026 (révisé 21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
  */
-function extractPlanFromSubscription(subscription) {
+async function extractPlanFromSubscription(subscription) {
   const items = subscription.items?.data || [];
 
   const normalize = (raw) => {
+    if (!raw) return null;
+    raw = raw.toLowerCase();
     if (raw.includes('business')) return 'business';
     if (raw.includes('pro')) return 'pro';
     if (raw.includes('starter')) return 'starter';
-    // Legacy alias : basic → starter
     if (raw.includes('basic')) return 'starter';
     if (raw.includes('free')) return 'free';
     return null;
   };
 
+  // 1. Check subscription metadata (set during checkout)
+  const metaCode = subscription.metadata?.product_code;
+  if (metaCode) {
+    const found = normalize(metaCode);
+    if (found) return found;
+  }
+
+  // 2. Check price metadata
   for (const item of items) {
-    const productCode = (item.price?.metadata?.product_code || '').toLowerCase();
+    const productCode = (item.price?.metadata?.product_code || '');
     const found = normalize(productCode);
     if (found) return found;
   }
 
-  // Fallback: verifier le nom du produit
+  // 3. Check product name (if expanded)
   for (const item of items) {
-    const productName = (item.price?.product?.name || '').toLowerCase();
+    const productName = item.price?.product?.name || item.plan?.product || '';
     const found = normalize(productName);
     if (found) return found;
+  }
+
+  // 4. Lookup price_id in our stripe_products table
+  for (const item of items) {
+    const priceId = item.price?.id || item.plan?.id;
+    if (priceId) {
+      const { data: product } = await supabase
+        .from('stripe_products')
+        .select('product_code')
+        .eq('stripe_price_id', priceId)
+        .single();
+      if (product?.product_code) {
+        const found = normalize(product.product_code);
+        if (found) return found;
+      }
+    }
   }
 
   return 'free'; // Default
@@ -1105,96 +1198,53 @@ function extractPlanFromSubscription(subscription) {
 
 /**
  * Calcule les modules actifs selon le plan
- * Modèle 2026 (révisé 21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
+ * Source unique de vérité : config/planFeatures.js
  */
 function computeModulesFromPlan(planId) {
-  const FREE_MODULES = {
-    dashboard: true,
-    clients: true,
-    reservations: true,
-    facturation: true,
-    documents: true,
-    paiements: true,
-    ecommerce: true,
-    reviews: true,
-    waitlist: true,
-    // ⛔ IA bloquée en Free
-    agent_ia_web: false,
-    whatsapp: false,
-    telephone: false,
-  };
-
-  // NOTE: `whatsapp`, `telephone` necessitent un provisioning Twilio
-  // manuel (cf memory/activation-ia-protocol.md). Seul `agent_ia_web`
-  // est auto-active (self-service, aucun provisioning).
-  const STARTER_MODULES = {
-    dashboard: true,
-    clients: true,
-    reservations: true,
-    facturation: true,
-    documents: true,
-    paiements: true,
-    ecommerce: true,
-    reviews: true,
-    waitlist: true,
-    agent_ia_web: true,
-    comptabilite: true,
-    crm_avance: true,
-    marketing: true,
-    pipeline: true,
-    commercial: true,
-    stock: true,
-    analytics: true,
-    devis: true,
-    equipe: true,
-    fidelite: true,
-    seo: true,
-    workflows: true,
-  };
-
-  const PRO_MODULES = {
-    ...STARTER_MODULES,
-    multi_site: true,
-  };
-
-  const BUSINESS_MODULES = {
-    ...PRO_MODULES,
-    rh: true,
-    comptabilite: true,
-    compta_analytique: true,
-    sentinel: true,
-    whitelabel: true,
-    api: true,
-    sso: true,
-  };
-
-  const PLAN_MODULES = {
-    free: FREE_MODULES,
-    starter: STARTER_MODULES,
-    pro: PRO_MODULES,
-    business: BUSINESS_MODULES,
-    // Legacy alias
-    basic: STARTER_MODULES,
-  };
-
-  return PLAN_MODULES[planId] || PLAN_MODULES.free;
+  return getFeaturesForPlan(planId);
 }
 
 async function handleSubscriptionDeleted(subscription) {
   const tenantId = subscription.metadata?.tenant_id;
   if (!tenantId) return;
 
-  // Desactiver tous les modules sauf socle + marquer le tenant comme annule
+  // Récupérer les modules actuellement actifs pour les désactiver proprement
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('modules_actifs')
+    .eq('id', tenantId)
+    .single();
+
+  const modulesActifs = tenant?.modules_actifs || {};
+
+  // Désactiver chaque module IA actif via le service (nettoie tenant_ia_config)
+  const iaModules = ['agent_ia_web', 'whatsapp', 'telephone'];
+  for (const moduleId of iaModules) {
+    if (modulesActifs[moduleId]) {
+      try {
+        const { deactivateModule } = await import('./moduleActivationService.js');
+        await deactivateModule(tenantId, moduleId);
+      } catch (err) {
+        console.error(`[Stripe Webhook] Erreur deactivateModule ${moduleId}:`, err.message);
+      }
+    }
+  }
+
+  // Reset final: ne garder que socle + marquer annulé
   await supabase
     .from('tenants')
     .update({
       modules_actifs: { socle: true },
+      options_canaux_actifs: {},
       subscription_status: 'canceled',
       statut: 'annule',
       stripe_subscription_id: null,
       updated_at: new Date().toISOString()
     })
     .eq('id', tenantId);
+
+  const { invalidateModuleCache } = await import('../middleware/moduleProtection.js');
+  invalidateModuleCache(tenantId);
 
   // Envoyer l'email de confirmation d'annulation
   const endDate = subscription.current_period_end
@@ -1205,7 +1255,7 @@ async function handleSubscriptionDeleted(subscription) {
     console.error('[Stripe Webhook] Erreur email subscription cancelled:', err)
   );
 
-  console.log(`[Stripe Webhook] Subscription annulee pour ${tenantId}, modules desactives`);
+  console.log(`[Stripe Webhook] Subscription annulee pour ${tenantId}, tous stores nettoyés`);
 }
 
 async function handleInvoicePaid(invoice, stripeEventId = null) {
@@ -1364,6 +1414,86 @@ async function handleTrialWillEnd(subscription) {
 }
 
 // Export par defaut
+/**
+ * Vérifie et synchronise le plan d'un tenant depuis Stripe.
+ * Filet de sécurité appelé par le frontend au retour de checkout.
+ * Si le tenant a un stripe_customer_id avec une subscription active,
+ * on force le plan dans la DB (même si le webhook n'est pas passé).
+ */
+export async function verifyAndSyncSubscription(tenantId) {
+  if (!stripe) throw new Error('Stripe not configured');
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('id, plan, stripe_customer_id, stripe_subscription_id')
+    .eq('id', tenantId)
+    .single();
+
+  if (!tenant) throw new Error('Tenant non trouvé');
+
+  // Si déjà sur un plan payant, rien à faire
+  if (tenant.plan && tenant.plan !== 'free') {
+    return { plan: tenant.plan, synced: false, message: 'Déjà sur un plan payant' };
+  }
+
+  // Chercher les subscriptions actives pour ce customer
+  let customerId = tenant.stripe_customer_id;
+  if (!customerId) {
+    // Chercher par metadata
+    const customers = await stripe.customers.list({ limit: 1, email: undefined });
+    // Pas de customer = pas de subscription
+    return { plan: 'free', synced: false, message: 'Pas de customer Stripe' };
+  }
+
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'active',
+    limit: 1
+  });
+
+  if (subscriptions.data.length === 0) {
+    // Vérifier aussi les trialing
+    const trialSubs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'trialing',
+      limit: 1
+    });
+    if (trialSubs.data.length === 0) {
+      return { plan: 'free', synced: false, message: 'Aucune subscription active trouvée' };
+    }
+    subscriptions.data = trialSubs.data;
+  }
+
+  const sub = subscriptions.data[0];
+  const planId = await extractPlanFromSubscription(sub);
+
+  if (!planId || planId === 'free') {
+    return { plan: 'free', synced: false, message: 'Plan non identifiable depuis la subscription' };
+  }
+
+  // Mettre à jour le plan
+  await supabase.from('tenants').update({
+    plan: planId,
+    plan_id: planId,
+    tier: planId,
+    stripe_subscription_id: sub.id,
+    subscription_status: sub.status,
+    statut: sub.status === 'trialing' ? 'essai' : 'actif',
+    updated_at: new Date().toISOString()
+  }).eq('id', tenantId);
+
+  // Sync modules
+  try {
+    const { syncModulesFromPlan } = await import('./moduleActivationService.js');
+    await syncModulesFromPlan(tenantId, planId);
+  } catch (err) {
+    console.error(`[Billing] Erreur syncModulesFromPlan pour ${tenantId}:`, err.message);
+  }
+
+  console.log(`[Billing] ✅ verifyAndSync: plan ${planId} synchronisé pour ${tenantId}`);
+  return { plan: planId, synced: true, message: `Plan mis à jour: ${planId}` };
+}
+
 export default {
   isStripeConfigured,
   getOrCreateCustomer,
@@ -1381,5 +1511,6 @@ export default {
   changeSubscriptionPlan,
   createCheckoutSession,
   createOneTimeCheckout,
-  handleWebhookEvent
+  handleWebhookEvent,
+  verifyAndSyncSubscription
 };

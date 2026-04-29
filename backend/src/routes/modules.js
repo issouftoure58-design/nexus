@@ -18,6 +18,8 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { invalidateModuleCache } from '../middleware/moduleProtection.js';
 import provisioningService from '../services/twilioProvisioningService.js';
+import { isPlanFeature, getMinPlanForFeature } from '../config/planFeatures.js';
+import { activateModule, deactivateModule } from '../services/moduleActivationService.js';
 
 const router = express.Router();
 
@@ -26,177 +28,24 @@ const router = express.Router();
 // ════════════════════════════════════════════════════════════════════
 
 /**
- * Mapping module -> plans autorisés
- * IMPORTANT: Synchronisé avec checkPlan.js et moduleProtection.js
- *
- * Grille tarifaire 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
- * - Free (0€): Dashboard, 10 RDV/mois, 10 factures/mois, 30 clients (modules visibles, IA bloquee)
- * - Basic (29€/mois): Tout illimite non-IA + 1 000 credits IA inclus/mois (valeur 15€)
- * - Business (149€/mois): Basic + multi-sites, white-label, API, SSO + 10 000 credits IA inclus/mois (valeur 150€)
- *
- * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat (mappes en interne)
+ * Contrôle d'accès par plan — délégué à config/planFeatures.js (source unique de vérité)
  */
-const MODULE_PLAN_ACCESS = {
-  // FREE - Modules visibles dans tous les plans (lecture / decouverte)
-  'socle': ['free', 'basic', 'business', 'starter', 'pro'],
-  'facturation': ['free', 'basic', 'business', 'starter', 'pro'],
-
-  // BASIC - Necessite plan Basic ou Business (IA via credits)
-  'agent_ia_web': ['basic', 'business', 'pro'],
-  'ia_reservation': ['basic', 'business', 'pro'],
-  'whatsapp': ['basic', 'business', 'pro'],
-  'telephone': ['basic', 'business', 'pro'],
-  'standard_ia': ['basic', 'business', 'pro'],
-  'comptabilite': ['basic', 'business', 'pro'],
-  'crm_avance': ['basic', 'business', 'pro'],
-  'stock': ['basic', 'business', 'pro'],
-  'devis': ['basic', 'business', 'pro'],
-  'marketing': ['basic', 'business', 'pro'],
-  'pipeline': ['basic', 'business', 'pro'],
-  'analytics': ['basic', 'business', 'pro'],
-  'seo': ['basic', 'business', 'pro'],
-  'rh': ['basic', 'business', 'pro'],
-
-  // BUSINESS - Exclusivement Business (multi-sites, white-label, API)
-  'api': ['business'],
-  'sentinel': ['business'],
-  'whitelabel': ['business'],
-  'multi_sites': ['business'],
-  'sso': ['business'],
-
-  // MODULES METIER - Tous plans (acces selon business_profile)
-  'restaurant': ['free', 'basic', 'business', 'starter', 'pro'],
-  'hotel': ['free', 'basic', 'business', 'starter', 'pro'],
-  'domicile': ['free', 'basic', 'business', 'starter', 'pro'],
-};
-
-/**
- * Normalise les anciens noms de plan vers les nouveaux
- */
-function normalizePlanId(planId) {
-  if (planId === 'starter') return 'free';
-  if (planId === 'pro') return 'basic';
-  return planId || 'free';
-}
 
 /**
  * Vérifie si un plan peut accéder à un module
  */
 function canPlanAccessModule(planId, moduleId) {
-  const allowedPlans = MODULE_PLAN_ACCESS[moduleId];
-  if (!allowedPlans) {
-    // Module non mappé = accessible à tous (backwards compatibility)
-    console.warn(`[MODULES] ⚠️ Module ${moduleId} non mappé dans MODULE_PLAN_ACCESS`);
-    return true;
-  }
-  const normalized = normalizePlanId(planId?.toLowerCase());
-  return allowedPlans.includes(normalized) || allowedPlans.includes(planId?.toLowerCase());
+  // Modules métier/socle = toujours accessibles
+  const alwaysAccessible = ['socle', 'facturation', 'restaurant', 'hotel', 'domicile', 'ia_reservation', 'standard_ia'];
+  if (alwaysAccessible.includes(moduleId)) return true;
+  return isPlanFeature(planId, moduleId);
 }
 
 /**
  * Retourne le plan minimum requis pour un module
  */
 function getMinimumPlanForModule(moduleId) {
-  const allowedPlans = MODULE_PLAN_ACCESS[moduleId];
-  if (!allowedPlans) return 'free';
-  if (allowedPlans.includes('free')) return 'free';
-  if (allowedPlans.includes('basic')) return 'basic';
-  return 'business';
-}
-
-/**
- * Crée une configuration IA par défaut pour un tenant
- * Appelé automatiquement lors de l'activation d'un module IA
- */
-async function createDefaultIAConfig(tenantId, channel) {
-  console.log(`[MODULES] 🤖 Création config IA ${channel} pour ${tenantId}`);
-
-  const defaultConfigs = {
-    telephone: {
-      greeting_message: "Bonjour ! Je suis l'assistante virtuelle. Comment puis-je vous aider ?",
-      voice_style: 'alloy', // OpenAI voice
-      tone: 'professionnel',
-      language: 'fr-FR',
-      transfer_phone: '',
-      max_duration_seconds: 300,
-      business_hours: {
-        enabled: false,
-        message_outside_hours: "Nous sommes actuellement fermés. Veuillez rappeler pendant nos heures d'ouverture."
-      },
-      personality: 'Assistante professionnelle et chaleureuse',
-      services_description: '',
-      booking_enabled: true,
-      active: true
-    },
-    whatsapp: {
-      greeting_message: "Bonjour ! 👋 Comment puis-je vous aider ?",
-      tone: 'professionnel',
-      language: 'fr-FR',
-      response_delay_ms: 1000,
-      business_hours: {
-        enabled: false,
-        message_outside_hours: "Nous vous répondrons dès notre réouverture."
-      },
-      personality: 'Assistante chaleureuse et efficace',
-      services_description: '',
-      booking_enabled: true,
-      send_images: true,
-      send_location: true,
-      quick_replies_enabled: true,
-      quick_replies: ['Prendre RDV', 'Nos services', 'Horaires', 'Contact'],
-      active: true
-    },
-    web: {
-      greeting_message: "Bonjour ! Je suis l'assistant virtuel. Comment puis-je vous aider ?",
-      tone: 'professionnel',
-      language: 'fr-FR',
-      personality: 'Assistant professionnel et amical',
-      services_description: '',
-      booking_enabled: true,
-      show_typing_indicator: true,
-      auto_open_delay_ms: 0, // 0 = ne pas ouvrir auto
-      position: 'bottom-right',
-      theme: 'light',
-      active: true
-    }
-  };
-
-  const config = defaultConfigs[channel];
-  if (!config) {
-    console.warn(`[MODULES] ⚠️ Pas de config par défaut pour canal ${channel}`);
-    return;
-  }
-
-  // Vérifier si config existe déjà
-  const { data: existing } = await supabase
-    .from('tenant_ia_config')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('channel', channel)
-    .single();
-
-  if (existing) {
-    console.log(`[MODULES] Config IA ${channel} existe déjà pour ${tenantId}`);
-    return;
-  }
-
-  // Créer la config
-  const { error } = await supabase
-    .from('tenant_ia_config')
-    .insert({
-      tenant_id: tenantId,
-      channel: channel,
-      config: config,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
-
-  if (error) {
-    console.error(`[MODULES] Erreur création config IA:`, error.message);
-    throw error;
-  }
-
-  console.log(`[MODULES] ✅ Config IA ${channel} créée pour ${tenantId}`);
+  return getMinPlanForFeature(moduleId) || 'free';
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -741,21 +590,8 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Activer le module
-    const newModulesActifs = { ...modulesActifs, [moduleId]: true };
-
-    const { error: updateError } = await supabase
-      .from('tenants')
-      .update({
-        modules_actifs: newModulesActifs,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', tenantId);
-
-    if (updateError) throw updateError;
-
-    // Invalider le cache
-    invalidateModuleCache(tenantId);
+    // Activer le module via service unifié (synchronise modules_actifs + options_canaux + tenant_ia_config)
+    await activateModule(tenantId, moduleId);
 
     // ═══════════════════════════════════════════════════════════════
     // PROVISIONING AUTOMATIQUE pour modules télécom
@@ -763,48 +599,24 @@ router.post('/:moduleId/activate', authenticateAdmin, async (req, res) => {
     let provisioningResult = null;
 
     if (moduleId === 'telephone' || moduleId === 'standard_ia') {
-      // Auto-provisionner un numéro de téléphone
       try {
-        console.log(`[MODULES] 📞 Auto-provisioning téléphone pour ${tenantId}...`);
+        console.log(`[MODULES] Auto-provisioning téléphone pour ${tenantId}...`);
         provisioningResult = await provisioningService.autoProvisionNumber(tenantId, 'FR');
-        console.log(`[MODULES] ✅ Numéro attribué: ${provisioningResult.phoneNumber}`);
+        console.log(`[MODULES] Numéro attribué: ${provisioningResult.phoneNumber}`);
       } catch (provError) {
-        console.error(`[MODULES] ⚠️ Erreur provisioning téléphone:`, provError.message);
-        // On ne bloque pas l'activation, le numéro peut être attribué manuellement
+        console.error(`[MODULES] Erreur provisioning téléphone:`, provError.message);
         provisioningResult = { error: provError.message };
       }
     }
 
     if (moduleId === 'whatsapp') {
-      // Configurer WhatsApp (utilise le sandbox en dev)
       try {
-        console.log(`[MODULES] 💬 Configuration WhatsApp pour ${tenantId}...`);
+        console.log(`[MODULES] Configuration WhatsApp pour ${tenantId}...`);
         provisioningResult = await provisioningService.configureWhatsApp(tenantId);
-        console.log(`[MODULES] ✅ WhatsApp configuré`);
-
-        // Créer config IA WhatsApp par défaut
-        await createDefaultIAConfig(tenantId, 'whatsapp');
+        console.log(`[MODULES] WhatsApp configuré`);
       } catch (provError) {
-        console.error(`[MODULES] ⚠️ Erreur config WhatsApp:`, provError.message);
+        console.error(`[MODULES] Erreur config WhatsApp:`, provError.message);
         provisioningResult = { error: provError.message };
-      }
-    }
-
-    // Créer config IA téléphone par défaut
-    if (moduleId === 'telephone' || moduleId === 'standard_ia') {
-      try {
-        await createDefaultIAConfig(tenantId, 'telephone');
-      } catch (e) {
-        console.error(`[MODULES] ⚠️ Erreur création config IA téléphone:`, e.message);
-      }
-    }
-
-    // Créer config IA web par défaut
-    if (moduleId === 'agent_ia_web') {
-      try {
-        await createDefaultIAConfig(tenantId, 'web');
-      } catch (e) {
-        console.error(`[MODULES] ⚠️ Erreur création config IA web:`, e.message);
       }
     }
 
@@ -911,19 +723,8 @@ router.post('/:moduleId/deactivate', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Désactiver
-    const newModulesActifs = { ...modulesActifs };
-    delete newModulesActifs[moduleId];
-
-    const { error: updateError } = await supabase
-      .from('tenants')
-      .update({
-        modules_actifs: newModulesActifs,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', tenantId);
-
-    if (updateError) throw updateError;
+    // Désactiver via service unifié (synchronise modules_actifs + options_canaux + tenant_ia_config)
+    await deactivateModule(tenantId, moduleId);
 
     // Libérer les ressources WhatsApp si désactivation du module whatsapp
     if (moduleId === 'whatsapp') {
@@ -934,9 +735,6 @@ router.post('/:moduleId/deactivate', authenticateAdmin, async (req, res) => {
         console.error(`[MODULES] Erreur libération WhatsApp sender (non-bloquant):`, e.message);
       }
     }
-
-    // Invalider cache
-    invalidateModuleCache(tenantId);
 
     // Logger
     try {
@@ -1240,7 +1038,6 @@ router.post('/apply-template', authenticateAdmin, async (req, res) => {
 // EXPORTS pour tests et autres modules
 // ════════════════════════════════════════════════════════════════════
 export {
-  MODULE_PLAN_ACCESS,
   canPlanAccessModule,
   getMinimumPlanForModule,
   MODULES_DISPONIBLES

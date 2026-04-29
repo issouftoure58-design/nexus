@@ -21,6 +21,10 @@ interface Membre {
   adresse_rue: string | null;
   adresse_cp: string | null;
   adresse_ville: string | null;
+  pause_debut: string | null;
+  pause_fin: string | null;
+  max_heures_jour: number | null;
+  pause_min_minutes: number | null;
 }
 
 const ROLES = [
@@ -36,7 +40,7 @@ const ROLES = [
   { value: 'autre', label: 'Autre' },
 ];
 
-const emptyForm = { nom: '', prenom: '', email: '', telephone: '', role: 'employe', adresse_rue: '', adresse_cp: '', adresse_ville: '' };
+const emptyForm = { nom: '', prenom: '', email: '', telephone: '', role: 'employe', adresse_rue: '', adresse_cp: '', adresse_ville: '', pause_debut: '', pause_fin: '', max_heures_jour: '', pause_min_minutes: '' };
 
 export default function Equipe() {
   const { t } = useProfile();
@@ -91,6 +95,10 @@ export default function Equipe() {
       adresse_rue: m.adresse_rue || '',
       adresse_cp: m.adresse_cp || '',
       adresse_ville: m.adresse_ville || '',
+      pause_debut: m.pause_debut || '',
+      pause_fin: m.pause_fin || '',
+      max_heures_jour: m.max_heures_jour != null ? String(m.max_heures_jour) : '',
+      pause_min_minutes: m.pause_min_minutes != null ? String(m.pause_min_minutes) : '',
     });
     setShowForm(true);
   };
@@ -279,6 +287,33 @@ export default function Equipe() {
                     </div>
                     <div className="col-span-2">
                       <Input value={form.adresse_ville} onChange={(e) => setForm({ ...form, adresse_ville: e.target.value })} placeholder="Ville" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraintes horaires</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Laissez vide pour les valeurs par defaut (pause 12h-13h, max 12h/jour, pause min 30min)</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Debut pause</label>
+                      <Input type="time" value={form.pause_debut} onChange={(e) => setForm({ ...form, pause_debut: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Fin pause</label>
+                      <Input type="time" value={form.pause_fin} onChange={(e) => setForm({ ...form, pause_fin: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Max heures/jour</label>
+                      <Input type="number" step="0.5" min="1" max="24" value={form.max_heures_jour} onChange={(e) => setForm({ ...form, max_heures_jour: e.target.value })} placeholder="12" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Pause min (minutes)</label>
+                      <Input type="number" step="5" min="0" max="120" value={form.pause_min_minutes} onChange={(e) => setForm({ ...form, pause_min_minutes: e.target.value })} placeholder="30" />
                     </div>
                   </div>
                 </div>

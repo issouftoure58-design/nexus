@@ -53,7 +53,7 @@ export async function checkConflicts(supabase, date, heure, dureeMinutes, exclud
   // Récupérer tous les RDV actifs de cette date POUR CE TENANT
   const { data: rdvs, error } = await supabase
     .from('reservations')
-    .select('id, heure, duree_minutes, duree_totale_minutes, service_nom, clients(prenom, nom)')
+    .select('id, heure, heure_fin, duree_minutes, duree_totale_minutes, service_nom, clients(prenom, nom)')
     .eq('tenant_id', tenantId)
     .eq('date', date)
     .in('statut', ['demande', 'en_attente', 'en_attente_paiement', 'confirme']);
@@ -65,6 +65,23 @@ export async function checkConflicts(supabase, date, heure, dureeMinutes, exclud
 
   if (!rdvs || rdvs.length === 0) return { conflict: false };
 
+  // Récupérer les lignes pour calculer la vraie durée
+  const rdvIds = rdvs.filter(r => !excludeId || r.id !== Number(excludeId)).map(r => r.id);
+  const { data: allLignes } = rdvIds.length > 0
+    ? await supabase
+        .from('reservation_lignes')
+        .select('reservation_id, heure_debut, heure_fin, duree_minutes')
+        .eq('tenant_id', tenantId)
+        .in('reservation_id', rdvIds)
+    : { data: [] };
+
+  // Grouper les lignes par réservation
+  const lignesParRdv = {};
+  (allLignes || []).forEach(l => {
+    if (!lignesParRdv[l.reservation_id]) lignesParRdv[l.reservation_id] = [];
+    lignesParRdv[l.reservation_id].push(l);
+  });
+
   const newStart = heureToMinutes(heure);
   const newEnd = newStart + (dureeMinutes || 60);
 
@@ -72,8 +89,28 @@ export async function checkConflicts(supabase, date, heure, dureeMinutes, exclud
     if (excludeId && rdv.id === Number(excludeId)) continue;
 
     const existStart = heureToMinutes(rdv.heure);
-    const existDuree = rdv.duree_totale_minutes || rdv.duree_minutes || 60;
-    const existEnd = existStart + existDuree;
+    // Calculer la vraie fin depuis les lignes si dispo
+    let existEnd;
+    const rdvLignes = lignesParRdv[rdv.id];
+    if (rdvLignes && rdvLignes.length > 0) {
+      // Prendre la fin la plus tardive des lignes
+      let latestEnd = existStart;
+      for (const l of rdvLignes) {
+        if (l.heure_fin) {
+          const fin = heureToMinutes(l.heure_fin);
+          if (fin > latestEnd) latestEnd = fin;
+        } else if (l.heure_debut && l.duree_minutes) {
+          const fin = heureToMinutes(l.heure_debut) + l.duree_minutes;
+          if (fin > latestEnd) latestEnd = fin;
+        }
+      }
+      existEnd = latestEnd > existStart ? latestEnd : existStart + (rdv.duree_minutes || 60);
+    } else if (rdv.heure_fin) {
+      existEnd = heureToMinutes(rdv.heure_fin);
+    } else {
+      const existDuree = rdv.duree_minutes || 60;
+      existEnd = existStart + existDuree;
+    }
 
     // Chevauchement : newStart < existEnd ET newEnd > existStart
     if (newStart < existEnd && newEnd > existStart) {

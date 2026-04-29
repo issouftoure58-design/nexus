@@ -358,8 +358,14 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
     // Générer numéro
     const numero = await generateNumeroDevis(tenantId);
 
-    // Calculer montants
-    const montantHT = montant_ht || 0;
+    // Calculer montants — auto-sum from lignes if montant_ht not provided
+    let montantHT = montant_ht || 0;
+    if (!montant_ht && lignes && Array.isArray(lignes) && lignes.length > 0) {
+      montantHT = lignes.reduce((sum, l) => {
+        const total = l.prix_total || (l.quantite || 1) * (l.prix_unitaire || 0);
+        return sum + total;
+      }, 0);
+    }
     const montantTVA = Math.round(montantHT * taux_tva / 100);
     const montantTTC = montantHT + montantTVA + (frais_deplacement || 0);
 
@@ -451,27 +457,35 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
               quantite: 1, // Une ligne par affectation
               duree_minutes: ligne.duree_minutes || 60,
               prix_unitaire: ligne.prix_unitaire || 0,
-              prix_total: ligne.prix_total || 0,
+              prix_total: ligne.prix_total || ligne.prix_unitaire || 0,
               taux_horaire: ligne.taux_horaire || null,
               // Affectation avec heures
               membre_id: aff.membre_id || null,
               heure_debut: aff.heure_debut || null,
-              heure_fin: aff.heure_fin || null
+              heure_fin: aff.heure_fin || null,
+              // Plage de dates par ligne (security / multi-day)
+              ...(ligne.date_debut && { date_debut: ligne.date_debut }),
+              ...(ligne.date_fin && { date_fin: ligne.date_fin }),
             });
           }
         } else {
           // Pas d'affectations, créer une seule ligne
+          const qty = ligne.quantite || 1;
+          const pu = ligne.prix_unitaire || 0;
           lignesData.push({
             devis_id: devis.id,
             tenant_id: tenantId,
             // service_id < 0 = ligne de template frontend (pas un vrai service), mis a null pour respecter la FK services
             service_id: (ligne.service_id && ligne.service_id > 0) ? ligne.service_id : null,
             service_nom: ligne.service_nom,
-            quantite: ligne.quantite || 1,
+            quantite: qty,
             duree_minutes: ligne.duree_minutes || 60,
-            prix_unitaire: ligne.prix_unitaire || 0,
-            prix_total: ligne.prix_total || 0,
-            taux_horaire: ligne.taux_horaire || null
+            prix_unitaire: pu,
+            prix_total: ligne.prix_total || (qty * pu),
+            taux_horaire: ligne.taux_horaire || null,
+            // Plage de dates par ligne (security / multi-day)
+            ...(ligne.date_debut && { date_debut: ligne.date_debut }),
+            ...(ligne.date_fin && { date_fin: ligne.date_fin }),
           });
         }
       }

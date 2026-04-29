@@ -157,7 +157,11 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
                     Duree totale: {reservation.duree_totale || reservation.duree || 60} min
                   </span>
                   <span className="text-xl font-bold text-green-600">
-                    {formatCurrency(reservation.prix || reservation.prix_total || 0)}
+                    {formatCurrency(
+                      reservation.services && reservation.services.length > 0
+                        ? reservation.services.reduce((sum, s) => sum + (s.prix_total || 0), 0)
+                        : (reservation.prix || reservation.prix_total || 0)
+                    )}
                   </span>
                 </div>
               </>

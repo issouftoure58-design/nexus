@@ -332,6 +332,8 @@ async function getTenantConfigById(tenantId) {
       ville: tenant.ville,
       secteur: tenant.secteur_id,
       template_id: tenant.template_id || 'salon',
+      business_profile: tenant.business_profile || tenant.template_id || 'salon',
+      plan: tenant.plan || 'free',
       assistant_name: tenant.assistant_name || 'l\'assistant',
       assistant_gender: tenant.assistant_gender || 'F',
       personality: tenant.personality || {},
@@ -1104,6 +1106,7 @@ async function checkAllergenesTool(tenantId, platNom = null, allergeneAEviter = 
 
 async function getHotelInfoTool(tenantId) {
   try {
+    const db = getSupabase();
     const { data: tenant, error } = await db
       .from('tenants')
       .select('name, profile_config, adresse, telephone, email')
@@ -1139,23 +1142,29 @@ async function getHotelInfoTool(tenantId) {
 
 async function getChambresDisponiblesTool(tenantId, typeChambre = null, nbPersonnes = null) {
   try {
+    const db = getSupabase();
+    // Chercher les chambres par type_chambre OU par categorie (chambre/suite)
     let query = db
       .from('services')
-      .select('id, nom, description, prix, duree, capacite, capacite_max, type_chambre, etage, vue, equipements, actif')
+      .select('id, nom, description, prix, duree, capacite, capacite_max, type_chambre, categorie, etage, vue, equipements, actif')
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null)
       .eq('actif', true)
-      .order('type_chambre')
       .order('nom');
 
+    // Filtrer : soit type_chambre renseigné, soit categorie chambre/suite
+    const { data: allServices, error } = await query;
+    if (error) throw error;
+
+    let chambres = (allServices || []).filter(s =>
+      s.type_chambre || ['chambre', 'suite'].includes(s.categorie)
+    );
+
     if (typeChambre) {
-      query = query.eq('type_chambre', typeChambre);
+      chambres = chambres.filter(s => s.type_chambre === typeChambre || s.categorie === typeChambre);
     }
     if (nbPersonnes) {
-      query = query.gte('capacite_max', nbPersonnes);
+      chambres = chambres.filter(s => (s.capacite_max || s.capacite || 2) >= nbPersonnes);
     }
-
-    const { data: chambres, error } = await query;
     if (error) throw error;
 
     if (!chambres || chambres.length === 0) {
@@ -1215,23 +1224,24 @@ async function getChambresDisponiblesTool(tenantId, typeChambre = null, nbPerson
 
 async function checkRoomAvailabilityTool(tenantId, dateArrivee, dateDepart, nbPersonnes = null, typeChambre = null) {
   try {
+    const db = getSupabase();
     if (!dateArrivee || !dateDepart) {
       return { success: false, error: "Les dates d'arrivée et de départ sont requises." };
     }
 
-    // 1. Récupérer toutes les chambres actives
-    let roomQuery = db
+    // 1. Récupérer toutes les chambres actives (type_chambre ou categorie chambre/suite)
+    const { data: allServices, error: roomErr } = await db
       .from('services')
-      .select('id, nom, description, prix, capacite_max, type_chambre, etage, vue, equipements')
+      .select('id, nom, description, prix, capacite_max, capacite, type_chambre, categorie, etage, vue, equipements')
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null)
       .eq('actif', true);
-
-    if (typeChambre) roomQuery = roomQuery.eq('type_chambre', typeChambre);
-    if (nbPersonnes) roomQuery = roomQuery.gte('capacite_max', nbPersonnes);
-
-    const { data: allRooms, error: roomErr } = await roomQuery;
     if (roomErr) throw roomErr;
+
+    let allRooms = (allServices || []).filter(s =>
+      s.type_chambre || ['chambre', 'suite'].includes(s.categorie)
+    );
+    if (typeChambre) allRooms = allRooms.filter(s => s.type_chambre === typeChambre || s.categorie === typeChambre);
+    if (nbPersonnes) allRooms = allRooms.filter(s => (s.capacite_max || s.capacite || 2) >= nbPersonnes);
 
     if (!allRooms || allRooms.length === 0) {
       return { success: true, disponibles: [], message: "Aucune chambre ne correspond à vos critères." };
@@ -1752,24 +1762,25 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
 
     // RÉSOUDRE TOUS LES SERVICES
+    // 🔒 TENANT ISOLATION: TOUJOURS chercher en DB par tenant_id d'abord
+    //    findServiceByName() est une config GLOBALE (non isolée) = fallback uniquement
     const resolvedServices = [];
     for (const req of serviceRequests) {
-      console.log(`💾 Résolution service: "${req.name}"...`);
-      let svc = findServiceByName(req.name);
-      console.log(`💾 Service trouvé en config: ${svc ? '✅ ' + svc.name : '❌ NON'}`);
-      if (!svc) {
-        // Fallback: chercher dans la table services de la BDD
-        // 🔒 TENANT ISOLATION: Filtrer par tenant_id
-        let serviceQuery = db
+      console.log(`💾 Résolution service: "${req.name}" (tenant: ${data.tenant_id})...`);
+      let svc = null;
+
+      // 1. Recherche en BDD du tenant (🔒 TENANT ISOLATION PRIORITAIRE)
+      {
+        const { data: dbService, error: serviceError } = await db
           .from('services')
           .select('id, nom, duree, prix, description')
           .eq('tenant_id', data.tenant_id)
-          .ilike('nom', `%${req.name}%`);
-
-        const { data: dbService, error: serviceError } = await serviceQuery.limit(1).maybeSingle();
+          .ilike('nom', `%${req.name}%`)
+          .limit(1)
+          .maybeSingle();
 
         if (serviceError) {
-          console.error(`[NEXUS CORE] ❌ Erreur recherche service:`, serviceError.message);
+          console.error(`[NEXUS CORE] ❌ Erreur recherche service DB:`, serviceError.message);
         }
 
         if (dbService) {
@@ -1785,14 +1796,24 @@ export async function createReservationUnified(data, channel = 'web', options = 
             blocksFullDay: dbService.duree >= 480,
             blocksDays: 1,
           };
-          console.log(`[NEXUS CORE] ✅ Service trouvé en BDD: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix / 100}€)`);
-        } else {
-          console.error(`[NEXUS CORE] ❌ Service non trouvé: "${req.name}" (tenant: ${data.tenant_id})`);
-          return { success: false, error: `Service non trouvé: "${req.name}"` };
+          console.log(`[NEXUS CORE] ✅ Service trouvé en BDD tenant: "${dbService.nom}" (${dbService.duree}min, ${dbService.prix / 100}€)`);
         }
       }
 
-      // Vérifier ambiguïté
+      // 2. Fallback: config globale (pour compatibilité IA voix/chat qui n'ont pas de services en DB)
+      if (!svc) {
+        svc = findServiceByName(req.name);
+        if (svc) {
+          console.log(`💾 Service trouvé en config globale (fallback): ${svc.name}`);
+        }
+      }
+
+      if (!svc) {
+        console.error(`[NEXUS CORE] ❌ Service non trouvé: "${req.name}" (tenant: ${data.tenant_id})`);
+        return { success: false, error: `Service non trouvé: "${req.name}"` };
+      }
+
+      // Vérifier ambiguïté (seulement hors admin/skipValidation)
       if (!skipValidation) {
         const ambiguity = checkAmbiguousTerm(req.name);
         if (ambiguity) {
@@ -1994,7 +2015,8 @@ export async function createReservationUnified(data, channel = 'web', options = 
     }
 
     // 8. PRÉPARER LES RÉSERVATIONS (multi-jours si nécessaire)
-    const nbJours = service.blocksDays || 1;
+    // Admin gère le multi-jours lui-même (date_fin + lignes) — ne pas dupliquer
+    const nbJours = channel === 'admin' ? 1 : (service.blocksDays || 1);
     let reservationDates = [data.date];
     let multidayGroupId = null;
 
@@ -2868,20 +2890,32 @@ export async function processMessage(message, channel, context = {}) {
     // 🔧 Filtrage outils par business type + plan
     const businessType = tenantConfig.business_profile || tenantConfig.businessProfile || 'salon';
     const tenantPlan = tenantConfig.plan || 'free';
+    console.log(`[NEXUS CORE] 🔧 BusinessType: ${businessType} | Plan: ${tenantPlan} | business_profile: ${tenantConfig.business_profile}`);
     let filteredTools = getToolsForPlanAndBusiness(tenantPlan, businessType);
 
     // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)
     // Sonnet reçoit tous les outils, Haiku ne reçoit que les essentiels
     // Économie: ~10,000 tokens d'input par appel simple
     if (selectedModel.includes('haiku')) {
-      const ESSENTIAL_TOOL_NAMES = [
+      const BASE_ESSENTIAL = [
         'parse_date', 'get_services', 'get_available_slots', 'create_booking',
-        'get_salon_info', 'get_business_hours', 'get_price', 'check_availability',
+        'get_business_hours', 'get_price', 'check_availability',
         'find_appointment', 'get_upcoming_days',
       ];
+      // Ajouter les outils essentiels spécifiques au type de business
+      const BUSINESS_ESSENTIAL = {
+        salon: ['get_salon_info'],
+        service_domicile: ['get_salon_info', 'calculate_travel_fee'],
+        restaurant: ['get_restaurant_info', 'get_menu', 'check_table_availability'],
+        hotel: ['get_hotel_info', 'get_chambres_disponibles', 'check_room_availability'],
+        commerce: ['get_salon_info'],
+        security: ['get_salon_info'],
+        service: ['get_salon_info'],
+      };
+      const ESSENTIAL_TOOL_NAMES = [...BASE_ESSENTIAL, ...(BUSINESS_ESSENTIAL[businessType] || ['get_salon_info'])];
       const essentialTools = filteredTools.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
       if (essentialTools.length > 0) {
-        console.log(`[NEXUS CORE] 💰 Haiku: ${essentialTools.length} outils essentiels (au lieu de ${filteredTools.length})`);
+        console.log(`[NEXUS CORE] 💰 Haiku: ${essentialTools.length} outils essentiels (au lieu de ${filteredTools.length}) [${businessType}]`);
         filteredTools = essentialTools;
       }
     }
@@ -3431,14 +3465,24 @@ export async function* processMessageStreaming(message, channel, context = {}) {
 
     // 💰 OPTIMISATION: Réduire les outils pour Haiku (questions simples)
     if (selectedModel.includes('haiku')) {
-      const ESSENTIAL_TOOL_NAMES = [
+      const BASE_ESSENTIAL = [
         'parse_date', 'get_services', 'get_available_slots', 'create_booking',
-        'get_salon_info', 'get_business_hours', 'get_price', 'check_availability',
+        'get_business_hours', 'get_price', 'check_availability',
         'find_appointment', 'get_upcoming_days',
       ];
+      const BUSINESS_ESSENTIAL = {
+        salon: ['get_salon_info'],
+        service_domicile: ['get_salon_info', 'calculate_travel_fee'],
+        restaurant: ['get_restaurant_info', 'get_menu', 'check_table_availability'],
+        hotel: ['get_hotel_info', 'get_chambres_disponibles', 'check_room_availability'],
+        commerce: ['get_salon_info'],
+        security: ['get_salon_info'],
+        service: ['get_salon_info'],
+      };
+      const ESSENTIAL_TOOL_NAMES = [...BASE_ESSENTIAL, ...(BUSINESS_ESSENTIAL[businessTypeStream] || ['get_salon_info'])];
       const essentialTools = filteredToolsStream.filter(t => ESSENTIAL_TOOL_NAMES.includes(t.name));
       if (essentialTools.length > 0) {
-        console.log(`[NEXUS CORE] 💰 Haiku stream: ${essentialTools.length} outils essentiels (au lieu de ${filteredToolsStream.length})`);
+        console.log(`[NEXUS CORE] 💰 Haiku stream: ${essentialTools.length} outils essentiels (au lieu de ${filteredToolsStream.length}) [${businessTypeStream}]`);
         filteredToolsStream = essentialTools;
       }
     }

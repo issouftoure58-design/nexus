@@ -851,6 +851,8 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
     telephone: client.telephone || '',
     email: client.email || '',
     adresse: client.adresse || '',
+    code_postal: client.code_postal || '',
+    ville: client.ville || '',
   });
   const [editError, setEditError] = useState('');
 
@@ -879,6 +881,8 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
       telephone: editData.telephone,
       email: editData.email || null,
       adresse: editData.adresse || null,
+      code_postal: editData.code_postal || null,
+      ville: editData.ville || null,
     } as Partial<Client>);
   };
 
@@ -889,6 +893,8 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
       telephone: client.telephone || '',
       email: client.email || '',
       adresse: client.adresse || '',
+      code_postal: client.code_postal || '',
+      ville: client.ville || '',
     });
     setIsEditing(false);
     setEditError('');
@@ -981,6 +987,16 @@ function ClientDetailModal({ client, onClose }: { client: Client; onClose: () =>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Adresse</label>
                 <Input value={editData.adresse} onChange={(e) => setEditData(d => ({ ...d, adresse: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Code postal</label>
+                  <Input value={editData.code_postal} onChange={(e) => setEditData(d => ({ ...d, code_postal: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Commune</label>
+                  <Input value={editData.ville} onChange={(e) => setEditData(d => ({ ...d, ville: e.target.value }))} />
+                </div>
               </div>
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={handleCancel} className="flex-1">Annuler</Button>

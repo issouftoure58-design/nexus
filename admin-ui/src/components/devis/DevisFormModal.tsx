@@ -295,10 +295,34 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     }
 
     montantHT -= montantRemise;
+
+    // CNAPS: taxe sur les services qui ont taxe_cnaps=true
+    let montantCnaps = 0;
+    const services = servicesData?.services || [];
+    serviceLignes.forEach(sl => {
+      const service = services.find(s => s.id === sl.service_id);
+      if (service?.taxe_cnaps && (service.taux_cnaps ?? 0) > 0) {
+        let ligneHT = 0;
+        if (pricingMode === 'hourly') {
+          const tauxH = sl.taux_horaire || sl.prix_unitaire * 100;
+          sl.affectations.forEach(aff => {
+            if (aff.heure_debut && aff.heure_fin) {
+              ligneHT += Math.round((tauxH / 100) * calculateHours(aff.heure_debut, aff.heure_fin) * nbJours);
+            }
+          });
+        } else {
+          ligneHT = sl.prix_unitaire * sl.quantite;
+        }
+        montantCnaps += ligneHT * (service.taux_cnaps ?? 0) / 100;
+      }
+    });
+    montantCnaps = Math.round(montantCnaps * 100) / 100;
+
+    montantHT += montantCnaps;
     const montantTVA = montantHT * formData.taux_tva / 100;
     const montantTTC = montantHT + montantTVA;
 
-    return { sousTotal, dureeTotale, montantRemise, montantHT, montantTVA, montantTTC, pricingMode, nbJours, nbAgents: nbAgentsEffectif || formData.nb_agents };
+    return { sousTotal, dureeTotale, montantRemise, montantCnaps, montantHT, montantTVA, montantTTC, pricingMode, nbJours, nbAgents: nbAgentsEffectif || formData.nb_agents };
   })();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -337,6 +361,9 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
       prix_unitaire: Math.round(l.prix_unitaire * 100),
       prix_total: Math.round(l.prix_unitaire * l.quantite * 100),
       taux_horaire: l.taux_horaire || null,
+      // Plage de dates par ligne (security / multi-day)
+      ...(l.date_debut && { date_debut: l.date_debut }),
+      ...(l.date_fin && { date_fin: l.date_fin }),
       // Affectations avec heures et membres (pour mode horaire)
       affectations: l.affectations.map(aff => ({
         membre_id: aff.membre_id,
@@ -746,6 +773,31 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                       </button>
                     </div>
 
+                    {/* Dates par ligne (security / multi-day) */}
+                    {profile?.duration?.allowMultiDay && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">Du</span>
+                        <input
+                          type="date"
+                          value={ligne.date_debut || formData.date_prestation || ''}
+                          onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                            l.service_id === ligne.service_id ? { ...l, date_debut: e.target.value } : l
+                          ))}
+                          className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-gray-500">au</span>
+                        <input
+                          type="date"
+                          value={ligne.date_fin || formData.date_fin_prestation || formData.date_prestation || ''}
+                          onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                            l.service_id === ligne.service_id ? { ...l, date_fin: e.target.value } : l
+                          ))}
+                          min={ligne.date_debut || formData.date_prestation || ''}
+                          className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+
                     {/* Affectations multiples (une par quantite) - uniquement salon/service_domicile */}
                     {showMemberAssignment && (ligne.affectations || []).map((affectation, affIdx) => (
                       <div key={affIdx} className="pt-2 border-t border-gray-100 space-y-2">
@@ -989,8 +1041,14 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                 <span>-{calculs.montantRemise.toFixed(2)} EUR</span>
               </div>
             )}
+            {calculs.montantCnaps > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Taxe CNAPS (0.50%):</span>
+                <span>{calculs.montantCnaps.toFixed(2)} EUR</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm border-t pt-2">
-              <span>Montant HT:</span>
+              <span>Montant HT{calculs.montantCnaps > 0 ? ' (incl. CNAPS)' : ''}:</span>
               <span>{calculs.montantHT.toFixed(2)} EUR</span>
             </div>
             <div className="flex justify-between text-sm">

@@ -20,7 +20,7 @@ export const BUSINESS_TYPES = {
     icon: 'Home',
 
     terminology: {
-      reservation: { singular: 'RDV', plural: 'RDV' },
+      reservation: { singular: 'Réservation', plural: 'Réservations' },
       service: { singular: 'Prestation', plural: 'Prestations' },
       client: { singular: 'Client', plural: 'Clients' },
       employee: { singular: 'Intervenant', plural: 'Intervenants' },
@@ -80,7 +80,7 @@ export const BUSINESS_TYPES = {
     icon: 'Scissors',
 
     terminology: {
-      reservation: { singular: 'RDV', plural: 'RDV' },
+      reservation: { singular: 'Réservation', plural: 'Réservations' },
       service: { singular: 'Prestation', plural: 'Prestations' },
       client: { singular: 'Client', plural: 'Clients' },
       employee: { singular: 'Coiffeur', plural: 'Coiffeurs' },
@@ -387,7 +387,15 @@ export const BUSINESS_TYPES = {
     pricingMode: 'hourly',
     pricingModesAllowed: ['hourly', 'daily', 'fixed', 'package'],
     durationMode: 'range',
-    allowMultiDay: true
+    allowMultiDay: true,
+
+    majorations: {
+      nuit: { label: 'Nuit (21h-6h)', pourcentage: 25, debut: 21, fin: 6 },
+      dimanche_jour: { label: 'Dimanche jour', pourcentage: 50 },
+      dimanche_nuit: { label: 'Dimanche nuit', pourcentage: 75 },
+      ferie_jour: { label: 'Férié jour', pourcentage: 100 },
+      ferie_nuit: { label: 'Férié nuit', pourcentage: 100 },
+    }
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -400,7 +408,7 @@ export const BUSINESS_TYPES = {
     icon: 'Briefcase',
 
     terminology: {
-      reservation: { singular: 'RDV', plural: 'RDV' },
+      reservation: { singular: 'Réservation', plural: 'Réservations' },
       service: { singular: 'Prestation', plural: 'Prestations' },
       client: { singular: 'Client', plural: 'Clients' },
       employee: { singular: 'Collaborateur', plural: 'Collaborateurs' },

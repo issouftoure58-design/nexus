@@ -1153,12 +1153,14 @@ export async function calculatePayroll(tenantId, membreId, periode, options = {}
   nets.netAPayer += brutDetail.totalPrimesExonerees;
 
   // 5. Cumuls annuels mis a jour
+  const hsExoMois = (brutDetail.montantHS25 || 0) + (brutDetail.montantHS50 || 0);
   const newCumuls = {
     brut: (cumulsAnnuels.brut || 0) + brutDetail.totalBrut,
     netImposable: (cumulsAnnuels.netImposable || 0) + nets.netImposable,
     pas: (cumulsAnnuels.pas || 0) + nets.pas.montant,
     cotisationsSalariales: (cumulsAnnuels.cotisationsSalariales || 0) + cotisations.totalSalarial,
     cotisationsPatronales: (cumulsAnnuels.cotisationsPatronales || 0) + cotisations.totalPatronal,
+    hsExonerees: (cumulsAnnuels.hsExonerees || 0) + hsExoMois,
   };
 
   // 6. Conges payes

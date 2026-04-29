@@ -54,7 +54,7 @@ router.get('/chambres', async (req, res) => {
       .from('services')
       .select('*')
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null)
+      .or('type_chambre.not.is.null,categorie.in.(chambre,suite)')
       .order('nom');
 
     if (error) throw error;
@@ -81,7 +81,7 @@ router.get('/chambres/:id', async (req, res) => {
       .select('*')
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null)
+      .or('type_chambre.not.is.null,categorie.in.(chambre,suite)')
       .single();
 
     if (chambreError || !chambre) {
@@ -289,9 +289,9 @@ router.get('/occupation', async (req, res) => {
     // NB: hotel utilise capacite_max (migration 038 hotels), capacite (migration 076 generic, default 4) est fallback
     let chambresQuery = supabase
       .from('services')
-      .select('id, nom, type_chambre, capacite, capacite_max, prix, actif')
+      .select('id, nom, type_chambre, categorie, capacite, capacite_max, prix, actif')
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null)
+      .or('type_chambre.not.is.null,categorie.in.(chambre,suite)')
       .order('nom');
 
     if (chambre_id) {
@@ -323,17 +323,21 @@ router.get('/occupation', async (req, res) => {
     if (occupationError) throw occupationError;
 
     // Récupérer les réservations en cours (colonnes hotel: date_arrivee/date_depart)
+    // Joindre reservation_lignes pour avoir le service_id (chambre) réel
     const { data: reservations, error: resaError } = await supabase
       .from('reservations')
       .select(`
         id,
         client_id,
         service_id,
+        service_nom,
         date_arrivee,
         date_depart,
         statut,
         nb_personnes,
-        client:clients(prenom, nom, telephone)
+        nb_nuitees,
+        client:clients(prenom, nom, telephone),
+        reservation_lignes(service_id, service_nom)
       `)
       .eq('tenant_id', tenantId)
       .gte('date_depart', start)
@@ -343,9 +347,17 @@ router.get('/occupation', async (req, res) => {
     if (resaError) throw resaError;
 
     // Construire la vue calendrier
+    // Le service_id peut être sur la réservation OU dans reservation_lignes
+    const chambreIds = chambres.map(c => c.id);
     const calendar = chambres.map(chambre => {
       const chambreOccupation = occupation.filter(o => o.service_id === chambre.id);
-      const chambreReservations = reservations.filter(r => r.service_id === chambre.id);
+      const chambreReservations = (reservations || []).filter(r => {
+        // Match direct sur service_id
+        if (r.service_id === chambre.id) return true;
+        // Match via reservation_lignes (cas hôtel où service_id est null sur la réservation)
+        if (r.reservation_lignes?.some(l => l.service_id === chambre.id)) return true;
+        return false;
+      });
 
       return {
         ...chambre,
@@ -470,7 +482,7 @@ router.get('/stats', async (req, res) => {
       .from('services')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .not('type_chambre', 'is', null);
+      .or('type_chambre.not.is.null,categorie.in.(chambre,suite)');
 
     // Réservations du mois
     const startOfMonth = new Date();

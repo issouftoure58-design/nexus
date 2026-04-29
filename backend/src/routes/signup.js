@@ -12,6 +12,7 @@ import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
 import Stripe from 'stripe';
 import { BUSINESS_TEMPLATES, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE } from '../data/businessTemplates.js';
+import { getFeaturesForPlan } from '../config/planFeatures.js';
 import { sendWelcomeEmail } from '../services/tenantEmailService.js';
 import { applyReferralCode } from '../services/referralService.js';
 import { signupLimiter, checkLimiter } from '../middleware/rateLimiter.js';
@@ -301,18 +302,19 @@ router.post('/', signupLimiter, async (req, res) => {
     // Verification SMS (anti-abuse Free tier)
     sms_verified_token,
 
-    // Plan (ignored — forced to 'free' below for security)
-    plan_id: _ignored_plan_id,
+    // Plan choisi par le client (utilisé UNIQUEMENT pour la checkout Stripe)
+    plan_id: requested_plan_id,
     periode, // 'monthly' ou 'yearly'
 
     // Parrainage (optionnel)
     referral_code
   } = req.body;
 
-  // 🔒 SECURITY: Always force plan to 'free' — never trust client-supplied plan_id.
-  // Prevents plan spoofing where a malicious client could send plan_id='business'
-  // to get premium features for free. Upgrades happen only via Stripe checkout.
+  // 🔒 SECURITY: Tenant TOUJOURS créé en 'free'. Le plan payant ne s'active
+  // qu'après paiement via webhook Stripe. Le requested_plan_id sert uniquement
+  // à créer la checkout session avec le bon prix.
   const plan_id = 'free';
+  const desired_plan = requested_plan_id || 'free';
 
   try {
     // ═══════════════════════════════════════════════════
@@ -494,17 +496,8 @@ router.post('/', signupLimiter, async (req, res) => {
     // Free = gratuit a vie (avec quotas), Basic/Business = paiement immediat
     const isFree = plan_id === 'free';
 
-    // Construire modules actifs depuis les flags du plan
-    const modules_actifs = [];
-    if (plan.comptabilite) modules_actifs.push('comptabilite');
-    if (plan.crm_avance) modules_actifs.push('crm');
-    if (plan.marketing_automation) modules_actifs.push('marketing');
-    if (plan.commercial) modules_actifs.push('commercial');
-    if (plan.stock_inventaire) modules_actifs.push('stock');
-    if (plan.analytics_avances) modules_actifs.push('analytics');
-    if (plan.seo_visibilite) modules_actifs.push('seo');
-    if (plan.rh_multiemployes) modules_actifs.push('rh');
-    if (plan.api_integrations) modules_actifs.push('api');
+    // Construire modules actifs depuis planFeatures.js (source unique de vérité)
+    const modules_actifs = getFeaturesForPlan(plan_id);
 
     // Déterminer le statut TVA selon la structure juridique
     const effectiveStructure = structure_juridique || 'company';
@@ -529,6 +522,9 @@ router.post('/', signupLimiter, async (req, res) => {
         tax_status: effectiveTaxStatus,
         tva_rate: effectiveTaxStatus === 'assujetti_tva' ? 20.00 : 0,
         siret: siret || null,
+        // Contact info (source unique de vérité)
+        email: email?.toLowerCase() || null,
+        telephone: telephone || null,
       })
       .select()
       .single();
@@ -572,7 +568,14 @@ router.post('/', signupLimiter, async (req, res) => {
 
     let checkoutUrl = null;
 
-    if (stripe && plan.stripe_price_id_monthly) {
+    // Charger le plan choisi par le client pour la checkout Stripe
+    let desiredPlan = null;
+    if (desired_plan !== 'free') {
+      const { data: dp } = await supabase.from('plans').select('*').eq('id', desired_plan).eq('actif', true).maybeSingle();
+      desiredPlan = dp;
+    }
+
+    if (stripe && desiredPlan) {
       try {
         const customer = await stripe.customers.create({
           email: email.toLowerCase(),
@@ -589,29 +592,34 @@ router.post('/', signupLimiter, async (req, res) => {
           .update({ stripe_customer_id: customer.id })
           .eq('id', tenant_id);
 
-        // Creer checkout session
-        const priceId = periode === 'yearly'
-          ? plan.stripe_price_id_yearly
-          : plan.stripe_price_id_monthly;
+        // Creer checkout session avec le plan choisi
+        const productCode = `nexus_${desired_plan}_${periode === 'yearly' ? 'yearly' : 'monthly'}`;
+        const { data: stripeProduct } = await supabase
+          .from('stripe_products')
+          .select('stripe_price_id')
+          .eq('product_code', productCode)
+          .eq('active', true)
+          .maybeSingle();
 
-        if (priceId) {
+        if (stripeProduct?.stripe_price_id) {
+          const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
           const checkoutParams = {
             customer: customer.id,
             mode: 'subscription',
             payment_method_types: ['card'],
             line_items: [{
-              price: priceId,
+              price: stripeProduct.stripe_price_id,
               quantity: 1
             }],
             subscription_data: {
               metadata: {
                 tenant_id,
-                plan_id,
+                plan_id: desired_plan,
                 periode
               }
             },
-            success_url: `${process.env.FRONTEND_URL || 'https://nexus-ai-saas.com'}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.FRONTEND_URL || 'https://nexus-ai-saas.com'}/signup?plan=${plan_id}`,
+            success_url: `${frontendUrl}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${frontendUrl}/signup?plan=${desired_plan}`,
             metadata: {
               tenant_id,
               admin_email: email
@@ -619,7 +627,6 @@ router.post('/', signupLimiter, async (req, res) => {
           };
 
           const session = await stripe.checkout.sessions.create(checkoutParams);
-
           checkoutUrl = session.url;
         }
       } catch (stripeErr) {
@@ -675,6 +682,7 @@ router.post('/', signupLimiter, async (req, res) => {
     // Déterminer le template_id pour la DB (mapping vers business_templates table)
     const dbTemplateMap = {
       'salon_coiffure': 'salon',
+      'coiffure_domicile': 'generic',
       'institut_beaute': 'salon',
       'restaurant': 'restaurant',
       'medical': 'generic',

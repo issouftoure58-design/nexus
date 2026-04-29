@@ -12,10 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  User, Bell, Shield, Palette, Key, Globe, AlertCircle, Phone,
+  User, Bell, Shield, Palette, Key, Globe, AlertCircle, Phone, Bot,
   Loader2, Webhook, CheckCircle, X, Plus, Trash2, Copy, Users, Mail, Clock, Monitor, Edit2, UserX, ChevronDown, ChevronUp, Briefcase, RotateCcw, Type
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ConfigIAChannels, { type IAChannelConfig } from '@/components/config/ConfigIAChannels';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FEEDBACK BANNER
@@ -53,6 +54,7 @@ export default function Parametres() {
     { id: 'team', label: 'Équipe', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Sécurité', icon: Shield },
+    { id: 'ia', label: 'Canaux IA', icon: Bot },
     { id: 'branding', label: 'Personnalisation', icon: Palette },
     { id: 'api', label: 'API & Webhooks', icon: Webhook },
   ];
@@ -99,6 +101,7 @@ export default function Parametres() {
           {activeSubSection === 'team' && <TeamSubSection />}
           {activeSubSection === 'notifications' && <NotificationsSubSection />}
           {activeSubSection === 'security' && <SecuritySubSection />}
+          {activeSubSection === 'ia' && <IAChannelsSubSection />}
           {activeSubSection === 'branding' && <BrandingSubSection />}
           {activeSubSection === 'api' && <ApiSubSection />}
         </div>
@@ -113,6 +116,7 @@ export default function Parametres() {
 
 function ProfileSubSection() {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
   const [formData, setFormData] = useState({
     businessName: '',
     email: '',
@@ -121,37 +125,33 @@ function ProfileSubSection() {
   });
   const [hasChanges, setHasChanges] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
-  const { data: parametresData, isLoading } = useQuery({
-    queryKey: ['parametres'],
-    queryFn: () => api.get<{ parametres: { salon: { cle: string; valeur: string }[] } }>('/admin/parametres'),
-  });
-
+  // Charger depuis tenants (source unique de vérité)
   useEffect(() => {
-    if (parametresData?.parametres?.salon) {
-      const salonParams = parametresData.parametres.salon;
-      const getValue = (cle: string) => salonParams.find((p: { cle: string; valeur: string }) => p.cle === cle)?.valeur || '';
+    if (tenant && !initialized) {
       setFormData({
-        businessName: getValue('nom_salon'),
-        email: getValue('email_salon'),
-        phone: getValue('telephone_salon'),
-        address: getValue('adresse_salon')
+        businessName: (tenant as any).name || '',
+        email: (tenant as any).email || '',
+        phone: (tenant as any).telephone || '',
+        address: (tenant as any).adresse || '',
       });
+      setInitialized(true);
     }
-  }, [parametresData]);
+  }, [tenant, initialized]);
+
+  const isLoading = !tenant;
 
   const saveMutation = useMutation({
     mutationFn: (data: typeof formData) =>
-      api.put('/admin/parametres', {
-        parametres: [
-          { cle: 'nom_salon', valeur: data.businessName, categorie: 'salon' },
-          { cle: 'email_salon', valeur: data.email, categorie: 'salon' },
-          { cle: 'telephone_salon', valeur: data.phone, categorie: 'salon' },
-          { cle: 'adresse_salon', valeur: data.address, categorie: 'salon' }
-        ]
+      api.patch('/tenants/me/profile', {
+        name: data.businessName,
+        email: data.email,
+        telephone: data.phone,
+        adresse: data.address,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['parametres'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant'] });
       setHasChanges(false);
       setFeedback({ message: 'Profil mis à jour avec succès', type: 'success' });
     },
@@ -1324,6 +1324,64 @@ function NotificationsSubSection() {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SECURITY
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// IA CHANNELS SUB-SECTION
+// ══════════════════════════════════════════════════════════════════════════════
+
+function IAChannelsSubSection() {
+  const [channels, setChannels] = useState<IAChannelConfig>({ web: false, whatsapp: false, telephone: false });
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    api.get<{ channels?: Record<string, { active: boolean; status: string }> }>('/admin/ia/channels-status')
+      .then(res => {
+        if (res?.channels) {
+          setChannels({
+            web: res.channels.web?.active ?? false,
+            whatsapp: res.channels.whatsapp?.active ?? false,
+            telephone: res.channels.telephone?.active ?? false,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      await api.post('/admin/ia/channels-activate', { channels });
+      setFeedback({ message: 'Canaux IA mis a jour', type: 'success' });
+    } catch {
+      setFeedback({ message: 'Erreur lors de la sauvegarde', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Canaux IA</CardTitle>
+        <CardDescription>Activez et gerez vos assistants IA</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {feedback && <FeedbackBanner message={feedback.message} type={feedback.type} onDismiss={() => setFeedback(null)} />}
+        <ConfigIAChannels channels={channels} onChange={setChannels} />
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Enregistrer
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECURITY SUB-SECTION
 // ══════════════════════════════════════════════════════════════════════════════
 
 function SecuritySubSection() {

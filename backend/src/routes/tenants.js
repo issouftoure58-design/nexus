@@ -20,86 +20,44 @@ import {
   generateIaConfig,
   getPlan,
 } from '../data/businessTemplates.js';
-import { getFeaturesForPlan } from '../config/planFeatures.js';
+import { getFeaturesForPlan, PLAN_LIMITS, PLAN_FEATURES } from '../config/planFeatures.js';
+import { PLAN_PRICES } from '../config/pricing.js';
 
 const router = express.Router();
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QUOTAS PAR DÉFAUT SELON PLAN
+// QUOTAS PAR DÉFAUT SELON PLAN — importés depuis config/planFeatures.js
 // ══════════════════════════════════════════════════════════════════════════════
-
-// Modèle 2026 — révision finale 9 avril 2026 (voir memory/business-model-2026.md)
-// Free    : quotas stricts + IA bloquée (0 crédit)
-// Basic   : 29€/mois, tout illimité non-IA + 1 000 crédits IA inclus/mois (valeur 15€)
-// Business: 149€/mois, Basic + premium + 10 000 crédits IA inclus/mois (valeur 150€)
-const FREE_QUOTAS = {
-  clients_max: 30,
-  storage_gb: 1,
-  posts_ia_month: 0, // IA bloquée en Free
-  images_ia_month: 0,
-  reservations_month: 10,
-  factures_month: 10,
-  messages_ia_month: 0,
-  credits_ia_inclus_mois: 0,
-};
-const BASIC_QUOTAS = {
-  clients_max: -1,
-  storage_gb: 50,
-  posts_ia_month: -1, // via crédits IA
-  images_ia_month: -1,
-  reservations_month: -1,
-  factures_month: -1,
-  messages_ia_month: -1,
-  credits_ia_inclus_mois: 1000,
-};
-const BUSINESS_QUOTAS = {
-  clients_max: -1,
-  storage_gb: 500,
-  posts_ia_month: -1,
-  images_ia_month: -1,
-  reservations_month: -1,
-  factures_month: -1,
-  messages_ia_month: -1,
-  credits_ia_inclus_mois: 10000,
-};
-
-const DEFAULT_QUOTAS = {
-  free: FREE_QUOTAS,
-  basic: BASIC_QUOTAS,
-  business: BUSINESS_QUOTAS,
-  // ⚠️ DEPRECATED — alias retro-compat
-  starter: FREE_QUOTAS,
-  pro: BASIC_QUOTAS,
-};
+const DEFAULT_QUOTAS = PLAN_LIMITS;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MODULES DISPONIBLES
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Modèle 2026 : Free / Basic / Business
-// Tous les agents IA sont disponibles à partir de Basic (29€/mois) et consomment des crédits IA
+// Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+// Tous les agents IA sont disponibles à partir de Starter et consomment de l'utilisation IA
 // Le plan Free n'a pas accès aux fonctions IA (mais voit les modules en mode aperçu)
 const AVAILABLE_MODULES = [
   {
     id: 'agent_ia_web',
     name: 'Agent IA Web Chat',
     description: 'Assistant conversationnel sur votre site web',
-    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
-    requiredPlan: 'basic',
+    price: 0, // Inclus à partir de Starter
+    requiredPlan: 'starter',
   },
   {
     id: 'agent_ia_whatsapp',
     name: 'Agent IA WhatsApp',
     description: 'Réponses automatiques sur WhatsApp Business',
-    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
-    requiredPlan: 'basic',
+    price: 0, // Inclus à partir de Starter
+    requiredPlan: 'starter',
   },
   {
     id: 'agent_ia_telephone',
     name: 'Agent IA Téléphone',
     description: 'Standard téléphonique automatisé',
-    price: 0, // Inclus à partir de Basic (consomme des crédits IA)
-    requiredPlan: 'basic',
+    price: 0, // Inclus à partir de Starter
+    requiredPlan: 'starter',
   },
   {
     id: 'restaurant',
@@ -158,13 +116,12 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Modèle 2026 : Free / Basic / Business
-    // Le plan stocké est normalisé vers les noms canoniques
+    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+    // Le plan est stocké tel quel dans la DB. Retro-compat: basic→starter, pro inchangé
     const rawStoredPlan = (tenant.plan || tenant.tier || 'free').toLowerCase();
-    const storedPlan = rawStoredPlan === 'starter' ? 'free' : rawStoredPlan === 'pro' ? 'basic' : rawStoredPlan;
-    // ═══ ESSAI: plan effectif = Basic (déverrouillé entierement, le tenant teste avant de payer) ═══
-    // Le plan choisi reste mémorisé dans storedPlan pour la conversion post-paiement
-    const effectivePlan = tenant.statut === 'essai' ? 'basic' : storedPlan;
+    const storedPlan = rawStoredPlan === 'basic' ? 'starter' : rawStoredPlan;
+    // ═══ ESSAI: plan effectif = Starter (déverrouillé, le tenant teste avant de payer) ═══
+    const effectivePlan = tenant.statut === 'essai' ? 'starter' : storedPlan;
 
     // Construire les quotas selon le plan effectif
     const quotas = {
@@ -185,15 +142,16 @@ router.get('/me', authenticateAdmin, async (req, res) => {
     if (!modulesObject || Object.keys(modulesObject).length === 0) {
       modulesObject = { ...planDefaults };
     } else {
-      // Merge: ajouter les modules du plan manquants (sans écraser ceux désactivés explicitement)
-      let needsUpdate = false;
+      // Merge: si le plan accorde un module (true), forcer l'activation
+      // Les modules false dans planDefaults restent tels quels dans la DB
       for (const [mod, val] of Object.entries(planDefaults)) {
         if (!(mod in modulesObject)) {
           modulesObject[mod] = val;
-          needsUpdate = true;
+        } else if (val === true && modulesObject[mod] === false) {
+          // Le plan accorde ce module — activer (override DB false)
+          modulesObject[mod] = true;
         }
       }
-      if (!needsUpdate) planDefaults; // skip persist below
     }
 
     // Persister en DB si modules ont changé
@@ -231,6 +189,10 @@ router.get('/me', authenticateAdmin, async (req, res) => {
         business_profile: tenant.business_profile || null,
         onboarding_step: tenant.onboarding_step || 0,
         profession_id: tenant.profession_id || null,
+        // Contact info (source unique de vérité)
+        email: tenant.email || null,
+        telephone: tenant.telephone || null,
+        adresse: tenant.adresse || null,
       },
     };
 
@@ -245,6 +207,46 @@ router.get('/me', authenticateAdmin, async (req, res) => {
 });
 
 // Note: PATCH /me/complete-onboarding défini plus bas (ligne ~745) avec onboarding_completed_at
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/tenants/me/profile - Modifier infos profil (source unique de vérité)
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.patch('/me/profile', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin?.tenant_id;
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: 'Tenant ID manquant' });
+    }
+
+    const { name, email, telephone, adresse } = req.body;
+
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (email !== undefined) updates.email = email;
+    if (telephone !== undefined) updates.telephone = telephone;
+    if (adresse !== undefined) updates.adresse = adresse;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: 'Aucun champ à mettre à jour' });
+    }
+
+    updates.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('tenants')
+      .update(updates)
+      .eq('id', tenantId);
+
+    if (error) throw error;
+
+    console.log(`[TENANTS] PATCH /me/profile - ${tenantId}:`, Object.keys(updates));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[TENANTS] Erreur PATCH /me/profile:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/tenants/me/branding - Modifier branding
@@ -339,11 +341,11 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    // Modèle 2026 : Free / Basic / Business
+    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
     const rawStoredPlan = (tenant?.plan || tenant?.tier || 'free').toLowerCase();
-    const storedPlan = rawStoredPlan === 'starter' ? 'free' : rawStoredPlan === 'pro' ? 'basic' : rawStoredPlan;
-    // ═══ ESSAI: plan effectif = Basic (déverrouillé entierement) ═══
-    const currentPlan = tenant?.statut === 'essai' ? 'basic' : storedPlan;
+    const storedPlan = rawStoredPlan === 'basic' ? 'starter' : rawStoredPlan;
+    // ═══ ESSAI: plan effectif = Starter (déverrouillé) ═══
+    const currentPlan = tenant?.statut === 'essai' ? 'starter' : storedPlan;
     const activeModules = tenant?.modules_actifs || {};
 
     // Enrichir les modules avec leur statut
@@ -781,19 +783,41 @@ router.patch('/me/complete-onboarding', authenticateAdmin, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/tenants/plans/features — Plan features (public, pour le frontend)
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.get('/plans/features', async (req, res) => {
+  try {
+    const plans = {};
+    for (const [planId, features] of Object.entries(PLAN_FEATURES)) {
+      if (planId === 'basic') continue; // Skip legacy alias
+      const prices = PLAN_PRICES[planId] || PLAN_PRICES.free;
+      const limits = PLAN_LIMITS[planId] || PLAN_LIMITS.free;
+      plans[planId] = {
+        features,
+        limits,
+        price: { monthly: prices.monthly, yearly: prices.yearly },
+      };
+    }
+    res.json({ success: true, plans });
+  } catch (error) {
+    console.error('[TENANTS] Erreur GET /plans/features:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════════════════════
 
 function isPlanSufficient(currentPlan, requiredPlan) {
-  // Modèle 2026 : Free / Basic / Business
-  // Normaliser les anciens noms (starter→free, pro→basic) pour rétrocompat
+  // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
   const normalize = (p) => {
     const x = (p || 'free').toLowerCase();
-    if (x === 'starter') return 'free';
-    if (x === 'pro') return 'basic';
+    if (x === 'basic') return 'starter'; // retro-compat
     return x;
   };
-  const planOrder = ['free', 'basic', 'business'];
+  const planOrder = ['free', 'starter', 'pro', 'business'];
   const currentIndex = planOrder.indexOf(normalize(currentPlan));
   const requiredIndex = planOrder.indexOf(normalize(requiredPlan));
   return currentIndex >= requiredIndex;

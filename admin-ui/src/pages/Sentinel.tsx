@@ -1323,7 +1323,7 @@ function GoalsEditModal({
                 <div>Mois</div>
                 <div>CA (€)</div>
                 <div>Clients</div>
-                <div>RDV</div>
+                <div>Réservations</div>
               </div>
 
               {/* Monthly rows */}

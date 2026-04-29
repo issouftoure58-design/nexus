@@ -149,6 +149,27 @@ router.post('/subscription/reactivate', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// CHECKOUT VERIFICATION (ceinture + bretelles)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/billing/verify-checkout
+ * Vérifie le statut d'un checkout Stripe et force l'upgrade du plan si payé.
+ * Appelé par le frontend au retour de Stripe (success callback).
+ * C'est le filet de sécurité si le webhook arrive en retard ou échoue.
+ */
+router.post('/verify-checkout', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const result = await billingService.verifyAndSyncSubscription(tenantId);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    logger.error('Billing Erreur verify-checkout:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // INVOICES
 // ════════════════════════════════════════════════════════════════════
 

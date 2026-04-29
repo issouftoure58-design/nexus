@@ -340,15 +340,17 @@ const TOOLS_ADMIN_GESTION = [
   },
   {
     name: "send_message",
-    description: "Envoie un message SMS ou WhatsApp à un client.",
+    description: "Envoie un message SMS, WhatsApp ou Email à un client.",
     input_schema: {
       type: "object",
       properties: {
-        telephone: { type: "string" },
-        message: { type: "string" },
-        canal: { type: "string", enum: ["sms", "whatsapp"] }
+        telephone: { type: "string", description: "Téléphone du destinataire (requis si canal=sms ou whatsapp)" },
+        message: { type: "string", description: "Contenu du message" },
+        canal: { type: "string", enum: ["sms", "whatsapp", "email"], description: "Canal d'envoi (défaut: whatsapp)" },
+        email: { type: "string", description: "Email du destinataire (requis si canal=email)" },
+        objet: { type: "string", description: "Objet de l'email (requis si canal=email)" }
       },
-      required: ["telephone", "message"]
+      required: ["message"]
     }
   },
   {
@@ -372,6 +374,39 @@ const TOOLS_ADMIN_GESTION = [
         query: { type: "string", description: "Terme de recherche" }
       },
       required: ["query"]
+    }
+  },
+  {
+    name: "create_client",
+    description: "Crée un nouveau client dans la base de données.",
+    input_schema: {
+      type: "object",
+      properties: {
+        prenom: { type: "string", description: "Prénom du client" },
+        nom: { type: "string", description: "Nom du client" },
+        telephone: { type: "string", description: "Téléphone du client" },
+        email: { type: "string", description: "Email du client (optionnel)" },
+        adresse: { type: "string", description: "Adresse du client (optionnel)" },
+        notes: { type: "string", description: "Notes sur le client (optionnel)" }
+      },
+      required: ["prenom", "nom", "telephone"]
+    }
+  },
+  {
+    name: "update_client",
+    description: "Met à jour les informations d'un client existant.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id: { type: "integer", description: "ID du client à modifier" },
+        prenom: { type: "string", description: "Nouveau prénom" },
+        nom: { type: "string", description: "Nouveau nom" },
+        telephone: { type: "string", description: "Nouveau téléphone" },
+        email: { type: "string", description: "Nouvel email" },
+        adresse: { type: "string", description: "Nouvelle adresse" },
+        notes: { type: "string", description: "Nouvelles notes" }
+      },
+      required: ["client_id"]
     }
   }
 ];
@@ -1892,19 +1927,18 @@ export const TOOLS_ADMIN = [
 
 /**
  * Retourne les outils disponibles selon le plan du tenant
- * Modele 2026 — revision finale 9 avril 2026 (voir memory/business-model-2026.md):
- * - Free    : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees, 0 credit)
- * - Basic   : 29€/mois, TOUS les outils, 1 000 credits IA inclus/mois (valeur 15€)
- * - Business: 149€/mois, TOUS les outils, 10 000 credits IA inclus/mois (valeur 150€)
+ * Modele 2026 — revision 23 avril 2026 (voir memory/business-model-2026.md):
+ * - Free     : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees)
+ * - Starter  : 69€/mois, TOUS les outils, 1 000 credits IA inclus/mois
+ * - Pro      : 199€/mois, TOUS les outils, 5 000 credits IA inclus/mois
+ * - Business : 599€/mois, TOUS les outils, 20 000 credits IA inclus/mois
  *
- * NOTE: 'starter' et 'pro' sont conserves comme aliases retro-compat
+ * NOTE: 'basic' est conserve comme alias retro-compat de 'starter'
  */
 export function getToolsForPlan(plan) {
   const rawPlan = plan?.toLowerCase() || 'free';
-  // Normalisation legacy
-  const basePlan = rawPlan === 'starter' ? 'free'
-                 : rawPlan === 'pro' ? 'basic'
-                 : rawPlan;
+  // Normalisation legacy (basic→starter retro-compat)
+  const basePlan = rawPlan === 'basic' ? 'starter' : rawPlan;
 
   // Outils de gestion (sans IA) — disponibles meme en Free
   const baseTools = [
@@ -1920,9 +1954,9 @@ export function getToolsForPlan(plan) {
     return baseTools;
   }
 
-  // Plan Basic (29€) ET Business (149€): TOUS les outils
-  // Difference : Basic = 1 000 credits inclus/mois, Business = 10 000 credits inclus/mois
-  if (basePlan === 'basic' || basePlan === 'business' || basePlan === 'enterprise') {
+  // Plans payants (Starter/Pro/Business): TOUS les outils
+  // Starter = 1 000 credits, Pro = 5 000, Business = 20 000 credits inclus/mois
+  if (basePlan === 'starter' || basePlan === 'pro' || basePlan === 'business' || basePlan === 'enterprise') {
     return TOOLS_ADMIN;
   }
 

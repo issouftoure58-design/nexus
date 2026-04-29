@@ -309,21 +309,29 @@ export function GestionPaie() {
   const genererTousBulletinsMutation = useMutation({
     mutationFn: async () => {
       const membresActifs = membres.filter((m: Membre) => m.statut === 'actif');
-      const results = [];
+      const results: any[] = [];
+      const errors: string[] = [];
       for (const m of membresActifs) {
         try {
           const data = await api.post<any>('/admin/rh/bulletins/generer', { membre_id: m.id, periode });
           results.push(data);
-        } catch {
-          // Continue with other bulletins on failure
+        } catch (err: any) {
+          const msg = err?.response?.data?.error || err?.message || 'Erreur inconnue';
+          errors.push(`${m.prenom} ${m.nom}: ${msg}`);
         }
       }
-      return results;
+      return { results, errors };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ results, errors }) => {
       queryClient.invalidateQueries({ queryKey: ['bulletins'] });
-      setMessage({ type: 'success', text: `${data.length} bulletins générés avec succès` });
-      setTimeout(() => setMessage(null), 5000);
+      if (errors.length > 0 && results.length === 0) {
+        setMessage({ type: 'error', text: `Échec génération : ${errors[0]}` });
+      } else if (errors.length > 0) {
+        setMessage({ type: 'warning' as any, text: `${results.length} bulletins générés, ${errors.length} erreur(s) : ${errors[0]}` });
+      } else {
+        setMessage({ type: 'success', text: `${results.length} bulletins générés avec succès` });
+      }
+      setTimeout(() => setMessage(null), 8000);
     },
     onError: () => {
       setMessage({ type: 'error', text: 'Erreur lors de la génération des bulletins' });

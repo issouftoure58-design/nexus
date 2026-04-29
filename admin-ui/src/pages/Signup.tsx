@@ -24,7 +24,8 @@ interface Profession {
 
 const PROFESSIONS: Profession[] = [
   // Beauté & Coiffure
-  { id: 'coiffeur', label: 'Coiffeur / Coiffeuse', emoji: '✂️', description: 'Salon de coiffure, coupes, colorations', template: 'salon_coiffure', category: 'beaute' },
+  { id: 'coiffeur', label: 'Coiffeur / Coiffeuse (salon)', emoji: '✂️', description: 'Salon de coiffure, coupes, colorations', template: 'salon_coiffure', category: 'beaute' },
+  { id: 'coiffeur_domicile', label: 'Coiffeur / Coiffeuse à domicile', emoji: '💇', description: 'Coiffure à domicile, déplacements chez le client', template: 'coiffure_domicile', category: 'beaute' },
   { id: 'barbier', label: 'Barbier / Barber Shop', emoji: '💈', description: 'Taille de barbe, rasage, soins homme', template: 'salon_coiffure', category: 'beaute' },
   { id: 'estheticienne', label: 'Esthéticienne', emoji: '💅', description: 'Soins visage, épilation, manucure', template: 'institut_beaute', category: 'beaute' },
   { id: 'prothesiste_ongulaire', label: 'Prothésiste ongulaire', emoji: '💅', description: 'Pose de gel, résine, nail art', template: 'institut_beaute', category: 'beaute' },
@@ -147,24 +148,24 @@ const CATEGORIES: Record<string, { label: string; emoji: string }> = {
   autre: { label: 'Autre', emoji: '🏪' },
 };
 
-// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Starter 69€ / Pro 199€ / Business 599€
-// Credits inclus : Free 200cr, Starter 1000cr, Pro 5000cr, Business 20000cr
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES as PP } from '../lib/planPricing';
+
 const PLANS = {
   free: {
-    name: 'Free', price: 0, originalPrice: 0,
+    name: 'Free', price: PP.free, originalPrice: PP.free,
     features: ['Dashboard, Clients, Reservations', 'Facturation (avec watermark)', '1 utilisateur', '200 credits IA (limite)', 'Support email'],
   },
   starter: {
-    name: 'Starter', price: 69, originalPrice: 69, popular: true,
+    name: 'Starter', price: PP.starter, originalPrice: PP.starter, popular: true,
     features: ['Toutes les fonctions IA', 'Stock, Workflows, Pipeline, Devis, SEO', 'Fidelite, Equipe (5 max)', '1 000 credits IA inclus / mois', 'Support email prioritaire'],
   },
   pro: {
-    name: 'Pro', price: 199, originalPrice: 199,
+    name: 'Pro', price: PP.pro, originalPrice: PP.pro,
     features: ['Tout Starter +', 'Multi-sites, tout illimite', 'Equipe (20 max)', '5 000 credits IA inclus / mois', 'Support prioritaire'],
   },
   business: {
-    name: 'Business', price: 599, originalPrice: 599,
+    name: 'Business', price: PP.business, originalPrice: PP.business,
     features: ['Tout Pro +', 'RH complet + Compta & Analytique', 'Sentinel, White-label, API, SSO', '20 000 credits IA inclus / mois', 'Account Manager dedie, 50 users'],
   },
 };
@@ -172,6 +173,7 @@ const PLANS = {
 // Template → suggested plan (modele 2026)
 const TEMPLATE_SUGGESTED_PLAN: Record<string, keyof typeof PLANS> = {
   salon_coiffure: 'starter',
+  coiffure_domicile: 'starter',
   institut_beaute: 'starter',
   restaurant: 'starter',
   medical: 'starter',
@@ -765,12 +767,21 @@ export default function Signup() {
         throw new Error((data.error || 'Erreur lors de la création du compte') + details);
       }
 
-      // Auto-login avec le token retourné
+      // Auto-login (token sauvegardé dans localStorage)
       if (data.token) {
         api.setToken(data.token);
+      }
+
+      // Plan payant → redirect vers Stripe Checkout
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+
+      // Plan free → navigation directe
+      if (data.token) {
         navigate('/configuration');
       } else {
-        // Fallback: ancien flow sans auto-login
         navigate('/login?registered=true');
       }
     } catch (err) {

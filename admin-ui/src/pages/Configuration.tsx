@@ -21,12 +21,15 @@ type ConfigMode = 'salon' | 'restaurant' | 'hotel' | 'artisan' | 'commerce' | 'm
 const TEMPLATE_TO_MODE: Record<string, ConfigMode> = {
   salon_coiffure: 'salon',
   institut_beaute: 'salon',
+  coiffure_domicile: 'salon',
   restaurant: 'restaurant',
   medical: 'medical',
   garage: 'garage',
   artisan: 'artisan',
   hotel: 'hotel',
   commerce: 'commerce',
+  service: 'autre',
+  securite: 'autre',
   autre: 'autre',
 };
 
@@ -107,9 +110,15 @@ export default function Configuration() {
 
   // Load IA channels state depuis la DB (tenant_ia_config créé par signup)
   useEffect(() => {
-    api.get<{ channels: { web: boolean; whatsapp: boolean; telephone: boolean } }>('/admin/ia/channels-status')
+    api.get<{ channels: Record<string, { active: boolean; status: string }> }>('/admin/ia/channels-status')
       .then(res => {
-        if (res?.channels) setIAChannels(res.channels);
+        if (res?.channels) {
+          setIAChannels({
+            web: res.channels.web?.active ?? false,
+            whatsapp: res.channels.whatsapp?.active ?? false,
+            telephone: res.channels.telephone?.active ?? false,
+          });
+        }
       })
       .catch(() => {
         // Fallback: IA Web auto-accorde si plan Starter+
@@ -305,7 +314,10 @@ export default function Configuration() {
         await disponibilitesApi.updateHoraires(horaires);
       }
 
-      // 3. Complete onboarding
+      // 3. Save IA channels preferences
+      await api.post('/admin/ia/channels-activate', { channels: iaChannels });
+
+      // 4. Complete onboarding
       await api.patch('/tenants/me/complete-onboarding');
 
       // Refetch tenant to update onboarding_completed

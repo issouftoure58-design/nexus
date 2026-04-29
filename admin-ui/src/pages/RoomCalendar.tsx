@@ -26,7 +26,8 @@ import { cn } from '@/lib/utils';
 interface Chambre {
   id: number;
   nom: string;
-  type_chambre: string;
+  type_chambre: string | null;
+  categorie: string | null;
   capacite: number;
   prix: number;
   actif: boolean;
@@ -369,7 +370,7 @@ export default function RoomCalendar() {
                         <div>
                           <div className="font-medium text-sm">{chambre.nom}</div>
                           <div className="text-xs text-gray-500">
-                            {chambre.type_chambre} · {chambre.capacite} pers
+                            {chambre.type_chambre || chambre.categorie || 'chambre'} · {chambre.capacite} pers
                           </div>
                         </div>
                       </div>
@@ -556,10 +557,11 @@ function ReservationModal({
           <div className="flex items-center gap-2">
             <span className={cn(
               'px-2 py-1 rounded-full text-xs font-medium',
-              reservation.statut === 'confirmee' && 'bg-green-100 text-green-700',
+              reservation.statut === 'confirme' && 'bg-green-100 text-green-700',
+              reservation.statut === 'demande' && 'bg-blue-100 text-blue-700',
               reservation.statut === 'en_cours' && 'bg-orange-100 text-orange-700'
             )}>
-              {reservation.statut === 'confirmee' ? 'Confirmée' : 'En cours'}
+              {reservation.statut === 'confirme' ? 'Confirmée' : reservation.statut === 'demande' ? 'Demande' : 'En cours'}
             </span>
           </div>
         </div>

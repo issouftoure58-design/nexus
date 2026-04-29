@@ -38,6 +38,7 @@ import {
   FileText,
   Phone,
   CalendarCheck,
+  CalendarDays,
   Clock,
   Bot,
   ClipboardList,
@@ -77,20 +78,8 @@ interface UpgradeModalData {
   requiredModule?: string;
 }
 
-// Prix des plans pour le modal (modele 2026 — revision 21 avril 2026)
-const PLAN_PRICES: Record<string, number> = {
-  free: 0,
-  starter: 69,
-  pro: 199,
-  business: 599,
-};
-
-const PLAN_NAMES: Record<string, string> = {
-  free: 'Free',
-  starter: 'Starter',
-  pro: 'Pro',
-  business: 'Business',
-};
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES, PLAN_NAMES } from '../../lib/planPricing';
 
 // Mapping modules vers plans requis (modele 2026 — revision 21 avril 2026)
 // Free : modules de base. Starter : toute IA + modules essentiels. Pro : multi-sites, illimite. Business : RH, Compta, Sentinel, White-label, API, SSO.
@@ -107,7 +96,7 @@ const MODULE_TO_PLAN: Record<string, PlanType> = {
   'devis': 'starter',
   'crm_avance': 'starter',
   'marketing': 'starter',
-  'analytics': 'starter',
+  'analytics': 'business',
   'seo': 'starter',
   'pipeline': 'starter',
   // Business (modules premium)
@@ -143,6 +132,7 @@ const mainNav: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
   { icon: Calendar, label: 'Agenda', path: '/agenda', alwaysShow: true }, // RDV business entrepreneur
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations', hideForBusinessTypes: ['commerce'] },
+  { icon: CalendarDays, label: 'Planning', path: '/planning', requiredModule: 'reservations' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
   { icon: UserPlus, label: 'Equipe', path: '/equipe', alwaysShow: true },

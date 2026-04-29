@@ -132,11 +132,12 @@ function getBusinessInstructions(profile) {
 }
 
 /**
- * Fonctionnalités disponibles selon le plan (modele 2026 — revision finale 9 avril 2026)
+ * Fonctionnalités disponibles selon le plan (modele 2026 — revision 23 avril 2026)
  *
- * - Free    : gestion de base uniquement, IA bloquee (0 credit)
- * - Basic   : 29€/mois, tout illimite, 1 000 credits IA inclus/mois (valeur 15€)
- * - Business: 149€/mois, Basic + multi-sites + white-label + 10 000 credits IA inclus/mois (valeur 150€)
+ * - Free     : gestion de base uniquement, IA bloquee
+ * - Starter  : 69€/mois, toutes IA debloquees, 1 000 credits IA
+ * - Pro      : 199€/mois, tout illimite, 5 000 credits IA
+ * - Business : 599€/mois, Pro + RH complet + compta + white-label + 20 000 credits IA
  */
 function getPlanCapabilities(plan) {
   const freeCaps = [
@@ -163,15 +164,16 @@ function getPlanCapabilities(plan) {
     'Account Manager dédié + support prioritaire 1h'
   ];
 
-  // Normalisation legacy
-  const normalized = plan === 'starter' ? 'free'
-                   : plan === 'pro' ? 'basic'
-                   : plan;
+  // Normalisation legacy (basic→starter retro-compat)
+  const normalized = plan === 'basic' ? 'starter' : plan;
 
   if (normalized === 'business' || normalized === 'enterprise') {
     return { included: [...freeCaps, ...basicCaps, ...businessCaps], locked: [] };
   }
-  if (normalized === 'basic') {
+  if (normalized === 'pro') {
+    return { included: [...freeCaps, ...basicCaps], locked: businessCaps };
+  }
+  if (normalized === 'starter') {
     return { included: [...freeCaps, ...basicCaps], locked: businessCaps };
   }
   return { included: freeCaps, locked: [...basicCaps, ...businessCaps] };

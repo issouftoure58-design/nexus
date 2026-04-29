@@ -11,9 +11,8 @@ interface TenantInfo {
   quota: { percentage: number; status: string };
 }
 
-// Modele pricing 2026 — revision 21 avril 2026 — Free / Starter / Pro / Business + credits IA
-// Starter 69€/mois (1 000 cr) / Pro 199€/mois (5 000 cr) / Business 599€/mois (20 000 cr)
-const PLAN_PRICES: Record<string, number> = { free: 0, starter: 69, pro: 199, business: 599 };
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES } from '../../lib/planPricing';
 const PLAN_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
   free: { bar: 'bg-slate-500', text: 'text-slate-400', bg: 'bg-slate-950/30 border-slate-800' },
   starter: { bar: 'bg-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-950/30 border-cyan-800' },

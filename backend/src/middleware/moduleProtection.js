@@ -10,7 +10,7 @@
 
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
-import { PLAN_FEATURES, ROUTE_MODULES, getPlansForFeature } from '../config/planFeatures.js';
+import { PLAN_FEATURES, PLAN_LIMITS, ROUTE_MODULES, getPlansForFeature, getMinPlanForFeature } from '../config/planFeatures.js';
 
 // Cache des configs tenant (TTL: 30 secondes pour sécurité)
 // 🔒 SÉCURITÉ: TTL court pour éviter les fenêtres d'exploitation
@@ -91,6 +91,7 @@ async function getTenantConfig(tenantId) {
     .select(`
       plan,
       statut,
+      essai_fin,
       options_canaux_actifs,
       module_metier_id,
       module_metier_paye,
@@ -104,20 +105,35 @@ async function getTenantConfig(tenantId) {
     return null;
   }
 
-  // ═══ Modèle 2026 : Free / Basic / Business ═══
-  // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+  // ═══ Modèle 2026 : Free / Starter / Pro / Business ═══
+  // En essai, on déverrouille comme Starter (le tenant teste pleinement avant de payer)
   const rawPlan = (tenant.plan || 'free').toLowerCase();
-  const normalizedPlan = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
-  const planId = tenant.statut === 'essai' ? 'basic' : normalizedPlan;
+  const normalizedPlan = rawPlan === 'basic' ? 'starter' : rawPlan;
+  const planId = tenant.statut === 'essai' ? 'starter' : normalizedPlan;
   const planFeatures = PLAN_FEATURES[planId] || PLAN_FEATURES.free;
+  const planLimits = PLAN_LIMITS[planId] || PLAN_LIMITS.free;
+
+  // Construire options_canaux: merge plan defaults + options_canaux_actifs + modules_actifs
+  // pour que les 3 sources soient réconciliées (self-healing)
+  const planCanaux = extractCanauxFromPlan(tenant.statut === 'essai' ? 'starter' : planId);
+  const dbCanaux = tenant.options_canaux_actifs || {};
+  const modulesActifs = tenant.modules_actifs || {};
+
+  // Merge: plan defaults en base, puis DB overrides, puis modules_actifs pour les canaux IA
+  const mergedCanaux = { ...planCanaux, ...dbCanaux };
+  for (const [key, type] of Object.entries(MODULE_TYPES)) {
+    if (type === 'canal' && modulesActifs[key] === true) {
+      mergedCanaux[key] = true;
+    }
+  }
 
   const config = {
     plan_id: planId,
     plan: planFeatures,
-    // Pendant l'essai: canaux Basic (toutes fonctions IA débloquées, soumises aux crédits)
-    options_canaux: tenant.statut === 'essai'
-      ? extractCanauxFromPlan('basic')
-      : (tenant.options_canaux_actifs || extractCanauxFromPlan(planId)),
+    limits: planLimits,
+    statut: tenant.statut,
+    essai_fin: tenant.essai_fin,
+    options_canaux: mergedCanaux,
     module_metier_id: tenant.module_metier_id,
     module_metier_paye: tenant.module_metier_paye
   };
@@ -195,16 +211,65 @@ export function requireModule(moduleId) {
         });
       }
 
-      // Vérifier si module/option actif
+      // ═══ VÉRIFICATION STATUT ABONNEMENT ═══
+      // Les modules 'always' restent accessibles même en suspendu (dashboard, etc.)
+      const moduleType = MODULE_TYPES[moduleId];
+      if (moduleType !== 'always') {
+        if (config.statut === 'suspendu') {
+          return res.status(402).json({
+            error: 'Abonnement suspendu',
+            message: 'Votre abonnement est suspendu. Veuillez mettre à jour votre moyen de paiement.',
+            code: 'SUBSCRIPTION_SUSPENDED',
+            action: 'update_payment',
+            redirect: '/admin/billing'
+          });
+        }
+
+        if (config.statut === 'annule') {
+          return res.status(402).json({
+            error: 'Abonnement annulé',
+            message: 'Votre abonnement est annulé. Veuillez souscrire à un plan.',
+            code: 'SUBSCRIPTION_CANCELLED',
+            action: 'subscribe',
+            redirect: '/admin/billing/upgrade'
+          });
+        }
+
+        // Essai expiré → bascule automatique vers Free
+        if (config.statut === 'essai' && config.essai_fin && new Date(config.essai_fin) < new Date()) {
+          await supabase
+            .from('tenants')
+            .update({ statut: 'actif', plan: 'free' })
+            .eq('id', tenantId);
+          invalidateModuleCache(tenantId);
+
+          return res.status(402).json({
+            error: 'Essai terminé',
+            message: 'Votre période d\'essai est terminée. Passez à un plan payant pour débloquer toutes les fonctions.',
+            code: 'TRIAL_ENDED',
+            action: 'upgrade',
+            redirect: '/admin/billing/upgrade'
+          });
+        }
+      }
+
+      // ═══ VÉRIFICATION ACCÈS MODULE ═══
       if (!checkModuleAccess(config, moduleId)) {
+        const requiredPlan = getMinPlanForFeature(moduleId);
         logger.info('Accès refusé', { tag: 'MODULE', tenantId, moduleId });
         return res.status(403).json({
           error: `Module '${moduleId}' non activé pour ce compte`,
           code: 'MODULE_NOT_ACTIVATED',
           module: moduleId,
+          current_plan: config.plan_id,
+          required_plan: requiredPlan,
           upgrade_url: '/admin/modules'
         });
       }
+
+      // Attacher infos utiles au req
+      req.tenant_plan = config.plan_id;
+      req.tenant_limits = config.limits;
 
       // Module actif, continuer
       next();
@@ -266,4 +331,5 @@ export async function getActiveModules(tenantId) {
 
 // ROUTE_MODULES importé depuis config/planFeatures.js (source unique de vérité)
 
-export default { requireModule, hasModule, getActiveModules, invalidateModuleCache, ROUTE_MODULES, PLAN_FEATURES };
+// Named exports only — no default object export
+export { ROUTE_MODULES, PLAN_FEATURES };

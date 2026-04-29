@@ -43,6 +43,8 @@ export interface Service {
   type_chambre?: string | null;
   categorie?: string;
   facturation?: 'par_nuit' | 'forfait';
+  taxe_cnaps?: boolean;
+  taux_cnaps?: number;
 }
 
 export interface Membre {
@@ -50,6 +52,9 @@ export interface Membre {
   nom: string;
   prenom: string;
   role: string;
+  pause_debut?: string;
+  pause_fin?: string;
+  gap_entre_services_minutes?: number;
 }
 
 // === API Response Types ===
@@ -69,6 +74,9 @@ export interface MembresResponse {
   prenom: string;
   role: string;
   statut: string;
+  pause_debut?: string;
+  pause_fin?: string;
+  gap_entre_services_minutes?: number;
 }
 
 export interface MembresDisponiblesResponse {
@@ -113,6 +121,8 @@ export interface ServiceLigne {
   heure_fin?: string;
   pricing_mode?: 'fixed' | 'hourly' | 'daily' | 'package';
   taux_horaire?: number;
+  date_debut?: string;
+  date_fin?: string;
 }
 
 export interface ReservationService {
@@ -269,6 +279,8 @@ export interface Totals {
   dureeTotale: number;
   fraisDeplacement: number;
   remise: number;
+  montantMajorations: number;
+  montantCnaps: number;
   montantHT: number;
   tva: number;
   totalTTC: number;

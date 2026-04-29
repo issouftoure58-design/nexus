@@ -220,7 +220,7 @@ export default function PerformanceReviews({ membres }: PerformanceReviewsProps)
                   <th className="px-4 py-3 font-medium">Employé</th>
                   <th className="px-4 py-3 font-medium">Période</th>
                   <th className="px-4 py-3 font-medium text-right">CA généré</th>
-                  <th className="px-4 py-3 font-medium text-right">RDV</th>
+                  <th className="px-4 py-3 font-medium text-right">Réservations</th>
                   <th className="px-4 py-3 font-medium text-right">Conv. %</th>
                   <th className="px-4 py-3 font-medium text-right">Clients</th>
                   <th className="px-4 py-3 font-medium text-center">Satisfaction</th>

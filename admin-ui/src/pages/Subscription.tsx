@@ -3,7 +3,7 @@
  * Affichage du plan et upgrade
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
@@ -73,19 +73,18 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   unpaid: { label: 'Impayé', color: 'bg-red-100 text-red-700' },
 };
 
-// Plans NEXUS officiels — Modele 2026 revision 21 avril 2026 (voir memory/business-model-2026.md)
-// Free freemium / Starter 69€ / Pro 199€ / Business 599€
-// Credits inclus : Free 200cr (limite), Starter 1000cr, Pro 5000cr, Business 20000cr
-// Annuel : Starter 690€, Pro 1990€, Business 5990€ (2 mois offerts)
-const PROMO_ACTIVE = false; // Plus de promo : prix bas en permanence
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES as PP, PLAN_YEARLY_PRICES as PY } from '../lib/planPricing';
+
+const PROMO_ACTIVE = false;
 const PLANS = [
   {
     id: 'free',
     name: 'Free',
-    price: 0,
-    promoPrice: 0,
-    yearlyPrice: 0,
-    promoYearlyPrice: 0,
+    price: PP.free,
+    promoPrice: PP.free,
+    yearlyPrice: PY.free,
+    promoYearlyPrice: PY.free,
     description: 'Gratuit a vie, sans carte bancaire',
     color: 'from-gray-500 to-gray-600',
     features: [
@@ -100,10 +99,10 @@ const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 69,
-    promoPrice: 69,
-    yearlyPrice: 690,
-    promoYearlyPrice: 690,
+    price: PP.starter,
+    promoPrice: PP.starter,
+    yearlyPrice: PY.starter,
+    promoYearlyPrice: PY.starter,
     description: 'Toute l\'IA + modules essentiels, 5 users max',
     popular: true,
     color: 'from-cyan-500 to-blue-600',
@@ -119,10 +118,10 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 199,
-    promoPrice: 199,
-    yearlyPrice: 1990,
-    promoYearlyPrice: 1990,
+    price: PP.pro,
+    promoPrice: PP.pro,
+    yearlyPrice: PY.pro,
+    promoYearlyPrice: PY.pro,
     description: 'Multi-sites, tout illimite, 20 users',
     color: 'from-blue-500 to-indigo-600',
     features: [
@@ -137,10 +136,10 @@ const PLANS = [
   {
     id: 'business',
     name: 'Business',
-    price: 599,
-    promoPrice: 599,
-    yearlyPrice: 5990,
-    promoYearlyPrice: 5990,
+    price: PP.business,
+    promoPrice: PP.business,
+    yearlyPrice: PY.business,
+    promoYearlyPrice: PY.business,
     description: 'RH, Compta, Sentinel, White-label, API, SSO, 50 users',
     color: 'from-purple-500 to-indigo-600',
     features: [
@@ -161,6 +160,22 @@ export default function Subscription() {
   const isOnTrial = tenant?.statut === 'essai';
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [error, setError] = useState<string | null>(null);
+
+  // Au retour de Stripe checkout, vérifier et synchroniser le plan
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      // Nettoyer l'URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Appeler le backend pour forcer la sync du plan
+      api.post('/billing/verify-checkout', {})
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['subscription'] });
+          queryClient.invalidateQueries({ queryKey: ['tenant'] });
+        })
+        .catch((err: unknown) => console.error('verify-checkout error:', err));
+    }
+  }, [queryClient]);
 
   // Charger le statut d'abonnement
   const { data: subscriptionData, isError: isSubError } = useQuery<SubscriptionData>({

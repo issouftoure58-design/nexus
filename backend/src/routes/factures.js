@@ -705,7 +705,7 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
       .from('reservations')
       .select(`
         *,
-        clients(id, nom, prenom, email, telephone, type_client, raison_sociale)
+        clients(id, nom, prenom, email, telephone, type_client, raison_sociale, adresse)
       `)
       .eq('id', reservationId)
       .eq('tenant_id', tenantId)
@@ -739,6 +739,32 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
     // Générer le numéro
     const numero = await generateNumeroFacture(tenantId);
 
+    // Récupérer les lignes de service détaillées pour la facture
+    const { data: resaLignes } = await supabase
+      .from('reservation_lignes')
+      .select('service_nom, duree_minutes, quantite, prix_unitaire, prix_total')
+      .eq('tenant_id', tenantId)
+      .eq('reservation_id', reservationId);
+
+    // Construire le détail des lignes pour service_description
+    let serviceDescription = reservation.notes || null;
+    let serviceNom = reservation.service_nom || 'Prestation';
+    if (resaLignes && resaLignes.length > 0) {
+      const lignesDetail = resaLignes.map(l => ({
+        nom: l.service_nom || 'Prestation',
+        quantite: l.quantite || 1,
+        prix_unitaire: l.prix_unitaire || 0, // déjà en centimes dans reservation_lignes
+        total: l.prix_total || (l.prix_unitaire || 0) * (l.quantite || 1),
+      }));
+      serviceDescription = JSON.stringify(lignesDetail);
+      if (resaLignes.length === 1) {
+        serviceNom = resaLignes[0].service_nom || serviceNom;
+      } else {
+        // Nom composite : tous les services
+        serviceNom = resaLignes.map(l => l.service_nom).filter(Boolean).join(' + ') || serviceNom;
+      }
+    }
+
     // Créer la facture
     const { data: facture, error } = await supabase
       .from('factures')
@@ -754,9 +780,9 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
           : reservation.client_nom || 'Client',
         client_email: reservation.clients?.email || reservation.client_email,
         client_telephone: reservation.clients?.telephone || reservation.client_telephone,
-        client_adresse: null,
-        service_nom: reservation.service_nom || 'Prestation',
-        service_description: reservation.notes || null,
+        client_adresse: reservation.clients?.adresse || reservation.adresse_client || null,
+        service_nom: serviceNom,
+        service_description: serviceDescription,
         date_prestation: reservation.date,
         montant_ht: totalHT,
         taux_tva: tauxTVA,
@@ -1822,7 +1848,7 @@ router.get('/:id/pdf', async (req, res) => {
     // Récupérer les infos du tenant pour l'en-tête
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('name, slug, email, telephone, adresse, siret')
+      .select('name, slug, email, telephone, adresse, siret, plan')
       .eq('id', tenantId)
       .single();
 
@@ -1896,6 +1922,24 @@ function generateFactureHTML(facture, tenant) {
     return (cents / 100).toFixed(2).replace('.', ',') + ' €';
   };
 
+  const isFreeTier = tenant?.plan === 'free';
+
+  // Parse service_description — peut être JSON array ou string simple
+  let lignesDetailArray = null;
+  let serviceDescriptionHtml = '';
+  if (facture.service_description) {
+    try {
+      const parsed = JSON.parse(facture.service_description);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        lignesDetailArray = parsed;
+      } else {
+        serviceDescriptionHtml = `<br><small>${facture.service_description}</small>`;
+      }
+    } catch {
+      serviceDescriptionHtml = `<br><small>${facture.service_description}</small>`;
+    }
+  }
+
   return `
 <!DOCTYPE html>
 <html lang="fr">
@@ -1904,7 +1948,7 @@ function generateFactureHTML(facture, tenant) {
   <title>Facture ${facture.numero}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333; padding: 40px; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333; padding: 40px; position: relative; }
     .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
     .logo { font-size: 24px; font-weight: bold; color: #0891b2; }
     .facture-info { text-align: right; }
@@ -1927,13 +1971,26 @@ function generateFactureHTML(facture, tenant) {
     .statut-generee { background: #cffafe; color: #0e7490; }
     .statut-brouillon { background: #fef3c7; color: #92400e; }
     .statut-annulee { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+    ${isFreeTier ? `
+    .watermark {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 80px; font-weight: bold;
+      color: rgba(8, 145, 178, 0.08);
+      white-space: nowrap; pointer-events: none;
+      z-index: 1000;
+    }
+    ` : ''}
     @media print {
       body { padding: 20px; }
       .no-print { display: none; }
+      ${isFreeTier ? `.watermark { position: fixed; }` : ''}
     }
   </style>
 </head>
 <body>
+  ${isFreeTier ? '<div class="watermark">NEXUS FREE</div>' : ''}
+
   <div class="header">
     <div class="logo">${tenant?.name || 'NEXUS'}</div>
     <div class="facture-info">
@@ -1945,15 +2002,15 @@ function generateFactureHTML(facture, tenant) {
 
   <div class="parties">
     <div class="partie">
-      <div class="partie-titre">Émetteur</div>
+      <div class="partie-titre">Emetteur</div>
       <p><strong>${tenant?.name || 'NEXUS'}</strong></p>
-      <p>SIRET : À compléter</p>
+      ${tenant?.siret ? `<p>SIRET : ${tenant.siret}</p>` : ''}
     </div>
     <div class="partie">
       <div class="partie-titre">Client</div>
       <p><strong>${facture.client_nom || '-'}</strong></p>
       ${facture.client_adresse ? `<p>${facture.client_adresse}</p>` : ''}
-      ${facture.client_telephone ? `<p>Tél : ${facture.client_telephone}</p>` : ''}
+      ${facture.client_telephone ? `<p>Tel : ${facture.client_telephone}</p>` : ''}
       ${facture.client_email ? `<p>Email : ${facture.client_email}</p>` : ''}
     </div>
   </div>
@@ -1962,23 +2019,37 @@ function generateFactureHTML(facture, tenant) {
     <thead>
       <tr>
         <th>Description</th>
-        <th>Date prestation</th>
+        <th style="text-align:center">Qté</th>
+        <th class="montant">P.U. HT</th>
         <th class="montant">Montant HT</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
+      ${lignesDetailArray ? lignesDetailArray.map(item => {
+        const nom = item.nom || item.name || 'Prestation';
+        const qty = item.quantite || item.quantity || 1;
+        const prixUnit = item.prix_unitaire || item.prix || 0;
+        const total = item.total || prixUnit * qty;
+        return `<tr>
+          <td>${nom}</td>
+          <td style="text-align:center">${qty}</td>
+          <td class="montant">${formatMontant(prixUnit)}</td>
+          <td class="montant">${formatMontant(total)}</td>
+        </tr>`;
+      }).join('') : `<tr>
         <td>
           <strong>${facture.service_nom || 'Prestation'}</strong>
-          ${facture.service_description ? `<br><small>${facture.service_description}</small>` : ''}
+          ${serviceDescriptionHtml}
         </td>
-        <td>${formatDate(facture.date_prestation)}</td>
+        <td style="text-align:center">1</td>
         <td class="montant">${formatMontant(facture.montant_ht - (facture.frais_deplacement || 0))}</td>
-      </tr>
+        <td class="montant">${formatMontant(facture.montant_ht - (facture.frais_deplacement || 0))}</td>
+      </tr>`}
       ${facture.frais_deplacement > 0 ? `
       <tr>
-        <td>Frais de déplacement</td>
-        <td>-</td>
+        <td>Frais de deplacement</td>
+        <td style="text-align:center">1</td>
+        <td class="montant">${formatMontant(facture.frais_deplacement)}</td>
         <td class="montant">${formatMontant(facture.frais_deplacement)}</td>
       </tr>
       ` : ''}
@@ -2002,12 +2073,13 @@ function generateFactureHTML(facture, tenant) {
 
   ${facture.statut === 'payee' && facture.date_paiement ? `
   <p style="margin-top: 20px; color: #065f46; font-weight: bold;">
-    ✓ Payée le ${formatDate(facture.date_paiement)}
+    Payee le ${formatDate(facture.date_paiement)}
   </p>
   ` : ''}
 
   <div class="footer">
     <p>Merci pour votre confiance</p>
+    ${isFreeTier ? '<p style="margin-top: 4px; color: #0891b2;">Propulse par NEXUS — nexus-ai-saas.com</p>' : ''}
   </div>
 </body>
 </html>

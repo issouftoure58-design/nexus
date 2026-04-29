@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Switch } from '@/components/ui/switch';
 import { useTenantContext } from '@/contexts/TenantContext';
-import { Lock, ArrowRight, X } from 'lucide-react';
+import { Lock, ArrowRight, X, Clock } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export interface IAChannelConfig {
   web: boolean;
@@ -21,21 +22,21 @@ const CHANNELS = [
   {
     key: 'web' as const,
     label: 'Agent IA Web',
-    description: 'Chatbot IA 24/7 intégré sur votre site web (consomme des crédits)',
+    description: 'Chatbot IA 24/7 intégré sur votre site web',
     emoji: '🌐',
     plan: 'starter' as PlanType,
   },
   {
     key: 'whatsapp' as const,
     label: 'Agent IA WhatsApp',
-    description: 'Assistant IA sur WhatsApp pour vos clients (consomme des crédits)',
+    description: 'Assistant IA sur WhatsApp pour vos clients',
     emoji: '📱',
     plan: 'starter' as PlanType,
   },
   {
     key: 'telephone' as const,
     label: 'Agent IA Téléphone',
-    description: 'Assistant vocal IA pour les appels entrants (consomme des crédits)',
+    description: 'Assistant vocal IA pour les appels entrants',
     emoji: '📞',
     plan: 'starter' as PlanType,
   },
@@ -53,6 +54,21 @@ export default function ConfigIAChannels({ channels, onChange }: Props) {
   const { hasPlan } = useTenantContext();
   const navigate = useNavigate();
   const [upgradePrompt, setUpgradePrompt] = useState<{ channel: string; requiredPlan: PlanType } | null>(null);
+  const [channelStatuses, setChannelStatuses] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    api.get<{ channels?: Record<string, { active: boolean; status: string }> }>('/admin/ia/channels-status')
+      .then((res) => {
+        const statuses: Record<string, string> = {};
+        if (res.channels) {
+          for (const [key, val] of Object.entries(res.channels)) {
+            statuses[key] = val.status;
+          }
+        }
+        setChannelStatuses(statuses);
+      })
+      .catch(() => {});
+  }, [channels]);
 
   const toggle = (key: keyof IAChannelConfig, requiredPlan: PlanType) => {
     // Check if user has the required plan
@@ -67,7 +83,7 @@ export default function ConfigIAChannels({ channels, onChange }: Props) {
     <div className="space-y-3">
       <h3 className="font-semibold text-gray-900">Canaux IA</h3>
       <p className="text-sm text-gray-500">
-        Activez les assistants IA pour répondre à vos clients 24/7. Configurable après l'onboarding.
+        Activez les assistants IA pour répondre à vos clients 24/7.
       </p>
 
       <div className="space-y-2">
@@ -97,6 +113,12 @@ export default function ConfigIAChannels({ channels, onChange }: Props) {
                     {PLAN_LABELS[ch.plan]}
                   </button>
                 )}
+                {channelStatuses[ch.key] === 'pending' && (
+                  <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">
+                    <Clock className="w-3 h-3" />
+                    En attente
+                  </span>
+                )}
                 <Switch
                   checked={channels[ch.key]}
                   onCheckedChange={() => toggle(ch.key, ch.plan)}
@@ -108,6 +130,19 @@ export default function ConfigIAChannels({ channels, onChange }: Props) {
           );
         })}
       </div>
+
+      {/* Info activation WA/Tel */}
+      {(channels.whatsapp || channels.telephone) && (
+        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-800">
+            <strong>WhatsApp et Téléphone</strong> nécessitent un provisioning par notre équipe.
+            Une demande d'activation sera envoyée automatiquement. Délai : sous 24h.
+          </p>
+          <p className="text-xs text-amber-600 mt-1">
+            L'Agent IA Web est activé immédiatement.
+          </p>
+        </div>
+      )}
 
       {/* Upgrade prompt modal */}
       {upgradePrompt && (

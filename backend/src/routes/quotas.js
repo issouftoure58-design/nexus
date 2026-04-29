@@ -53,11 +53,11 @@ router.get('/', async (req, res) => {
       .select('plan, modules_actifs, statut')
       .eq('id', tenantId)
       .single();
-    // ═══ Modèle 2026 : Free / Basic / Business ═══
-    // En essai, on déverrouille comme Basic (le tenant teste pleinement avant de payer)
+    // ═══ Modèle 2026 : Free / Starter / Pro / Business ═══
+    // En essai, on déverrouille comme Starter (le tenant teste pleinement avant de payer)
     const rawPlan = (tenantRow?.plan || 'free').toLowerCase();
-    const normalizedPlan = rawPlan === 'starter' ? 'free' : rawPlan === 'pro' ? 'basic' : rawPlan;
-    const plan = tenantRow?.statut === 'essai' ? 'basic' : normalizedPlan;
+    const normalizedPlan = rawPlan === 'basic' ? 'starter' : rawPlan;
+    const plan = tenantRow?.statut === 'essai' ? 'starter' : normalizedPlan;
 
     // Récupérer les demandes d'activation en cours
     const { data: pendingReqs } = await supabase
@@ -91,17 +91,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Modules accessibles par plan (modèle 2026 : Free / Basic / Business)
+// Modules accessibles par plan (modèle 2026 : Free / Starter / Pro / Business)
 // Free : aucun module IA (sera bloqué par le check ci-dessous)
-// Basic : tous les canaux IA débloqués (pay-as-you-go via crédits)
-// Business : Basic + marketing email + tout
+// Starter : tous les canaux IA débloqués (pay-as-you-go via crédits)
+// Pro : Starter + tout illimité
+// Business : Pro + marketing email + tout
 const PLAN_MODULES = {
   free: ['sms_rdv'], // Free : seulement les SMS de RDV (pas d'IA)
-  basic: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  starter: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
   business: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
   // ⚠️ DEPRECATED — alias retro-compat
-  starter: ['sms_rdv'],
-  pro: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
+  basic: ['telephone_ia', 'sms_rdv', 'whatsapp_ia', 'web_chat_ia', 'marketing_email'],
 };
 
 /**
@@ -143,7 +144,7 @@ router.post('/request-activation', async (req, res) => {
     }
 
     const rawPlan2 = (tenantRow?.plan || 'free').toLowerCase();
-    const plan = rawPlan2 === 'starter' ? 'free' : rawPlan2 === 'pro' ? 'basic' : rawPlan2;
+    const plan = rawPlan2 === 'basic' ? 'starter' : rawPlan2;
 
     // Vérifier que le module est inclus dans le plan
     const allowedModules = PLAN_MODULES[plan] || PLAN_MODULES.free;

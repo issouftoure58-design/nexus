@@ -158,15 +158,14 @@ export const requireRole = (roles) => {
 
 /**
  * Middleware pour verifier un plan minimum
- * Modèle 2026 : Free / Basic / Business (+ Enterprise sur demande)
- * @param {string} minPlan - Plan minimum requis ('free', 'basic', 'business', 'enterprise')
+ * Modèle 2026 : Free / Starter / Pro / Business (+ Enterprise sur demande)
+ * @param {string} minPlan - Plan minimum requis ('free', 'starter', 'pro', 'business', 'enterprise')
  */
 export const requirePlan = (minPlan) => {
-  const planOrder = ['free', 'basic', 'business', 'enterprise'];
+  const planOrder = ['free', 'starter', 'pro', 'business', 'enterprise'];
   const normalize = (p) => {
     const x = (p || 'free').toLowerCase();
-    if (x === 'starter') return 'free';
-    if (x === 'pro') return 'basic';
+    if (x === 'basic') return 'starter';
     return x;
   };
 

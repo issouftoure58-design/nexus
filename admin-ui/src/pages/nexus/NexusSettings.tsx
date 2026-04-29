@@ -9,23 +9,24 @@ interface SystemStatus {
   tenants?: number;
 }
 
-// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
-// Free / Starter 69€ / Pro 199€ / Business 599€
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES as PP } from '../../lib/planPricing';
+
 const PLANS = [
   {
-    name: 'Free', price: 0, color: 'gray',
+    name: 'Free', price: PP.free, color: 'gray',
     features: ['Dashboard, Clients, Reservations', 'Facturation (avec watermark)', '1 utilisateur', '200 credits IA (limite)', 'Support email'],
   },
   {
-    name: 'Starter', price: 69, color: 'cyan', popular: true,
+    name: 'Starter', price: PP.starter, color: 'cyan', popular: true,
     features: ['Toutes les fonctions IA', 'Stock, Workflows, Pipeline, Devis, SEO', 'Fidelite, Equipe (5 max)', '1 000 credits IA inclus / mois', 'Support email prioritaire'],
   },
   {
-    name: 'Pro', price: 199, color: 'blue',
+    name: 'Pro', price: PP.pro, color: 'blue',
     features: ['Tout Starter +', 'Multi-sites, tout illimite', 'Equipe (20 max)', '5 000 credits IA inclus / mois', 'Support prioritaire'],
   },
   {
-    name: 'Business', price: 599, color: 'purple',
+    name: 'Business', price: PP.business, color: 'purple',
     features: ['Tout Pro +', 'RH complet + Compta & Analytique', 'Sentinel, White-label, API, SSO', '20 000 credits IA inclus / mois', 'Account Manager dedie, 50 users'],
   },
 ];

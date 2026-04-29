@@ -1216,7 +1216,25 @@ let lastProspectionFollowUpRun = 0;
 /**
  * Boucle principale du scheduler
  */
+const IS_DEV = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+
 async function runScheduler() {
+  // En dev, skip les jobs lourds (économie connexions Supabase)
+  if (IS_DEV) {
+    // Seul le relance 24h et les workflow actions sont utiles en dev
+    const now = Date.now();
+    const relanceInterval = (JOBS_SCHEDULE.relance24h.interval || 5) * 60 * 1000;
+    if (now - lastRelance24hRun >= relanceInterval) {
+      lastRelance24hRun = now;
+      await sendRelance24hJob().catch(e => console.error('[Scheduler] Erreur relance24h:', e.message));
+    }
+    try {
+      const { processScheduledActions } = await import('../automation/workflowEngine.js');
+      await processScheduledActions();
+    } catch (err) { /* ignore */ }
+    return;
+  }
+
   // Job: Remerciements à 10h
   if (shouldRunJob('remerciements', JOBS_SCHEDULE.remerciements)) {
     markJobExecuted('remerciements');
@@ -1441,39 +1459,34 @@ export function startScheduler() {
     return;
   }
 
-  console.log('[Scheduler] 🚀 Démarrage du scheduler');
-  console.log('[Scheduler] Jobs planifiés:');
-  console.log(`  ✅ Relances J+7/J+14/J+21: tous les jours à ${JOBS_SCHEDULE.relancesJ7J14J21.hour}h${String(JOBS_SCHEDULE.relancesJ7J14J21.minute).padStart(2, '0')} (nouveau système)`);
-  console.log(`  ✅ Relances factures (legacy): tous les jours à ${JOBS_SCHEDULE.relancesFactures.hour}h${String(JOBS_SCHEDULE.relancesFactures.minute).padStart(2, '0')} (4 niveaux)`);
-  console.log(`  ✅ Remerciements J+1: tous les jours à ${JOBS_SCHEDULE.remerciements.hour}h${String(JOBS_SCHEDULE.remerciements.minute).padStart(2, '0')}`);
-  console.log(`  ✅ Relance 24h exacte: toutes les ${JOBS_SCHEDULE.relance24h.interval} minutes (timing précis)`);
-  console.log(`  ✅ Publication sociale: toutes les ${JOBS_SCHEDULE.socialPublish.interval} minutes (posts programmés)`);
-  console.log(`  ✅ Alertes stock: toutes les ${JOBS_SCHEDULE.stockAlertes.interval} minutes (Plan PRO)`);
-  console.log(`  ✅ Intelligence IA: toutes les ${JOBS_SCHEDULE.intelligenceMonitoring.interval} minutes (Plan Business)`);
-  console.log(`  ✅ SEO Tracking: lundi ${JOBS_SCHEDULE.seoTracking.hour}h${String(JOBS_SCHEDULE.seoTracking.minute).padStart(2, '0')} (Plan Business)`);
-  console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
-  console.log(`  ✅ Trial Alerts: tous les jours à ${JOBS_SCHEDULE.trialAlerts.hour}h${String(JOBS_SCHEDULE.trialAlerts.minute).padStart(2, '0')} (J-7, J-3, J-1, J0)`);
-  console.log(`  ✅ Trial Nurture: tous les jours à ${JOBS_SCHEDULE.trialNurture.hour}h${String(JOBS_SCHEDULE.trialNurture.minute).padStart(2, '0')} (J3, J7, J10)`);
-  console.log(`  ✅ SENTINEL Snapshot: tous les jours à ${JOBS_SCHEDULE.sentinelSnapshot.hour}h${String(JOBS_SCHEDULE.sentinelSnapshot.minute).padStart(2, '0')} (Business)`);
-  console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
-  console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
-  console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
-  console.log(`  ⏸️  PLTE v2 Hourly: DÉSACTIVÉ (économie tokens)`);
-  console.log(`  ⏸️  PLTE v2 Nightly: DÉSACTIVÉ`);
-  console.log(`  ⏸️  PLTE v2 Weekly: DÉSACTIVÉ`);
-  console.log(`  ⏸️  PLTE E2E: DÉSACTIVÉ`);
-  console.log(`  ⏸️  Prospection Follow-Up: DÉSACTIVÉ (économie Google Places API)`);
-  console.log(`  ⏸️  Prospection Auto-Scrape: DÉSACTIVÉ (économie Google Places API)`);
-  console.log(`  ⏸️  Prospection Auto-Emails: DÉSACTIVÉ (économie Google Places API)`);
-  console.log(`  ⏸️  Prospection Auto-Campaign: DÉSACTIVÉ (économie Google Places API)`);
-  console.log(`  ✅ Crédits IA mensuels: 1er du mois à 00h15 (tous tenants payants)`);
-  console.log(`  ⏸️  Rappels J-1 (18h): DÉSACTIVÉ (remplacé par relance 24h exacte)`);
-
-  // Job optionnel - demandes d'avis
-  if (OPTIONAL_JOBS.demandesAvis) {
-    console.log(`  ✅ Demandes d'avis J+2: tous les jours à ${JOBS_SCHEDULE.demandesAvis.hour}h${String(JOBS_SCHEDULE.demandesAvis.minute).padStart(2, '0')}`);
+  if (IS_DEV) {
+    console.log('[Scheduler] 🚀 Mode DEV — jobs légers uniquement (relance24h + workflow actions)');
   } else {
-    console.log(`  ⏸️  Demandes d'avis J+2: DÉSACTIVÉ (ENABLE_AVIS_JOB=true pour activer)`);
+    console.log('[Scheduler] 🚀 Démarrage du scheduler (production)');
+    console.log('[Scheduler] Jobs planifiés:');
+    console.log(`  ✅ Relances J+7/J+14/J+21: tous les jours à ${JOBS_SCHEDULE.relancesJ7J14J21.hour}h${String(JOBS_SCHEDULE.relancesJ7J14J21.minute).padStart(2, '0')} (nouveau système)`);
+    console.log(`  ✅ Relances factures (legacy): tous les jours à ${JOBS_SCHEDULE.relancesFactures.hour}h${String(JOBS_SCHEDULE.relancesFactures.minute).padStart(2, '0')} (4 niveaux)`);
+    console.log(`  ✅ Remerciements J+1: tous les jours à ${JOBS_SCHEDULE.remerciements.hour}h${String(JOBS_SCHEDULE.remerciements.minute).padStart(2, '0')}`);
+    console.log(`  ✅ Relance 24h exacte: toutes les ${JOBS_SCHEDULE.relance24h.interval} minutes (timing précis)`);
+    console.log(`  ✅ Publication sociale: toutes les ${JOBS_SCHEDULE.socialPublish.interval} minutes (posts programmés)`);
+    console.log(`  ✅ Alertes stock: toutes les ${JOBS_SCHEDULE.stockAlertes.interval} minutes (Plan PRO)`);
+    console.log(`  ✅ Intelligence IA: toutes les ${JOBS_SCHEDULE.intelligenceMonitoring.interval} minutes (Plan Business)`);
+    console.log(`  ✅ SEO Tracking: lundi ${JOBS_SCHEDULE.seoTracking.hour}h${String(JOBS_SCHEDULE.seoTracking.minute).padStart(2, '0')} (Plan Business)`);
+    console.log(`  ✅ Churn Prevention: tous les jours a ${JOBS_SCHEDULE.churnPrevention.hour}h${String(JOBS_SCHEDULE.churnPrevention.minute).padStart(2, '0')} (Plan Business)`);
+    console.log(`  ✅ Trial Alerts: tous les jours à ${JOBS_SCHEDULE.trialAlerts.hour}h${String(JOBS_SCHEDULE.trialAlerts.minute).padStart(2, '0')} (J-7, J-3, J-1, J0)`);
+    console.log(`  ✅ Trial Nurture: tous les jours à ${JOBS_SCHEDULE.trialNurture.hour}h${String(JOBS_SCHEDULE.trialNurture.minute).padStart(2, '0')} (J3, J7, J10)`);
+    console.log(`  ✅ SENTINEL Snapshot: tous les jours à ${JOBS_SCHEDULE.sentinelSnapshot.hour}h${String(JOBS_SCHEDULE.sentinelSnapshot.minute).padStart(2, '0')} (Business)`);
+    console.log(`  ✅ SENTINEL Insights: lundi ${JOBS_SCHEDULE.sentinelInsights.hour}h${String(JOBS_SCHEDULE.sentinelInsights.minute).padStart(2, '0')} (Business)`);
+    console.log(`  ✅ Operator Report: lundi ${JOBS_SCHEDULE.operatorReport.hour}h${String(JOBS_SCHEDULE.operatorReport.minute).padStart(2, '0')} (rapport hebdo operateur)`);
+    console.log(`  ✅ SENTINEL Health: toutes les 5 min (via sentinel.init())`);
+    console.log(`  ✅ Crédits IA mensuels: 1er du mois à 00h15 (tous tenants payants)`);
+
+    // Job optionnel - demandes d'avis
+    if (OPTIONAL_JOBS.demandesAvis) {
+      console.log(`  ✅ Demandes d'avis J+2: tous les jours à ${JOBS_SCHEDULE.demandesAvis.hour}h${String(JOBS_SCHEDULE.demandesAvis.minute).padStart(2, '0')}`);
+    } else {
+      console.log(`  ⏸️  Demandes d'avis J+2: DÉSACTIVÉ (ENABLE_AVIS_JOB=true pour activer)`);
+    }
   }
 
   // Exécuter immédiatement puis toutes les minutes

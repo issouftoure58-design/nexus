@@ -74,8 +74,8 @@ const FREE_FEATURES = {
 
 /**
  * STARTER — 69€/mois — Premier plan payant
- * Toutes les IA débloquées. Stock, workflows, pipeline, devis, SEO, fidélité.
- * PAS de RH, PAS de Compta, PAS de Sentinel, PAS de multi-sites.
+ * Toutes les IA débloquées. Comptabilité, Stock, Analytics, CRM, Marketing, etc.
+ * PAS de RH, PAS de Sentinel, PAS de multi-sites, PAS de white-label/API/SSO.
  */
 const STARTER_FEATURES = {
   // Core CRUD (200 limites)
@@ -92,6 +92,7 @@ const STARTER_FEATURES = {
   // Modules débloqués
   equipe: true,
   fidelite: true,
+  comptabilite: true,
   stock: true,
   crm_avance: true,
   devis: true,
@@ -107,7 +108,6 @@ const STARTER_FEATURES = {
   agent_ia_web: true,
 
   // ⛔ Bloqués — Business uniquement
-  comptabilite: false,
   rh: false,
   sentinel: false,
   multi_site: false,
@@ -119,7 +119,7 @@ const STARTER_FEATURES = {
 /**
  * PRO — 199€/mois — Multi-sites, usage intensif
  * Starter + multi-sites. Tout illimité, 20 postes.
- * PAS de RH, PAS de Compta, PAS de Sentinel.
+ * PAS de RH, PAS de Sentinel, PAS de white-label/API/SSO.
  */
 const PRO_FEATURES = {
   ...STARTER_FEATURES,
@@ -129,10 +129,11 @@ const PRO_FEATURES = {
 /**
  * BUSINESS — 599€/mois — Full premium
  * TOUT sans exception. 50 postes.
- * Exclusivités : RH complet, Compta, Analytique, Sentinel, White-label, API, SSO, AM.
+ * Exclusivités : RH complet, Compta analytique, Sentinel, White-label, API, SSO, AM.
  */
 const BUSINESS_FEATURES = {
   ...PRO_FEATURES,
+  analytics: true,
   comptabilite: true,
   compta_analytique: true,
   rh: true,
@@ -168,7 +169,7 @@ export const ROUTE_MODULES = {
   '/api/orders': 'ecommerce',
   '/api/admin/orders': 'ecommerce',
 
-  // Canaux IA (Starter+, consomme des crédits)
+  // Canaux IA (Starter+)
   '/api/chat': 'agent_ia_web',
   '/api/admin/agents': 'agent_ia_web',
   '/api/whatsapp': 'whatsapp',

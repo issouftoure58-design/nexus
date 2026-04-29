@@ -53,6 +53,7 @@ import {
   DEFAULT_NEW_CLIENT_FORM,
   DEFAULT_FILTERS,
 } from '../components/activites/types';
+import { detectMajoration } from '../lib/majorations';
 
 // Tabs de navigation
 const tabs = [
@@ -130,8 +131,20 @@ export default function Activites() {
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [requireDeposit, setRequireDeposit] = useState(false);
 
+  // Horaires d'ouverture du salon
+  const [horairesOuverture, setHorairesOuverture] = useState<Array<{
+    jour: number; heure_debut: string | null; heure_fin: string | null; is_active: boolean;
+  }>>([]);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // === Charger horaires d'ouverture ===
+  useEffect(() => {
+    api.get<{ horaires: Array<{ jour: number; heure_debut: string | null; heure_fin: string | null; is_active: boolean }> }>('/admin/disponibilites/horaires')
+      .then(res => { if (res?.horaires) setHorairesOuverture(res.horaires); })
+      .catch(() => {});
+  }, []);
 
   // === Fermer dropdown au clic extérieur ===
   useEffect(() => {
@@ -226,7 +239,9 @@ export default function Activites() {
           duree: r.duree || r.duree_minutes || serviceDuree,
           date: r.date || r.date_rdv,
           heure: r.heure || r.heure_rdv,
-          prix: r.prix_total ?? r.montant ?? r.prix ?? 0,
+          prix: (r.services && r.services.length > 0)
+            ? r.services.reduce((sum: number, s: { prix_total?: number }) => sum + (s.prix_total || 0), 0)
+            : (r.prix_total ?? r.montant ?? r.prix ?? 0),
         };
       });
 
@@ -477,6 +492,105 @@ export default function Activites() {
   };
 
   /**
+   * Calcule le planning multi-jours quand la durée dépasse les heures d'ouverture.
+   * Retourne les jours avec heures de travail et la date de fin.
+   */
+  const calculateMultiDaySchedule = useCallback((
+    startDate: string,
+    startTime: string,
+    totalMinutes: number
+  ): { jours: Array<{ date: string; debut: string; fin: string; minutes: number }>; dateFin: string } => {
+    const jours: Array<{ date: string; debut: string; fin: string; minutes: number }> = [];
+    let remaining = totalMinutes;
+    let currentDate = new Date(startDate + 'T12:00:00'); // noon to avoid timezone issues
+
+    const getHoraires = (date: Date) => {
+      const dow = date.getDay(); // 0=dim
+      const h = horairesOuverture.find(ho => ho.jour === dow);
+      if (!h || !h.is_active || !h.heure_debut || !h.heure_fin) return null;
+      return { open: h.heure_debut, close: h.heure_fin };
+    };
+
+    // Premier jour : commence à startTime
+    const firstH = getHoraires(currentDate);
+    if (firstH) {
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [ch, cm] = firstH.close.split(':').map(Number);
+      const startMin = sh * 60 + (sm || 0);
+      const closeMin = ch * 60 + (cm || 0);
+      const availableMin = Math.max(closeMin - startMin, 0);
+      const workMin = Math.min(remaining, availableMin);
+      if (workMin > 0) {
+        const finMin = startMin + workMin;
+        jours.push({
+          date: currentDate.toISOString().slice(0, 10),
+          debut: startTime,
+          fin: `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`,
+          minutes: workMin,
+        });
+        remaining -= workMin;
+      }
+    }
+
+    // Jours suivants
+    let safety = 0;
+    while (remaining > 0 && safety < 60) {
+      safety++;
+      currentDate.setDate(currentDate.getDate() + 1);
+      const h = getHoraires(currentDate);
+      if (!h) continue; // jour fermé, on saute
+
+      const [oh, om] = h.open.split(':').map(Number);
+      const [ch2, cm2] = h.close.split(':').map(Number);
+      const openMin = oh * 60 + (om || 0);
+      const closeMin2 = ch2 * 60 + (cm2 || 0);
+      const availableMin = closeMin2 - openMin;
+      const workMin = Math.min(remaining, availableMin);
+
+      if (workMin > 0) {
+        const finMin = openMin + workMin;
+        jours.push({
+          date: currentDate.toISOString().slice(0, 10),
+          debut: h.open,
+          fin: `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`,
+          minutes: workMin,
+        });
+        remaining -= workMin;
+      }
+    }
+
+    const dateFin = jours.length > 0 ? jours[jours.length - 1].date : startDate;
+    return { jours, dateFin };
+  }, [horairesOuverture]);
+
+  /**
+   * Cappe l'heure de fin à la fermeture du salon pour le jour donné.
+   * Si la prestation dépasse, heure_fin = fermeture et date_fin auto-calculée.
+   */
+  const capEndTimeToClose = useCallback((startTime: string, dureeMinutes: number, date: string) => {
+    if (!date || !startTime || horairesOuverture.length === 0) {
+      return { heureFin: calculateEndTime(startTime, dureeMinutes), multiJour: false };
+    }
+    const dow = new Date(date + 'T12:00:00').getDay();
+    const h = horairesOuverture.find(ho => ho.jour === dow);
+    if (!h || !h.is_active || !h.heure_fin) {
+      return { heureFin: calculateEndTime(startTime, dureeMinutes), multiJour: false };
+    }
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [ch, cm] = h.heure_fin.split(':').map(Number);
+    const startMin = sh * 60 + (sm || 0);
+    const closeMin = ch * 60 + (cm || 0);
+    const endMin = startMin + dureeMinutes;
+
+    if (endMin <= closeMin) {
+      return { heureFin: calculateEndTime(startTime, dureeMinutes), multiJour: false };
+    }
+
+    // La prestation dépasse la fermeture → capper et marquer multi-jour
+    return { heureFin: h.heure_fin, multiJour: true };
+  }, [horairesOuverture]);
+
+  /**
    * Recalcule toutes les heures en cascade pour domicile (coiffeur solo).
    * Parcourt TOUS les services et affectations séquentiellement.
    */
@@ -554,51 +668,88 @@ export default function Activites() {
             membre_nom: membre ? `${membre.prenom} ${membre.nom}` : undefined
           };
 
-          // Auto-fill async: chercher la prochaine dispo réelle (DB + lignes en cours)
-          if (membreId && !newAffectations[affectationIndex].heure_debut && newRdvForm.date_rdv) {
-            const currentDuree = sl.duree_minutes;
-            // Lancer la requête en arrière-plan (ne bloque pas le setState)
-            api.get<any>(`/admin/services/equipe/${membreId}/prochaine-dispo?date=${newRdvForm.date_rdv}`)
-              .then(res => {
-                const dbDispo = res?.prochaine_dispo || null;
-                // Aussi vérifier les lignes en cours dans le formulaire
-                setServiceLignes(current => {
-                  let latestEnd = dbDispo || '';
-                  for (const otherSl of current) {
-                    for (let i = 0; i < otherSl.affectations.length; i++) {
-                      const aff = otherSl.affectations[i];
-                      if (aff.membre_id === membreId && aff.heure_fin) {
-                        if (otherSl.service_id === serviceId && i === affectationIndex) continue;
-                        if (aff.heure_fin > latestEnd) latestEnd = aff.heure_fin;
+          // Auto-cascade synchrone : si le même employé a déjà un créneau dans cette résa,
+          // placer ce service juste après + gap entre services + respect pause déjeuner
+          if (membreId && !newAffectations[affectationIndex].heure_debut) {
+            let latestEnd = '';
+            // Chercher la dernière heure_fin de cet employé dans les AUTRES services du formulaire
+            for (const otherSl of prev) {
+              for (let i = 0; i < otherSl.affectations.length; i++) {
+                const aff = otherSl.affectations[i];
+                if (aff.membre_id === membreId && aff.heure_fin) {
+                  if (otherSl.service_id === serviceId && i === affectationIndex) continue;
+                  if (aff.heure_fin > latestEnd) latestEnd = aff.heure_fin;
+                }
+              }
+            }
+
+            if (latestEnd) {
+              // Gap entre services (10min par défaut, configurable par employé)
+              const gap = membre?.gap_entre_services_minutes ?? 10;
+              let startTime = calculateEndTime(latestEnd, gap);
+
+              // Si le créneau chevauche la pause déjeuner de l'employé, décaler après
+              const pauseDebut = membre?.pause_debut || '12:00';
+              const pauseFin = membre?.pause_fin || '13:00';
+              const endTime = calculateEndTime(startTime, sl.duree_minutes);
+              if (startTime < pauseFin && endTime > pauseDebut) {
+                startTime = pauseFin;
+              }
+
+              // Capper l'heure de fin à la fermeture du salon
+              const { heureFin, multiJour } = capEndTimeToClose(startTime, sl.duree_minutes, newRdvForm.date_rdv);
+              newAffectations[affectationIndex] = {
+                ...newAffectations[affectationIndex],
+                heure_debut: startTime,
+                heure_fin: heureFin
+              };
+              // Auto-renseigner date_fin si multi-jours
+              if (multiJour && newRdvForm.date_rdv) {
+                const schedule = calculateMultiDaySchedule(newRdvForm.date_rdv, startTime, sl.duree_minutes);
+                setNewRdvForm(f => ({ ...f, date_fin: schedule.dateFin }));
+              }
+            } else if (newRdvForm.date_rdv) {
+              // Aucun créneau existant dans le form → chercher en DB (async)
+              const currentDuree = sl.duree_minutes;
+              api.get<any>(`/admin/services/equipe/${membreId}/prochaine-dispo?date=${newRdvForm.date_rdv}`)
+                .then(res => {
+                  const dbDispo = res?.prochaine_dispo || null;
+                  if (!dbDispo) return;
+                  setServiceLignes(current => {
+                    return current.map(s => {
+                      if (s.service_id !== serviceId) return s;
+                      const affs = [...s.affectations];
+                      if (affs[affectationIndex]?.heure_debut) return s;
+                      const { heureFin: cappedFin, multiJour: isMulti } = capEndTimeToClose(dbDispo, currentDuree, newRdvForm.date_rdv);
+                      affs[affectationIndex] = {
+                        ...affs[affectationIndex],
+                        heure_debut: dbDispo,
+                        heure_fin: cappedFin
+                      };
+                      if (isMulti && newRdvForm.date_rdv) {
+                        const schedule = calculateMultiDaySchedule(newRdvForm.date_rdv, dbDispo, currentDuree);
+                        setNewRdvForm(f => ({ ...f, date_fin: schedule.dateFin }));
                       }
-                    }
-                  }
-                  if (!latestEnd) return current;
-                  return current.map(s => {
-                    if (s.service_id !== serviceId) return s;
-                    const affs = [...s.affectations];
-                    // Ne pas écraser si l'utilisateur a déjà saisi entre-temps
-                    if (affs[affectationIndex]?.heure_debut) return s;
-                    affs[affectationIndex] = {
-                      ...affs[affectationIndex],
-                      heure_debut: latestEnd,
-                      heure_fin: calculateEndTime(latestEnd, currentDuree)
-                    };
-                    return { ...s, affectations: affs };
+                      return { ...s, affectations: affs };
+                    });
                   });
-                });
-              })
-              .catch(() => { /* silently fail — l'utilisateur peut saisir manuellement */ });
+                })
+                .catch(() => {});
+            }
           }
         } else if (field === 'heure_debut' && value) {
           let currentStart = value as string;
           for (let i = affectationIndex; i < newAffectations.length; i++) {
-            const heureFin = calculateEndTime(currentStart, sl.duree_minutes);
+            const { heureFin, multiJour } = capEndTimeToClose(currentStart, sl.duree_minutes, newRdvForm.date_rdv);
             newAffectations[i] = {
               ...newAffectations[i],
               heure_debut: currentStart,
               heure_fin: heureFin
             };
+            if (multiJour && newRdvForm.date_rdv) {
+              const schedule = calculateMultiDaySchedule(newRdvForm.date_rdv, currentStart, sl.duree_minutes);
+              setNewRdvForm(f => ({ ...f, date_fin: schedule.dateFin }));
+            }
             currentStart = heureFin;
           }
         } else {
@@ -611,6 +762,12 @@ export default function Activites() {
         return { ...sl, affectations: newAffectations };
       });
     });
+  };
+
+  const updateServiceLigneField = (serviceId: number, field: keyof ServiceLigne, value: string | number) => {
+    setServiceLignes(prev => prev.map(sl =>
+      sl.service_id === serviceId ? { ...sl, [field]: value } : sl
+    ));
   };
 
   // === CALCULS ===
@@ -678,7 +835,72 @@ export default function Activites() {
       remise = newRdvForm.remise_valeur * 100;
     }
 
-    const montantHT = montantAvantRemise - remise;
+    // Majorations auto (security only): nuit/dimanche/férié
+    let montantMajorations = 0;
+    if (isBusinessType('security')) {
+      serviceLignes.forEach(sl => {
+        const service = services.find(s => s.id === sl.service_id);
+        const tauxHoraire = service?.taux_horaire || sl.taux_horaire || sl.prix_unitaire;
+        // Date de référence: date_debut de la ligne ou date globale
+        const dateRef = sl.date_debut || newRdvForm.date_rdv;
+        if (!dateRef) return;
+
+        if (pricingMode === 'hourly') {
+          sl.affectations.forEach(aff => {
+            if (!aff.heure_debut || !aff.heure_fin) return;
+            const maj = detectMajoration(dateRef, aff.heure_debut, aff.heure_fin);
+            if (maj.pourcentage > 0) {
+              const heures = calculateHours(aff.heure_debut, aff.heure_fin);
+              const nbJ = (sl.date_debut && sl.date_fin)
+                ? calculateDays(sl.date_debut, sl.date_fin)
+                : (newRdvForm.date_fin && newRdvForm.date_rdv ? calculateDays(newRdvForm.date_rdv, newRdvForm.date_fin) : 1);
+              montantMajorations += Math.round(tauxHoraire * heures * nbJ * maj.pourcentage / 100);
+            }
+          });
+        } else if (pricingMode === 'daily') {
+          const tauxJ = service?.taux_journalier || sl.prix_unitaire;
+          const nbJ = (sl.date_debut && sl.date_fin)
+            ? calculateDays(sl.date_debut, sl.date_fin)
+            : (newRdvForm.date_fin && newRdvForm.date_rdv ? calculateDays(newRdvForm.date_rdv, newRdvForm.date_fin) : 1);
+          // Estimate: use 08:00-18:00 as default hours for daily pricing
+          const maj = detectMajoration(dateRef, '08:00', '18:00');
+          if (maj.pourcentage > 0) {
+            montantMajorations += Math.round(tauxJ * nbJ * sl.quantite * maj.pourcentage / 100);
+          }
+        }
+      });
+    }
+
+    const montantAvantCnaps = montantAvantRemise - remise + montantMajorations;
+
+    // Calculer CNAPS: s'applique sur le HT de base des services avec taxe_cnaps=true
+    let montantCnaps = 0;
+    serviceLignes.forEach(sl => {
+      const service = services.find(s => s.id === sl.service_id);
+      if (service?.taxe_cnaps && (service.taux_cnaps ?? 0) > 0) {
+        // CNAPS sur le montant HT de cette ligne
+        let ligneHT = 0;
+        if (pricingMode === 'hourly') {
+          const nbJ = newRdvForm.date_fin && newRdvForm.date_rdv
+            ? calculateDays(newRdvForm.date_rdv, newRdvForm.date_fin) : 1;
+          const tauxH = service.taux_horaire || sl.taux_horaire || sl.prix_unitaire;
+          sl.affectations.forEach(aff => {
+            if (aff.heure_debut && aff.heure_fin) {
+              ligneHT += Math.round(tauxH * calculateHours(aff.heure_debut, aff.heure_fin) * nbJ);
+            }
+          });
+        } else if (pricingMode === 'daily') {
+          const jours = newRdvForm.date_fin && newRdvForm.date_rdv
+            ? calculateDays(newRdvForm.date_rdv, newRdvForm.date_fin) : 1;
+          ligneHT = Math.round((service.taux_journalier || sl.prix_unitaire) * jours * sl.quantite);
+        } else {
+          ligneHT = sl.prix_unitaire * sl.quantite;
+        }
+        montantCnaps += Math.round(ligneHT * (service.taux_cnaps ?? 0) / 100);
+      }
+    });
+
+    const montantHT = montantAvantCnaps + montantCnaps;
     const tva = Math.round(montantHT * 0.2);
     const totalTTC = montantHT + tva;
 
@@ -706,6 +928,8 @@ export default function Activites() {
       dureeTotale,
       fraisDeplacement,
       remise,
+      montantMajorations,
+      montantCnaps,
       montantHT,
       tva,
       totalTTC,
@@ -1168,20 +1392,63 @@ export default function Activites() {
             ? newRdvForm.adresse_prestation
             : newRdvForm.adresse_facturation,
           notes: newRdvForm.notes,
-          services: serviceLignes.map(sl => ({
-            service_id: sl.service_id,
-            service_nom: sl.service_nom,
-            quantite: sl.quantite,
-            prix_unitaire: sl.prix_unitaire,
-            duree_minutes: sl.duree_minutes,
-            membre_id: sl.membre_id || null,
-            taux_horaire: sl.taux_horaire || null,
-            affectations: sl.affectations.map(aff => ({
-              membre_id: aff.membre_id,
-              heure_debut: aff.heure_debut,
-              heure_fin: aff.heure_fin
-            }))
-          })),
+          services: serviceLignes.flatMap(sl => {
+            const baseService: Record<string, any> = {
+              service_id: sl.service_id,
+              service_nom: sl.service_nom,
+              quantite: sl.quantite,
+              prix_unitaire: sl.prix_unitaire,
+              duree_minutes: sl.duree_minutes,
+              membre_id: sl.membre_id || null,
+              taux_horaire: sl.taux_horaire || null,
+              affectations: sl.affectations.map(aff => ({
+                membre_id: aff.membre_id,
+                heure_debut: aff.heure_debut,
+                heure_fin: aff.heure_fin
+              }))
+            };
+            // Plage de dates par ligne (security / multi-day)
+            if (sl.date_debut) baseService.date_debut = sl.date_debut;
+            if (sl.date_fin) baseService.date_fin = sl.date_fin;
+
+            // Multi-jours : ajouter les lignes des jours suivants
+            if (newRdvForm.date_fin && newRdvForm.date_rdv && newRdvForm.date_fin > newRdvForm.date_rdv) {
+              const firstAff = sl.affectations.find(a => a.heure_debut);
+              if (firstAff?.heure_debut && sl.duree_minutes > 480) {
+                const schedule = calculateMultiDaySchedule(newRdvForm.date_rdv, firstAff.heure_debut, sl.duree_minutes);
+                if (schedule.jours.length > 1) {
+                  // Jour 1 : heures déjà dans baseService, juste capper la durée
+                  const jour1 = schedule.jours[0];
+                  baseService.affectations = sl.affectations.map(aff => ({
+                    membre_id: aff.membre_id,
+                    heure_debut: jour1.debut,
+                    heure_fin: jour1.fin,
+                  }));
+                  baseService.duree_minutes = jour1.minutes;
+
+                  // Jours suivants : lignes supplémentaires avec date
+                  const extraDays = schedule.jours.slice(1).map(j => ({
+                    service_id: sl.service_id,
+                    service_nom: sl.service_nom,
+                    quantite: 1,
+                    prix_unitaire: 0, // prix déjà compté sur jour 1
+                    duree_minutes: j.minutes,
+                    membre_id: sl.membre_id || null,
+                    taux_horaire: sl.taux_horaire || null,
+                    date: j.date, // date spécifique pour cette ligne
+                    affectations: sl.affectations.map(aff => ({
+                      membre_id: aff.membre_id,
+                      heure_debut: j.debut,
+                      heure_fin: j.fin,
+                    }))
+                  }));
+
+                  return [baseService, ...extraDays];
+                }
+              }
+            }
+            return [baseService];
+          }),
           membre_ids: uniqueMembreIds,
           membre_id: serviceLignes[0]?.membre_id || uniqueMembreIds[0] || null,
           remise_type: newRdvForm.remise_type || null,
@@ -1374,12 +1641,14 @@ export default function Activites() {
           onRemoveServiceLigne={removeServiceLigne}
           onUpdateServiceQuantite={updateServiceQuantite}
           onUpdateAffectation={updateAffectation}
+          onUpdateServiceLigneField={updateServiceLigneField}
           onCalculateTotals={calculateTotals}
           depositEnabled={depositEnabled}
           requireDeposit={requireDeposit}
           onRequireDepositChange={setRequireDeposit}
           onSubmit={handleCreateRdv}
           onClose={() => { setShowNewModal(false); resetNewRdvForm(); }}
+          calculateMultiDaySchedule={calculateMultiDaySchedule}
         />
       )}
 

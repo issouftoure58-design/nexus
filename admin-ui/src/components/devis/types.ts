@@ -39,6 +39,8 @@ export interface Service {
   prix: number;
   duree: number;
   taux_horaire?: number; // centimes/heure
+  taxe_cnaps?: boolean;
+  taux_cnaps?: number;
 }
 
 export type StatutDevis = 'brouillon' | 'envoye' | 'accepte' | 'rejete' | 'expire' | 'annule' | 'execute';
@@ -75,6 +77,9 @@ export interface ServiceLigne {
   // Legacy - pour compatibilite
   heure_debut?: string;
   heure_fin?: string;
+  // Plage de dates par ligne (security / multi-day)
+  date_debut?: string;
+  date_fin?: string;
 }
 
 // Interface ressource pour les affectations (modele generique)

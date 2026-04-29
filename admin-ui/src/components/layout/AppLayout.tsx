@@ -11,7 +11,7 @@ import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlobalMenu } from './GlobalMenu';
-import { Menu, Search, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
+import { Menu, Bell, User, Settings, LogOut, ChevronRight, Check } from 'lucide-react';
 import { TrialBanner } from '../TrialBanner';
 import { CreditAlertBanner } from '../CreditAlertBanner';
 import { api, notificationsApi } from '@/lib/api';
@@ -106,7 +106,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 overflow-x-hidden">
+    <div className="min-h-screen bg-white dark:bg-gray-950 overflow-clip">
       {/* Global Menu (slide-out) */}
       <GlobalMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
@@ -133,17 +133,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           </div>
 
-          {/* Center: Search */}
-          <div className="flex-1 max-w-xl mx-4 hidden md:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Rechercher... (⌘K)"
-                className="w-full pl-10 pr-4 py-1.5 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-              />
-            </div>
-          </div>
+          {/* Spacer */}
+          <div className="flex-1" />
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
@@ -228,14 +219,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </div>
                   <div className="py-1">
                     <button
-                      onClick={() => { navigate('/settings/profile'); setUserMenuOpen(false); }}
+                      onClick={() => { navigate('/'); setUserMenuOpen(false); }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
                     >
                       <User className="w-4 h-4" />
-                      Mon profil
+                      Dashboard
                     </button>
                     <button
-                      onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}
+                      onClick={() => { navigate('/parametres'); setUserMenuOpen(false); }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
                     >
                       <Settings className="w-4 h-4" />

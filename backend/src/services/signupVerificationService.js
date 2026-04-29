@@ -133,8 +133,8 @@ export async function createPhoneVerification(phone, ip = null) {
 
   const phoneE164 = formatPhoneE164(phone);
 
-  // Rate limit par IP : max 5 verifications/heure
-  if (ip) {
+  // Rate limit par IP : max 5 verifications/heure (skip en dev si SKIP_RATE_LIMIT)
+  if (ip && !process.env.SKIP_RATE_LIMIT) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count } = await supabase
       .from('signup_phone_verifications')

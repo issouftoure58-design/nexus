@@ -1,9 +1,9 @@
 /**
  * Client Handler — Outils client et admin pour recherche, RDV, services, salon.
- * search_clients, get_client_info, get_price, check_availability,
- * get_available_slots, calculate_travel_fee, create_booking, find_appointment,
- * cancel_appointment, get_salon_info, get_business_hours, tout_savoir_sur_client,
- * send_message
+ * search_clients, create_client, update_client, get_client_info, get_price,
+ * check_availability, get_available_slots, calculate_travel_fee, create_booking,
+ * find_appointment, cancel_appointment, get_salon_info, get_business_hours,
+ * tout_savoir_sur_client, send_message (WhatsApp + SMS + Email)
  */
 
 import { supabase } from '../../config/supabase.js';
@@ -13,6 +13,8 @@ import { createReservationUnified } from '../../services/bookingService.js';
 import { cancelAppointmentById } from '../../core/unified/nexusCore.js';
 import { search as halimahSearch, buildMemoryContext } from '../../services/halimahMemory.js';
 import { sendWhatsAppNotification } from '../../services/whatsappService.js';
+import { sendEmail } from '../../services/emailService.js';
+import { sendSMS } from '../../services/smsService.js';
 
 /**
  * Calcule le prix d'une réservation en centimes.
@@ -74,6 +76,125 @@ async function search_clients(toolInput, tenantId, adminId) {
     };
   } catch (error) {
     logger.error('[CLIENT HANDLER] Erreur search_clients:', { error: error.message, tenantId });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Crée un nouveau client dans la base de données.
+ */
+async function create_client(toolInput, tenantId, adminId) {
+  if (!tenantId) throw new Error('TENANT_SHIELD: tenant_id requis');
+
+  try {
+    const prenom = (toolInput.prenom || '').trim();
+    const nom = (toolInput.nom || '').trim();
+    const telephone = (toolInput.telephone || '').trim();
+
+    if (!prenom || !nom || !telephone) {
+      return { success: false, error: 'prenom, nom et telephone requis' };
+    }
+
+    // Vérifier doublon téléphone
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, prenom, nom')
+      .eq('tenant_id', tenantId)
+      .eq('telephone', telephone)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return {
+        success: false,
+        error: `Un client avec ce téléphone existe déjà: ${existing[0].prenom} ${existing[0].nom} (ID: ${existing[0].id})`
+      };
+    }
+
+    const insertData = {
+      tenant_id: tenantId,
+      prenom,
+      nom,
+      telephone
+    };
+    if (toolInput.email) insertData.email = toolInput.email.trim();
+    if (toolInput.adresse) insertData.adresse = toolInput.adresse.trim();
+    if (toolInput.notes) insertData.notes = toolInput.notes.trim();
+
+    const { data: client, error } = await supabase
+      .from('clients')
+      .insert(insertData)
+      .select('id, prenom, nom, telephone, email')
+      .single();
+
+    if (error) {
+      logger.error('[CLIENT HANDLER] Erreur create_client:', { error, tenantId });
+      return { success: false, error: error.message };
+    }
+
+    logger.info('[CLIENT HANDLER] Client créé', { tenantId, adminId, clientId: client.id });
+
+    return { success: true, client };
+  } catch (error) {
+    logger.error('[CLIENT HANDLER] Erreur create_client:', { error: error.message, tenantId });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Met à jour les informations d'un client existant.
+ */
+async function update_client(toolInput, tenantId, adminId) {
+  if (!tenantId) throw new Error('TENANT_SHIELD: tenant_id requis');
+
+  try {
+    const clientId = toolInput.client_id;
+    if (!clientId) {
+      return { success: false, error: 'client_id requis' };
+    }
+
+    // Vérifier que le client existe et appartient au tenant
+    const { data: existing, error: lookupError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (lookupError || !existing) {
+      return { success: false, error: 'Client non trouvé' };
+    }
+
+    // Construire l'objet update avec seulement les champs fournis
+    const updateData = {};
+    if (toolInput.prenom !== undefined) updateData.prenom = toolInput.prenom.trim();
+    if (toolInput.nom !== undefined) updateData.nom = toolInput.nom.trim();
+    if (toolInput.telephone !== undefined) updateData.telephone = toolInput.telephone.trim();
+    if (toolInput.email !== undefined) updateData.email = toolInput.email.trim();
+    if (toolInput.adresse !== undefined) updateData.adresse = toolInput.adresse.trim();
+    if (toolInput.notes !== undefined) updateData.notes = toolInput.notes.trim();
+
+    if (Object.keys(updateData).length === 0) {
+      return { success: false, error: 'Aucun champ à mettre à jour' };
+    }
+
+    const { data: client, error } = await supabase
+      .from('clients')
+      .update(updateData)
+      .eq('id', clientId)
+      .eq('tenant_id', tenantId)
+      .select('id, prenom, nom, telephone, email')
+      .single();
+
+    if (error) {
+      logger.error('[CLIENT HANDLER] Erreur update_client:', { error, tenantId });
+      return { success: false, error: error.message };
+    }
+
+    logger.info('[CLIENT HANDLER] Client mis à jour', { tenantId, adminId, clientId });
+
+    return { success: true, client };
+  } catch (error) {
+    logger.error('[CLIENT HANDLER] Erreur update_client:', { error: error.message, tenantId });
     return { success: false, error: error.message };
   }
 }
@@ -636,18 +757,79 @@ async function tout_savoir_sur_client(toolInput, tenantId, adminId) {
 }
 
 /**
- * Envoie un message au client via WhatsApp.
+ * Envoie un message au client via WhatsApp, SMS ou Email.
  */
 async function send_message(toolInput, tenantId, adminId) {
   if (!tenantId) throw new Error('TENANT_SHIELD: tenant_id requis');
 
   try {
-    const { telephone, message } = toolInput;
+    const { telephone, message, canal, email, objet } = toolInput;
+    const channel = (canal || 'whatsapp').toLowerCase();
 
+    if (channel === 'email') {
+      if (!email) {
+        return { success: false, error: 'email requis pour canal email' };
+      }
+      if (!objet) {
+        return { success: false, error: 'objet requis pour canal email' };
+      }
+      if (!message) {
+        return { success: false, error: 'message requis' };
+      }
+
+      logger.info('[CLIENT HANDLER] Envoi email', {
+        tenantId,
+        adminId,
+        to: email,
+        subject: objet
+      });
+
+      const result = await sendEmail({
+        to: email,
+        subject: objet,
+        html: `<p>${message.replace(/\n/g, '<br>')}</p>`
+      });
+
+      return {
+        success: true,
+        canal: 'email',
+        message_id: result?.id || null,
+        info: 'Email envoyé'
+      };
+    }
+
+    if (channel === 'sms') {
+      if (!telephone) {
+        return { success: false, error: 'telephone requis pour canal SMS' };
+      }
+      if (!message) {
+        return { success: false, error: 'message requis' };
+      }
+
+      logger.info('[CLIENT HANDLER] Envoi SMS', {
+        tenantId,
+        adminId,
+        telephone: telephone.substring(0, 6) + '***',
+        messageLength: message.length
+      });
+
+      const result = await sendSMS(telephone, message, tenantId);
+
+      return {
+        success: result.success !== false,
+        canal: 'sms',
+        message_id: result.messageId || result.sid || null,
+        simulated: result.simulated || false,
+        info: result.simulated
+          ? 'SMS simulé (Twilio non configuré)'
+          : 'SMS envoyé'
+      };
+    }
+
+    // Default: WhatsApp
     if (!telephone) {
       return { success: false, error: 'telephone requis' };
     }
-
     if (!message) {
       return { success: false, error: 'message requis' };
     }
@@ -663,6 +845,7 @@ async function send_message(toolInput, tenantId, adminId) {
 
     return {
       success: result.success !== false,
+      canal: 'whatsapp',
       message_id: result.messageId,
       simulated: result.simulated || false,
       info: result.simulated
@@ -677,6 +860,8 @@ async function send_message(toolInput, tenantId, adminId) {
 
 export const clientHandlers = {
   search_clients,
+  create_client,
+  update_client,
   get_client_info,
   get_price,
   check_availability,

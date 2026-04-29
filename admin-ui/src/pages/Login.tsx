@@ -20,6 +20,14 @@ export default function Login() {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-redirect si déjà connecté (ex: retour de Stripe checkout)
+  useEffect(() => {
+    const token = api.getToken();
+    if (token) {
+      navigate('/');
+    }
+  }, [navigate]);
+
   // SSO state
   const [ssoProviders, setSsoProviders] = useState<Array<{ id: string; name: string; provider_type: string }>>([]);
   const [ssoTenantId, setSsoTenantId] = useState('');

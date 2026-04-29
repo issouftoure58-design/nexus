@@ -20,9 +20,11 @@ import {
   Briefcase,
   Printer,
   Download,
-  Mail
+  Mail,
+  Loader2
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { splitHoursSegments, detectMajoration } from '@/lib/majorations';
 
 interface Membre {
   id: number;
@@ -106,6 +108,106 @@ interface PlanningData {
   };
 }
 
+// ── Types & constantes impression ─────────────────────────────────────────
+
+interface PrintHoursTotals {
+  jour: number;
+  nuit: number;
+  dimanche_jour: number;
+  dimanche_nuit: number;
+  ferie_jour: number;
+  ferie_nuit: number;
+  total: number;
+}
+
+const JOURS_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+const TOTALS_LABELS: Record<Exclude<keyof PrintHoursTotals, 'total'>, string> = {
+  jour: 'Jour',
+  nuit: 'Nuit',
+  dimanche_jour: 'Dim. jour',
+  dimanche_nuit: 'Dim. nuit',
+  ferie_jour: 'Férié jour',
+  ferie_nuit: 'Férié nuit',
+};
+
+function computeEmployeeHoursTotals(planningData: Record<string, PlanningJour>): PrintHoursTotals {
+  const totals: PrintHoursTotals = { jour: 0, nuit: 0, dimanche_jour: 0, dimanche_nuit: 0, ferie_jour: 0, ferie_nuit: 0, total: 0 };
+
+  Object.entries(planningData).forEach(([dateStr, jour]) => {
+    jour.rdv.forEach(rdv => {
+      const hDebut = rdv.heure?.slice(0, 5) || '';
+      let hFin = rdv.heure_fin?.slice(0, 5) || '';
+      if (hFin) {
+        const [hf] = hFin.split(':').map(Number);
+        if (hf >= 24) hFin = `${(hf % 24).toString().padStart(2, '0')}:${hFin.split(':')[1]}`;
+      }
+
+      if (hDebut && hFin) {
+        const segments = splitHoursSegments(dateStr, hDebut, hFin);
+        segments.forEach(seg => {
+          (totals as any)[seg.type] += seg.hours;
+          totals.total += seg.hours;
+        });
+      } else {
+        const dur = (rdv.duree || 60) / 60;
+        const maj = detectMajoration(dateStr, hDebut || '12:00', '');
+        (totals as any)[maj.type] += dur;
+        totals.total += dur;
+      }
+    });
+  });
+
+  return totals;
+}
+
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function getWeekDatesFromMonday(monday: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function getPrintRangeLabel(dateDebut: string, dateFin: string): string {
+  const d1 = new Date(dateDebut + 'T12:00');
+  const d2 = new Date(dateFin + 'T12:00');
+  const days = Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1;
+  if (days === 1) return d1.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (days <= 7) return `Sem. ${getWeekNumber(d1)}/${d1.getFullYear()}`;
+  if (days <= 62) {
+    const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
+    return `${d1.toLocaleDateString('fr-FR', opts)} — ${d2.toLocaleDateString('fr-FR', opts)}`;
+  }
+  return `${d1.getFullYear()}`;
+}
+
+function getRangeDays(dateDebut: string, dateFin: string): number {
+  return Math.round((new Date(dateFin + 'T12:00').getTime() - new Date(dateDebut + 'T12:00').getTime()) / 86400000) + 1;
+}
+
+function getWeeksInRange(dateDebut: string, dateFin: string): Date[][] {
+  const weeks: Date[][] = [];
+  let monday = getMonday(new Date(dateDebut + 'T12:00'));
+  const end = new Date(dateFin + 'T12:00');
+  while (monday <= end) {
+    weeks.push(getWeekDatesFromMonday(monday));
+    const next = new Date(monday);
+    next.setDate(next.getDate() + 7);
+    monday = next;
+  }
+  return weeks;
+}
+
 // Obtenir les jours de la semaine à partir d'une date
 function getWeekDays(date: Date): Date[] {
   const day = date.getDay();
@@ -145,11 +247,21 @@ export default function PlanningEmploye() {
   const [resumeHebdo, setResumeHebdo] = useState<ResumeHebdo[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'semaine' | 'equipe'>('semaine');
+  const [printDateDebut, setPrintDateDebut] = useState('');
+  const [printDateFin, setPrintDateFin] = useState('');
+  const [printData, setPrintData] = useState<PlanningData | null>(null);
+  const [printLoading, setPrintLoading] = useState(false);
 
   // Ref pour tracker la requête en cours et éviter les race conditions
   const requestIdRef = useRef(0);
 
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate]);
+
+  // Sync print dates to current week
+  useEffect(() => {
+    setPrintDateDebut(formatDate(weekDays[0]));
+    setPrintDateFin(formatDate(weekDays[6]));
+  }, [weekDays]);
 
   // Charger les membres
   useEffect(() => {
@@ -237,6 +349,8 @@ export default function PlanningEmploye() {
 
   const selectedMembreInfo = membres.find(m => m.id === selectedMembre);
 
+
+
   const getStatutColor = (statut: string) => {
     switch (statut) {
       case 'ok': return 'bg-green-100 text-green-800';
@@ -257,8 +371,29 @@ export default function PlanningEmploye() {
   };
 
   // Imprimer le planning
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    const weekDebut = formatDate(weekDays[0]);
+    const weekFin = formatDate(weekDays[6]);
+
+    // If range matches loaded week, print directly
+    if (printDateDebut === weekDebut && printDateFin === weekFin && planning) {
+      setPrintData(null);
+      window.print();
+      return;
+    }
+
+    if (!selectedMembre) return;
+
+    setPrintLoading(true);
+    try {
+      const data = await api.get<PlanningData>(
+        `/admin/rh/membres/${selectedMembre}/planning?date_debut=${printDateDebut}&date_fin=${printDateFin}`
+      );
+      setPrintData(data);
+      setTimeout(() => { window.print(); setPrintLoading(false); }, 100);
+    } catch {
+      setPrintLoading(false);
+    }
   };
 
   // Télécharger le planning en PDF
@@ -313,8 +448,323 @@ export default function PlanningEmploye() {
     }
   };
 
+  // ── Print template ──────────────────────────────────────────────────────
+  const renderPrintTemplate = () => {
+    const pDebut = printDateDebut || formatDate(weekDays[0]);
+    const pFin = printDateFin || formatDate(weekDays[6]);
+    const rangeDays = getRangeDays(pDebut, pFin);
+    const pRangeLabel = getPrintRangeLabel(pDebut, pFin);
+    const weekNum = getWeekNumber(weekDays[0]);
+    const employeName = selectedMembreInfo
+      ? `${selectedMembreInfo.prenom} ${selectedMembreInfo.nom}`
+      : '';
+
+    // Source data: printData (for custom range) or planning (for current week)
+    const sourceData = printData || planning;
+
+    // ── Render single RDV for print ──
+    const renderPrintRdv = (rdv: PlanningRdv, dateStr: string, ri: number) => {
+      const heureDebut = rdv.heure?.slice(0, 5) || '';
+      let heureFin = rdv.heure_fin?.slice(0, 5) || '';
+      if (heureFin) {
+        const [hf] = heureFin.split(':').map(Number);
+        if (hf >= 24) heureFin = `${(hf % 24).toString().padStart(2, '0')}:${heureFin.split(':')[1]}`;
+      }
+      if (!heureFin && rdv.duree) {
+        const [h, m] = (rdv.heure || '09:00').split(':').map(Number);
+        const finMin = h * 60 + m + rdv.duree;
+        heureFin = `${(Math.floor(finMin / 60) % 24).toString().padStart(2, '0')}:${(finMin % 60).toString().padStart(2, '0')}`;
+      }
+      const dur = rdv.duree ? Math.round(rdv.duree / 60 * 10) / 10 : 0;
+      const segments = (heureDebut && heureFin) ? splitHoursSegments(dateStr, heureDebut, heureFin) : [];
+      const majLabels = segments.filter(s => s.type !== 'jour').map(s => `${TOTALS_LABELS[s.type as keyof typeof TOTALS_LABELS]} ${Math.round(s.hours * 10) / 10}h`);
+
+      return (
+        <div key={ri} className="print-rdv">
+          <div className="print-rdv-time">
+            {heureDebut}{heureFin ? ` → ${heureFin}` : ''} ({dur}h)
+            {majLabels.length > 0 && <span className="print-maj"> [{majLabels.join(', ')}]</span>}
+          </div>
+          <div className="print-rdv-service">{rdv.service}</div>
+          <div className="print-rdv-client">{rdv.client}</div>
+        </div>
+      );
+    };
+
+    // ── Render day row ──
+    const renderDayRow = (day: Date, dayIndex: number, planData: Record<string, PlanningJour>) => {
+      const dateStr = formatDate(day);
+      const jourData = planData?.[dateStr];
+      return (
+        <tr key={dayIndex}>
+          <td className="print-cell-label">
+            {JOURS_FULL[day.getDay() === 0 ? 6 : day.getDay() - 1]} {day.getDate()}/{String(day.getMonth() + 1).padStart(2, '0')}
+          </td>
+          <td className="print-cell">
+            {jourData?.absent && (
+              <div className="print-rdv" style={{ color: '#c00' }}>{jourData.type_absence || 'Absent'}</div>
+            )}
+            {(jourData?.rdv || []).map((rdv, ri) => renderPrintRdv(rdv, dateStr, ri))}
+            {(!jourData || (jourData.rdv.length === 0 && !jourData.absent)) && (
+              <span style={{ color: '#aaa', fontSize: '8px' }}>—</span>
+            )}
+          </td>
+        </tr>
+      );
+    };
+
+    // ── Render totals ──
+    const renderTotals = (totals: PrintHoursTotals) => {
+      if (totals.total <= 0) return null;
+      return (
+        <div className="print-totals">
+          <h3>Récapitulatif heures</h3>
+          <table className="print-totals-table">
+            <thead><tr>
+              {(Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).map(key => <th key={key}>{TOTALS_LABELS[key]}</th>)}
+              <th className="print-totals-total">TOTAL</th>
+            </tr></thead>
+            <tbody><tr>
+              {(Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).map(key => (
+                <td key={key}>{totals[key] > 0 ? `${Math.round(totals[key] * 10) / 10}h` : '-'}</td>
+              ))}
+              <td className="print-totals-total">{Math.round(totals.total * 10) / 10}h</td>
+            </tr></tbody>
+          </table>
+        </div>
+      );
+    };
+
+    // ── Equipe view (unchanged — weekly summary) ──
+    if (viewMode === 'equipe') {
+      return (
+        <div className="print-template">
+          <div className="print-header">
+            <h1>Planning Équipe — Sem. {weekNum}/{weekDays[0].getFullYear()}</h1>
+            <p>Période : du {weekDays[0].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} au {weekDays[6].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} {weekDays[6].getFullYear()}</p>
+          </div>
+          <table className="print-table">
+            <thead><tr>
+              <th className="print-col-label">Employé</th>
+              <th className="print-col-day">Heures planifiées</th>
+              <th className="print-col-day">Heures contrat</th>
+              <th className="print-col-day">Taux</th>
+              <th className="print-col-day">Statut</th>
+            </tr></thead>
+            <tbody>
+              {membres.map(membre => {
+                const heuresContrat = membre.heures_hebdo || 35;
+                const resumeMembre = Array.isArray(resumeHebdo)
+                  ? resumeHebdo.find(r => r.membre_id === membre.id && r.semaine_debut === formatDate(weekDays[0]))
+                  : undefined;
+                const heuresPlanifiees = resumeMembre?.heures_planifiees || 0;
+                const pourcentage = Math.min(Math.round((heuresPlanifiees / heuresContrat) * 100), 150);
+                return (
+                  <tr key={membre.id}>
+                    <td className="print-cell-label">{membre.prenom} {membre.nom}</td>
+                    <td className="print-cell" style={{ textAlign: 'center' }}>{heuresPlanifiees}h</td>
+                    <td className="print-cell" style={{ textAlign: 'center' }}>{heuresContrat}h</td>
+                    <td className="print-cell" style={{ textAlign: 'center' }}>{pourcentage}%</td>
+                    <td className="print-cell" style={{ textAlign: 'center' }}>
+                      {pourcentage > 100 ? 'SURCHARGE' : pourcentage > 80 ? 'Attention' : 'OK'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="print-footer">Imprimé le {new Date().toLocaleDateString('fr-FR')} — NEXUS Platform</div>
+        </div>
+      );
+    }
+
+    // ── Employee view — range-based ──
+    if (!sourceData?.planning) return null;
+    const pTotals = computeEmployeeHoursTotals(sourceData.planning);
+    const title = `Planning ${employeName} — ${pRangeLabel}`;
+
+    // ── 1 jour : tableau Heure | Prestation ──
+    if (rangeDays === 1) {
+      const dateStr = pDebut;
+      const jourData = sourceData.planning?.[dateStr];
+
+      return (
+        <div className="print-template">
+          <div className="print-header">
+            <h1>{title}</h1>
+          </div>
+          <table className="print-table">
+            <thead><tr>
+              <th className="print-col-label">Heure</th>
+              <th className="print-col-day" style={{ width: 'auto' }}>Prestation</th>
+            </tr></thead>
+            <tbody>
+              {jourData?.absent && (
+                <tr><td className="print-cell-label" colSpan={2} style={{ color: '#c00', textAlign: 'center' }}>
+                  {jourData.type_absence || 'Absent'}
+                </td></tr>
+              )}
+              {(jourData?.rdv || []).map((rdv, ri) => {
+                const heureDebut = rdv.heure?.slice(0, 5) || '';
+                let heureFin = rdv.heure_fin?.slice(0, 5) || '';
+                if (heureFin) {
+                  const [hf] = heureFin.split(':').map(Number);
+                  if (hf >= 24) heureFin = `${(hf % 24).toString().padStart(2, '0')}:${heureFin.split(':')[1]}`;
+                }
+                if (!heureFin && rdv.duree) {
+                  const [h, m] = (rdv.heure || '09:00').split(':').map(Number);
+                  const finMin = h * 60 + m + rdv.duree;
+                  heureFin = `${(Math.floor(finMin / 60) % 24).toString().padStart(2, '0')}:${(finMin % 60).toString().padStart(2, '0')}`;
+                }
+                return (
+                  <tr key={ri}>
+                    <td className="print-cell-label">{heureDebut}{heureFin ? ` → ${heureFin}` : ''}</td>
+                    <td className="print-cell">
+                      <div className="print-rdv-service">{rdv.service}</div>
+                      <div className="print-rdv-client">{rdv.client}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!jourData || (jourData.rdv.length === 0 && !jourData.absent)) && (
+                <tr><td className="print-cell" colSpan={2} style={{ textAlign: 'center', color: '#aaa' }}>Aucune prestation</td></tr>
+              )}
+            </tbody>
+          </table>
+          {renderTotals(pTotals)}
+          <div className="print-footer">Imprimé le {new Date().toLocaleDateString('fr-FR')} — NEXUS Platform</div>
+        </div>
+      );
+    }
+
+    // ── ≤ 7 jours : grille jour par jour ──
+    if (rangeDays <= 7) {
+      return (
+        <div className="print-template">
+          <div className="print-header">
+            <h1>{title}</h1>
+            <p>Période : du {pDebut.split('-').reverse().join('/')} au {pFin.split('-').reverse().join('/')}</p>
+            <p className="print-subtitle">{sourceData.stats.heures_travaillees || 0}h planifiées — {sourceData.stats.total_rdv} prestation(s)</p>
+          </div>
+          <table className="print-table">
+            <thead><tr>
+              <th className="print-col-label">Jour</th>
+              <th className="print-col-day" style={{ width: 'auto' }}>Prestations</th>
+            </tr></thead>
+            <tbody>
+              {weekDays.map((day, i) => renderDayRow(day, i, sourceData.planning))}
+            </tbody>
+          </table>
+          {renderTotals(pTotals)}
+          <div className="print-footer">Imprimé le {new Date().toLocaleDateString('fr-FR')} — NEXUS Platform</div>
+        </div>
+      );
+    }
+
+    // ── ≤ 62 jours : semaines détaillées ──
+    if (rangeDays <= 62) {
+      const weeks = getWeeksInRange(pDebut, pFin);
+      return (
+        <div className="print-template">
+          <div className="print-header">
+            <h1>{title}</h1>
+            <p>Période : du {pDebut.split('-').reverse().join('/')} au {pFin.split('-').reverse().join('/')}</p>
+          </div>
+          {weeks.map((wDates, wi) => (
+            <div className="print-week-block" key={wi}>
+              <div className="print-week-separator">Semaine {getWeekNumber(wDates[0])}</div>
+              <table className="print-table">
+                <thead><tr>
+                  <th className="print-col-label">Jour</th>
+                  <th className="print-col-day" style={{ width: 'auto' }}>Prestations</th>
+                </tr></thead>
+                <tbody>
+                  {wDates.map((day, di) => renderDayRow(day, di, sourceData.planning))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {renderTotals(pTotals)}
+          <div className="print-footer">Imprimé le {new Date().toLocaleDateString('fr-FR')} — NEXUS Platform</div>
+        </div>
+      );
+    }
+
+    // ── > 62 jours : récapitulatif mensuel ──
+    const d1 = new Date(pDebut + 'T12:00');
+    const d2 = new Date(pFin + 'T12:00');
+    const months: { label: string; totals: PrintHoursTotals }[] = [];
+    let cur = new Date(d1.getFullYear(), d1.getMonth(), 1);
+    while (cur <= d2) {
+      const monthPlanning: Record<string, PlanningJour> = {};
+      Object.entries(sourceData.planning).forEach(([ds, jour]) => {
+        const dd = new Date(ds + 'T12:00');
+        if (dd.getMonth() === cur.getMonth() && dd.getFullYear() === cur.getFullYear()) {
+          monthPlanning[ds] = jour;
+        }
+      });
+      months.push({
+        label: cur.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+        totals: computeEmployeeHoursTotals(monthPlanning),
+      });
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+
+    const yearTotals: PrintHoursTotals = { jour: 0, nuit: 0, dimanche_jour: 0, dimanche_nuit: 0, ferie_jour: 0, ferie_nuit: 0, total: 0 };
+    months.forEach(m => {
+      (Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).forEach(key => { yearTotals[key] += m.totals[key]; });
+      yearTotals.total += m.totals.total;
+    });
+
+    return (
+      <div className="print-template">
+        <div className="print-header">
+          <h1>Bilan — {title}</h1>
+          <p>Période : du {pDebut.split('-').reverse().join('/')} au {pFin.split('-').reverse().join('/')}</p>
+        </div>
+        <table className="print-table">
+          <thead><tr>
+            <th className="print-col-label">Mois</th>
+            {(Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).map(key => (
+              <th key={key} className="print-col-day">{TOTALS_LABELS[key]}</th>
+            ))}
+            <th className="print-col-day" style={{ fontWeight: 700 }}>TOTAL</th>
+          </tr></thead>
+          <tbody>
+            {months.map((m, i) => (
+              <tr key={i}>
+                <td className="print-cell-label" style={{ textTransform: 'capitalize' }}>{m.label}</td>
+                {(Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).map(key => (
+                  <td key={key} className="print-cell" style={{ textAlign: 'center' }}>
+                    {m.totals[key] > 0 ? `${Math.round(m.totals[key] * 10) / 10}h` : '-'}
+                  </td>
+                ))}
+                <td className="print-cell" style={{ textAlign: 'center', fontWeight: 700 }}>
+                  {m.totals.total > 0 ? `${Math.round(m.totals.total * 10) / 10}h` : '-'}
+                </td>
+              </tr>
+            ))}
+            <tr>
+              <td className="print-cell-label" style={{ fontWeight: 700 }}>TOTAL</td>
+              {(Object.keys(TOTALS_LABELS) as Array<keyof typeof TOTALS_LABELS>).map(key => (
+                <td key={key} className="print-cell" style={{ textAlign: 'center', fontWeight: 700 }}>
+                  {yearTotals[key] > 0 ? `${Math.round(yearTotals[key] * 10) / 10}h` : '-'}
+                </td>
+              ))}
+              <td className="print-cell" style={{ textAlign: 'center', fontWeight: 700 }}>
+                {Math.round(yearTotals.total * 10) / 10}h
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="print-footer">Imprimé le {new Date().toLocaleDateString('fr-FR')} — NEXUS Platform</div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="print-planning">
+    <div className="no-print space-y-6">
       {/* En-tête avec navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -357,14 +807,34 @@ export default function PlanningEmploye() {
             Vue Équipe
           </Button>
 
+          {/* Print date range */}
+          {viewMode === 'semaine' && (
+            <div className="flex items-center gap-1.5 ml-2">
+              <input
+                type="date"
+                value={printDateDebut}
+                onChange={e => setPrintDateDebut(e.target.value)}
+                className="px-2 py-1 text-xs rounded border bg-background text-foreground w-[120px]"
+              />
+              <span className="text-xs text-muted-foreground">→</span>
+              <input
+                type="date"
+                value={printDateFin}
+                onChange={e => setPrintDateFin(e.target.value)}
+                className="px-2 py-1 text-xs rounded border bg-background text-foreground w-[120px]"
+              />
+            </div>
+          )}
+
           <div className="border-l pl-2 ml-2 flex gap-1">
             <Button
               variant="outline"
               size="sm"
               onClick={handlePrint}
               title="Imprimer"
+              disabled={printLoading}
             >
-              <Printer className="h-4 w-4" />
+              {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             </Button>
             <Button
               variant="outline"
@@ -391,7 +861,7 @@ export default function PlanningEmploye() {
       {viewMode === 'semaine' ? (
         <>
           {/* Sélecteur d'employé - Menu déroulant */}
-          <Card className="p-4">
+          <Card className="p-4" data-no-print>
             <div className="flex items-center gap-4">
               <label htmlFor="employe-select" className="text-sm font-medium whitespace-nowrap">
                 <User className="h-4 w-4 inline mr-2" />
@@ -440,7 +910,7 @@ export default function PlanningEmploye() {
             const heuresContrat = selectedMembreInfo.heures_hebdo || 35;
             const heuresTravaillees = planning.stats.heures_travaillees || 0;
             return (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4" data-no-print>
               <Card className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
                   <Briefcase className="h-4 w-4" />
@@ -735,6 +1205,8 @@ export default function PlanningEmploye() {
           )}
         </Card>
       )}
+    </div>
+    {renderPrintTemplate()}
     </div>
   );
 }

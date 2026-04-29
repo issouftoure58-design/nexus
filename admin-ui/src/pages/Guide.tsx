@@ -351,8 +351,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     condition: always,
     content: (t) => [
       `L'Agent IA Web est un chatbot 24/7 integre a votre site. Il repond aux questions et prend les ${t.booking}s automatiquement.`,
-      `L'Agent IA Telephone (Starter) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain. Consomme des credits IA a l'usage.`,
-      `L'Agent IA WhatsApp (Starter) repond a vos ${t.client}s sur WhatsApp avec les memes capacites. Consomme des credits IA a l'usage.`,
+      `L'Agent IA Telephone (Starter) gere vos appels entrants : prise de ${t.booking}, informations, transfert vers un humain.`,
+      `L'Agent IA WhatsApp (Starter) repond a vos ${t.client}s sur WhatsApp avec les memes capacites.`,
       `Tous les agents sont entraines sur vos donnees (services, horaires, FAQ) et respectent votre ton de communication.`,
     ],
     tip: (t) => `Astuce : renseignez bien vos services et horaires — plus l'IA a d'informations, mieux elle repond a vos ${t.client}s.`,

@@ -81,6 +81,75 @@ export const BUSINESS_TEMPLATES = {
   },
 
   // ============================================
+  // COIFFURE À DOMICILE (afro, tresses, locks, braids)
+  // ============================================
+  coiffure_domicile: {
+    id: 'coiffure_domicile',
+    name: 'Coiffure à domicile',
+    icon: 'scissors',
+    emoji: '💇',
+    description: 'Coiffeur(se) à domicile ou chez le prestataire',
+
+    defaultServices: [
+      { name: 'Coupe femme', duration: 45, price: 35, category: 'coupe' },
+      { name: 'Coupe homme', duration: 30, price: 20, category: 'coupe' },
+      { name: 'Coupe enfant (-12 ans)', duration: 20, price: 15, category: 'coupe' },
+      { name: 'Brushing', duration: 30, price: 25, category: 'coiffage' },
+      { name: 'Coupe + Brushing', duration: 60, price: 50, category: 'coupe' },
+      { name: 'Coloration', duration: 90, price: 55, category: 'couleur' },
+      { name: 'Mèches / Balayage', duration: 120, price: 75, category: 'couleur' },
+      { name: 'Soin profond', duration: 45, price: 35, category: 'soin' },
+      { name: 'Lissage', duration: 150, price: 120, category: 'soin' },
+    ],
+
+    defaultHours: {
+      monday: { open: '09:00', close: '19:00' },
+      tuesday: { open: '09:00', close: '19:00' },
+      wednesday: { open: '09:00', close: '19:00' },
+      thursday: { open: '09:00', close: '19:00' },
+      friday: { open: '09:00', close: '19:00' },
+      saturday: { open: '09:00', close: '18:00' },
+      sunday: null,
+    },
+
+    sectorConfig: {
+      travelRadius: 15,
+      travelFeePerKm: 0.50,
+      domicile_enabled: true,
+    },
+
+    iaConfig: {
+      channel_telephone: {
+        greeting: "{business_name} bonjour ! Comment puis-je vous aider ?",
+        personality: "Vous êtes l'assistant vocal de {business_name}, coiffeur(se) à domicile. Soyez chaleureux et professionnel. Proposez les services disponibles. Demandez si le client souhaite à domicile ou chez le prestataire. Pour le domicile, collectez l'adresse complète.",
+        tone: 'friendly_professional',
+        canBook: true,
+        canQuote: true,
+        canTransfer: true,
+        transferKeywords: ['parler à', 'responsable', 'réclamation'],
+      },
+      channel_whatsapp: {
+        greeting: "Bonjour ! Bienvenue chez {business_name}. Comment puis-je vous aider ?",
+        personality: "Assistant WhatsApp de {business_name}, coiffeur(se) à domicile. Aidez à choisir les prestations et prendre RDV. Proposez domicile ou chez le prestataire.",
+        tone: 'friendly_professional',
+        canBook: true,
+        canQuote: true,
+        quickReplies: ['Prendre RDV', 'Tarifs', 'Horaires', 'À domicile ?'],
+      },
+      channel_web: {
+        greeting: "Bonjour ! Comment puis-je vous aider ?",
+        personality: "Assistant web de {business_name}. Aidez les visiteurs à découvrir les services et à prendre rendez-vous.",
+        tone: 'friendly_professional',
+        canBook: true,
+        canQuote: true,
+      },
+    },
+
+    recommendedModules: ['reservations', 'whatsapp', 'seo', 'marketing'],
+    suggestedPlan: 'starter',
+  },
+
+  // ============================================
   // INSTITUT DE BEAUTÉ
   // ============================================
   institut_beaute: {
@@ -754,58 +823,69 @@ export const BUSINESS_TEMPLATES = {
 };
 
 // ============================================
-// PLANS NEXUS — Modèle 2026 (voir memory/business-model-2026.md)
+// PLANS NEXUS — importés depuis config/pricing.js (source unique de vérité)
 // ============================================
+import { PLAN_PRICES } from '../config/pricing.js';
+
 export const NEXUS_PLANS = {
   free: {
     id: 'free',
     name: 'Free',
-    price: 0,
+    price: PLAN_PRICES.free.monthly,
     description: 'Freemium à vie — pour découvrir NEXUS',
     includes: [
-      'Dashboard & 10 réservations/mois',
-      '10 factures/mois (avec watermark)',
-      '30 clients max',
+      'Dashboard & 5 réservations/mois',
+      '5 factures/mois (avec watermark)',
+      '5 clients max',
       'Support communautaire',
     ],
-    modules: ['base', 'reservations'],
-    maxIaModules: 0, // IA bloquée en Free
+    maxIaModules: 0,
   },
-  basic: {
-    id: 'basic',
-    name: 'Basic',
-    price: 29,
-    description: 'Tout débloqué + 1 000 crédits IA inclus/mois',
+  starter: {
+    id: 'starter',
+    name: 'Starter',
+    price: PLAN_PRICES.starter.monthly,
+    description: `Tout débloqué + 1 000 crédits IA inclus/mois`,
     popular: true,
     includes: [
-      'Tout illimité (clients, factures, RDV)',
-      '1 000 crédits IA inclus/mois (valeur 15€)',
-      'IA Web, WhatsApp & Téléphone (via crédits)',
+      '200 clients, factures, RDV',
+      '1 000 crédits IA inclus/mois',
+      'IA Web, WhatsApp & Téléphone',
       'Comptabilité, CRM, Stock, Marketing',
       'Analytics & SEO',
       'Support email',
     ],
-    modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone', 'crm', 'marketing', 'analytics', 'seo'],
+    maxIaModules: -1,
+  },
+  pro: {
+    id: 'pro',
+    name: 'Pro',
+    price: PLAN_PRICES.pro.monthly,
+    description: 'Tout illimité + multi-sites + 5 000 crédits IA',
+    includes: [
+      'Tout Starter +',
+      'Clients, factures, RDV illimités',
+      '5 000 crédits IA inclus/mois',
+      'Multi-sites, 20 postes',
+    ],
     maxIaModules: -1,
   },
   business: {
     id: 'business',
     name: 'Business',
-    price: 149,
-    description: 'Multi-sites + 10 000 crédits IA inclus/mois',
+    price: PLAN_PRICES.business.monthly,
+    description: 'Tout + RH, Sentinel, White-label, API, SSO',
     includes: [
-      'Tout Basic +',
-      'Multi-sites',
-      'White-label & API',
-      'SSO & Account manager dédié',
-      '10 000 crédits IA inclus/mois (valeur 150€)',
+      'Tout Pro +',
+      '20 000 crédits IA inclus/mois',
+      'RH complet, Compta analytique, Sentinel',
+      'White-label & API, SSO, Account Manager',
+      '50 postes',
     ],
-    modules: ['base', 'reservations', 'rh_avance', 'comptabilite', 'stock', 'marketing', 'analytics', 'seo', 'sentinel', 'whatsapp', 'telephone', 'api', 'multi_site', 'whitelabel'],
     maxIaModules: -1,
   },
-  // ⚠️ DEPRECATED — alias retro-compat
-  starter: { id: 'free', name: 'Free', price: 0, modules: ['base', 'reservations'], maxIaModules: 0 },
-  pro: { id: 'basic', name: 'Basic', price: 29, popular: true, modules: ['base', 'reservations', 'comptabilite', 'stock', 'whatsapp', 'telephone'], maxIaModules: -1 },
+  // Legacy alias
+  basic: { id: 'starter', name: 'Starter', get price() { return PLAN_PRICES.starter.monthly; }, maxIaModules: -1 },
 };
 
 // ============================================
@@ -871,6 +951,7 @@ export function generateIaConfig(businessType, businessName, ownerName) {
 // ============================================
 export const TEMPLATE_TO_PROFILE = {
   salon_coiffure: 'salon',
+  coiffure_domicile: 'service_domicile',
   institut_beaute: 'salon',
   restaurant: 'restaurant',
   medical: 'service',
@@ -904,7 +985,8 @@ export const PROFESSION_TO_PROFILE = {
 // ============================================
 export const PROFESSIONS = [
   // --- Beauté & Coiffure ---
-  { id: 'coiffeur', label: 'Coiffeur / Coiffeuse', emoji: '✂️', description: 'Salon de coiffure, coupes, colorations', template: 'salon_coiffure', category: 'beaute' },
+  { id: 'coiffeur', label: 'Coiffeur / Coiffeuse (salon)', emoji: '✂️', description: 'Salon de coiffure, coupes, colorations', template: 'salon_coiffure', category: 'beaute' },
+  { id: 'coiffeur_domicile', label: 'Coiffeur / Coiffeuse à domicile', emoji: '💇', description: 'Coiffure à domicile, déplacements chez le client', template: 'coiffure_domicile', category: 'beaute' },
   { id: 'barbier', label: 'Barbier / Barber Shop', emoji: '💈', description: 'Taille de barbe, rasage, soins homme', template: 'salon_coiffure', category: 'beaute' },
   { id: 'estheticienne', label: 'Esthéticienne', emoji: '💅', description: 'Soins visage, épilation, manucure', template: 'institut_beaute', category: 'beaute' },
   { id: 'prothesiste_ongulaire', label: 'Prothésiste ongulaire', emoji: '💅', description: 'Pose de gel, résine, nail art', template: 'institut_beaute', category: 'beaute' },

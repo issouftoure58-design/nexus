@@ -495,7 +495,23 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
         nom: reservation.membre.nom,
         prenom: reservation.membre.prenom,
         role: reservation.membre.role
-      } : null
+      } : null,
+      // Hotel-specific fields
+      ...(reservation.date_arrivee && {
+        date_arrivee: reservation.date_arrivee,
+        date_depart: reservation.date_depart,
+        nb_nuitees: reservation.nb_nuitees,
+        nb_personnes: reservation.nb_personnes,
+        chambre_id: reservation.chambre_id,
+        extras: reservation.extras
+      }),
+      // Restaurant-specific fields
+      ...(reservation.nb_couverts && {
+        nb_couverts: reservation.nb_couverts,
+        type_service: reservation.type_service
+      }),
+      // Date fin (multi-day)
+      ...(reservation.date_fin && { date_fin: reservation.date_fin })
     };
 
     success(res, { reservation: formattedReservation });
@@ -1009,6 +1025,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
               if (aff.heure_fin) ligneData.heure_fin = aff.heure_fin;
               // Multi-jours: date spécifique pour cette ligne
               if (s.date) ligneData.date = s.date;
+              // Plage de dates par ligne (security / multi-day)
+              if (s.date_debut) ligneData.date_debut = s.date_debut;
+              if (s.date_fin) ligneData.date_fin = s.date_fin;
               lignesData.push(ligneData);
             }
           }
@@ -1026,6 +1045,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
             membre_id: s.membre_id || null
           };
           if (s.date) ligneData.date = s.date;
+          // Plage de dates par ligne (security / multi-day)
+          if (s.date_debut) ligneData.date_debut = s.date_debut;
+          if (s.date_fin) ligneData.date_fin = s.date_fin;
           lignesData.push(ligneData);
         }
       }

@@ -513,7 +513,7 @@ function OngletCollaborateurs({ data }: { data: AnalytiqueData }) {
                     <th className="pb-2 font-medium">Collaborateur</th>
                     <th className="pb-2 font-medium">Rôle</th>
                     <th className="pb-2 font-medium text-right">CA</th>
-                    <th className="pb-2 font-medium text-right">RDV</th>
+                    <th className="pb-2 font-medium text-right">Réservations</th>
                     <th className="pb-2 font-medium text-right">Panier moy.</th>
                     <th className="pb-2 font-medium text-right">Salaire</th>
                     <th className="pb-2 font-medium text-right">Ratio CA/Salaire</th>

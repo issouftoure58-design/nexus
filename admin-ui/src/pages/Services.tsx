@@ -1503,7 +1503,7 @@ function ServiceDetailModal({
                       <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
-                            {client.prenom[0]}{client.nom[0]}
+                            {(client.prenom || '?')[0]}{(client.nom || '?')[0]}
                           </div>
                           <p className="font-medium text-sm">{client.prenom} {client.nom}</p>
                         </div>

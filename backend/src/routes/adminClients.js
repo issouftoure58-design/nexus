@@ -54,7 +54,10 @@ router.get('/', authenticateAdmin, async (req, res) => {
 
     // Recherche par nom, prénom, téléphone ou email
     if (search) {
-      query = query.or(`nom.ilike.%${search}%,prenom.ilike.%${search}%,telephone.ilike.%${search}%,email.ilike.%${search}%`);
+      const terms = search.trim().split(/\s+/).filter(Boolean);
+      for (const term of terms) {
+        query = query.or(`nom.ilike.%${term}%,prenom.ilike.%${term}%,telephone.ilike.%${term}%,email.ilike.%${term}%`);
+      }
     }
 
     // Tri
@@ -158,6 +161,20 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
 
     if (existing) {
       return apiError(res, 'Un client avec ce numéro de téléphone existe déjà', 'CONFLICT', 409);
+    }
+
+    // Vérifier si l'email existe déjà (🔒 TENANT ISOLATION)
+    if (email?.trim()) {
+      const { data: existingEmail } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('email', email.trim())
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (existingEmail) {
+        return apiError(res, 'Un client avec cet email existe déjà', 'CONFLICT', 409);
+      }
     }
 
     // Créer le client (🔒 TENANT ISOLATION)

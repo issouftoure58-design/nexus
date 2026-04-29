@@ -19,7 +19,9 @@ import {
   ShieldCheck,
   XCircle,
   AlertOctagon,
-  ExternalLink
+  ExternalLink,
+  Plus,
+  Settings2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -56,6 +58,13 @@ interface DSNParametres {
   mutuelle_nom: string;
   idcc: string;
   convention_libelle: string;
+  bic: string;
+  iban: string;
+  contact_civilite: string;
+  mode_paiement: string;
+  code_regime_retraite: string;
+  code_risque_at: string;
+  taux_at_defaut: string;
 }
 
 interface DSNHistorique {
@@ -80,6 +89,21 @@ interface ValidationResult {
     blocs_trouves: string[];
   };
   rapport: string;
+}
+
+interface DSNOverride {
+  id: number;
+  rubrique_code: string;
+  valeur: string;
+  membre_id: number | null;
+  description: string | null;
+  rh_membres?: { nom: string; prenom: string } | null;
+}
+
+interface EquipeMembre {
+  id: number;
+  nom: string;
+  prenom: string;
 }
 
 const fetchParametres = async (): Promise<DSNParametres | null> => {
@@ -123,7 +147,14 @@ export function GenerateurDSN() {
     urssaf_siret: '',
     caisse_retraite_code: '',
     caisse_retraite_nom: '',
-    caisse_retraite_siret: ''
+    caisse_retraite_siret: '',
+    bic: '',
+    iban: '',
+    contact_civilite: '01',
+    mode_paiement: '05',
+    code_regime_retraite: 'RETA',
+    code_risque_at: '',
+    taux_at_defaut: ''
   });
 
   // Queries
@@ -156,7 +187,7 @@ export function GenerateurDSN() {
 
   const genererDSNMutation = useMutation({
     mutationFn: async () => {
-      return api.post('/admin/rh/dsn/generer', { periode });
+      return api.post('/admin/rh/dsn/generer', { periode, neant: isNeant });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dsn-historique'] });
@@ -191,6 +222,51 @@ export function GenerateurDSN() {
     }
   });
 
+  // === Surcharges DSN ===
+  const { data: overrides } = useQuery({
+    queryKey: ['dsn-overrides'],
+    queryFn: () => api.get<DSNOverride[]>('/admin/rh/dsn/overrides'),
+  });
+
+  const { data: equipeMembresRaw } = useQuery({
+    queryKey: ['equipe-list-dsn'],
+    queryFn: () => api.get<any>('/admin/rh/membres?limit=200'),
+  });
+  const equipeMembres: EquipeMembre[] = equipeMembresRaw?.data || equipeMembresRaw || [];
+
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [newOverride, setNewOverride] = useState({ rubrique_code: '', valeur: '', membre_id: '', description: '' });
+  const [isNeant, setIsNeant] = useState(false);
+
+  const createOverrideMutation = useMutation({
+    mutationFn: (payload: { rubrique_code: string; valeur: string; membre_id?: number; description?: string }) =>
+      api.post('/admin/rh/dsn/overrides', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dsn-overrides'] });
+      setNewOverride({ rubrique_code: '', valeur: '', membre_id: '', description: '' });
+      setShowOverrideForm(false);
+    },
+  });
+
+  const deleteOverrideMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/rh/dsn/overrides/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dsn-overrides'] });
+    },
+  });
+
+  const handleCreateOverride = () => {
+    const rubriqueRegex = /^S\d{2}\.G\d{2}\.\d{2}\.\d{3}$/;
+    if (!rubriqueRegex.test(newOverride.rubrique_code)) return;
+    if (!newOverride.valeur) return;
+    createOverrideMutation.mutate({
+      rubrique_code: newOverride.rubrique_code,
+      valeur: newOverride.valeur,
+      membre_id: newOverride.membre_id ? parseInt(newOverride.membre_id) : undefined,
+      description: newOverride.description || undefined,
+    });
+  };
+
   const handleInputChange = (field: keyof DSNParametres, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -200,15 +276,9 @@ export function GenerateurDSN() {
   };
 
   const handleDownloadDSN = (dsn: DSNHistorique) => {
-    const blob = new Blob([dsn.contenu_dsn], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = dsn.fichier_nom || `DSN_${dsn.periode}.dsn`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Telecharger via endpoint backend (conversion ISO-8859-1 cote serveur)
+    const filename = dsn.fichier_nom || `DSN_${dsn.periode}.dsn`;
+    api.downloadFile(`/admin/rh/dsn/telecharger/${dsn.id}`, filename);
   };
 
   const formatPeriode = (p: string) => {
@@ -489,6 +559,106 @@ export function GenerateurDSN() {
             </CardContent>
           </Card>
 
+          {/* Coordonnées bancaires & DSN */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Coordonnées bancaires & DSN</CardTitle>
+              <CardDescription>Informations bancaires et paramètres spécifiques DSN</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Section Banque */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Banque</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium">IBAN</label>
+                    <Input
+                      value={formData.iban || ''}
+                      onChange={(e) => handleInputChange('iban', e.target.value.replace(/\s/g, '').toUpperCase())}
+                      placeholder="FR7630001007941234567890185"
+                      maxLength={34}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">BIC</label>
+                    <Input
+                      value={formData.bic || ''}
+                      onChange={(e) => handleInputChange('bic', e.target.value.toUpperCase())}
+                      placeholder="BNPAFRPP"
+                      maxLength={11}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="text-sm font-medium">Mode de paiement</label>
+                    <select
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={formData.mode_paiement || '05'}
+                      onChange={(e) => handleInputChange('mode_paiement', e.target.value)}
+                    >
+                      <option value="01">01 - Chèque</option>
+                      <option value="02">02 - Virement</option>
+                      <option value="05">05 - Prélèvement</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section Paramètres DSN */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Paramètres DSN</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Civilité contact DSN</label>
+                    <select
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={formData.contact_civilite || '01'}
+                      onChange={(e) => handleInputChange('contact_civilite', e.target.value)}
+                    >
+                      <option value="01">01 - Monsieur</option>
+                      <option value="02">02 - Madame</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Code régime retraite</label>
+                    <select
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={formData.code_regime_retraite || 'RETA'}
+                      onChange={(e) => handleInputChange('code_regime_retraite', e.target.value)}
+                    >
+                      <option value="RETA">RETA - Agirc-Arrco</option>
+                      <option value="RUAA">RUAA - Régime unifié</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Code risque AT/MP</label>
+                    <Input
+                      value={formData.code_risque_at || ''}
+                      onChange={(e) => handleInputChange('code_risque_at', e.target.value.toUpperCase())}
+                      placeholder="930DB"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Code CARSAT, ex: 930DB=coiffure, 553AC=restaurant</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Taux AT/MP (%)</label>
+                    <Input
+                      type="number"
+                      value={formData.taux_at_defaut || ''}
+                      onChange={(e) => handleInputChange('taux_at_defaut', e.target.value)}
+                      placeholder="1.10"
+                      step="0.01"
+                      min="0"
+                      max="30"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Taux par défaut si non renseigné sur le salarié</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Contact */}
           <Card>
             <CardHeader>
@@ -520,6 +690,130 @@ export function GenerateurDSN() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Surcharges DSN */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Settings2 className="w-5 h-5" />
+                Surcharges DSN
+              </CardTitle>
+              <CardDescription>
+                Corrigez ou forcez la valeur de n'importe quelle rubrique DSN.
+                Les surcharges s'appliquent automatiquement à chaque génération.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Liste des surcharges existantes */}
+              {(overrides?.length || 0) > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">Code rubrique</th>
+                        <th className="text-left px-3 py-2 font-medium">Valeur</th>
+                        <th className="text-left px-3 py-2 font-medium">Salarié</th>
+                        <th className="text-left px-3 py-2 font-medium">Description</th>
+                        <th className="px-3 py-2 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {overrides?.map((o) => (
+                        <tr key={o.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-mono text-xs">{o.rubrique_code}</td>
+                          <td className="px-3 py-2 font-mono text-xs font-semibold">{o.valeur}</td>
+                          <td className="px-3 py-2">
+                            {o.rh_membres
+                              ? `${o.rh_membres.prenom} ${o.rh_membres.nom}`
+                              : <span className="text-gray-400 italic">Tous</span>}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{o.description || '—'}</td>
+                          <td className="px-3 py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteOverrideMutation.mutate(o.id)}
+                              disabled={deleteOverrideMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">Aucune surcharge configurée</p>
+              )}
+
+              {/* Formulaire ajout */}
+              {showOverrideForm ? (
+                <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium">Code rubrique *</label>
+                      <Input
+                        placeholder="S21.G00.40.026"
+                        value={newOverride.rubrique_code}
+                        onChange={(e) => setNewOverride(p => ({ ...p, rubrique_code: e.target.value }))}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Valeur *</label>
+                      <Input
+                        placeholder="01"
+                        value={newOverride.valeur}
+                        onChange={(e) => setNewOverride(p => ({ ...p, valeur: e.target.value }))}
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium">Salarié</label>
+                      <select
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                        value={newOverride.membre_id}
+                        onChange={(e) => setNewOverride(p => ({ ...p, membre_id: e.target.value }))}
+                      >
+                        <option value="">Tous les salariés</option>
+                        {equipeMembres.map((m) => (
+                          <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Description</label>
+                      <Input
+                        placeholder="Correction demandée par DSN-Val"
+                        value={newOverride.description}
+                        onChange={(e) => setNewOverride(p => ({ ...p, description: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setShowOverrideForm(false)}>
+                      Annuler
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleCreateOverride}
+                      disabled={createOverrideMutation.isPending || !newOverride.rubrique_code || !newOverride.valeur}
+                    >
+                      {createOverrideMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setShowOverrideForm(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter une surcharge
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -603,6 +897,17 @@ export function GenerateurDSN() {
                 </Button>
               </div>
 
+              {/* Option DSN néant */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isNeant}
+                  onChange={(e) => setIsNeant(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm">DSN néant (aucun salarié sur cette période)</span>
+              </label>
+
               {/* Récapitulatif */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-medium mb-3">Récapitulatif de la période</h4>
@@ -613,7 +918,7 @@ export function GenerateurDSN() {
                   </div>
                   <div>
                     <span className="text-gray-500">Type</span>
-                    <p className="font-medium">Mensuelle normale</p>
+                    <p className="font-medium">{isNeant ? 'Mensuelle néant' : 'Mensuelle normale'}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">Format</span>

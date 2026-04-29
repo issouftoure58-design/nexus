@@ -11,7 +11,7 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
-import { requireModule } from '../middleware/checkPlan.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import {
   getEnrollments,
   getEnrollmentStats,

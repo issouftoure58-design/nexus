@@ -7,7 +7,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
-import { requireModule } from '../middleware/checkPlan.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { generateApiKey, hashApiKey, API_SCOPES } from '../middleware/apiAuth.js';
 import logger from '../config/logger.js';
 

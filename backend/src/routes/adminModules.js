@@ -14,6 +14,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { invalidateModuleCache } from '../middleware/moduleProtection.js';
+import { activateModule, deactivateModule } from '../services/moduleActivationService.js';
 
 const router = express.Router();
 
@@ -293,44 +294,32 @@ router.post('/options/:optionId/activate', authenticateAdmin, async (req, res) =
       return res.status(404).json({ error: 'Option non trouvée' });
     }
 
-    // Récupérer tenant
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('options_canaux_actifs, module_metier_id')
-      .eq('id', tenantId)
-      .single();
-
-    if (tenantError) throw tenantError;
-
-    let updates = { updated_at: new Date().toISOString() };
-
     if (option.categorie === 'canal_ia') {
-      // Activer canal IA
-      const optionsActifs = tenant.options_canaux_actifs || {};
-      optionsActifs[optionId] = true;
-      updates.options_canaux_actifs = optionsActifs;
+      // Activer via service unifié (synchronise modules_actifs + options_canaux + tenant_ia_config)
+      await activateModule(tenantId, optionId);
     } else if (option.categorie === 'module_metier') {
       // Un seul module métier à la fois
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('module_metier_id')
+        .eq('id', tenantId)
+        .single();
+
+      if (tenantError) throw tenantError;
+
       if (tenant.module_metier_id && tenant.module_metier_id !== optionId) {
         return res.status(400).json({
           error: 'Un module métier est déjà actif. Désactivez-le d\'abord.',
           code: 'MODULE_METIER_ALREADY_ACTIVE'
         });
       }
-      updates.module_metier_id = optionId;
-      // Note: module_metier_paye reste à false jusqu'au paiement
+
+      await supabase
+        .from('tenants')
+        .update({ module_metier_id: optionId, updated_at: new Date().toISOString() })
+        .eq('id', tenantId);
+      invalidateModuleCache(tenantId);
     }
-
-    // Mettre à jour
-    const { error: updateError } = await supabase
-      .from('tenants')
-      .update(updates)
-      .eq('id', tenantId);
-
-    if (updateError) throw updateError;
-
-    // Invalider cache
-    invalidateModuleCache(tenantId);
 
     // Logger
     try {
@@ -343,7 +332,7 @@ router.post('/options/:optionId/activate', authenticateAdmin, async (req, res) =
       });
     } catch (e) { /* ignore */ }
 
-    console.log(`[ADMIN MODULES] ✅ Option ${optionId} activée`);
+    console.log(`[ADMIN MODULES] Option ${optionId} activée`);
 
     res.json({
       success: true,
@@ -383,43 +372,32 @@ router.post('/options/:optionId/deactivate', authenticateAdmin, async (req, res)
       return res.status(404).json({ error: 'Option non trouvée' });
     }
 
-    // Récupérer tenant
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('options_canaux_actifs, module_metier_id, module_metier_paye')
-      .eq('id', tenantId)
-      .single();
-
-    if (tenantError) throw tenantError;
-
-    let updates = { updated_at: new Date().toISOString() };
-
     if (option.categorie === 'canal_ia') {
-      // Désactiver canal IA
-      const optionsActifs = tenant.options_canaux_actifs || {};
-      delete optionsActifs[optionId];
-      updates.options_canaux_actifs = optionsActifs;
+      // Désactiver via service unifié (synchronise modules_actifs + options_canaux + tenant_ia_config)
+      await deactivateModule(tenantId, optionId);
     } else if (option.categorie === 'module_metier') {
       // Vérifier si module déjà payé
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('module_metier_id, module_metier_paye')
+        .eq('id', tenantId)
+        .single();
+
+      if (tenantError) throw tenantError;
+
       if (tenant.module_metier_id === optionId && tenant.module_metier_paye) {
         return res.status(400).json({
           error: 'Ce module a déjà été payé et ne peut pas être désactivé.',
           code: 'MODULE_ALREADY_PAID'
         });
       }
-      updates.module_metier_id = null;
+
+      await supabase
+        .from('tenants')
+        .update({ module_metier_id: null, updated_at: new Date().toISOString() })
+        .eq('id', tenantId);
+      invalidateModuleCache(tenantId);
     }
-
-    // Mettre à jour
-    const { error: updateError } = await supabase
-      .from('tenants')
-      .update(updates)
-      .eq('id', tenantId);
-
-    if (updateError) throw updateError;
-
-    // Invalider cache
-    invalidateModuleCache(tenantId);
 
     // Logger
     try {
@@ -432,7 +410,7 @@ router.post('/options/:optionId/deactivate', authenticateAdmin, async (req, res)
       });
     } catch (e) { /* ignore */ }
 
-    console.log(`[ADMIN MODULES] ✅ Option ${optionId} désactivée`);
+    console.log(`[ADMIN MODULES] Option ${optionId} désactivée`);
 
     res.json({
       success: true,

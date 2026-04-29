@@ -145,7 +145,7 @@ const defaultProfile: BusinessProfile = {
     allowOvernight: false,
   },
   terminology: {
-    reservation: { singular: 'RDV', plural: 'RDV' },
+    reservation: { singular: 'Réservation', plural: 'Réservations' },
     service: { singular: 'Service', plural: 'Services' },
     client: { singular: 'Client', plural: 'Clients' },
     employee: { singular: 'Prestataire', plural: 'Prestataires' },

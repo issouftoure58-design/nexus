@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { paginate } from '../middleware/paginate.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
 import { requirePrestationsQuota } from '../middleware/quotas.js';
+import { getEffectiveConstraints, minutesToTime } from '../utils/employeeConstraints.js';
 
 const updateServiceSchema = z.object({
   nom: z.string().min(1).max(200).optional(),
@@ -101,7 +102,7 @@ router.get('/equipe', authenticateAdmin, async (req, res) => {
 
     const { data: membres, error } = await supabase
       .from('rh_membres')
-      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url, email, telephone, adresse_rue, adresse_cp, adresse_ville')
+      .select('id, nom, prenom, role, statut, jours_travailles, avatar_url, email, telephone, adresse_rue, adresse_cp, adresse_ville, pause_debut, pause_fin, max_heures_jour, pause_min_minutes')
       .eq('tenant_id', tenantId)
       .order('nom');
 
@@ -128,6 +129,16 @@ router.get('/equipe/:id/prochaine-dispo', authenticateAdmin, async (req, res) =>
       return apiError(res, 'Date requise', 'BAD_REQUEST', 400);
     }
 
+    // Récupérer les contraintes du membre
+    const { data: membreData } = await supabase
+      .from('rh_membres')
+      .select('id, nom, prenom, pause_debut, pause_fin, max_heures_jour, pause_min_minutes')
+      .eq('id', membreId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    const constraints = membreData ? getEffectiveConstraints(membreData) : null;
+
     // Récupérer toutes les résas du membre ce jour-là (non annulées)
     const { data: reservations } = await supabase
       .from('reservations')
@@ -140,14 +151,57 @@ router.get('/equipe/:id/prochaine-dispo', authenticateAdmin, async (req, res) =>
     // Récupérer les lignes assignées à ce membre ce jour-là
     const reservationIds = (reservations || []).map(r => r.id);
 
-    // Aussi chercher les lignes où ce membre est assigné via reservation_lignes
+    // Lignes classiques : toutes les lignes du membre (sans filtre date — on filtre après)
     const { data: lignesMembre } = await supabase
       .from('reservation_lignes')
-      .select('heure_debut, heure_fin, duree_minutes, reservation_id')
+      .select('heure_debut, heure_fin, duree_minutes, reservation_id, date')
       .eq('tenant_id', tenantId)
       .eq('membre_id', membreId);
 
-    // Chercher les résas liées à ces lignes pour vérifier la date
+    // Lignes multi-jours : lignes avec date = date demandée (résa parente peut avoir une autre date)
+    const { data: multiDayLignes } = await supabase
+      .from('reservation_lignes')
+      .select('heure_debut, heure_fin, duree_minutes, reservation_id, date')
+      .eq('tenant_id', tenantId)
+      .eq('membre_id', membreId)
+      .eq('date', date);
+
+    // Helper pour convertir une ligne en créneau occupé
+    const ligneToSlot = (l) => {
+      if (l.heure_debut && l.heure_fin) {
+        return { debut: l.heure_debut, fin: l.heure_fin };
+      } else if (l.heure_debut && l.duree_minutes) {
+        const [h, m] = l.heure_debut.split(':').map(Number);
+        const finMin = h * 60 + m + (l.duree_minutes || 60);
+        const fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
+        return { debut: l.heure_debut, fin };
+      }
+      return null;
+    };
+
+    // Construire la liste des créneaux occupés
+    const creneauxOccupes = [];
+
+    // --- 1. Lignes multi-jours (date = date demandée, résa parente possiblement différente) ---
+    const multiDayResaIds = [...new Set((multiDayLignes || []).map(l => l.reservation_id))];
+    const processedMultiDayResaIds = new Set();
+    if (multiDayResaIds.length > 0) {
+      const { data: parentResas } = await supabase
+        .from('reservations')
+        .select('id, statut')
+        .eq('tenant_id', tenantId)
+        .in('id', multiDayResaIds)
+        .not('statut', 'in', '("annule","no_show")');
+      const validParentIds = new Set((parentResas || []).map(r => r.id));
+      (multiDayLignes || []).forEach(l => {
+        if (!validParentIds.has(l.reservation_id)) return;
+        processedMultiDayResaIds.add(l.reservation_id);
+        const slot = ligneToSlot(l);
+        if (slot) creneauxOccupes.push(slot);
+      });
+    }
+
+    // --- 2. Lignes classiques (résa du même jour) ---
     const ligneReservationIds = [...new Set((lignesMembre || []).map(l => l.reservation_id))];
     const allResaIds = [...new Set([...reservationIds, ...ligneReservationIds])];
 
@@ -163,22 +217,20 @@ router.get('/equipe/:id/prochaine-dispo', authenticateAdmin, async (req, res) =>
       (allResas || []).forEach(r => { resasParDate[r.id] = r; });
     }
 
-    // Construire la liste des créneaux occupés
-    const creneauxOccupes = [];
-
     // Créneaux depuis les lignes (priorité: plus précis)
     const resaAvecLignes = new Set();
     (lignesMembre || []).forEach(l => {
       if (!resasParDate[l.reservation_id]) return; // pas ce jour-là
-      resaAvecLignes.add(l.reservation_id);
-      if (l.heure_debut && l.heure_fin) {
-        creneauxOccupes.push({ debut: l.heure_debut, fin: l.heure_fin });
-      } else if (l.heure_debut && l.duree_minutes) {
-        const [h, m] = l.heure_debut.split(':').map(Number);
-        const finMin = h * 60 + m + (l.duree_minutes || 60);
-        const fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
-        creneauxOccupes.push({ debut: l.heure_debut, fin });
+      // Skip lignes multi-jours qui appartiennent à un autre jour
+      if (l.date && l.date !== date) return;
+      // Éviter double-comptage si déjà traité en multi-jours
+      if (processedMultiDayResaIds.has(l.reservation_id)) {
+        resaAvecLignes.add(l.reservation_id);
+        return;
       }
+      resaAvecLignes.add(l.reservation_id);
+      const slot = ligneToSlot(l);
+      if (slot) creneauxOccupes.push(slot);
     });
 
     // Créneaux depuis les résas directes (sans lignes)
@@ -233,11 +285,35 @@ router.get('/equipe/:id/prochaine-dispo', authenticateAdmin, async (req, res) =>
       prochaineDispo = roundUp15(prochaineDispo);
     }
 
+    // Appliquer les contraintes horaires du membre
+    if (prochaineDispo && constraints) {
+      // Si la dispo tombe dans la pause déjeuner → sauter à pause_fin
+      const dispoMin = timeToMin(prochaineDispo);
+      if (dispoMin >= constraints.pauseDebutMin && dispoMin < constraints.pauseFinMin) {
+        prochaineDispo = roundUp15(minutesToTime(constraints.pauseFinMin));
+      }
+
+      // Vérifier max heures accumulées
+      const totalOccupeMin = creneauxOccupes.reduce((sum, c) => {
+        return sum + (timeToMin(c.fin) - timeToMin(c.debut));
+      }, 0);
+      if (totalOccupeMin >= constraints.maxHeuresJour * 60) {
+        prochaineDispo = null; // plus dispo ce jour
+      }
+    }
+
+    // Helper pour convertir HH:MM en minutes
+    function timeToMin(t) {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + (m || 0);
+    }
+
     success(res, {
       membre_id: membreId,
       date,
       prochaine_dispo: prochaineDispo,
-      creneaux_occupes: creneauxOccupes
+      creneaux_occupes: creneauxOccupes,
+      contraintes: constraints || null
     });
   } catch (err) {
     console.error('[SERVICES] Erreur prochaine dispo:', err);
@@ -335,27 +411,35 @@ router.get('/equipe/disponibles', authenticateAdmin, async (req, res) => {
 router.post('/equipe', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { nom, prenom, email, telephone, role, adresse_rue, adresse_cp, adresse_ville } = req.body;
+    const { nom, prenom, email, telephone, role, adresse_rue, adresse_cp, adresse_ville, pause_debut, pause_fin, max_heures_jour, pause_min_minutes } = req.body;
 
     if (!nom || !prenom) {
       return apiError(res, 'Nom et prenom requis', 'BAD_REQUEST', 400);
     }
 
+    const insertData = {
+      tenant_id: tenantId,
+      nom,
+      prenom,
+      email: email || null,
+      telephone: telephone || null,
+      role: role || 'employe',
+      statut: 'actif',
+      jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
+      adresse_rue: adresse_rue || null,
+      adresse_cp: adresse_cp || null,
+      adresse_ville: adresse_ville || null,
+    };
+
+    // Contraintes horaires (NULL = défauts système)
+    if (pause_debut !== undefined) insertData.pause_debut = pause_debut || null;
+    if (pause_fin !== undefined) insertData.pause_fin = pause_fin || null;
+    if (max_heures_jour !== undefined) insertData.max_heures_jour = max_heures_jour != null ? Number(max_heures_jour) : null;
+    if (pause_min_minutes !== undefined) insertData.pause_min_minutes = pause_min_minutes != null ? Number(pause_min_minutes) : null;
+
     const { data: membre, error } = await supabase
       .from('rh_membres')
-      .insert({
-        tenant_id: tenantId,
-        nom,
-        prenom,
-        email: email || null,
-        telephone: telephone || null,
-        role: role || 'employe',
-        statut: 'actif',
-        jours_travailles: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi'],
-        adresse_rue: adresse_rue || null,
-        adresse_cp: adresse_cp || null,
-        adresse_ville: adresse_ville || null,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -376,7 +460,7 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
-    const { nom, prenom, email, telephone, role, statut, jours_travailles, adresse_rue, adresse_cp, adresse_ville } = req.body;
+    const { nom, prenom, email, telephone, role, statut, jours_travailles, adresse_rue, adresse_cp, adresse_ville, pause_debut, pause_fin, max_heures_jour, pause_min_minutes } = req.body;
 
     const updates = {};
     if (nom !== undefined) updates.nom = nom;
@@ -389,6 +473,11 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
     if (adresse_rue !== undefined) updates.adresse_rue = adresse_rue || null;
     if (adresse_cp !== undefined) updates.adresse_cp = adresse_cp || null;
     if (adresse_ville !== undefined) updates.adresse_ville = adresse_ville || null;
+    // Contraintes horaires (empty string → null = défauts système)
+    if (pause_debut !== undefined) updates.pause_debut = pause_debut || null;
+    if (pause_fin !== undefined) updates.pause_fin = pause_fin || null;
+    if (max_heures_jour !== undefined) updates.max_heures_jour = max_heures_jour != null && max_heures_jour !== '' ? Number(max_heures_jour) : null;
+    if (pause_min_minutes !== undefined) updates.pause_min_minutes = pause_min_minutes != null && pause_min_minutes !== '' ? Number(pause_min_minutes) : null;
 
     const { data: membre, error } = await supabase
       .from('rh_membres')

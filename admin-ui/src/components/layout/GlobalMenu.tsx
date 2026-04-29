@@ -4,7 +4,7 @@
  */
 
 import {
-  X, Home, Calendar, CalendarCheck, Users, Scissors, Package,
+  X, Home, Calendar, CalendarCheck, CalendarDays, Users, Scissors, Package,
   Megaphone, Bot, CreditCard, Settings, LogOut, BarChart3,
   FileText, Target, GitBranch, Search, AlertTriangle, Shield, UserCog,
   Clock, Star, ListChecks, BookOpen, UserPlus, UtensilsCrossed,
@@ -26,6 +26,7 @@ const menuItems = [
   { type: 'separator', label: 'Principal' },
   { icon: Calendar, label: 'Agenda', path: '/agenda' },
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', hideFor: ['commerce'] },
+  { icon: CalendarDays, label: 'Planning', path: '/planning' },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: Scissors, label: 'Services', path: '/services' },
   { icon: UtensilsCrossed, label: 'Menu / Carte', path: '/menu', businessType: 'restaurant' },
@@ -40,7 +41,7 @@ const menuItems = [
   { icon: Star, label: 'Avis Clients', path: '/avis-clients' },
   { type: 'separator', label: 'Business' },
   { icon: CreditCard, label: 'Facturation', path: '/facturation' },
-  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'starter' },
+  { icon: BarChart3, label: 'Analytics', path: '/analytics', plan: 'business' },
   { icon: FileText, label: 'Comptabilité', path: '/comptabilite', plan: 'business' },
   { icon: Package, label: 'Stock', path: '/stock', plan: 'starter' },
   { icon: UserCog, label: 'Équipe RH', path: '/rh', plan: 'business' },

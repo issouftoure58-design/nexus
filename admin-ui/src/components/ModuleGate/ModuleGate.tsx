@@ -11,11 +11,20 @@
  *   </ModuleGate>
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTenant, PlanType, normalizePlan } from '@/hooks/useTenant';
 import { Lock, Zap, Crown, Sparkles, ArrowRight, Send, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
+
+// Modules IA qui doivent vérifier channels-status
+const IA_MODULE_TO_CHANNEL: Record<string, string> = {
+  agent_ia_web: 'web',
+  agent_ia_whatsapp: 'whatsapp',
+  agent_ia_telephone: 'telephone',
+  whatsapp: 'whatsapp',
+  telephone: 'telephone',
+};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -38,13 +47,14 @@ interface ModuleGateProps {
 // PLAN INFO
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Modele 2026 — revision 21 avril 2026 (voir memory/business-model-2026.md)
-// Free / Starter 69€ / Pro 199€ / Business 599€
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES as PRICES } from '../../lib/planPricing';
+
 const PLAN_INFO: Record<'free' | 'starter' | 'pro' | 'business', { name: string; color: string; price: number }> = {
-  free: { name: 'Free', color: 'gray', price: 0 },
-  starter: { name: 'Starter', color: 'cyan', price: 69 },
-  pro: { name: 'Pro', color: 'blue', price: 199 },
-  business: { name: 'Business', color: 'purple', price: 599 },
+  free: { name: 'Free', color: 'gray', price: PRICES.free },
+  starter: { name: 'Starter', color: 'cyan', price: PRICES.starter },
+  pro: { name: 'Pro', color: 'blue', price: PRICES.pro },
+  business: { name: 'Business', color: 'purple', price: PRICES.business },
 };
 
 const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> = {
@@ -52,14 +62,14 @@ const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> =
     'Dashboard, Clients, Reservations',
     'Facturation (avec watermark)',
     '1 utilisateur',
-    '200 credits IA (limite)',
+    'IA limitee',
     'Support email',
   ],
   starter: [
     'Toutes les fonctions IA',
     'Stock, Workflows, Pipeline, Devis, SEO',
     'Fidelite, Equipe (5 max)',
-    '1 000 credits IA inclus chaque mois',
+    'Utilisation IA incluse',
     '200 limites (reservations, factures, clients)',
     'Support email prioritaire',
   ],
@@ -67,7 +77,7 @@ const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> =
     'Tout Starter +',
     'Multi-sites, tout illimite',
     'Equipe (20 max)',
-    '5 000 credits IA inclus chaque mois',
+    'Utilisation IA x5',
     'Support prioritaire',
   ],
   business: [
@@ -75,7 +85,7 @@ const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> =
     'SENTINEL monitoring',
     'White-label (logo + domaine custom)',
     'API + Webhooks + SSO entreprise',
-    '20 000 credits IA inclus chaque mois',
+    'Utilisation IA x20',
     'Account Manager dedie, 50 users',
   ],
 };
@@ -188,18 +198,18 @@ export function ModuleGate({
   // Vérif module optionnel activé
   if (module && !hasModule(module)) {
     const hasRequiredPlan = hasPlan('starter');
+    const isIAModule = module in IA_MODULE_TO_CHANNEL;
 
-    // Modules self-service (pas de numéro OVH nécessaire) → activation directe
-    const SELF_SERVICE_MODULES = ['agent_ia_web'];
-    const isSelfService = SELF_SERVICE_MODULES.includes(module);
-
-    if (hasRequiredPlan && isSelfService) {
+    // Pour les modules IA, vérifier si une demande est en cours
+    if (hasRequiredPlan && isIAModule) {
       return (
-        <SelfServiceActivation
+        <IAModuleGate
           module={module}
           moduleTitle={moduleTitle}
           plan={plan}
-        />
+        >
+          {children}
+        </IAModuleGate>
       );
     }
 
@@ -247,6 +257,101 @@ export function ModuleGate({
 
   // Accès autorisé
   return <>{children}</>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// IA MODULE GATE — Vérifie channels-status avant d'afficher activation ou pending
+// ══════════════════════════════════════════════════════════════════════════════
+
+function IAModuleGate({
+  module,
+  moduleTitle,
+  plan,
+  children,
+}: {
+  module: string;
+  moduleTitle?: string;
+  plan: PlanType;
+  children: React.ReactNode;
+}) {
+  const [status, setStatus] = useState<'loading' | 'active' | 'pending' | 'none'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ channels?: Record<string, { active: boolean; status: string }> }>('/admin/ia/channels-status')
+      .then((res) => {
+        if (cancelled) return;
+        const channel = IA_MODULE_TO_CHANNEL[module];
+        const channelStatus = res.channels?.[channel];
+        if (channelStatus?.status === 'active') {
+          setStatus('active');
+        } else if (channelStatus?.status === 'pending') {
+          setStatus('pending');
+        } else {
+          setStatus('none');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('none');
+      });
+    return () => { cancelled = true; };
+  }, [module]);
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-cyan-600 animate-spin" />
+      </div>
+    );
+  }
+
+  // Si actif côté config → laisser passer (modules_actifs pas encore synced, mais config dit actif)
+  if (status === 'active') {
+    return <>{children}</>;
+  }
+
+  // Si demande en cours → bandeau "demande en cours"
+  if (status === 'pending') {
+    const info = MODULE_LABELS[module] || {
+      name: moduleTitle || module,
+      description: 'Module IA',
+      icon: '⚡',
+    };
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-8">
+        <div className="max-w-lg w-full">
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-10 text-center">
+              <div className="text-5xl mb-4">{info.icon}</div>
+              <h2 className="text-2xl font-bold text-white mb-2">{info.name}</h2>
+              <p className="text-white/80">{info.description}</p>
+            </div>
+            <div className="p-8 text-center">
+              <Clock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Demande en cours de traitement</h3>
+              <p className="text-gray-600 mb-4">
+                Votre demande d'activation pour {info.name} est en cours.
+                Notre equipe configure votre numero dedie.
+              </p>
+              <div className="bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+                Delai habituel : 24-48h ouvrees. Vous recevrez un email de confirmation.
+              </div>
+              <p className="text-sm text-gray-500 mt-6">
+                Plan actuel : <span className="font-semibold">{PLAN_INFO[normalizePlan(plan)].name}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // status === 'none' → afficher le formulaire d'activation approprié
+  const SELF_SERVICE_MODULES = ['agent_ia_web'];
+  if (SELF_SERVICE_MODULES.includes(module)) {
+    return <SelfServiceActivation module={module} moduleTitle={moduleTitle} plan={plan} />;
+  }
+  return <ModuleActivationRequest module={module} moduleTitle={moduleTitle} plan={plan} />;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -307,7 +412,7 @@ function SelfServiceActivation({
                   <Zap className="w-5 h-5" />
                   Activer maintenant
                 </button>
-                <p className="text-sm text-gray-500 mt-3">Activation instantanée — consomme des crédits IA</p>
+                <p className="text-sm text-gray-500 mt-3">Activation instantanée</p>
               </>
             )}
 
@@ -501,7 +606,6 @@ function ModuleActivationRequest({
 
             <p className="text-center text-sm text-gray-500 mt-6">
               Plan actuel : <span className="font-semibold">{PLAN_INFO[normalizePlan(plan)].name}</span>
-              {' · '}Consomme des crédits IA
             </p>
           </div>
         </div>

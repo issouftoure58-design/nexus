@@ -82,6 +82,7 @@ const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const SSOCallback = lazy(() => import('./pages/SSOCallback'));
 const Configuration = lazy(() => import('./pages/Configuration'));
 const Equipe = lazy(() => import('./pages/Equipe'));
+const Planning = lazy(() => import('./pages/Planning'));
 const OnboardingSequences = lazy(() => import('./pages/OnboardingSequences'));
 
 // Employee Portal (lazy)
@@ -241,8 +242,8 @@ function App() {
             <Route path="/auxiliaires" element={<Navigate to="/comptabilite?tab=auxiliaires" replace />} />
             <Route path="/expert-comptable" element={<Navigate to="/comptabilite?tab=expert" replace />} />
             <Route path="/commandes" element={<ModuleRoute module="ecommerce" moduleTitle="Commandes" moduleDescription="Gestion des commandes"><Commandes /></ModuleRoute>} />
-            <Route path="/stock" element={<ModuleRoute module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
-            <Route path="/analytics" element={<ModuleRoute module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
+            <Route path="/stock" element={<ModuleRoute requiredPlan="starter" module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
+            <Route path="/analytics" element={<ModuleRoute requiredPlan="business" module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
             <Route path="/rh" element={<ModuleRoute requiredPlan="business" module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
             {/* Modules Marketing — verrouilles Starter+ (Free tier bloque sur features IA) */}
@@ -251,6 +252,7 @@ function App() {
             <Route path="/pipeline" element={<ModuleRoute requiredPlan="starter" module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
             <Route path="/devis" element={<ModuleRoute requiredPlan="starter" module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
+            <Route path="/planning" element={<ModuleRoute module="reservations" moduleTitle="Planning" moduleDescription="Vue planning hebdomadaire par employé"><Planning /></ModuleRoute>} />
             <Route path="/campagnes" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
             <Route path="/email-templates" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
             <Route path="/marketing-analytics" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
@@ -275,7 +277,7 @@ function App() {
             {/* Modules SEO & Systeme — verrouilles Starter+ */}
             <Route path="/seo" element={<ModuleRoute requiredPlan="starter" module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
             <Route path="/seo/articles" element={<ModuleRoute requiredPlan="starter" module="seo"><SEOArticles /></ModuleRoute>} />
-            <Route path="/sentinel" element={<ModuleRoute module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
+            <Route path="/sentinel" element={<ModuleRoute requiredPlan="business" module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
 
             {/* Superadmin NEXUS routes */}
             <Route path="/nexus/login" element={<NexusLogin />} />

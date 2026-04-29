@@ -22,12 +22,11 @@ const router = express.Router();
  * Récupère le plan depuis le tenant de l'admin
  */
 const requireAdminPlan = (minPlan) => {
-  // Modèle 2026 : Free / Basic / Business
-  const planOrder = ['free', 'basic', 'business', 'enterprise'];
+  // Modèle 2026 : Free / Starter / Pro / Business
+  const planOrder = ['free', 'starter', 'pro', 'business', 'enterprise'];
   const normalize = (p) => {
     const x = (p || 'free').toLowerCase();
-    if (x === 'starter') return 'free';
-    if (x === 'pro') return 'basic';
+    if (x === 'basic') return 'starter';
     return x;
   };
 

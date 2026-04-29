@@ -11,8 +11,18 @@
 import express from 'express';
 import { rawSupabase as supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { sendEmail } from '../services/emailService.js';
+import { invalidateModuleCache } from '../middleware/moduleProtection.js';
+import { activateModule, deactivateModule, requestModuleActivation } from '../services/moduleActivationService.js';
 
 const router = express.Router();
+
+// Mapping channel name → modules_actifs key
+const CHANNEL_TO_MODULE = {
+  web: 'agent_ia_web',
+  whatsapp: 'whatsapp',
+  telephone: 'telephone',
+};
 
 // ============================================
 // VALIDATION - Champs autorisés par channel
@@ -79,15 +89,14 @@ const requireProPlan = async (req, res, next) => {
 
     const plan = (tenant?.plan || 'free').toLowerCase();
 
-    // Modele 2026 : Free n'a pas l'IA. Basic et Business OK (Basic via credits, Business avec inclus)
-    // 'starter' = alias retro-compat de 'free'
-    if (plan === 'free' || plan === 'starter') {
+    // Modele 2026 : Free n'a pas l'IA. Starter/Pro/Business OK
+    if (plan === 'free') {
       return res.status(403).json({
         error: 'Plan insuffisant',
         code: 'PLAN_UPGRADE_REQUIRED',
-        message: 'Les fonctionnalités IA vocale nécessitent le plan Basic (29€/mois) ou Business — IA via crédits',
+        message: 'Les fonctionnalités IA nécessitent le plan Starter (69€/mois) ou supérieur',
         current_plan: plan,
-        required_plan: 'basic',
+        required_plan: 'starter',
         upgrade_url: '/subscription'
       });
     }
@@ -119,29 +128,154 @@ router.get('/channels-status', authenticateAdmin, async (req, res) => {
       return res.status(401).json({ error: 'Non authentifié' });
     }
 
-    const { data, error } = await supabase
+    // 1. Lire tenant_ia_config
+    const { data: iaConfigs, error: iaErr } = await supabase
       .from('tenant_ia_config')
       .select('channel, config')
       .eq('tenant_id', tenantId);
 
-    if (error) throw error;
+    if (iaErr) throw iaErr;
 
-    // Le flag `active` est stocke dans la colonne JSONB `config.active`
-    // (pas une colonne top-level). On defaut a true si un row existe.
     const byChannel = new Map(
-      (data || []).map(r => [r.channel, r.config?.active !== false])
+      (iaConfigs || []).map(r => [r.channel, r.config])
     );
+
+    // 2. Lire modules_actifs + options_canaux_actifs du tenant
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('modules_actifs, options_canaux_actifs')
+      .eq('id', tenantId)
+      .single();
+
+    const modulesActifs = { ...(tenant?.modules_actifs || {}) };
+    const optionsCanaux = { ...(tenant?.options_canaux_actifs || {}) };
+
+    // 3. Lire les demandes pending dans module_activation_requests
+    const { data: pendingRequests } = await supabase
+      .from('module_activation_requests')
+      .select('module_id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'pending');
+
+    const pendingModules = new Set((pendingRequests || []).map(r => r.module_id));
+
+    // 4. Auto-repair: si tenant_ia_config dit active=true mais modules_actifs/options_canaux
+    //    ne sont pas synchronisés, corriger automatiquement (self-healing)
+    let needsRepair = false;
+    for (const [channel, moduleKey] of Object.entries(CHANNEL_TO_MODULE)) {
+      const config = byChannel.get(channel);
+      if (config?.active === true) {
+        if (!modulesActifs[moduleKey]) {
+          modulesActifs[moduleKey] = true;
+          needsRepair = true;
+        }
+        if (!optionsCanaux[moduleKey]) {
+          optionsCanaux[moduleKey] = true;
+          needsRepair = true;
+        }
+      }
+    }
+
+    if (needsRepair) {
+      console.log(`[IA Config] Auto-repair sync for ${tenantId}:`, { modulesActifs, optionsCanaux });
+      await supabase
+        .from('tenants')
+        .update({
+          modules_actifs: modulesActifs,
+          options_canaux_actifs: optionsCanaux,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tenantId);
+      invalidateModuleCache(tenantId);
+    }
+
+    // 5. Construire le statut enrichi par canal
+    const buildStatus = (channel) => {
+      const moduleKey = CHANNEL_TO_MODULE[channel];
+      const config = byChannel.get(channel);
+      const isModuleActive = !!modulesActifs[moduleKey];
+      const configActive = config?.active === true;
+      const isPending = pendingModules.has(moduleKey) || config?.activation_requested === true;
+
+      if (isModuleActive && configActive) {
+        return { active: true, status: 'active' };
+      }
+      if (isPending) {
+        return { active: false, status: 'pending' };
+      }
+      return { active: false, status: 'none' };
+    };
 
     res.json({
       success: true,
       channels: {
-        web: byChannel.get('web') ?? false,
-        whatsapp: byChannel.get('whatsapp') ?? false,
-        telephone: byChannel.get('telephone') ?? false,
+        web: buildStatus('web'),
+        whatsapp: buildStatus('whatsapp'),
+        telephone: buildStatus('telephone'),
       },
     });
   } catch (error) {
     console.error('[IA Config] Erreur GET channels-status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// CHANNELS ACTIVATE — Activation des canaux IA
+// ============================================
+
+/**
+ * POST /api/admin/ia/channels-activate
+ * Active/désactive les canaux IA demandés par le tenant.
+ * - Web : activation immédiate (upsert config active=true)
+ * - WhatsApp/Téléphone : crée une demande d'activation (provisioning manuel requis)
+ *
+ * Body: { channels: { web: true, whatsapp: true, telephone: false } }
+ */
+router.post('/channels-activate', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { channels } = req.body;
+
+    if (!tenantId || !channels) {
+      return res.status(400).json({ error: 'Paramètres manquants' });
+    }
+
+    const results = { web: null, whatsapp: null, telephone: null };
+
+    for (const [channel, active] of Object.entries(channels)) {
+      if (!['web', 'whatsapp', 'telephone'].includes(channel)) continue;
+      const moduleKey = CHANNEL_TO_MODULE[channel];
+
+      if (active) {
+        if (channel === 'web') {
+          // Web : activation immédiate via service unifie
+          await activateModule(tenantId, moduleKey, {
+            iaConfig: {
+              active: true,
+              greeting_message: "Bonjour ! Comment puis-je vous aider ?",
+              tone: 'professionnel',
+              language: 'fr-FR',
+              booking_enabled: true,
+            },
+          });
+          results.web = 'activated';
+        } else {
+          // WhatsApp / Téléphone : demande d'activation via service unifie
+          await requestModuleActivation(tenantId, moduleKey, req.admin.id);
+          results[channel] = 'requested';
+        }
+      } else {
+        // Désactivation via service unifie
+        await deactivateModule(tenantId, moduleKey);
+        results[channel] = 'deactivated';
+      }
+    }
+
+    console.log(`[IA Config] Channels activate for ${tenantId}:`, results);
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('[IA Config] Erreur POST channels-activate:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

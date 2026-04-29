@@ -634,7 +634,7 @@ export default function PrestationsListe({
                 </div>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                En confirmant, le RDV passera en statut <strong>Confirme</strong> et le client recevra une confirmation par SMS/Email.
+                En confirmant, la réservation passera en statut <strong>Confirmé</strong> et le client recevra une confirmation par SMS/Email.
               </p>
             </div>
 

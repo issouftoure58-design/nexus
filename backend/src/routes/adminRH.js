@@ -2978,6 +2978,7 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
         prix_total,
         notes,
         membre_id,
+        adresse_client,
         client:clients(id, nom, prenom, telephone, type_client, raison_sociale),
         membre:rh_membres(id, nom, prenom, role),
         reservation_membres(
@@ -3094,7 +3095,9 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
         statut: rdv.statut,
         prix: rdv.prix_total ? rdv.prix_total / 100 : 0,
         client: formatClientName(rdv.client),
+        client_id: rdv.client?.id || null,
         client_tel: rdv.client?.telephone,
+        adresse: rdv.adresse_client || '',
         employe: tousLesMembres.length > 0
           ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
           : 'Non assigné',
@@ -3128,7 +3131,9 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
           statut: rdv.statut,
           prix: 0, // prix déjà compté sur jour 1
           client: formatClientName(rdv.client),
+          client_id: rdv.client?.id || null,
           client_tel: rdv.client?.telephone,
+          adresse: rdv.adresse_client || '',
           employe: tousLesMembres.length > 0
             ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
             : 'Non assigné',

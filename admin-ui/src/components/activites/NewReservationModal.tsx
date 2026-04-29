@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { X, User, Clock, MinusCircle, PlusCircle } from 'lucide-react';
+import { X, User, Clock, MinusCircle, PlusCircle, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FeatureField } from '@/components/forms';
@@ -14,6 +14,7 @@ import type {
   NewRdvForm, NewClientForm, Totals,
 } from './types';
 import { calculateHours, calculateDays, calculateNights } from './types';
+import { detectMajoration, majorationBadge } from '@/lib/majorations';
 
 interface ProfileLike {
   id?: string;
@@ -61,12 +62,17 @@ interface NewReservationModalProps {
     field: keyof ServiceAffectation,
     value: number | string | undefined
   ) => void;
+  onUpdateServiceLigneField?: (serviceId: number, field: keyof ServiceLigne, value: string | number) => void;
   onCalculateTotals: () => Totals;
   depositEnabled?: boolean;
   requireDeposit?: boolean;
   onRequireDepositChange?: (value: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
+  calculateMultiDaySchedule?: (startDate: string, startTime: string, totalMinutes: number) => {
+    jours: Array<{ date: string; debut: string; fin: string; minutes: number }>;
+    dateFin: string;
+  };
 }
 
 export default function NewReservationModal({
@@ -102,12 +108,14 @@ export default function NewReservationModal({
   onRemoveServiceLigne,
   onUpdateServiceQuantite,
   onUpdateAffectation,
+  onUpdateServiceLigneField,
   onCalculateTotals,
   depositEnabled,
   requireDeposit,
   onRequireDepositChange,
   onSubmit,
   onClose,
+  calculateMultiDaySchedule,
 }: NewReservationModalProps) {
   // Min couverts = capacite - 1 (petites tables) ou 75% (grandes)
   // Evite de gaspiller une table de 4 pour 1 personne
@@ -120,6 +128,25 @@ export default function NewReservationModal({
     return Math.ceil(cap * 0.75);
   };
 
+  // Vérifie si un membre a un créneau chevauchant dans la résa en cours
+  const getInternalConflict = (membreId: number, currentServiceId: number, currentAffIdx: number): string | null => {
+    const currentLigne = serviceLignes.find(sl => sl.service_id === currentServiceId);
+    const currentAff = currentLigne?.affectations[currentAffIdx];
+    if (!currentAff?.heure_debut || !currentAff?.heure_fin) return null;
+
+    for (const sl of serviceLignes) {
+      for (let i = 0; i < sl.affectations.length; i++) {
+        if (sl.service_id === currentServiceId && i === currentAffIdx) continue;
+        const aff = sl.affectations[i];
+        if (aff.membre_id !== membreId || !aff.heure_debut || !aff.heure_fin) continue;
+        if (currentAff.heure_debut < aff.heure_fin && currentAff.heure_fin > aff.heure_debut) {
+          return `${aff.heure_debut}-${aff.heure_fin} (${sl.service_nom})`;
+        }
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
@@ -128,7 +155,7 @@ export default function NewReservationModal({
       >
         <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {profile?.id === 'security' ? 'Nouvelle mission' : `Nouveau ${t('reservation', false).toLowerCase()}`}
+            {profile?.id === 'security' ? 'Nouvelle mission' : `Nouvelle ${t('reservation', false).toLowerCase()}`}
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
             <X className="w-5 h-5 text-gray-500" />
@@ -258,35 +285,19 @@ export default function NewReservationModal({
           {/* === DATE (avant les prestations pour salon/domicile) === */}
           {!isPricingMode('hourly') && (isBusinessType('salon') || isBusinessType('service_domicile')) && (
             <div className="space-y-2">
-              <div className={isBusinessType('service_domicile') ? '' : 'grid grid-cols-2 gap-3'}>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Date *
-                  </label>
-                  <Input
-                    type="date"
-                    value={newRdvForm.date_rdv}
-                    onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
-                  />
-                </div>
-                {isBusinessType('salon') && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                      Heure *
-                    </label>
-                    <Input
-                      type="time"
-                      value={newRdvForm.heure_rdv}
-                      onChange={(e) => onDateHeureChange('heure_rdv', e.target.value)}
-                    />
-                  </div>
-                )}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Date *
+                </label>
+                <Input
+                  type="date"
+                  value={newRdvForm.date_rdv}
+                  onChange={(e) => onDateHeureChange('date_rdv', e.target.value)}
+                />
               </div>
-              {isBusinessType('service_domicile') && (
-                <p className="text-xs text-gray-500">
-                  L'heure sera définie par les affectations ci-dessous
-                </p>
-              )}
+              <p className="text-xs text-gray-500">
+                L'heure sera définie par les affectations ci-dessous
+              </p>
             </div>
           )}
 
@@ -665,6 +676,29 @@ export default function NewReservationModal({
                           </div>
                         </div>
 
+                        {/* Dates par ligne (security / multi-day) */}
+                        {profile?.duration?.allowMultiDay && onUpdateServiceLigneField && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="flex items-center gap-2 flex-1">
+                              <input
+                                type="date"
+                                value={ligne.date_debut || newRdvForm.date_rdv || ''}
+                                onChange={(e) => onUpdateServiceLigneField(ligne.service_id, 'date_debut', e.target.value)}
+                                className="px-2 py-1 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                              />
+                              <span className="text-gray-400 text-xs">au</span>
+                              <input
+                                type="date"
+                                value={ligne.date_fin || newRdvForm.date_fin || newRdvForm.date_rdv || ''}
+                                onChange={(e) => onUpdateServiceLigneField(ligne.service_id, 'date_fin', e.target.value)}
+                                min={ligne.date_debut || newRdvForm.date_rdv || ''}
+                                className="px-2 py-1 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         {/* Affectations multiples (une par quantité) */}
                         {(ligne.affectations || []).map((affectation, affIdx) => (
                           <div key={affIdx} className="space-y-1 pt-2 border-t border-gray-100 dark:border-gray-800">
@@ -690,15 +724,32 @@ export default function NewReservationModal({
                                 <option value="">-- Assigner {t('employee', false).toLowerCase()} --</option>
                                 {newRdvForm.date_rdv && newRdvForm.heure_rdv ? (
                                   <>
-                                    {membresDisponibles.length > 0 && (
-                                      <optgroup label="✓ Disponibles">
-                                        {membresDisponibles.map((m) => (
-                                          <option key={m.id} value={m.id}>
-                                            {m.prenom} {m.nom} ({m.role})
-                                          </option>
-                                        ))}
-                                      </optgroup>
-                                    )}
+                                    {membresDisponibles.length > 0 && (() => {
+                                      const libres = membresDisponibles.filter(m => !getInternalConflict(m.id, ligne.service_id, affIdx));
+                                      const conflits = membresDisponibles.filter(m => getInternalConflict(m.id, ligne.service_id, affIdx));
+                                      return (
+                                        <>
+                                          {libres.length > 0 && (
+                                            <optgroup label="✓ Disponibles">
+                                              {libres.map((m) => (
+                                                <option key={m.id} value={m.id}>
+                                                  {m.prenom} {m.nom} ({m.role})
+                                                </option>
+                                              ))}
+                                            </optgroup>
+                                          )}
+                                          {conflits.length > 0 && (
+                                            <optgroup label="⚠ Chevauchement (cette résa)">
+                                              {conflits.map((m) => (
+                                                <option key={m.id} value={m.id}>
+                                                  {m.prenom} {m.nom} — {getInternalConflict(m.id, ligne.service_id, affIdx)}
+                                                </option>
+                                              ))}
+                                            </optgroup>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                     {membresOccupes.length > 0 && (
                                       <optgroup label="✗ Occupés">
                                         {membresOccupes.map((m) => (
@@ -710,17 +761,46 @@ export default function NewReservationModal({
                                     )}
                                   </>
                                 ) : (
-                                  membres.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.prenom} {m.nom} ({m.role})
-                                    </option>
-                                  ))
+                                  (() => {
+                                    const libres = membres.filter(m => !getInternalConflict(m.id, ligne.service_id, affIdx));
+                                    const conflits = membres.filter(m => getInternalConflict(m.id, ligne.service_id, affIdx));
+                                    return (
+                                      <>
+                                        {libres.map((m) => (
+                                          <option key={m.id} value={m.id}>
+                                            {m.prenom} {m.nom} ({m.role})
+                                          </option>
+                                        ))}
+                                        {conflits.length > 0 && (
+                                          <optgroup label="⚠ Chevauchement (cette résa)">
+                                            {conflits.map((m) => (
+                                              <option key={m.id} value={m.id}>
+                                                {m.prenom} {m.nom} — {getInternalConflict(m.id, ligne.service_id, affIdx)}
+                                              </option>
+                                            ))}
+                                          </optgroup>
+                                        )}
+                                      </>
+                                    );
+                                  })()
                                 )}
                               </select>
-                              {affectation.membre_id && (
-                                <span className="text-xs text-green-600 dark:text-green-400">✓</span>
-                              )}
+                              {affectation.membre_id && (() => {
+                                const conflict = getInternalConflict(affectation.membre_id, ligne.service_id, affIdx);
+                                return conflict
+                                  ? <span className="text-xs text-amber-500" title={`Chevauche ${conflict}`}>⚠</span>
+                                  : <span className="text-xs text-green-600 dark:text-green-400">✓</span>;
+                              })()}
                             </div>
+                            {affectation.membre_id && (() => {
+                              const conflict = getInternalConflict(affectation.membre_id, ligne.service_id, affIdx);
+                              if (!conflict) return null;
+                              return (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 pl-6">
+                                  ⚠ Chevauche {conflict}
+                                </p>
+                              );
+                            })()}
 
                             {/* Horaires pour cette affectation */}
                             <div className="flex items-center gap-2">
@@ -753,6 +833,45 @@ export default function NewReservationModal({
                                 />
                               </div>
                             </div>
+                            {/* Badge majoration (security) */}
+                            {isBusinessType('security') && affectation.heure_debut && affectation.heure_fin && (() => {
+                              const dateRef = ligne.date_debut || newRdvForm.date_rdv;
+                              if (!dateRef) return null;
+                              const maj = detectMajoration(dateRef, affectation.heure_debut, affectation.heure_fin);
+                              if (maj.pourcentage === 0) return null;
+                              return (
+                                <p className="text-xs ml-6 mt-0.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
+                                    {majorationBadge(maj.type)} {maj.label} +{maj.pourcentage}%
+                                  </span>
+                                </p>
+                              );
+                            })()}
+                            {/* Résumé multi-jours si la prestation dépasse la journée */}
+                            {affectation.heure_debut && ligne.duree_minutes > 480 && calculateMultiDaySchedule && newRdvForm.date_rdv && (() => {
+                              const schedule = calculateMultiDaySchedule(newRdvForm.date_rdv, affectation.heure_debut, ligne.duree_minutes);
+                              if (schedule.jours.length <= 1) return null;
+                              const JOURS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+                              return (
+                                <div className="ml-6 mt-1 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+                                  <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">
+                                    Prestation sur {schedule.jours.length} jours
+                                  </p>
+                                  {schedule.jours.map((j, ji) => {
+                                    const d = new Date(j.date + 'T12:00:00');
+                                    const jourNom = JOURS[d.getDay()];
+                                    const h = Math.floor(j.minutes / 60);
+                                    const m = j.minutes % 60;
+                                    return (
+                                      <div key={ji} className="flex justify-between text-blue-600 dark:text-blue-400">
+                                        <span>{jourNom} {j.date.slice(8, 10)}/{j.date.slice(5, 7)}</span>
+                                        <span>{j.debut} - {j.fin} ({h}h{m > 0 ? `${String(m).padStart(2, '0')}` : ''})</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         ))}
                       </div>
@@ -1019,6 +1138,12 @@ export default function NewReservationModal({
                   </span>
                   <span className="font-medium">{(totals.sousTotalServices / 100).toFixed(2)} EUR</span>
                 </div>
+                {totals.montantMajorations > 0 && (
+                  <div className="flex justify-between text-sm text-amber-600 dark:text-amber-400">
+                    <span>Majorations (nuit/dimanche/férié):</span>
+                    <span className="font-medium">+{(totals.montantMajorations / 100).toFixed(2)} EUR</span>
+                  </div>
+                )}
                 <FeatureField feature="travelFees">
                   {totals.fraisDeplacement > 0 && (
                     <div className="flex justify-between text-sm">
@@ -1034,8 +1159,14 @@ export default function NewReservationModal({
                   </div>
                 )}
                 <div className="border-t border-cyan-200 dark:border-cyan-700 pt-2 mt-2 space-y-1">
+                  {totals.montantCnaps > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Taxe CNAPS (0.50%):</span>
+                      <span className="font-medium">{(totals.montantCnaps / 100).toFixed(2)} EUR</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Montant HT:</span>
+                    <span className="text-gray-600 dark:text-gray-400">Montant HT{totals.montantCnaps > 0 ? ' (incl. CNAPS)' : ''}:</span>
                     <span className="font-medium">{(totals.montantHT / 100).toFixed(2)} EUR</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -1080,7 +1211,7 @@ export default function NewReservationModal({
               </button>
               <div>
                 <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Demander l'acompte au client</span>
-                <p className="text-xs text-amber-600 dark:text-amber-400">Le RDV restera en attente jusqu'au paiement</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">La réservation restera en attente jusqu'au paiement</p>
               </div>
             </label>
           )}

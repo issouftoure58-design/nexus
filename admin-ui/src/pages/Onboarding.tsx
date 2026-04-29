@@ -83,31 +83,33 @@ const DAY_LABELS: Record<string, string> = {
   sunday: 'Dimanche',
 };
 
-// Prix conformes a config/pricing.js (source de verite — modele 2026 Free/Starter/Pro/Business)
+// Prix importés depuis lib/planPricing.ts (source unique frontend)
+import { PLAN_PRICES as PP } from '../lib/planPricing';
+
 const PLAN_INFO: Record<string, { name: string; description: string; color: string; price: number }> = {
   free: {
     name: 'Free',
     description: 'Freemium a vie pour demarrer',
     color: 'from-gray-400 to-gray-500',
-    price: 0,
+    price: PP.free,
   },
   starter: {
     name: 'Starter',
     description: 'Toute l\'IA + modules essentiels, 1 000 credits inclus',
     color: 'from-cyan-500 to-blue-500',
-    price: 69,
+    price: PP.starter,
   },
   pro: {
     name: 'Pro',
     description: 'Multi-sites, tout illimite, 5 000 credits IA inclus',
     color: 'from-blue-500 to-indigo-500',
-    price: 199,
+    price: PP.pro,
   },
   business: {
     name: 'Business',
     description: 'RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus',
     color: 'from-purple-500 to-pink-500',
-    price: 599,
+    price: PP.business,
   },
 };
 

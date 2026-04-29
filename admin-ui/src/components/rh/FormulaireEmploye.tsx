@@ -105,6 +105,7 @@ interface EmployeFormData {
 
   // Rémunération
   salaire_mensuel: string;
+  taux_ir: string;
   regime_ss: string;
   mutuelle_obligatoire: boolean;
   mutuelle_dispense: boolean;
@@ -177,6 +178,7 @@ interface MembreData {
   classification_coefficient?: number;
   categorie_sociopro?: string;
   salaire_mensuel?: number;
+  taux_ir?: number;
   regime_ss?: string;
   mutuelle_obligatoire?: boolean;
   mutuelle_dispense?: boolean;
@@ -220,8 +222,9 @@ interface MembreData {
 }
 
 // Extended form data that includes computed fields sent to the API
-export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensuel' | 'heures_hebdo' | 'heures_mensuelles' | 'classification_coefficient' | 'quotite_reference' | 'quotite_contrat' | 'taux_at'> {
+export interface EmployeSubmitData extends Omit<EmployeFormData, 'salaire_mensuel' | 'taux_ir' | 'heures_hebdo' | 'heures_mensuelles' | 'classification_coefficient' | 'quotite_reference' | 'quotite_contrat' | 'taux_at'> {
   salaire_mensuel: number;
+  taux_ir: number;
   heures_hebdo: number;
   heures_mensuelles: number;
   classification_coefficient: number | null;
@@ -290,6 +293,7 @@ const initialFormData: EmployeFormData = {
 
   // Rémunération
   salaire_mensuel: '',
+  taux_ir: '',
   regime_ss: 'general',
   mutuelle_obligatoire: true,
   mutuelle_dispense: false,
@@ -391,6 +395,7 @@ export default function FormulaireEmploye({
         categorie_sociopro: editMembre.categorie_sociopro || '',
 
         salaire_mensuel: editMembre.salaire_mensuel ? (editMembre.salaire_mensuel / 100).toString() : '',
+        taux_ir: editMembre.taux_ir ? editMembre.taux_ir.toString() : '',
         regime_ss: editMembre.regime_ss || 'general',
         mutuelle_obligatoire: editMembre.mutuelle_obligatoire !== false,
         mutuelle_dispense: editMembre.mutuelle_dispense ?? false,
@@ -503,6 +508,7 @@ export default function FormulaireEmploye({
     const submitData = {
       ...formData,
       salaire_mensuel: formData.salaire_mensuel ? Math.round(parseFloat(formData.salaire_mensuel) * 100) : 0,
+      taux_ir: formData.taux_ir ? parseFloat(formData.taux_ir) : 0,
       heures_hebdo: parseFloat(formData.heures_hebdo) || 35,
       heures_mensuelles: parseFloat(formData.heures_mensuelles) || 151.67,
       classification_coefficient: formData.classification_coefficient ? parseInt(formData.classification_coefficient) : null,
@@ -942,6 +948,23 @@ export default function FormulaireEmploye({
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Taux PAS (%)</label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="43"
+                    value={formData.taux_ir}
+                    onChange={e => updateField('taux_ir', e.target.value)}
+                    placeholder="0"
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Taux communiqué par la DGFIP (DSN retour)</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Régime sécurité sociale</label>

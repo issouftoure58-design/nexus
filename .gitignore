@@ -45,3 +45,5 @@ backend/backups/
 # Misc
 .cache/
 *.tgz
+docs/marketing/*.mp4
+*.mp4

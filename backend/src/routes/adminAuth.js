@@ -10,6 +10,7 @@ import { totpService } from '../services/totpService.js';
 import { getBusinessTemplate, TEMPLATE_TO_PROFILE, PROFESSION_TO_PROFILE, PROFESSIONS, generateIaConfig } from '../data/businessTemplates.js';
 import { createSession, validateSession, listSessions, revokeSession, revokeAllSessions, hashToken } from '../services/sessionService.js';
 import { getFeaturesForPlan } from '../config/planFeatures.js';
+import { createCheckoutSession, isStripeConfigured } from '../services/stripeBillingService.js';
 import {
   validateSiret,
   createPhoneVerification,
@@ -258,6 +259,8 @@ router.post('/logout', async (req, res) => {
           }
         }
       } catch (_) { /* Token invalide/expiré — ignorer */ }
+      // Invalider le cache auth
+      invalidateAuthCache(token);
     }
 
     res.json({ message: 'Déconnecté avec succès' });
@@ -613,6 +616,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
         onboarding_step: 0,
         onboarding_completed: false,
         modules_actifs: modulesActifs,
+        email: email || null,
         ...(telephone ? { telephone: telephone.replace(/\s+/g, '').trim() } : {}),
         ...(adresse ? { adresse } : {}),
         ...(profession_id ? { profession_id } : {}),
@@ -664,13 +668,14 @@ router.post('/signup', signupLimiter, async (req, res) => {
         const servicesRows = template.defaultServices.map((s, i) => ({
           tenant_id: finalSlug,
           nom: s.name,
-          duree_minutes: s.duration,
+          duree: s.duration,
           prix: Math.round(s.price * 100), // centimes
           categorie: s.category || 'general',
           actif: true,
           ordre: i,
         }));
-        await supabase.from('services').insert(servicesRows);
+        const { error: svcErr } = await supabase.from('services').insert(servicesRows);
+        if (svcErr) logger.warn('[SIGNUP] Services insert error:', svcErr.message);
       }
 
       // 2. Créer les business_hours (multi-period si restaurant/médical/garage)
@@ -740,7 +745,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
       logger.info(`[SIGNUP] Template provisionné: ${effectiveTemplate} → ${template.defaultServices?.length || 0} services, horaires, IA config`);
     } catch (provisionError) {
       // Non-bloquant: le compte est créé même si le provisioning partiel échoue
-      logger.warn('[SIGNUP] Provisioning partiel:', provisionError.message);
+      logger.warn('[SIGNUP] Provisioning partiel:', provisionError.message, provisionError.stack);
     }
 
     // ═══ Auto-login: générer JWT + créer session ═══
@@ -757,15 +762,39 @@ router.post('/signup', signupLimiter, async (req, res) => {
     // Créer session DB
     try {
       await createSession({
-        admin_id: adminUser.id,
-        tenant_id: tenant.id,
-        token_hash: hashToken(token),
-        ip_address: req.ip || req.connection?.remoteAddress || 'unknown',
-        user_agent: req.headers['user-agent'] || 'unknown',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        adminId: adminUser.id,
+        tenantId: tenant.id,
+        token,
+        ip: req.ip || req.connection?.remoteAddress || 'unknown',
+        userAgent: req.headers['user-agent'] || 'unknown',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       });
     } catch (sessionError) {
       logger.warn('[SIGNUP] Session creation failed (non-blocking):', sessionError.message);
+    }
+
+    // ═══ Stripe Checkout pour plans payants ═══
+    // Le tenant est créé en free (sécurité). Le plan ne passe en payant
+    // qu'après confirmation du paiement via webhook Stripe.
+    const desired_plan = req.body.plan || 'free';
+    let checkoutUrl = null;
+
+    if (desired_plan !== 'free' && isStripeConfigured()) {
+      try {
+        const productCode = `nexus_${desired_plan}_monthly`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        const result = await createCheckoutSession(
+          tenant.id,
+          productCode,
+          `${frontendUrl}/subscription?checkout=success`,
+          `${frontendUrl}/signup?plan=${desired_plan}`
+        );
+        checkoutUrl = result.url;
+        logger.info(`[SIGNUP] Checkout Stripe créée pour ${tenant.id} (plan: ${desired_plan})`);
+      } catch (stripeErr) {
+        logger.error('[SIGNUP] Stripe checkout error (non-blocking):', stripeErr.message);
+        // Continue sans Stripe — le tenant est en free, il pourra upgrader plus tard
+      }
     }
 
     logger.info(`[SIGNUP] Nouveau compte créé + auto-login: ${email} (tenant: ${finalSlug}, plan: ${plan}, template: ${effectiveTemplate})`);
@@ -782,7 +811,8 @@ router.post('/signup', signupLimiter, async (req, res) => {
         id: tenant.id,
         slug: finalSlug,
         plan: plan
-      }
+      },
+      ...(checkoutUrl ? { checkout_url: checkoutUrl } : {}),
     });
 
   } catch (error) {
@@ -1112,6 +1142,36 @@ router.get('/me', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ── Cache mémoire pour authenticateAdmin (évite de frapper Supabase à chaque requête) ──
+const _authCache = new Map(); // token → { admin, validatedAt }
+const AUTH_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+function getCachedAuth(token) {
+  const entry = _authCache.get(token);
+  if (!entry) return null;
+  if (Date.now() - entry.validatedAt > AUTH_CACHE_TTL) {
+    _authCache.delete(token);
+    return null;
+  }
+  return entry.admin;
+}
+
+function setCachedAuth(token, admin) {
+  _authCache.set(token, { admin, validatedAt: Date.now() });
+  // Eviter fuite mémoire : purger si > 100 entrées
+  if (_authCache.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of _authCache) {
+      if (now - v.validatedAt > AUTH_CACHE_TTL) _authCache.delete(k);
+    }
+  }
+}
+
+// Invalider le cache d'un token (appelé au logout/revoke)
+export function invalidateAuthCache(token) {
+  _authCache.delete(token);
+}
+
 // Middleware authentification
 export async function authenticateAdmin(req, res, next) {
   try {
@@ -1124,13 +1184,21 @@ export async function authenticateAdmin(req, res, next) {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
 
-    // Vérifier que la session est active (non révoquée)
+    // 1. Vérifier le cache mémoire (évite 2-3 requêtes Supabase)
+    const cached = getCachedAuth(token);
+    if (cached) {
+      req.admin = cached;
+      req.token = token;
+      return next();
+    }
+
+    // 2. Vérifier que la session est active (non révoquée)
     const sessionValid = await validateSession(token);
     if (!sessionValid) {
       return res.status(401).json({ error: 'Session expirée ou révoquée' });
     }
 
-    // Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
+    // 3. Enrichir avec les données admin (tenant_id, etc.) depuis la BDD
     let adminData;
     let error;
 
@@ -1154,16 +1222,27 @@ export async function authenticateAdmin(req, res, next) {
       return res.status(401).json({ error: 'Admin non trouvé' });
     }
 
-    req.admin = {
+    const adminObj = {
       ...decoded,
       tenant_id: adminData.tenant_id,
       nom: adminData.nom,
       custom_permissions: adminData.custom_permissions || null,
     };
+
+    // 4. Mettre en cache pour les requêtes suivantes
+    setCachedAuth(token, adminObj);
+
+    req.admin = adminObj;
     req.token = token;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Token invalide' });
+    // Distinguer erreurs JWT (vrai 401) des erreurs réseau/DB (500)
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError' || error.name === 'NotBeforeError') {
+      return res.status(401).json({ error: 'Token invalide' });
+    }
+    // Erreur réseau/DB (timeout Supabase, etc.) — NE PAS déconnecter l'utilisateur
+    console.error('[AUTH] Erreur temporaire auth middleware:', error.message);
+    return res.status(503).json({ error: 'Service temporairement indisponible, réessayez' });
   }
 }
 

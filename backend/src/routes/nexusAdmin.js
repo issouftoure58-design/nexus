@@ -49,12 +49,12 @@ router.get('/dashboard', async (req, res) => {
 
     // 2. Calcul MRR
     let mrr = 0;
-    // Modèle 2026 : Free / Basic / Business
-    const planDistribution = { free: 0, basic: 0, business: 0 };
+    // Modèle 2026 : Free / Starter / Pro / Business
+    const planDistribution = { free: 0, starter: 0, pro: 0, business: 0 };
     for (const t of activeTenants) {
       const raw = (t.plan || 'free').toLowerCase();
-      // Normalise les anciens noms (starter→free, pro→basic)
-      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
+      // Normalise les anciens noms (basic→starter retro-compat)
+      const plan = raw === 'basic' ? 'starter' : raw;
       mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }
@@ -249,7 +249,7 @@ router.get('/tenants', paginate(), async (req, res) => {
     // Construire la réponse
     const tenantsResult = (tenants || []).map(t => {
       const raw = (t.plan || 'free').toLowerCase();
-      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
+      const plan = raw === 'basic' ? 'starter' : raw;
       const cost = costByTenant[t.id] || 0;
       const planPrice = PLAN_PRICES[plan]?.monthly || 0;
       const costPercentage = planPrice > 0 ? Math.round((cost / planPrice) * 100) : 0;
@@ -588,12 +588,12 @@ router.get('/billing', async (req, res) => {
     if (error) throw error;
 
     let mrr = 0;
-    // Modèle 2026 : Free / Basic / Business
-    const planDistribution = { free: 0, basic: 0, business: 0 };
+    // Modèle 2026 : Free / Starter / Pro / Business
+    const planDistribution = { free: 0, starter: 0, pro: 0, business: 0 };
 
     for (const t of (tenants || [])) {
       const raw = (t.plan || 'free').toLowerCase();
-      const plan = raw === 'starter' ? 'free' : raw === 'pro' ? 'basic' : raw;
+      const plan = raw === 'basic' ? 'starter' : raw;
       mrr += PLAN_PRICES[plan]?.monthly || 0;
       if (planDistribution[plan] !== undefined) planDistribution[plan]++;
     }
@@ -1357,7 +1357,7 @@ router.get('/sentinel/module-requests', async (req, res) => {
 
 /**
  * PATCH /api/nexus/sentinel/module-requests/:id
- * Approuver ou rejeter une demande
+ * Approuver ou rejeter une demande — via moduleActivationService (unifie)
  */
 router.patch('/sentinel/module-requests/:id', async (req, res) => {
   try {
@@ -1368,55 +1368,25 @@ router.patch('/sentinel/module-requests/:id', async (req, res) => {
       return res.status(400).json({ error: 'Action requise: approve ou reject' });
     }
 
-    // Recuperer la demande
-    const { data: request, error: fetchErr } = await supabase
-      .from('module_activation_requests')
-      .select('id, tenant_id, module_id, status')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !request) {
-      return res.status(404).json({ error: 'Demande non trouvee' });
-    }
-
-    if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'Demande deja traitee' });
-    }
-
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
-
-    // Mettre a jour la demande
-    const { error: updateErr } = await supabase
-      .from('module_activation_requests')
-      .update({
-        status: newStatus,
-        processed_at: new Date().toISOString(),
-        notes: notes || null,
-      })
-      .eq('id', id);
-
-    if (updateErr) throw updateErr;
-
-    // Si approve: activer le module pour le tenant
     if (action === 'approve') {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('modules_actifs')
-        .eq('id', request.tenant_id)
-        .single();
+      // Service unifie : approve + activate + sync tous les stores
+      const { approveModuleActivation } = await import('../services/moduleActivationService.js');
+      await approveModuleActivation(id);
+    } else {
+      // Reject: just update the request status
+      const { error: updateErr } = await supabase
+        .from('module_activation_requests')
+        .update({
+          status: 'rejected',
+          processed_at: new Date().toISOString(),
+          notes: notes || null,
+        })
+        .eq('id', id);
 
-      const currentModules = tenant?.modules_actifs || {};
-      currentModules[request.module_id] = true;
-
-      const { error: tenantErr } = await supabase
-        .from('tenants')
-        .update({ modules_actifs: currentModules })
-        .eq('id', request.tenant_id);
-
-      if (tenantErr) throw tenantErr;
+      if (updateErr) throw updateErr;
     }
 
-    res.json({ success: true, status: newStatus });
+    res.json({ success: true, status: action === 'approve' ? 'approved' : 'rejected' });
   } catch (error) {
     console.error('[NEXUS] Module request action error:', error);
     res.status(500).json({ error: error.message });

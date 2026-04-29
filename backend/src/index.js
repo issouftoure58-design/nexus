@@ -263,6 +263,7 @@ app.use('/api/', apiLimiter);
 
 // Stripe Webhook (AVANT json parser - necessite raw body)
 app.use('/api/webhooks/stripe', stripeWebhookRoutes);
+app.use('/api/stripe/webhook', stripeWebhookRoutes); // alias pour Stripe CLI
 
 // Yousign Webhook (signature électronique)
 app.use('/api/webhooks/yousign', yousignWebhookRoutes);
@@ -894,7 +895,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   });
   console.log(`[REALTIME] WebSocket server ready on /media-stream`);
 
-  // Démarrer le scheduler de jobs
+  // Démarrer le scheduler de jobs (léger en dev)
   startScheduler();
 
   // Seed superadmin si les variables d'env sont définies
@@ -908,19 +909,24 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   startNotificationWorker();
 
   // Initialiser SENTINEL guardian system
-  sentinel.init().then(async result => {
-    if (result.success) {
-      console.log('[SENTINEL] Guardian system initialized successfully');
-      // Démarrer le monitoring uptime (scan services toutes les 60s)
-      const { startMonitoring } = await import('./sentinel/monitoring/index.js');
-      startMonitoring(60);
-      // Démarrer les backups automatiques (toutes les 24h)
-      const { startBackupScheduler } = await import('./sentinel/backup/index.js');
-      startBackupScheduler(24);
-    } else {
-      console.error('[SENTINEL] Initialization failed:', result.error);
-    }
-  }).catch(err => console.error('[SENTINEL] Init error:', err.message));
+  const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  if (isDev) {
+    console.log('[SENTINEL] Dev mode — SENTINEL entièrement DÉSACTIVÉ (économie connexions)');
+  } else {
+    sentinel.init().then(async result => {
+      if (result.success) {
+        console.log('[SENTINEL] Guardian system initialized successfully');
+        // Démarrer le monitoring uptime (scan services toutes les 60s)
+        const { startMonitoring } = await import('./sentinel/monitoring/index.js');
+        startMonitoring(60);
+        // Démarrer les backups automatiques (toutes les 24h)
+        const { startBackupScheduler } = await import('./sentinel/backup/index.js');
+        startBackupScheduler(24);
+      } else {
+        console.error('[SENTINEL] Initialization failed:', result.error);
+      }
+    }).catch(err => console.error('[SENTINEL] Init error:', err.message));
+  }
 });
 
 // ============= GRACEFUL SHUTDOWN =============
