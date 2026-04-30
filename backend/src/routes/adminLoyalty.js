@@ -5,12 +5,17 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import * as loyaltyService from '../services/loyaltyService.js';
 
 const router = express.Router();
 
+// Gating: fidélité = Pro+ (planFeatures.js)
+router.use(authenticateAdmin);
+router.use(requireModule('fidelite'));
+
 // GET /api/admin/loyalty/config
-router.get('/config', authenticateAdmin, async (req, res) => {
+router.get('/config', async (req, res) => {
   try {
     const config = await loyaltyService.getConfig(req.admin.tenant_id);
     res.json({ config });
@@ -21,7 +26,7 @@ router.get('/config', authenticateAdmin, async (req, res) => {
 });
 
 // PUT /api/admin/loyalty/config
-router.put('/config', authenticateAdmin, async (req, res) => {
+router.put('/config', async (req, res) => {
   try {
     const { enabled, points_per_euro, signup_bonus, validity_days, min_redeem, redeem_ratio } = req.body;
     const config = await loyaltyService.updateConfig(req.admin.tenant_id, {
@@ -35,7 +40,7 @@ router.put('/config', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/admin/loyalty/stats
-router.get('/stats', authenticateAdmin, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const stats = await loyaltyService.getStats(req.admin.tenant_id);
     const config = await loyaltyService.getConfig(req.admin.tenant_id);
@@ -47,7 +52,7 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/admin/loyalty/leaderboard
-router.get('/leaderboard', authenticateAdmin, async (req, res) => {
+router.get('/leaderboard', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
     const leaderboard = await loyaltyService.getLeaderboard(req.admin.tenant_id, limit);
@@ -59,7 +64,7 @@ router.get('/leaderboard', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/admin/loyalty/clients/:id — Détail points + historique d'un client
-router.get('/clients/:id', authenticateAdmin, async (req, res) => {
+router.get('/clients/:id', async (req, res) => {
   try {
     const clientId = parseInt(req.params.id);
     const page = parseInt(req.query.page) || 1;
@@ -78,7 +83,7 @@ router.get('/clients/:id', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/loyalty/clients/:id/adjust — Ajustement manuel
-router.post('/clients/:id/adjust', authenticateAdmin, async (req, res) => {
+router.post('/clients/:id/adjust', async (req, res) => {
   try {
     const clientId = parseInt(req.params.id);
     const { points, reason } = req.body;
@@ -99,7 +104,7 @@ router.post('/clients/:id/adjust', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/loyalty/clients/:id/redeem — Utiliser des points
-router.post('/clients/:id/redeem', authenticateAdmin, async (req, res) => {
+router.post('/clients/:id/redeem', async (req, res) => {
   try {
     const clientId = parseInt(req.params.id);
     const { points } = req.body;

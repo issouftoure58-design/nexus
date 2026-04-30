@@ -134,10 +134,11 @@ function getBusinessInstructions(profile) {
 /**
  * Fonctionnalités disponibles selon le plan (modele 2026 — revision 23 avril 2026)
  *
- * - Free     : gestion de base uniquement, IA bloquee
- * - Starter  : 69€/mois, toutes IA debloquees, 1 000 credits IA
- * - Pro      : 199€/mois, tout illimite, 5 000 credits IA
- * - Business : 599€/mois, Pro + RH complet + compta + white-label + 20 000 credits IA
+ * - Free       : gestion de base uniquement, IA bloquee
+ * - Starter    : 69€/mois, toutes IA debloquees, 4 000 credits IA
+ * - Pro        : 199€/mois, tout illimite, 20 000 credits IA
+ * - Business   : 499€/mois, Pro + SEO + compta + API, 50 000 credits IA
+ * - Enterprise : 899€/mois, Business + RH + Sentinel + white-label + SSO + AM, 100 000 credits IA
  */
 function getPlanCapabilities(plan) {
   const freeCaps = [
@@ -146,37 +147,56 @@ function getPlanCapabilities(plan) {
     'Agenda et planification',
     '30 clients max dans le CRM'
   ];
-  const basicCaps = [
+  const starterCaps = [
+    'Toutes les IA (Téléphone, WhatsApp, Web, Chat)',
+    'CRM 200 clients, 200 prestations',
+    '5 postes',
+    '4 000 crédits IA inclus/mois',
+    'Marketing CRM (contacts, segments)'
+  ];
+  const proCaps = [
     'Tout illimité (réservations, factures, clients)',
-    'CRM complet, Comptabilité, Stock',
-    'Workflows, Pipeline, Devis, SEO',
-    'Marketing email/SMS/réseaux sociaux',
-    'WhatsApp IA, Téléphone IA, Agent web',
-    '1 000 crédits IA inclus chaque mois (valeur 15€)',
-    'Analytics et tableaux de bord'
+    'Facturation complète (sans watermark)',
+    'Planning, Équipe (20 max)',
+    'Pipeline, Devis',
+    'Tout Marketing (campagnes, réseaux sociaux, posts IA, fidélité)',
+    'Multi-sites',
+    '20 000 crédits IA inclus/mois'
   ];
   const businessCaps = [
-    'RH & Planning complet',
-    'Équipe (20 max), Multi-sites',
+    'SEO complet (articles IA, meta, audit, keywords)',
+    'Comptabilité basique (rapports, FEC, journaux)',
+    'API + Webhooks',
+    '30 postes',
+    '50 000 crédits IA inclus/mois'
+  ];
+  const enterpriseCaps = [
+    'RH complet (paie, fiches, DSN, congés)',
+    'Comptabilité analytique',
+    'Sentinel monitoring',
     'White-label (logo + domaine custom)',
-    'API + Webhooks + SSO entreprise',
-    '10 000 crédits IA inclus chaque mois (valeur 150€)',
-    'Account Manager dédié + support prioritaire 1h'
+    'SSO entreprise',
+    'Account Manager dédié + support prioritaire',
+    '50 postes',
+    '100 000 crédits IA inclus/mois'
   ];
 
   // Normalisation legacy (basic→starter retro-compat)
   const normalized = plan === 'basic' ? 'starter' : plan;
 
-  if (normalized === 'business' || normalized === 'enterprise') {
-    return { included: [...freeCaps, ...basicCaps, ...businessCaps], locked: [] };
+  if (normalized === 'enterprise') {
+    return { included: [...freeCaps, ...starterCaps, ...proCaps, ...businessCaps, ...enterpriseCaps], locked: [] };
+  }
+  if (normalized === 'business') {
+    return { included: [...freeCaps, ...starterCaps, ...proCaps, ...businessCaps], locked: enterpriseCaps };
   }
   if (normalized === 'pro') {
-    return { included: [...freeCaps, ...basicCaps], locked: businessCaps };
+    return { included: [...freeCaps, ...starterCaps, ...proCaps], locked: [...businessCaps, ...enterpriseCaps] };
   }
   if (normalized === 'starter') {
-    return { included: [...freeCaps, ...basicCaps], locked: businessCaps };
+    return { included: [...freeCaps, ...starterCaps], locked: [...proCaps, ...businessCaps, ...enterpriseCaps] };
   }
-  return { included: freeCaps, locked: [...basicCaps, ...businessCaps] };
+  return { included: freeCaps, locked: [...starterCaps, ...proCaps, ...businessCaps, ...enterpriseCaps] };
 }
 
 /**

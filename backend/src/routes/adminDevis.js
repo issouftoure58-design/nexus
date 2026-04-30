@@ -11,6 +11,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
 import NotificationService from '../services/notificationService.js';
+import { sendEmail } from '../services/emailService.js';
 import { validate } from '../middleware/validate.js';
 
 // Note: clients.id et services.id sont des bigint en DB (pas UUID).
@@ -797,9 +798,78 @@ router.post('/:id/envoyer', async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    // Envoyer l'email avec le devis
-    // TODO: Générer PDF et envoyer
-    // Pour l'instant, on marque juste comme envoyé
+    // Récupérer les lignes du devis pour l'email
+    const { data: lignes } = await supabase
+      .from('devis_lignes')
+      .select('service_nom, description, quantite, prix_unitaire, montant_ht')
+      .eq('devis_id', id)
+      .eq('tenant_id', tenantId)
+      .order('id', { ascending: true });
+
+    const businessName = tenant?.business_name || 'NEXUS';
+    const montantHT = devis.montant_ht || 0;
+    const montantTVA = devis.montant_tva || 0;
+    const montantTTC = devis.montant_ttc || montantHT;
+    const dateDevis = new Date(devis.created_at).toLocaleDateString('fr-FR');
+    const dateValidite = devis.date_validite ? new Date(devis.date_validite).toLocaleDateString('fr-FR') : null;
+
+    const lignesHtml = (lignes || []).map(l => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: left;">${l.service_nom || l.description || '—'}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${l.quantite || 1}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">${((l.prix_unitaire || 0) / 100).toFixed(2)} €</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">${((l.montant_ht || 0) / 100).toFixed(2)} €</td>
+      </tr>
+    `).join('');
+
+    await sendEmail({
+      to: devis.client_email,
+      subject: `Devis ${devis.numero} — ${businessName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="width: 48px; height: 48px; margin: 0 auto; border-radius: 12px; background: linear-gradient(135deg, #06b6d4, #2563eb); display: flex; align-items: center; justify-content: center;">
+              <span style="color: white; font-weight: bold; font-size: 20px;">N</span>
+            </div>
+          </div>
+          <h2 style="text-align: center; color: #111827; margin-bottom: 4px;">Devis ${devis.numero}</h2>
+          <p style="text-align: center; color: #6b7280; margin-bottom: 24px;">${businessName} — ${dateDevis}</p>
+
+          <p style="color: #374151; margin-bottom: 16px;">Bonjour${devis.client_nom ? ' ' + devis.client_nom : ''},</p>
+          <p style="color: #374151; margin-bottom: 24px;">Veuillez trouver ci-dessous le détail de votre devis :</p>
+
+          ${devis.objet ? `<p style="color: #374151; margin-bottom: 16px;"><strong>Objet :</strong> ${devis.objet}</p>` : ''}
+
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 14px;">
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="padding: 8px 12px; text-align: left;">Désignation</th>
+                <th style="padding: 8px 12px; text-align: center;">Qté</th>
+                <th style="padding: 8px 12px; text-align: right;">P.U. HT</th>
+                <th style="padding: 8px 12px; text-align: right;">Total HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lignesHtml}
+            </tbody>
+          </table>
+
+          <div style="text-align: right; margin-bottom: 24px; font-size: 14px;">
+            <p style="color: #6b7280; margin: 4px 0;">Total HT : <strong>${(montantHT / 100).toFixed(2)} €</strong></p>
+            ${montantTVA > 0 ? `<p style="color: #6b7280; margin: 4px 0;">TVA : ${(montantTVA / 100).toFixed(2)} €</p>` : ''}
+            <p style="color: #111827; font-size: 16px; margin: 8px 0;"><strong>Total TTC : ${(montantTTC / 100).toFixed(2)} €</strong></p>
+          </div>
+
+          ${devis.conditions ? `<div style="background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #6b7280;"><strong>Conditions :</strong> ${devis.conditions}</div>` : ''}
+          ${dateValidite ? `<p style="text-align: center; color: #9ca3af; font-size: 13px;">Ce devis est valable jusqu'au ${dateValidite}.</p>` : ''}
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+          <p style="text-align: center; color: #9ca3af; font-size: 12px;">
+            ${businessName}${tenant?.telephone ? ' — ' + tenant.telephone : ''}${tenant?.email ? ' — ' + tenant.email : ''}
+          </p>
+        </div>
+      `,
+    });
 
     const ancienStatut = devis.statut;
     const { error: updateError } = await supabase

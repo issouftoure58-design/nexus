@@ -2,9 +2,9 @@
  * Sidebar NEXUS - Menu adaptatif selon plan
  *
  * Features:
- * - Menu filtré selon plan (Starter/Pro/Business)
+ * - Menu filtré selon plan (Free/Starter/Pro/Business/Enterprise)
  * - Menu filtré selon modules activés
- * - Badge Upgrade si pas Business
+ * - Badge Upgrade si pas Enterprise
  * - Collapse/expand
  */
 
@@ -81,28 +81,41 @@ interface UpgradeModalData {
 // Prix importés depuis lib/planPricing.ts (source unique frontend)
 import { PLAN_PRICES, PLAN_NAMES } from '../../lib/planPricing';
 
-// Mapping modules vers plans requis (modele 2026 — revision 21 avril 2026)
-// Free : modules de base. Starter : toute IA + modules essentiels. Pro : multi-sites, illimite. Business : RH, Compta, Sentinel, White-label, API, SSO.
+// Mapping modules vers plans requis (modele 2026 — revision 27 avril 2026)
+// Source de verite : memory/business-model-2026.md
+// Free       : reservations, CRM basique, ecommerce
+// Starter    : + IA (tel/WA/web), CRM avance (contacts, segments)
+// Pro        : + facturation, devis, pipeline, stock, marketing complet, fidelite, equipe, planning
+// Business   : + compta basique, SEO, API/webhooks
+// Enterprise : + RH, compta analytique, sentinel, analytics, white-label, SSO
 const MODULE_TO_PLAN: Record<string, PlanType> = {
   // Free (modules de base, accessibles meme en gratuit avec quotas)
   'reservations': 'free',
-  'facturation': 'free',
   'ecommerce': 'free',
-  // Starter (toute IA + modules essentiels)
+  // Starter (toute IA + CRM)
   'agent_ia_web': 'starter',
   'whatsapp': 'starter',
   'telephone': 'starter',
-  'stock': 'starter',
-  'devis': 'starter',
   'crm_avance': 'starter',
-  'marketing': 'starter',
-  'analytics': 'business',
-  'seo': 'starter',
-  'pipeline': 'starter',
-  // Business (modules premium)
+  // Pro (facturation, devis, pipeline, stock, marketing complet, fidelite, equipe, planning)
+  'facturation': 'pro',
+  'stock': 'pro',
+  'devis': 'pro',
+  'marketing': 'pro',
+  'pipeline': 'pro',
+  'planning': 'pro',
+  'equipe': 'pro',
+  'fidelite': 'pro',
+  // Business (compta basique, SEO, API)
   'comptabilite': 'business',
-  'rh': 'business',
-  'sentinel': 'business',
+  'seo': 'business',
+  'api_webhooks': 'business',
+  // Enterprise (RH, compta analytique, sentinel, analytics, white-label, SSO)
+  'analytics': 'enterprise',
+  'rh': 'enterprise',
+  'sentinel': 'enterprise',
+  'white_label': 'enterprise',
+  'sso': 'enterprise',
 };
 
 // Mapping requiredModule → module RBAC pour filtrer par permissions utilisateur
@@ -132,16 +145,17 @@ const mainNav: NavItem[] = [
   { icon: LayoutDashboard, label: 'Tableau de bord', path: '/', alwaysShow: true },
   { icon: Calendar, label: 'Agenda', path: '/agenda', alwaysShow: true }, // RDV business entrepreneur
   { icon: CalendarCheck, label: 'Prestations', path: '/activites', requiredModule: 'reservations', hideForBusinessTypes: ['commerce'] },
-  { icon: CalendarDays, label: 'Planning', path: '/planning', requiredModule: 'reservations' },
+  { icon: CalendarDays, label: 'Planning', path: '/planning', requiredModule: 'planning' },
   { icon: Users, label: 'Clients', path: '/clients', alwaysShow: true }, // Inclus dans socle
   { icon: Briefcase, label: 'Services', path: '/services', alwaysShow: true }, // Inclus dans socle
-  { icon: UserPlus, label: 'Equipe', path: '/equipe', alwaysShow: true },
+  { icon: UserPlus, label: 'Equipe', path: '/equipe', requiredModule: 'equipe' },
   { icon: Clock, label: 'Disponibilites', path: '/disponibilites', requiredModule: 'reservations' },
   { icon: UtensilsCrossed, label: 'Menu', path: '/menu', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: LayoutGrid, label: 'Plan de salle', path: '/salle', requiredModule: 'reservations', businessTypes: ['restaurant'] },
   { icon: Bed, label: 'Chambres', path: '/chambres', requiredModule: 'reservations', businessTypes: ['hotel'] },
   { icon: Banknote, label: 'Tarifs Saisons', path: '/tarifs', requiredModule: 'reservations', businessTypes: ['hotel'] },
   { icon: ShoppingBag, label: 'Commandes', path: '/commandes', requiredModule: 'ecommerce', businessTypes: ['commerce'] },
+  { icon: Star, label: 'Fidélité', path: '/fidelite', requiredModule: 'fidelite' },
   { icon: Star, label: 'Avis Clients', path: '/avis-clients', alwaysShow: true },
 ];
 
@@ -210,7 +224,13 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
 
   const isItemLocked = useCallback((item: NavItem): boolean => {
     if (item.alwaysShow) return false;
-    if (item.requiredModule) return !hasModule(item.requiredModule);
+    if (item.requiredModule) {
+      // Verifier le plan d'abord (MODULE_TO_PLAN = source de verite)
+      const requiredPlan = MODULE_TO_PLAN[item.requiredModule];
+      if (requiredPlan && !hasPlan(requiredPlan)) return true;
+      // Puis verifier l'activation module (tenant.modules)
+      return !hasModule(item.requiredModule);
+    }
     if (item.requiredPlan) return !hasPlan(item.requiredPlan);
     return false;
   }, [hasModule, hasPlan]);
@@ -334,13 +354,14 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
     );
   };
 
-  // Plan badge — Modele 2026 (Free / Starter / Pro / Business)
+  // Plan badge — Modele 2026 (Free / Starter / Pro / Business / Enterprise)
   const PlanBadge = () => {
     const colors: Record<string, string> = {
       free: 'bg-gray-500',
       starter: 'bg-gradient-to-r from-cyan-500 to-blue-500',
       pro: 'bg-gradient-to-r from-blue-500 to-indigo-500',
       business: 'bg-gradient-to-r from-yellow-500 to-orange-500',
+      enterprise: 'bg-gradient-to-r from-purple-500 to-pink-500',
       // Legacy alias
       basic: 'bg-gradient-to-r from-cyan-500 to-blue-500',
     };
@@ -350,6 +371,7 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
       starter: 'Starter',
       pro: 'Pro',
       business: 'Business',
+      enterprise: 'Enterprise',
       basic: 'Starter',
     };
 
@@ -507,11 +529,13 @@ export const Sidebar = memo(function Sidebar({ onLogout }: SidebarProps) {
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">
-                  {upgradeModal.requiredPlan === 'business'
-                    ? 'RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus / mois'
+                  {upgradeModal.requiredPlan === 'enterprise'
+                    ? 'RH complet, Compta analytique, Sentinel, White-label, SSO + 100 000 utilisation IA / mois'
+                    : upgradeModal.requiredPlan === 'business'
+                    ? 'Compta basique, SEO, API + 50 000 utilisation IA / mois'
                     : upgradeModal.requiredPlan === 'pro'
-                    ? 'Multi-sites, tout illimite, 20 users + 5 000 credits IA inclus / mois'
-                    : 'Toute l\'IA + stock, workflows, pipeline, devis, SEO + 1 000 credits IA inclus / mois'}
+                    ? 'Facturation, Devis, Pipeline, Equipe, Stock, Marketing complet + 20 000 utilisation IA / mois'
+                    : 'Toute l\'IA (Telephone, WhatsApp, Web) + CRM avance + 4 000 utilisation IA / mois'}
                 </p>
               </div>
 

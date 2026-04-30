@@ -1140,7 +1140,7 @@ async function handleSubscriptionUpdate(subscription) {
 
 /**
  * Extrait le plan_id depuis les items de la subscription Stripe
- * Modèle 2026 (révisé 21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
+ * Modèle 2026 (révisé 30 avril) : Free / Starter 69€ / Pro 199€ / Business 499€ / Enterprise 899€
  */
 async function extractPlanFromSubscription(subscription) {
   const items = subscription.items?.data || [];
@@ -1148,6 +1148,7 @@ async function extractPlanFromSubscription(subscription) {
   const normalize = (raw) => {
     if (!raw) return null;
     raw = raw.toLowerCase();
+    if (raw.includes('enterprise')) return 'enterprise';
     if (raw.includes('business')) return 'business';
     if (raw.includes('pro')) return 'pro';
     if (raw.includes('starter')) return 'starter';

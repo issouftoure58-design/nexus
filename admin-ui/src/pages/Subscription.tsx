@@ -89,10 +89,9 @@ const PLANS = [
     color: 'from-gray-500 to-gray-600',
     features: [
       { text: 'Dashboard, Clients, Reservations', icon: Clock },
-      { text: 'Facturation (avec watermark)', icon: FileText },
+      { text: '5 clients, 5 RDV, 5 factures/mois', icon: FileText },
       { text: '1 utilisateur', icon: Users },
-      { text: 'Utilisation IA limitee', icon: Zap },
-      { text: 'IA bloquee', icon: Shield },
+      { text: 'IA bloquee (Starter+)', icon: Zap },
       { text: 'Support email', icon: Clock },
     ],
   },
@@ -103,15 +102,14 @@ const PLANS = [
     promoPrice: PP.starter,
     yearlyPrice: PY.starter,
     promoYearlyPrice: PY.starter,
-    description: 'Toute l\'IA + modules essentiels, 5 users max',
+    description: 'Toute l\'IA + CRM avance, 5 users max',
     popular: true,
     color: 'from-cyan-500 to-blue-600',
     features: [
-      { text: 'Toutes les fonctions IA', icon: Sparkles },
-      { text: 'Stock, Workflows, Pipeline, Devis, SEO', icon: BarChart3 },
-      { text: 'Fidelite, Equipe (5 max)', icon: Users },
+      { text: 'Toutes les IA (Tel, WhatsApp, Web)', icon: Sparkles },
+      { text: 'CRM avance (contacts, segments)', icon: BarChart3 },
+      { text: '200 limites, 5 postes', icon: Users },
       { text: 'Utilisation IA incluse (base)', icon: Zap },
-      { text: '200 limites (reservations, factures, clients)', icon: Clock },
       { text: 'Support email prioritaire', icon: CheckCircle },
     ],
   },
@@ -122,15 +120,15 @@ const PLANS = [
     promoPrice: PP.pro,
     yearlyPrice: PY.pro,
     promoYearlyPrice: PY.pro,
-    description: 'Multi-sites, tout illimite, 20 users',
+    description: 'Facturation, Devis, Pipeline, Equipe, Marketing complet, 20 users',
     color: 'from-blue-500 to-indigo-600',
     features: [
       { text: 'Tout Starter +', icon: CheckCircle },
-      { text: 'Multi-sites', icon: Globe },
-      { text: 'Tout illimite (reservations, factures, clients)', icon: Sparkles },
-      { text: 'Equipe (20 max)', icon: Users },
-      { text: 'Utilisation IA 5x (intensif)', icon: Zap },
-      { text: 'Support prioritaire', icon: CheckCircle },
+      { text: 'Facturation, Devis, Pipeline, Stock', icon: FileText },
+      { text: 'Equipe, Planning, Fidelite', icon: Users },
+      { text: 'Marketing complet (campagnes, posts, reseaux)', icon: Sparkles },
+      { text: 'Multi-sites, tout illimite, 20 postes', icon: Globe },
+      { text: 'Utilisation IA 5x', icon: Zap },
     ],
   },
   {
@@ -140,16 +138,34 @@ const PLANS = [
     promoPrice: PP.business,
     yearlyPrice: PY.business,
     promoYearlyPrice: PY.business,
-    description: 'RH, Compta, Sentinel, White-label, API, SSO, 50 users',
-    color: 'from-purple-500 to-indigo-600',
+    description: 'Compta, SEO, API + Webhooks, 30 users',
+    color: 'from-yellow-500 to-orange-600',
     features: [
       { text: 'Tout Pro +', icon: CheckCircle },
-      { text: 'RH complet + Compta & Analytique', icon: BarChart3 },
+      { text: 'Comptabilite basique (rapports, FEC, TVA)', icon: BarChart3 },
+      { text: 'SEO complet (articles IA, meta, audit)', icon: Globe },
+      { text: 'API + Webhooks', icon: Shield },
+      { text: '30 postes, multi-sites', icon: Users },
+      { text: 'Utilisation IA 12.5x', icon: Zap },
+    ],
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    price: PP.enterprise,
+    promoPrice: PP.enterprise,
+    yearlyPrice: PY.enterprise,
+    promoYearlyPrice: PY.enterprise,
+    description: 'RH, Sentinel, Analytique, White-label, SSO, 50 users',
+    color: 'from-purple-500 to-pink-600',
+    features: [
+      { text: 'Tout Business +', icon: CheckCircle },
+      { text: 'RH complet (paie, DSN, conges)', icon: BarChart3 },
+      { text: 'Compta analytique', icon: BarChart3 },
       { text: 'SENTINEL monitoring', icon: Shield },
-      { text: 'White-label (logo + domaine custom)', icon: Star },
-      { text: 'API + Webhooks + SSO entreprise', icon: Shield },
-      { text: 'Account Manager dedie, 50 users', icon: Crown },
-      { text: 'Utilisation IA 20x (illimite)', icon: Sparkles },
+      { text: 'White-label + SSO entreprise', icon: Star },
+      { text: 'Account Manager dedie, 50 postes', icon: Crown },
+      { text: 'Utilisation IA 25x', icon: Sparkles },
     ],
   },
 ];
@@ -212,7 +228,7 @@ export default function Subscription() {
 
   // Mutation pour creer une Checkout Session (premiere souscription : Free → Starter/Pro/Business)
   const checkoutMutation = useMutation({
-    mutationFn: (planId: 'starter' | 'pro' | 'business') => {
+    mutationFn: (planId: 'starter' | 'pro' | 'business' | 'enterprise') => {
       const productCode = `nexus_${planId}_${billingCycle === 'yearly' ? 'yearly' : 'monthly'}`;
       return api.post<{ url: string }>('/billing/checkout', {
         priceId: productCode,
@@ -258,11 +274,11 @@ export default function Subscription() {
     }
     if (subscriptionData?.has_subscription) {
       // Deja un abo payant → change-plan direct (pas besoin du portal)
-      changePlanMutation.mutate(planId as 'starter' | 'pro' | 'business');
+      changePlanMutation.mutate(planId as 'starter' | 'pro' | 'business' | 'enterprise');
       return;
     }
     // Sinon checkout direct (premier abo)
-    checkoutMutation.mutate(planId as 'starter' | 'pro' | 'business');
+    checkoutMutation.mutate(planId as 'starter' | 'pro' | 'business' | 'enterprise');
   };
 
   // Mutation pour supprimer une carte
@@ -316,7 +332,10 @@ export default function Subscription() {
     );
   }
 
-  const hasQueryError = isSubError || isPmError || isInvError;
+  // Pas d'erreur si pas de subscription Stripe active (Free, ou plan sans abo)
+  const isFree = currentPlan === 'free';
+  const hasStripeSubscription = !!subscriptionData?.has_subscription;
+  const hasQueryError = hasStripeSubscription && (isPmError || isInvError);
 
   return (
     <div className="p-3 sm:p-6 max-w-6xl mx-auto">
@@ -442,10 +461,10 @@ export default function Subscription() {
               </div>
             </div>
 
-            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {PLANS.map((plan) => {
                 const isCurrentPlan = plan.id === currentPlan;
-                const Icon = plan.id === 'business' ? Crown : plan.id === 'pro' ? Globe : plan.id === 'starter' ? Sparkles : Zap;
+                const Icon = plan.id === 'enterprise' ? Crown : plan.id === 'business' ? Shield : plan.id === 'pro' ? Globe : plan.id === 'starter' ? Sparkles : Zap;
                 const originalPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
                 const promoPrice = billingCycle === 'yearly' ? plan.promoYearlyPrice : plan.promoPrice;
                 const displayPrice = PROMO_ACTIVE ? promoPrice : originalPrice;
@@ -530,8 +549,10 @@ export default function Subscription() {
                         disabled={checkoutMutation.isPending || portalMutation.isPending || changePlanMutation.isPending}
                         className={cn(
                           'w-full py-2.5 px-4 rounded-lg font-medium transition-colors disabled:opacity-60',
-                          plan.id === 'business'
-                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
+                          plan.id === 'enterprise'
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700'
+                            : plan.id === 'business'
+                            ? 'bg-gradient-to-r from-yellow-500 to-orange-600 text-white hover:from-yellow-600 hover:to-orange-700'
                             : plan.id === 'pro'
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
                             : plan.id === 'starter'
@@ -577,62 +598,64 @@ export default function Subscription() {
             <CreditsBalanceCard showPacks={true} />
           )}
 
-          {/* Factures */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-gray-400" />
-                Historique de facturation
-              </h2>
-            </div>
+          {/* Factures — masque si pas d'abonnement Stripe actif */}
+          {hasStripeSubscription && (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-gray-400" />
+                  Historique de facturation
+                </h2>
+              </div>
 
-            <div className="divide-y divide-gray-200">
-              {invoicesData?.invoices?.length === 0 ? (
-                <div className="p-3 sm:p-6 text-center text-gray-500">
-                  Aucune facture pour le moment
-                </div>
-              ) : invoicesData?.invoices ? (
-                invoicesData.invoices.slice(0, 5).map((invoice) => (
-                  <div key={invoice.id} className="px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {invoice.number || invoice.id}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(invoice.created)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        invoice.status === 'paid'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {invoice.status === 'paid' ? 'Payée' : invoice.status}
-                      </span>
-                      <span className="font-medium text-gray-900">
-                        {formatCurrency(invoice.amount_paid, invoice.currency)}
-                      </span>
-                      {invoice.pdf_url && (
-                        <a
-                          href={invoice.pdf_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 text-gray-400 hover:text-cyan-600 transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
+              <div className="divide-y divide-gray-200">
+                {invoicesData?.invoices?.length === 0 ? (
+                  <div className="p-3 sm:p-6 text-center text-gray-500">
+                    Aucune facture pour le moment
                   </div>
-                ))
-              ) : (
-                <div className="p-3 sm:p-6 text-center text-gray-500">
-                  Chargement...
-                </div>
-              )}
+                ) : invoicesData?.invoices ? (
+                  invoicesData.invoices.slice(0, 5).map((invoice) => (
+                    <div key={invoice.id} className="px-6 py-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {invoice.number || invoice.id}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {formatDate(invoice.created)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          invoice.status === 'paid'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {invoice.status === 'paid' ? 'Payée' : invoice.status}
+                        </span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(invoice.amount_paid, invoice.currency)}
+                        </span>
+                        {invoice.pdf_url && (
+                          <a
+                            href={invoice.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-gray-400 hover:text-cyan-600 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 sm:p-6 text-center text-gray-500">
+                    Chargement...
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Colonne latérale */}

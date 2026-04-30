@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * NEXUS — Creation des plans Stripe (revision 21 avril 2026)
+ * NEXUS — Creation des plans Stripe (revision 27 avril 2026)
  *
- * Cree les plans (Starter 69€ / Pro 199€ / Business 599€) en mensuel + annuel
+ * Cree les plans (Starter 69€ / Pro 199€ / Business 499€ / Enterprise 899€) en mensuel + annuel
  * + les top-ups utilisation supplementaire (50€ / 200€ / 500€)
  * Archive TOUS les anciens produits/prix
  *
@@ -43,10 +43,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // PRICING — 21 avril 2026 (modele inspire Claude)
 // Source de verite : memory/business-model-2026.md + config/pricing.js
 //
-// Free     : 0€    (pas de produit Stripe)
-// Starter  : 69€/mois  | 690€/an  (2 mois offerts)
-// Pro      : 199€/mois | 1990€/an (2 mois offerts)
-// Business : 599€/mois | 5990€/an (2 mois offerts)
+// Free       : 0€    (pas de produit Stripe)
+// Starter    : 69€/mois  | 690€/an  (2 mois offerts)
+// Pro        : 199€/mois | 1990€/an (2 mois offerts)
+// Business   : 499€/mois | 4990€/an (2 mois offerts)
+// Enterprise : 899€/mois | 8990€/an (2 mois offerts)
 // ════════════════════════════════════════════════════════════════════
 
 const PLANS = [
@@ -54,7 +55,7 @@ const PLANS = [
     code: 'nexus_starter',
     name: 'NEXUS Starter',
     description: 'Toutes les IA debloquees — 200 limites — 5 postes',
-    monthlyAmount: 6900,     // 69��
+    monthlyAmount: 6900,     // 69 EUR
     yearlyAmount: 69000,     // 690€/an (2 mois offerts)
     planId: 'starter',
   },
@@ -70,9 +71,17 @@ const PLANS = [
     code: 'nexus_business',
     name: 'NEXUS Business',
     description: 'Full premium — 50 postes — White-label — API — SSO — IA x20',
-    monthlyAmount: 59900,    // 599€
-    yearlyAmount: 599000,    // 5990€/an (2 mois offerts)
+    monthlyAmount: 49900,    // 499€
+    yearlyAmount: 499000,    // 4990€/an (2 mois offerts)
     planId: 'business',
+  },
+  {
+    code: 'nexus_enterprise',
+    name: 'NEXUS Enterprise',
+    description: 'Full premium — RH, Sentinel, Analytique, White-label, SSO — 50 postes — IA x25',
+    monthlyAmount: 89900,    // 899€
+    yearlyAmount: 899000,    // 8990€/an (2 mois offerts)
+    planId: 'enterprise',
   },
 ];
 
@@ -289,11 +298,12 @@ async function main() {
   console.log('\n' + '='.repeat(60));
   console.log('TERMINE !');
   console.log('');
-  console.log('Plans crees (revision 21 avril 2026):');
-  console.log('  Free:     0EUR        (pas de produit Stripe)');
-  console.log('  Starter:  69EUR/mois  | 690EUR/an');
-  console.log('  Pro:      199EUR/mois | 1990EUR/an');
-  console.log('  Business: 599EUR/mois | 5990EUR/an');
+  console.log('Plans crees (revision 27 avril 2026):');
+  console.log('  Free:       0EUR          (pas de produit Stripe)');
+  console.log('  Starter:    69EUR/mois    | 690EUR/an');
+  console.log('  Pro:        199EUR/mois   | 1990EUR/an');
+  console.log('  Business:   499EUR/mois   | 4990EUR/an');
+  console.log('  Enterprise: 899EUR/mois   | 8990EUR/an');
   console.log('');
   console.log('Top-ups utilisation supplementaire:');
   console.log('  50EUR  (-10%)');

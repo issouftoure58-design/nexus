@@ -20,6 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
+import { requireModule } from '../middleware/moduleProtection.js';
 import { requirePostsQuota, requireImagesQuota } from '../middleware/quotas.js';
 import { hasCredits, consume as consumeCredits } from '../services/creditsService.js';
 import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
@@ -61,8 +62,9 @@ const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-// Middleware auth admin pour toutes les routes
+// Middleware auth admin + gating module marketing (Pro+)
 router.use(authenticateAdmin);
+router.use(requireModule('marketing'));
 
 // ============ HELPERS QUOTAS ============
 

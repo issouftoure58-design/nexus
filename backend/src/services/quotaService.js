@@ -2,10 +2,11 @@
  * Quota Service — Gestion des quotas mensuels par plan (modèle 2026 — révisé 21 avril)
  *
  * Quotas par plan :
- *   • Free     : 5 presta / 5 factures / 5 clients / 1 user — IA limitée (chat admin 5 q/mois)
- *   • Starter  : 200 presta / 200 factures / 200 clients / 5 postes — toutes IA
- *   • Pro      : illimité / 20 postes — multi-site, RH
- *   • Business : illimité / 50 postes — RH complet, compta, Sentinel, white-label, API, SSO
+ *   • Free       : 5 presta / 5 factures / 5 clients / 1 user — IA limitée (chat admin 5 q/mois)
+ *   • Starter    : 200 presta / 200 factures / 200 clients / 5 postes — toutes IA
+ *   • Pro        : illimité / 20 postes — multi-site, marketing complet
+ *   • Business   : illimité / 30 postes — SEO, compta, API
+ *   • Enterprise : illimité / 50 postes — RH complet, Sentinel, white-label, SSO, AM
  *
  * TENANT SHIELD : tenantId est TOUJOURS le 1er paramètre, JAMAIS de fallback.
  */
@@ -14,7 +15,7 @@ import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 
 // ════════════════════════════════════════════════════════════════════
-// LIMITES PAR PLAN — Source de vérité quotas Free vs Basic vs Business
+// LIMITES PAR PLAN — Source de vérité quotas Free / Starter / Pro / Business / Enterprise
 // ════════════════════════════════════════════════════════════════════
 
 export const PLAN_QUOTAS = {
@@ -58,6 +59,17 @@ export const PLAN_QUOTAS = {
     prestations_max: -1,
     chat_admin_questions_mois: -1,
     storage_mb: 512000,
+    utilisateurs_max: 30,
+    posts_ia_mois: -1,
+    images_ia_mois: -1,
+  },
+  enterprise: {
+    reservations_max_mois: -1,
+    factures_max_mois: -1,
+    clients_max: -1,
+    prestations_max: -1,
+    chat_admin_questions_mois: -1,
+    storage_mb: 1024000,
     utilisateurs_max: 50,
     posts_ia_mois: -1,
     images_ia_mois: -1,

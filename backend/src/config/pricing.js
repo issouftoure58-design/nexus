@@ -45,37 +45,41 @@ export const PRICING = {
 /**
  * Budgets mensuels par plan (EUR/mois par tenant) — modele Claude
  *
- * Modele 2026 (revise 21 avril 2026 — voir memory/business-model-2026.md) :
- * - Free     : 200 credits (chat admin limité, pas tel/WA/web)
- * - Starter  : 1 000 credits (toutes IA débloquées)
- * - Pro      : 5 000 credits (5x Starter)
- * - Business : 20 000 credits (20x Starter)
+ * Modele 2026 (revise 27 avril 2026 — voir memory/business-model-2026.md) :
+ * - Free       : 500 credits (chat admin limité, pas tel/WA/web)
+ * - Starter    : 4 000 credits (toutes IA débloquées)
+ * - Pro        : 20 000 credits (5x Starter)
+ * - Business   : 50 000 credits (12.5x Starter)
+ * - Enterprise : 100 000 credits (25x Starter)
  */
 export const PLAN_BUDGETS = {
-  free:     { ai: 3,    sms: 0,  voice: 0,  total: 3 },     // 200 credits
-  starter:  { ai: 15,   sms: 0,  voice: 0,  total: 15 },    // 1 000 credits
-  pro:      { ai: 75,   sms: 0,  voice: 0,  total: 75 },    // 5 000 credits
-  business: { ai: 300,  sms: 0,  voice: 0,  total: 300 },   // 20 000 credits
+  free:       { ai: 7.5,   sms: 0,  voice: 0,  total: 7.5 },     // 500 credits
+  starter:    { ai: 60,    sms: 0,  voice: 0,  total: 60 },       // 4 000 credits
+  pro:        { ai: 300,   sms: 0,  voice: 0,  total: 300 },      // 20 000 credits
+  business:   { ai: 750,   sms: 0,  voice: 0,  total: 750 },      // 50 000 credits
+  enterprise: { ai: 1500,  sms: 0,  voice: 0,  total: 1500 },     // 100 000 credits
   // Legacy alias
-  basic:    { ai: 15,   sms: 0,  voice: 0,  total: 15 },
+  basic:      { ai: 60,    sms: 0,  voice: 0,  total: 60 },
 };
 
 /**
  * Prix des abonnements (EUR)
  *
- * Modele 2026 (revise 21 avril 2026 — voir memory/business-model-2026.md) :
- * - Free     0€ (freemium, 5 RDV/factures/clients/presta/mois, chat admin limité)
- * - Starter  69€/mois (toutes IA, 200 limites)
- * - Pro     199€/mois (illimité, 20 postes, multi-site, RH)
- * - Business 599€/mois (illimité, 50 postes, RH complet, compta, Sentinel, white-label, API, SSO, AM)
+ * Modele 2026 (revise 27 avril 2026 — voir memory/business-model-2026.md) :
+ * - Free       0€ (freemium, 5 RDV/factures/clients/presta/mois, chat admin limité)
+ * - Starter   69€/mois (toutes IA, CRM, 200 limites)
+ * - Pro      199€/mois (facturation, devis, pipeline, equipe, marketing complet, stock)
+ * - Business 499€/mois (compta basique, SEO, API)
+ * - Enterprise 899€/mois (RH, compta analytique, sentinel, white-label, SSO, AM)
  */
 export const PLAN_PRICES = {
-  free:     { monthly: 0,   yearly: 0 },
-  starter:  { monthly: 69,  yearly: 690 },   // 2 mois offerts en annuel
-  pro:      { monthly: 199, yearly: 1990 },  // 2 mois offerts en annuel
-  business: { monthly: 599, yearly: 5990 },  // 2 mois offerts en annuel
+  free:       { monthly: 0,   yearly: 0 },
+  starter:    { monthly: 69,  yearly: 690 },    // 2 mois offerts en annuel
+  pro:        { monthly: 199, yearly: 1990 },   // 2 mois offerts en annuel
+  business:   { monthly: 499, yearly: 4990 },   // 2 mois offerts en annuel
+  enterprise: { monthly: 899, yearly: 8990 },   // 2 mois offerts en annuel
   // Legacy alias
-  basic:    { monthly: 69,  yearly: 690 },
+  basic:      { monthly: 69,  yearly: 690 },
 };
 
 /**

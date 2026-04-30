@@ -1,6 +1,6 @@
 /**
  * Middleware de gestion des quotas NEXUS
- * Modèle 2026 (21 avril) : Free / Starter 69€ / Pro 199€ / Business 599€
+ * Modèle 2026 (30 avril) : Free / Starter 69€ / Pro 199€ / Business 499€ / Enterprise 899€
  *
  * @module middleware/quotas
  */

@@ -44,12 +44,12 @@ export function CreditAlertBanner() {
         <span>
           {isExhausted ? (
             <>
-              <strong>Crédits IA épuisés</strong> — Téléphone, WhatsApp et Chat IA sont désactivés.
+              <strong>Utilisation IA epuisee</strong> — Telephone, WhatsApp et Chat IA sont desactives.
             </>
           ) : (
             <>
-              <strong>Plus que {remaining} crédits IA</strong> ({Math.round(percentRemaining)}% restants).
-              Rechargez pour éviter une interruption.
+              <strong>Utilisation IA a {Math.round(100 - percentRemaining)}%</strong> ({Math.round(percentRemaining)}% restants).
+              Rechargez pour eviter une interruption.
             </>
           )}
         </span>

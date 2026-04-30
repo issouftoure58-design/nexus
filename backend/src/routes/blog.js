@@ -7,6 +7,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { resolveTenantByDomain } from '../middleware/resolveTenant.js';
+import { PLAN_FEATURES } from '../config/planFeatures.js';
 
 const router = express.Router();
 
@@ -97,6 +98,27 @@ router.use((req, res, next) => {
     return res.status(400).send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Blog indisponible</title></head><body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f9fafb"><div style="text-align:center"><h1 style="color:#6b7280">Blog indisponible</h1><p style="color:#9ca3af">Domaine non reconnu.</p></div></body></html>`);
   }
   next();
+});
+
+// Vérifier que le tenant a le module SEO (Business+)
+router.use(async (req, res, next) => {
+  try {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('plan')
+      .eq('id', req.tenantId)
+      .single();
+
+    const plan = (tenant?.plan || 'free').toLowerCase();
+    const features = PLAN_FEATURES[plan] || PLAN_FEATURES.free;
+
+    if (!features.seo) {
+      return res.status(403).send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Blog indisponible</title></head><body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f9fafb"><div style="text-align:center"><h1 style="color:#6b7280">Blog indisponible</h1><p style="color:#9ca3af">Cette fonctionnalité nécessite un abonnement Business.</p></div></body></html>`);
+    }
+    next();
+  } catch {
+    next();
+  }
 });
 
 // ============= ROUTES =============

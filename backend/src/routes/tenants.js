@@ -34,7 +34,7 @@ const DEFAULT_QUOTAS = PLAN_LIMITS;
 // MODULES DISPONIBLES
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+// Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (499€) / Enterprise (899€)
 // Tous les agents IA sont disponibles à partir de Starter et consomment de l'utilisation IA
 // Le plan Free n'a pas accès aux fonctions IA (mais voit les modules en mode aperçu)
 const AVAILABLE_MODULES = [
@@ -116,7 +116,7 @@ router.get('/me', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (499€) / Enterprise (899€)
     // Le plan est stocké tel quel dans la DB. Retro-compat: basic→starter, pro inchangé
     const rawStoredPlan = (tenant.plan || tenant.tier || 'free').toLowerCase();
     const storedPlan = rawStoredPlan === 'basic' ? 'starter' : rawStoredPlan;
@@ -341,7 +341,7 @@ router.get('/modules/available', authenticateAdmin, async (req, res) => {
       .eq('id', tenantId)
       .single();
 
-    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+    // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (499€) / Enterprise (899€)
     const rawStoredPlan = (tenant?.plan || tenant?.tier || 'free').toLowerCase();
     const storedPlan = rawStoredPlan === 'basic' ? 'starter' : rawStoredPlan;
     // ═══ ESSAI: plan effectif = Starter (déverrouillé) ═══
@@ -811,13 +811,13 @@ router.get('/plans/features', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function isPlanSufficient(currentPlan, requiredPlan) {
-  // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (599€)
+  // Modèle 2026 : Free / Starter (69€) / Pro (199€) / Business (499€) / Enterprise (899€)
   const normalize = (p) => {
     const x = (p || 'free').toLowerCase();
     if (x === 'basic') return 'starter'; // retro-compat
     return x;
   };
-  const planOrder = ['free', 'starter', 'pro', 'business'];
+  const planOrder = ['free', 'starter', 'pro', 'business', 'enterprise'];
   const currentIndex = planOrder.indexOf(normalize(currentPlan));
   const requiredIndex = planOrder.indexOf(normalize(requiredPlan));
   return currentIndex >= requiredIndex;

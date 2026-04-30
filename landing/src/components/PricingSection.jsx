@@ -18,31 +18,26 @@ export default function PricingSection() {
 
         {/* Toggle Mensuel / Annuel pourrait etre ajoute ici */}
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-5">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 lg:gap-4">
           {/* Free */}
-          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-white/20 transition-colors relative">
+          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
               GRATUIT A VIE
             </div>
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Free</h3>
-              <p className="text-gray-400 text-sm mb-4">Pour decouvrir NEXUS</p>
+              <p className="text-gray-400 text-sm mb-4">Pour decouvrir</p>
               <div className="flex items-baseline justify-center gap-1">
                 <span className="text-4xl font-bold">0€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Sans carte bancaire</p>
             </div>
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-2 mb-8">
               {[
-                { text: '5 clients max', included: true },
-                { text: '5 reservations / mois', included: true },
-                { text: '5 factures / mois', included: true },
-                { text: '5 prestations max', included: true },
+                { text: '5 clients, 5 RDV, 5 factures', included: true },
                 { text: '1 utilisateur', included: true },
-                { text: 'IA chat admin uniquement', included: true },
-                { text: 'Telephone / WhatsApp IA', included: false },
-                { text: 'Multi-sites', included: false },
+                { text: 'IA chat admin', included: true },
+                { text: 'IA Tel / WhatsApp', included: false },
               ].map((feature) => (
                 <li key={feature.text} className="flex items-center gap-2 text-sm text-gray-300">
                   {feature.included ? (
@@ -63,26 +58,22 @@ export default function PricingSection() {
           </div>
 
           {/* Starter */}
-          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-neon-cyan/30 transition-colors relative">
+          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 hover:border-neon-cyan/30 transition-colors relative">
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Starter</h3>
-              <p className="text-gray-400 text-sm mb-4">Pour lancer votre activite</p>
+              <p className="text-gray-400 text-sm mb-4">IA 24/7</p>
               <div className="flex items-baseline justify-center gap-1">
                 <span className="text-4xl font-bold text-neon-cyan">69€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">690€/an (2 mois offerts)</p>
+              <p className="text-sm text-gray-500 mt-1">690€/an</p>
             </div>
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-2 mb-8">
               {[
-                { text: '200 clients, RDV, factures, presta', included: true },
-                { text: '5 utilisateurs', included: true },
-                { text: 'Toutes les IA (tel, WhatsApp, chat, SEO)', included: true },
-                { text: 'CRM, Equipe, Fidelite', included: true },
-                { text: 'Workflows, Pipeline, Devis', included: true },
-                { text: 'Stock, Facturation complete', included: true },
-                { text: 'Multi-sites', included: false },
-                { text: 'RH / Compta / Sentinel', included: false },
+                { text: 'Toutes les IA debloquees', included: true },
+                { text: 'CRM avance', included: true },
+                { text: '200 limites, 5 postes', included: true },
+                { text: 'Facturation, Devis', included: false },
               ].map((feature) => (
                 <li key={feature.text} className="flex items-center gap-2 text-sm text-gray-300">
                   {feature.included ? (
@@ -103,29 +94,26 @@ export default function PricingSection() {
           </div>
 
           {/* Pro - Featured */}
-          <div className="bg-gradient-to-b from-neon-cyan/10 to-dark-800 border-2 border-neon-cyan/50 rounded-2xl p-6 lg:p-8 relative">
+          <div className="bg-gradient-to-b from-neon-cyan/10 to-dark-800 border-2 border-neon-cyan/50 rounded-2xl p-6 relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-neon-cyan to-primary-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-              LE PLUS POPULAIRE
+              POPULAIRE
             </div>
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Pro</h3>
-              <p className="text-gray-400 text-sm mb-4">Pour les pros qui grandissent</p>
+              <p className="text-gray-400 text-sm mb-4">PME etablie</p>
               <div className="flex items-baseline justify-center gap-1">
                 <span className="text-4xl font-bold text-neon-cyan">199€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">1 990€/an (2 mois offerts)</p>
+              <p className="text-sm text-gray-500 mt-1">1 990€/an</p>
             </div>
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-2 mb-8">
               {[
-                { text: 'Tout illimite (clients, RDV, factures...)', included: true },
-                { text: '20 utilisateurs', included: true },
-                { text: 'Multi-sites', included: true },
-                { text: 'Toutes les IA (tel, WhatsApp, chat, SEO)', included: true },
-                { text: 'CRM, Equipe, Fidelite, Workflows', included: true },
-                { text: 'Stock, Facturation, Devis, Pipeline', included: true },
-                { text: 'Support prioritaire', included: true },
-                { text: 'RH / Compta / Sentinel', included: false },
+                { text: 'Facturation, Devis, Pipeline', included: true },
+                { text: 'Equipe, Planning, Fidelite', included: true },
+                { text: 'Marketing complet, Stock', included: true },
+                { text: 'Multi-sites, 20 postes', included: true },
+                { text: 'Compta, SEO, API', included: false },
               ].map((feature) => (
                 <li key={feature.text} className="flex items-center gap-2 text-sm text-gray-300">
                   {feature.included ? (
@@ -146,33 +134,27 @@ export default function PricingSection() {
           </div>
 
           {/* Business */}
-          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 lg:p-8 hover:border-purple-500/30 transition-colors relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-              ENTREPRISE
-            </div>
+          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 hover:border-yellow-500/30 transition-colors relative">
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Business</h3>
-              <p className="text-gray-400 text-sm mb-4">Pour les entreprises exigeantes</p>
+              <p className="text-gray-400 text-sm mb-4">Gestion complete</p>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-bold text-purple-400">599€</span>
+                <span className="text-4xl font-bold text-yellow-400">499€</span>
                 <span className="text-gray-500">/mois</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">5 990€/an (2 mois offerts)</p>
+              <p className="text-sm text-gray-500 mt-1">4 990€/an</p>
             </div>
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-2 mb-8">
               {[
-                { text: 'Tout illimite, 50 utilisateurs', included: true },
-                { text: 'Multi-sites + White-label', included: true },
-                { text: 'RH, Compta, Analytique avancee', included: true },
-                { text: 'Sentinel (monitoring)', included: true },
-                { text: 'API + Webhooks + SSO entreprise', included: true },
-                { text: 'Account manager dedie', included: true },
-                { text: 'Support prioritaire 1h', included: true },
-                { text: 'Toutes les IA incluses', included: true },
+                { text: 'Comptabilite (rapports, FEC, TVA)', included: true },
+                { text: 'SEO complet', included: true },
+                { text: 'API + Webhooks', included: true },
+                { text: '30 postes', included: true },
+                { text: 'RH, Sentinel, SSO', included: false },
               ].map((feature) => (
                 <li key={feature.text} className="flex items-center gap-2 text-sm text-gray-300">
                   {feature.included ? (
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-yellow-400 flex-shrink-0" />
                   ) : (
                     <X className="w-4 h-4 text-gray-600 flex-shrink-0" />
                   )}
@@ -182,9 +164,45 @@ export default function PricingSection() {
             </ul>
             <a
               href="https://app.nexus-ai-saas.com/signup?plan=business"
-              className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
+              className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-yellow-500/30 rounded-xl font-semibold transition-colors"
             >
               Choisir Business
+            </a>
+          </div>
+
+          {/* Enterprise */}
+          <div className="bg-dark-800/50 border border-white/10 rounded-2xl p-6 hover:border-purple-500/30 transition-colors relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+              PREMIUM
+            </div>
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold mb-2">Enterprise</h3>
+              <p className="text-gray-400 text-sm mb-4">Full premium</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-4xl font-bold text-purple-400">899€</span>
+                <span className="text-gray-500">/mois</span>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">8 990€/an</p>
+            </div>
+            <ul className="space-y-2 mb-8">
+              {[
+                { text: 'RH complet (paie, DSN)', included: true },
+                { text: 'Compta analytique', included: true },
+                { text: 'Sentinel monitoring', included: true },
+                { text: 'White-label + SSO', included: true },
+                { text: 'Account Manager, 50 postes', included: true },
+              ].map((feature) => (
+                <li key={feature.text} className="flex items-center gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <span>{feature.text}</span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="https://app.nexus-ai-saas.com/signup?plan=enterprise"
+              className="block w-full py-3 px-6 text-center bg-dark-700 hover:bg-dark-600 border border-purple-500/30 rounded-xl font-semibold transition-colors"
+            >
+              Choisir Enterprise
             </a>
           </div>
         </div>

@@ -11,9 +11,9 @@
 
 export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security' | 'service';
 
-// Modele pricing 2026 : free / starter / pro / business
+// Modele pricing 2026 (27 avril) : free / starter / pro / business / enterprise
 // Alias basic maintenu pour retro-compat (mapping via normalizePlan dans useTenant.ts)
-export type PlanType = 'free' | 'starter' | 'pro' | 'business' | 'basic';
+export type PlanType = 'free' | 'starter' | 'pro' | 'business' | 'enterprise' | 'basic';
 
 // ════════════════════════════════════════════════════════════════════
 // TENANT

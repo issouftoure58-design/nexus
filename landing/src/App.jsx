@@ -512,7 +512,7 @@ function App() {
       {/* Pricing */}
       <section className="text-center px-4 pt-16 -mb-8">
         <p className="text-gray-400 max-w-2xl mx-auto text-sm">
-          Demarrez gratuitement avec le plan Free, sans carte bancaire. Passez a Starter 69€/mois pour debloquer toutes les IA, Pro 199€/mois pour le multi-sites illimite, ou Business 599€/mois pour l'offre complete avec RH, compta et account manager. Aucun engagement, aucun frais cache.
+          Demarrez gratuitement avec le plan Free, sans carte bancaire. Passez a Starter 69€/mois pour debloquer toutes les IA, Pro 199€/mois pour le multi-sites illimite, Business 499€/mois pour le SEO et la compta, ou Enterprise 899€/mois pour l'offre complete avec RH, Sentinel, white-label et account manager. Aucun engagement, aucun frais cache.
         </p>
       </section>
       <PricingSection />

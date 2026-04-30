@@ -12,6 +12,7 @@ import { requireModule } from '../middleware/moduleProtection.js';
 import { checkConflicts } from '../utils/conflictChecker.js';
 import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire, genererEcrituresPaiement } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
+import { onReservationCreated, onReservationConfirmed, onReservationCancelled } from '../services/webhookService.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import { requireReservationsQuota } from '../middleware/quotas.js';
 import { getDefaultLocation } from '../services/tenantBusinessService.js';
@@ -1161,6 +1162,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       console.error('[ADMIN RESERVATIONS] Workflow trigger non bloquant:', e.message);
     }
 
+    // Webhook (non bloquant)
+    onReservationCreated(tenantId, reservation).catch(() => {});
+
     success(res, {
       reservation,
       facture: null,
@@ -1841,6 +1845,10 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       entite_id: reservation.id,
       details: { ancien_statut: currentRdv.statut, nouveau_statut: statut }
     });
+
+    // Webhooks (non bloquant)
+    if (statut === 'confirme') onReservationConfirmed(tenantId, reservation).catch(() => {});
+    if (statut === 'annule') onReservationCancelled(tenantId, reservation, req.body.motif_annulation).catch(() => {});
 
     // 📩 Notification client sur changement de statut → confirme
     if (statut === 'confirme' && currentRdv.statut !== 'confirme') {

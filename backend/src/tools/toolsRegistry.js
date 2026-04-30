@@ -1922,16 +1922,17 @@ export const TOOLS_ADMIN = [
 ];
 
 // ============================================
-// OUTILS PAR PLAN (modele 2026 : Free, Basic, Business)
+// OUTILS PAR PLAN (modele 2026 : Free, Starter, Pro, Business, Enterprise)
 // ============================================
 
 /**
  * Retourne les outils disponibles selon le plan du tenant
- * Modele 2026 — revision 23 avril 2026 (voir memory/business-model-2026.md):
- * - Free     : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees)
- * - Starter  : 69€/mois, TOUS les outils, 1 000 credits IA inclus/mois
- * - Pro      : 199€/mois, TOUS les outils, 5 000 credits IA inclus/mois
- * - Business : 599€/mois, TOUS les outils, 20 000 credits IA inclus/mois
+ * Modele 2026 — revision 30 avril 2026 (voir memory/business-model-2026.md):
+ * - Free       : outils de gestion de base UNIQUEMENT (pas d'IA — fonctions IA bloquees)
+ * - Starter    : 69€/mois, TOUS les outils, 4 000 credits IA inclus/mois
+ * - Pro        : 199€/mois, TOUS les outils, 20 000 credits IA inclus/mois
+ * - Business   : 499€/mois, TOUS les outils, 50 000 credits IA inclus/mois
+ * - Enterprise : 899€/mois, TOUS les outils, 100 000 credits IA inclus/mois
  *
  * NOTE: 'basic' est conserve comme alias retro-compat de 'starter'
  */

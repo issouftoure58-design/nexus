@@ -4,6 +4,7 @@ import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireClientsQuota } from '../middleware/quotas.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
+import { onClientCreated, onClientUpdated, onClientDeleted } from '../services/webhookService.js';
 import { enforceTrialLimit } from '../services/trialService.js';
 import logger from '../config/logger.js';
 import multer from 'multer';
@@ -214,6 +215,9 @@ router.post('/', authenticateAdmin, enforceTrialLimit('clients'), requireClients
       console.error('[ADMIN CLIENTS] Erreur workflow (non bloquant):', workflowErr.message);
     }
 
+    // Webhook (non bloquant)
+    onClientCreated(tenantId, client).catch(() => {});
+
     success(res, { client }, 201);
   } catch (err) {
     console.error('[ADMIN CLIENTS] Erreur création:', err);
@@ -375,6 +379,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       details: { updates }
     });
 
+    // Webhook (non bloquant)
+    onClientUpdated(tenantId, client, updates).catch(() => {});
+
     success(res, { client });
   } catch (err) {
     console.error('[ADMIN CLIENTS] Erreur modification:', err.message || err);
@@ -427,6 +434,9 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       entite: 'client',
       entite_id: req.params.id
     });
+
+    // Webhook (non bloquant)
+    onClientDeleted(tenantId, req.params.id).catch(() => {});
 
     success(res, { message: 'Client supprimé' });
   } catch (err) {

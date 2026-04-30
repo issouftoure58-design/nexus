@@ -10,14 +10,12 @@
  * ║                                                                      ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  *
- * Modèle 2026 (révisé 21 avril 2026 — voir memory/business-model-2026.md):
- * - FREE     (0€/mois)   : Freemium à vie, quotas stricts, IA bloquée
- * - STARTER  (69€/mois)  : Toutes IA débloquées, 200 limites, 5 postes
- * - PRO      (199€/mois) : Tout illimité, 20 postes, multi-sites
- * - BUSINESS (599€/mois) : Tout + RH, Compta, Analytique, Sentinel, White-label, API, SSO, AM
- *
- * Modules exclusifs Business : RH complet, Compta, Compta analytique, Sentinel
- * Pro = Starter + multi-sites (PAS RH, PAS Compta, PAS Sentinel)
+ * Modèle 2026 (révisé 27 avril 2026 — voir memory/business-model-2026.md):
+ * - FREE       (0€/mois)   : Freemium à vie, quotas stricts, IA bloquée
+ * - STARTER    (69€/mois)  : Toutes IA débloquées, CRM avancé, 200 limites, 5 postes
+ * - PRO        (199€/mois) : + Facturation, Devis, Pipeline, Stock, Marketing complet, Equipe, Planning, Fidelite, multi-sites, 20 postes
+ * - BUSINESS   (499€/mois) : + Compta basique, SEO, API/webhooks, 30 postes
+ * - ENTERPRISE (899€/mois) : + RH complet, Compta analytique, Sentinel, White-label, SSO, AM, 50 postes
  */
 
 // ═══════════════════════════════════════════════════════════════
@@ -74,72 +72,98 @@ const FREE_FEATURES = {
 
 /**
  * STARTER — 69€/mois — Premier plan payant
- * Toutes les IA débloquées. Comptabilité, Stock, Analytics, CRM, Marketing, etc.
- * PAS de RH, PAS de Sentinel, PAS de multi-sites, PAS de white-label/API/SSO.
+ * Toutes les IA débloquées + CRM avancé.
+ * PAS de facturation, devis, pipeline, stock, marketing complet, equipe, planning, fidelite.
  */
 const STARTER_FEATURES = {
   // Core CRUD (200 limites)
   dashboard: true,
   clients: true,
   reservations: true,
-  facturation: true,       // sans watermark
   documents: true,
   paiements: true,
   ecommerce: true,
   reviews: true,
   waitlist: true,
 
-  // Modules débloqués
-  equipe: true,
-  fidelite: true,
-  comptabilite: true,
-  stock: true,
+  // Modules débloqués Starter
   crm_avance: true,
-  devis: true,
-  marketing: true,
-  pipeline: true,
-  commercial: true,
-  analytics: true,
-  seo: true,
-  workflows: true,
 
   // ✨ IA — agent_ia_web auto-accordé (self-service)
   // ⚠️ whatsapp/telephone nécessitent provisioning manuel (voir activation-ia-protocol.md)
   agent_ia_web: true,
 
-  // ⛔ Bloqués — Business uniquement
+  // ⛔ Bloqués — Pro+
+  facturation: false,
+  equipe: false,
+  fidelite: false,
+  stock: false,
+  devis: false,
+  marketing: false,
+  pipeline: false,
+  commercial: false,
+  workflows: false,
+  planning: false,
+
+  // ⛔ Bloqués — Business+
+  comptabilite: false,
+  seo: false,
+  api: false,
+  analytics: false,
+
+  // ⛔ Bloqués — Enterprise uniquement
   rh: false,
   sentinel: false,
+  compta_analytique: false,
   multi_site: false,
   whitelabel: false,
-  api: false,
   sso: false,
 };
 
 /**
- * PRO — 199€/mois — Multi-sites, usage intensif
- * Starter + multi-sites. Tout illimité, 20 postes.
- * PAS de RH, PAS de Sentinel, PAS de white-label/API/SSO.
+ * PRO — 199€/mois — Facturation, Devis, Pipeline, Equipe, Marketing complet, Stock, Fidelite
+ * Multi-sites, tout illimité, 20 postes.
+ * PAS de Compta, SEO, API, RH, Sentinel, White-label, SSO.
  */
 const PRO_FEATURES = {
   ...STARTER_FEATURES,
+  facturation: true,
+  equipe: true,
+  fidelite: true,
+  stock: true,
+  devis: true,
+  marketing: true,
+  pipeline: true,
+  commercial: true,
+  workflows: true,
+  planning: true,
   multi_site: true,
 };
 
 /**
- * BUSINESS — 599€/mois — Full premium
- * TOUT sans exception. 50 postes.
- * Exclusivités : RH complet, Compta analytique, Sentinel, White-label, API, SSO, AM.
+ * BUSINESS — 499€/mois — Compta basique, SEO, API
+ * 30 postes, multi-sites.
+ * PAS de RH, Compta analytique, Sentinel, White-label, SSO.
  */
 const BUSINESS_FEATURES = {
   ...PRO_FEATURES,
-  analytics: true,
   comptabilite: true,
+  seo: true,
+  api: true,
+};
+
+/**
+ * ENTERPRISE — 899€/mois — Full premium
+ * TOUT sans exception. 50 postes.
+ * Exclusivités : RH complet, Compta analytique, Sentinel, Analytics, White-label, SSO, AM.
+ */
+const ENTERPRISE_FEATURES = {
+  ...BUSINESS_FEATURES,
+  analytics: true,
   compta_analytique: true,
   rh: true,
   sentinel: true,
   whitelabel: true,
-  api: true,
   sso: true,
   support_prioritaire: true,
   account_manager: true,
@@ -150,6 +174,7 @@ export const PLAN_FEATURES = {
   starter: STARTER_FEATURES,
   pro: PRO_FEATURES,
   business: BUSINESS_FEATURES,
+  enterprise: ENTERPRISE_FEATURES,
   // Legacy alias
   basic: STARTER_FEATURES,
 };
@@ -226,12 +251,12 @@ const STARTER_LIMITS = {
   prestations_max:    200,
   users_max:          5,
   chat_admin_questions_mois: -1,
-  credits_ia_inclus_mois: 1000,
+  credits_ia_inclus_mois: 4000,
 
   // DEPRECATED aliases
   clients:                200,
   reservations_per_month: 200,
-  storage_gb:             50,
+  storage_gb:             10,
   posts_per_month:        -1,
   images_per_month:       -1,
 };
@@ -244,12 +269,12 @@ const PRO_LIMITS = {
   users_max:          20,
   chat_admin_questions_mois: -1,
   multi_site_max:     -1,
-  credits_ia_inclus_mois: 5000,
+  credits_ia_inclus_mois: 20000,
 
   // DEPRECATED aliases
   clients:                -1,
   reservations_per_month: -1,
-  storage_gb:             200,
+  storage_gb:             50,
   posts_per_month:        -1,
   images_per_month:       -1,
 };
@@ -259,10 +284,28 @@ const BUSINESS_LIMITS = {
   reservations_mois:  -1,
   factures_mois:      -1,
   prestations_max:    -1,
+  users_max:          30,
+  chat_admin_questions_mois: -1,
+  multi_site_max:     -1,
+  credits_ia_inclus_mois: 50000,
+
+  // DEPRECATED aliases
+  clients:                -1,
+  reservations_per_month: -1,
+  storage_gb:             200,
+  posts_per_month:        -1,
+  images_per_month:       -1,
+};
+
+const ENTERPRISE_LIMITS = {
+  clients_max:        -1,
+  reservations_mois:  -1,
+  factures_mois:      -1,
+  prestations_max:    -1,
   users_max:          50,
   chat_admin_questions_mois: -1,
   multi_site_max:     -1,
-  credits_ia_inclus_mois: 20000,
+  credits_ia_inclus_mois: 100000,
 
   // DEPRECATED aliases
   clients:                -1,
@@ -277,6 +320,7 @@ export const PLAN_LIMITS = {
   starter: STARTER_LIMITS,
   pro: PRO_LIMITS,
   business: BUSINESS_LIMITS,
+  enterprise: ENTERPRISE_LIMITS,
   // Legacy alias
   basic: STARTER_LIMITS,
 };
@@ -309,6 +353,7 @@ export function getMinPlanForFeature(feature) {
   if (STARTER_FEATURES[feature] === true) return 'starter';
   if (PRO_FEATURES[feature] === true) return 'pro';
   if (BUSINESS_FEATURES[feature] === true) return 'business';
+  if (ENTERPRISE_FEATURES[feature] === true) return 'enterprise';
   return null;
 }
 

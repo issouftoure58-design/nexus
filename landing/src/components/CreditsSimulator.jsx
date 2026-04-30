@@ -2,7 +2,7 @@
  * NEXUS AI — Simulateur de cout IA (revise 21 avril 2026)
  *
  * Permet aux visiteurs de la landing d'estimer leur consommation mensuelle
- * et de choisir entre Starter (69€), Pro (199€) et Business (599€).
+ * et de choisir entre Starter (69€), Pro (199€), Business (499€) et Enterprise (899€).
  * Les credits internes ne sont JAMAIS montres au client.
  */
 
@@ -20,14 +20,16 @@ const CREDIT_COSTS = {
 }
 
 // Credits inclus par plan — internes (JAMAIS visible client)
-const STARTER_INCLUDED = 1000
-const PRO_INCLUDED = 5000
-const BUSINESS_INCLUDED = 20000
+const STARTER_INCLUDED = 4000
+const PRO_INCLUDED = 20000
+const BUSINESS_INCLUDED = 50000
+const ENTERPRISE_INCLUDED = 100000
 
 // Prix mensuels
 const STARTER_PRICE = 69
 const PRO_PRICE = 199
-const BUSINESS_PRICE = 599
+const BUSINESS_PRICE = 499
+const ENTERPRISE_PRICE = 899
 
 const USAGE_PRESETS = [
   {
@@ -98,11 +100,19 @@ export default function CreditsSimulator() {
       }
     }
 
-    // Au-dela de Business included
+    if (totalCredits <= ENTERPRISE_INCLUDED) {
+      return {
+        type: 'enterprise',
+        cost: ENTERPRISE_PRICE,
+        description: 'Votre usage est couvert par le plan Enterprise.',
+      }
+    }
+
+    // Au-dela de Enterprise included
     return {
-      type: 'business_plus',
-      cost: BUSINESS_PRICE,
-      description: 'Votre usage depasse les inclusions Business. Un pack d\'utilisation supplementaire sera necessaire.',
+      type: 'enterprise_plus',
+      cost: ENTERPRISE_PRICE,
+      description: 'Votre usage depasse les inclusions Enterprise. Un pack d\'utilisation supplementaire sera necessaire.',
     }
   }, [totalCredits])
 
@@ -120,20 +130,23 @@ export default function CreditsSimulator() {
   const getRecommendedPlan = () => {
     if (recommendation.type === 'starter') return 'starter'
     if (recommendation.type === 'pro') return 'pro'
-    return 'business'
+    if (recommendation.type === 'business') return 'business'
+    return 'enterprise'
   }
 
   const getRecommendedColor = () => {
     if (recommendation.type === 'starter') return { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', icon: 'text-cyan-400' }
     if (recommendation.type === 'pro') return { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', icon: 'text-cyan-400' }
-    return { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', icon: 'text-purple-400' }
+    if (recommendation.type === 'business') return { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', icon: 'text-purple-400' }
+    return { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', icon: 'text-amber-400' }
   }
 
   const getRecommendedLabel = () => {
     if (recommendation.type === 'starter') return 'Plan Starter recommande'
     if (recommendation.type === 'pro') return 'Plan Pro recommande'
     if (recommendation.type === 'business') return 'Plan Business recommande'
-    return 'Plan Business + supplement recommande'
+    if (recommendation.type === 'enterprise') return 'Plan Enterprise recommande'
+    return 'Plan Enterprise + supplement recommande'
   }
 
   return (
@@ -152,7 +165,7 @@ export default function CreditsSimulator() {
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
             Estimez votre consommation mensuelle et decouvrez quel plan est le plus adapte a vos besoins.
-            Starter a 69€, Pro a 199€ ou Business a 599€ — nous vous guidons.
+            Starter a 69€, Pro a 199€, Business a 499€ ou Enterprise a 899€ — nous vous guidons.
           </p>
         </div>
 
@@ -233,10 +246,12 @@ export default function CreditsSimulator() {
                   className={`inline-flex items-center gap-2 text-sm font-semibold ${
                     recommendation.type === 'starter' || recommendation.type === 'pro'
                       ? 'text-cyan-300 hover:text-cyan-200'
-                      : 'text-purple-300 hover:text-purple-200'
+                      : recommendation.type === 'business'
+                        ? 'text-purple-300 hover:text-purple-200'
+                        : 'text-amber-300 hover:text-amber-200'
                   }`}
                 >
-                  Choisir {recommendation.type === 'starter' ? 'Starter' : recommendation.type === 'pro' ? 'Pro' : 'Business'} <ArrowRight className="w-4 h-4" />
+                  Choisir {recommendation.type === 'starter' ? 'Starter' : recommendation.type === 'pro' ? 'Pro' : recommendation.type === 'business' ? 'Business' : 'Enterprise'} <ArrowRight className="w-4 h-4" />
                 </a>
               </div>
             )}

@@ -23,11 +23,11 @@ const FAQS = [
   },
   {
     q: 'Combien coute NEXUS ?',
-    a: "NEXUS propose 4 plans : Free gratuit a vie (5 clients, 5 RDV, 5 factures, IA chat admin uniquement), Starter a 69 euros par mois (200 limites, 5 users, toutes les IA), Pro a 199 euros par mois (tout illimite, 20 users, multi-sites) et Business a 599 euros par mois (tout illimite, 50 users, RH, compta, analytique, Sentinel, white-label, API, SSO, account manager dedie). Sans engagement, sans frais caches."
+    a: "NEXUS propose 5 plans : Free gratuit a vie (5 clients, 5 RDV, 5 factures, IA chat admin uniquement), Starter a 69 euros par mois (200 limites, 5 users, toutes les IA), Pro a 199 euros par mois (tout illimite, 20 users, multi-sites), Business a 499 euros par mois (30 users, SEO, compta, API) et Enterprise a 899 euros par mois (50 users, RH, Sentinel, white-label, SSO, account manager dedie). Sans engagement, sans frais caches."
   },
   {
     q: 'Quelle est la difference entre les plans Free, Starter, Pro et Business ?',
-    a: "Le plan Free est gratuit a vie et permet de decouvrir NEXUS avec 5 clients, 5 RDV et 5 factures par mois — ideal pour tester. Le plan Starter a 69 euros par mois debloque toutes les IA (telephone, WhatsApp, chat, SEO, marketing) avec 200 limites et 5 utilisateurs. Le plan Pro a 199 euros par mois passe tout en illimite, ajoute le multi-sites et monte a 20 utilisateurs. Le plan Business a 599 euros par mois ajoute le module RH, la comptabilite avancee, l'analytique, Sentinel, le white-label, l'API, les webhooks, le SSO entreprise, un account manager dedie et monte a 50 utilisateurs."
+    a: "Le plan Free est gratuit a vie et permet de decouvrir NEXUS avec 5 clients, 5 RDV et 5 factures par mois — ideal pour tester. Le plan Starter a 69 euros par mois debloque toutes les IA (telephone, WhatsApp, chat) avec 200 limites et 5 utilisateurs. Le plan Pro a 199 euros par mois passe tout en illimite, ajoute le marketing complet, le multi-sites et monte a 20 utilisateurs. Le plan Business a 499 euros par mois ajoute le SEO complet, la comptabilite, l'API et monte a 30 utilisateurs. Le plan Enterprise a 899 euros par mois ajoute le module RH complet, Sentinel, le white-label, le SSO entreprise, un account manager dedie et monte a 50 utilisateurs."
   },
   {
     q: 'Comment fonctionne la tarification IA de NEXUS ?',

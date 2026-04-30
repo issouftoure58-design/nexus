@@ -242,42 +242,42 @@ function App() {
             <Route path="/auxiliaires" element={<Navigate to="/comptabilite?tab=auxiliaires" replace />} />
             <Route path="/expert-comptable" element={<Navigate to="/comptabilite?tab=expert" replace />} />
             <Route path="/commandes" element={<ModuleRoute module="ecommerce" moduleTitle="Commandes" moduleDescription="Gestion des commandes"><Commandes /></ModuleRoute>} />
-            <Route path="/stock" element={<ModuleRoute requiredPlan="starter" module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
-            <Route path="/analytics" element={<ModuleRoute requiredPlan="business" module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
-            <Route path="/rh" element={<ModuleRoute requiredPlan="business" module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
+            <Route path="/stock" element={<ModuleRoute requiredPlan="pro" module="stock" moduleTitle="Stock & Inventaire" moduleDescription="Gestion des produits et inventaires"><Stock /></ModuleRoute>} />
+            <Route path="/analytics" element={<ModuleRoute requiredPlan="enterprise" module="analytics" moduleTitle="Comptabilité Analytique" moduleDescription="Rentabilité, marges et seuil de rentabilité"><Analytics /></ModuleRoute>} />
+            <Route path="/rh" element={<ModuleRoute requiredPlan="enterprise" module="rh" moduleTitle="RH & Planning" moduleDescription="Gestion multi-employés, planning et congés"><RH /></ModuleRoute>} />
 
-            {/* Modules Marketing — verrouilles Starter+ (Free tier bloque sur features IA) */}
-            <Route path="/segments" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
-            <Route path="/workflows" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
-            <Route path="/pipeline" element={<ModuleRoute requiredPlan="starter" module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
-            <Route path="/devis" element={<ModuleRoute requiredPlan="starter" module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
+            {/* Modules Marketing/Pipeline/Devis — verrouilles Pro+ */}
+            <Route path="/segments" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Segments CRM" moduleDescription="Segmentation clients et ciblage"><SegmentsPage /></ModuleRoute>} />
+            <Route path="/workflows" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Workflows" moduleDescription="Automatisation marketing"><WorkflowsPage /></ModuleRoute>} />
+            <Route path="/pipeline" element={<ModuleRoute requiredPlan="pro" module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
+            <Route path="/devis" element={<ModuleRoute requiredPlan="pro" module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
             <Route path="/planning" element={<ModuleRoute module="reservations" moduleTitle="Planning" moduleDescription="Vue planning hebdomadaire par employé"><Planning /></ModuleRoute>} />
-            <Route path="/campagnes" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
-            <Route path="/email-templates" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
-            <Route path="/marketing-analytics" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
-            <Route path="/churn" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
+            <Route path="/campagnes" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
+            <Route path="/email-templates" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
+            <Route path="/marketing-analytics" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />
+            <Route path="/churn" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Anti-Churn" moduleDescription="Prévention de la perte clients"><ChurnPrevention /></ModuleRoute>} />
             <Route path="/fidelite" element={<ModuleRoute moduleTitle="Programme Fidélité" moduleDescription="Gestion des points et récompenses clients"><Fidelite /></ModuleRoute>} />
             <Route path="/waitlist" element={<ModuleRoute moduleTitle="Liste d'attente" moduleDescription="Gestion des créneaux en attente"><Waitlist /></ModuleRoute>} />
             <Route path="/avis-clients" element={<ModuleRoute moduleTitle="Avis Clients" moduleDescription="Moderation des avis clients"><AvisClients /></ModuleRoute>} />
-            <Route path="/reseaux-sociaux" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
-            <Route path="/onboarding-sequences" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Onboarding" moduleDescription="Suivi des sequences d'onboarding post-paiement"><OnboardingSequences /></ModuleRoute>} />
+            <Route path="/reseaux-sociaux" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Reseaux Sociaux" moduleDescription="Connectez vos comptes Facebook et Instagram"><ReseauxSociaux /></ModuleRoute>} />
+            <Route path="/onboarding-sequences" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Onboarding" moduleDescription="Suivi des sequences d'onboarding post-paiement"><OnboardingSequences /></ModuleRoute>} />
             <Route path="/guide" element={<ModuleRoute moduleTitle="Mode d'emploi" moduleDescription="Guide d'utilisation de la plateforme"><Guide /></ModuleRoute>} />
 
             {/* Modules IA — verrouilles Starter+ (necessitent des credits) */}
             <Route path="/ia-admin" element={<ModuleRoute requiredPlan="starter" module="agent_ia_web" moduleTitle="Agent IA Web" moduleDescription="Chatbot IA 24/7 sur votre site"><IAAdmin /></ModuleRoute>} />
             <Route path="/ia-telephone" element={<ModuleRoute requiredPlan="starter" module="telephone" moduleTitle="Agent IA Telephone" moduleDescription="Assistant vocal IA pour appels entrants"><IATelephone /></ModuleRoute>} />
             <Route path="/ia-whatsapp" element={<ModuleRoute requiredPlan="starter" module="whatsapp" moduleTitle="Agent IA WhatsApp" moduleDescription="Assistant IA WhatsApp 24/7"><IAWhatsApp /></ModuleRoute>} />
-            <Route path="/signatures" element={<ModuleRoute requiredPlan="starter" module="pipeline" moduleTitle="Signatures" moduleDescription="Signatures électroniques Yousign"><SignaturesPage /></ModuleRoute>} />
-            <Route path="/instagram-setter" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Setter IA Instagram" moduleDescription="Qualification automatique via DMs Instagram"><InstagramSetterPage /></ModuleRoute>} />
-            <Route path="/questionnaires" element={<ModuleRoute requiredPlan="starter" module="marketing" moduleTitle="Questionnaires" moduleDescription="Formulaires de qualification avec scoring"><QuestionnairesPage /></ModuleRoute>} />
-            <Route path="/qualiopi" element={<ModuleRoute requiredPlan="starter" module="pipeline" moduleTitle="Conformite Qualiopi" moduleDescription="Checklist documentaire par apprenant"><QualiopiPage /></ModuleRoute>} />
-            <Route path="/satisfaction" element={<ModuleRoute requiredPlan="starter" module="pipeline" moduleTitle="Satisfaction" moduleDescription="Enquetes a chaud et a froid"><SatisfactionPage /></ModuleRoute>} />
+            <Route path="/signatures" element={<ModuleRoute requiredPlan="pro" module="pipeline" moduleTitle="Signatures" moduleDescription="Signatures électroniques Yousign"><SignaturesPage /></ModuleRoute>} />
+            <Route path="/instagram-setter" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Setter IA Instagram" moduleDescription="Qualification automatique via DMs Instagram"><InstagramSetterPage /></ModuleRoute>} />
+            <Route path="/questionnaires" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Questionnaires" moduleDescription="Formulaires de qualification avec scoring"><QuestionnairesPage /></ModuleRoute>} />
+            <Route path="/qualiopi" element={<ModuleRoute requiredPlan="pro" module="pipeline" moduleTitle="Conformite Qualiopi" moduleDescription="Checklist documentaire par apprenant"><QualiopiPage /></ModuleRoute>} />
+            <Route path="/satisfaction" element={<ModuleRoute requiredPlan="pro" module="pipeline" moduleTitle="Satisfaction" moduleDescription="Enquetes a chaud et a froid"><SatisfactionPage /></ModuleRoute>} />
 
-            {/* Modules SEO & Systeme — verrouilles Starter+ */}
-            <Route path="/seo" element={<ModuleRoute requiredPlan="starter" module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
-            <Route path="/seo/articles" element={<ModuleRoute requiredPlan="starter" module="seo"><SEOArticles /></ModuleRoute>} />
-            <Route path="/sentinel" element={<ModuleRoute requiredPlan="business" module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
+            {/* Modules SEO (Business+) & Sentinel (Enterprise) */}
+            <Route path="/seo" element={<ModuleRoute requiredPlan="business" module="seo" moduleTitle="SEO & Visibilité" moduleDescription="Articles IA, mots-clés et Google My Business"><SEODashboard /></ModuleRoute>} />
+            <Route path="/seo/articles" element={<ModuleRoute requiredPlan="business" module="seo"><SEOArticles /></ModuleRoute>} />
+            <Route path="/sentinel" element={<ModuleRoute requiredPlan="enterprise" module="sentinel" moduleTitle="SENTINEL" moduleDescription="Business Intelligence et monitoring temps réel"><Sentinel /></ModuleRoute>} />
 
             {/* Superadmin NEXUS routes */}
             <Route path="/nexus/login" element={<NexusLogin />} />

@@ -555,7 +555,91 @@ app.use('/api/admin/compta', comptaRoutes);
 // Routes Admin SEO (Business)
 app.use('/api/admin/seo', adminSEORoutes);
 
-// Routes Admin Analytics Prédictifs (Business)
+// Routes Anti-Churn (Pro) — montées AVANT analytics pour intercepter /churn*
+import { authenticateAdmin } from './routes/adminAuth.js';
+import { requireModule } from './middleware/moduleProtection.js';
+import { analyzeChurnRiskAll, scheduleChurnPrevention } from './ai/predictions.js';
+
+const churnRouter = express.Router();
+churnRouter.use(authenticateAdmin, requireModule('marketing'));
+
+churnRouter.get('/churn/distribution', async (req, res) => {
+  try {
+    const analysis = await analyzeChurnRiskAll(req.admin.tenant_id);
+    const clients = analysis.clients || [];
+    const tranches = [
+      { min: 0, max: 20, tranche: '0-20' }, { min: 21, max: 40, tranche: '21-40' },
+      { min: 41, max: 60, tranche: '41-60' }, { min: 61, max: 80, tranche: '61-80' },
+      { min: 81, max: 100, tranche: '81-100' }
+    ];
+    const distribution = tranches.map(({ min, max, tranche }) => ({
+      tranche, count: clients.filter(c => (c.score || 0) >= min && (c.score || 0) <= max).length
+    }));
+    const lowCount = clients.filter(c => (c.score || 0) <= 30).length;
+    const mediumCount = clients.filter(c => (c.score || 0) > 30 && (c.score || 0) <= 60).length;
+    const highCount = clients.filter(c => (c.score || 0) > 60 && (c.score || 0) <= 80).length;
+    const criticalCount = clients.filter(c => (c.score || 0) > 80).length;
+    const risk_levels = [
+      { name: 'Faible', value: lowCount, color: '#22c55e' }, { name: 'Moyen', value: mediumCount, color: '#f59e0b' },
+      { name: 'Eleve', value: highCount, color: '#ef4444' }, { name: 'Critique', value: criticalCount, color: '#7f1d1d' }
+    ];
+    const factorCounts = {};
+    clients.forEach(client => {
+      if (Array.isArray(client.factors)) {
+        client.factors.forEach(f => { factorCounts[f.name || 'Inconnu'] = (factorCounts[f.name || 'Inconnu'] || 0) + 1; });
+      } else {
+        const lastVisitDays = client.derniere_visite ? Math.floor((Date.now() - new Date(client.derniere_visite).getTime()) / 86400000) : 999;
+        if (lastVisitDays > 60) factorCounts['Pas de visite depuis 60j+'] = (factorCounts['Pas de visite depuis 60j+'] || 0) + 1;
+        if ((client.score || 0) > 50) factorCounts['Frequence en baisse'] = (factorCounts['Frequence en baisse'] || 0) + 1;
+      }
+    });
+    const top_factors = Object.entries(factorCounts).map(([factor, count]) => ({ factor, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+    res.json({ distribution, risk_levels, top_factors });
+  } catch (error) {
+    console.error('[Churn] Erreur distribution:', error);
+    res.status(500).json({ error: 'Erreur distribution churn' });
+  }
+});
+
+churnRouter.get('/churn', async (req, res) => {
+  try {
+    const analysis = await analyzeChurnRiskAll(req.admin.tenant_id);
+    const mappedClients = (analysis.clients || []).map(client => {
+      const lastActivityDays = client.derniere_visite ? Math.floor((Date.now() - new Date(client.derniere_visite).getTime()) / 86400000) : 999;
+      const factors = { inactivity: 0, frequency_drop: 0, spending_drop: 0, engagement: 0 };
+      if (Array.isArray(client.factors)) {
+        client.factors.forEach(f => {
+          if (f.name?.includes('inactiv') || f.name?.includes('Inactiv')) factors.inactivity = f.weight || 0;
+          else if (f.name?.includes('fréquence') || f.name?.includes('Frequence')) factors.frequency_drop = f.weight || 0;
+          else if (f.name?.includes('CA') || f.name?.includes('dépense')) factors.spending_drop = f.weight || 0;
+          else if (f.name?.includes('engag')) factors.engagement = f.weight || 0;
+        });
+      }
+      return { client_id: client.client_id, name: client.nom || 'Client inconnu', email: client.email || '', risk_score: client.score || 0, risk_level: client.risk === 'high' ? 'high' : (client.risk === 'medium' ? 'medium' : 'low'), last_activity_days: lastActivityDays, total_spent: 0, factors };
+    });
+    res.json({ total_clients: analysis.total_clients || 0, at_risk: analysis.at_risk || 0, high_risk: analysis.high_risk || 0, medium_risk: analysis.medium_risk || 0, clients: mappedClients });
+  } catch (error) {
+    console.error('[Churn] Erreur analyse:', error);
+    res.status(500).json({ error: 'Erreur analyse churn' });
+  }
+});
+
+churnRouter.post('/churn/:clientId/prevent', async (req, res) => {
+  try {
+    let { action_type } = req.body;
+    const mapping = { email_retention: 'email', sms_rappel: 'sms', promo_personnalisee: 'promo', email: 'email', sms: 'sms', promo: 'promo', call: 'call' };
+    action_type = mapping[action_type] || action_type;
+    const result = await scheduleChurnPrevention(req.admin.tenant_id, parseInt(req.params.clientId), action_type);
+    res.json(result);
+  } catch (error) {
+    console.error('[Churn] Erreur action prevention:', error);
+    res.status(500).json({ error: 'Erreur programmation action anti-churn' });
+  }
+});
+
+app.use('/api/admin/analytics', churnRouter);
+
+// Routes Admin Analytics Prédictifs (Enterprise)
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 
 // Routes Admin RH Equipe (Business)

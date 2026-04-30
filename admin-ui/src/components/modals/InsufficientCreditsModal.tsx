@@ -4,7 +4,7 @@
  *
  * Modele 2026 (revision 21 avril 2026) :
  *   • Pack unique additionnel : Pack 1000 → 15€ pour 1 000 credits (0% bonus)
- *   • Business 599€/mois inclut deja 20 000 credits (upsell si usage intensif)
+ *   • Enterprise 899€/mois inclut deja 100 000 credits (upsell si usage intensif)
  *
  * Usage :
  *   const [showModal, setShowModal] = useState(false);
@@ -182,16 +182,16 @@ export function InsufficientCreditsModal({
               <Zap className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-gray-900">
-                  Vous consommez beaucoup de crédits ?
+                  Vous consommez beaucoup d'utilisation IA ?
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                  Le plan <strong>Business 599€/mois</strong> inclut <strong>20 000 credits/mois</strong> + tous les modules premium (RH, Compta, Sentinel, White-label, API, SSO).
+                  Le plan <strong>Enterprise 899€/mois</strong> inclut <strong>100 000 d'utilisation IA/mois</strong> + tous les modules premium (RH, Compta, Sentinel, White-label, API, SSO).
                 </p>
                 <a
                   href="/admin/subscription"
                   className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-amber-700 hover:text-amber-800"
                 >
-                  Découvrir Business
+                  Découvrir Enterprise
                   <ArrowRight className="w-3 h-3" />
                 </a>
               </div>

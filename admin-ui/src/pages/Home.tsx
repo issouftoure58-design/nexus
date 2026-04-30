@@ -369,7 +369,7 @@ function ClientsRisque({ churn, isLoading }: ClientsRisqueProps) {
           Clients à risque
         </h3>
         <button
-          onClick={() => navigate('/clients')}
+          onClick={() => navigate('/churn')}
           className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium"
         >
           Détails
@@ -528,8 +528,9 @@ export function Home() {
   const navigate = useNavigate();
   const { hasPlan } = useTenant();
 
-  const canSeeSentinel = hasPlan('business');
-  const canSeeChurn = hasPlan('starter');
+  const canSeeSentinel = hasPlan('enterprise');
+  const canSeeChurn = hasPlan('pro');
+  const canSeeCompta = hasPlan('business');
 
   // Fetch KPI overview
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
@@ -562,7 +563,7 @@ export function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sentinel Bar — Business only */}
+      {/* Sentinel Bar — Enterprise only */}
       {canSeeSentinel && <SentinelBar />}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -584,7 +585,7 @@ export function Home() {
             variation={overview?.ca_variation}
             icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
             color="bg-emerald-100 dark:bg-emerald-900/30"
-            onClick={() => navigate('/comptabilite')}
+            onClick={canSeeCompta ? () => navigate('/comptabilite') : undefined}
           />
           <KpiCard
             title="Réservations"
@@ -632,7 +633,7 @@ export function Home() {
             <LockedWidget
               title="Clients à risque"
               icon={<AlertTriangle className="w-4 h-4 text-amber-500" />}
-              planRequired="Starter"
+              planRequired="Pro"
               description="Détectez vos clients à risque de départ"
             />
           )}

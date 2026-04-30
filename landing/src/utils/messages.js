@@ -4,7 +4,7 @@ export const MESSAGES_CONFIG = {
     audio: "/audio/welcome.mp3"
   },
   prix: {
-    text: "NEXUS propose 4 plans : Free gratuit a vie avec 5 clients, 5 RDV et 5 factures pour decouvrir, Starter a 69€/mois avec toutes les IA et 200 limites, Pro a 199€/mois tout illimite avec multi-sites et 20 users, et Business a 599€/mois avec RH, compta, analytique, Sentinel, white-label, API, SSO et account manager dedie. Si vous depassez les limites de votre plan, des packs d'utilisation supplementaire sont disponibles : 50€ (-10%), 200€ (-20%) et 500€ (-30%).",
+    text: "NEXUS propose 5 plans : Free gratuit a vie avec 5 clients, 5 RDV et 5 factures pour decouvrir, Starter a 69€/mois avec toutes les IA et 200 limites, Pro a 199€/mois tout illimite avec multi-sites et 20 users, Business a 499€/mois avec SEO, compta et API pour 30 users, et Enterprise a 899€/mois avec RH, Sentinel, white-label, SSO et account manager dedie pour 50 users. Si vous depassez l'utilisation IA de votre plan, des packs supplementaires sont disponibles : 50€ (-10%), 200€ (-20%) et 500€ (-30%).",
     audio: null
   },
   telephone: {
@@ -24,7 +24,7 @@ export const MESSAGES_CONFIG = {
     audio: "/audio/faq-essai.mp3"
   },
   default: {
-    text: "Je suis la pour repondre a toutes vos questions ! Vous pouvez me demander des infos sur les plans (Free gratuit, Starter 69 euros, Pro 199 euros, Business 599 euros), les fonctionnalites, ou comment demarrer.",
+    text: "Je suis la pour repondre a toutes vos questions ! Vous pouvez me demander des infos sur les plans (Free gratuit, Starter 69€, Pro 199€, Business 499€, Enterprise 899€), les fonctionnalites, ou comment demarrer.",
     audio: null
   }
 }

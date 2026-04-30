@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, TrendingUp, Users, HardDrive, Image, FileText, Crown, Infinity } from 'lucide-react';
 
-type PlanType = 'free' | 'starter' | 'pro' | 'business';
+type PlanType = 'free' | 'starter' | 'pro' | 'business' | 'enterprise';
 
 interface QuotaData {
   plan: PlanType | 'basic';
@@ -35,6 +35,7 @@ const PLAN_LABELS: Record<PlanType, string> = {
   starter: 'Starter',
   pro: 'Pro',
   business: 'Business',
+  enterprise: 'Enterprise',
 };
 
 const PLAN_COLORS: Record<PlanType, 'secondary' | 'default' | 'success'> = {
@@ -42,6 +43,7 @@ const PLAN_COLORS: Record<PlanType, 'secondary' | 'default' | 'success'> = {
   starter: 'default',
   pro: 'default',
   business: 'success',
+  enterprise: 'success',
 };
 
 export function QuotasWidget() {
@@ -147,7 +149,7 @@ export function QuotasWidget() {
           <Alert className="mb-6 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50">
             <Crown className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
-              <strong>Plan Business</strong> - RH, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus / mois
+              <strong>Plan Business</strong> - Compta, SEO, API — utilisation IA incluse
               <div className="flex items-center gap-1 mt-1 text-sm text-amber-600">
                 <Infinity className="h-3 w-3" /> Aucune limite sur vos ressources principales
               </div>
@@ -193,7 +195,7 @@ export function QuotasWidget() {
               <div>
                 <p className="font-medium text-cyan-900">Passez au plan Starter — 69€/mois</p>
                 <p className="text-sm text-cyan-700 mt-1">
-                  Toute l'IA + stock, workflows, pipeline, devis, SEO, fidelite + 1 000 credits IA inclus.
+                  Toutes les IA debloquees + CRM avance — utilisation IA incluse.
                 </p>
               </div>
             </div>
@@ -207,7 +209,7 @@ export function QuotasWidget() {
               <div>
                 <p className="font-medium text-blue-900">Passez au plan Pro — 199€/mois</p>
                 <p className="text-sm text-blue-700 mt-1">
-                  Multi-sites, tout illimite, 20 users + 5 000 credits IA inclus chaque mois.
+                  Facturation, Devis, Pipeline, Stock, Marketing complet, 20 postes — utilisation IA x5.
                 </p>
               </div>
             </div>
@@ -219,9 +221,9 @@ export function QuotasWidget() {
             <div className="flex items-start gap-3">
               <TrendingUp className="h-5 w-5 text-purple-600 mt-0.5" />
               <div>
-                <p className="font-medium text-purple-900">Passez au plan Business — 599€/mois</p>
+                <p className="font-medium text-purple-900">Passez au plan Business — 499€/mois</p>
                 <p className="text-sm text-purple-700 mt-1">
-                  RH complet, Compta, Sentinel, White-label, API, SSO + 20 000 credits IA inclus chaque mois.
+                  SEO complet, Compta, API + 50 000 d'utilisation IA inclus chaque mois. Ou Enterprise a 899€/mois pour RH, Sentinel, White-label, SSO + 100 000 d'utilisation IA.
                 </p>
               </div>
             </div>

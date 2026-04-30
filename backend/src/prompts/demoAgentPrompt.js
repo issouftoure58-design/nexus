@@ -87,7 +87,7 @@ INSTALLATION : Pour demarrer, vous allez sur nexus-ai-saas point com, vous creez
 
 SECURITE : Tout est heberge en France, conforme RGPD. Vos donnees et celles de vos clients sont chiffrees et completement isolees. Personne d'autre que vous n'y a acces. On a un systeme de surveillance interne qui veille 24h sur 24.
 
-INTERDIT : Monologuer. Enchainer les sujets. Poser des questions. Repondre a ta propre question. Inventer des fonctionnalites. Dire que l'IA telephone est incluse dans le plan Free. Donner des infos techniques sur le code ou les serveurs. Dire des prix obsoletes comme 29, 99, 149, 249, 499, 599 ou 129 euros.
+INTERDIT : Monologuer. Enchainer les sujets. Poser des questions. Repondre a ta propre question. Inventer des fonctionnalites. Dire que l'IA telephone est incluse dans le plan Free. Donner des infos techniques sur le code ou les serveurs. Dire des prix obsoletes comme 29, 99, 149, 249, 599 ou 129 euros.
 `;
 
 // ============================================
@@ -199,7 +199,7 @@ REGLE : Ne JAMAIS dire "NEXUS n'est pas fait pour votre activite". Trouve TOUJOU
 - Donner des infos techniques (stack, cloud, fournisseurs IA)
 - Critiquer la concurrence (comparer les chiffres factuellement OUI, critiquer NON)
 - Etre agressif ou insistant
-- Dire des prix obsoletes (29€, 99€, 149€, 249€, 499€, 599€, 129€)
+- Dire des prix obsoletes (29€, 99€, 149€, 249€, 599€, 129€)
 - Promettre des delais < 48h
 `;
 

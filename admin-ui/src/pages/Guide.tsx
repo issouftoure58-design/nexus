@@ -41,7 +41,7 @@ interface GuideSection {
   icon: React.ElementType;
   title: string;
   path?: string;
-  badge?: 'Starter' | 'Pro' | 'Business';
+  badge?: 'Starter' | 'Pro' | 'Business' | 'Enterprise';
   condition: (checks: ReturnType<typeof useBusinessTypeChecks>) => boolean;
   content: (term: typeof TERMINOLOGY[string]) => string[];
   tip?: (term: typeof TERMINOLOGY[string]) => string;
@@ -97,6 +97,7 @@ function PlanBadge({ plan }: { plan: string }) {
     starter: 'bg-cyan-100 text-cyan-700',
     pro: 'bg-blue-100 text-blue-700',
     business: 'bg-purple-100 text-purple-700',
+    enterprise: 'bg-pink-100 text-pink-700',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[normalized] || colors.free}`}>
@@ -256,6 +257,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Star,
     title: 'Programme Fidelite',
     path: '/fidelite',
+    badge: 'Pro',
     condition: always,
     content: (t) => [
       `Le programme attribue automatiquement des points quand un(e) ${t.booking} est terminee (par defaut : 1 point par euro).`,
@@ -295,6 +297,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: FileText,
     title: 'Facturation',
     path: '/facturation',
+    badge: 'Pro',
     condition: always,
     content: (t) => [
       `Les factures sont generees automatiquement a la fin d'un(e) ${t.booking}. Suivez leur statut : generee, envoyee, payee, en retard.`,
@@ -307,7 +310,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: FileText,
     title: 'Devis',
     path: '/devis',
-    badge: 'Starter',
+    badge: 'Pro',
     condition: always,
     content: (t) => [
       `Creez des devis professionnels pour vos ${t.client}s. Chaque devis peut etre converti en facture en un clic.`,
@@ -334,7 +337,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Package,
     title: 'Stock & Inventaire',
     path: '/stock',
-    badge: 'Starter',
+    badge: 'Pro',
     condition: always,
     content: () => [
       `Gerez vos produits avec suivi des quantites, alertes de stock bas et historique des mouvements.`,
@@ -363,7 +366,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Megaphone,
     title: 'Marketing & CRM',
     path: '/segments',
-    badge: 'Starter',
+    badge: 'Pro',
     condition: always,
     content: (t) => [
       `Segmentez vos ${t.client}s avec le CRM : par CA, frequence, anciennete ou tags personnalises.`,
@@ -377,7 +380,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: TrendingUp,
     title: 'Pipeline Commercial',
     path: '/pipeline',
-    badge: 'Starter',
+    badge: 'Pro',
     condition: always,
     content: () => [
       `Suivez vos opportunites de vente avec un pipeline visuel : prospection → contact → devis → negociation → gagne/perdu.`,
@@ -390,7 +393,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Share2,
     title: 'Reseaux Sociaux',
     path: '/reseaux-sociaux',
-    badge: 'Starter',
+    badge: 'Pro',
     condition: always,
     content: () => [
       `Planifiez et publiez vos posts sur vos reseaux sociaux directement depuis NEXUS.`,
@@ -403,7 +406,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: UserCog,
     title: 'RH & Planning',
     path: '/rh',
-    badge: 'Business',
+    badge: 'Enterprise',
     condition: always,
     content: (t) => [
       `Gerez votre equipe : fiches ${t.staff}s, planning, conges et absences.`,
@@ -411,18 +414,31 @@ const GUIDE_SECTIONS: GuideSection[] = [
       `Invitez des membres via email — chacun a son role (admin, manager, viewer) avec permissions granulaires.`,
     ],
   },
-  // 23. Analytics & SEO
+  // 23a. SEO
+  {
+    id: 'seo',
+    icon: TrendingUp,
+    title: 'SEO',
+    path: '/seo',
+    badge: 'Business',
+    condition: always,
+    content: () => [
+      `Le SEO genere des articles optimises pour votre referencement et gere votre fiche Google My Business.`,
+      `L'IA redige des articles SEO adaptes a votre activite avec meta-descriptions et mots-cles pertinents.`,
+    ],
+  },
+  // 23b. Analytics
   {
     id: 'analytics',
     icon: PieChart,
-    title: 'Analytics & SEO',
-    path: '/seo',
-    badge: 'Starter',
+    title: 'Analytics',
+    path: '/analytics',
+    badge: 'Enterprise',
     condition: always,
     content: () => [
       `L'Analytics affiche votre rentabilite par service, marges et seuil de rentabilite.`,
       `L'Anti-Churn identifie les clients a risque de depart et suggere des actions de retention.`,
-      `Le SEO genere des articles optimises pour votre referencement et gere votre fiche Google My Business.`,
+      `Tableaux de bord avances avec KPI personnalisables et export de donnees.`,
     ],
   },
   // 24. SENTINEL
@@ -431,7 +447,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     icon: Shield,
     title: 'SENTINEL — Monitoring',
     path: '/sentinel',
-    badge: 'Business',
+    badge: 'Enterprise',
     condition: always,
     content: () => [
       `SENTINEL est votre centre de controle : monitoring temps reel, alertes, metriques de performance.`,
@@ -449,7 +465,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     content: (t) => [
       `Gerez votre profil, mot de passe et authentification a deux facteurs (2FA).`,
       `La section Equipe permet d'inviter des ${t.staff}s avec des roles et permissions personnalises.`,
-      `Consultez et gerez votre abonnement (Free, Starter 69€/mois avec 1 000 credits IA inclus, Pro 199€/mois avec 5 000 credits, Business 599€/mois avec 20 000 credits) dans "Mon abonnement". L'essai Starter gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
+      `Consultez et gerez votre abonnement (Free, Starter 69€/mois, Pro 199€/mois, Business 499€/mois, Enterprise 899€/mois — utilisation IA incluse selon le plan) dans "Mon abonnement". L'essai Starter gratuit dure 14 jours puis votre compte bascule sur Free sans frais.`,
       `La section Activite permet de decrire votre etablissement — ces informations sont utilisees par l'IA pour renseigner vos ${t.client}s.`,
     ],
   },
@@ -486,6 +502,7 @@ export default function Guide() {
     Starter: 'bg-cyan-100 text-cyan-700 border-cyan-200',
     Pro: 'bg-blue-100 text-blue-700 border-blue-200',
     Business: 'bg-purple-100 text-purple-700 border-purple-200',
+    Enterprise: 'bg-pink-100 text-pink-700 border-pink-200',
   };
 
   return (

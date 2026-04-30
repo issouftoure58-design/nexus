@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Sparkles, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTenant } from '@/hooks/useTenant';
 
 interface CreditsBalance {
   balance: number;
@@ -53,8 +54,17 @@ interface CreditsBalanceCardProps {
   compact?: boolean;
 }
 
+const PLAN_DISPLAY: Record<string, string> = {
+  free: 'Free',
+  starter: 'Starter',
+  pro: 'Pro',
+  business: 'Business',
+  enterprise: 'Enterprise',
+};
+
 export function CreditsBalanceCard({ showPacks = true, compact = false }: CreditsBalanceCardProps) {
   const queryClient = useQueryClient();
+  const { plan: currentPlan } = useTenant();
 
   const { data: balance, isLoading, isError } = useQuery<CreditsBalance>({
     queryKey: ['credits-balance'],
@@ -124,9 +134,7 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
     ? Math.max(0, Math.ceil((new Date(balance.monthly_reset_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 
-  const planLabel = balance.monthly_included >= 20000 ? 'Business'
-    : balance.monthly_included >= 5000 ? 'Pro'
-    : balance.monthly_included >= 1000 ? 'Starter' : 'Free';
+  const planLabel = PLAN_DISPLAY[currentPlan] || 'Free';
 
   // Mode compact pour sidebar/header
   if (compact) {
