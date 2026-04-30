@@ -39,6 +39,7 @@ const Stock = lazy(() => import('./pages/Stock'));
 const Parametres = lazy(() => import('./pages/Parametres'));
 const Subscription = lazy(() => import('./pages/Subscription'));
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const OnboardingSuccess = lazy(() => import('./pages/OnboardingSuccess'));
 // Ancien onboarding supprimé — redirigé vers /configuration
 const SegmentsPage = lazy(() => import('./pages/Segments'));
 const WorkflowsPage = lazy(() => import('./pages/Workflows'));
@@ -204,6 +205,7 @@ function App() {
             <Route path="/suivi/:token" element={<OrderTracking />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogArticle />} />
+            <Route path="/onboarding/success" element={<OnboardingSuccess />} />
             <Route path="/onboarding" element={<Navigate to="/configuration" replace />} />
             <Route path="/configuration" element={<PrivateRoute skipOnboarding><Configuration /></PrivateRoute>} />
 

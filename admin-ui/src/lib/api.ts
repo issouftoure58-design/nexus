@@ -628,17 +628,40 @@ export const disponibilitesApi = {
   deleteConge: (id: number) => api.delete(`/admin/disponibilites/conges/${id}`),
 };
 
-// Stock
+// Stock — normalise colonnes backend (stock_actuel→quantite, etc.)
+function normalizeProduct(p: any): Product {
+  return {
+    ...p,
+    quantite: p.stock_actuel ?? p.quantite ?? 0,
+    seuil_alerte: p.stock_minimum ?? p.seuil_alerte ?? 0,
+    prix_achat: p.prix_achat_unitaire ?? p.prix_achat ?? 0,
+    prix_vente: p.prix_vente_unitaire ?? p.prix_vente ?? 0,
+  };
+}
+
 export const stockApi = {
   list: async (): Promise<{ produits: Product[] }> => {
     const raw = await api.get<{ produits?: Product[]; data?: Product[] }>('/admin/stock');
-    return { produits: raw.produits || (raw as any).data || [] };
+    const produits = raw.produits || (raw as any).data || [];
+    return { produits: produits.map(normalizeProduct) };
   },
-  create: (data: CreateProductData) => api.post<{ produit: Product }>('/admin/stock', data),
-  update: (id: number, data: Partial<Product>) => api.put<{ produit: Product }>(`/admin/stock/${id}`, data),
+  create: (data: CreateProductData) => api.post<{ produit: Product }>('/admin/stock', {
+    ...data,
+    stock_actuel: (data as any).quantite ?? data.stock_actuel,
+    stock_minimum: (data as any).seuil_alerte ?? data.stock_minimum,
+    prix_achat_unitaire: (data as any).prix_achat ?? data.prix_achat_unitaire,
+    prix_vente_unitaire: (data as any).prix_vente ?? data.prix_vente_unitaire,
+  }),
+  update: (id: number, data: Partial<Product>) => api.put<{ produit: Product }>(`/admin/stock/${id}`, {
+    ...data,
+    stock_actuel: (data as any).quantite ?? data.stock_actuel,
+    stock_minimum: (data as any).seuil_alerte ?? data.stock_minimum,
+    prix_achat_unitaire: (data as any).prix_achat ?? data.prix_achat_unitaire,
+    prix_vente_unitaire: (data as any).prix_vente ?? data.prix_vente_unitaire,
+  }),
   delete: (id: number) => api.delete(`/admin/stock/${id}`),
   ajusterQuantite: (id: number, quantite: number, raison: string) =>
-    api.post(`/admin/stock/${id}/ajuster`, { quantite, raison }),
+    api.post('/stock/mouvements', { produit_id: id, type: 'ajustement', quantite, motif: raison }),
 };
 
 // Comptabilité
@@ -1568,18 +1591,33 @@ export interface Product {
   id: number;
   nom: string;
   description: string | null;
-  quantite: number;
-  prix_achat: number;
-  prix_vente: number;
-  seuil_alerte: number;
+  reference: string;
+  categorie: string;
+  stock_actuel: number;
+  stock_minimum: number;
+  stock_optimal: number;
+  unite: string;
+  prix_achat_unitaire: number;
+  prix_vente_unitaire: number;
+  fournisseur: string | null;
+  emplacement: string | null;
+  actif: boolean;
+  // Aliases for backward compat
+  quantite?: number;
+  seuil_alerte?: number;
+  prix_achat?: number;
+  prix_vente?: number;
 }
 
 export interface CreateProductData {
   nom: string;
   description?: string;
-  quantite: number;
-  prix_achat: number;
-  prix_vente: number;
+  reference?: string;
+  categorie?: string;
+  stock_actuel?: number;
+  stock_minimum?: number;
+  prix_achat_unitaire?: number;
+  prix_vente_unitaire?: number;
   seuil_alerte?: number;
 }
 

@@ -845,6 +845,7 @@ async function executeWorkflowActions(executionId, workflow, clientId, tenantId)
       .from('clients')
       .select('*')
       .eq('id', clientId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!client) throw new Error('Client non trouvé');
@@ -871,7 +872,7 @@ async function executeWorkflowActions(executionId, workflow, clientId, tenantId)
             if (action.tag_id) {
               const { error: tagError } = await supabase
                 .from('client_tags')
-                .insert({ client_id: clientId, tag_id: action.tag_id });
+                .insert({ client_id: clientId, tag_id: action.tag_id, tenant_id: tenantId });
               resultat = { ajoute: !tagError || tagError.code === '23505' };
             }
             break;
@@ -907,12 +908,14 @@ async function executeWorkflowActions(executionId, workflow, clientId, tenantId)
         actions_executees: actionsExecutees,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', executionId);
+      .eq('id', executionId)
+      .eq('tenant_id', tenantId);
 
     const { data: currentWorkflow } = await supabase
       .from('workflows')
       .select('nb_executions')
       .eq('id', workflow.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     await supabase
@@ -921,7 +924,8 @@ async function executeWorkflowActions(executionId, workflow, clientId, tenantId)
         nb_executions: (currentWorkflow?.nb_executions || 0) + 1,
         derniere_execution: new Date().toISOString(),
       })
-      .eq('id', workflow.id);
+      .eq('id', workflow.id)
+      .eq('tenant_id', tenantId);
 
     console.log(`[MARKETING] Workflow "${workflow.nom}" terminé - ${actionsExecutees.length} actions`);
   } catch (error) {
@@ -933,7 +937,8 @@ async function executeWorkflowActions(executionId, workflow, clientId, tenantId)
         erreur_message: error.message,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', executionId);
+      .eq('id', executionId)
+      .eq('tenant_id', tenantId);
   }
 }
 

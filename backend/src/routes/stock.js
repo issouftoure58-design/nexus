@@ -315,11 +315,12 @@ router.get('/produits/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Produit non trouvé' });
     }
 
-    // Récupérer derniers mouvements
+    // Récupérer derniers mouvements (🔒 TENANT ISOLATION)
     const { data: mouvements } = await supabase
       .from('mouvements_stock')
       .select('*')
       .eq('produit_id', id)
+      .eq('tenant_id', tenantId)
       .order('date_mouvement', { ascending: false })
       .limit(20);
 
