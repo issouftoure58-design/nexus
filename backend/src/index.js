@@ -453,6 +453,39 @@ app.use('/api', validateBodyTenant());
 app.use('/api/public', apiLimiter);
 app.use('/api', publicRoutes);
 
+// Pages legales (Meta WhatsApp, RGPD)
+app.get('/privacy', (req, res) => {
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Politique de confidentialité — NEXUS</title></head><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px">
+<h1>Politique de confidentialité</h1>
+<p><strong>NEXUS AI SaaS</strong> — Dernière mise à jour : 30 avril 2026</p>
+<h2>Données collectées</h2><p>Nous collectons les données nécessaires au fonctionnement du service : nom, email, téléphone, données de réservation. Les conversations avec l'IA sont traitées en temps réel et ne sont pas stockées au-delà de la session.</p>
+<h2>Utilisation</h2><p>Vos données sont utilisées exclusivement pour fournir le service NEXUS (gestion de réservations, notifications, facturation). Aucune donnée n'est vendue à des tiers.</p>
+<h2>Hébergement</h2><p>Les données sont hébergées en Europe (Supabase EU, Render EU).</p>
+<h2>Droits</h2><p>Conformément au RGPD, vous pouvez exercer vos droits d'accès, rectification et suppression en contactant contact@nexus-ai-saas.com.</p>
+<h2>Contact</h2><p>Email : contact@nexus-ai-saas.com</p>
+</body></html>`);
+});
+
+app.get('/terms', (req, res) => {
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Conditions d'utilisation — NEXUS</title></head><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px">
+<h1>Conditions générales d'utilisation</h1>
+<p><strong>NEXUS AI SaaS</strong> — Dernière mise à jour : 30 avril 2026</p>
+<h2>Objet</h2><p>NEXUS est une plateforme SaaS de gestion pour professionnels (réservations, CRM, facturation, IA conversationnelle).</p>
+<h2>Accès</h2><p>L'accès au service nécessite la création d'un compte. L'utilisateur est responsable de la confidentialité de ses identifiants.</p>
+<h2>Abonnement</h2><p>Les abonnements sont facturés mensuellement via Stripe. L'annulation prend effet à la fin de la période en cours.</p>
+<h2>Responsabilité</h2><p>NEXUS s'engage à assurer la disponibilité du service. En cas d'interruption, aucune indemnité ne sera due au-delà du prorata de l'abonnement.</p>
+<h2>Contact</h2><p>Email : contact@nexus-ai-saas.com</p>
+</body></html>`);
+});
+
+app.get('/data-deletion', (req, res) => {
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Suppression de données — NEXUS</title></head><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px">
+<h1>Suppression de vos données</h1>
+<p>Pour demander la suppression de vos données personnelles, envoyez un email à <strong>contact@nexus-ai-saas.com</strong> avec l'objet "Suppression de données".</p>
+<p>Votre demande sera traitée sous 30 jours conformément au RGPD.</p>
+</body></html>`);
+});
+
 // Reviews/Avis clients (public GET + admin routes)
 app.use('/api/reviews', reviewsRoutes);
 

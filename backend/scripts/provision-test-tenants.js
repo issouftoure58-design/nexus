@@ -39,6 +39,7 @@ const TENANTS_CONFIG = {
       domain: 'atlas-securite.test',
       plan: 'business',
       status: 'active',
+      business_type: 'security',
       settings: {
         business_profile: 'security',
         email: 'contact@atlas-securite.test',
@@ -168,6 +169,7 @@ EXEMPLE:
       domain: 'clara-conseil.test',
       plan: 'business',
       status: 'active',
+      business_type: 'service',
       settings: {
         business_profile: 'consulting',
         email: 'contact@clara-conseil.test',
@@ -285,6 +287,7 @@ VISIO:
       domain: 'emma-events.test',
       plan: 'business',
       status: 'active',
+      business_type: 'salon',
       settings: {
         business_profile: 'events',
         email: 'contact@emma-events.test',

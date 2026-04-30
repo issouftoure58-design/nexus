@@ -2,11 +2,14 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * TESTS MULTI-BUSINESS
  *
- * Valide la configuration des 4 types de business:
+ * Valide la configuration des 7 types de business:
  *   - service_domicile
  *   - salon
  *   - restaurant
  *   - hotel
+ *   - commerce
+ *   - security
+ *   - service
  *
  * Usage: npm test -- --testPathPattern=multi-business
  * ═══════════════════════════════════════════════════════════════════════════
@@ -25,7 +28,7 @@ describe('Multi-Business Types', () => {
 
   describe('Configuration businessTypes.js', () => {
 
-    test('devrait avoir 6 types de business configurés', () => {
+    test('devrait avoir 7 types de business configurés', () => {
       const types = Object.keys(BUSINESS_TYPES);
       expect(types).toContain('service_domicile');
       expect(types).toContain('salon');
@@ -33,7 +36,8 @@ describe('Multi-Business Types', () => {
       expect(types).toContain('hotel');
       expect(types).toContain('commerce');
       expect(types).toContain('security');
-      expect(types.length).toBe(6);
+      expect(types).toContain('service');
+      expect(types.length).toBe(7);
     });
 
     test('chaque type devrait avoir defaultLocation dans businessRules', () => {
@@ -43,6 +47,7 @@ describe('Multi-Business Types', () => {
       expect(BUSINESS_TYPES.hotel.businessRules.defaultLocation).toBe('hotel');
       expect(BUSINESS_TYPES.commerce.businessRules.defaultLocation).toBe('boutique');
       expect(BUSINESS_TYPES.security.businessRules.defaultLocation).toBe('site_client');
+      expect(BUSINESS_TYPES.service.businessRules.defaultLocation).toBe('bureau');
     });
 
     test('chaque type devrait avoir une terminologie complète', () => {
@@ -166,6 +171,34 @@ describe('Multi-Business Types', () => {
     });
   });
 
+  describe('Features service (conseil)', () => {
+    const features = BUSINESS_TYPES.service.features;
+
+    test('devrait avoir multiStaff activé', () => {
+      expect(features.multiStaff).toBe(true);
+    });
+
+    test('devrait avoir onlineBooking activé', () => {
+      expect(features.onlineBooking).toBe(true);
+    });
+
+    test('devrait NE PAS avoir travelFees', () => {
+      expect(features.travelFees).toBe(false);
+    });
+
+    test('devrait NE PAS avoir clientAddress', () => {
+      expect(features.clientAddress).toBe(false);
+    });
+
+    test('devrait NE PAS avoir tableManagement', () => {
+      expect(features.tableManagement).toBe(false);
+    });
+
+    test('devrait NE PAS avoir roomInventory', () => {
+      expect(features.roomInventory).toBe(false);
+    });
+  });
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TEST: Terminologie
   // ═══════════════════════════════════════════════════════════════════════════
@@ -200,6 +233,14 @@ describe('Multi-Business Types', () => {
       expect(BUSINESS_TYPES.hotel.terminology.employee.singular).toBe('Réceptionniste');
     });
 
+    test('service devrait utiliser "Prestation"', () => {
+      expect(BUSINESS_TYPES.service.terminology.service.singular).toBe('Prestation');
+    });
+
+    test('service devrait utiliser "Collaborateur" pour employee', () => {
+      expect(BUSINESS_TYPES.service.terminology.employee.singular).toBe('Collaborateur');
+    });
+
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -222,6 +263,13 @@ describe('Multi-Business Types', () => {
     test('hotel devrait supporter daily (par nuit)', () => {
       const modes = BUSINESS_TYPES.hotel.pricingModesAllowed;
       expect(modes).toContain('daily');
+    });
+
+    test('service devrait supporter fixed, hourly et package', () => {
+      const modes = BUSINESS_TYPES.service.pricingModesAllowed;
+      expect(modes).toContain('fixed');
+      expect(modes).toContain('hourly');
+      expect(modes).toContain('package');
     });
 
   });

@@ -489,6 +489,14 @@ router.put('/equipe/:id', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
+    // Invalider le cache admin WhatsApp si telephone modifié
+    if (telephone !== undefined) {
+      try {
+        const { invalidateAdminPhoneCache } = await import('../services/adminDetectionService.js');
+        invalidateAdminPhoneCache(tenantId);
+      } catch (_) { /* non-bloquant */ }
+    }
+
     success(res, { membre });
   } catch (err) {
     console.error('[SERVICES] Erreur modif membre:', err);

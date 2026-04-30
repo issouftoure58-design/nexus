@@ -13,6 +13,7 @@ import { getPromptRules as getRestaurantRules } from './restaurant.js';
 import { getPromptRules as getHotelRules } from './hotel.js';
 import { getPromptRules as getCommerceRules } from './commerce.js';
 import { getPromptRules as getSecurityRules } from './security.js';
+import { getPromptRules as getServiceRules } from './service.js';
 
 // Mapping type → adapter
 const ADAPTERS = {
@@ -22,11 +23,12 @@ const ADAPTERS = {
   hotel: getHotelRules,
   commerce: getCommerceRules,
   security: getSecurityRules,
+  service: getServiceRules,
 };
 
 /**
  * Retourne les règles prompt pour un type de business donné
- * @param {string} businessType - Type de business (service_domicile, salon, restaurant, hotel, commerce, security)
+ * @param {string} businessType - Type de business (service_domicile, salon, restaurant, hotel, commerce, security, service)
  * @param {Object} tenantConfig - Configuration du tenant
  * @returns {Object} - { rules, bookingProcess, terminology, tools, specialServices? }
  */
@@ -38,7 +40,7 @@ export function getBusinessTypeRules(businessType, tenantConfig) {
 /**
  * BUSINESS_CONTEXTS — Contextes métier pour l'admin chat et le prompt engine
  * Remplace l'ancien BUSINESS_CONTEXTS de systemPrompt.js
- * Inclut les 6 types (commerce + security ajoutés en v3.22)
+ * Inclut les 7 types (service ajouté en v3.25)
  */
 export const BUSINESS_CONTEXTS = {
   service_domicile: {

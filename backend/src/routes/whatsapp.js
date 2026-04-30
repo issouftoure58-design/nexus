@@ -18,6 +18,8 @@ import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
 import { validateTwilioSignature, validateTwilioSignatureLoose } from '../middleware/twilioValidation.js';
 import { authenticateAdmin } from './adminAuth.js';
 import logger from '../config/logger.js';
+import { detectAdminByPhone } from '../services/adminDetectionService.js';
+import { handleAdminWhatsAppMessage } from '../services/whatsappAdminHandler.js';
 
 /**
  * Identifie le tenant par le numéro WhatsApp appelé
@@ -95,24 +97,7 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
       return res.send('<Response></Response>');
     }
 
-    // ── PLAN CHECK (Free plan = pas d'IA WhatsApp) ──
-    const whatsappAllowed = await isPlanAllowed(tenantId, 'whatsapp');
-    if (!whatsappAllowed) {
-      logger.info(`[WhatsApp] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
-      res.type('text/xml');
-      return res.send('<Response></Response>');
-    }
-
-    // ── QUOTA CHECK (AVANT transcription Whisper pour ne pas payer si quota épuisé) ──
-    try {
-      await usageTracking.enforceQuota(tenantId, 'whatsapp');
-    } catch (quotaError) {
-      console.log(`[WhatsApp] Quota dépassé pour ${tenantId}:`, quotaError.message);
-      res.type('text/xml');
-      return res.send('<Response></Response>');
-    }
-
-    // ── TRANSCRIPTION NOTES VOCALES (après quota check) ──
+    // ── TRANSCRIPTION NOTES VOCALES (avant admin detect pour que vocal admin fonctionne) ──
     let messageText = Body || '';
     if (isVoiceNote) {
       console.log(`[WhatsApp Webhook] Note vocale détectée (${MediaContentType0}), transcription Whisper...`);
@@ -144,6 +129,39 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
       return res.send('<Response></Response>');
     }
 
+    // ── ADMIN DETECTION (avant plan/quota check — un admin Free doit pouvoir utiliser le chat) ──
+    const { isAdmin, admin } = await detectAdminByPhone(clientPhone, tenantId);
+    if (isAdmin) {
+      console.log(`[WhatsApp Webhook] 🛡️ ADMIN detected: ${admin.nom} (${admin.role}) — routing to admin handler`);
+      const adminResult = await handleAdminWhatsAppMessage(clientPhone, messageText, tenantId, admin, MessageSid);
+      // Tracker usage admin (crédits séparés)
+      if (adminResult.success) {
+        consumeCredits(tenantId, 'chat_admin_question', {
+          refId: MessageSid,
+          description: `WhatsApp Admin — ${admin.nom}`,
+        }).catch(err => logger.warn(`[WhatsApp] Admin credit deduction failed: ${err.message}`, { tenantId }));
+      }
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
+    // ── PLAN CHECK (Free plan = pas d'IA WhatsApp pour les clients) ──
+    const whatsappAllowed = await isPlanAllowed(tenantId, 'whatsapp');
+    if (!whatsappAllowed) {
+      logger.info(`[WhatsApp] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
+    // ── QUOTA CHECK ──
+    try {
+      await usageTracking.enforceQuota(tenantId, 'whatsapp');
+    } catch (quotaError) {
+      console.log(`[WhatsApp] Quota dépassé pour ${tenantId}:`, quotaError.message);
+      res.type('text/xml');
+      return res.send('<Response></Response>');
+    }
+
     console.log('[WhatsApp Webhook] Message reçu:', {
       de: clientPhone,
       nom: ProfileName,
@@ -154,7 +172,7 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
       isVoiceNote,
     });
 
-    // ── TRAITEMENT IA ──
+    // ── TRAITEMENT IA CLIENT ──
     const result = await handleIncomingMessageNexus(clientPhone, messageText, ProfileName, tenantId);
 
     // Tracker l'utilisation (legacy) + consommer crédits IA
@@ -365,7 +383,22 @@ router.post('/meta', async (req, res) => {
             continue;
           }
 
-          // Plan check (Free = pas d'IA WhatsApp)
+          // ── ADMIN DETECTION (avant plan/quota — admin Free peut utiliser le chat) ──
+          const { isAdmin: metaIsAdmin, admin: metaAdmin } = await detectAdminByPhone(clientPhone, tenantId);
+          if (metaIsAdmin) {
+            logger.info(`[META WA] 🛡️ ADMIN detected: ${metaAdmin.nom} — routing to admin handler`);
+            const metaSendFn = (phone, text) => sendMetaWhatsAppMessage(phoneNumberId, phone, text);
+            const adminResult = await handleAdminWhatsAppMessage(clientPhone, messageText, tenantId, metaAdmin, messageId, metaSendFn);
+            if (adminResult.success) {
+              consumeCredits(tenantId, 'chat_admin_question', {
+                refId: messageId,
+                description: `WhatsApp Admin (Meta) — ${metaAdmin.nom}`,
+              }).catch(err => logger.warn(`[META WA] Admin credit deduction failed: ${err.message}`, { tenantId }));
+            }
+            continue;
+          }
+
+          // Plan check (Free = pas d'IA WhatsApp pour les clients)
           const metaWaAllowed = await isPlanAllowed(tenantId, 'whatsapp');
           if (!metaWaAllowed) {
             logger.info(`[META WA] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
@@ -382,7 +415,7 @@ router.post('/meta', async (req, res) => {
             continue;
           }
 
-          // Traitement IA (meme handler que Twilio)
+          // Traitement IA client (meme handler que Twilio)
           const result = await handleIncomingMessageNexus(clientPhone, messageText, profileName, tenantId);
 
           // Tracker usage (legacy) + consommer crédits IA

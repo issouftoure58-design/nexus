@@ -1984,6 +1984,7 @@ const BUSINESS_TOOLS_INCLUDE = {
   salon: [],
   commerce: [],    // future: order management tools
   security: [],    // future: devis/mission tools
+  service: [],     // generic tools only (rdv, facturation)
 };
 
 const ALL_BUSINESS_SPECIFIC = [

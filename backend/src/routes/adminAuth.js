@@ -1100,6 +1100,12 @@ router.patch('/phone', authenticateAdmin, async (req, res) => {
 
     if (error) throw error;
 
+    // Invalider le cache admin WhatsApp pour ce tenant
+    try {
+      const { invalidateAdminPhoneCache } = await import('../services/adminDetectionService.js');
+      invalidateAdminPhoneCache(req.admin.tenant_id);
+    } catch (_) { /* non-bloquant */ }
+
     res.json({ success: true, telephone: cleaned });
   } catch (error) {
     console.error('[ADMIN AUTH] Erreur update phone:', error);

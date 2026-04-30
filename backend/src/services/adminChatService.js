@@ -405,7 +405,7 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
 /**
  * Chat sans streaming (fallback)
  */
-export async function chat(tenantId, messages, adminId = null) {
+export async function chat(tenantId, messages, adminId = null, options = {}) {
   const client = getAnthropicClient();
   const tenant = await getTenant(tenantId);
 
@@ -413,6 +413,17 @@ export async function chat(tenantId, messages, adminId = null) {
   const tenantPlan = (tenant?.plan || 'free').toLowerCase();
   const businessProfile = tenant?.business_profile || 'salon';
   const availableTools = getToolsForPlanAndBusiness(tenantPlan, businessProfile);
+
+  // System prompt + adaptation canal WhatsApp
+  let systemPrompt = buildSystemPrompt(tenant);
+  if (options.channel === 'whatsapp') {
+    systemPrompt += `\n\n## FORMAT WHATSAPP
+- Texte brut UNIQUEMENT (pas de markdown : pas de **, ##, ~~, tableaux, listes à puces formatées)
+- Messages courts et directs (c'est un téléphone, pas un écran PC)
+- Emojis OK pour structurer visuellement
+- Liens directs (pas de [texte](url), juste l'URL)
+- Si tu dois lister des éléments, utilise des tirets simples ou des numéros`;
+  }
 
   let conversationMessages = messages.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',
@@ -429,7 +440,7 @@ export async function chat(tenantId, messages, adminId = null) {
       const response = await client.messages.create({
         model: MODEL_DEFAULT,
         max_tokens: isDegraded() ? MAX_TOKENS_DEGRADED : MAX_TOKENS_NORMAL,
-        system: buildSystemPrompt(tenant),
+        system: systemPrompt,
         messages: conversationMessages,
         tools: availableTools,
       });

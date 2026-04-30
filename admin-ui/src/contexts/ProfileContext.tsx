@@ -64,7 +64,7 @@ interface Features {
 }
 
 // V2 - Business types
-export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security';
+export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security' | 'service';
 
 export interface BusinessProfile {
   id: string;
@@ -365,6 +365,7 @@ export function useBusinessTypeChecks() {
     isHotel: isBusinessType('hotel'),
     isCommerce: isBusinessType('commerce'),
     isSecurity: isBusinessType('security'),
+    isService: isBusinessType('service'),
   };
 }
 

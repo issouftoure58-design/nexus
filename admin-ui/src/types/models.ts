@@ -9,7 +9,7 @@
 // BUSINESS TYPES
 // ════════════════════════════════════════════════════════════════════
 
-export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security';
+export type BusinessType = 'service_domicile' | 'salon' | 'restaurant' | 'hotel' | 'commerce' | 'security' | 'service';
 
 // Modele pricing 2026 : free / starter / pro / business
 // Alias basic maintenu pour retro-compat (mapping via normalizePlan dans useTenant.ts)
