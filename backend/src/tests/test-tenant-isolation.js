@@ -3,7 +3,7 @@
  * Mission Jour 5 Phase 3
  *
  * Tests:
- * 1. Vérifier tenant decoevent en BDD
+ * 1. Vérifier tenant test-security en BDD
  * 2. Créer données test pour chaque tenant
  * 3. Tests isolation API
  * 4. Tests isolation BDD
@@ -44,7 +44,7 @@ async function verifyTenants() {
 
   if (err) {
     error(`Erreur lecture tenants: ${err.message}`);
-    return { fatshairafro: false, decoevent: false };
+    return { fatshairafro: false, 'test-security': false };
   }
 
   info(`Tenants trouvés en BDD: ${tenants?.length || 0}`);
@@ -53,7 +53,7 @@ async function verifyTenants() {
   });
 
   const fatshairafro = tenants?.find(t => t.id === 'fatshairafro');
-  const decoevent = tenants?.find(t => t.id === 'decoevent');
+  const tenantB = tenants?.find(t => t.id === 'test-security');
 
   if (fatshairafro) {
     success('Tenant fatshairafro existe en BDD');
@@ -61,34 +61,34 @@ async function verifyTenants() {
     error('Tenant fatshairafro MANQUANT en BDD');
   }
 
-  if (decoevent) {
-    success('Tenant decoevent existe en BDD');
+  if (tenantB) {
+    success('Tenant test-security existe en BDD');
   } else {
-    warn('Tenant decoevent MANQUANT en BDD - Création...');
-    await createDecoEventTenant();
+    warn('Tenant test-security MANQUANT en BDD - Création...');
+    await createTestSecurityTenant();
   }
 
-  return { fatshairafro: !!fatshairafro, decoevent: !!decoevent };
+  return { fatshairafro: !!fatshairafro, 'test-security': !!tenantB };
 }
 
-async function createDecoEventTenant() {
+async function createTestSecurityTenant() {
   const { error: err } = await supabase.from('tenants').insert({
-    id: 'decoevent',
-    name: 'Deco Event',
-    domain: 'decoevent.fr',
+    id: 'test-security',
+    name: 'Atlas Sécurité',
+    domain: 'atlas-securite.test',
     is_active: true,
     settings: {
-      secteur: 'Décoration événementielle',
+      secteur: 'Sécurité privée',
       ville: 'Paris'
     }
   });
 
   if (err) {
-    error(`Erreur création decoevent: ${err.message}`);
+    error(`Erreur création test-security: ${err.message}`);
     return false;
   }
 
-  success('Tenant decoevent créé en BDD');
+  success('Tenant test-security créé en BDD');
   return true;
 }
 
@@ -145,20 +145,20 @@ async function createTestData() {
   }
 
   // --- DECOEVENT ---
-  info('Création données pour decoevent...');
+  info('Création données pour test-security...');
 
   // 3 Services test
   const servicesDecoevent = [
-    { nom: 'TEST-ISO-Décoration Mariage', duree: 480, prix: 150000 },
-    { nom: 'TEST-ISO-Décoration Anniversaire', duree: 240, prix: 50000 },
-    { nom: 'TEST-ISO-Location Mobilier', duree: 60, prix: 20000 },
+    { nom: 'TEST-ISO-Gardiennage Site', duree: 480, prix: 150000 },
+    { nom: 'TEST-ISO-Ronde Nuit', duree: 240, prix: 50000 },
+    { nom: 'TEST-ISO-Protection Rapprochee', duree: 60, prix: 20000 },
   ];
 
   for (const svc of servicesDecoevent) {
     const { data, error: err } = await supabase
       .from('services')
       .insert({
-        tenant_id: 'decoevent',
+        tenant_id: 'test-security',
         nom: svc.nom,
         description: 'Service test isolation',
         duree: svc.duree,
@@ -170,7 +170,7 @@ async function createTestData() {
     if (err) {
       warn(`Service ${svc.nom}: ${err.message}`);
     } else {
-      success(`Service decoevent créé: ${svc.nom} #${data?.id}`);
+      success(`Service test-security créé: ${svc.nom} #${data?.id}`);
     }
   }
 
@@ -178,7 +178,7 @@ async function createTestData() {
   const { data: clientBob, error: errBob } = await supabase
     .from('clients')
     .insert({
-      tenant_id: 'decoevent',
+      tenant_id: 'test-security',
       nom: 'TEST-ISO-Martin',
       prenom: 'Bob',
       telephone: '0600000002',
@@ -232,7 +232,7 @@ async function testDbIsolation() {
   const { data: servicesDeco } = await supabase
     .from('services')
     .select('*')
-    .eq('tenant_id', 'decoevent')
+    .eq('tenant_id', 'test-security')
     .ilike('nom', 'TEST-ISO%');
 
   recordTest(
@@ -242,8 +242,8 @@ async function testDbIsolation() {
   );
 
   recordTest(
-    'Services decoevent isolés',
-    servicesDeco?.length >= 3 && !servicesDeco.some(s => s.tenant_id !== 'decoevent'),
+    'Services test-security isolés',
+    servicesDeco?.length >= 3 && !servicesDeco.some(s => s.tenant_id !== 'test-security'),
     `${servicesDeco?.length || 0} services TEST-ISO`
   );
 
@@ -259,7 +259,7 @@ async function testDbIsolation() {
   const { data: clientsDeco } = await supabase
     .from('clients')
     .select('*')
-    .eq('tenant_id', 'decoevent')
+    .eq('tenant_id', 'test-security')
     .ilike('nom', 'TEST-ISO%');
 
   recordTest(
@@ -269,8 +269,8 @@ async function testDbIsolation() {
   );
 
   recordTest(
-    'Clients decoevent isolés',
-    clientsDeco?.length >= 1 && !clientsDeco.some(c => c.tenant_id !== 'decoevent'),
+    'Clients test-security isolés',
+    clientsDeco?.length >= 1 && !clientsDeco.some(c => c.tenant_id !== 'test-security'),
     `${clientsDeco?.length || 0} clients TEST-ISO (Bob)`
   );
 
@@ -306,7 +306,7 @@ async function testDbIsolation() {
   const { count: decoCount } = await supabase
     .from('services')
     .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', 'decoevent')
+    .eq('tenant_id', 'test-security')
     .ilike('nom', 'TEST-ISO%');
 
   recordTest(
@@ -344,7 +344,7 @@ async function testApiIsolation() {
 
   // Simulation d'un contexte admin fatshairafro
   const adminFat = { tenant_id: 'fatshairafro', id: 1 };
-  const adminDeco = { tenant_id: 'decoevent', id: 2 };
+  const adminDeco = { tenant_id: 'test-security', id: 2 };
 
   info('Test API 1: Liste services avec filtre tenant_id');
 
@@ -361,17 +361,17 @@ async function testApiIsolation() {
     `${apiServicesFat?.length || 0} services, tous tenant_id=fatshairafro`
   );
 
-  // Simule GET /api/admin/services pour decoevent
+  // Simule GET /api/admin/services pour test-security
   const { data: apiServicesDeco } = await supabase
     .from('services')
     .select('*')
     .eq('tenant_id', adminDeco.tenant_id);
 
-  const hasOnlyDecoServices = apiServicesDeco?.every(s => s.tenant_id === 'decoevent');
+  const hasOnlyDecoServices = apiServicesDeco?.every(s => s.tenant_id === 'test-security');
   recordTest(
-    'API services decoevent retourne uniquement ses services',
+    'API services test-security retourne uniquement ses services',
     hasOnlyDecoServices,
-    `${apiServicesDeco?.length || 0} services, tous tenant_id=decoevent`
+    `${apiServicesDeco?.length || 0} services, tous tenant_id=test-security`
   );
 
   // Test: tentative d'accès cross-tenant (admin fat essaie d'accéder à client deco)
@@ -381,10 +381,10 @@ async function testApiIsolation() {
     .from('clients')
     .select('*')
     .eq('tenant_id', adminFat.tenant_id)  // Filtre admin fat
-    .eq('prenom', 'Bob');  // Bob est client decoevent
+    .eq('prenom', 'Bob');  // Bob est client test-security
 
   recordTest(
-    'Admin fat ne peut pas voir client Bob (decoevent)',
+    'Admin fat ne peut pas voir client Bob (test-security)',
     (clientBobFromFat?.length || 0) === 0,
     `${clientBobFromFat?.length || 0} clients trouvés (attendu: 0)`
   );
@@ -415,7 +415,7 @@ async function testApiIsolation() {
     .eq('tenant_id', adminDeco.tenant_id);
 
   const fatRdvOnlyFat = statsFat?.every(r => r.tenant_id === 'fatshairafro');
-  const decoRdvOnlyDeco = statsDeco?.every(r => r.tenant_id === 'decoevent');
+  const decoRdvOnlyDeco = statsDeco?.every(r => r.tenant_id === 'test-security');
 
   recordTest(
     'Stats fatshairafro ne contiennent que ses RDV',
@@ -424,7 +424,7 @@ async function testApiIsolation() {
   );
 
   recordTest(
-    'Stats decoevent ne contiennent que ses RDV',
+    'Stats test-security ne contiennent que ses RDV',
     decoRdvOnlyDeco !== false,
     `${statsDeco?.length || 0} RDV vérifiés`
   );

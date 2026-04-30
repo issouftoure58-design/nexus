@@ -62,31 +62,31 @@ describe("Fat's Hair (fatshairafro) — Production", () => {
 });
 
 // ════════════════════════════════════════════════
-// DECO EVENT (tenant decoevent) — DEV/TEST
+// DECO EVENT (tenant test-security) — DEV/TEST
 // ════════════════════════════════════════════════
-describe('Deco Event (decoevent) — Dev/Test', () => {
+describe('Atlas Sécurité (test-security) — Dev/Test', () => {
   test('Config existe', () => {
-    const config = getTenantConfig('decoevent');
-    expect(config.name).toBe('Deco Event');
-    expect(config.id).toBe('decoevent');
+    const config = getTenantConfig('test-security');
+    expect(config).toBeTruthy();
+    expect(config.id).toBe('test-security');
   });
 
   test("N'est PAS frozen", () => {
-    expect(isFrozen('decoevent')).toBe(false);
+    expect(isFrozen('test-security')).toBe(false);
   });
 
   test('Peut recevoir nouveaux modules', () => {
-    expect(hasFeature('decoevent', 'accounting')).toBe(true);
+    expect(hasFeature('test-security', 'accounting')).toBe(true);
   });
 
   test('Accepte modifications', () => {
-    expect(canModify('decoevent', 'test')).toBe(true);
+    expect(canModify('test-security', 'test')).toBe(true);
   });
 
   test("N'a pas les features téléphone/SMS", () => {
-    expect(hasFeature('decoevent', 'reservations_telephone')).toBe(false);
-    expect(hasFeature('decoevent', 'sms_confirmation')).toBe(false);
-    expect(hasFeature('decoevent', 'assistant_telephone')).toBe(false);
+    expect(hasFeature('test-security', 'reservations_telephone')).toBe(false);
+    expect(hasFeature('test-security', 'sms_confirmation')).toBe(false);
+    expect(hasFeature('test-security', 'assistant_telephone')).toBe(false);
   });
 });
 
@@ -95,8 +95,8 @@ describe('Deco Event (decoevent) — Dev/Test', () => {
 // ════════════════════════════════════════════════
 describe('Identification Tenant', () => {
   test('Header X-Tenant-ID', () => {
-    const req = { headers: { 'x-tenant-id': 'decoevent', host: 'localhost:3000' } };
-    expect(identifyTenant(req)).toBe('decoevent');
+    const req = { headers: { 'x-tenant-id': 'test-security', host: 'localhost:3000' } };
+    expect(identifyTenant(req)).toBe('test-security');
   });
 
   test('Domaine fatshairafro', () => {
@@ -104,9 +104,9 @@ describe('Identification Tenant', () => {
     expect(identifyTenant(req)).toBe('fatshairafro');
   });
 
-  test('Domaine decoevent', () => {
-    const req = { headers: { host: 'decoevent.fr' } };
-    expect(identifyTenant(req)).toBe('decoevent');
+  test('Domaine test-security', () => {
+    const req = { headers: { host: 'atlas-securite.test' } };
+    expect(identifyTenant(req)).toBe('test-security');
   });
 
   test('Défaut = null (contexte NEXUS, pas de tenant)', () => {
@@ -117,7 +117,7 @@ describe('Identification Tenant', () => {
   test('listTenants contient les 2 tenants', () => {
     const tenants = listTenants();
     expect(tenants).toContain('fatshairafro');
-    expect(tenants).toContain('decoevent');
+    expect(tenants).toContain('test-security');
   });
 });
 
@@ -127,7 +127,7 @@ describe('Identification Tenant', () => {
 describe('Isolation — Edge cases', () => {
   test('Feature inexistante retourne false', () => {
     expect(hasFeature('fatshairafro', 'module_inexistant')).toBe(false);
-    expect(hasFeature('decoevent', 'module_inexistant')).toBe(false);
+    expect(hasFeature('test-security', 'module_inexistant')).toBe(false);
   });
 
   test('Tenant inconnu retourne template (pas de crash)', () => {

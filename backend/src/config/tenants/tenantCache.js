@@ -14,12 +14,11 @@ import { registerInterval } from '../../utils/intervalRegistry.js';
 
 // Static fallback imports
 import fatshairafroStatic from './fatshairafro.js';
-import decoeventStatic from './decoevent.js';
 import nexustestStatic from './nexustest.js';
 import issoufaiStatic from './issoufai.js';
 import templateStatic from './template.js';
 
-const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoeventStatic, 'nexus-test': nexustestStatic, 'issouf-ai': issoufaiStatic };
+const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, 'nexus-test': nexustestStatic, 'issouf-ai': issoufaiStatic };
 
 // Flags from static config that must be merged into DB-loaded configs
 const STATIC_OVERRIDES = {

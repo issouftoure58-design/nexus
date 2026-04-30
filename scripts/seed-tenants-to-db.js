@@ -24,9 +24,10 @@ const extendedMode = process.argv.includes('--extended');
 
 // Import static tenant configs
 const fatshairafro = (await import('../backend/src/config/tenants/fatshairafro.js')).default;
-const decoevent = (await import('../backend/src/config/tenants/decoevent.js')).default;
+const nexustest = (await import('../backend/src/config/tenants/nexustest.js')).default;
+const issoufai = (await import('../backend/src/config/tenants/issoufai.js')).default;
 
-const tenantConfigs = [fatshairafro, decoevent];
+const tenantConfigs = [fatshairafro, nexustest, issoufai];
 
 async function seedTenant(config) {
   const tenantId = config.id;

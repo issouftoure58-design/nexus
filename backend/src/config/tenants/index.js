@@ -29,8 +29,8 @@ import logger from '../logger.js';
 
 // Static fallback (used only during early boot before cache init)
 import fatshairafro from './fatshairafro.js';
-import decoevent from './decoevent.js';
 import nexustest from './nexustest.js';
+import issoufai from './issoufai.js';
 import testsecurity from './testsecurity.js';
 import testconsulting from './testconsulting.js';
 import testevents from './testevents.js';
@@ -38,8 +38,8 @@ import template from './template.js';
 
 const staticTenants = {
   fatshairafro,
-  decoevent,
   'nexus-test': nexustest,
+  'issouf-ai': issoufai,
   'test-security': testsecurity,
   'test-consulting': testconsulting,
   'test-events': testevents,
@@ -98,7 +98,7 @@ export function identifyTenant(req) {
 
   // 4. Static fallback for known domains (boot safety)
   if (host.includes('fatshairafro')) return 'fatshairafro';
-  if (host.includes('decoevent')) return 'decoevent';
+  if (host.includes('issouf-ai') || host.includes('issoufai')) return 'issouf-ai';
   if (host.includes('nexus-test') || host.includes('test.nexus')) return 'nexus-test';
   if (host.includes('test-security') || host.includes('atlas-securite')) return 'test-security';
   if (host.includes('test-consulting') || host.includes('clara-conseil')) return 'test-consulting';

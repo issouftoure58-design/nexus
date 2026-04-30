@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 // Configuration des tests
 const API_URL = process.env.TEST_API_URL || 'http://localhost:5000';
 const TENANT_A = 'fatshairafro';
-const TENANT_B = 'decoevent';
+const TENANT_B = 'test-security';
 
 /**
  * Helper pour les requêtes API
