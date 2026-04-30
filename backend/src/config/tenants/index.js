@@ -34,6 +34,7 @@ import issoufai from './issoufai.js';
 import testsecurity from './testsecurity.js';
 import testconsulting from './testconsulting.js';
 import testevents from './testevents.js';
+import testdomicile from './testdomicile.js';
 import template from './template.js';
 
 const staticTenants = {
@@ -43,6 +44,7 @@ const staticTenants = {
   'test-security': testsecurity,
   'test-consulting': testconsulting,
   'test-events': testevents,
+  'test-domicile': testdomicile,
 };
 
 /**
@@ -103,6 +105,7 @@ export function identifyTenant(req) {
   if (host.includes('test-security') || host.includes('atlas-securite')) return 'test-security';
   if (host.includes('test-consulting') || host.includes('clara-conseil')) return 'test-consulting';
   if (host.includes('test-events') || host.includes('emma-events')) return 'test-events';
+  if (host.includes('test-domicile') || host.includes('pro-plombier')) return 'test-domicile';
 
   // 5. Pas de tenant detecte = contexte NEXUS
   return null;

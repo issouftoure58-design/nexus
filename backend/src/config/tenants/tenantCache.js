@@ -16,9 +16,10 @@ import { registerInterval } from '../../utils/intervalRegistry.js';
 import fatshairafroStatic from './fatshairafro.js';
 import nexustestStatic from './nexustest.js';
 import issoufaiStatic from './issoufai.js';
+import testdomicileStatic from './testdomicile.js';
 import templateStatic from './template.js';
 
-const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, 'nexus-test': nexustestStatic, 'issouf-ai': issoufaiStatic };
+const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, 'nexus-test': nexustestStatic, 'issouf-ai': issoufaiStatic, 'test-domicile': testdomicileStatic };
 
 // Flags from static config that must be merged into DB-loaded configs
 const STATIC_OVERRIDES = {

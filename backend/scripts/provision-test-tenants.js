@@ -2,10 +2,11 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * PROVISIONING SCRIPT - Tenants de Test par Logique Métier
  *
- * Crée 3 tenants de test pour valider chaque catégorie IA :
+ * Crée 4 tenants de test pour valider chaque catégorie IA :
  *   - test-security  : Sécurité privée (taux horaire, nb_agents, multi-jours)
  *   - test-consulting: Conseil & Expertise (taux horaire, visio, timesheet)
  *   - test-events    : Événementiel (forfait, options, devis)
+ *   - test-domicile  : Service à domicile (frais déplacement, adresse client)
  *
  * Usage: node scripts/provision-test-tenants.js [--reset]
  * ═══════════════════════════════════════════════════════════════════════════
@@ -39,14 +40,14 @@ const TENANTS_CONFIG = {
       domain: 'atlas-securite.test',
       plan: 'business',
       status: 'active',
-      business_type: 'security',
       settings: {
+        business_type: 'security',
         business_profile: 'security',
         email: 'contact@atlas-securite.test',
         telephone: '01 23 45 67 89',
         adresse: '15 avenue de la Défense, 92000 Nanterre',
       },
-      modules_actifs: { reservations: true, rh: true, comptabilite: true, marketing: true },
+      // modules_actifs stored in settings
     },
     assistant: {
       name: 'Atlas',
@@ -169,14 +170,14 @@ EXEMPLE:
       domain: 'clara-conseil.test',
       plan: 'business',
       status: 'active',
-      business_type: 'service',
       settings: {
+        business_type: 'service',
         business_profile: 'consulting',
         email: 'contact@clara-conseil.test',
         telephone: '01 34 56 78 90',
         adresse: '42 boulevard Haussmann, 75009 Paris',
       },
-      modules_actifs: { reservations: true, rh: true, comptabilite: true, marketing: true },
+      // modules_actifs stored in settings
     },
     assistant: {
       name: 'Clara',
@@ -287,14 +288,14 @@ VISIO:
       domain: 'emma-events.test',
       plan: 'business',
       status: 'active',
-      business_type: 'salon',
       settings: {
+        business_type: 'salon',
         business_profile: 'events',
         email: 'contact@emma-events.test',
         telephone: '01 45 67 89 01',
         adresse: '28 rue du Faubourg Saint-Honoré, 75008 Paris',
       },
-      modules_actifs: { reservations: true, rh: true, comptabilite: true, marketing: true },
+      // modules_actifs stored in settings
     },
     assistant: {
       name: 'Emma',
@@ -419,6 +420,152 @@ PROCESSUS:
 ACOMPTE: 30% à la signature, solde 15 jours avant`,
         greeting: 'Emma Events, bonjour ! Je suis Emma, votre event planner. Quel événement souhaitez-vous organiser ?',
         booking_confirm: 'Magnifique ! Je vous envoie le devis détaillé par email. Hâte de créer cet événement avec vous !',
+      },
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CATÉGORIE E: Service à domicile
+  // ─────────────────────────────────────────────────────────────────────────
+  'test-domicile': {
+    tenant: {
+      id: 'test-domicile',
+      name: 'Pro Plombier IDF',
+      domain: 'pro-plombier.test',
+      plan: 'basic',
+      status: 'active',
+      settings: {
+        business_type: 'service_domicile',
+        business_profile: 'plombier',
+        email: 'contact@pro-plombier.test',
+        telephone: '01 56 78 90 12',
+        adresse: '22 rue de la République, 93100 Montreuil',
+      },
+      // modules_actifs stored in settings
+    },
+    assistant: {
+      name: 'Paul',
+      personality: 'Professionnel, rassurant, efficace. Vouvoiement obligatoire.',
+      greeting: 'Pro Plombier IDF, bonjour. Je suis Paul, votre assistant. Comment puis-je vous aider ?',
+    },
+    services: [
+      {
+        nom: 'Dépannage urgent',
+        description: 'Intervention urgente (fuite, panne)',
+        prix: 9000, // 90€
+        duree_minutes: 60,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Réparation fuite d\'eau',
+        description: 'Localisation et réparation de fuite',
+        prix: 12000, // 120€
+        duree_minutes: 90,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Débouchage canalisation',
+        description: 'Débouchage évier, WC, douche',
+        prix: 8000, // 80€
+        duree_minutes: 60,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Installation robinetterie',
+        description: 'Installation ou remplacement robinet',
+        prix: 15000, // 150€
+        duree_minutes: 120,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Installation WC / sanitaire',
+        description: 'Pose complète WC ou sanitaire',
+        prix: 25000, // 250€
+        duree_minutes: 180,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Installation chauffe-eau',
+        description: 'Installation ou remplacement chauffe-eau',
+        prix: 35000, // 350€
+        duree_minutes: 240,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Détartrage ballon / tuyauterie',
+        description: 'Détartrage complet',
+        prix: 10000, // 100€
+        duree_minutes: 90,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+      {
+        nom: 'Diagnostic complet plomberie',
+        description: 'Inspection et diagnostic de l\'installation',
+        prix: 6000, // 60€
+        duree_minutes: 60,
+        pricing_mode: 'fixed',
+        actif: true,
+      },
+    ],
+    membres: [
+      { nom: 'Moreau', prenom: 'Paul', role: 'Plombier gérant', email: 'paul@pro-plombier.test', telephone: '06 12 34 56 78' },
+    ],
+    clients: [
+      { nom: 'Lefebvre', prenom: 'Marie', email: 'marie.lefebvre@email.test', telephone: '06 11 22 33 44', type: 'particulier', adresse: '10 rue Victor Hugo, 93100 Montreuil' },
+      { nom: 'Durand', prenom: 'Pierre', email: 'pierre.durand@email.test', telephone: '06 55 66 77 88', type: 'particulier', adresse: '45 avenue Gambetta, 75020 Paris' },
+      { nom: 'SCI Résidence Parc', prenom: 'Syndic', email: 'syndic@residence-parc.test', telephone: '01 22 33 44 55', type: 'entreprise', adresse: '120 boulevard de la Liberté, 93200 Saint-Denis' },
+    ],
+    ia_config: {
+      tools: ['get_services', 'check_availability', 'calculate_travel_fee', 'create_booking'],
+      pricing_logic: 'fixed_with_travel_fees',
+      prompts: {
+        system: `Tu es Paul, l'assistant IA de Pro Plombier IDF, plombier professionnel en Île-de-France.
+
+PERSONNALITÉ:
+- Professionnel et rassurant
+- Tu VOUVOIES toujours
+- Réponses claires et directes
+
+SERVICES:
+- Dépannage urgent (fuite, panne) : 90€
+- Réparation fuite d'eau : 120€
+- Débouchage canalisation : 80€
+- Installation robinetterie : 150€
+- Installation WC/sanitaire : 250€
+- Installation chauffe-eau : 350€
+- Détartrage : 100€
+- Diagnostic complet : 60€
+
+FRAIS DE DÉPLACEMENT:
+- Gratuit dans un rayon de 5 km (depuis Montreuil)
+- Au-delà : 0.50€/km supplémentaire
+- TOUJOURS demander l'adresse du client
+- Utiliser calculate_travel_fee pour calculer les frais
+
+INFORMATIONS À COLLECTER:
+1. Nature du problème / type d'intervention
+2. Adresse complète du client
+3. Date et heure souhaitées
+4. Nom et téléphone du client
+5. Accès particulier (code, étage, digicode)
+
+PROCESSUS RÉSERVATION:
+1. Identifier le service demandé
+2. Demander l'adresse complète
+3. Calculer les frais de déplacement
+4. Vérifier les disponibilités
+5. Collecter nom + téléphone
+6. Récapituler (prestation + frais déplacement = total)
+7. Confirmer et créer la réservation`,
+        greeting: 'Pro Plombier IDF, bonjour. Je suis Paul, votre assistant. Quel est votre besoin en plomberie ?',
+        booking_confirm: 'Votre intervention est confirmée. Paul sera chez vous à l\'heure prévue. N\'hésitez pas si vous avez des questions.',
       },
     },
   },
@@ -691,8 +838,8 @@ async function main() {
   for (const [tenantId, config] of Object.entries(TENANTS_CONFIG)) {
     try {
       console.log(`\n${'─'.repeat(60)}`);
-      console.log(`PROVISIONING: ${config.tenant.business_name}`);
-      console.log(`Profil: ${config.tenant.business_profile}`);
+      console.log(`PROVISIONING: ${config.tenant.name} (${tenantId})`);
+      console.log(`Profil: ${config.tenant.settings?.business_profile || 'default'}`);
       console.log(`${'─'.repeat(60)}`);
 
       // 1. Créer le tenant
@@ -729,7 +876,7 @@ async function main() {
     console.log('\n✅ Tenants créés avec succès:');
     results.success.forEach(id => {
       const config = TENANTS_CONFIG[id];
-      console.log(`   • ${id} (${config.tenant.business_name})`);
+      console.log(`   • ${id} (${config.tenant.name})`);
       console.log(`     Admin: admin@${id}.test / Test123!`);
       console.log(`     Assistant IA: ${config.assistant.name}`);
     });
