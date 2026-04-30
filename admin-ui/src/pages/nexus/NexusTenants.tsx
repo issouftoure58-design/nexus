@@ -7,7 +7,7 @@ interface TenantInfo {
   name: string;
   plan: string;
   status: string;
-  usage: { calls: number; cost: number };
+  usage: { aiCalls: number; calls?: number; cost: number };
   quota: { percentage: number; status: string };
   lastActivity: string | null;
 }
@@ -72,11 +72,9 @@ export default function NexusTenants() {
                       <span className="px-2 py-1 rounded text-xs bg-slate-800 text-slate-300 capitalize">{t.plan}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="px-2 py-1 rounded text-xs bg-green-900/50 text-green-400 border border-green-800">
-                        Actif
-                      </span>
+                      <StatusBadge status={t.status} />
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-300">{t.usage.calls}</td>
+                    <td className="px-4 py-3 text-right text-slate-300">{t.usage.aiCalls ?? t.usage.calls ?? 0}</td>
                     <td className="px-4 py-3 text-right text-slate-300">{t.usage.cost.toFixed(4)}€</td>
                     <td className="px-4 py-3 text-right text-slate-300">{t.quota.percentage}%</td>
                     <td className="px-4 py-3 text-center">
@@ -95,6 +93,19 @@ export default function NexusTenants() {
         )}
       </div>
     </NexusLayout>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    Actif: 'bg-green-900/50 text-green-400 border-green-800',
+    'En attente': 'bg-yellow-900/50 text-yellow-400 border-yellow-800',
+    inactive: 'bg-red-900/50 text-red-400 border-red-800',
+  };
+  return (
+    <span className={`px-2 py-1 rounded text-xs border ${styles[status] || styles.Actif}`}>
+      {status}
+    </span>
   );
 }
 

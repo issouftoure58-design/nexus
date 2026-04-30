@@ -198,14 +198,16 @@ router.get('/tenants', paginate(), async (req, res) => {
   try {
     const { page, limit, offset } = req.pagination;
 
-    // Count total
+    // Count total (only active/pending tenants)
     const { count: total } = await supabase
       .from('tenants')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['active', 'pending']);
 
     const { data: tenants, error } = await supabase
       .from('tenants')
-      .select('id, name, plan, statut, created_at, updated_at, essai_fin, whatsapp_number, phone_number')
+      .select('id, name, plan, status, tier, created_at, updated_at, essai_fin, whatsapp_number, phone_number')
+      .in('status', ['active', 'pending'])
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -248,7 +250,7 @@ router.get('/tenants', paginate(), async (req, res) => {
 
     // Construire la réponse
     const tenantsResult = (tenants || []).map(t => {
-      const raw = (t.plan || 'free').toLowerCase();
+      const raw = (t.tier || t.plan || 'free').toLowerCase();
       const plan = raw === 'basic' ? 'starter' : raw;
       const cost = costByTenant[t.id] || 0;
       const planPrice = PLAN_PRICES[plan]?.monthly || 0;
@@ -258,7 +260,7 @@ router.get('/tenants', paginate(), async (req, res) => {
         id: t.id,
         name: t.name || t.id,
         plan,
-        status: t.statut === 'actif' ? 'Actif' : t.statut === 'essai' ? 'Essai' : t.statut,
+        status: t.status === 'active' ? 'Actif' : t.status === 'pending' ? 'En attente' : t.status,
         usage: {
           aiCalls: aiCallsByTenant[t.id] || 0,
           cost: Math.round(cost * 100) / 100
