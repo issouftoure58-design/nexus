@@ -415,8 +415,8 @@ router.post('/meta', async (req, res) => {
             continue;
           }
 
-          // Traitement IA client (meme handler que Twilio)
-          const result = await handleIncomingMessageNexus(clientPhone, messageText, profileName, tenantId);
+          // Traitement IA client (meme handler que Twilio — skipSend car Meta Cloud API gère l'envoi)
+          const result = await handleIncomingMessageNexus(clientPhone, messageText, profileName, tenantId, { skipSend: true });
 
           // Tracker usage (legacy) + consommer crédits IA
           await usageTracking.trackWhatsAppMessage(tenantId, messageId, 'inbound');

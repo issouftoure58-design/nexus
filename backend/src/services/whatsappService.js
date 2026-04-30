@@ -920,7 +920,7 @@ Réessayez${errorPhone ? ` ou appelez le ${errorPhone}` : ''}`;
  * @param {string} clientName - Nom du client (optionnel, fourni par WhatsApp)
  * @returns {Promise<Object>} Réponse à envoyer au client
  */
-export async function handleIncomingMessageNexus(clientPhone, message, clientName = null, tenantId) {
+export async function handleIncomingMessageNexus(clientPhone, message, clientName = null, tenantId, options = {}) {
   if (!tenantId) {
     console.error(`[WhatsApp-Nexus] TENANT_ID_REQUIRED: Cannot process message from ${clientPhone} without tenantId`);
     return {
@@ -979,8 +979,10 @@ ${getSignature(tenantId)}`,
       throw new Error(result.error || 'Pas de réponse de Claude');
     }
 
-    // Envoyer la réponse via WhatsApp
-    await sendWhatsAppMessage(clientPhone, result.response, tenantId);
+    // Envoyer la réponse via WhatsApp (sauf si skipSend — ex: Meta Cloud API gère l'envoi)
+    if (!options.skipSend) {
+      await sendWhatsAppMessage(clientPhone, result.response, tenantId);
+    }
 
     return {
       success: true,
@@ -999,7 +1001,9 @@ ${getSignature(tenantId)}`,
     const errorResponse = `Oups, petit souci technique ! 😅
 Réessayez${errorPhone ? ` ou appelez le ${errorPhone}` : ''}`;
 
-    await sendWhatsAppMessage(clientPhone, errorResponse, tenantId);
+    if (!options.skipSend) {
+      await sendWhatsAppMessage(clientPhone, errorResponse, tenantId);
+    }
 
     return {
       success: false,
