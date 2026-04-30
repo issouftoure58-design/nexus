@@ -16,13 +16,15 @@ import { registerInterval } from '../../utils/intervalRegistry.js';
 import fatshairafroStatic from './fatshairafro.js';
 import decoeventStatic from './decoevent.js';
 import nexustestStatic from './nexustest.js';
+import issoufaiStatic from './issoufai.js';
 import templateStatic from './template.js';
 
-const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoeventStatic, 'nexus-test': nexustestStatic };
+const STATIC_FALLBACK = { fatshairafro: fatshairafroStatic, decoevent: decoeventStatic, 'nexus-test': nexustestStatic, 'issouf-ai': issoufaiStatic };
 
 // Flags from static config that must be merged into DB-loaded configs
 const STATIC_OVERRIDES = {
   'nexus-test': { isDemoTenant: true },
+  'issouf-ai': { isDemoTenant: true },
 };
 
 // In-memory stores
@@ -215,6 +217,7 @@ async function loadPhoneNumbers() {
     const staticPhones = {
       '+33974995631': 'nexus-test',
       '+33939240269': 'fatshairafro',
+      '+33939245651': 'issouf-ai',
     };
     for (const [phone, tenantId] of Object.entries(staticPhones)) {
       if (!phoneMap.has(phone)) {
