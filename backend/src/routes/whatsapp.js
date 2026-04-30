@@ -384,7 +384,11 @@ router.post('/meta', async (req, res) => {
           }
 
           // ── ADMIN DETECTION (avant plan/quota — admin Free peut utiliser le chat) ──
-          const { isAdmin: metaIsAdmin, admin: metaAdmin } = await detectAdminByPhone(clientPhone, tenantId);
+          // 🎯 DEMO TENANT: pas d'admin routing — tout le monde est un prospect
+          const isDemoTenant = tenantConfig?.isDemoTenant || tenantId === 'nexus-test';
+          const { isAdmin: metaIsAdmin, admin: metaAdmin } = isDemoTenant
+            ? { isAdmin: false, admin: null }
+            : await detectAdminByPhone(clientPhone, tenantId);
           if (metaIsAdmin) {
             logger.info(`[META WA] 🛡️ ADMIN detected: ${metaAdmin.nom} — routing to admin handler`);
             const metaSendFn = (phone, text) => sendMetaWhatsAppMessage(phoneNumberId, phone, text);
@@ -399,10 +403,13 @@ router.post('/meta', async (req, res) => {
           }
 
           // Plan check (Free = pas d'IA WhatsApp pour les clients)
-          const metaWaAllowed = await isPlanAllowed(tenantId, 'whatsapp');
-          if (!metaWaAllowed) {
-            logger.info(`[META WA] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
-            continue;
+          // 🎯 DEMO TENANT: bypass plan check — la demo doit toujours repondre
+          if (!isDemoTenant) {
+            const metaWaAllowed = await isPlanAllowed(tenantId, 'whatsapp');
+            if (!metaWaAllowed) {
+              logger.info(`[META WA] Free plan — IA WhatsApp bloquée pour ${tenantId}`);
+              continue;
+            }
           }
 
           logger.info(`[META WA] Message de ${clientPhone} (${profileName}) → tenant ${tenantId}: "${messageText.substring(0, 80)}"`);
