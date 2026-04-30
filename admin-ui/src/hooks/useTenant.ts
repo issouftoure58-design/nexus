@@ -150,8 +150,8 @@ function detectTenantSlug(): string {
       'fatshairafo': 'fatshairafro',
       'test': 'nexus-test',
       'nexus-test': 'nexus-test',
-      'deco': 'decovent',
-      'decovent': 'decovent',
+      'domicile': 'test-domicile',
+      'test-domicile': 'test-domicile',
     };
 
     if (subdomainMap[subdomain]) {

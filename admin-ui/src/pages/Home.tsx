@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,10 +14,11 @@ import {
 import {
   TrendingUp, Calendar, Users, DollarSign,
   Activity, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Clock, Shield, Zap, Target, Cpu
+  Clock, Shield, Zap, Target, Cpu, Lock, Crown
 } from 'lucide-react';
 import { api, analyticsApi, statsApi } from '../lib/api';
 import type { AnalyticsOverview, RevenueData, DashboardStats } from '../lib/api';
+import { useTenant } from '@/hooks/useTenant';
 
 // ── Types ──
 
@@ -480,10 +481,55 @@ function CaChart({ revenueData, isLoading }: CaChartProps) {
   );
 }
 
+// ── Locked Widget (plan teaser) ──
+
+interface LockedWidgetProps {
+  title: string;
+  icon: React.ReactNode;
+  planRequired: string;
+  description: string;
+}
+
+function LockedWidget({ title, icon, planRequired, description }: LockedWidgetProps) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center p-6">
+        <div className="w-12 h-12 rounded-xl bg-gray-200 dark:bg-gray-700 flex items-center justify-center mb-3">
+          <Lock className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+        </div>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{description}</p>
+        <Link
+          to="/subscription"
+          className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-sm"
+        >
+          <Crown className="w-3.5 h-3.5" />
+          Passer en {planRequired}
+        </Link>
+      </div>
+      {/* Blurred placeholder content */}
+      <div className="opacity-30">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+          {icon}
+          {title}
+        </h3>
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-8 bg-gray-100 dark:bg-gray-700 rounded" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Home Component ──
 
 export function Home() {
   const navigate = useNavigate();
+  const { hasPlan } = useTenant();
+
+  const canSeeSentinel = hasPlan('business');
+  const canSeeChurn = hasPlan('starter');
 
   // Fetch KPI overview
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
@@ -506,17 +552,18 @@ export function Home() {
     refetchInterval: 120000,
   });
 
-  // Fetch churn
+  // Fetch churn (only if plan allows)
   const { data: churn, isLoading: churnLoading } = useQuery<ChurnData>({
     queryKey: ['analytics-churn'],
     queryFn: () => api.get<ChurnData>('/admin/analytics/churn'),
     refetchInterval: 300000,
+    enabled: canSeeChurn,
   });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sentinel Bar */}
-      <SentinelBar />
+      {/* Sentinel Bar — Business only */}
+      {canSeeSentinel && <SentinelBar />}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Header */}
@@ -579,7 +626,16 @@ export function Home() {
             services={dashboard?.servicesPopulaires}
             isLoading={dashboardLoading}
           />
-          <ClientsRisque churn={churn} isLoading={churnLoading} />
+          {canSeeChurn ? (
+            <ClientsRisque churn={churn} isLoading={churnLoading} />
+          ) : (
+            <LockedWidget
+              title="Clients à risque"
+              icon={<AlertTriangle className="w-4 h-4 text-amber-500" />}
+              planRequired="Starter"
+              description="Détectez vos clients à risque de départ"
+            />
+          )}
         </div>
       </div>
     </div>
