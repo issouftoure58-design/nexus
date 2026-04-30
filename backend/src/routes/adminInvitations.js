@@ -17,12 +17,13 @@ const router = express.Router();
 const INVITE_EXPIRY_HOURS = 72;
 const VALID_ROLES = ['admin', 'manager', 'viewer', 'comptable'];
 
-// Limites utilisateurs par plan (modèle 2026 — révision 23 avril 2026)
+// Limites utilisateurs par plan (modèle 2026 — révision 30 avril 2026)
 const PLAN_USER_LIMITS = {
   free: { max: 1, extraPrice: 0 },             // Free: 1 user (pas d'ajout possible)
   starter: { max: 5, extraPrice: 1500 },       // Starter 69€: 5 users (+15€/user)
   pro: { max: 20, extraPrice: 1200 },          // Pro 199€: 20 users (+12€/user)
-  business: { max: 50, extraPrice: 1000 },     // Business 599€: 50 users (+10€/user)
+  business: { max: 30, extraPrice: 1000 },     // Business 499€: 30 users (+10€/user)
+  enterprise: { max: 50, extraPrice: 800 },    // Enterprise 899€: 50 users (+8€/user)
   // DEPRECATED alias (retro-compat anciens tenants)
   basic: { max: 5, extraPrice: 1500 },         // basic→starter
 };
@@ -31,7 +32,7 @@ const PLAN_USER_LIMITS = {
 function normalizePlan(plan) {
   const p = (plan || '').toLowerCase();
   if (p === 'basic') return 'starter';
-  if (p === 'free' || p === 'starter' || p === 'pro' || p === 'business') return p;
+  if (p === 'free' || p === 'starter' || p === 'pro' || p === 'business' || p === 'enterprise') return p;
   return 'free';
 }
 
@@ -201,7 +202,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const { data: invitation, error } = await supabase
       .from('invitations')
       .insert(insertData)
-      .select('id, email, role, expires_at, created_at')
+      .select('id, email, role, token, expires_at, created_at')
       .single();
 
     if (error) throw error;
@@ -299,16 +300,20 @@ router.post('/accept', async (req, res) => {
       return res.status(410).json({ error: 'Cette invitation a expiré' });
     }
 
-    // Vérifier que l'email n'existe pas déjà dans le tenant
+    // Vérifier que l'email n'existe pas déjà (contrainte unique globale sur email)
     const { data: existingUser } = await supabase
       .from('admin_users')
-      .select('id')
+      .select('id, tenant_id')
       .eq('email', invitation.email.toLowerCase())
-      .eq('tenant_id', invitation.tenant_id)
       .single();
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Un compte existe déjà avec cet email' });
+      const sameTeam = existingUser.tenant_id === invitation.tenant_id;
+      return res.status(400).json({
+        error: sameTeam
+          ? 'Un compte existe déjà avec cet email dans cette équipe'
+          : 'Cet email est déjà utilisé sur un autre compte. Utilisez un email différent.',
+      });
     }
 
     // Créer l'utilisateur

@@ -623,9 +623,9 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
         factures: ['read'],
         export: ['read'],
       });
-      const token = result.invitation?.id;
+      const token = result.invitation?.token;
       const baseUrl = window.location.origin;
-      const link = `${baseUrl}/invitation/${token}`;
+      const link = `${baseUrl}/accept-invite?token=${token}`;
       setAccessLink(link);
       await navigator.clipboard.writeText(link);
       setNotification({ type: 'success', message: 'Lien généré et copié dans le presse-papier' });

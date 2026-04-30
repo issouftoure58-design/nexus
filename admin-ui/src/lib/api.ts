@@ -361,7 +361,7 @@ export const invitationsApi = {
   list: () =>
     api.get<{ invitations: { id: string; email: string; role: string; invited_by: string; expires_at: string; accepted_at: string | null; created_at: string }[] }>('/admin/invitations'),
   send: (email: string, role: string, permissions?: Record<string, string[]>) =>
-    api.post<{ invitation: { id: string; email: string; role: string; expires_at: string } }>('/admin/invitations', { email, role, permissions }),
+    api.post<{ invitation: { id: string; email: string; role: string; token: string; expires_at: string } }>('/admin/invitations', { email, role, permissions }),
   revoke: (id: string) => api.delete(`/admin/invitations/${id}`),
   verify: (token: string) =>
     api.get<{ valid: boolean; email: string; role: string; tenant_name: string; custom_permissions: Record<string, string[]> | null }>(`/admin/invitations/verify/${token}`, { skipAuth: true }),
@@ -803,6 +803,8 @@ export const comptaApi = {
     api.delete<{ success: boolean; message: string }>(`/journaux/plan-comptable/comptes/${numero}`),
   initPCG: () =>
     api.post<{ success: boolean; message: string; count: number }>('/journaux/plan-comptable/init', {}),
+  completePCG: () =>
+    api.post<{ success: boolean; message: string; added: number; total: number }>('/journaux/plan-comptable/complete', {}),
 
   getGrandLivre: (params?: { compte?: string; periode_debut?: string; periode_fin?: string; exercice?: number }) => {
     const query = new URLSearchParams();

@@ -1807,27 +1807,52 @@ router.post('/plan-comptable/init', async (req, res) => {
       { numero: '119', libelle: 'Report à nouveau (solde débiteur)', classe: 1, nature: 'debit' },
       { numero: '120', libelle: 'Résultat de l\'exercice (bénéfice)', classe: 1, nature: 'credit' },
       { numero: '129', libelle: 'Résultat de l\'exercice (perte)', classe: 1, nature: 'debit' },
+      { numero: '131', libelle: 'Subventions d\'équipement', classe: 1, nature: 'credit' },
+      { numero: '155', libelle: 'Provisions pour charges', classe: 1, nature: 'credit' },
       { numero: '164', libelle: 'Emprunts auprès des établissements de crédit', classe: 1, nature: 'credit' },
+      { numero: '165', libelle: 'Dépôts et cautionnements reçus', classe: 1, nature: 'credit' },
+      { numero: '168', libelle: 'Autres emprunts et dettes assimilées', classe: 1, nature: 'credit' },
       // Classe 2 — Immobilisations
       { numero: '205', libelle: 'Concessions, brevets, licences', classe: 2, nature: 'debit' },
+      { numero: '211', libelle: 'Terrains', classe: 2, nature: 'debit' },
+      { numero: '213', libelle: 'Constructions', classe: 2, nature: 'debit' },
+      { numero: '2135', libelle: 'Installations générales, agencements', classe: 2, nature: 'debit' },
+      { numero: '215', libelle: 'Installations techniques, matériel industriel', classe: 2, nature: 'debit' },
+      { numero: '218', libelle: 'Autres immobilisations corporelles', classe: 2, nature: 'debit' },
+      { numero: '2182', libelle: 'Matériel de transport', classe: 2, nature: 'debit' },
       { numero: '2183', libelle: 'Matériel de bureau et informatique', classe: 2, nature: 'debit' },
       { numero: '2184', libelle: 'Mobilier', classe: 2, nature: 'debit' },
-      { numero: '2182', libelle: 'Matériel de transport', classe: 2, nature: 'debit' },
+      { numero: '231', libelle: 'Immobilisations corporelles en cours', classe: 2, nature: 'debit' },
+      { numero: '261', libelle: 'Titres de participation', classe: 2, nature: 'debit' },
+      { numero: '271', libelle: 'Titres immobilisés', classe: 2, nature: 'debit' },
+      { numero: '275', libelle: 'Dépôts et cautionnements versés', classe: 2, nature: 'debit' },
+      { numero: '2811', libelle: 'Amort. frais d\'établissement', classe: 2, nature: 'credit' },
+      { numero: '2813', libelle: 'Amort. constructions', classe: 2, nature: 'credit' },
       { numero: '2815', libelle: 'Amort. installations techniques', classe: 2, nature: 'credit' },
       { numero: '2818', libelle: 'Amort. autres immobilisations corporelles', classe: 2, nature: 'credit' },
       // Classe 3 — Stocks
       { numero: '311', libelle: 'Matières premières', classe: 3, nature: 'debit' },
       { numero: '355', libelle: 'Produits finis', classe: 3, nature: 'debit' },
       { numero: '371', libelle: 'Marchandises', classe: 3, nature: 'debit' },
+      { numero: '391', libelle: 'Dépréciation stocks matières premières', classe: 3, nature: 'credit' },
+      { numero: '397', libelle: 'Dépréciation stocks marchandises', classe: 3, nature: 'credit' },
       // Classe 4 — Tiers
       { numero: '401', libelle: 'Fournisseurs', classe: 4, nature: 'credit' },
       { numero: '4011', libelle: 'Fournisseurs — Achats de biens', classe: 4, nature: 'credit', type: 'auxiliaire' },
       { numero: '4012', libelle: 'Fournisseurs — Achats de services', classe: 4, nature: 'credit', type: 'auxiliaire' },
+      { numero: '409', libelle: 'Fournisseurs débiteurs', classe: 4, nature: 'debit' },
       { numero: '411', libelle: 'Clients', classe: 4, nature: 'debit' },
       { numero: '4111', libelle: 'Clients — Ventes de services', classe: 4, nature: 'debit', type: 'auxiliaire' },
+      { numero: '416', libelle: 'Clients douteux ou litigieux', classe: 4, nature: 'debit' },
+      { numero: '419', libelle: 'Clients créditeurs (avances et acomptes)', classe: 4, nature: 'credit' },
       { numero: '421', libelle: 'Personnel — Rémunérations dues', classe: 4, nature: 'credit' },
+      { numero: '425', libelle: 'Personnel — Avances et acomptes', classe: 4, nature: 'debit' },
+      { numero: '428', libelle: 'Personnel — Charges à payer et produits à recevoir', classe: 4, nature: 'credit' },
       { numero: '431', libelle: 'Sécurité sociale', classe: 4, nature: 'credit' },
       { numero: '437', libelle: 'Autres organismes sociaux', classe: 4, nature: 'credit' },
+      { numero: '438', libelle: 'Organismes sociaux — Charges à payer', classe: 4, nature: 'credit' },
+      { numero: '444', libelle: 'État — Impôt sur les bénéfices', classe: 4, nature: 'credit' },
+      { numero: '445', libelle: 'État — TVA', classe: 4, nature: 'credit' },
       { numero: '4456', libelle: 'TVA déductible', classe: 4, nature: 'debit' },
       { numero: '44562', libelle: 'TVA déductible sur immobilisations', classe: 4, nature: 'debit' },
       { numero: '44566', libelle: 'TVA déductible sur biens et services', classe: 4, nature: 'debit' },
@@ -1835,47 +1860,80 @@ router.post('/plan-comptable/init', async (req, res) => {
       { numero: '44571', libelle: 'TVA collectée', classe: 4, nature: 'credit' },
       { numero: '44551', libelle: 'TVA à décaisser', classe: 4, nature: 'credit' },
       { numero: '44567', libelle: 'Crédit de TVA à reporter', classe: 4, nature: 'debit' },
+      { numero: '447', libelle: 'Autres impôts, taxes et versements assimilés', classe: 4, nature: 'credit' },
       { numero: '455', libelle: 'Associés — Comptes courants', classe: 4, nature: 'credit' },
       { numero: '467', libelle: 'Autres comptes débiteurs ou créditeurs', classe: 4 },
+      { numero: '471', libelle: 'Comptes d\'attente', classe: 4 },
+      { numero: '486', libelle: 'Charges constatées d\'avance', classe: 4, nature: 'debit' },
+      { numero: '487', libelle: 'Produits constatés d\'avance', classe: 4, nature: 'credit' },
+      { numero: '491', libelle: 'Dépréciation comptes clients', classe: 4, nature: 'credit' },
       // Classe 5 — Trésorerie
+      { numero: '511', libelle: 'Valeurs à l\'encaissement', classe: 5, nature: 'debit' },
       { numero: '512', libelle: 'Banque', classe: 5, nature: 'debit' },
       { numero: '5121', libelle: 'Banque — Compte courant', classe: 5, nature: 'debit' },
       { numero: '514', libelle: 'Chèques postaux', classe: 5, nature: 'debit' },
+      { numero: '517', libelle: 'Autres organismes financiers', classe: 5, nature: 'debit' },
+      { numero: '519', libelle: 'Concours bancaires courants', classe: 5, nature: 'credit' },
       { numero: '530', libelle: 'Caisse', classe: 5, nature: 'debit' },
       { numero: '580', libelle: 'Virements internes', classe: 5 },
       // Classe 6 — Charges
       { numero: '601', libelle: 'Achats de matières premières', classe: 6, nature: 'debit' },
       { numero: '602', libelle: 'Achats de fournitures', classe: 6, nature: 'debit' },
+      { numero: '603', libelle: 'Variation des stocks', classe: 6, nature: 'debit' },
       { numero: '604', libelle: 'Achats d\'études et de prestations', classe: 6, nature: 'debit' },
       { numero: '606', libelle: 'Achats non stockés de matières et fournitures', classe: 6, nature: 'debit' },
       { numero: '607', libelle: 'Achats de marchandises', classe: 6, nature: 'debit' },
       { numero: '611', libelle: 'Sous-traitance générale', classe: 6, nature: 'debit' },
       { numero: '613', libelle: 'Locations', classe: 6, nature: 'debit' },
+      { numero: '614', libelle: 'Charges locatives et de copropriété', classe: 6, nature: 'debit' },
       { numero: '615', libelle: 'Entretien et réparations', classe: 6, nature: 'debit' },
       { numero: '616', libelle: 'Primes d\'assurance', classe: 6, nature: 'debit' },
+      { numero: '617', libelle: 'Études et recherches', classe: 6, nature: 'debit' },
       { numero: '618', libelle: 'Divers', classe: 6, nature: 'debit' },
+      { numero: '621', libelle: 'Personnel extérieur à l\'entreprise', classe: 6, nature: 'debit' },
       { numero: '622', libelle: 'Rémunérations d\'intermédiaires et honoraires', classe: 6, nature: 'debit' },
       { numero: '623', libelle: 'Publicité, publications, relations publiques', classe: 6, nature: 'debit' },
+      { numero: '624', libelle: 'Transports de biens', classe: 6, nature: 'debit' },
       { numero: '625', libelle: 'Déplacements, missions et réceptions', classe: 6, nature: 'debit' },
       { numero: '626', libelle: 'Frais postaux et de télécommunications', classe: 6, nature: 'debit' },
       { numero: '627', libelle: 'Services bancaires', classe: 6, nature: 'debit' },
+      { numero: '628', libelle: 'Divers (services extérieurs)', classe: 6, nature: 'debit' },
+      { numero: '631', libelle: 'Impôts, taxes sur rémunérations', classe: 6, nature: 'debit' },
+      { numero: '633', libelle: 'Impôts, taxes sur rémunérations (versement transport)', classe: 6, nature: 'debit' },
       { numero: '635', libelle: 'Autres impôts, taxes et versements assimilés', classe: 6, nature: 'debit' },
+      { numero: '637', libelle: 'Autres impôts, taxes', classe: 6, nature: 'debit' },
       { numero: '641', libelle: 'Rémunérations du personnel', classe: 6, nature: 'debit' },
+      { numero: '642', libelle: 'Rémunérations du personnel — Autres', classe: 6, nature: 'debit' },
       { numero: '645', libelle: 'Charges de sécurité sociale et de prévoyance', classe: 6, nature: 'debit' },
+      { numero: '646', libelle: 'Cotisations sociales personnelles de l\'exploitant', classe: 6, nature: 'debit' },
       { numero: '651', libelle: 'Redevances pour concessions, brevets, licences', classe: 6, nature: 'debit' },
+      { numero: '654', libelle: 'Pertes sur créances irrécouvrables', classe: 6, nature: 'debit' },
       { numero: '658', libelle: 'Charges diverses de gestion courante', classe: 6, nature: 'debit' },
       { numero: '661', libelle: 'Charges d\'intérêts', classe: 6, nature: 'debit' },
+      { numero: '666', libelle: 'Pertes de change', classe: 6, nature: 'debit' },
       { numero: '671', libelle: 'Charges exceptionnelles sur opérations de gestion', classe: 6, nature: 'debit' },
+      { numero: '675', libelle: 'VNC des éléments d\'actif cédés', classe: 6, nature: 'debit' },
       { numero: '681', libelle: 'Dotations aux amortissements et provisions', classe: 6, nature: 'debit' },
+      { numero: '695', libelle: 'Impôts sur les bénéfices', classe: 6, nature: 'debit' },
       // Classe 7 — Produits
+      { numero: '701', libelle: 'Ventes de produits finis', classe: 7, nature: 'credit' },
+      { numero: '702', libelle: 'Ventes de produits intermédiaires', classe: 7, nature: 'credit' },
+      { numero: '704', libelle: 'Travaux', classe: 7, nature: 'credit' },
       { numero: '706', libelle: 'Prestations de services', classe: 7, nature: 'credit' },
       { numero: '707', libelle: 'Ventes de marchandises', classe: 7, nature: 'credit' },
       { numero: '708', libelle: 'Produits des activités annexes', classe: 7, nature: 'credit' },
-      { numero: '741', libelle: 'Subventions d\'exploitation', classe: 7, nature: 'credit' },
+      { numero: '709', libelle: 'Rabais, remises et ristournes accordés', classe: 7, nature: 'debit' },
+      { numero: '713', libelle: 'Variation des stocks de produits', classe: 7, nature: 'credit' },
+      { numero: '740', libelle: 'Subventions d\'exploitation', classe: 7, nature: 'credit' },
+      { numero: '741', libelle: 'Subventions d\'exploitation (reçues)', classe: 7, nature: 'credit' },
       { numero: '761', libelle: 'Produits de participations', classe: 7, nature: 'credit' },
+      { numero: '762', libelle: 'Produits des autres immobilisations financières', classe: 7, nature: 'credit' },
       { numero: '764', libelle: 'Revenus des valeurs mobilières', classe: 7, nature: 'credit' },
+      { numero: '766', libelle: 'Gains de change', classe: 7, nature: 'credit' },
       { numero: '771', libelle: 'Produits exceptionnels sur opérations de gestion', classe: 7, nature: 'credit' },
+      { numero: '775', libelle: 'Produits des cessions d\'éléments d\'actif', classe: 7, nature: 'credit' },
       { numero: '781', libelle: 'Reprises sur amortissements et provisions', classe: 7, nature: 'credit' },
+      { numero: '791', libelle: 'Transferts de charges d\'exploitation', classe: 7, nature: 'credit' },
     ];
 
     const rows = pcgStandard.map(c => ({
@@ -1898,6 +1956,199 @@ router.post('/plan-comptable/init', async (req, res) => {
   } catch (error) {
     console.error('[JOURNAUX] Erreur init PCG:', error);
     res.status(500).json({ error: 'Erreur initialisation plan comptable' });
+  }
+});
+
+/**
+ * POST /api/journaux/plan-comptable/complete
+ * Compléter le PCG existant avec les comptes manquants (upsert)
+ * Utilisé quand le PCG a déjà été initialisé mais de nouveaux comptes standards ont été ajoutés
+ */
+router.post('/plan-comptable/complete', async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+
+    // Récupérer les comptes existants
+    const { data: existing, error: fetchError } = await supabase
+      .from('comptes_comptables')
+      .select('numero')
+      .eq('tenant_id', tenantId);
+
+    if (fetchError) throw fetchError;
+
+    const existingNumeros = new Set((existing || []).map(c => c.numero));
+
+    // Réutiliser le même tableau pcgStandard que /init
+    const pcgStandard = [
+      // Classe 1 — Capitaux
+      { numero: '101', libelle: 'Capital social', classe: 1, nature: 'credit' },
+      { numero: '106', libelle: 'Réserves', classe: 1, nature: 'credit' },
+      { numero: '108', libelle: 'Compte de l\'exploitant', classe: 1, nature: 'credit' },
+      { numero: '110', libelle: 'Report à nouveau (solde créditeur)', classe: 1, nature: 'credit' },
+      { numero: '119', libelle: 'Report à nouveau (solde débiteur)', classe: 1, nature: 'debit' },
+      { numero: '120', libelle: 'Résultat de l\'exercice (bénéfice)', classe: 1, nature: 'credit' },
+      { numero: '129', libelle: 'Résultat de l\'exercice (perte)', classe: 1, nature: 'debit' },
+      { numero: '131', libelle: 'Subventions d\'équipement', classe: 1, nature: 'credit' },
+      { numero: '155', libelle: 'Provisions pour charges', classe: 1, nature: 'credit' },
+      { numero: '164', libelle: 'Emprunts auprès des établissements de crédit', classe: 1, nature: 'credit' },
+      { numero: '165', libelle: 'Dépôts et cautionnements reçus', classe: 1, nature: 'credit' },
+      { numero: '168', libelle: 'Autres emprunts et dettes assimilées', classe: 1, nature: 'credit' },
+      // Classe 2 — Immobilisations
+      { numero: '205', libelle: 'Concessions, brevets, licences', classe: 2, nature: 'debit' },
+      { numero: '211', libelle: 'Terrains', classe: 2, nature: 'debit' },
+      { numero: '213', libelle: 'Constructions', classe: 2, nature: 'debit' },
+      { numero: '2135', libelle: 'Installations générales, agencements', classe: 2, nature: 'debit' },
+      { numero: '215', libelle: 'Installations techniques, matériel industriel', classe: 2, nature: 'debit' },
+      { numero: '218', libelle: 'Autres immobilisations corporelles', classe: 2, nature: 'debit' },
+      { numero: '2182', libelle: 'Matériel de transport', classe: 2, nature: 'debit' },
+      { numero: '2183', libelle: 'Matériel de bureau et informatique', classe: 2, nature: 'debit' },
+      { numero: '2184', libelle: 'Mobilier', classe: 2, nature: 'debit' },
+      { numero: '231', libelle: 'Immobilisations corporelles en cours', classe: 2, nature: 'debit' },
+      { numero: '261', libelle: 'Titres de participation', classe: 2, nature: 'debit' },
+      { numero: '271', libelle: 'Titres immobilisés', classe: 2, nature: 'debit' },
+      { numero: '275', libelle: 'Dépôts et cautionnements versés', classe: 2, nature: 'debit' },
+      { numero: '2811', libelle: 'Amort. frais d\'établissement', classe: 2, nature: 'credit' },
+      { numero: '2813', libelle: 'Amort. constructions', classe: 2, nature: 'credit' },
+      { numero: '2815', libelle: 'Amort. installations techniques', classe: 2, nature: 'credit' },
+      { numero: '2818', libelle: 'Amort. autres immobilisations corporelles', classe: 2, nature: 'credit' },
+      // Classe 3 — Stocks
+      { numero: '311', libelle: 'Matières premières', classe: 3, nature: 'debit' },
+      { numero: '355', libelle: 'Produits finis', classe: 3, nature: 'debit' },
+      { numero: '371', libelle: 'Marchandises', classe: 3, nature: 'debit' },
+      { numero: '391', libelle: 'Dépréciation stocks matières premières', classe: 3, nature: 'credit' },
+      { numero: '397', libelle: 'Dépréciation stocks marchandises', classe: 3, nature: 'credit' },
+      // Classe 4 — Tiers
+      { numero: '401', libelle: 'Fournisseurs', classe: 4, nature: 'credit' },
+      { numero: '4011', libelle: 'Fournisseurs — Achats de biens', classe: 4, nature: 'credit', type: 'auxiliaire' },
+      { numero: '4012', libelle: 'Fournisseurs — Achats de services', classe: 4, nature: 'credit', type: 'auxiliaire' },
+      { numero: '409', libelle: 'Fournisseurs débiteurs', classe: 4, nature: 'debit' },
+      { numero: '411', libelle: 'Clients', classe: 4, nature: 'debit' },
+      { numero: '4111', libelle: 'Clients — Ventes de services', classe: 4, nature: 'debit', type: 'auxiliaire' },
+      { numero: '416', libelle: 'Clients douteux ou litigieux', classe: 4, nature: 'debit' },
+      { numero: '419', libelle: 'Clients créditeurs (avances et acomptes)', classe: 4, nature: 'credit' },
+      { numero: '421', libelle: 'Personnel — Rémunérations dues', classe: 4, nature: 'credit' },
+      { numero: '425', libelle: 'Personnel — Avances et acomptes', classe: 4, nature: 'debit' },
+      { numero: '428', libelle: 'Personnel — Charges à payer et produits à recevoir', classe: 4, nature: 'credit' },
+      { numero: '431', libelle: 'Sécurité sociale', classe: 4, nature: 'credit' },
+      { numero: '437', libelle: 'Autres organismes sociaux', classe: 4, nature: 'credit' },
+      { numero: '438', libelle: 'Organismes sociaux — Charges à payer', classe: 4, nature: 'credit' },
+      { numero: '444', libelle: 'État — Impôt sur les bénéfices', classe: 4, nature: 'credit' },
+      { numero: '445', libelle: 'État — TVA', classe: 4, nature: 'credit' },
+      { numero: '4456', libelle: 'TVA déductible', classe: 4, nature: 'debit' },
+      { numero: '44562', libelle: 'TVA déductible sur immobilisations', classe: 4, nature: 'debit' },
+      { numero: '44566', libelle: 'TVA déductible sur biens et services', classe: 4, nature: 'debit' },
+      { numero: '4457', libelle: 'TVA collectée', classe: 4, nature: 'credit' },
+      { numero: '44571', libelle: 'TVA collectée', classe: 4, nature: 'credit' },
+      { numero: '44551', libelle: 'TVA à décaisser', classe: 4, nature: 'credit' },
+      { numero: '44567', libelle: 'Crédit de TVA à reporter', classe: 4, nature: 'debit' },
+      { numero: '447', libelle: 'Autres impôts, taxes et versements assimilés', classe: 4, nature: 'credit' },
+      { numero: '455', libelle: 'Associés — Comptes courants', classe: 4, nature: 'credit' },
+      { numero: '467', libelle: 'Autres comptes débiteurs ou créditeurs', classe: 4 },
+      { numero: '471', libelle: 'Comptes d\'attente', classe: 4 },
+      { numero: '486', libelle: 'Charges constatées d\'avance', classe: 4, nature: 'debit' },
+      { numero: '487', libelle: 'Produits constatés d\'avance', classe: 4, nature: 'credit' },
+      { numero: '491', libelle: 'Dépréciation comptes clients', classe: 4, nature: 'credit' },
+      // Classe 5 — Trésorerie
+      { numero: '511', libelle: 'Valeurs à l\'encaissement', classe: 5, nature: 'debit' },
+      { numero: '512', libelle: 'Banque', classe: 5, nature: 'debit' },
+      { numero: '5121', libelle: 'Banque — Compte courant', classe: 5, nature: 'debit' },
+      { numero: '514', libelle: 'Chèques postaux', classe: 5, nature: 'debit' },
+      { numero: '517', libelle: 'Autres organismes financiers', classe: 5, nature: 'debit' },
+      { numero: '519', libelle: 'Concours bancaires courants', classe: 5, nature: 'credit' },
+      { numero: '530', libelle: 'Caisse', classe: 5, nature: 'debit' },
+      { numero: '580', libelle: 'Virements internes', classe: 5 },
+      // Classe 6 — Charges
+      { numero: '601', libelle: 'Achats de matières premières', classe: 6, nature: 'debit' },
+      { numero: '602', libelle: 'Achats de fournitures', classe: 6, nature: 'debit' },
+      { numero: '603', libelle: 'Variation des stocks', classe: 6, nature: 'debit' },
+      { numero: '604', libelle: 'Achats d\'études et de prestations', classe: 6, nature: 'debit' },
+      { numero: '606', libelle: 'Achats non stockés de matières et fournitures', classe: 6, nature: 'debit' },
+      { numero: '607', libelle: 'Achats de marchandises', classe: 6, nature: 'debit' },
+      { numero: '611', libelle: 'Sous-traitance générale', classe: 6, nature: 'debit' },
+      { numero: '613', libelle: 'Locations', classe: 6, nature: 'debit' },
+      { numero: '614', libelle: 'Charges locatives et de copropriété', classe: 6, nature: 'debit' },
+      { numero: '615', libelle: 'Entretien et réparations', classe: 6, nature: 'debit' },
+      { numero: '616', libelle: 'Primes d\'assurance', classe: 6, nature: 'debit' },
+      { numero: '617', libelle: 'Études et recherches', classe: 6, nature: 'debit' },
+      { numero: '618', libelle: 'Divers', classe: 6, nature: 'debit' },
+      { numero: '621', libelle: 'Personnel extérieur à l\'entreprise', classe: 6, nature: 'debit' },
+      { numero: '622', libelle: 'Rémunérations d\'intermédiaires et honoraires', classe: 6, nature: 'debit' },
+      { numero: '623', libelle: 'Publicité, publications, relations publiques', classe: 6, nature: 'debit' },
+      { numero: '624', libelle: 'Transports de biens', classe: 6, nature: 'debit' },
+      { numero: '625', libelle: 'Déplacements, missions et réceptions', classe: 6, nature: 'debit' },
+      { numero: '626', libelle: 'Frais postaux et de télécommunications', classe: 6, nature: 'debit' },
+      { numero: '627', libelle: 'Services bancaires', classe: 6, nature: 'debit' },
+      { numero: '628', libelle: 'Divers (services extérieurs)', classe: 6, nature: 'debit' },
+      { numero: '631', libelle: 'Impôts, taxes sur rémunérations', classe: 6, nature: 'debit' },
+      { numero: '633', libelle: 'Impôts, taxes sur rémunérations (versement transport)', classe: 6, nature: 'debit' },
+      { numero: '635', libelle: 'Autres impôts, taxes et versements assimilés', classe: 6, nature: 'debit' },
+      { numero: '637', libelle: 'Autres impôts, taxes', classe: 6, nature: 'debit' },
+      { numero: '641', libelle: 'Rémunérations du personnel', classe: 6, nature: 'debit' },
+      { numero: '642', libelle: 'Rémunérations du personnel — Autres', classe: 6, nature: 'debit' },
+      { numero: '645', libelle: 'Charges de sécurité sociale et de prévoyance', classe: 6, nature: 'debit' },
+      { numero: '646', libelle: 'Cotisations sociales personnelles de l\'exploitant', classe: 6, nature: 'debit' },
+      { numero: '651', libelle: 'Redevances pour concessions, brevets, licences', classe: 6, nature: 'debit' },
+      { numero: '654', libelle: 'Pertes sur créances irrécouvrables', classe: 6, nature: 'debit' },
+      { numero: '658', libelle: 'Charges diverses de gestion courante', classe: 6, nature: 'debit' },
+      { numero: '661', libelle: 'Charges d\'intérêts', classe: 6, nature: 'debit' },
+      { numero: '666', libelle: 'Pertes de change', classe: 6, nature: 'debit' },
+      { numero: '671', libelle: 'Charges exceptionnelles sur opérations de gestion', classe: 6, nature: 'debit' },
+      { numero: '675', libelle: 'VNC des éléments d\'actif cédés', classe: 6, nature: 'debit' },
+      { numero: '681', libelle: 'Dotations aux amortissements et provisions', classe: 6, nature: 'debit' },
+      { numero: '695', libelle: 'Impôts sur les bénéfices', classe: 6, nature: 'debit' },
+      // Classe 7 — Produits
+      { numero: '701', libelle: 'Ventes de produits finis', classe: 7, nature: 'credit' },
+      { numero: '702', libelle: 'Ventes de produits intermédiaires', classe: 7, nature: 'credit' },
+      { numero: '704', libelle: 'Travaux', classe: 7, nature: 'credit' },
+      { numero: '706', libelle: 'Prestations de services', classe: 7, nature: 'credit' },
+      { numero: '707', libelle: 'Ventes de marchandises', classe: 7, nature: 'credit' },
+      { numero: '708', libelle: 'Produits des activités annexes', classe: 7, nature: 'credit' },
+      { numero: '709', libelle: 'Rabais, remises et ristournes accordés', classe: 7, nature: 'debit' },
+      { numero: '713', libelle: 'Variation des stocks de produits', classe: 7, nature: 'credit' },
+      { numero: '740', libelle: 'Subventions d\'exploitation', classe: 7, nature: 'credit' },
+      { numero: '741', libelle: 'Subventions d\'exploitation (reçues)', classe: 7, nature: 'credit' },
+      { numero: '761', libelle: 'Produits de participations', classe: 7, nature: 'credit' },
+      { numero: '762', libelle: 'Produits des autres immobilisations financières', classe: 7, nature: 'credit' },
+      { numero: '764', libelle: 'Revenus des valeurs mobilières', classe: 7, nature: 'credit' },
+      { numero: '766', libelle: 'Gains de change', classe: 7, nature: 'credit' },
+      { numero: '771', libelle: 'Produits exceptionnels sur opérations de gestion', classe: 7, nature: 'credit' },
+      { numero: '775', libelle: 'Produits des cessions d\'éléments d\'actif', classe: 7, nature: 'credit' },
+      { numero: '781', libelle: 'Reprises sur amortissements et provisions', classe: 7, nature: 'credit' },
+      { numero: '791', libelle: 'Transferts de charges d\'exploitation', classe: 7, nature: 'credit' },
+    ];
+
+    // Filtrer : n'insérer que les comptes absents
+    const missing = pcgStandard.filter(c => !existingNumeros.has(c.numero));
+
+    if (missing.length === 0) {
+      return res.json({ success: true, message: 'Le plan comptable est déjà complet', added: 0, total: existing.length });
+    }
+
+    const rows = missing.map(c => ({
+      tenant_id: tenantId,
+      numero: c.numero,
+      libelle: c.libelle,
+      classe: c.classe,
+      type: c.type || 'general',
+      nature: c.nature || null
+    }));
+
+    const { data, error } = await supabase
+      .from('comptes_comptables')
+      .insert(rows)
+      .select('numero');
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: `${data.length} comptes ajoutés au plan comptable`,
+      added: data.length,
+      total: existing.length + data.length
+    });
+  } catch (error) {
+    console.error('[JOURNAUX] Erreur complétion PCG:', error);
+    res.status(500).json({ error: 'Erreur complétion plan comptable' });
   }
 });
 

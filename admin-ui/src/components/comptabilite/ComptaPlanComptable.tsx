@@ -82,6 +82,12 @@ export default function ComptaPlanComptable() {
     onError: (err: Error) => notify('error', err.message),
   });
 
+  const completeMutation = useMutation({
+    mutationFn: () => comptaApi.completePCG(),
+    onSuccess: (data) => { notify('success', data.added > 0 ? `${data.added} comptes ajoutés (total : ${data.total})` : data.message); invalidate(); },
+    onError: (err: Error) => notify('error', err.message),
+  });
+
   const closeForm = () => {
     setFormMode('closed');
     setFormData({ numero: '', libelle: '', type: 'general', nature: '' });
@@ -175,6 +181,12 @@ export default function ComptaPlanComptable() {
         <Button size="sm" onClick={() => { setFormMode('add'); setFormData({ numero: '', libelle: '', type: 'general', nature: '' }); }}>
           <Plus className="h-4 w-4 mr-1" /> Ajouter un compte
         </Button>
+        {!isEmpty && (
+          <Button size="sm" variant="outline" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
+            {completeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
+            Compléter le PCG
+          </Button>
+        )}
         <span className="text-xs text-gray-500">{filteredComptes.length} comptes</span>
       </div>
 
