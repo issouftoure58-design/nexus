@@ -11,7 +11,7 @@ import {
   handleIncomingMessageNexus,
   handlePaymentConfirmed
 } from '../services/whatsappService.js';
-import { transcribeFromUrl } from '../services/whisperService.js';
+import { transcribeFromUrl, transcribeFromMeta } from '../services/whisperService.js';
 import usageTracking from '../services/usageTrackingService.js';
 import { hasCredits, consume as consumeCredits, isPlanAllowed } from '../services/creditsService.js';
 import { getTenantByPhone, getTenantConfig } from '../config/tenants/index.js';
@@ -363,10 +363,32 @@ router.post('/meta', async (req, res) => {
 
           // Extraire le texte selon le type
           let messageText = '';
+          let isVoiceNote = false;
           if (msg.type === 'text') {
             messageText = msg.text?.body || '';
           } else if (msg.type === 'interactive') {
             messageText = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '';
+          } else if (msg.type === 'audio') {
+            // 🎤 Note vocale → transcrire avec Whisper via Meta media download
+            const audioId = msg.audio?.id;
+            if (!audioId) { logger.warn(`[META WA] Audio sans id`); continue; }
+            logger.info(`[META WA] 🎤 Note vocale détectée (${msg.audio.mime_type}), transcription Whisper...`);
+            const transcription = await transcribeFromMeta(audioId, { phoneNumber: clientPhone });
+            if (!transcription.success || !transcription.text) {
+              logger.warn(`[META WA] Transcription échouée: ${transcription.error}`);
+              if (phoneNumberId) {
+                const errMsg = transcription.tooLarge
+                  ? '⚠️ Votre message vocal est trop long (2 min max). Réessayez avec un message plus court.'
+                  : transcription.rateLimited
+                    ? '⚠️ Trop de messages vocaux. Réessayez dans quelques minutes.'
+                    : '⚠️ Impossible de transcrire votre message vocal. Envoyez un message texte.';
+                await sendMetaWhatsAppMessage(phoneNumberId, clientPhone, errMsg);
+              }
+              continue;
+            }
+            messageText = transcription.text;
+            isVoiceNote = true;
+            logger.info(`[META WA] 🎤 Transcription: "${messageText.substring(0, 80)}"`);
           } else {
             logger.info(`[META WA] Type non-texte ignore: ${msg.type}`);
             continue;
@@ -432,10 +454,11 @@ router.post('/meta', async (req, res) => {
           if (result.response && phoneNumberId) {
             await sendMetaWhatsAppMessage(phoneNumberId, clientPhone, result.response);
             await usageTracking.trackWhatsAppMessage(tenantId, `${messageId}-reply`, 'outbound');
-            // Déduire crédits IA (7 cr/message)
-            consumeCredits(tenantId, 'whatsapp_message', {
+            // Déduire crédits IA (10 cr vocal / 7 cr texte)
+            const creditAction = isVoiceNote ? 'whatsapp_voice_note' : 'whatsapp_message';
+            consumeCredits(tenantId, creditAction, {
               refId: messageId,
-              description: `WhatsApp IA (Meta) — ${clientPhone}`,
+              description: `WhatsApp IA ${isVoiceNote ? '(vocal)' : '(texte)'} (Meta) — ${clientPhone}`,
             }).catch(err => logger.warn(`[META WA] Credit deduction failed: ${err.message}`, { tenantId }));
           }
 

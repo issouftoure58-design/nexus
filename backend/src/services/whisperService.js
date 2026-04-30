@@ -218,13 +218,93 @@ async function transcribeFromUrl(mediaUrl, options = {}) {
   }
 }
 
+/**
+ * Télécharge un média depuis Meta Cloud API (WhatsApp WABA)
+ * 1. GET /media-id → récupère l'URL de téléchargement
+ * 2. GET url → télécharge le fichier audio
+ *
+ * @param {string} mediaId - ID du média Meta (msg.audio.id)
+ * @returns {Promise<{ filePath: string, sizeBytes: number }>}
+ */
+async function downloadMetaMedia(mediaId) {
+  const token = process.env.META_WA_ACCESS_TOKEN;
+  if (!token) throw new Error('META_WA_ACCESS_TOKEN non configuré');
+
+  // 1. Récupérer l'URL de téléchargement
+  const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!metaRes.ok) throw new Error(`Meta media lookup failed: ${metaRes.status}`);
+  const { url: downloadUrl } = await metaRes.json();
+
+  // 2. Télécharger le fichier
+  const response = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`Meta media download failed: ${response.status}`);
+
+  const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+  if (contentLength > MAX_FILE_SIZE) {
+    throw new Error(`AUDIO_TOO_LARGE: ${(contentLength / 1024 / 1024).toFixed(1)} Mo > ${MAX_FILE_SIZE / 1024 / 1024} Mo max`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > MAX_FILE_SIZE) {
+    throw new Error(`AUDIO_TOO_LARGE: ${(buffer.length / 1024 / 1024).toFixed(1)} Mo > ${MAX_FILE_SIZE / 1024 / 1024} Mo max`);
+  }
+
+  const hash = crypto.createHash('md5').update(mediaId).digest('hex');
+  const filePath = path.join(TMP_DIR, `${hash}.ogg`);
+  fs.writeFileSync(filePath, buffer);
+  return { filePath, sizeBytes: buffer.length };
+}
+
+/**
+ * Transcrit un audio depuis un média Meta (rate limit + download + transcrit + nettoie)
+ *
+ * @param {string} mediaId - ID du média Meta
+ * @param {Object} [options]
+ * @param {string} [options.language='fr'] - Langue attendue
+ * @param {string} [options.phoneNumber] - Numéro pour le rate limiting
+ * @returns {Promise<{ success: boolean, text?: string, error?: string }>}
+ */
+async function transcribeFromMeta(mediaId, options = {}) {
+  let filePath = null;
+
+  if (options.phoneNumber) {
+    const rateCheck = checkRateLimit(options.phoneNumber);
+    if (!rateCheck.allowed) {
+      return { success: false, error: 'Trop de notes vocales, réessayez dans quelques minutes', rateLimited: true };
+    }
+  }
+
+  try {
+    const download = await downloadMetaMedia(mediaId);
+    filePath = download.filePath;
+    console.log(`[WHISPER] Meta audio téléchargé: ${filePath} (${(download.sizeBytes / 1024).toFixed(0)} Ko)`);
+    return await transcribeFile(filePath, options);
+  } catch (error) {
+    console.error('[WHISPER] Erreur transcribeFromMeta:', error.message);
+    if (error.message.startsWith('AUDIO_TOO_LARGE')) {
+      return { success: false, error: 'Note vocale trop longue (2 min max)', tooLarge: true };
+    }
+    return { success: false, error: error.message };
+  } finally {
+    if (filePath && fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+    }
+  }
+}
+
 export default {
   transcribeFile,
   transcribeFromUrl,
+  transcribeFromMeta,
   downloadTwilioMedia,
+  downloadMetaMedia,
   checkRateLimit,
   MAX_FILE_SIZE,
   RATE_LIMIT_MAX,
 };
 
-export { transcribeFile, transcribeFromUrl, downloadTwilioMedia, checkRateLimit };
+export { transcribeFile, transcribeFromUrl, transcribeFromMeta, downloadTwilioMedia, downloadMetaMedia, checkRateLimit };
