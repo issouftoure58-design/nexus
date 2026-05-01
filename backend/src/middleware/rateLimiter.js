@@ -63,8 +63,8 @@ export const loginLimiter = rateLimit({
     });
   },
   skip: (req) => {
-    // Skip en dev si SKIP_RATE_LIMIT=true
-    return process.env.SKIP_RATE_LIMIT === 'true';
+    // Skip en dev uniquement si SKIP_RATE_LIMIT=true — JAMAIS en production
+    return process.env.SKIP_RATE_LIMIT === 'true' && process.env.NODE_ENV !== 'production';
   }
 });
 
@@ -86,7 +86,7 @@ export const apiLimiter = rateLimit({
     // Skip les webhooks et health checks
     if (req.path === '/health') return true;
     if (req.path.includes('/webhook')) return true;
-    return process.env.SKIP_RATE_LIMIT === 'true';
+    return process.env.SKIP_RATE_LIMIT === 'true' && process.env.NODE_ENV !== 'production';
   }
 });
 
@@ -154,7 +154,7 @@ export const signupLimiter = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.SKIP_RATE_LIMIT === 'true';
+    return process.env.SKIP_RATE_LIMIT === 'true' && process.env.NODE_ENV !== 'production';
   }
 });
 
@@ -173,7 +173,7 @@ export const checkLimiter = rateLimit({
   legacyHeaders: false,
   store: createStore('check'),
   skip: (req) => {
-    return process.env.SKIP_RATE_LIMIT === 'true';
+    return process.env.SKIP_RATE_LIMIT === 'true' && process.env.NODE_ENV !== 'production';
   }
 });
 
@@ -201,7 +201,7 @@ export const publicReviewLimiter = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.SKIP_RATE_LIMIT === 'true';
+    return process.env.SKIP_RATE_LIMIT === 'true' && process.env.NODE_ENV !== 'production';
   }
 });
 

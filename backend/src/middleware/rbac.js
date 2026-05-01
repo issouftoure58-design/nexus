@@ -7,6 +7,7 @@
  * - admin       : propriétaire du tenant, accès total
  * - manager     : gestionnaire, lecture + écriture, suppression limitée
  * - viewer      : lecture seule
+ * - comptable   : expert-comptable, lecture sur compta/devis/factures/clients/billing/audit
  *
  * Permissions : read, write, delete
  */
@@ -19,24 +20,24 @@ import logger from '../config/logger.js';
 
 const PERMISSIONS = {
   // Module → { role → [permissions] }
-  clients:       { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  reservations:  { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  services:      { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  disponibilites:{ admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  parametres:    { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'] },
-  equipe:        { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [] },
-  comptabilite:  { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  stock:         { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  rh:            { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [] },
-  marketing:     { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  devis:         { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  seo:           { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'] },
-  ia:            { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'] },
-  billing:       { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [] },
-  api_keys:      { admin: ['read', 'write', 'delete'], manager: [],                viewer: [] },
-  audit:         { admin: ['read'],                     manager: ['read'],          viewer: [] },
-  stats:         { admin: ['read'],                     manager: ['read'],          viewer: ['read'] },
-  modules:       { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'] },
+  clients:       { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  reservations:  { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  services:      { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  disponibilites:{ admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: [] },
+  parametres:    { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'], comptable: [] },
+  equipe:        { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [],       comptable: [] },
+  comptabilite:  { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  stock:         { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  rh:            { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [],       comptable: [] },
+  marketing:     { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: [] },
+  devis:         { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: ['read'] },
+  seo:           { admin: ['read', 'write', 'delete'], manager: ['read', 'write'], viewer: ['read'], comptable: [] },
+  ia:            { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'], comptable: [] },
+  billing:       { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: [],       comptable: ['read'] },
+  api_keys:      { admin: ['read', 'write', 'delete'], manager: [],                viewer: [],       comptable: [] },
+  audit:         { admin: ['read'],                     manager: ['read'],          viewer: [],       comptable: ['read'] },
+  stats:         { admin: ['read'],                     manager: ['read'],          viewer: ['read'], comptable: ['read'] },
+  modules:       { admin: ['read', 'write', 'delete'], manager: ['read'],          viewer: ['read'], comptable: [] },
 };
 
 // super_admin a toutes les permissions sur tout

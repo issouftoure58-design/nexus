@@ -19,6 +19,7 @@
 
 import express from 'express';
 import { authenticateAdmin } from './adminAuth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import logger from '../config/logger.js';
 import * as billingService from '../services/stripeBillingService.js';
 import creditsService, { CREDIT_PACKS, USAGE_TOPUP, CREDIT_COSTS } from '../services/creditsService.js';
@@ -105,7 +106,7 @@ router.post('/subscription', async (req, res) => {
  * Annule l'abonnement
  * Query: ?immediately=true pour annulation immediate
  */
-router.delete('/subscription', async (req, res) => {
+router.delete('/subscription', requirePermission('billing', 'delete'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const immediately = req.query.immediately === 'true';
@@ -132,7 +133,7 @@ router.delete('/subscription', async (req, res) => {
  * POST /api/billing/subscription/reactivate
  * Reactive un abonnement annule (avant fin de periode)
  */
-router.post('/subscription/reactivate', async (req, res) => {
+router.post('/subscription/reactivate', requirePermission('billing', 'write'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const subscription = await billingService.reactivateSubscription(tenantId);
@@ -267,7 +268,7 @@ router.post('/setup-intent', async (req, res) => {
  * DELETE /api/billing/payment-methods/:id
  * Supprime un moyen de paiement
  */
-router.delete('/payment-methods/:id', async (req, res) => {
+router.delete('/payment-methods/:id', requirePermission('billing', 'delete'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { id } = req.params;
@@ -313,15 +314,15 @@ router.post('/payment-methods/:id/default', async (req, res) => {
  * Change le plan d'un abonnement existant (upgrade/downgrade direct).
  * Body: { planId: 'starter' | 'pro' | 'business', cycle: 'monthly' | 'yearly' }
  */
-router.post('/change-plan', async (req, res) => {
+router.post('/change-plan', requirePermission('billing', 'write'), async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
     const { planId, cycle = 'monthly' } = req.body;
 
-    if (!['starter', 'pro', 'business', 'basic'].includes(planId)) {
+    if (!['starter', 'pro', 'business', 'enterprise'].includes(planId)) {
       return res.status(400).json({
         success: false,
-        error: 'planId invalide (starter | pro | business)'
+        error: 'planId invalide (starter | pro | business | enterprise)'
       });
     }
 

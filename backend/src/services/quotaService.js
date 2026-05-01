@@ -239,8 +239,15 @@ export async function incrementUsage(tenantId, resource, amount = 1) {
   if (!tenantId) throw new Error('tenant_id requis');
 
   const plan = await getTenantPlan(tenantId);
-  // Ne pas tracker l'usage pour les plans illimités (économie d'écritures DB)
-  if (plan !== 'free') return;
+  const limits = PLAN_QUOTAS[plan];
+
+  // Vérifier si cette ressource a une limite finie pour ce plan
+  const limitKey = `${resource}_max_mois` in limits ? `${resource}_max_mois`
+                : `${resource}_max` in limits ? `${resource}_max`
+                : null;
+
+  // Ne pas tracker l'usage pour les ressources illimitées (économie d'écritures DB)
+  if (!limitKey || limits[limitKey] === -1) return;
 
   const period = currentPeriod();
   const usage = await getOrCreateQuotaRow(tenantId);
@@ -292,9 +299,7 @@ export async function decrementUsage(tenantId, resource, amount = 1) {
 
 async function maybeSendAlert(tenantId, resource, currentUsage) {
   const plan = await getTenantPlan(tenantId);
-  if (plan !== 'free') return;
-
-  const limits = PLAN_QUOTAS.free;
+  const limits = PLAN_QUOTAS[plan];
   const limitKey = `${resource}_max_mois` in limits ? `${resource}_max_mois`
                 : `${resource}_max` in limits ? `${resource}_max`
                 : null;
@@ -355,7 +360,7 @@ export function enforceQuota(resource, amount = 1) {
       if (!check.ok) {
         return res.status(429).json({
           error: 'QUOTA_EXCEEDED',
-          message: `Quota ${resource} atteint pour ce mois (${check.used}/${check.limit}). Passez à NEXUS Starter pour augmenter vos limites.`,
+          message: `Quota ${resource} atteint pour ce mois (${check.used}/${check.limit}). Passez au plan supérieur pour augmenter vos limites.`,
           resource,
           limit: check.limit,
           used: check.used,

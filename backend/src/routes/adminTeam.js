@@ -11,7 +11,7 @@ import logger from '../config/logger.js';
 
 const router = express.Router();
 
-const VALID_ROLES = ['admin', 'manager', 'viewer'];
+const VALID_ROLES = ['admin', 'manager', 'viewer', 'comptable'];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // GET /api/admin/team — Liste des membres actifs du tenant
