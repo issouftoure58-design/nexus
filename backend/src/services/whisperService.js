@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { registerInterval } from '../utils/intervalRegistry.js';
 
 // ============================================
 // CONFIGURATION
@@ -81,7 +82,7 @@ function checkRateLimit(phoneNumber) {
 }
 
 // Nettoyage périodique du rate limiter (toutes les 30 min)
-setInterval(() => {
+const _whisperCleanupId = setInterval(() => {
   const now = Date.now();
   for (const [key, timestamps] of rateLimitMap.entries()) {
     const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
@@ -92,6 +93,7 @@ setInterval(() => {
     }
   }
 }, 30 * 60 * 1000);
+registerInterval('whisperService:rateLimitCleanup', _whisperCleanupId);
 
 // ============================================
 // DOWNLOAD + TRANSCRIPTION

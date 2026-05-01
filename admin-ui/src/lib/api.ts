@@ -164,6 +164,20 @@ class ApiClient {
       throw new Error('Session expirée');
     }
 
+    // Gestion erreur 403 : permissions insuffisantes
+    if (response.status === 403) {
+      const error = await response.json().catch(() => ({ error: 'Accès refusé' }));
+      const errorMsg = error.error || error.message || 'Permissions insuffisantes';
+      throw new Error(errorMsg);
+    }
+
+    // Gestion erreur 429 : rate limit
+    if (response.status === 429) {
+      const error = await response.json().catch(() => ({ error: 'Trop de requêtes' }));
+      const retryAfter = error.retryAfter || 60;
+      throw new Error(error.error || `Trop de requêtes. Réessayez dans ${Math.ceil(retryAfter / 60)} minute(s).`);
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
 
