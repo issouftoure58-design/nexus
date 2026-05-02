@@ -1530,7 +1530,7 @@ export default function Activites() {
       icon={Calendar}
       tabs={tabs}
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={fetchReservations}
             disabled={loading}
@@ -1545,7 +1545,7 @@ export default function Activites() {
             size="sm"
           >
             <CheckCircle className="w-4 h-4 mr-2" />
-            Cloturer periode
+            <span className="hidden sm:inline">Cloturer periode</span>
           </Button>
           {isBusinessType('commerce') ? (
             <Button onClick={() => navigate('/commandes')} size="sm" variant="outline">
@@ -1553,8 +1553,8 @@ export default function Activites() {
             </Button>
           ) : (
             <Button onClick={() => setShowNewModal(true)} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              {isBusinessType('security') ? 'Nouvelle mission' : `Nouvelle ${t('reservation', false).toLowerCase()}`}
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{isBusinessType('security') ? 'Nouvelle mission' : `Nouvelle ${t('reservation', false).toLowerCase()}`}</span>
             </Button>
           )}
         </div>

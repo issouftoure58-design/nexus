@@ -395,7 +395,7 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
             })()}
 
             {/* Tableau des prestations */}
-            <div className="mb-8">
+            <div className="mb-8 overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-blue-600 text-white">

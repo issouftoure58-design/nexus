@@ -689,10 +689,10 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
           </CardHeader>
           <CardContent>
             {/* Sélecteur de type de document + Filtre compte */}
-            <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-              <div className="flex-1 min-w-[200px]">
+            <div className="flex flex-col gap-4 mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Type de document</label>
-                <div className="flex gap-1 bg-white p-1 rounded-lg border">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-white dark:bg-gray-900 p-1 rounded-lg border">
                   {[
                     { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
                     { id: 'balance', label: 'Balance', icon: Scale },
@@ -707,14 +707,15 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                         setCompteFilterApplied('');
                       }}
                       className={cn(
-                        "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5",
+                        "px-3 py-2 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5",
                         docType === doc.id
-                          ? "bg-purple-100 text-purple-700"
-                          : "text-gray-600 hover:bg-gray-100"
+                          ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                          : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                       )}
                     >
                       <doc.icon className="h-3.5 w-3.5" />
-                      {doc.label}
+                      <span className="hidden sm:inline">{doc.label}</span>
+                      <span className="sm:hidden">{doc.label.split(' ')[0]}</span>
                     </button>
                   ))}
                 </div>
@@ -722,9 +723,9 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
 
               {/* Filtre par compte */}
               {(docType === 'grand-livre' || docType === 'balance') && (
-                <div className="flex-1 min-w-[400px]">
+                <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Filtrer par compte</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <select
                       value={compteFilter}
                       onChange={(e) => {
@@ -733,7 +734,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                           setCompteFilterApplied(e.target.value);
                         }
                       }}
-                      className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
+                      className="border rounded-lg px-3 py-2 text-sm w-full sm:min-w-[200px] sm:w-auto"
                     >
                       <option value="">-- Tous les comptes --</option>
                       <optgroup label="Classes">
@@ -809,7 +810,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
               )}
 
               {/* Bouton export */}
-              <div className="flex items-end">
+              <div>
                 <Button
                   variant="outline"
                   className="gap-2"
@@ -836,39 +837,39 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                   <div className="space-y-4 max-h-[600px] overflow-y-auto">
                     {grandLivreData.grand_livre.map((compte) => (
                       <div key={compte.compte_numero} className="border rounded-lg overflow-hidden">
-                        <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                          <div>
-                            <span className="font-mono text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{compte.compte_numero}</span>
-                            <span className="ml-2 font-medium">{compte.compte_libelle}</span>
+                        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-2 py-0.5 rounded">{compte.compte_numero}</span>
+                            <span className="font-medium">{compte.compte_libelle}</span>
                           </div>
-                          <div className="text-sm">
-                            <span className="text-green-600 mr-4">D: {formatCurrency(compte.total_debit)}</span>
-                            <span className="text-red-600 mr-4">C: {formatCurrency(compte.total_credit)}</span>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm mt-1">
+                            <span className="text-green-600">D: {formatCurrency(compte.total_debit)}</span>
+                            <span className="text-red-600">C: {formatCurrency(compte.total_credit)}</span>
                             <span className={compte.solde >= 0 ? "text-blue-600 font-medium" : "text-orange-600 font-medium"}>
                               Solde: {formatCurrency(compte.solde)}
                             </span>
                           </div>
                         </div>
                         {compte.mouvements && compte.mouvements.length > 0 && (
-                          <div className="max-h-48 overflow-y-auto">
-                            <table className="w-full text-sm">
-                              <thead className="bg-gray-100 sticky top-0">
+                          <div className="max-h-48 overflow-x-auto overflow-y-auto">
+                            <table className="w-full text-sm min-w-[500px]">
+                              <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
                                 <tr>
-                                  <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
-                                  <th className="text-left py-2 px-3 font-medium text-gray-600">Jnl</th>
-                                  <th className="text-left py-2 px-3 font-medium text-gray-600">Libellé</th>
-                                  <th className="text-right py-2 px-3 font-medium text-gray-600">Débit</th>
-                                  <th className="text-right py-2 px-3 font-medium text-gray-600">Crédit</th>
+                                  <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Date</th>
+                                  <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Jnl</th>
+                                  <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Libellé</th>
+                                  <th className="text-right py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Débit</th>
+                                  <th className="text-right py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Crédit</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {compte.mouvements.map((e, idx) => (
-                                  <tr key={idx} className="border-t hover:bg-gray-50">
-                                    <td className="py-1.5 px-3">{formatDate(e.date)}</td>
+                                  <tr key={idx} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td className="py-1.5 px-3 whitespace-nowrap">{formatDate(e.date)}</td>
                                     <td className="py-1.5 px-3 text-xs text-gray-500">{e.journal}</td>
                                     <td className="py-1.5 px-3">{e.libelle}</td>
-                                    <td className="py-1.5 px-3 text-right text-green-600">{e.debit > 0 ? formatCurrency(e.debit) : ''}</td>
-                                    <td className="py-1.5 px-3 text-right text-red-600">{e.credit > 0 ? formatCurrency(e.credit) : ''}</td>
+                                    <td className="py-1.5 px-3 text-right text-green-600 whitespace-nowrap">{e.debit > 0 ? formatCurrency(e.debit) : ''}</td>
+                                    <td className="py-1.5 px-3 text-right text-red-600 whitespace-nowrap">{e.credit > 0 ? formatCurrency(e.credit) : ''}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -877,11 +878,11 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                         )}
                       </div>
                     ))}
-                    <div className="bg-purple-50 rounded-lg p-4 flex justify-between items-center sticky bottom-0">
-                      <span className="font-medium text-purple-700">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {grandLivreData.nb_comptes} compte(s)</span>
-                      <div>
-                        <span className="text-green-600 mr-6">Total Débit: {formatCurrency(grandLivreData.totaux?.debit || 0)}</span>
-                        <span className="text-red-600">Total Crédit: {formatCurrency(grandLivreData.totaux?.credit || 0)}</span>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 sticky bottom-0">
+                      <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} — {grandLivreData.nb_comptes} compte(s)</p>
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                        <span className="text-green-600">Débit: {formatCurrency(grandLivreData.totaux?.debit || 0)}</span>
+                        <span className="text-red-600">Crédit: {formatCurrency(grandLivreData.totaux?.credit || 0)}</span>
                       </div>
                     </div>
                   </div>
@@ -905,7 +906,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                   </div>
                 ) : balanceGeneraleData?.balance && balanceGeneraleData.balance.length > 0 ? (
                   <>
-                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
+                    <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-x-auto overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
@@ -1023,7 +1024,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                       </div>
                     ) : ecrituresJournalData?.ecritures && ecrituresJournalData.ecritures.length > 0 ? (
                       <>
-                        <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                        <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-x-auto overflow-y-auto">
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50 sticky top-0">
                               <tr>
@@ -1126,7 +1127,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                       </div>
                     </div>
 
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border rounded-lg overflow-hidden overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-amber-50">
                           <tr>

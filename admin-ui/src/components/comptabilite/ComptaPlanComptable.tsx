@@ -262,7 +262,7 @@ export default function ComptaPlanComptable() {
           const isOpen = openClasses.has(classe);
 
           return (
-            <div key={classe} className="border rounded-lg overflow-hidden">
+            <div key={classe} className="border rounded-lg overflow-hidden overflow-x-auto">
               <button
                 onClick={() => toggleClass(classe)}
                 className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-left"

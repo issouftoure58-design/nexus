@@ -238,7 +238,7 @@ export default function ComptaExpenses({
               <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
               <table className="w-full">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b bg-gray-50/50">

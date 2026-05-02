@@ -1131,7 +1131,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
 
       <div className={cn("space-y-6", !periodeSelectionnee && "opacity-50 pointer-events-none")}>
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center flex-wrap gap-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Landmark className="h-5 w-5 text-purple-500" />
             Rapprochement Bancaire {periodeLabel && `— ${periodeLabel}`}
@@ -1341,7 +1341,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 </div>
               ) : (
-                <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
+                <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                       <tr>
@@ -1517,7 +1517,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                   )}
                 </div>
               ) : (
-                <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
+                <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                       <tr>
@@ -1679,7 +1679,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
             {/* Transactions importées */}
             {bankTransactions.length > 0 && (
               <div className="mt-4 pt-4 border-t">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
                   <span className="text-sm font-medium text-gray-700">
                     {bankTransactions.length} transaction(s) importée(s)
                     {releveBanque && <span className="text-gray-400 ml-2">({releveBanque})</span>}
@@ -1699,7 +1699,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                     </Button>
                   </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto border rounded-lg">
+                <div className="max-h-48 overflow-y-auto overflow-x-auto border rounded-lg">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
@@ -1918,7 +1918,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 (rapport.pointees || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Aucune écriture auto-pointée</p>
                 ) : (
-                  <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                  <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
@@ -1963,7 +1963,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                     {!periodeVerrouillee && (
                       <p className="text-xs text-blue-600 mb-2">Ces écritures seront créées uniquement à la validation. Vous pouvez les modifier ou supprimer.</p>
                     )}
-                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
@@ -2035,7 +2035,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         {matchingCandidates.length === 0 ? (
                           <p className="text-xs text-gray-500 py-2">Aucune écriture compta compatible ({matchingEntry.type}) dans les non matchées</p>
                         ) : (
-                          <div className="max-h-[200px] overflow-y-auto border rounded bg-white">
+                          <div className="max-h-[200px] overflow-y-auto overflow-x-auto border rounded bg-white">
                             <table className="w-full text-xs">
                               <thead className="bg-gray-50 sticky top-0">
                                 <tr>
@@ -2085,7 +2085,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         ? 'Ces transactions non identifiées sont en compte 471 (attente). Reclassifiez-les dans le journal.'
                         : 'Transactions non identifiées → 471 (attente). Vous pouvez changer le compte avant validation (ex: 471 → 401xxx).'}
                     </p>
-                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
@@ -2157,7 +2157,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                         {matchingCandidates.length === 0 ? (
                           <p className="text-xs text-gray-500 py-2">Aucune écriture compta compatible ({matchingEntry.type}) dans les non matchées</p>
                         ) : (
-                          <div className="max-h-[200px] overflow-y-auto border rounded bg-white">
+                          <div className="max-h-[200px] overflow-y-auto overflow-x-auto border rounded bg-white">
                             <table className="w-full text-xs">
                               <thead className="bg-gray-50 sticky top-0">
                                 <tr>
@@ -2203,7 +2203,7 @@ export default function Rapprochement({ embedded }: { embedded?: boolean } = {})
                 ) : (
                   <div>
                     <p className="text-xs font-medium text-gray-600 mb-2">Écritures compta non figurant sur le relevé</p>
-                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>

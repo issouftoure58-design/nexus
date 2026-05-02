@@ -200,6 +200,7 @@ export default function ComptaImport() {
                 <input type="date" value={dateOuverture} onChange={e => setDateOuverture(e.target.value)} className="px-3 py-2 border rounded text-sm" />
               </div>
 
+              <div className="overflow-x-auto">
               <table className="w-full text-sm border rounded-lg overflow-hidden">
                 <thead className="bg-gray-50">
                   <tr>
@@ -234,6 +235,7 @@ export default function ComptaImport() {
                   ))}
                 </tbody>
               </table>
+              </div>
 
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => setSoldes([...soldes, { compte_numero: '', compte_libelle: '', solde: 0 }])}>

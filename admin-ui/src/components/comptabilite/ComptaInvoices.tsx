@@ -262,7 +262,7 @@ export default function ComptaInvoices({
               <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
               <table className="w-full">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b bg-gray-50/50">
@@ -564,6 +564,7 @@ function InvoiceDetailModal({
                 const items = JSON.parse(invoice.service_description);
                 if (Array.isArray(items)) {
                   return (
+                    <div className="overflow-x-auto">
                     <table className="w-full mt-2 text-sm">
                       <thead>
                         <tr className="border-b text-gray-500">
@@ -584,6 +585,7 @@ function InvoiceDetailModal({
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   );
                 }
               } catch { /* not JSON */ }
@@ -591,7 +593,7 @@ function InvoiceDetailModal({
             })()}
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-hidden overflow-x-auto">
             <table className="w-full">
               <tbody>
                 <tr className="border-b">

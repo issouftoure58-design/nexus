@@ -156,6 +156,7 @@ export default function ComptaTVA({
               </CardHeader>
               <CardContent>
                 {tvaData.tva.collectee.detail_par_taux.length > 0 ? (
+                  <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b">
@@ -174,6 +175,7 @@ export default function ComptaTVA({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-400 text-center py-4">Aucune vente ce mois</p>
                 )}
@@ -189,6 +191,7 @@ export default function ComptaTVA({
               </CardHeader>
               <CardContent>
                 {tvaData.tva.deductible.detail_par_taux.length > 0 ? (
+                  <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b">
@@ -207,6 +210,7 @@ export default function ComptaTVA({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-400 text-center py-4">Aucune dépense ce mois</p>
                 )}

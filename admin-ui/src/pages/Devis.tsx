@@ -401,7 +401,7 @@ export default function DevisPage() {
 
       {/* Liste des devis — Desktop */}
       {activeTab === 'devis' && <>
-      <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden">
+      <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

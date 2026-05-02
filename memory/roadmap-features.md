@@ -29,11 +29,14 @@
 - [x] Test parcours complet : `smoke-test-signup.mjs` — 9/9 ALL PASS (email→SMS→signup→dashboard→checkout→cleanup)
 
 ### Semaine 4 (19 — 27 mai) — Polish + Deploy
-- [ ] Smoke test complet (`npm run smoke`)
-- [ ] Performance audit (Lighthouse, bundle size)
-- [ ] Documentation API endpoints nouveaux
-- [ ] Deploy staging + tests prod
-- [ ] Version bump → v3.26.0
+- [x] Smoke test complet (`npm run smoke`) — 35/45 OK (10 = tenant config, pas de code bug)
+- [x] Script `smoke:all` unifie (smoke-test.js + smoke-test-signup.mjs)
+- [x] Performance audit — build admin-ui 2.9 MB, 105 chunks, 0 erreur TS
+- [x] Documentation API endpoints nouveaux — `backend/src/docs/ENDPOINTS.md` (14 endpoints)
+- [x] TS fixes — ModuleGate enterprise, Stock types, OnboardingSuccess import, ForfaitPeriodeDetail scope
+- [x] Deploy staging + push main/develop
+- [x] Version bump → v3.26.0
+- [x] Fix simulateur credits landing — couts alignes backend, presets recalibres (light→Starter, regular→Pro, intensive→Business)
 
 ---
 
