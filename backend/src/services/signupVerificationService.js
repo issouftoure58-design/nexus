@@ -1,18 +1,24 @@
 /**
  * signupVerificationService — Anti-abuse Free tier
  *
- * Fournit deux briques :
+ * Fournit trois briques :
  *   1. validateSiret(siret)  : format Luhn 14 chiffres + (optionnel) appel INSEE
  *   2. SMS verification flow :
  *      - createPhoneVerification(phone, ip)  → envoie SMS avec code 6 chiffres
  *      - verifyPhoneCode(phone, code)        → retourne verified_token
  *      - consumePhoneToken(phone, token)     → invalide le token apres signup
+ *   3. Email verification flow :
+ *      - createEmailVerification(email, ip)  → envoie lien cliquable par email
+ *      - verifyEmailToken(token)             → retourne verified_token
+ *      - consumeEmailToken(email, token)     → invalide le token apres signup
  */
 
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { supabase } from '../config/supabase.js';
 import { sendSMS, formatPhoneE164 } from './smsService.js';
+import { sendEmail } from './emailService.js';
+import { templateEmailVerification } from './emailService.js';
 
 const CODE_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
@@ -340,10 +346,224 @@ export async function consumePhoneToken(phone, token) {
   return { valid: true };
 }
 
+// ════════════════════════════════════════════════════════════════════
+// EMAIL VERIFICATION (lien cliquable, pas de code 6 chiffres)
+// ════════════════════════════════════════════════════════════════════
+
+const EMAIL_TOKEN_TTL_HOURS = 24;
+const EMAIL_RESEND_COOLDOWN_SECONDS = 120;
+const MAX_EMAIL_VERIFICATIONS_PER_IP_PER_HOUR = 3;
+
+/**
+ * Cree une verification email. Envoie un lien cliquable contenant un token 64 hex.
+ * Rate-limite par IP (3/h) et cooldown 120s par email.
+ *
+ * @param {string} email
+ * @param {string} ip - IP du client
+ * @returns {Promise<{success: boolean, error?: string, code?: string, simulated?: boolean}>}
+ */
+export async function createEmailVerification(email, ip = null) {
+  if (!email) {
+    return { success: false, error: 'Email requis' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Rate limit par IP : max 3 verifications/heure
+  if (ip && !process.env.SKIP_RATE_LIMIT) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from('signup_email_verifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip', ip)
+      .gte('created_at', oneHourAgo);
+
+    if ((count || 0) >= MAX_EMAIL_VERIFICATIONS_PER_IP_PER_HOUR) {
+      return {
+        success: false,
+        error: 'Trop de demandes de verification depuis cette adresse. Reessayez dans 1 heure.',
+        code: 'RATE_LIMITED',
+      };
+    }
+  }
+
+  // Cooldown : pas de renvoi avant 120s pour le meme email
+  const cooldownSince = new Date(Date.now() - EMAIL_RESEND_COOLDOWN_SECONDS * 1000).toISOString();
+  const { data: recent } = await supabase
+    .from('signup_email_verifications')
+    .select('id, created_at')
+    .eq('email', normalizedEmail)
+    .gte('created_at', cooldownSince)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recent) {
+    return {
+      success: false,
+      error: `Patientez ${EMAIL_RESEND_COOLDOWN_SECONDS} secondes avant de renvoyer un email.`,
+      code: 'COOLDOWN',
+    };
+  }
+
+  // Genere un token 64 hex (32 bytes)
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + EMAIL_TOKEN_TTL_HOURS * 60 * 60 * 1000).toISOString();
+
+  // Invalide les anciennes verifications non consommees pour cet email
+  await supabase
+    .from('signup_email_verifications')
+    .delete()
+    .eq('email', normalizedEmail)
+    .is('consumed_at', null);
+
+  // Insere la nouvelle verification
+  const { error: insertError } = await supabase
+    .from('signup_email_verifications')
+    .insert({
+      email: normalizedEmail,
+      ip: ip || null,
+      token,
+      expires_at: expiresAt,
+    });
+
+  if (insertError) {
+    console.error('[SignupVerif] Erreur insert email verification:', insertError);
+    return { success: false, error: "Erreur lors de la generation du lien de verification" };
+  }
+
+  // Construire le lien de verification
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+  const verificationUrl = `${frontendUrl}/signup/verify-email?token=${token}`;
+
+  // Envoyer l'email
+  const html = templateEmailVerification(verificationUrl);
+  const result = await sendEmail({
+    to: normalizedEmail,
+    subject: 'NEXUS — Verifiez votre adresse email',
+    html,
+    tags: ['signup-email-verification'],
+  });
+
+  if (!result.success && !result.simulated) {
+    return { success: false, error: result.error || "Erreur d'envoi de l'email" };
+  }
+
+  return { success: true, simulated: !!result.simulated };
+}
+
+/**
+ * Verifie un token email recu via lien cliquable.
+ * Retourne un verified_token a usage unique pour le signup.
+ *
+ * @param {string} token - Le token 64 hex du lien
+ * @returns {Promise<{success: boolean, verified_token?: string, email?: string, error?: string}>}
+ */
+export async function verifyEmailToken(token) {
+  if (!token) {
+    return { success: false, error: 'Token requis' };
+  }
+
+  // Cherche le token non consomme
+  const { data: verif, error } = await supabase
+    .from('signup_email_verifications')
+    .select('*')
+    .eq('token', token)
+    .is('consumed_at', null)
+    .maybeSingle();
+
+  if (error || !verif) {
+    return { success: false, error: 'Lien de verification invalide ou deja utilise' };
+  }
+
+  // Expire ?
+  if (new Date(verif.expires_at) < new Date()) {
+    return { success: false, error: 'Lien expire, demandez-en un nouveau' };
+  }
+
+  // Deja verifie ? Retourner le meme verified_token
+  if (verif.verified_at && verif.verified_token) {
+    return { success: true, verified_token: verif.verified_token, email: verif.email };
+  }
+
+  // Genere un verified_token a usage unique
+  const verifiedToken = crypto.randomBytes(32).toString('hex');
+
+  const { error: updateError } = await supabase
+    .from('signup_email_verifications')
+    .update({
+      verified_at: new Date().toISOString(),
+      verified_token: verifiedToken,
+    })
+    .eq('id', verif.id);
+
+  if (updateError) {
+    console.error('[SignupVerif] Erreur update email verified:', updateError);
+    return { success: false, error: 'Erreur interne' };
+  }
+
+  return { success: true, verified_token: verifiedToken, email: verif.email };
+}
+
+/**
+ * Consomme un verified_token email apres signup reussi.
+ * Verifie qu'il correspond au bon email et n'est pas deja consomme.
+ *
+ * @param {string} email
+ * @param {string} token - verified_token retourne par verifyEmailToken
+ * @returns {Promise<{valid: boolean, error?: string}>}
+ */
+export async function consumeEmailToken(email, token) {
+  if (!email || !token) {
+    return { valid: false, error: 'Token de verification email requis' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data: verif } = await supabase
+    .from('signup_email_verifications')
+    .select('id, email, verified_at, consumed_at')
+    .eq('verified_token', token)
+    .maybeSingle();
+
+  if (!verif) {
+    return { valid: false, error: 'Token de verification email invalide' };
+  }
+
+  if (verif.email !== normalizedEmail) {
+    return { valid: false, error: 'Token ne correspond pas a l\'email fourni' };
+  }
+
+  if (verif.consumed_at) {
+    return { valid: false, error: 'Token deja utilise' };
+  }
+
+  if (!verif.verified_at) {
+    return { valid: false, error: 'Email non verifie' };
+  }
+
+  // Token expire ? On accepte 24h apres verification (meme TTL que le lien)
+  const verifiedAt = new Date(verif.verified_at);
+  if (Date.now() - verifiedAt.getTime() > 24 * 60 * 60 * 1000) {
+    return { valid: false, error: 'Token de verification expire, recommencez' };
+  }
+
+  // Marque consomme
+  await supabase
+    .from('signup_email_verifications')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('id', verif.id);
+
+  return { valid: true };
+}
+
 export default {
   validateSiret,
   isValidSiretLuhn,
   createPhoneVerification,
   verifyPhoneCode,
   consumePhoneToken,
+  createEmailVerification,
+  verifyEmailToken,
+  consumeEmailToken,
 };

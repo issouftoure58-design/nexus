@@ -18,7 +18,8 @@ const CACHE_TTL = 5 * 60 * 1000;
  * @returns {Promise<{messagingServiceSid?: string, phoneNumber?: string}>}
  */
 async function getTenantTwilioConfig(tenantId) {
-  if (!tenantId) return getEnvFallback();
+  // SMS plateforme (signup, verif, alertes) → numéro dédié NEXUS
+  if (!tenantId) return getPlatformConfig();
 
   // Check cache
   const cached = tenantTwilioCache.get(tenantId);
@@ -49,6 +50,19 @@ async function getTenantTwilioConfig(tenantId) {
   return getEnvFallback();
 }
 
+/**
+ * Config pour SMS plateforme (tenantId=null) : numéro dédié NEXUS
+ */
+function getPlatformConfig() {
+  return {
+    messagingServiceSid: null,
+    phoneNumber: process.env.TWILIO_NEXUS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER || null,
+  };
+}
+
+/**
+ * Fallback tenant sans config DB → Messaging Service global
+ */
 function getEnvFallback() {
   return {
     messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID || null,

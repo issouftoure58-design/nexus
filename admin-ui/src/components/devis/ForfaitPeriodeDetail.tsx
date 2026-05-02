@@ -127,7 +127,7 @@ export default function ForfaitPeriodeDetail({ forfaitId, periodeId, onBack }: F
   // Single-cell affectation mutation (mode jour)
   // membre_id=0 → effacer l'affectation
   const cellMutation = useMutation({
-    mutationFn: (body: { mode: 'jour'; membre_id: number; poste_id: number; scope: { date: string } }) =>
+    mutationFn: (body: { mode: 'jour'; membre_id: number; poste_id: number; scope: { date: string; clear_membre_id?: number } }) =>
       api.put(`/admin/forfaits/${forfaitId}/periodes/${periodeId}/affectations`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forfait-periode', forfaitId, periodeId] });

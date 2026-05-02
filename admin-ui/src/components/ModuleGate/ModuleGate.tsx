@@ -50,14 +50,15 @@ interface ModuleGateProps {
 // Prix importés depuis lib/planPricing.ts (source unique frontend)
 import { PLAN_PRICES as PRICES } from '../../lib/planPricing';
 
-const PLAN_INFO: Record<'free' | 'starter' | 'pro' | 'business', { name: string; color: string; price: number }> = {
+const PLAN_INFO: Record<'free' | 'starter' | 'pro' | 'business' | 'enterprise', { name: string; color: string; price: number }> = {
   free: { name: 'Free', color: 'gray', price: PRICES.free },
   starter: { name: 'Starter', color: 'cyan', price: PRICES.starter },
   pro: { name: 'Pro', color: 'blue', price: PRICES.pro },
   business: { name: 'Business', color: 'purple', price: PRICES.business },
+  enterprise: { name: 'Enterprise', color: 'gold', price: PRICES.enterprise ?? 899 },
 };
 
-const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> = {
+const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business' | 'enterprise', string[]> = {
   free: [
     'Dashboard, Clients, Reservations',
     'Facturation (avec watermark)',
@@ -87,6 +88,14 @@ const PLAN_FEATURES: Record<'free' | 'starter' | 'pro' | 'business', string[]> =
     'API + Webhooks + SSO entreprise',
     'Utilisation IA x20',
     'Account Manager dedie, 50 users',
+  ],
+  enterprise: [
+    'Tout Business +',
+    'SENTINEL monitoring avance',
+    'SLA garanti + support dedie 24/7',
+    'Utilisateurs illimites',
+    'IA illimitee',
+    'Deploiement on-premise possible',
   ],
 };
 

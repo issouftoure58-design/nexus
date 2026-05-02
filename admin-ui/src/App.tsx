@@ -163,8 +163,8 @@ interface ModuleRouteProps {
   module?: string;
   moduleTitle?: string;
   moduleDescription?: string;
-  /** Plan minimum requis (free | starter | pro | business) — bloque les Free sur les features IA/avancees */
-  requiredPlan?: 'free' | 'starter' | 'pro' | 'business';
+  /** Plan minimum requis — bloque les Free sur les features IA/avancees */
+  requiredPlan?: 'free' | 'starter' | 'pro' | 'business' | 'enterprise';
 }
 
 function ModuleRoute({ children, module, moduleTitle, moduleDescription, requiredPlan }: ModuleRouteProps) {

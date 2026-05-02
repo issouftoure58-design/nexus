@@ -16,6 +16,9 @@ import {
   createPhoneVerification,
   verifyPhoneCode,
   consumePhoneToken,
+  createEmailVerification,
+  verifyEmailToken,
+  consumeEmailToken,
 } from '../services/signupVerificationService.js';
 
 const router = express.Router();
@@ -453,12 +456,71 @@ router.post('/signup/sms/verify', async (req, res) => {
   res.json({ success: true, verified_token: result.token });
 });
 
+/**
+ * POST /api/admin/auth/signup/email/send
+ * Body : { email }
+ */
+router.post('/signup/email/send', signupLimiter, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email requis' });
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Verifie unicite avant d'envoyer un email
+  const { data: existingUser } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingUser) {
+    return res.status(400).json({
+      error: 'Un compte avec cet email existe deja',
+      code: 'EMAIL_EXISTS',
+    });
+  }
+
+  const ip = req.ip || req.headers['x-forwarded-for'] || null;
+  const result = await createEmailVerification(normalizedEmail, ip);
+
+  if (!result.success) {
+    return res.status(result.code === 'RATE_LIMITED' ? 429 : 400).json({
+      error: result.error,
+      code: result.code,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Email de verification envoye',
+    simulated: result.simulated || false,
+  });
+});
+
+/**
+ * POST /api/admin/auth/signup/email/verify
+ * Body : { token }
+ */
+router.post('/signup/email/verify', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token requis' });
+
+  const result = await verifyEmailToken(token);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  res.json({ success: true, verified_token: result.verified_token, email: result.email });
+});
+
 // POST /api/admin/auth/signup (créer un compte)
 router.post('/signup', signupLimiter, async (req, res) => {
   try {
     const {
       entreprise, nom, email: rawEmail, telephone, password, accept_cgv,
       template_type, profession_id, adresse, siret, sms_verified_token,
+      email_verified_token,
     } = req.body;
 
     // 🔒 SECURITY: Always force plan to 'free' — never trust client-supplied plan.
@@ -508,6 +570,22 @@ router.post('/signup', signupLimiter, async (req, res) => {
       return res.status(400).json({
         error: tokenCheck.error,
         code: 'SMS_TOKEN_INVALID',
+      });
+    }
+
+    // 🔒 Anti-abuse: verification email obligatoire
+    if (!email_verified_token) {
+      return res.status(400).json({
+        error: 'Verification email requise. Demandez un lien via /api/admin/auth/signup/email/send.',
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      });
+    }
+
+    const emailTokenCheck = await consumeEmailToken(email, email_verified_token);
+    if (!emailTokenCheck.valid) {
+      return res.status(400).json({
+        error: emailTokenCheck.error,
+        code: 'EMAIL_TOKEN_INVALID',
       });
     }
 

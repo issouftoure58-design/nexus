@@ -1,11 +1,11 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-03-16 UTC
+> Derniere mise a jour: 2026-05-02 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
-**Version: 3.24.0**
+**Version: 3.26.0**
 **Phase en cours: Commercialisation — 6 types de business**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
@@ -370,6 +370,36 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 - [x] DELETE /marketing/campagnes/:id → suppression OK
 - [x] GET /marketing/email-templates → liste templates
 - [x] GET /marketing/analytics/overview → dashboard analytics
+
+---
+
+## v3.26.0 — Polish + Deploy (2 mai 2026)
+
+### Sessions 39-54 Highlights
+- **Email Verification** : signup flow avec verification email + SMS (migration 134)
+- **Credits IA overage** : usage-based billing, alertes 80%/100%, toggle overage (migration 129)
+- **Stripe Price IDs** : 4 produits (Starter 69€, Pro 199€, Business 499€, Enterprise 899€) + 3 top-ups
+- **State machine reservations** : transitions validees, atomic lock forfaits, facture-first cloture (migration 133)
+- **DSN Validation** : validation fichiers DSN avec dsnval (session 46)
+- **Social Media IA** : generate-post, generate-ideas, generate-image (session 39)
+- **Multi-service voix** : tool creer_reservation avec services[] array
+- **Annulations unifiees** : 1 fonction pour tous canaux (admin, chat, tel, WA, API)
+- **Majorations auto** : detection nuit/dimanche/ferie pour security (migration 127)
+- **Dates par ligne** : date_debut/date_fin sur lignes reservation/devis (migration 127)
+
+### Polish v3.26.0
+- **Smoke test unifie** : `npm run smoke:all` chaine smoke-test.js + smoke-test-signup.mjs
+- **TS fixes** : ModuleGate enterprise plan, Stock types, OnboardingSuccess import, unused vars
+- **Build admin-ui** : 2.9 MB, 105 chunks, build propre 0 erreur TS
+- **ENDPOINTS.md** : documentation 14 endpoints sessions 39-54 (auth, body, response, errors)
+
+### Migrations appliquees (sessions 39-54)
+- 127 — lignes_dates_range (dates par ligne)
+- 129 — overage_credits
+- 133 — audit_fixes (unique index + 2 RPC PostgreSQL)
+- 134 — email_verification
+
+**Version:** 3.26.0
 
 ---
 

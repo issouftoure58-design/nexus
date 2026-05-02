@@ -194,7 +194,7 @@ export default function Subscription() {
   }, [queryClient]);
 
   // Charger le statut d'abonnement
-  const { data: subscriptionData, isError: isSubError } = useQuery<SubscriptionData>({
+  const { data: subscriptionData } = useQuery<SubscriptionData>({
     queryKey: ['subscription'],
     queryFn: () => api.get<SubscriptionData>('/billing/subscription'),
   });
@@ -228,7 +228,7 @@ export default function Subscription() {
 
   // Mutation pour creer une Checkout Session (premiere souscription : Free → Starter/Pro/Business)
   const checkoutMutation = useMutation({
-    mutationFn: (planId: 'starter' | 'pro' | 'business' | 'enterprise') => {
+    mutationFn: (planId: 'starter' | 'pro' | 'business') => {
       const productCode = `nexus_${planId}_${billingCycle === 'yearly' ? 'yearly' : 'monthly'}`;
       return api.post<{ url: string }>('/billing/checkout', {
         priceId: productCode,
@@ -274,11 +274,11 @@ export default function Subscription() {
     }
     if (subscriptionData?.has_subscription) {
       // Deja un abo payant → change-plan direct (pas besoin du portal)
-      changePlanMutation.mutate(planId as 'starter' | 'pro' | 'business' | 'enterprise');
+      changePlanMutation.mutate(planId as 'starter' | 'pro' | 'business');
       return;
     }
     // Sinon checkout direct (premier abo)
-    checkoutMutation.mutate(planId as 'starter' | 'pro' | 'business' | 'enterprise');
+    checkoutMutation.mutate(planId as 'starter' | 'pro' | 'business');
   };
 
   // Mutation pour supprimer une carte
@@ -333,7 +333,6 @@ export default function Subscription() {
   }
 
   // Pas d'erreur si pas de subscription Stripe active (Free, ou plan sans abo)
-  const isFree = currentPlan === 'free';
   const hasStripeSubscription = !!subscriptionData?.has_subscription;
   const hasQueryError = hasStripeSubscription && (isPmError || isInvError);
 

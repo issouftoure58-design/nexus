@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 
 export default function OnboardingSuccess() {
   const [searchParams] = useSearchParams();

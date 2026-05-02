@@ -107,6 +107,7 @@ const IGNORE_FILES = [
   'employeeAuth.js',    // employee auth avant tenant connu (même pattern)
   'adminInvitations.js', // accept/verify publics (token unique, pas de tenant context)
   'signup.js',          // création de tenant
+  'signupVerificationService.js', // email/SMS verification pre-signup (pas de tenant context)
   'provisioning.js',    // provisioning système
   'nexusAdmin.js',      // super-admin cross-tenant (requireSuperAdmin)
   'nexusAuth.js',       // super-admin auth (cross-tenant, no tenant_id needed)

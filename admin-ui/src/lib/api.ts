@@ -1616,11 +1616,11 @@ export interface Product {
   fournisseur: string | null;
   emplacement: string | null;
   actif: boolean;
-  // Aliases for backward compat
-  quantite?: number;
-  seuil_alerte?: number;
-  prix_achat?: number;
-  prix_vente?: number;
+  // Aliases populated by backend
+  quantite: number;
+  seuil_alerte: number;
+  prix_achat: number;
+  prix_vente: number;
 }
 
 export interface CreateProductData {

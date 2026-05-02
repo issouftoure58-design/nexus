@@ -533,7 +533,7 @@ export function Home() {
   const canSeeCompta = hasPlan('business');
 
   // Fetch KPI overview
-  const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
+  const { data: overview } = useQuery<AnalyticsOverview>({
     queryKey: ['analytics-overview'],
     queryFn: () => analyticsApi.getOverview(),
     refetchInterval: 120000,
