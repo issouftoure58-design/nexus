@@ -309,26 +309,26 @@ export default function SEODashboard() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="p-3 sm:p-4 overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg shrink-0">
               <Search className="w-5 h-5 text-blue-600" />
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Mots-cles suivis</div>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm text-gray-500 truncate">Mots-clés suivis</div>
               <div className="text-2xl font-bold">{stats?.totalKeywords || 0}</div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
+        <Card className="p-3 sm:p-4 overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 bg-green-100 rounded-lg shrink-0">
               <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Top 10 Google</div>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm text-gray-500 truncate">Top 10 Google</div>
               <div className="text-2xl font-bold text-green-600">
                 {stats?.keywordsTop10 || 0}
               </div>
@@ -336,13 +336,13 @@ export default function SEODashboard() {
           </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
+        <Card className="p-3 sm:p-4 overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg shrink-0">
               <FileText className="w-5 h-5 text-purple-600" />
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Articles publies</div>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm text-gray-500 truncate">Articles publiés</div>
               <div className="text-2xl font-bold text-purple-600">
                 {stats?.articlesPublies || 0}
               </div>
@@ -350,13 +350,13 @@ export default function SEODashboard() {
           </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
+        <Card className="p-3 sm:p-4 overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 bg-orange-100 rounded-lg shrink-0">
               <Lightbulb className="w-5 h-5 text-orange-600" />
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Recommandations</div>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm text-gray-500 truncate">Recommandations</div>
               <div className="text-2xl font-bold text-orange-600">
                 {stats?.recommendationsPending || 0}
               </div>

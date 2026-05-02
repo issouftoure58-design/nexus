@@ -1057,9 +1057,9 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                             </tbody>
                           </table>
                         </div>
-                        <div className="bg-gray-100 rounded-lg p-3 flex justify-between items-center">
-                          <span className="font-medium text-gray-700">Totaux Journal {selectedJournal}</span>
-                          <div className="font-medium flex items-center gap-4">
+                        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">Totaux Journal {selectedJournal}</span>
+                          <div className="font-medium flex flex-wrap items-center gap-3">
                             <span className="text-green-700">Débit: {formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}</span>
                             <span className="text-red-700">Crédit: {formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}</span>
                             {selectedJournal === 'BQ' && ecrituresJournalData.totaux?.solde_banque !== undefined && (

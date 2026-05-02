@@ -168,7 +168,7 @@ export default function Agenda() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Agenda</h1>
-          <p className="text-gray-600 dark:text-gray-400">Gérez vos rendez-vous business</p>
+          <p className="text-gray-600 dark:text-gray-400">Gérez vos réservations</p>
         </div>
         <Button onClick={() => handleAddEvent()}>
           <Plus className="w-4 h-4 mr-2" />
@@ -444,7 +444,7 @@ function EventModal({
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold">
-            {event ? 'Modifier' : 'Nouveau'} rendez-vous
+            {event ? 'Modifier la' : 'Nouvelle'} réservation
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
             <X className="w-5 h-5" />
