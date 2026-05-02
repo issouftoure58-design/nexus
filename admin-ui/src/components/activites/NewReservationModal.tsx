@@ -1101,6 +1101,18 @@ export default function NewReservationModal({
             </div>
           </div>
 
+          {/* Numero commande */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">N° commande / bon de commande</label>
+            <input
+              type="text"
+              value={newRdvForm.numero_commande}
+              onChange={(e) => onNewRdvFormChange({ ...newRdvForm, numero_commande: e.target.value })}
+              placeholder="PO-2026-001..."
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
+
           {/* Notes */}
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Notes</label>

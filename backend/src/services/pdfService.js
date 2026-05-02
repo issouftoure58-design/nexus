@@ -621,6 +621,9 @@ export async function generateInvoicePDF(tenantId, factureId) {
         doc.text(`Facture N: ${facture.numero}`);
         doc.text(`Date: ${formatDate(facture.date_facture)}`);
         doc.text(`Echeance: ${formatDate(facture.date_echeance)}`);
+        if (facture.numero_commande) {
+          doc.text(`Bon de commande : ${facture.numero_commande}`);
+        }
         doc.moveDown();
 
         // Client section

@@ -60,6 +60,8 @@ interface InsufficientCreditsModalProps {
   onClose: () => void;
   action?: CreditAction;
   required?: number;
+  /** 'INSUFFICIENT_CREDITS' (default) or 'OVERAGE_LIMIT_REACHED' */
+  errorCode?: 'INSUFFICIENT_CREDITS' | 'OVERAGE_LIMIT_REACHED';
 }
 
 export function InsufficientCreditsModal({
@@ -67,8 +69,9 @@ export function InsufficientCreditsModal({
   onClose,
   action,
   required = 0,
+  errorCode = 'INSUFFICIENT_CREDITS',
 }: InsufficientCreditsModalProps) {
-  const { balance, purchasePack, isPurchasing } = useCredits();
+  const { balance, purchasePack, isPurchasing, overageEnabled, updateOverage, isUpdatingOverage } = useCredits();
 
   const { data: packsData } = useQuery<{ packs: CreditPack[] }>({
     queryKey: ['credits-packs'],
@@ -175,6 +178,62 @@ export function InsufficientCreditsModal({
               <p className="text-sm text-gray-500">Chargement du pack...</p>
             )}
           </div>
+
+          {/* Overage suggestion */}
+          {errorCode === 'INSUFFICIENT_CREDITS' && !overageEnabled && (
+            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Ne plus etre bloque : activez l'utilisation supplementaire
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    L'IA continue automatiquement au-dela de votre forfait. Vous definissez un plafond mensuel en euros et ne payez que ce que vous consommez.
+                  </p>
+                  <button
+                    onClick={() => {
+                      updateOverage({ enabled: true, limit_eur: 25 });
+                      onClose();
+                    }}
+                    disabled={isUpdatingOverage}
+                    className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Activer (plafond 25€/mois)
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Overage limit reached */}
+          {errorCode === 'OVERAGE_LIMIT_REACHED' && (
+            <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Votre plafond d'utilisation supplementaire est atteint
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Augmentez votre limite mensuelle pour continuer a utiliser l'IA, ou attendez le renouvellement en debut de mois.
+                  </p>
+                  <button
+                    onClick={() => {
+                      updateOverage({ enabled: true, limit_eur: (balance?.overage_limit_eur || 25) * 2 });
+                      onClose();
+                    }}
+                    disabled={isUpdatingOverage}
+                    className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Augmenter ma limite
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bandeau Business upsell */}
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">

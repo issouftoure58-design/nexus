@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, Devis, DevisCreateData } from '@/lib/api';
 import { X, MapPin, FileText, Calendar, Clock, User } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
+import { splitHoursSegments } from '@/lib/majorations';
 import type {
   Client,
   Service,
@@ -56,6 +57,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     taux_tva: devis?.taux_tva || 20,
     validite_jours: devis?.validite_jours || 30,
     notes: devis?.notes || '',
+    numero_commande: (devis as any)?.numero_commande || '',
     remise_type: 'aucune' as 'aucune' | 'pourcentage' | 'montant',
     remise_valeur: 0,
     remise_motif: '',
@@ -84,6 +86,45 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     }
   }, [templatePreFill, devis]);
 
+  // Charger les lignes existantes en mode édition
+  useEffect(() => {
+    if (!devis?.id) return;
+    api.get<{ devis: Devis; lignes?: Array<{ id: number; service_id: number; service_nom: string; quantite: number; prix_unitaire: number; prix_total: number; duree_minutes: number; date_debut?: string; date_fin?: string; heure_debut?: string; heure_fin?: string; taux_horaire?: number; membre_id?: number }> }>(`/admin/devis/${devis.id}`)
+      .then(res => {
+        const lg = res.lignes || [];
+        if (lg.length > 0) {
+          setServiceLignes(lg.map(l => ({
+            service_id: l.service_id,
+            service_nom: l.service_nom,
+            quantite: l.quantite,
+            prix_unitaire: l.prix_unitaire / 100, // centimes → euros (DevisFormModal travaille en euros)
+            duree_minutes: l.duree_minutes || 0,
+            date_debut: l.date_debut,
+            date_fin: l.date_fin,
+            heure_debut: l.heure_debut?.slice(0, 5),
+            heure_fin: l.heure_fin?.slice(0, 5),
+            taux_horaire: l.taux_horaire ? l.taux_horaire * 100 : undefined, // euros → centimes (formule interne)
+            affectations: Array.from({ length: l.quantite }, (_, idx) => ({
+              index: idx,
+              membre_id: idx === 0 ? l.membre_id : undefined,
+              heure_debut: l.heure_debut?.slice(0, 5),
+              heure_fin: l.heure_fin?.slice(0, 5)
+            }))
+          })));
+          // Dates mission = min/max des dates des lignes
+          const dates = lg.filter(l => l.date_debut).map(l => l.date_debut!).sort();
+          const datesFin = lg.filter(l => l.date_fin).map(l => l.date_fin!).sort();
+          if (dates.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              date_prestation: prev.date_prestation || dates[0],
+              date_fin_prestation: prev.date_fin_prestation || datesFin[datesFin.length - 1] || dates[dates.length - 1]
+            }));
+          }
+        }
+      });
+  }, [devis?.id]);
+
   // Fetch clients
   const { data: clientsData } = useQuery<{ data: Client[] }>({
     queryKey: ['clients-search', clientSearch],
@@ -103,11 +144,11 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     },
   });
 
-  // Fetch membres equipe pour assignation
+  // Fetch membres équipe pour assignation (via /services/equipe, accessible à tous les plans)
   const { data: membresData } = useQuery<Array<{ id: number; nom: string; prenom: string; role: string }>>({
     queryKey: ['membres-equipe'],
     queryFn: async () => {
-      const raw = await api.get<any>('/admin/rh/membres');
+      const raw = await api.get<any>('/admin/services/equipe');
       return Array.isArray(raw) ? raw : raw.data || [];
     },
   });
@@ -257,28 +298,48 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
 
     if (pricingMode === 'hourly') {
       // Mode horaire: calculer a partir des affectations (heures par agent)
+      // Dates globales de mission (fallback si pas de dates par ligne)
       nbJours = formData.date_fin_prestation && formData.date_prestation
         ? calculateDays(formData.date_prestation, formData.date_fin_prestation)
         : 1;
 
       sousTotal = serviceLignes.reduce((sum, l) => {
-        const tauxHoraire = l.taux_horaire || l.prix_unitaire * 100; // Convertir si necessaire
+        const tauxHoraire = l.taux_horaire || l.prix_unitaire * 100; // en centimes
 
-        // Calculer pour chaque affectation qui a des heures definies
-        let serviceMontant = 0;
+        // Dates par ligne (prioritaire) ou dates globales
+        const ligneDebut = l.date_debut || formData.date_prestation;
+        const ligneFin = l.date_fin || formData.date_fin_prestation || ligneDebut;
+
+        let serviceMontantCentimes = 0; // accumuler en centimes pour precision arrondi
         l.affectations.forEach(aff => {
           if (aff.heure_debut && aff.heure_fin) {
-            const heuresAgent = calculateHours(aff.heure_debut, aff.heure_fin);
-            serviceMontant += Math.round((tauxHoraire / 100) * heuresAgent * nbJours);
-            totalHeuresAffectations += heuresAgent;
+            // Si dates disponibles, calculer jour par jour avec majorations
+            if (ligneDebut && ligneFin) {
+              const d = new Date(ligneDebut + 'T12:00:00');
+              const dFin = new Date(ligneFin + 'T12:00:00');
+              while (d <= dFin) {
+                const dateStr = d.toISOString().slice(0, 10);
+                const segs = splitHoursSegments(dateStr, aff.heure_debut, aff.heure_fin);
+                for (const seg of segs) {
+                  serviceMontantCentimes += Math.round(seg.hours * tauxHoraire * (1 + seg.pourcentage / 100));
+                  totalHeuresAffectations += seg.hours;
+                }
+                d.setDate(d.getDate() + 1);
+              }
+            } else {
+              // Pas de dates : simple calcul heures × jours globaux
+              const heuresAgent = calculateHours(aff.heure_debut, aff.heure_fin);
+              serviceMontantCentimes += Math.round(tauxHoraire * heuresAgent * nbJours);
+              totalHeuresAffectations += heuresAgent;
+            }
             nbAgentsEffectif++;
           }
         });
 
-        return sum + serviceMontant;
+        return sum + serviceMontantCentimes / 100; // centimes → euros
       }, 0);
 
-      dureeTotale = Math.round(totalHeuresAffectations * 60 * nbJours);
+      dureeTotale = Math.round(totalHeuresAffectations * 60);
     } else {
       // Mode fixe: prix x quantite
       sousTotal = serviceLignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
@@ -302,18 +363,33 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
     serviceLignes.forEach(sl => {
       const service = services.find(s => s.id === sl.service_id);
       if (service?.taxe_cnaps && (service.taux_cnaps ?? 0) > 0) {
-        let ligneHT = 0;
+        let ligneHTCentimes = 0; // centimes pour precision arrondi
         if (pricingMode === 'hourly') {
           const tauxH = sl.taux_horaire || sl.prix_unitaire * 100;
+          const ligneDebut = sl.date_debut || formData.date_prestation;
+          const ligneFin = sl.date_fin || formData.date_fin_prestation || ligneDebut;
           sl.affectations.forEach(aff => {
             if (aff.heure_debut && aff.heure_fin) {
-              ligneHT += Math.round((tauxH / 100) * calculateHours(aff.heure_debut, aff.heure_fin) * nbJours);
+              if (ligneDebut && ligneFin) {
+                const d = new Date(ligneDebut + 'T12:00:00');
+                const dFin = new Date(ligneFin + 'T12:00:00');
+                while (d <= dFin) {
+                  const dateStr = d.toISOString().slice(0, 10);
+                  const segs = splitHoursSegments(dateStr, aff.heure_debut, aff.heure_fin);
+                  for (const seg of segs) {
+                    ligneHTCentimes += Math.round(seg.hours * tauxH * (1 + seg.pourcentage / 100));
+                  }
+                  d.setDate(d.getDate() + 1);
+                }
+              } else {
+                ligneHTCentimes += Math.round(tauxH * calculateHours(aff.heure_debut, aff.heure_fin) * nbJours);
+              }
             }
           });
         } else {
-          ligneHT = sl.prix_unitaire * sl.quantite;
+          ligneHTCentimes = sl.prix_unitaire * sl.quantite * 100;
         }
-        montantCnaps += ligneHT * (service.taux_cnaps ?? 0) / 100;
+        montantCnaps += (ligneHTCentimes / 100) * (service.taux_cnaps ?? 0) / 100;
       }
     });
     montantCnaps = Math.round(montantCnaps * 100) / 100;
@@ -398,6 +474,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
       taux_tva: formData.taux_tva,
       validite_jours: formData.validite_jours,
       notes: formData.notes,
+      numero_commande: formData.numero_commande || undefined,
       lignes: lignes,
       date_prestation: formData.date_prestation || undefined,
       date_fin_prestation: formData.date_fin_prestation || undefined,
@@ -442,7 +519,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Section Client */}
           <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h3 className="font-semibold text-gray-700">Client</h3>
+            <h3 className="font-semibold text-gray-700">Contact</h3>
 
             {/* Mode selection */}
             <div className="flex gap-4">
@@ -453,7 +530,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                   onChange={() => setClientMode('existant')}
                   className="text-blue-600"
                 />
-                <span>Client existant</span>
+                <span>Contact existant</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -462,7 +539,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                   onChange={() => setClientMode('nouveau')}
                   className="text-blue-600"
                 />
-                <span>Nouveau client</span>
+                <span>Nouveau contact</span>
               </label>
             </div>
 
@@ -477,7 +554,7 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
                     setSelectedClient(null);
                   }}
                   onFocus={() => setShowClientDropdown(true)}
-                  placeholder="Rechercher un client..."
+                  placeholder="Rechercher un contact..."
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
                 {showClientDropdown && (clientsData?.data?.length ?? 0) > 0 && (
@@ -1007,7 +1084,17 @@ export default function DevisFormModal({ devis, templatePreFill, onClose, onSubm
             )}
           </div>
 
-          {/* Notes */}
+          {/* Numero commande + Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">N° commande / bon de commande</label>
+            <input
+              type="text"
+              value={formData.numero_commande}
+              onChange={(e) => setFormData({ ...formData, numero_commande: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="PO-2026-001..."
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea

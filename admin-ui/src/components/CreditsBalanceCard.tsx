@@ -10,11 +10,14 @@
  * En interne on compte en credits, mais tout est converti en % pour l'affichage.
  */
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Sparkles, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag } from 'lucide-react';
+import { Sparkles, Calendar, RefreshCw, AlertCircle, Crown, ShoppingBag, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTenant } from '@/hooks/useTenant';
+
+const OVERAGE_PRESETS = [10, 25, 50, 100];
 
 interface CreditsBalance {
   balance: number;
@@ -26,6 +29,9 @@ interface CreditsBalance {
   auto_recharge_enabled: boolean;
   auto_recharge_threshold: number | null;
   auto_recharge_pack: string | null;
+  overage_enabled: boolean;
+  overage_limit_eur: number;
+  overage_used_eur: number;
 }
 
 interface UsageTopup {
@@ -65,6 +71,7 @@ const PLAN_DISPLAY: Record<string, string> = {
 export function CreditsBalanceCard({ showPacks = true, compact = false }: CreditsBalanceCardProps) {
   const queryClient = useQueryClient();
   const { plan: currentPlan } = useTenant();
+  const [customLimit, setCustomLimit] = useState<string>('');
 
   const { data: balance, isLoading, isError } = useQuery<CreditsBalance>({
     queryKey: ['credits-balance'],
@@ -88,6 +95,14 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
       }),
     onSuccess: (data) => {
       if (data.url) window.location.href = data.url;
+    },
+  });
+
+  const overageMutation = useMutation({
+    mutationFn: (params: { enabled: boolean; limit_eur: number }) =>
+      api.patch('/billing/credits/overage', params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credits-balance'] });
     },
   });
 
@@ -241,6 +256,133 @@ export function CreditsBalanceCard({ showPacks = true, compact = false }: Credit
           )}
         </div>
       </div>
+
+      {/* Overage — Utilisation supplementaire automatique */}
+      {showPacks && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  Utilisation supplementaire automatique
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  L'IA continue automatiquement au-dela de votre forfait, avec un plafond que vous definissez
+                </p>
+              </div>
+              <button
+                onClick={() => overageMutation.mutate({
+                  enabled: !balance.overage_enabled,
+                  limit_eur: !balance.overage_enabled ? (balance.overage_limit_eur || 25) : 0,
+                })}
+                disabled={overageMutation.isPending}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  balance.overage_enabled ? 'bg-amber-500' : 'bg-gray-300',
+                  overageMutation.isPending && 'opacity-50'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    balance.overage_enabled ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+
+          {balance.overage_enabled && (
+            <div className="p-6 space-y-4">
+              {/* Limite mensuelle — presets */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Plafond mensuel
+                </label>
+                <div className="flex gap-2">
+                  {OVERAGE_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => overageMutation.mutate({ enabled: true, limit_eur: preset })}
+                      disabled={overageMutation.isPending}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all',
+                        balance.overage_limit_eur === preset
+                          ? 'border-amber-500 bg-amber-50 text-amber-700'
+                          : 'border-gray-200 text-gray-600 hover:border-amber-300 hover:bg-amber-50'
+                      )}
+                    >
+                      {preset}€
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      placeholder="Autre"
+                      value={customLimit}
+                      onChange={(e) => setCustomLimit(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = parseFloat(customLimit);
+                          if (val > 0 && val <= 10000) {
+                            overageMutation.mutate({ enabled: true, limit_eur: val });
+                            setCustomLimit('');
+                          }
+                        }
+                      }}
+                      className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none"
+                    />
+                    <span className="text-sm text-gray-400">€</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Barre de progression overage EUR */}
+              {balance.overage_used_eur > 0 && (
+                <div>
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <span className="text-sm font-medium text-gray-700">Consommation supplementaire</span>
+                    <span className="text-sm text-gray-500">
+                      {balance.overage_used_eur.toFixed(2)}€ / {balance.overage_limit_eur.toFixed(2)}€
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5">
+                    <div
+                      className={cn(
+                        'h-2.5 rounded-full transition-all',
+                        (balance.overage_used_eur / balance.overage_limit_eur) >= 0.8
+                          ? 'bg-orange-500'
+                          : 'bg-amber-400'
+                      )}
+                      style={{ width: `${Math.min(100, (balance.overage_used_eur / balance.overage_limit_eur) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Reinitialise a chaque debut de mois
+                  </p>
+                </div>
+              )}
+
+              {balance.overage_used_eur === 0 && (
+                <p className="text-sm text-gray-400">
+                  Aucune consommation supplementaire ce mois-ci. Vous ne payez que si votre forfait est depasse.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!balance.overage_enabled && (
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-500">
+                Quand votre forfait mensuel est epuise, l'IA s'arrete. Activez l'utilisation supplementaire pour que l'IA continue automatiquement.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Utilisation supplementaire — 3 montants preset en € (modele Claude) */}
       {showPacks && packsData?.packs && packsData.packs.length > 0 && (

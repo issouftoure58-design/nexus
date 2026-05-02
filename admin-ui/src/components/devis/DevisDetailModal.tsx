@@ -22,10 +22,11 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
   // Fetch devis details
   const { data, isLoading, error } = useQuery({
     queryKey: ['devis-detail', devisId],
-    queryFn: () => api.get<{ devis: Devis; historique: Array<{ id: number; action: string; notes: string; created_at: string; changed_by: string }> }>(`/admin/devis/${devisId}`),
+    queryFn: () => api.get<{ devis: Devis; lignes?: Array<{ id: number; service_nom: string; quantite: number; duree_minutes: number; prix_unitaire: number; prix_total: number; date_debut?: string; date_fin?: string; heure_debut?: string; heure_fin?: string; taux_horaire?: number }>; historique: Array<{ id: number; action: string; notes: string; created_at: string; changed_by: string }> }>(`/admin/devis/${devisId}`),
   });
 
   const devis: Devis | null = data?.devis || null;
+  const lignes = data?.lignes || [];
   const historique = data?.historique || [];
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -33,40 +34,153 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
   };
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
+    if (!devis) return;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    // Calculer totaux pour impression
+    const sousTotalLignes = lignes.length > 0 ? lignes.reduce((s, l) => s + (l.prix_total || 0), 0) : (devis.montant_ht || 0);
+    const cnaps = (devis.montant_ht || 0) - sousTotalLignes;
+    const hasCnaps = cnaps > 0;
+
+    // Formater montant pour impression (centimes → euros)
+    const fmt = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v / 100);
+
+    // Contact personne (pour pro: nom du contact sous la raison sociale)
+    const client = devis.clients;
+    const isPro = client && (client.type_client === 'professionnel' || !!client.raison_sociale);
+    const contactPersonne = isPro && client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : '';
+
+    // Lignes du tableau
+    const lignesHTML = lignes.length > 0 ? lignes.map(l => `
+      <tr>
+        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${l.service_nom}</div>
+          <div style="font-size: 11px; color: #64748b;">
+            ${l.date_debut && l.date_fin ? `Du ${l.date_debut} au ${l.date_fin}` : ''}
+            ${l.heure_debut && l.heure_fin ? `&nbsp;&nbsp;${l.heure_debut.slice(0,5)} - ${l.heure_fin.slice(0,5)}` : ''}
+            ${l.taux_horaire ? `&nbsp;&nbsp;${l.taux_horaire} €/h` : ''}
+            ${l.quantite > 1 ? `&nbsp;&nbsp;x${l.quantite}` : ''}
+          </div>
+        </td>
+        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #475569;">
+          ${l.duree_minutes ? `${l.duree_minutes} min` : '-'}
+        </td>
+        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600;">
+          ${fmt(l.prix_total)}
+        </td>
+      </tr>
+    `).join('') : `
+      <tr>
+        <td style="padding: 14px 12px;">${devis.service_nom || 'Prestation'}</td>
+        <td style="padding: 14px 12px; text-align: right;">${devis.duree_minutes ? `${devis.duree_minutes} min` : '-'}</td>
+        <td style="padding: 14px 12px; text-align: right; font-weight: 600;">${fmt(devis.montant_ht)}</td>
+      </tr>
+    `;
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Devis ${devis?.numero}</title>
+        <title>Devis ${devis.numero}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-          .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #2563eb; padding-bottom: 20px; }
-          .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
-          .devis-number { font-size: 28px; color: #2563eb; margin-bottom: 10px; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
-          .info-box { background: #f8fafc; padding: 20px; border-radius: 8px; }
-          .info-box h3 { font-size: 12px; text-transform: uppercase; color: #64748b; margin-bottom: 10px; }
-          .info-box p { margin: 5px 0; }
-          table { width: 100%; border-collapse: collapse; margin: 30px 0; }
-          th { background: #2563eb; color: white; padding: 12px; text-align: left; }
-          td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
-          .totals { margin-left: auto; width: 300px; }
-          .totals .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-          .totals .row.total { font-size: 18px; font-weight: bold; color: #2563eb; border-top: 2px solid #2563eb; border-bottom: none; padding-top: 15px; }
-          .validity { background: #fef3c7; padding: 15px; border-radius: 8px; margin: 30px 0; text-align: center; }
-          .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; }
-          @media print { body { padding: 20px; } }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px 50px; color: #1e293b; font-size: 13px; }
+          @media print { body { padding: 20px 30px; } }
         </style>
       </head>
       <body>
-        ${printContent.innerHTML}
+        <!-- En-tete -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 3px solid #2563eb; margin-bottom: 30px;">
+          <div>
+            <div style="font-size: 32px; font-weight: 800; color: #2563eb; letter-spacing: -0.5px;">DEVIS</div>
+            <div style="font-size: 15px; color: #64748b; margin-top: 4px;">N\u00B0 ${devis.numero}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Date d'émission</div>
+            <div style="font-weight: 600; margin-bottom: 8px;">${formatDateLong(devis.date_devis)}</div>
+            <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Valide jusqu'au</div>
+            <div style="font-weight: 600;">${devis.date_expiration ? formatDateLong(devis.date_expiration) : '-'}</div>
+          </div>
+        </div>
+
+        <!-- Prestation (gauche: lieu + tel + email) + Contact (droite: societe + personne + adresse) -->
+        <div style="display: flex; gap: 24px; margin-bottom: 30px;">
+          <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 20px;">
+            <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 12px;">📋 Prestation</div>
+            ${devis.lieu ? `<div style="font-size: 13px; margin-bottom: 6px;"><strong>Lieu :</strong> ${devis.lieu === 'domicile' ? 'À domicile' : devis.lieu === 'salon' ? 'En salon' : devis.lieu}</div>` : ''}
+            ${devis.client_telephone ? `<div style="font-size: 12px; color: #475569; margin-bottom: 4px;">📞 ${devis.client_telephone}</div>` : ''}
+            ${devis.client_email ? `<div style="font-size: 12px; color: #475569; margin-bottom: 4px;">✉️ ${devis.client_email}</div>` : ''}
+            ${devis.duree_minutes ? `<div style="font-size: 12px; color: #475569;">🕐 Durée totale : ${Math.floor(devis.duree_minutes / 60)}h${devis.duree_minutes % 60 > 0 ? ` ${devis.duree_minutes % 60}min` : ''}</div>` : ''}
+          </div>
+          <div style="flex: 1; background: #f8fafc; border-radius: 8px; padding: 20px;">
+            <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 12px;">👤 Contact</div>
+            <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">${devis.client_nom || '-'}</div>
+            ${contactPersonne ? `<div style="font-size: 13px; color: #64748b; margin-bottom: 8px;">${contactPersonne}</div>` : ''}
+            ${devis.client_adresse ? `<div style="font-size: 12px; color: #475569;">📍 ${devis.client_adresse}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Tableau prestations -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <thead>
+            <tr>
+              <th style="background: #2563eb; color: white; padding: 12px; text-align: left; border-radius: 6px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Description</th>
+              <th style="background: #2563eb; color: white; padding: 12px; text-align: right; width: 100px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Durée</th>
+              <th style="background: #2563eb; color: white; padding: 12px; text-align: right; width: 120px; border-radius: 0 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lignesHTML}
+          </tbody>
+        </table>
+
+        <!-- Totaux -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px;">
+          <div style="width: 320px;">
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #64748b;">Sous-total HT</span>
+              <span style="font-weight: 600;">${fmt(sousTotalLignes)}</span>
+            </div>
+            ${hasCnaps ? `
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #64748b;">Taxe CNAPS</span>
+              <span style="font-weight: 600;">${fmt(cnaps)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #64748b;">Total HT (incl. CNAPS)</span>
+              <span style="font-weight: 600;">${fmt(devis.montant_ht || 0)}</span>
+            </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #64748b;">TVA (${devis.taux_tva || 20}%)</span>
+              <span style="font-weight: 600;">${fmt(devis.montant_tva || 0)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 14px 0; border-top: 3px solid #2563eb; margin-top: 4px;">
+              <span style="font-size: 18px; font-weight: 800;">Total TTC</span>
+              <span style="font-size: 18px; font-weight: 800; color: #2563eb;">${fmt(devis.montant_ttc)}</span>
+            </div>
+            ${devis.acompte_pourcentage != null && devis.acompte_pourcentage > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 10px 12px; background: #f0fdf4; border-radius: 6px; margin-top: 8px;">
+              <span style="font-size: 12px; color: #166534; font-weight: 600;">Acompte demandé (${devis.acompte_pourcentage}%)</span>
+              <span style="font-size: 12px; color: #166534; font-weight: 700;">${fmt(devis.montant_acompte || 0)}</span>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        ${devis.notes ? `
+        <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 8px;">Notes</div>
+          <div style="font-size: 13px; color: #64748b;">${devis.notes}</div>
+        </div>
+        ` : ''}
+
+        <!-- Validite -->
+        <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; text-align: center;">
+          <span style="color: #92400e;"><strong>Ce devis est valable ${devis.validite_jours || 30} jours</strong> à compter de sa date d'émission.</span>
+        </div>
       </body>
       </html>
     `);
@@ -216,48 +330,36 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
               </div>
             </div>
 
-            {/* Informations client et details */}
+            {/* Prestation (gauche) + Contact (droite = fenetre enveloppe) */}
+            {(() => {
+              const client = devis.clients;
+              const isPro = client && (client.type_client === 'professionnel' || !!client.raison_sociale);
+              const contactPersonne = isPro && client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : null;
+              return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Client */}
-              <div className="bg-gray-50 rounded-lg p-5">
-                <h3 className="text-xs uppercase text-gray-500 font-semibold mb-3 flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  {t('client')}
-                </h3>
-                <div className="space-y-2">
-                  <p className="font-semibold text-lg">{devis.client_nom || '-'}</p>
-                  {devis.client_telephone && (
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
-                      {devis.client_telephone}
-                    </p>
-                  )}
-                  {devis.client_email && (
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      {devis.client_email}
-                    </p>
-                  )}
-                  {devis.client_adresse && (
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-gray-400" />
-                      {devis.client_adresse}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Details prestation */}
+              {/* Details prestation - gauche : lieu + tel + email */}
               <div className="bg-blue-50 rounded-lg p-5">
                 <h3 className="text-xs uppercase text-gray-500 font-semibold mb-3 flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  {t('service')}
+                  PRESTATION
                 </h3>
                 <div className="space-y-2">
                   {devis.lieu && (
                     <p className="text-sm flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-blue-500" />
-                      <span className="font-medium capitalize">{devis.lieu}</span>
+                      <span className="font-medium">{devis.lieu === 'domicile' ? 'À domicile' : devis.lieu === 'salon' ? 'En salon' : devis.lieu}</span>
+                    </p>
+                  )}
+                  {devis.client_telephone && (
+                    <p className="text-sm flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-blue-500" />
+                      {devis.client_telephone}
+                    </p>
+                  )}
+                  {devis.client_email && (
+                    <p className="text-sm flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-blue-500" />
+                      {devis.client_email}
                     </p>
                   )}
                   {devis.duree_minutes && (
@@ -268,7 +370,29 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
                   )}
                 </div>
               </div>
+
+              {/* Contact - droite (fenetre enveloppe) : societe + contact + adresse */}
+              <div className="bg-gray-50 rounded-lg p-5">
+                <h3 className="text-xs uppercase text-gray-500 font-semibold mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  CONTACT
+                </h3>
+                <div className="space-y-2">
+                  <p className="font-semibold text-lg">{devis.client_nom || '-'}</p>
+                  {contactPersonne && (
+                    <p className="text-sm text-gray-500">{contactPersonne}</p>
+                  )}
+                  {devis.client_adresse && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      {devis.client_adresse}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
+              );
+            })()}
 
             {/* Tableau des prestations */}
             <div className="mb-8">
@@ -281,31 +405,65 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b">
-                    <td className="p-4">
-                      <div className="font-medium">{devis.service_nom || t('service')}</div>
-                      {devis.service_description && (
-                        <div className="text-sm text-gray-500 mt-1">{devis.service_description}</div>
-                      )}
-                    </td>
-                    <td className="p-4 text-right text-gray-600">
-                      {devis.duree_minutes ? `${devis.duree_minutes} min` : '-'}
-                    </td>
-                    <td className="p-4 text-right font-medium">
-                      {formatMontant(devis.montant_ht)}
-                    </td>
-                  </tr>
+                  {lignes.length > 0 ? lignes.map((l) => (
+                    <tr key={l.id} className="border-b">
+                      <td className="p-4">
+                        <div className="font-medium">{l.service_nom}</div>
+                        <div className="text-xs text-gray-500 mt-1 space-x-3">
+                          {l.quantite > 1 && <span>x{l.quantite}</span>}
+                          {l.date_debut && l.date_fin && <span>Du {l.date_debut} au {l.date_fin}</span>}
+                          {l.heure_debut && l.heure_fin && <span>{l.heure_debut.slice(0,5)} - {l.heure_fin.slice(0,5)}</span>}
+                          {l.taux_horaire != null && l.taux_horaire > 0 && <span>{l.taux_horaire} €/h</span>}
+                        </div>
+                      </td>
+                      <td className="p-4 text-right text-gray-600">
+                        {l.duree_minutes ? `${l.duree_minutes} min` : '-'}
+                      </td>
+                      <td className="p-4 text-right font-medium">
+                        {formatMontant(l.prix_total)}
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr className="border-b">
+                      <td className="p-4">
+                        <div className="font-medium">{devis.service_nom || t('service')}</div>
+                      </td>
+                      <td className="p-4 text-right text-gray-600">
+                        {devis.duree_minutes ? `${devis.duree_minutes} min` : '-'}
+                      </td>
+                      <td className="p-4 text-right font-medium">
+                        {formatMontant(devis.montant_ht)}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Totaux */}
+            {(() => {
+              const sousTotalLignes = lignes.length > 0 ? lignes.reduce((s, l) => s + (l.prix_total || 0), 0) : (devis.montant_ht || 0);
+              const cnaps = (devis.montant_ht || 0) - sousTotalLignes;
+              const hasCnaps = cnaps > 0;
+              return (
             <div className="flex justify-end mb-8">
               <div className="w-72 space-y-2">
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">Sous-total HT</span>
-                  <span className="font-medium">{formatMontant(devis.montant_ht || 0)}</span>
+                  <span className="font-medium">{formatMontant(sousTotalLignes)}</span>
                 </div>
+                {hasCnaps && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Taxe CNAPS</span>
+                    <span className="font-medium">{formatMontant(cnaps)}</span>
+                  </div>
+                )}
+                {hasCnaps && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Total HT (incl. CNAPS)</span>
+                    <span className="font-medium">{formatMontant(devis.montant_ht || 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">TVA ({devis.taux_tva || 20}%)</span>
                   <span className="font-medium">{formatMontant(devis.montant_tva || 0)}</span>
@@ -322,6 +480,8 @@ export default function DevisDetailModal({ devisId, onClose, onEdit, onSend, onA
                 )}
               </div>
             </div>
+              );
+            })()}
 
             {/* Notes */}
             {devis.notes && (

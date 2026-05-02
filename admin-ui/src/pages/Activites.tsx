@@ -6,7 +6,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Calendar, Plus, RefreshCw, X } from 'lucide-react';
+import { Calendar, Plus, RefreshCw, X, CheckCircle } from 'lucide-react';
+import CloturerPeriodeModal from '../components/activites/CloturerPeriodeModal';
 import { api } from '../lib/api';
 import { ServiceLayout } from '../components/layout/ServiceLayout';
 import { Button } from '../components/ui/button';
@@ -95,6 +96,9 @@ export default function Activites() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [editLignes, setEditLignes] = useState<EditLigne[]>([]);
+
+  // Cloturer periode (global)
+  const [showCloturerModal, setShowCloturerModal] = useState(false);
 
   // Modal paiement
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -1117,7 +1121,7 @@ export default function Activites() {
       heure_checkout: extra.heure_fin || rdv.heure_fin || '',
     });
 
-    const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string }) => ({
+    const lignes: EditLigne[] = (rdv.services || []).map((s: ReservationService & { heure_debut?: string; heure_fin?: string; date_debut?: string; date_fin?: string }) => ({
       id: s.id,
       service_nom: s.service_nom,
       quantite: s.quantite || 1,
@@ -1128,6 +1132,8 @@ export default function Activites() {
       duree_minutes: s.duree_minutes,
       prix_unitaire: Math.round((s.prix_unitaire || 0) * 100),
       prix_total: Math.round((s.prix_total || 0) * 100),
+      date_debut: s.date_debut || '',
+      date_fin: s.date_fin || '',
     }));
     setEditLignes(lignes);
     setEditError('');
@@ -1154,6 +1160,8 @@ export default function Activites() {
           heure_fin: l.heure_fin,
           membre_id: l.membre_id || null,
           prix_total: l.prix_total,
+          date_debut: l.date_debut || null,
+          date_fin: l.date_fin || null,
         })) : undefined,
         // Restaurant
         ...(isBusinessType('restaurant') ? {
@@ -1294,6 +1302,7 @@ export default function Activites() {
           date_rdv: newRdvForm.date_rdv,
           heure_rdv: newRdvForm.heure_rdv,
           notes: newRdvForm.notes,
+          numero_commande: newRdvForm.numero_commande || undefined,
           services: [{
             service_id: newRdvForm.table_id,
             service_nom: selectedTable?.nom || `Table #${newRdvForm.table_id}`,
@@ -1336,6 +1345,7 @@ export default function Activites() {
           date_fin: newRdvForm.date_checkout,
           heure_fin: newRdvForm.heure_checkout || '11:00',
           notes: newRdvForm.notes,
+          numero_commande: newRdvForm.numero_commande || undefined,
           services: [
             {
               service_id: newRdvForm.chambre_id,
@@ -1392,6 +1402,7 @@ export default function Activites() {
             ? newRdvForm.adresse_prestation
             : newRdvForm.adresse_facturation,
           notes: newRdvForm.notes,
+          numero_commande: newRdvForm.numero_commande || undefined,
           services: serviceLignes.flatMap(sl => {
             const baseService: Record<string, any> = {
               service_id: sl.service_id,
@@ -1527,6 +1538,14 @@ export default function Activites() {
             size="sm"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            onClick={() => setShowCloturerModal(true)}
+            variant="outline"
+            size="sm"
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Cloturer periode
           </Button>
           {isBusinessType('commerce') ? (
             <Button onClick={() => navigate('/commandes')} size="sm" variant="outline">
@@ -1682,6 +1701,14 @@ export default function Activites() {
           onSelectMembre={setSelectedMembreId}
           onConfirm={handleConfirmTermineWithMembre}
           onClose={() => { setShowMembreModal(false); setPendingTermineRdv(null); }}
+        />
+      )}
+
+      {/* Modal Clôturer Période (global) */}
+      {showCloturerModal && (
+        <CloturerPeriodeModal
+          onClose={() => setShowCloturerModal(false)}
+          onSuccess={fetchReservations}
         />
       )}
     </ServiceLayout>

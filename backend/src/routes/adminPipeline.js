@@ -57,7 +57,7 @@ router.get('/', paginate({ limit: 100 }), async (req, res) => {
       .from('opportunites')
       .select(`
         *,
-        clients (id, prenom, nom, email, telephone)
+        clients (id, prenom, nom, email, telephone, raison_sociale)
       `)
       .eq('tenant_id', tenant_id)
       .not('etape', 'in', '("gagne","perdu")')
@@ -200,7 +200,8 @@ router.post('/', async (req, res) => {
       source,
       priorite,
       notes,
-      tags
+      tags,
+      montants_calcules
     } = req.body;
 
     if (!nom) {
@@ -271,8 +272,21 @@ router.post('/', async (req, res) => {
 
         const quantite = ligne.quantite || 1;
         const prixUnitaire = serviceInfo.prix || 0; // En centimes
-        const prixTotal = prixUnitaire * quantite;
-        const dureeService = (serviceInfo.duree || 0) * quantite;
+        const prixTotalCatalogue = prixUnitaire * quantite;
+        const prixTotal = ligne.prix_total_reel || prixTotalCatalogue;
+
+        // Durée réelle : si dates+heures, calculer (heures/jour × jours × quantité)
+        let dureeService = (serviceInfo.duree || 0) * quantite;
+        if (ligne.date_debut && ligne.date_fin && ligne.heure_debut && ligne.heure_fin) {
+          const d1 = new Date(ligne.date_debut + 'T12:00:00');
+          const d2 = new Date(ligne.date_fin + 'T12:00:00');
+          const nbJours = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+          const [hd, md] = ligne.heure_debut.split(':').map(Number);
+          const [hf, mf] = ligne.heure_fin.split(':').map(Number);
+          let minutesParJour = (hf * 60 + mf) - (hd * 60 + md);
+          if (minutesParJour <= 0) minutesParJour += 24 * 60; // overnight
+          dureeService = minutesParJour * nbJours * quantite;
+        }
 
         montantHT += prixTotal;
         dureeTotale += dureeService;
@@ -284,7 +298,13 @@ router.post('/', async (req, res) => {
           quantite,
           duree_minutes: dureeService,
           prix_unitaire: prixUnitaire,
-          prix_total: prixTotal
+          prix_total: prixTotal,
+          date_debut: ligne.date_debut || null,
+          date_fin: ligne.date_fin || null,
+          heure_debut: ligne.heure_debut || null,
+          heure_fin: ligne.heure_fin || null,
+          taux_horaire: ligne.taux_horaire || null,
+          membre_id: ligne.membre_id || null
         });
       }
     }
@@ -323,10 +343,13 @@ router.post('/', async (req, res) => {
       montantHT -= montantRemise;
     }
 
-    // 5. Calculer TVA et TTC
+    // 5. Calculer TVA et TTC (ou utiliser montants calculés par le frontend avec majorations)
+    if (montants_calcules) {
+      montantHT = montants_calcules.montant_ht;
+    }
     const tauxTVA = 20;
-    const montantTVA = Math.round(montantHT * tauxTVA / 100);
-    const montantTTC = montantHT + montantTVA;
+    const montantTVA = montants_calcules ? montants_calcules.montant_tva : Math.round(montantHT * tauxTVA / 100);
+    const montantTTC = montants_calcules ? montants_calcules.montant_ttc : (montantHT + montantTVA);
 
     // 6. Créer l'opportunité
     const etapeInitiale = etape || 'prospect';
@@ -578,7 +601,7 @@ router.get('/stats/historique', paginate({ limit: 100 }), async (req, res) => {
       .from('opportunites')
       .select(`
         *,
-        clients (id, prenom, nom)
+        clients (id, prenom, nom, raison_sociale)
       `)
       .eq('tenant_id', req.admin.tenant_id)
       .in('etape', ['gagne', 'perdu'])
@@ -723,16 +746,23 @@ router.post('/:id/devis', async (req, res) => {
     const montantHT = Math.round(montantTTC / 1.2);
     const montantTVA = montantTTC - montantHT;
 
+    // Construire adresse complete du client
+    const clientAdresseComplete = [opp.clients?.adresse, opp.clients?.code_postal, opp.clients?.ville].filter(Boolean).join(', ') || null;
+
+    // Lieu de prestation : adresse du site (pas le type 'salon'/'domicile')
+    const lieuPrestation = opp.adresse_client || clientAdresseComplete || null;
+
     // Créer le devis pré-rempli
     const devisData = {
       tenant_id: tenantId,
       numero,
       opportunite_id: opp.id,
       client_id: opp.client_id,
-      client_nom: opp.clients?.nom ? `${opp.clients.prenom || ''} ${opp.clients.nom}`.trim() : opp.nom,
+      client_nom: opp.clients?.raison_sociale || (opp.clients?.nom ? `${opp.clients.prenom || ''} ${opp.clients.nom}`.trim() : opp.nom),
       client_email: opp.clients?.email,
       client_telephone: opp.clients?.telephone,
-      client_adresse: opp.clients?.adresse,
+      client_adresse: clientAdresseComplete,
+      lieu: lieuPrestation,
       montant_ht: montantHT,
       taux_tva: 20,
       montant_tva: montantTVA,
@@ -752,6 +782,43 @@ router.post('/:id/devis', async (req, res) => {
       .single();
 
     if (devisError) throw devisError;
+
+    // Copier les lignes de l'opportunité vers devis_lignes
+    const { data: oppLignes } = await supabase
+      .from('opportunite_lignes')
+      .select('*')
+      .eq('opportunite_id', id)
+      .eq('tenant_id', tenantId)
+      .order('id', { ascending: true });
+
+    if (oppLignes && oppLignes.length > 0) {
+      const devisLignes = oppLignes.map(l => ({
+        tenant_id: tenantId,
+        devis_id: devis.id,
+        service_id: l.service_id,
+        service_nom: l.service_nom,
+        quantite: l.quantite,
+        duree_minutes: l.duree_minutes,
+        prix_unitaire: l.prix_unitaire,
+        prix_total: l.prix_total,
+        date_debut: l.date_debut || null,
+        date_fin: l.date_fin || null,
+        heure_debut: l.heure_debut || null,
+        heure_fin: l.heure_fin || null,
+        taux_horaire: l.taux_horaire || null,
+        membre_id: l.membre_id || null
+      }));
+
+      const { error: lignesError } = await supabase
+        .from('devis_lignes')
+        .insert(devisLignes);
+
+      if (lignesError) {
+        console.error('[PIPELINE] Erreur copie lignes vers devis:', lignesError);
+      } else {
+        console.log(`[PIPELINE] ${devisLignes.length} ligne(s) copiée(s) vers devis ${numero}`);
+      }
+    }
 
     // Mettre à jour l'opportunité vers l'étape "devis"
     await supabase.from('opportunites').update({

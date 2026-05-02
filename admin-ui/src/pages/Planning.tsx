@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Printer, Calendar, Users, Building2, ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Printer, Calendar, Users, Building2, ChevronDown, Loader2, CheckCircle, ClipboardList } from 'lucide-react';
 import { api } from '../lib/api';
-import { detectMajoration, splitHoursSegments } from '../lib/majorations';
+import { splitHoursSegments, computeHoursTotals, TOTALS_LABELS, type HoursTotals } from '../lib/majorations';
+import CloturerPeriodeModal from '../components/activites/CloturerPeriodeModal';
+import PointageModal from '../components/planning/PointageModal';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ interface PlanningRDV {
   employe: string;
   employe_id: number | null;
   employes: { id: number; nom: string; prenom: string; role: string }[];
+  is_forfait?: boolean;
+  forfait_periode_id?: number;
 }
 
 interface PlanningResponse {
@@ -47,16 +51,6 @@ interface Membre {
 
 type ViewMode = 'equipe' | 'client';
 type PrintMode = 'interne' | 'externe';
-
-interface HoursTotals {
-  jour: number;
-  nuit: number;
-  dimanche_jour: number;
-  dimanche_nuit: number;
-  ferie_jour: number;
-  ferie_nuit: number;
-  total: number;
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -135,63 +129,6 @@ function getWeeksInRange(dateDebut: string, dateFin: string): Date[][] {
   return weeks;
 }
 
-/** Calcul des heures par type de majoration pour un ensemble de RDV (découpe précise) */
-function computeHoursTotals(
-  planning: Record<string, PlanningRDV[]>,
-  clientIdFilter: number | null,
-): HoursTotals {
-  const totals: HoursTotals = { jour: 0, nuit: 0, dimanche_jour: 0, dimanche_nuit: 0, ferie_jour: 0, ferie_nuit: 0, total: 0 };
-  const seen = new Set<string>();
-
-  Object.entries(planning).forEach(([dateStr, rdvs]) => {
-    rdvs.forEach(rdv => {
-      if (clientIdFilter !== null && (rdv.client_id || 0) !== clientIdFilter) return;
-
-      const key = `${rdv.id}_${dateStr}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const services = rdv.services || [];
-      if (services.length > 0) {
-        services.forEach(s => {
-          const hDebut = s.heure_debut || rdv.heure;
-          const hFin = s.heure_fin || '';
-          if (hDebut && hFin) {
-            // Découpe précise avec splitHoursSegments
-            const segments = splitHoursSegments(dateStr, hDebut, hFin);
-            segments.forEach(seg => {
-              totals[seg.type] += seg.hours;
-              totals.total += seg.hours;
-            });
-          } else {
-            // Pas d'heure fin, fallback durée simple
-            const dur = (s.duree || 0) / 60;
-            const maj = detectMajoration(dateStr, hDebut || '12:00', '');
-            totals[maj.type] += dur;
-            totals.total += dur;
-          }
-        });
-      } else {
-        const dur = (rdv.duree || 0) / 60;
-        const maj = detectMajoration(dateStr, rdv.heure, '');
-        totals[maj.type] += dur;
-        totals.total += dur;
-      }
-    });
-  });
-
-  return totals;
-}
-
-const TOTALS_LABELS: Record<Exclude<keyof HoursTotals, 'total'>, string> = {
-  jour: 'Jour',
-  nuit: 'Nuit',
-  dimanche_jour: 'Dim. jour',
-  dimanche_nuit: 'Dim. nuit',
-  ferie_jour: 'Férié jour',
-  ferie_nuit: 'Férié nuit',
-};
-
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function Planning() {
@@ -199,12 +136,15 @@ export default function Planning() {
   const [viewMode, setViewMode] = useState<ViewMode>('equipe');
   const [filterClientId, setFilterClientId] = useState<number | null>(null);
   const [printMode, setPrintMode] = useState<PrintMode>('interne');
+  const [isPrinting, setIsPrinting] = useState(false);
   const [printDropdownOpen, setPrintDropdownOpen] = useState(false);
   const [printDateDebut, setPrintDateDebut] = useState('');
   const [printDateFin, setPrintDateFin] = useState('');
   const [printData, setPrintData] = useState<PlanningResponse | null>(null);
   const [printLoading, setPrintLoading] = useState(false);
   const printDropdownRef = useRef<HTMLDivElement>(null);
+  const [showCloturerModal, setShowCloturerModal] = useState(false);
+  const [showPointageModal, setShowPointageModal] = useState(false);
 
   // Close print dropdown on outside click
   useEffect(() => {
@@ -363,7 +303,8 @@ export default function Planning() {
     // If the selected range matches the loaded week, print directly
     if (printDateDebut === dateDebut && printDateFin === dateFin && planningData) {
       setPrintData(null);
-      setTimeout(() => window.print(), 50);
+      setIsPrinting(true);
+      setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
       return;
     }
 
@@ -373,7 +314,8 @@ export default function Planning() {
         `/admin/rh/planning?date_debut=${printDateDebut}&date_fin=${printDateFin}`
       );
       setPrintData(data);
-      setTimeout(() => { window.print(); setPrintLoading(false); }, 100);
+      setIsPrinting(true);
+      setTimeout(() => { window.print(); setPrintLoading(false); setIsPrinting(false); }, 150);
     } catch {
       setPrintLoading(false);
     }
@@ -866,6 +808,28 @@ export default function Planning() {
                 </div>
               )}
             </div>
+
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+
+            {/* Pointage */}
+            <button
+              onClick={() => setShowPointageModal(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
+              title="Pointage des heures"
+            >
+              <ClipboardList className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300 hidden lg:inline">Pointage</span>
+            </button>
+
+            {/* Clôturer période */}
+            <button
+              onClick={() => setShowCloturerModal(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
+              title="Cloturer une periode"
+            >
+              <CheckCircle className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300 hidden lg:inline">Cloturer</span>
+            </button>
           </div>
         </div>
 
@@ -939,10 +903,11 @@ export default function Planning() {
                 <table className="w-full border-collapse min-w-[800px]">
                   {renderTableHeader('Client')}
                   <tbody>
-                    {filteredClients.map(client => (
+                    {filteredClients.map(client => {
+                      return (
                       <tr key={client.id} className="border-b border-gray-100 dark:border-gray-800 last:border-b-0">
                         <td className="p-3 font-medium text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 sticky left-0 z-10 align-top">
-                          {client.label}
+                          <span>{client.label}</span>
                         </td>
                         {weekDates.map((d, i) => {
                           const dateStr = formatDate(d);
@@ -956,7 +921,8 @@ export default function Planning() {
                           );
                         })}
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -966,7 +932,23 @@ export default function Planning() {
       </div>
 
       {/* ══════════ PRINT TEMPLATE (print-only) ══════════ */}
-      {renderPrintTemplate()}
+      {isPrinting && renderPrintTemplate()}
+
+      {/* Modal Clôturer Période (global) */}
+      {showCloturerModal && (
+        <CloturerPeriodeModal
+          onClose={() => setShowCloturerModal(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
+
+      {/* Modal Pointage */}
+      {showPointageModal && (
+        <PointageModal
+          onClose={() => setShowPointageModal(false)}
+          membres={membres}
+        />
+      )}
     </div>
   );
 }

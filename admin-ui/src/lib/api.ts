@@ -1473,7 +1473,7 @@ export interface DashboardStats {
   servicesPopulaires: Array<{ service: string; count: number }>;
   nbClients: number;
   prochainRdv: Reservation | null;
-  graphiqueCa: Array<{ date: string; jour: string; ca: number }>;
+  graphiqueCa: Array<{ date: string; ca: number }>;
 }
 
 export interface Client {
@@ -1739,12 +1739,13 @@ export interface Devis {
   reservation_id?: string;
   // Métadonnées
   notes?: string;
+  numero_commande?: string;
   raison_rejet?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
   // Relations (jointures)
-  clients?: { id: number; nom: string; prenom?: string; email?: string; telephone?: string };
+  clients?: { id: number; nom: string; prenom?: string; email?: string; telephone?: string; raison_sociale?: string; type_client?: string };
   opportunites?: { id: number; nom: string; etape: string };
   reservations?: { id: string; date: string; heure: string; statut: string };
 }

@@ -33,6 +33,7 @@ export interface FactureManuelleData {
   date_facture: string;
   date_prestation: string;
   notes?: string;
+  numero_commande?: string;
   frais_deplacement?: number;
 }
 
@@ -75,6 +76,7 @@ export default function FactureManuelleModal({ onClose, onSubmit, isSubmitting }
   const [dateFacture, setDateFacture] = useState(today());
   const [datePrestation, setDatePrestation] = useState(today());
   const [notes, setNotes] = useState('');
+  const [numeroCommande, setNumeroCommande] = useState('');
   const [fraisDeplacement, setFraisDeplacement] = useState(0);
 
   // Errors
@@ -175,6 +177,7 @@ export default function FactureManuelleModal({ onClose, onSubmit, isSubmitting }
       date_facture: dateFacture,
       date_prestation: datePrestation,
       notes: notes.trim() || undefined,
+      numero_commande: numeroCommande.trim() || undefined,
       frais_deplacement: fraisDeplacement > 0 ? fraisDeplacement : undefined,
     };
 
@@ -401,6 +404,16 @@ export default function FactureManuelleModal({ onClose, onSubmit, isSubmitting }
               <label className="text-sm text-gray-600 mb-1 block">Date prestation</label>
               <Input type="date" value={datePrestation} onChange={e => setDatePrestation(e.target.value)} className="h-9" />
             </div>
+          </div>
+
+          {/* ---- NUMERO COMMANDE ---- */}
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">N° commande / bon de commande (optionnel)</label>
+            <Input
+              value={numeroCommande}
+              onChange={e => setNumeroCommande(e.target.value)}
+              placeholder="PO-2026-001..."
+            />
           </div>
 
           {/* ---- NOTES ---- */}

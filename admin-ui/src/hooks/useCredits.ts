@@ -24,11 +24,17 @@ export interface CreditsBalance {
   auto_recharge_enabled: boolean;
   auto_recharge_threshold: number | null;
   auto_recharge_pack: string | null;
+  overage_enabled: boolean;
+  overage_limit_eur: number;
+  overage_used_eur: number;
 }
+
+export const OVERAGE_RATE_EUR = 0.015;
+export const OVERAGE_PRESETS = [10, 25, 50, 100];
 
 export interface CreditTransaction {
   id: number;
-  type: 'purchase' | 'consume' | 'monthly_grant' | 'monthly_reset' | 'refund' | 'adjust' | 'bonus';
+  type: 'purchase' | 'consume' | 'monthly_grant' | 'monthly_reset' | 'refund' | 'adjust' | 'bonus' | 'overage';
   amount: number;
   balance_after: number;
   source: string | null;
@@ -85,13 +91,28 @@ export function useCredits() {
     },
   });
 
+  const overageMutation = useMutation({
+    mutationFn: (params: { enabled: boolean; limit_eur: number }) =>
+      api.patch('/billing/credits/overage', params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credits-balance'] });
+    },
+  });
+
   const balance = balanceQuery.data;
 
-  /** Vérifie si le solde permet de réaliser N actions du type donné */
+  /** Vérifie si le solde permet de réaliser N actions du type donné (avec fallback overage) */
   const canAfford = (action: CreditAction, quantity = 1): boolean => {
     if (!balance) return false;
     const cost = CREDIT_COSTS[action] * quantity;
-    return balance.balance >= cost;
+    if (balance.balance >= cost) return true;
+    // Fallback overage
+    if (balance.overage_enabled) {
+      const creditsOverage = cost - balance.balance;
+      const overageEurCost = creditsOverage * OVERAGE_RATE_EUR;
+      return (balance.overage_used_eur + overageEurCost) <= balance.overage_limit_eur;
+    }
+    return false;
   };
 
   /** Coût en crédits pour une action donnée */
@@ -117,6 +138,12 @@ export function useCredits() {
     refresh,
     purchasePack: checkoutMutation.mutate,
     isPurchasing: checkoutMutation.isPending,
+    // Overage
+    overageEnabled: balance?.overage_enabled ?? false,
+    overageLimitEur: balance?.overage_limit_eur ?? 0,
+    overageUsedEur: balance?.overage_used_eur ?? 0,
+    updateOverage: overageMutation.mutate,
+    isUpdatingOverage: overageMutation.isPending,
   };
 }
 

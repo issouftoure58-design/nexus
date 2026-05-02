@@ -15,10 +15,11 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
     const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // CA du mois — réservations + factures + commandes (🔒 TENANT ISOLATION)
+    // CA du mois — source de vérité : reservation_lignes (pas reservations.prix_total qui est désynchronisé)
+    // + factures standalone + commandes (🔒 TENANT ISOLATION)
     const { data: rdvMois } = await supabase
       .from('reservations')
-      .select('prix_total')
+      .select('id, date, reservation_lignes(prix_total)')
       .eq('tenant_id', tenantId)
       .gte('date', startOfMonth)
       .in('statut', ['confirme', 'termine']);
@@ -38,15 +39,18 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .in('statut', ['completed', 'ready'])
       .gte('created_at', `${startOfMonth}T00:00:00`);
 
-    const caRdvMois = rdvMois?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    // Helper: somme des lignes d'une réservation (centimes → euros)
+    const sumLignes = (rdv) => (rdv.reservation_lignes || []).reduce((s, l) => s + (l.prix_total || 0), 0) / 100;
+
+    const caRdvMois = rdvMois?.reduce((sum, r) => sum + sumLignes(r), 0) || 0;
     const caFacturesMois = facturesMois?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100 || 0;
     const caOrdersMois = ordersMois?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100 || 0;
     const caMois = caRdvMois + caFacturesMois + caOrdersMois;
 
-    // CA du jour — réservations + factures + commandes (🔒 TENANT ISOLATION)
+    // CA du jour (🔒 TENANT ISOLATION)
     const { data: rdvJour } = await supabase
       .from('reservations')
-      .select('prix_total')
+      .select('id, date, reservation_lignes(prix_total)')
       .eq('tenant_id', tenantId)
       .eq('date', today)
       .in('statut', ['confirme', 'termine']);
@@ -68,7 +72,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       .gte('created_at', `${today}T00:00:00`)
       .lt('created_at', `${today}T23:59:59`);
 
-    const caRdvJour = rdvJour?.reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100 || 0;
+    const caRdvJour = rdvJour?.reduce((sum, r) => sum + sumLignes(r), 0) || 0;
     const caFacturesJour = facturesJour?.reduce((sum, f) => sum + (parseFloat(f.montant_ttc) || 0), 0) / 100 || 0;
     const caOrdersJour = ordersJour?.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / 100 || 0;
     const caJour = caRdvJour + caFacturesJour + caOrdersJour;
@@ -130,54 +134,35 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       return rdv.heure >= nowHeure;
     }) || null;
 
-    // 🚀 OPTIMISATION: 1 requête au lieu de 7 requêtes séquentielles
-    // Calculer la plage de dates
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
-    const startDateStr = startDate.toISOString().split('T')[0];
+    // 🚀 CA sur 30 jours — graphique dashboard (accessible à tous les plans)
+    // Helper: format local date → YYYY-MM-DD (évite les décalages UTC de toISOString)
+    const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-    // Requêtes parallèles pour les 7 derniers jours (réservations + factures + commandes)
-    const [{ data: rdvWeek }, { data: facturesWeek }, { data: ordersWeek }] = await Promise.all([
-      supabase.from('reservations').select('prix_total, date')
-        .eq('tenant_id', tenantId).gte('date', startDateStr).lte('date', today)
-        .in('statut', ['confirme', 'termine']),
-      supabase.from('factures').select('montant_ttc, date_paiement')
-        .eq('tenant_id', tenantId).eq('statut', 'payee')
-        .gte('date_paiement', `${startDateStr}T00:00:00`),
-      supabase.from('orders').select('total, created_at')
-        .eq('tenant_id', tenantId).in('statut', ['completed', 'ready'])
-        .gte('created_at', `${startDateStr}T00:00:00`),
-    ]);
+    const chartStart = new Date();
+    chartStart.setDate(chartStart.getDate() - 29);
+    const chartStartStr = fmtDate(chartStart);
 
-    // Grouper par date côté JS
+    // Source de vérité : reservation_lignes (cohérent avec page Activités)
+    const { data: rdvChart } = await supabase
+      .from('reservations')
+      .select('date, reservation_lignes(prix_total)')
+      .eq('tenant_id', tenantId)
+      .gte('date', chartStartStr)
+      .lte('date', today)
+      .in('statut', ['confirme', 'termine']);
+
     const caByDate = {};
-    rdvWeek?.forEach(rdv => {
+    rdvChart?.forEach(rdv => {
       if (!caByDate[rdv.date]) caByDate[rdv.date] = 0;
-      caByDate[rdv.date] += (rdv.prix_total || 0) / 100; // centimes → euros
-    });
-    facturesWeek?.forEach(f => {
-      const d = f.date_paiement?.split('T')[0];
-      if (d) { caByDate[d] = (caByDate[d] || 0) + (parseFloat(f.montant_ttc) || 0) / 100; }
-    });
-    ordersWeek?.forEach(o => {
-      const d = o.created_at?.split('T')[0];
-      if (d) { caByDate[d] = (caByDate[d] || 0) + (parseFloat(o.total) || 0) / 100; }
+      caByDate[rdv.date] += sumLignes(rdv);
     });
 
-    // Construire le tableau des 7 derniers jours
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
+    const graphiqueCa = [];
+    for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      const dateStr = date.toISOString().split('T')[0];
-
-      last7Days.push({
-        date: dateStr,
-        jour: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
-        ca: caByDate[dateStr] || 0
-      });
+      const dateStr = fmtDate(date);
+      graphiqueCa.push({ date: dateStr, ca: caByDate[dateStr] || 0 });
     }
 
     res.json({
@@ -189,7 +174,7 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       servicesPopulaires,
       nbClients: nbClients || 0,
       prochainRdv,
-      graphiqueCa: last7Days
+      graphiqueCa
     });
 
   } catch (error) {

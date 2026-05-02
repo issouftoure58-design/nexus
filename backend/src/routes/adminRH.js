@@ -34,8 +34,14 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const router = express.Router();
 
-// Appliquer auth + vérification module RH (Business) globalement
-router.use(authenticateAdmin, requireModule('rh'));
+// Auth pour toutes les routes RH
+router.use(authenticateAdmin);
+
+// Planning + Pointage = Pro+, tout le reste = Enterprise (module 'rh')
+router.use((req, res, next) => {
+  if (req.path === '/planning' || req.path.startsWith('/pointage')) return requireModule('planning')(req, res, next);
+  requireModule('rh')(req, res, next);
+});
 
 // ============================================
 // HELPER: CONVERSION CHAMPS VIDES
@@ -2944,6 +2950,147 @@ router.get('/documents/etat-cotisations', authenticateAdmin, async (req, res) =>
 // ============================================
 
 /**
+ * GET /api/admin/rh/pointage
+ * Données de pointage : reservation_lignes détaillées avec expansion multi-jours
+ * Query params: date_debut, date_fin, group_by (global|client|membre)
+ */
+router.get('/pointage', authenticateAdmin, async (req, res) => {
+  try {
+    const { date_debut, date_fin, group_by } = req.query;
+    const tenantId = req.admin.tenant_id;
+
+    if (!date_debut || !date_fin) {
+      return res.status(400).json({ error: 'date_debut et date_fin requis' });
+    }
+
+    // Chercher les réservations dans la période avec lignes + client + membre
+    const { data: reservations, error } = await supabase
+      .from('reservations')
+      .select(`
+        id, date, heure, service_nom, prix_total, statut, membre_id,
+        is_forfait, forfait_periode_id,
+        client:clients(id, nom, prenom, raison_sociale, type_client),
+        reservation_lignes(
+          id, service_nom, duree_minutes,
+          heure_debut, heure_fin, prix_total,
+          membre_id, date, date_debut, date_fin
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .not('statut', 'in', '("annule","cancelled")')
+      .or(`and(date.gte.${date_debut},date.lte.${date_fin}),and(date.lt.${date_debut},date_depart.gte.${date_debut})`)
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+
+    // Charger les noms des membres pour les lignes
+    const membreIds = new Set();
+    (reservations || []).forEach(r => {
+      if (r.membre_id) membreIds.add(r.membre_id);
+      (r.reservation_lignes || []).forEach(l => { if (l.membre_id) membreIds.add(l.membre_id); });
+    });
+
+    let membresMap = {};
+    if (membreIds.size > 0) {
+      const { data: membres } = await supabase
+        .from('rh_membres')
+        .select('id, nom, prenom, role')
+        .eq('tenant_id', tenantId)
+        .in('id', [...membreIds]);
+      (membres || []).forEach(m => { membresMap[m.id] = m; });
+    }
+
+    // Flatten: expander les lignes multi-jours en entrées par jour
+    const entries = [];
+    for (const rdv of (reservations || [])) {
+      const formatClient = (c) => {
+        if (!c) return 'N/A';
+        return (c.type_client === 'professionnel' && c.raison_sociale) ? c.raison_sociale : `${c.prenom} ${c.nom}`;
+      };
+      const clientNom = formatClient(rdv.client);
+      const clientId = rdv.client?.id || null;
+      const lignes = rdv.reservation_lignes || [];
+
+      if (lignes.length === 0) {
+        // Pas de lignes → entrée simple basée sur la réservation
+        const m = membresMap[rdv.membre_id];
+        entries.push({
+          ligne_id: null,
+          reservation_id: rdv.id,
+          date: rdv.date,
+          client_id: clientId,
+          client_nom: clientNom,
+          membre_id: rdv.membre_id || null,
+          membre_nom: m ? `${m.prenom} ${m.nom}` : 'Non assigné',
+          service_nom: rdv.service_nom,
+          heure_debut: rdv.heure || null,
+          heure_fin: null,
+          statut: rdv.statut,
+          is_forfait: !!rdv.is_forfait,
+        });
+        continue;
+      }
+
+      for (const l of lignes) {
+        // Expansion multi-jours
+        const dDebut = l.date_debut || l.date || rdv.date;
+        const dFin = l.date_fin || l.date || rdv.date;
+
+        if (dDebut !== dFin) {
+          const start = new Date(dDebut + 'T12:00:00');
+          const end = new Date(dFin + 'T12:00:00');
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().slice(0, 10);
+            if (dateStr < date_debut || dateStr > date_fin) continue;
+            const m = membresMap[l.membre_id || rdv.membre_id];
+            entries.push({
+              ligne_id: l.id,
+              reservation_id: rdv.id,
+              date: dateStr,
+              client_id: clientId,
+              client_nom: clientNom,
+              membre_id: l.membre_id || rdv.membre_id || null,
+              membre_nom: m ? `${m.prenom} ${m.nom}` : 'Non assigné',
+              service_nom: l.service_nom || rdv.service_nom,
+              heure_debut: l.heure_debut || null,
+              heure_fin: l.heure_fin || null,
+              statut: rdv.statut,
+              is_forfait: !!rdv.is_forfait,
+            });
+          }
+        } else {
+          const dateStr = dDebut;
+          if (dateStr < date_debut || dateStr > date_fin) continue;
+          const m = membresMap[l.membre_id || rdv.membre_id];
+          entries.push({
+            ligne_id: l.id,
+            reservation_id: rdv.id,
+            date: dateStr,
+            client_id: clientId,
+            client_nom: clientNom,
+            membre_id: l.membre_id || rdv.membre_id || null,
+            membre_nom: m ? `${m.prenom} ${m.nom}` : 'Non assigné',
+            service_nom: l.service_nom || rdv.service_nom,
+            heure_debut: l.heure_debut || null,
+            heure_fin: l.heure_fin || null,
+            statut: rdv.statut,
+            is_forfait: !!rdv.is_forfait,
+          });
+        }
+      }
+    }
+
+    // Trier par date puis heure
+    entries.sort((a, b) => a.date.localeCompare(b.date) || (a.heure_debut || '').localeCompare(b.heure_debut || ''));
+
+    res.json({ entries });
+  } catch (error) {
+    console.error('[RH] Erreur pointage:', error);
+    res.status(500).json({ error: 'Erreur récupération pointage' });
+  }
+});
+
+/**
  * GET /api/admin/rh/planning
  * Planning des réservations par employé
  */
@@ -2994,7 +3141,9 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
           heure_fin,
           prix_total,
           membre_id,
-          date
+          date,
+          date_debut,
+          date_fin
         )
       `)
       .eq('tenant_id', tenantId)
@@ -3022,6 +3171,23 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
     const { data: planning, error } = await query;
 
     if (error) throw error;
+
+    // Charger les noms des membres referencies dans les lignes (pour forfaits)
+    const allLigneMemberIds = new Set();
+    (planning || []).forEach(rdv => {
+      (rdv.reservation_lignes || []).forEach(l => {
+        if (l.membre_id) allLigneMemberIds.add(l.membre_id);
+      });
+    });
+    let ligneMembresMap = {};
+    if (allLigneMemberIds.size > 0) {
+      const { data: lm } = await supabase
+        .from('rh_membres')
+        .select('id, nom, prenom, role')
+        .eq('tenant_id', tenantId)
+        .in('id', [...allLigneMemberIds]);
+      (lm || []).forEach(m => { ligneMembresMap[m.id] = m; });
+    }
 
     // Grouper par jour et par membre (pour afficher chaque membre séparément)
     const planningParJour = {};
@@ -3066,44 +3232,115 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
       };
 
       // Construire la liste des services depuis reservation_lignes
-      // Multi-jours: dispatcher les lignes avec date spécifique au bon jour
+      // Multi-jours: dispatcher les lignes avec date spécifique ou date_debut/date_fin au bon jour
       const allLignes = rdv.reservation_lignes || [];
-      const lignesJour1 = allLignes.filter(l => !l.date || l.date === jour);
-      const lignesAutresJours = allLignes.filter(l => l.date && l.date !== jour);
 
-      const services = lignesJour1.length > 0
-        ? lignesJour1.map(l => ({
+      // Etape 1: Expander les lignes avec date_debut/date_fin en lignes virtuelles par jour
+      const expandedLignes = [];
+      for (const l of allLignes) {
+        if (l.date_debut && l.date_fin && l.date_debut !== l.date_fin) {
+          // Ligne multi-jours: créer une entrée virtuelle pour chaque jour de la plage
+          const start = new Date(l.date_debut);
+          const end = new Date(l.date_fin);
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().slice(0, 10);
+            expandedLignes.push({ ...l, date: dateStr, _expanded: true });
+          }
+        } else {
+          // Single-day: utiliser date_debut comme date si pas de date explicite
+          expandedLignes.push(l.date_debut && !l.date ? { ...l, date: l.date_debut } : l);
+        }
+      }
+
+      const lignesJour1 = expandedLignes.filter(l => !l.date || l.date === jour);
+      const lignesAutresJours = expandedLignes.filter(l => l.date && l.date !== jour);
+
+      // Si la resa a des lignes datees mais aucune pour CE jour, ne pas creer d'entree fantome
+      // (ex: forfait commence samedi mais lignes seulement lun-ven)
+      const skipJour1 = allLignes.length > 0 && lignesJour1.length === 0 && expandedLignes.length > 0;
+
+      if (!skipJour1) {
+      // Detecter si les lignes ont des membre_id differents (forfaits multi-agents)
+      const ligneMemberIds = [...new Set(lignesJour1.map(l => l.membre_id).filter(Boolean))];
+      const hasPerLigneMembers = ligneMemberIds.length > 0 && tousLesMembres.length === 0;
+
+      if (hasPerLigneMembers && ligneMemberIds.length >= 1) {
+        // Splitter en entrees separees par membre (ex: forfait 2 agents)
+        // Grouper les lignes par membre_id
+        const lignesParMembre = {};
+        for (const l of lignesJour1) {
+          const mid = l.membre_id || 0;
+          if (!lignesParMembre[mid]) lignesParMembre[mid] = [];
+          lignesParMembre[mid].push(l);
+        }
+
+        for (const [mid, memberLignes] of Object.entries(lignesParMembre)) {
+          const midInt = parseInt(mid);
+          const m = ligneMembresMap[midInt];
+          const memberServices = memberLignes.map(l => ({
             nom: l.service_nom,
             duree: l.duree_minutes,
             heure_debut: l.heure_debut,
             heure_fin: l.heure_fin,
             prix: l.prix_total ? l.prix_total / 100 : 0,
             membre_id: l.membre_id
-          }))
-        : [{ nom: rdv.service_nom, duree: rdv.duree_minutes, heure_debut: null, heure_fin: null, prix: rdv.prix_total ? rdv.prix_total / 100 : 0, membre_id: rdv.membre_id }];
+          }));
+          const memberDuree = memberLignes.reduce((sum, l) => sum + (l.duree_minutes || 0), 0);
 
-      const dureeTotale = lignesJour1.length > 0
-        ? lignesJour1.reduce((sum, l) => sum + (l.duree_minutes || 0), 0)
-        : rdv.duree_totale_minutes || rdv.duree_minutes || 60;
+          planningParJour[jour].push({
+            id: rdv.id,
+            heure: memberLignes[0]?.heure_debut || rdv.heure,
+            service: rdv.service_nom,
+            services: memberServices,
+            duree: memberDuree,
+            statut: rdv.statut,
+            prix: 0, // prix global sur la resa, pas par membre
+            client: formatClientName(rdv.client),
+            client_id: rdv.client?.id || null,
+            client_tel: rdv.client?.telephone,
+            adresse: rdv.adresse_client || '',
+            employe: m ? `${m.prenom} ${m.nom}` : 'Non assigné',
+            employe_id: midInt || null,
+            employes: m ? [{ id: m.id, nom: m.nom, prenom: m.prenom, role: m.role || 'agent' }] : [],
+          });
+        }
+      } else {
+        // Comportement original : une seule entree pour la resa
+        const services = lignesJour1.length > 0
+          ? lignesJour1.map(l => ({
+              nom: l.service_nom,
+              duree: l.duree_minutes,
+              heure_debut: l.heure_debut,
+              heure_fin: l.heure_fin,
+              prix: l.prix_total ? l.prix_total / 100 : 0,
+              membre_id: l.membre_id
+            }))
+          : [{ nom: rdv.service_nom, duree: rdv.duree_minutes, heure_debut: null, heure_fin: null, prix: rdv.prix_total ? rdv.prix_total / 100 : 0, membre_id: rdv.membre_id }];
 
-      planningParJour[jour].push({
-        id: rdv.id,
-        heure: rdv.heure,
-        service: rdv.service_nom,
-        services,
-        duree: dureeTotale,
-        statut: rdv.statut,
-        prix: rdv.prix_total ? rdv.prix_total / 100 : 0,
-        client: formatClientName(rdv.client),
-        client_id: rdv.client?.id || null,
-        client_tel: rdv.client?.telephone,
-        adresse: rdv.adresse_client || '',
-        employe: tousLesMembres.length > 0
-          ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
-          : 'Non assigné',
-        employe_id: rdv.membre_id,
-        employes: tousLesMembres
-      });
+        const dureeTotale = lignesJour1.length > 0
+          ? lignesJour1.reduce((sum, l) => sum + (l.duree_minutes || 0), 0)
+          : rdv.duree_totale_minutes || rdv.duree_minutes || 60;
+
+        planningParJour[jour].push({
+          id: rdv.id,
+          heure: rdv.heure,
+          service: rdv.service_nom,
+          services,
+          duree: dureeTotale,
+          statut: rdv.statut,
+          prix: rdv.prix_total ? rdv.prix_total / 100 : 0,
+          client: formatClientName(rdv.client),
+          client_id: rdv.client?.id || null,
+          client_tel: rdv.client?.telephone,
+          adresse: rdv.adresse_client || '',
+          employe: tousLesMembres.length > 0
+            ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
+            : 'Non assigné',
+          employe_id: rdv.membre_id,
+          employes: tousLesMembres
+        });
+      }
+      } // fin if (!skipJour1)
 
       // Multi-jours: créer des entrées pour les jours suivants
       // Grouper les lignes par date
@@ -3115,44 +3352,81 @@ router.get('/planning', authenticateAdmin, async (req, res) => {
 
       for (const [dateJour, lignesJourN] of Object.entries(lignesParDate)) {
         if (!planningParJour[dateJour]) planningParJour[dateJour] = [];
-        planningParJour[dateJour].push({
-          id: rdv.id,
-          heure: lignesJourN[0]?.heure_debut || rdv.heure,
-          service: rdv.service_nom,
-          services: lignesJourN.map(l => ({
-            nom: l.service_nom,
-            duree: l.duree_minutes,
-            heure_debut: l.heure_debut,
-            heure_fin: l.heure_fin,
+
+        // Meme logique de split par membre pour les jours suivants
+        const jourNMemberIds = [...new Set(lignesJourN.map(l => l.membre_id).filter(Boolean))];
+        const hasPerLigneMembersN = jourNMemberIds.length > 0 && tousLesMembres.length === 0;
+
+        if (hasPerLigneMembersN) {
+          const lignesParMembreN = {};
+          for (const l of lignesJourN) {
+            const mid = l.membre_id || 0;
+            if (!lignesParMembreN[mid]) lignesParMembreN[mid] = [];
+            lignesParMembreN[mid].push(l);
+          }
+          for (const [mid, memberLignes] of Object.entries(lignesParMembreN)) {
+            const midInt = parseInt(mid);
+            const m = ligneMembresMap[midInt];
+            planningParJour[dateJour].push({
+              id: rdv.id,
+              heure: memberLignes[0]?.heure_debut || rdv.heure,
+              service: rdv.service_nom,
+              services: memberLignes.map(l => ({
+                nom: l.service_nom, duree: l.duree_minutes,
+                heure_debut: l.heure_debut, heure_fin: l.heure_fin,
+                prix: 0, membre_id: l.membre_id
+              })),
+              duree: memberLignes.reduce((sum, l) => sum + (l.duree_minutes || 0), 0),
+              statut: rdv.statut,
+              prix: 0,
+              client: formatClientName(rdv.client),
+              client_id: rdv.client?.id || null,
+              client_tel: rdv.client?.telephone,
+              adresse: rdv.adresse_client || '',
+              employe: m ? `${m.prenom} ${m.nom}` : 'Non assigné',
+              employe_id: midInt || null,
+              employes: m ? [{ id: m.id, nom: m.nom, prenom: m.prenom, role: m.role || 'agent' }] : [],
+              multi_jour: true,
+            });
+          }
+        } else {
+          planningParJour[dateJour].push({
+            id: rdv.id,
+            heure: lignesJourN[0]?.heure_debut || rdv.heure,
+            service: rdv.service_nom,
+            services: lignesJourN.map(l => ({
+              nom: l.service_nom,
+              duree: l.duree_minutes,
+              heure_debut: l.heure_debut,
+              heure_fin: l.heure_fin,
+              prix: 0,
+              membre_id: l.membre_id
+            })),
+            duree: lignesJourN.reduce((sum, l) => sum + (l.duree_minutes || 0), 0),
+            statut: rdv.statut,
             prix: 0,
-            membre_id: l.membre_id
-          })),
-          duree: lignesJourN.reduce((sum, l) => sum + (l.duree_minutes || 0), 0),
-          statut: rdv.statut,
-          prix: 0, // prix déjà compté sur jour 1
-          client: formatClientName(rdv.client),
-          client_id: rdv.client?.id || null,
-          client_tel: rdv.client?.telephone,
-          adresse: rdv.adresse_client || '',
-          employe: tousLesMembres.length > 0
-            ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
-            : 'Non assigné',
-          employe_id: rdv.membre_id,
-          employes: tousLesMembres,
-          multi_jour: true, // flag pour le frontend
-        });
+            client: formatClientName(rdv.client),
+            client_id: rdv.client?.id || null,
+            client_tel: rdv.client?.telephone,
+            adresse: rdv.adresse_client || '',
+            employe: tousLesMembres.length > 0
+              ? tousLesMembres.map(m => `${m.prenom} ${m.nom}`).join(', ')
+              : 'Non assigné',
+            employe_id: rdv.membre_id,
+            employes: tousLesMembres,
+            multi_jour: true,
+          });
+        }
       }
     });
 
-    // Calculer les stats
+    // Calculer les stats (depuis le planning déjà expandé, pas les résas brutes)
     const totalRdv = planning?.length || 0;
-    const totalHeures = (planning || []).reduce((sum, rdv) => {
-      const lignes = rdv.reservation_lignes || [];
-      const duree = lignes.length > 0
-        ? lignes.reduce((s, l) => s + (l.duree_minutes || 0), 0)
-        : rdv.duree_totale_minutes || rdv.duree_minutes || 60;
-      return sum + duree;
-    }, 0) / 60;
+    let totalMinutesGlobal = 0;
+    for (const entries of Object.values(planningParJour)) {
+      totalMinutesGlobal += entries.reduce((s, e) => s + (e.duree || 0), 0);
+    }
+    const totalHeures = totalMinutesGlobal / 60;
     const totalCA = (planning || []).reduce((sum, r) => sum + (r.prix_total || 0), 0) / 100;
 
     res.json({
@@ -3271,14 +3545,13 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
 
     const reservationMembreIds = (reservationsMembres || []).map(rm => rm.reservation_id);
 
-    // Multi-jours: trouver les résas dont une ligne a date dans la semaine (résa parente hors range)
+    // Multi-jours: trouver les résas dont une ligne a date dans la semaine OU date_debut/date_fin chevauche la semaine
     const { data: multiDayLignes } = await supabase
       .from('reservation_lignes')
       .select('reservation_id')
       .eq('tenant_id', req.admin.tenant_id)
       .eq('membre_id', id)
-      .gte('date', dateDebutStr)
-      .lte('date', dateFinStr);
+      .or(`and(date.gte.${dateDebutStr},date.lte.${dateFinStr}),and(date_debut.lte.${dateFinStr},date_fin.gte.${dateDebutStr})`);
     const multiDayResaIds = [...new Set((multiDayLignes || []).map(l => l.reservation_id))];
 
     // Récupérer ces réservations supplémentaires (exclure celles déjà récupérées)
@@ -3316,7 +3589,7 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
     if (allReservationIds.length > 0) {
       const { data: lignes } = await supabase
         .from('reservation_lignes')
-        .select('reservation_id, service_nom, duree_minutes, quantite, prix_total, heure_debut, heure_fin, membre_id, date')
+        .select('reservation_id, service_nom, duree_minutes, quantite, prix_total, heure_debut, heure_fin, membre_id, date, date_debut, date_fin')
         .eq('tenant_id', req.admin.tenant_id)
         .in('reservation_id', allReservationIds);
       allLignes = lignes || [];
@@ -3684,8 +3957,26 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
       };
 
       if (lignesRdv.length > 0) {
-        // Une entrée PAR ligne assignée
+        // Expander les lignes avec date_debut/date_fin en entrées par jour
+        const expandedLignes = [];
         for (const ligne of lignesRdv) {
+          if (ligne.date_debut && ligne.date_fin && ligne.date_debut !== ligne.date_fin) {
+            const start = new Date(ligne.date_debut);
+            const end = new Date(ligne.date_fin);
+            const totalDays = Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
+            const prixParJour = Math.round((ligne.prix_total || 0) / totalDays);
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().slice(0, 10);
+              expandedLignes.push({ ...ligne, date: dateStr, prix_total: prixParJour, _expanded: true });
+            }
+          } else {
+            // Single-day: utiliser date_debut comme date si pas de date explicite
+            expandedLignes.push(ligne.date_debut && !ligne.date ? { ...ligne, date: ligne.date_debut } : ligne);
+          }
+        }
+
+        // Une entrée PAR ligne (expandée si multi-jours)
+        for (const ligne of expandedLignes) {
           const ligneDate = ligne.date || rdv.date; // Multi-jours: la ligne a sa propre date
           const ligneInWeek = !!planningHebdo[ligneDate];
           const heureDebut = ligne.heure_debut || rdv.heure;
@@ -3739,8 +4030,23 @@ router.get('/membres/:id/planning', authenticateAdmin, async (req, res) => {
     (reservations || []).forEach(r => {
       const lignesRdv = getLignesForReservation(r.id);
       if (lignesRdv.length > 0) {
+        // Expander date_debut/date_fin avant de compter
+        const expandedForStats = [];
+        for (const l of lignesRdv) {
+          if (l.date_debut && l.date_fin && l.date_debut !== l.date_fin) {
+            const start = new Date(l.date_debut);
+            const end = new Date(l.date_fin);
+            const totalDays = Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
+            const prixParJour = Math.round((l.prix_total || 0) / totalDays);
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+              expandedForStats.push({ ...l, date: d.toISOString().slice(0, 10), prix_total: prixParJour });
+            }
+          } else {
+            expandedForStats.push(l);
+          }
+        }
         // Ne compter que les lignes dont la date effective est dans la semaine
-        const lignesInWeek = lignesRdv.filter(l => {
+        const lignesInWeek = expandedForStats.filter(l => {
           const ld = l.date || r.date;
           return ld >= dateDebutStr && ld <= dateFinStr;
         });
@@ -4704,8 +5010,8 @@ Pas de commentaire, pas de markdown, UNIQUEMENT le JSON.`
       date_verification: new Date().toISOString()
     });
   } catch (error) {
-    if (error.code === 'INSUFFICIENT_CREDITS') {
-      return res.status(402).json({ error: 'Utilisation IA insuffisante pour cette action. Passez à un plan supérieur ou achetez un pack.', required: error.required, available: error.available });
+    if (error.code === 'INSUFFICIENT_CREDITS' || error.code === 'OVERAGE_LIMIT_REACHED') {
+      return res.status(402).json({ error: 'Utilisation IA insuffisante pour cette action.', code: error.code, required: error.required, available: error.available });
     }
     console.error('[RH TAUX] Erreur vérification:', error);
     res.status(500).json({ error: 'Erreur lors de la vérification des taux' });

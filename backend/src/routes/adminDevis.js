@@ -13,6 +13,7 @@ import { requireModule } from '../middleware/moduleProtection.js';
 import NotificationService from '../services/notificationService.js';
 import { sendEmail } from '../services/emailService.js';
 import { validate } from '../middleware/validate.js';
+import { checkMemberMultiDayConflicts } from '../utils/conflictChecker.js';
 
 // Note: clients.id et services.id sont des bigint en DB (pas UUID).
 // Les IDs negatifs sont acceptes pour lignes.service_id (templates frontend -1, -2, ...).
@@ -33,6 +34,7 @@ const createDevisSchema = z.object({
   frais_deplacement: z.number().min(0).optional(),
   validite_jours: z.number().int().positive().optional(),
   notes: z.string().max(2000).optional().nullable(),
+  numero_commande: z.string().max(100).optional().nullable(),
   opportunite_id: z.number().int().optional().nullable(),
   lignes: z.array(z.object({
     service_id: z.number().int().optional().nullable(),
@@ -223,7 +225,7 @@ router.get('/', async (req, res) => {
       .from('devis')
       .select(`
         *,
-        clients:client_id (id, nom, prenom, email, telephone),
+        clients:client_id (id, nom, prenom, email, telephone, raison_sociale, type_client),
         opportunites:opportunite_id (id, nom, etape)
       `)
       .eq('tenant_id', tenantId)
@@ -280,7 +282,7 @@ router.get('/:id', async (req, res) => {
       .from('devis')
       .select(`
         *,
-        clients:client_id (id, nom, prenom, email, telephone),
+        clients:client_id (id, nom, prenom, email, telephone, raison_sociale, type_client),
         opportunites:opportunite_id (id, nom, etape, montant)
       `)
       .eq('id', id)
@@ -344,6 +346,7 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
       frais_deplacement = 0,
       validite_jours = 30,
       notes,
+      numero_commande,
       opportunite_id,
       lignes, // Lignes de services individuelles
       date_prestation, // Date prévue de la prestation
@@ -426,6 +429,7 @@ router.post('/', validate(createDevisSchema), async (req, res) => {
       validite_jours,
       date_expiration: dateExpiration.toISOString().split('T')[0],
       notes,
+      numero_commande: numero_commande || null,
       opportunite_id: opportunite_id || null,
       date_prestation: date_prestation || null,
       heure_prestation: heure_prestation || null,
@@ -1144,20 +1148,24 @@ router.post('/:id/executer', async (req, res) => {
     let membrePrincipalId = null;
     const membresAssignes = [];
 
-    // Créer un mapping ligne_id -> { membre_id, heure_debut, heure_fin } pour les reservation_lignes
+    // Créer un mapping ligne_id -> [{ membre_id, heure_debut, heure_fin }] pour les reservation_lignes
+    // Supporte plusieurs affectations par ligne (ex: 3 agents pour quantité=3)
     const ligneAffectationMap = {};
 
     for (const aff of affectations) {
       // Accepter membre_id ou ressource_id (les deux peuvent être utilisés)
       const membreId = aff.membre_id || aff.ressource_id;
       if (membreId) {
-        // Mapper ligne_id -> affectation complète avec heures
+        // Mapper ligne_id -> tableau d'affectations (une par agent)
         if (aff.ligne_id) {
-          ligneAffectationMap[aff.ligne_id] = {
+          if (!ligneAffectationMap[aff.ligne_id]) {
+            ligneAffectationMap[aff.ligne_id] = [];
+          }
+          ligneAffectationMap[aff.ligne_id].push({
             membre_id: membreId,
             heure_debut: aff.heure_debut || heure_rdv,
             heure_fin: aff.heure_fin || null
-          };
+          });
         }
 
         if (!membresAssignes.includes(membreId)) {
@@ -1169,25 +1177,81 @@ router.post('/:id/executer', async (req, res) => {
       }
     }
 
-    // Pour compatibilité avec l'ancien format
+    // Pour compatibilité avec l'ancien format (premier membre de chaque ligne)
     const ligneMembreMap = {};
-    for (const [ligneId, aff] of Object.entries(ligneAffectationMap)) {
-      ligneMembreMap[ligneId] = aff.membre_id;
+    for (const [ligneId, affs] of Object.entries(ligneAffectationMap)) {
+      ligneMembreMap[ligneId] = affs[0]?.membre_id;
     }
 
     console.log('[DEVIS] Membres assignés:', membresAssignes);
     console.log('[DEVIS] Mapping ligne->membre:', ligneMembreMap);
+
+    // ============================================
+    // VALIDATION CONFLITS MEMBRES (multi-jours)
+    // ============================================
+    if (membresAssignes.length > 0) {
+      for (const mid of membresAssignes) {
+        // Trouver les heures et dates du membre depuis ses affectations
+        const membreAffs = affectations.filter(a => (a.membre_id || a.ressource_id) === mid);
+        const mHeureDebut = membreAffs.find(a => a.heure_debut)?.heure_debut || heure_rdv;
+        const mHeureFin = membreAffs.find(a => a.heure_fin)?.heure_fin || heureFin;
+
+        // Trouver les dates multi-jours depuis les lignes de devis associées à ce membre
+        let mDateDebut = date_rdv;
+        let mDateFin = null;
+        for (const aff of membreAffs) {
+          if (aff.ligne_id) {
+            const ligne = (devisLignes || []).find(l => l.id === aff.ligne_id);
+            if (ligne?.date_debut) mDateDebut = ligne.date_debut;
+            if (ligne?.date_fin && (!mDateFin || ligne.date_fin > mDateFin)) {
+              mDateFin = ligne.date_fin;
+            }
+          }
+        }
+
+        // Si multi-jours → vérification avancée par membre
+        if (mDateFin && mDateFin > mDateDebut) {
+          const conflictResult = await checkMemberMultiDayConflicts(
+            supabase, tenantId, mid, mDateDebut, mDateFin, mHeureDebut, mHeureFin
+          );
+
+          if (conflictResult.conflict) {
+            // Récupérer le nom du membre
+            const { data: membreInfo } = await supabase
+              .from('rh_membres')
+              .select('nom, prenom')
+              .eq('id', mid)
+              .eq('tenant_id', tenantId)
+              .single();
+            const membreNom = membreInfo ? `${membreInfo.prenom || ''} ${membreInfo.nom || ''}`.trim() : `Membre #${mid}`;
+
+            return res.status(409).json({
+              error: 'MEMBER_CONFLICT',
+              message: `Conflit : ${membreNom} est déjà affecté le ${conflictResult.date} (${conflictResult.existingService}, ${conflictResult.existingHeure}).`,
+              details: conflictResult
+            });
+          }
+        }
+      }
+    }
 
     // Nom du service principal pour affichage
     const serviceNomPrincipal = devisLignes?.length > 1
       ? `${devisLignes.length} services - ${devis.client_nom || 'Client'}`
       : (devisLignes?.[0]?.service_nom || 'Prestation');
 
+    // Calculer date_depart si des lignes ont une date_fin (presta multi-jours)
+    const dateDepart = devisLignes?.reduce((max, l) => {
+      if (l.date_fin && (!max || l.date_fin > max)) return l.date_fin;
+      return max;
+    }, null) || null;
+
     const reservationData = {
       tenant_id: tenantId,
       date: date_rdv,
       heure: heure_rdv,
       heure_fin: heureFin,
+      date_depart: dateDepart, // Pour le filtre planning multi-jours
       client_id: clientId, // Utiliser le client résolu (trouvé ou créé)
       service_nom: serviceNomPrincipal,
       service_id: devisLignes?.[0]?.service_id || null,
@@ -1201,6 +1265,7 @@ router.post('/:id/executer', async (req, res) => {
       statut: 'confirme',
       adresse_client: devis.client_adresse || null,
       notes: devis.notes || null,
+      numero_commande: devis.numero_commande || null,
       devis_id: devis.id,
       membre_id: membrePrincipalId,
       created_via: 'devis'
@@ -1224,43 +1289,77 @@ router.post('/:id/executer', async (req, res) => {
     // ============================================
     if (devisLignes && devisLignes.length > 0) {
       // Cas normal: devis_lignes existent
-      const lignesData = devisLignes.map(l => {
-        // Récupérer l'affectation complète pour cette ligne (avec heures)
-        const affectation = ligneAffectationMap[l.id] || {};
-        const heureDebut = affectation.heure_debut || heure_rdv;
-        const heureFin = affectation.heure_fin;
+      // Si une ligne a plusieurs affectations (ex: quantité=3, 3 agents), on éclate en N lignes séparées
+      const lignesData = [];
+      for (const l of devisLignes) {
+        const affs = ligneAffectationMap[l.id] || [];
 
-        // Calculer la durée réelle si heure_debut et heure_fin sont définies
-        let dureeMinutes = l.duree_minutes || 60;
-        if (heureDebut && heureFin) {
-          const [startH, startM] = heureDebut.split(':').map(Number);
-          const [endH, endM] = heureFin.split(':').map(Number);
-          let startMinutes = startH * 60 + (startM || 0);
-          let endMinutes = endH * 60 + (endM || 0);
-          if (endMinutes < startMinutes) endMinutes += 24 * 60; // Passage minuit
-          dureeMinutes = endMinutes - startMinutes;
+        if (affs.length > 1) {
+          // Plusieurs agents pour cette ligne → créer 1 reservation_ligne par agent (quantite=1 chacun)
+          const prixParAgent = Math.round((l.prix_total || 0) / affs.length);
+          for (const aff of affs) {
+            const heureDebut = aff.heure_debut || heure_rdv;
+            const heureFin = aff.heure_fin;
+
+            let dureeMinutes = l.duree_minutes || 60;
+            if (heureDebut && heureFin) {
+              const [startH, startM] = heureDebut.split(':').map(Number);
+              const [endH, endM] = heureFin.split(':').map(Number);
+              let startMinutes = startH * 60 + (startM || 0);
+              let endMinutes = endH * 60 + (endM || 0);
+              if (endMinutes < startMinutes) endMinutes += 24 * 60;
+              dureeMinutes = endMinutes - startMinutes;
+            }
+
+            lignesData.push({
+              reservation_id: reservation.id,
+              tenant_id: tenantId,
+              service_id: l.service_id,
+              service_nom: l.service_nom,
+              quantite: 1,
+              duree_minutes: dureeMinutes,
+              prix_unitaire: l.prix_unitaire || 0,
+              prix_total: prixParAgent,
+              membre_id: aff.membre_id,
+              heure_debut: heureDebut ? heureDebut.slice(0, 5) : null,
+              heure_fin: heureFin ? heureFin.slice(0, 5) : null,
+              date_debut: l.date_debut || null,
+              date_fin: l.date_fin || null
+            });
+          }
+        } else {
+          // 0 ou 1 affectation → garder la ligne telle quelle
+          const affectation = affs[0] || {};
+          const heureDebut = affectation.heure_debut || heure_rdv;
+          const heureFin = affectation.heure_fin;
+
+          let dureeMinutes = l.duree_minutes || 60;
+          if (heureDebut && heureFin) {
+            const [startH, startM] = heureDebut.split(':').map(Number);
+            const [endH, endM] = heureFin.split(':').map(Number);
+            let startMinutes = startH * 60 + (startM || 0);
+            let endMinutes = endH * 60 + (endM || 0);
+            if (endMinutes < startMinutes) endMinutes += 24 * 60;
+            dureeMinutes = endMinutes - startMinutes;
+          }
+
+          lignesData.push({
+            reservation_id: reservation.id,
+            tenant_id: tenantId,
+            service_id: l.service_id,
+            service_nom: l.service_nom,
+            quantite: l.quantite || 1,
+            duree_minutes: dureeMinutes,
+            prix_unitaire: l.prix_unitaire || 0,
+            prix_total: l.prix_total || 0,
+            membre_id: affectation.membre_id || membrePrincipalId || null,
+            heure_debut: heureDebut ? heureDebut.slice(0, 5) : null,
+            heure_fin: heureFin ? heureFin.slice(0, 5) : null,
+            date_debut: l.date_debut || null,
+            date_fin: l.date_fin || null
+          });
         }
-
-        // Tronquer les heures au format HH:MM (VARCHAR(5) en base)
-        const heureDebutShort = heureDebut ? heureDebut.slice(0, 5) : null;
-        const heureFinShort = heureFin ? heureFin.slice(0, 5) : null;
-
-        return {
-          reservation_id: reservation.id,
-          tenant_id: tenantId,
-          service_id: l.service_id,
-          service_nom: l.service_nom,
-          quantite: l.quantite || 1,
-          duree_minutes: dureeMinutes,
-          prix_unitaire: l.prix_unitaire || 0,
-          prix_total: l.prix_total || 0,
-          // Membre assigné à cette ligne (depuis le mapping des affectations)
-          membre_id: affectation.membre_id || membrePrincipalId || null,
-          // Heures réelles (pour mode horaire) - format HH:MM
-          heure_debut: heureDebutShort,
-          heure_fin: heureFinShort
-        };
-      });
+      }
 
       const { error: lignesError } = await supabase
         .from('reservation_lignes')
@@ -1572,6 +1671,7 @@ router.get('/:id/pdf', async (req, res) => {
       <p><strong>Date:</strong> ${new Date(devis.date_devis).toLocaleDateString('fr-FR')}</p>
       <p><strong>Validité:</strong> ${devis.validite_jours} jours</p>
       <p><strong>Expire le:</strong> ${new Date(devis.date_expiration).toLocaleDateString('fr-FR')}</p>
+      ${devis.numero_commande ? `<p><strong>BC :</strong> ${devis.numero_commande}</p>` : ''}
     </div>
   </div>
 

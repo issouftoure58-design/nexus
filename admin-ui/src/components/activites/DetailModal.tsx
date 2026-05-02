@@ -212,6 +212,14 @@ export default function DetailModal({ reservation, onClose }: DetailModalProps) 
             </div>
           )}
 
+          {/* Bon de commande */}
+          {reservation.numero_commande && (
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-1">Bon de commande</p>
+              <p className="font-medium text-gray-900 dark:text-white text-sm">{reservation.numero_commande}</p>
+            </div>
+          )}
+
           {/* Notes */}
           {reservation.notes && (
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">

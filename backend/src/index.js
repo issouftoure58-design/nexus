@@ -57,6 +57,8 @@ import rfmRoutes from './routes/adminRFM.js';
 import workflowsRoutes from './routes/adminWorkflows.js';
 import pipelineRoutes from './routes/adminPipeline.js';
 import devisRoutes from './routes/adminDevis.js';
+import forfaitsRoutes from './routes/adminForfaits.js';
+import reservationLignesRoutes from './routes/adminReservationLignes.js';
 import prestationsRoutes from './routes/adminPrestations.js';
 import ressourcesRoutes from './routes/adminRessources.js';
 import comptaRoutes from './routes/adminCompta.js';
@@ -546,6 +548,8 @@ app.use('/api/satisfaction', satisfactionRoutes);
 
 // Routes Admin Devis & Prestations (Pro/Business)
 app.use('/api/admin/devis', devisRoutes);
+app.use('/api/admin/forfaits', forfaitsRoutes);
+app.use('/api/admin/reservation-lignes', reservationLignesRoutes);
 app.use('/api/admin/prestations', prestationsRoutes);
 app.use('/api/admin/ressources', ressourcesRoutes);
 

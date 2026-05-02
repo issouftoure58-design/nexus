@@ -705,7 +705,7 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
       .from('reservations')
       .select(`
         *,
-        clients(id, nom, prenom, email, telephone, type_client, raison_sociale, adresse)
+        clients(id, nom, prenom, email, telephone, type_client, raison_sociale, adresse, code_postal, ville)
       `)
       .eq('id', reservationId)
       .eq('tenant_id', tenantId)
@@ -731,10 +731,18 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
 
     const tauxTVA = reservation.taux_tva || 20;
 
-    // Total TTC incluant frais déplacement (en centimes)
-    const totalTTC = prixTTC + fraisDeplacement;
-    const totalHT = Math.round(totalTTC / (1 + tauxTVA / 100));
-    const totalTVA = totalTTC - totalHT;
+    // Calculer HT/TVA selon le type de réservation
+    let totalHT, totalTVA;
+    if (reservation.is_forfait) {
+      // Forfait : prix_total est déjà HT (vient de montant_mensuel_ht)
+      totalHT = prixTTC + fraisDeplacement;
+      totalTVA = Math.round(totalHT * tauxTVA / 100);
+    } else {
+      // Non-forfait : prix_total est TTC
+      const totalTTC = prixTTC + fraisDeplacement;
+      totalHT = Math.round(totalTTC / (1 + tauxTVA / 100));
+      totalTVA = totalTTC - totalHT;
+    }
 
     // Générer le numéro
     const numero = await generateNumeroFacture(tenantId);
@@ -742,26 +750,134 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
     // Récupérer les lignes de service détaillées pour la facture
     const { data: resaLignes } = await supabase
       .from('reservation_lignes')
-      .select('service_nom, duree_minutes, quantite, prix_unitaire, prix_total')
+      .select('service_id, service_nom, duree_minutes, quantite, prix_unitaire, prix_total, heure_debut, heure_fin, date, date_debut, date_fin, membre_id')
       .eq('tenant_id', tenantId)
       .eq('reservation_id', reservationId);
 
     // Construire le détail des lignes pour service_description
     let serviceDescription = reservation.notes || null;
     let serviceNom = reservation.service_nom || 'Prestation';
-    if (resaLignes && resaLignes.length > 0) {
-      const lignesDetail = resaLignes.map(l => ({
-        nom: l.service_nom || 'Prestation',
-        quantite: l.quantite || 1,
-        prix_unitaire: l.prix_unitaire || 0, // déjà en centimes dans reservation_lignes
-        total: l.prix_total || (l.prix_unitaire || 0) * (l.quantite || 1),
-      }));
+
+    if (reservation.is_forfait && resaLignes && resaLignes.length > 0) {
+      // FORFAIT : une seule ligne principale + détail texte
+      const moisLabel = reservation.date
+        ? new Date(reservation.date + 'T12:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+        : 'Période';
+      const forfaitNom = `Forfait ${moisLabel.charAt(0).toUpperCase() + moisLabel.slice(1)}`;
+
+      // Grouper par service_nom pour le détail
+      const grouped = {};
+      for (const l of resaLignes) {
+        const key = l.service_nom || 'Prestation';
+        if (!grouped[key]) {
+          grouped[key] = { nom: key, count: 0, heure_debut: l.heure_debut, heure_fin: l.heure_fin, membres: new Set() };
+        }
+        grouped[key].count += 1;
+        if (l.membre_id) grouped[key].membres.add(l.membre_id);
+      }
+
+      // Ligne principale forfait
+      const lignesDetail = [
+        { nom: forfaitNom, quantite: 1, prix_unitaire: totalHT, total: totalHT }
+      ];
+      // Lignes de détail (texte, prix 0)
+      for (const g of Object.values(grouped)) {
+        const effectif = g.membres.size || 1;
+        const heuresParJour = g.heure_debut && g.heure_fin
+          ? (() => {
+              const [dh, dm] = g.heure_debut.split(':').map(Number);
+              const [fh, fm] = g.heure_fin.split(':').map(Number);
+              let mins = (fh * 60 + fm) - (dh * 60 + dm);
+              if (mins <= 0) mins += 24 * 60;
+              return Math.round(mins / 60 * 10) / 10;
+            })()
+          : 0;
+        const totalHeures = heuresParJour * g.count;
+        const horaires = g.heure_debut && g.heure_fin ? `${g.heure_debut}–${g.heure_fin}` : '';
+        lignesDetail.push({
+          nom: `  ${effectif} ${g.nom} × ${g.count}j (${totalHeures}h) ${horaires}`,
+          quantite: 1,
+          prix_unitaire: 0,
+          total: 0
+        });
+      }
+
       serviceDescription = JSON.stringify(lignesDetail);
-      if (resaLignes.length === 1) {
-        serviceNom = resaLignes[0].service_nom || serviceNom;
-      } else {
-        // Nom composite : tous les services
-        serviceNom = resaLignes.map(l => l.service_nom).filter(Boolean).join(' + ') || serviceNom;
+      serviceNom = forfaitNom;
+    } else if (resaLignes && resaLignes.length > 0) {
+      // Grouper par service_nom pour un affichage propre
+      const grouped = {};
+      for (const l of resaLignes) {
+        const key = l.service_nom || 'Prestation';
+        if (!grouped[key]) {
+          grouped[key] = {
+            nom: key,
+            totalPrix: 0,
+            count: 0,
+            heure_debut: l.heure_debut,
+            heure_fin: l.heure_fin,
+            dates: [],
+            membres: new Set()
+          };
+        }
+        grouped[key].totalPrix += (l.prix_total || 0);
+        grouped[key].count += (l.quantite || 1);
+        const dateStr = l.date || l.date_debut;
+        if (dateStr && !grouped[key].dates.includes(dateStr)) grouped[key].dates.push(dateStr);
+        if (l.membre_id) grouped[key].membres.add(l.membre_id);
+      }
+
+      const lignesDetail = [];
+      const serviceNames = [];
+      for (const g of Object.values(grouped)) {
+        // Ligne principale du service avec montant
+        lignesDetail.push({
+          nom: g.nom,
+          quantite: g.count,
+          prix_unitaire: g.count > 0 ? Math.round(g.totalPrix / g.count) : 0,
+          total: g.totalPrix
+        });
+        // Ligne détail dates + heures (prix 0, juste informatif)
+        g.dates.sort();
+        const dateDebut = g.dates[0];
+        const dateFin = g.dates[g.dates.length - 1];
+        const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+        const horaires = g.heure_debut && g.heure_fin ? `${g.heure_debut}–${g.heure_fin}` : '';
+        const effectif = g.membres.size || 1;
+        const dateRange = dateDebut === dateFin
+          ? `  ${fmtDate(dateDebut)}`
+          : `  Du ${fmtDate(dateDebut)} au ${fmtDate(dateFin)}`;
+        const detail = [dateRange, `${g.dates.length}j`, horaires, effectif > 1 ? `${effectif} agents` : ''].filter(Boolean).join(', ');
+        lignesDetail.push({ nom: detail, quantite: 1, prix_unitaire: 0, total: 0 });
+        serviceNames.push(g.nom);
+      }
+
+      serviceDescription = JSON.stringify(lignesDetail);
+      serviceNom = serviceNames.length === 1 ? serviceNames[0] : serviceNames.join(' + ');
+    }
+
+    // Calculer CNAPS si des services ont taxe_cnaps=true
+    let montantCnaps = 0;
+    if (resaLignes && resaLignes.length > 0) {
+      const serviceIds = [...new Set(resaLignes.map(l => l.service_id).filter(Boolean))];
+      if (serviceIds.length > 0) {
+        const { data: servicesData } = await supabase
+          .from('services')
+          .select('id, taxe_cnaps, taux_cnaps')
+          .eq('tenant_id', tenantId)
+          .in('id', serviceIds);
+
+        if (servicesData) {
+          const cnapsMap = {};
+          servicesData.forEach(s => { if (s.taxe_cnaps && s.taux_cnaps > 0) cnapsMap[s.id] = s.taux_cnaps; });
+
+          resaLignes.forEach(l => {
+            if (l.service_id && cnapsMap[l.service_id]) {
+              const ligneHT = l.prix_total || (l.prix_unitaire || 0) * (l.quantite || 1);
+              montantCnaps += Math.round(ligneHT * cnapsMap[l.service_id] / 100);
+            }
+          });
+        }
       }
     }
 
@@ -780,15 +896,29 @@ export async function createFactureFromReservation(reservationId, tenantId, opti
           : reservation.client_nom || 'Client',
         client_email: reservation.clients?.email || reservation.client_email,
         client_telephone: reservation.clients?.telephone || reservation.client_telephone,
-        client_adresse: reservation.clients?.adresse || reservation.adresse_client || null,
+        client_adresse: reservation.clients
+          ? [reservation.clients.adresse, [reservation.clients.code_postal, reservation.clients.ville].filter(Boolean).join(' ')].filter(Boolean).join('\n') || null
+          : reservation.adresse_client || null,
         service_nom: serviceNom,
-        service_description: serviceDescription,
+        service_description: (() => {
+          if (montantCnaps <= 0) return serviceDescription;
+          let baseLignes;
+          try {
+            baseLignes = serviceDescription ? JSON.parse(serviceDescription) : null;
+          } catch { baseLignes = null; }
+          if (!Array.isArray(baseLignes)) {
+            baseLignes = [{ nom: serviceNom, quantite: 1, prix_unitaire: totalHT, total: totalHT }];
+          }
+          baseLignes.push({ nom: 'Taxe CNAPS', quantite: 1, prix_unitaire: montantCnaps, total: montantCnaps });
+          return JSON.stringify(baseLignes);
+        })(),
         date_prestation: reservation.date,
-        montant_ht: totalHT,
+        montant_ht: totalHT + montantCnaps,
         taux_tva: tauxTVA,
-        montant_tva: totalTVA,
-        montant_ttc: totalTTC,
+        montant_tva: Math.round((totalHT + montantCnaps) * tauxTVA / 100),
+        montant_ttc: totalHT + montantCnaps + Math.round((totalHT + montantCnaps) * tauxTVA / 100),
         frais_deplacement: fraisDeplacement,
+        numero_commande: reservation.numero_commande || null,
         statut: statut,
         date_facture: new Date().toISOString().split('T')[0]
       })
@@ -956,6 +1086,7 @@ router.post('/', requireFacturesQuota, async (req, res) => {
       date_facture,
       date_prestation,
       notes,
+      numero_commande,
       frais_deplacement
     } = req.body;
 
@@ -991,7 +1122,7 @@ router.post('/', requireFacturesQuota, async (req, res) => {
     if (client_id) {
       const { data: client } = await supabase
         .from('clients')
-        .select('nom, prenom, raison_sociale, email, telephone, adresse, type_client')
+        .select('nom, prenom, raison_sociale, email, telephone, adresse, code_postal, ville, type_client')
         .eq('id', client_id)
         .eq('tenant_id', tenantId)
         .single();
@@ -1005,7 +1136,7 @@ router.post('/', requireFacturesQuota, async (req, res) => {
         : `${client.prenom || ''} ${client.nom || ''}`.trim();
       resolvedClientEmail = client.email || client_email;
       resolvedClientTel = client.telephone || client_telephone;
-      resolvedClientAdresse = client.adresse || client_adresse;
+      resolvedClientAdresse = [client.adresse, [client.code_postal, client.ville].filter(Boolean).join(' ')].filter(Boolean).join('\n') || client_adresse;
     }
 
     // Calculer les montants (en centimes)
@@ -1072,6 +1203,7 @@ router.post('/', requireFacturesQuota, async (req, res) => {
         montant_ttc: totalTTC,
         frais_deplacement: fraisDeplacementCents,
         notes: notes || null,
+        numero_commande: numero_commande || null,
         statut: 'generee'
       })
       .select()
@@ -1392,7 +1524,7 @@ router.patch('/:id/statut', async (req, res) => {
     }
 
     // Mode de paiement requis pour marquer comme payée
-    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque', 'echeance'];
     if (statut === 'payee' && mode_paiement && !modesPaiementValides.includes(mode_paiement)) {
       return res.status(400).json({ success: false, error: 'Mode de paiement invalide' });
     }
@@ -1462,7 +1594,7 @@ router.post('/:id/paiement', async (req, res) => {
     const { mode_paiement, date_paiement, reference_paiement } = req.body;
 
     // Validation mode de paiement
-    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque'];
+    const modesPaiementValides = ['especes', 'cb', 'virement', 'prelevement', 'cheque', 'echeance'];
     if (!mode_paiement || !modesPaiementValides.includes(mode_paiement)) {
       return res.status(400).json({
         success: false,
@@ -1996,6 +2128,7 @@ function generateFactureHTML(facture, tenant) {
     <div class="facture-info">
       <div class="facture-numero">FACTURE ${facture.numero}</div>
       <div class="facture-date">Date : ${formatDate(facture.date_facture)}</div>
+      ${facture.numero_commande ? `<div class="facture-date">BC : ${facture.numero_commande}</div>` : ''}
       <div class="statut statut-${facture.statut}">${facture.statut.toUpperCase()}</div>
     </div>
   </div>
@@ -2009,7 +2142,7 @@ function generateFactureHTML(facture, tenant) {
     <div class="partie">
       <div class="partie-titre">Client</div>
       <p><strong>${facture.client_nom || '-'}</strong></p>
-      ${facture.client_adresse ? `<p>${facture.client_adresse}</p>` : ''}
+      ${facture.client_adresse ? `<p>${facture.client_adresse.replace(/\n/g, '<br>')}</p>` : ''}
       ${facture.client_telephone ? `<p>Tel : ${facture.client_telephone}</p>` : ''}
       ${facture.client_email ? `<p>Email : ${facture.client_email}</p>` : ''}
     </div>
@@ -2030,6 +2163,12 @@ function generateFactureHTML(facture, tenant) {
         const qty = item.quantite || item.quantity || 1;
         const prixUnit = item.prix_unitaire || item.prix || 0;
         const total = item.total || prixUnit * qty;
+        const isDetail = prixUnit === 0 && total === 0;
+        if (isDetail) {
+          return `<tr>
+            <td colspan="4" style="color:#666; font-size:11px; padding:4px 12px; border-bottom:none;">${nom}</td>
+          </tr>`;
+        }
         return `<tr>
           <td>${nom}</td>
           <td style="text-align:center">${qty}</td>

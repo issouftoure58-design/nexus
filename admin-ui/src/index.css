@@ -35,7 +35,7 @@ body {
 
 /* ========== PRINT TEMPLATE — caché à l'écran ========== */
 .print-template {
-  display: none;
+  display: none !important;
 }
 
 /* ========== PRINT STYLES — Planning ========== */

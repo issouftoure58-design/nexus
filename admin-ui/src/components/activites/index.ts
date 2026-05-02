@@ -10,3 +10,4 @@ export { default as NewReservationModal } from './NewReservationModal';
 export { default as PaymentModal } from './PaymentModal';
 export { default as MembreModal } from './MembreModal';
 export { default as CheckoutModal } from './CheckoutModal';
+export { default as CloturerPeriodeModal } from './CloturerPeriodeModal';

@@ -54,6 +54,10 @@ export const CREDIT_PACKS = {
   pack_1000: { code: 'nexus_credits_1000', credits: 1000, price_cents: 1500, bonus_pct: 0 },
 };
 
+// Overage (usage-based) — taux interne par crédit en EUR
+export const OVERAGE_RATE_EUR = 0.015;
+export const OVERAGE_PRESETS = [10, 25, 50, 100];
+
 // Crédits inclus mensuels par plan
 export const MONTHLY_INCLUDED = {
   free: 200,
@@ -145,8 +149,25 @@ export async function hasCredits(tenantId, action, quantity = 1) {
   if (cost === 0) return { ok: true, cost: 0, balance: null };
 
   const balance = await getBalance(tenantId);
+
+  if (balance.balance >= cost) {
+    return { ok: true, cost, balance: balance.balance, missing: 0 };
+  }
+
+  // Fallback overage : si activé, vérifier que le coût EUR restant rentre dans la limite
+  if (balance.overage_enabled) {
+    const creditsOverage = cost - balance.balance;
+    const overageEurCost = creditsOverage * OVERAGE_RATE_EUR;
+    const currentUsed = parseFloat(balance.overage_used_eur) || 0;
+    const limit = parseFloat(balance.overage_limit_eur) || 0;
+
+    if (currentUsed + overageEurCost <= limit) {
+      return { ok: true, cost, balance: balance.balance, missing: 0, overage: true };
+    }
+  }
+
   return {
-    ok: balance.balance >= cost,
+    ok: false,
     cost,
     balance: balance.balance,
     missing: Math.max(0, cost - balance.balance),
@@ -171,43 +192,110 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
   // Lock optimiste : récupérer + débiter en une transaction
   const balance = await getBalance(tenantId);
 
-  if (balance.balance < cost) {
-    const err = new Error(`INSUFFICIENT_CREDITS: ${cost} requis, ${balance.balance} disponibles`);
-    err.code = 'INSUFFICIENT_CREDITS';
-    err.required = cost;
-    err.available = balance.balance;
-    throw err;
+  // Branche 1 : solde suffisant — débit normal
+  if (balance.balance >= cost) {
+    const newBalance = balance.balance - cost;
+
+    const { error: updateError } = await supabase
+      .from('ai_credits')
+      .update({
+        balance: newBalance,
+        total_consumed: (balance.total_consumed || 0) + cost,
+        monthly_used: (balance.monthly_used || 0) + cost,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId);
+
+    if (updateError) throw updateError;
+
+    await supabase.from('ai_credits_transactions').insert({
+      tenant_id: tenantId,
+      type: 'consume',
+      amount: -cost,
+      balance_after: newBalance,
+      source: action,
+      ref_id: refId,
+      description: description || `Consommation IA : ${action} x${quantity}`,
+      metadata,
+    });
+
+    logger.info('[CreditsService] Credits consumed', { tenantId, action, cost, newBalance });
+    return { consumed: cost, balance: newBalance, overage: false };
   }
 
-  const newBalance = balance.balance - cost;
+  // Branche 2 : solde insuffisant + overage activé → split balance + overage
+  if (balance.overage_enabled) {
+    const creditsFromBalance = balance.balance; // vider le reste
+    const creditsOverage = cost - creditsFromBalance;
+    const overageEurCost = +(creditsOverage * OVERAGE_RATE_EUR).toFixed(2);
+    const currentUsed = parseFloat(balance.overage_used_eur) || 0;
+    const limit = parseFloat(balance.overage_limit_eur) || 0;
 
-  const { error: updateError } = await supabase
-    .from('ai_credits')
-    .update({
-      balance: newBalance,
-      total_consumed: (balance.total_consumed || 0) + cost,
-      monthly_used: (balance.monthly_used || 0) + cost,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('tenant_id', tenantId);
+    if (currentUsed + overageEurCost > limit) {
+      const err = new Error(`OVERAGE_LIMIT_REACHED: ${overageEurCost}€ requis, ${(limit - currentUsed).toFixed(2)}€ restants`);
+      err.code = 'OVERAGE_LIMIT_REACHED';
+      err.required = cost;
+      err.available = balance.balance;
+      err.overage_cost_eur = overageEurCost;
+      err.overage_remaining_eur = +(limit - currentUsed).toFixed(2);
+      throw err;
+    }
 
-  if (updateError) throw updateError;
+    const newOverageUsed = +(currentUsed + overageEurCost).toFixed(2);
 
-  // Logger la transaction
-  await supabase.from('ai_credits_transactions').insert({
-    tenant_id: tenantId,
-    type: 'consume',
-    amount: -cost,
-    balance_after: newBalance,
-    source: action,
-    ref_id: refId,
-    description: description || `Consommation IA : ${action} x${quantity}`,
-    metadata,
-  });
+    const { error: updateError } = await supabase
+      .from('ai_credits')
+      .update({
+        balance: 0,
+        total_consumed: (balance.total_consumed || 0) + cost,
+        monthly_used: (balance.monthly_used || 0) + cost,
+        overage_used_eur: newOverageUsed,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId);
 
-  logger.info('[CreditsService] Credits consumed', { tenantId, action, cost, newBalance });
+    if (updateError) throw updateError;
 
-  return { consumed: cost, balance: newBalance };
+    // Transaction balance (si > 0)
+    if (creditsFromBalance > 0) {
+      await supabase.from('ai_credits_transactions').insert({
+        tenant_id: tenantId,
+        type: 'consume',
+        amount: -creditsFromBalance,
+        balance_after: 0,
+        source: action,
+        ref_id: refId,
+        description: description || `Consommation IA : ${action} x${quantity} (solde partiel)`,
+        metadata,
+      });
+    }
+
+    // Transaction overage
+    await supabase.from('ai_credits_transactions').insert({
+      tenant_id: tenantId,
+      type: 'overage',
+      amount: -creditsOverage,
+      balance_after: 0,
+      source: action,
+      ref_id: refId,
+      description: `Overage IA : ${action} — ${creditsOverage} crédits = ${overageEurCost}€`,
+      metadata: { ...metadata, overage_eur: overageEurCost, overage_credits: creditsOverage },
+    });
+
+    logger.info('[CreditsService] Overage consumed', { tenantId, action, cost, overageEurCost, newOverageUsed });
+
+    // Fire-and-forget : alertes overage (dynamic import pour éviter circular dep)
+    import('./creditAlertService.js').then(m => m.checkOverageAlert(tenantId)).catch(() => {});
+
+    return { consumed: cost, balance: 0, overage: true, overage_eur: overageEurCost };
+  }
+
+  // Branche 3 : solde insuffisant + pas d'overage → erreur classique
+  const err = new Error(`INSUFFICIENT_CREDITS: ${cost} requis, ${balance.balance} disponibles`);
+  err.code = 'INSUFFICIENT_CREDITS';
+  err.required = cost;
+  err.available = balance.balance;
+  throw err;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -247,11 +335,13 @@ export async function grantMonthlyIncluded(tenantId, amount) {
   nextReset.setDate(1);
   nextReset.setHours(0, 0, 0, 0);
 
+  // TODO: Avant reset, reporter overage_used_eur à Stripe via Usage Records API (metered billing futur)
   await supabase
     .from('ai_credits')
     .update({
       monthly_used: 0,
       monthly_included: amount,
+      overage_used_eur: 0,
       monthly_reset_at: nextReset.toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -330,6 +420,36 @@ async function creditTenant(tenantId, amount, { type, source, refId = null, desc
 }
 
 // ════════════════════════════════════════════════════════════════════
+// OVERAGE — Configuration
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Met à jour les paramètres overage d'un tenant.
+ * @param {string} tenantId
+ * @param {{ enabled: boolean, limit_eur: number }} settings
+ */
+export async function updateOverageSettings(tenantId, { enabled, limit_eur }) {
+  if (!tenantId) throw new Error('tenant_id requis');
+
+  // S'assurer que la ligne existe
+  await getBalance(tenantId);
+
+  const { error } = await supabase
+    .from('ai_credits')
+    .update({
+      overage_enabled: enabled,
+      overage_limit_eur: limit_eur,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('tenant_id', tenantId);
+
+  if (error) throw error;
+
+  logger.info('[CreditsService] Overage settings updated', { tenantId, enabled, limit_eur });
+  return getBalance(tenantId);
+}
+
+// ════════════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════════════
 
@@ -383,6 +503,8 @@ export default {
   CREDIT_PACKS,
   USAGE_TOPUP,
   MONTHLY_INCLUDED,
+  OVERAGE_RATE_EUR,
+  OVERAGE_PRESETS,
   getBalance,
   getTransactions,
   hasCredits,
@@ -392,4 +514,5 @@ export default {
   purchaseTopup,
   grantMonthlyIncluded,
   adjust,
+  updateOverageSettings,
 };

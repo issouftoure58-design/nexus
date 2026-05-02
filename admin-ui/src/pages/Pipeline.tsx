@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import {
   Plus, TrendingUp, User, Search, Trash2, MapPin, Percent, Euro,
   Calendar, GripVertical, X, Check, AlertCircle, Target, FileText,
-  Edit2
+  Edit2, Trophy, XCircle, ChevronDown, ChevronUp, Clock
 } from 'lucide-react';
 import { useProfile, useBusinessTypeChecks } from '@/contexts/ProfileContext';
 import { api } from '../lib/api';
+import { splitHoursSegments, majorationBadge, type HoursSegment } from '@/lib/majorations';
 
 interface Client {
   id: number;
@@ -19,6 +20,11 @@ interface Client {
   nom: string;
   email?: string;
   telephone?: string;
+  raison_sociale?: string;
+  type_client?: string;
+  adresse?: string;
+  code_postal?: string;
+  ville?: string;
 }
 
 interface Service {
@@ -26,6 +32,8 @@ interface Service {
   nom: string;
   prix: number; // centimes
   duree: number; // minutes
+  taxe_cnaps?: boolean;
+  taux_cnaps?: number;
 }
 
 interface ServiceLigne {
@@ -34,6 +42,11 @@ interface ServiceLigne {
   quantite: number;
   prix_unitaire: number;
   duree_minutes: number;
+  date_debut?: string;
+  date_fin?: string;
+  heure_debut?: string;
+  heure_fin?: string;
+  taux_horaire?: number;
 }
 
 interface Opportunite {
@@ -93,6 +106,8 @@ export default function PipelinePage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Opportunite | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Opportunite | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showHistorique, setShowHistorique] = useState(false);
 
   // Form state enrichi
   const [clientMode, setClientMode] = useState<'existant' | 'nouveau'>('existant');
@@ -102,6 +117,7 @@ export default function PipelinePage() {
   const [serviceLignes, setServiceLignes] = useState<ServiceLigne[]>([]);
   const [lieu, setLieu] = useState<'salon' | 'domicile'>('salon');
   const [adresseClient, setAdresseClient] = useState('');
+  const [adresseSite, setAdresseSite] = useState('');
   const [remiseType, setRemiseType] = useState<'aucune' | 'pourcentage' | 'montant'>('aucune');
   const [remiseValeur, setRemiseValeur] = useState(0);
   const [remiseMotif, setRemiseMotif] = useState('');
@@ -133,10 +149,59 @@ export default function PipelinePage() {
     }
   });
 
+  // Calcul du prix réel par ligne (taux_horaire × heures × jours + majorations)
+  const calcLignePrix = (ligne: ServiceLigne): { prixTotal: number; dureeTotaleMin: number; segments: HoursSegment[] } => {
+    const hasDatesHeures = ligne.date_debut && ligne.date_fin && ligne.heure_debut && ligne.heure_fin;
+    if (!hasDatesHeures || ligne.duree_minutes <= 0) {
+      // Fallback : prix catalogue
+      return { prixTotal: ligne.prix_unitaire * ligne.quantite, dureeTotaleMin: ligne.duree_minutes * ligne.quantite, segments: [] };
+    }
+
+    // Taux horaire en centimes/h
+    const tauxH = ligne.prix_unitaire / (ligne.duree_minutes / 60);
+
+    // Itérer sur chaque jour de la plage
+    let totalCentimes = 0;
+    let totalMinutes = 0;
+    const allSegments: HoursSegment[] = [];
+    const d = new Date(ligne.date_debut + 'T12:00:00');
+    const dFin = new Date(ligne.date_fin + 'T12:00:00');
+
+    while (d <= dFin) {
+      const dateStr = d.toISOString().slice(0, 10);
+      const segs = splitHoursSegments(dateStr, ligne.heure_debut!, ligne.heure_fin!);
+
+      for (const seg of segs) {
+        const montant = Math.round(seg.hours * tauxH * (1 + seg.pourcentage / 100));
+        totalCentimes += montant;
+        totalMinutes += seg.hours * 60;
+
+        // Agréger les segments par type
+        const existing = allSegments.find(s => s.type === seg.type);
+        if (existing) {
+          existing.hours += seg.hours;
+        } else {
+          allSegments.push({ ...seg });
+        }
+      }
+
+      d.setDate(d.getDate() + 1);
+    }
+
+    return { prixTotal: totalCentimes * ligne.quantite, dureeTotaleMin: Math.round(totalMinutes * ligne.quantite), segments: allSegments };
+  };
+
   // Calcul des montants
   const calculMontants = useMemo(() => {
-    let sousTotal = serviceLignes.reduce((sum, l) => sum + (l.prix_unitaire * l.quantite), 0);
-    let dureeTotale = serviceLignes.reduce((sum, l) => sum + (l.duree_minutes * l.quantite), 0);
+    let sousTotal = 0;
+    let dureeTotale = 0;
+
+    for (const l of serviceLignes) {
+      const { prixTotal, dureeTotaleMin } = calcLignePrix(l);
+      sousTotal += prixTotal;
+      dureeTotale += dureeTotaleMin;
+    }
+
     let fraisDeplacement = lieu === 'domicile' ? FRAIS_DEPLACEMENT_DEFAUT : 0;
 
     let montantHT = sousTotal + fraisDeplacement;
@@ -149,11 +214,24 @@ export default function PipelinePage() {
     }
 
     montantHT -= montantRemise;
+
+    // CNAPS: taxe sur les services qui ont taxe_cnaps=true
+    let montantCnaps = 0;
+    const allServices = servicesData?.services || [];
+    for (const l of serviceLignes) {
+      const service = allServices.find(s => s.id === l.service_id);
+      if (service?.taxe_cnaps && (service.taux_cnaps ?? 0) > 0) {
+        const { prixTotal } = calcLignePrix(l);
+        montantCnaps += Math.round(prixTotal * (service.taux_cnaps ?? 0) / 100);
+      }
+    }
+    montantHT += montantCnaps;
+
     const montantTVA = Math.round(montantHT * 0.2);
     const montantTTC = montantHT + montantTVA;
 
-    return { sousTotal, dureeTotale, fraisDeplacement, montantRemise, montantHT, montantTVA, montantTTC };
-  }, [serviceLignes, lieu, remiseType, remiseValeur]);
+    return { sousTotal, dureeTotale, fraisDeplacement, montantRemise, montantCnaps, montantHT, montantTVA, montantTTC };
+  }, [serviceLignes, lieu, remiseType, remiseValeur, servicesData]);
 
   // Ajouter un service
   const handleAddService = (serviceId: number) => {
@@ -172,7 +250,11 @@ export default function PipelinePage() {
         service_nom: service.nom,
         quantite: 1,
         prix_unitaire: service.prix,
-        duree_minutes: service.duree
+        duree_minutes: service.duree,
+        date_debut: '',
+        date_fin: '',
+        heure_debut: '',
+        heure_fin: ''
       }]);
     }
   };
@@ -191,6 +273,7 @@ export default function PipelinePage() {
     setServiceLignes([]);
     setLieu('salon');
     setAdresseClient('');
+    setAdresseSite('');
     setRemiseType('aucune');
     setRemiseValeur(0);
     setRemiseMotif('');
@@ -230,7 +313,7 @@ export default function PipelinePage() {
         date_debut: newOpp.date_debut || null,
         date_cloture_prevue: newOpp.date_cloture_prevue || null,
         lieu,
-        adresse_client: lieu === 'domicile' ? adresseClient : null,
+        adresse_client: adresseSite || (lieu === 'domicile' ? adresseClient : null),
         etape: 'prospect'
       };
 
@@ -246,12 +329,30 @@ export default function PipelinePage() {
         };
       }
 
-      // Services
+      // Services (enrichis avec dates/horaires + prix réel calculé)
       if (serviceLignes.length > 0) {
-        payload.services = serviceLignes.map(l => ({
-          service_id: l.service_id,
-          quantite: l.quantite
-        }));
+        payload.services = serviceLignes.map(l => {
+          const { prixTotal } = calcLignePrix(l);
+          return {
+            service_id: l.service_id,
+            quantite: l.quantite,
+            date_debut: l.date_debut || null,
+            date_fin: l.date_fin || null,
+            heure_debut: l.heure_debut || null,
+            heure_fin: l.heure_fin || null,
+            taux_horaire: l.duree_minutes > 0
+              ? Math.round((l.prix_unitaire / 100) / (l.duree_minutes / 60))
+              : null,
+            prix_total_reel: prixTotal // centimes, avec majorations
+          };
+        });
+        // Envoyer les montants calculés par le frontend
+        payload.montants_calcules = {
+          sous_total: calculMontants.sousTotal,
+          montant_ht: calculMontants.montantHT,
+          montant_tva: calculMontants.montantTVA,
+          montant_ttc: calculMontants.montantTTC
+        };
       }
 
       // Remise
@@ -275,12 +376,27 @@ export default function PipelinePage() {
     }
   });
 
+  // Fetch historique (gagnées/perdues)
+  const { data: historiqueData } = useQuery<any>({
+    queryKey: ['pipeline-closed'],
+    queryFn: async () => {
+      const raw = await api.get<any>('/admin/pipeline/stats/historique?periode=365');
+      return raw?.data || raw;
+    },
+    enabled: showHistorique
+  });
+
   // Win/Lose mutations
   const winMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.patch(`/admin/pipeline/${id}/etape`, { etape: 'gagne' });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      queryClient.invalidateQueries({ queryKey: ['pipeline-closed'] });
+      setFeedbackMsg({ type: 'success', text: 'Opportunite marquee comme gagnee !' });
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    },
     onError: () => {}
   });
 
@@ -288,7 +404,12 @@ export default function PipelinePage() {
     mutationFn: async (id: number) => {
       return api.patch(`/admin/pipeline/${id}/etape`, { etape: 'perdu' });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      queryClient.invalidateQueries({ queryKey: ['pipeline-closed'] });
+      setFeedbackMsg({ type: 'error', text: 'Opportunite marquee comme perdue.' });
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    },
     onError: () => {}
   });
 
@@ -406,24 +527,24 @@ export default function PipelinePage() {
                   className="text-lg"
                 />
 
-                {/* Section Client */}
+                {/* Section Contact */}
                 <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                   <div className="flex items-center gap-4 mb-3">
-                    <span className="font-medium text-gray-700">Client:</span>
+                    <span className="font-medium text-gray-700">Contact:</span>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant={clientMode === 'existant' ? 'default' : 'outline'}
                         onClick={() => setClientMode('existant')}
                       >
-                        Client existant
+                        Contact existant
                       </Button>
                       <Button
                         size="sm"
                         variant={clientMode === 'nouveau' ? 'default' : 'outline'}
                         onClick={() => setClientMode('nouveau')}
                       >
-                        + Nouveau client
+                        + Nouveau contact
                       </Button>
                     </div>
                   </div>
@@ -432,7 +553,7 @@ export default function PipelinePage() {
                     <div className="relative">
                       <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        placeholder="Rechercher un client..."
+                        placeholder="Rechercher un contact..."
                         value={clientSearch}
                         onChange={(e) => {
                           setClientSearch(e.target.value);
@@ -442,7 +563,7 @@ export default function PipelinePage() {
                       />
                       {selectedClient && (
                         <div className="mt-2 p-2 bg-blue-50 rounded flex items-center justify-between">
-                          <span>{selectedClient.prenom} {selectedClient.nom} - {selectedClient.telephone}</span>
+                          <span>{selectedClient.raison_sociale || `${selectedClient.prenom} ${selectedClient.nom}`} - {selectedClient.telephone}</span>
                           <Button size="sm" variant="ghost" onClick={() => { setSelectedClient(null); setClientSearch(''); }}>
                             <X className="h-4 w-4" />
                           </Button>
@@ -456,7 +577,7 @@ export default function PipelinePage() {
                               className="w-full text-left px-4 py-2 hover:bg-gray-100"
                               onClick={() => { setSelectedClient(c); setClientSearch(''); }}
                             >
-                              {c.prenom} {c.nom} - {c.telephone}
+                              {c.raison_sociale || `${c.prenom} ${c.nom}`} - {c.telephone}
                             </button>
                           ))}
                         </div>
@@ -470,6 +591,33 @@ export default function PipelinePage() {
                       <Input placeholder="Email" value={nouveauClient.email} onChange={(e) => setNouveauClient({ ...nouveauClient, email: e.target.value })} />
                     </div>
                   )}
+                </div>
+
+                {/* Adresse du site */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adresse du site</label>
+                  {selectedClient?.adresse && (
+                    <label className="flex items-center gap-2 mb-2 text-sm text-gray-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300"
+                        checked={adresseSite === [selectedClient.adresse, selectedClient.code_postal, selectedClient.ville].filter(Boolean).join(', ')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAdresseSite([selectedClient.adresse, selectedClient.code_postal, selectedClient.ville].filter(Boolean).join(', '));
+                          } else {
+                            setAdresseSite('');
+                          }
+                        }}
+                      />
+                      Identique à l'adresse de facturation
+                    </label>
+                  )}
+                  <Input
+                    placeholder="Adresse complete du lieu de prestation..."
+                    value={adresseSite}
+                    onChange={(e) => setAdresseSite(e.target.value)}
+                  />
                 </div>
 
                 {/* Section Services */}
@@ -489,42 +637,116 @@ export default function PipelinePage() {
                   </div>
 
                   {serviceLignes.length > 0 ? (
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-200">
-                        <tr>
-                          <th className="text-left p-2">Service</th>
-                          <th className="text-center p-2 w-20">Qte</th>
-                          <th className="text-center p-2 w-24">Duree</th>
-                          <th className="text-right p-2 w-28">Prix</th>
-                          <th className="w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {serviceLignes.map((ligne) => (
-                          <tr key={ligne.service_id} className="border-b">
-                            <td className="p-2">{ligne.service_nom}</td>
-                            <td className="p-2 text-center">
-                              <Input
-                                type="number"
-                                min="1"
-                                value={ligne.quantite}
-                                onChange={(e) => setServiceLignes(prev => prev.map(l =>
-                                  l.service_id === ligne.service_id ? { ...l, quantite: parseInt(e.target.value) || 1 } : l
-                                ))}
-                                className="w-16 text-center mx-auto"
-                              />
-                            </td>
-                            <td className="p-2 text-center text-gray-600">{ligne.duree_minutes * ligne.quantite} min</td>
-                            <td className="p-2 text-right font-medium">{((ligne.prix_unitaire * ligne.quantite) / 100).toFixed(2)} €</td>
-                            <td className="p-2">
-                              <Button size="sm" variant="ghost" onClick={() => handleRemoveService(ligne.service_id)}>
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div className="space-y-3">
+                      {serviceLignes.map((ligne) => {
+                        const ligneCalc = calcLignePrix(ligne);
+                        const tauxH = ligne.duree_minutes > 0 ? Math.round((ligne.prix_unitaire / 100) / (ligne.duree_minutes / 60)) : 0;
+                        return (
+                        <div key={ligne.service_id} className="bg-white border rounded-lg p-3 space-y-2">
+                          {/* Header: nom + quantité + prix + supprimer */}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm flex-1">{ligne.service_nom}</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={ligne.quantite}
+                              onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                                l.service_id === ligne.service_id ? { ...l, quantite: parseInt(e.target.value) || 1 } : l
+                              ))}
+                              className="w-16 text-center"
+                            />
+                            <span className="text-xs text-gray-500">{ligneCalc.dureeTotaleMin} min</span>
+                            <span className="text-sm font-medium w-28 text-right">{(ligneCalc.prixTotal / 100).toFixed(2)} €</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveService(ligne.service_id)}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Dates par ligne */}
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-500">Du</span>
+                            <input
+                              type="date"
+                              value={ligne.date_debut || ''}
+                              onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                                l.service_id === ligne.service_id ? { ...l, date_debut: e.target.value } : l
+                              ))}
+                              className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-500">au</span>
+                            <input
+                              type="date"
+                              value={ligne.date_fin || ''}
+                              onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                                l.service_id === ligne.service_id ? { ...l, date_fin: e.target.value } : l
+                              ))}
+                              min={ligne.date_debut || ''}
+                              className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {/* Horaires par ligne */}
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-500">Horaires:</span>
+                            <input
+                              type="time"
+                              value={ligne.heure_debut || ''}
+                              onChange={(e) => {
+                                const hDebut = e.target.value;
+                                // Auto-calcul heure_fin = heure_debut + duree_minutes
+                                let hFin = '';
+                                if (hDebut && ligne.duree_minutes) {
+                                  const [h, m] = hDebut.split(':').map(Number);
+                                  const totalMin = h * 60 + m + ligne.duree_minutes;
+                                  const fh = Math.floor(totalMin / 60) % 24;
+                                  const fm = totalMin % 60;
+                                  hFin = `${String(fh).padStart(2, '0')}:${String(fm).padStart(2, '0')}`;
+                                }
+                                setServiceLignes(prev => prev.map(l =>
+                                  l.service_id === ligne.service_id ? { ...l, heure_debut: hDebut, heure_fin: hFin || l.heure_fin } : l
+                                ));
+                              }}
+                              className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-400">{'\u2192'}</span>
+                            <input
+                              type="time"
+                              value={ligne.heure_fin || ''}
+                              onChange={(e) => setServiceLignes(prev => prev.map(l =>
+                                l.service_id === ligne.service_id ? { ...l, heure_fin: e.target.value } : l
+                              ))}
+                              className="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {/* Taux horaire + badges majorations */}
+                          {ligne.duree_minutes > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Euro className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              <span className="text-xs text-gray-500">Taux horaire:</span>
+                              <span className="text-sm font-medium text-gray-700">{tauxH} €/h</span>
+                              {ligneCalc.segments.filter(s => s.type !== 'jour').map(s => (
+                                <span key={s.type} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-xs">
+                                  {majorationBadge(s.type)} {s.label} {s.hours.toFixed(1)}h (+{s.pourcentage}%)
+                                </span>
+                              ))}
+                              {ligneCalc.segments.some(s => s.type === 'jour') && (
+                                <span className="text-xs text-gray-400">
+                                  Jour: {ligneCalc.segments.find(s => s.type === 'jour')!.hours.toFixed(1)}h
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <p className="text-gray-500 text-sm italic">Aucun service selectionne</p>
                   )}
@@ -621,7 +843,14 @@ export default function PipelinePage() {
                         </>
                       )}
 
-                      <span className="text-gray-600">Total HT:</span>
+                      {calculMontants.montantCnaps > 0 && (
+                        <>
+                          <span className="text-gray-600">Taxe CNAPS (0.50%):</span>
+                          <span className="text-right">{(calculMontants.montantCnaps / 100).toFixed(2)} €</span>
+                        </>
+                      )}
+
+                      <span className="text-gray-600">Total HT{calculMontants.montantCnaps > 0 ? ' (incl. CNAPS)' : ''}:</span>
                       <span className="text-right font-medium">{(calculMontants.montantHT / 100).toFixed(2)} €</span>
 
                       <span className="text-gray-600">TVA (20%):</span>
@@ -686,6 +915,17 @@ export default function PipelinePage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Feedback banner */}
+        {feedbackMsg && (
+          <div className={`p-3 rounded-lg flex items-center gap-2 text-sm font-medium ${
+            feedbackMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {feedbackMsg.type === 'success' ? <Trophy className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {feedbackMsg.text}
+            <button onClick={() => setFeedbackMsg(null)} className="ml-auto p-1 hover:bg-white/50 rounded"><X className="h-3 w-3" /></button>
+          </div>
         )}
 
         {/* Pipeline Kanban */}
@@ -767,7 +1007,7 @@ export default function PipelinePage() {
                         {opp.clients && (
                           <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
                             <User className="h-3 w-3" />
-                            {opp.clients.prenom} {opp.clients.nom}
+                            {opp.clients.raison_sociale || `${opp.clients.prenom} ${opp.clients.nom}`}
                           </div>
                         )}
 
@@ -865,6 +1105,88 @@ export default function PipelinePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Historique gagnées/perdues */}
+        <div className="mt-6">
+          <button
+            onClick={() => setShowHistorique(!showHistorique)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 mb-3"
+          >
+            {showHistorique ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Historique des opportunites cloturees
+          </button>
+
+          {showHistorique && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Gagnées */}
+              <Card className="border-green-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-green-700">
+                    <Trophy className="h-4 w-4" />
+                    Gagnees ({historiqueData?.gagnees?.length || 0})
+                    {historiqueData?.stats?.caGagne > 0 && (
+                      <span className="ml-auto font-normal text-green-600">
+                        {parseFloat(historiqueData.stats.caGagne).toLocaleString('fr-FR')} EUR
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(historiqueData?.gagnees || []).length === 0 ? (
+                    <p className="text-sm text-gray-400">Aucune opportunite gagnee</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {(historiqueData?.gagnees || []).map((opp: any) => (
+                        <div key={opp.id} className="flex items-center justify-between p-2 bg-green-50 rounded text-sm">
+                          <div>
+                            <span className="font-medium">{opp.nom}</span>
+                            {opp.clients && (
+                              <span className="text-gray-500 ml-2">
+                                — {opp.clients.raison_sociale || `${opp.clients.prenom} ${opp.clients.nom}`}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-green-600">{parseFloat(opp.montant).toLocaleString('fr-FR')} EUR</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Perdues */}
+              <Card className="border-red-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-red-700">
+                    <XCircle className="h-4 w-4" />
+                    Perdues ({historiqueData?.perdues?.length || 0})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(historiqueData?.perdues || []).length === 0 ? (
+                    <p className="text-sm text-gray-400">Aucune opportunite perdue</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {(historiqueData?.perdues || []).map((opp: any) => (
+                        <div key={opp.id} className="flex items-center justify-between p-2 bg-red-50 rounded text-sm">
+                          <div>
+                            <span className="font-medium">{opp.nom}</span>
+                            {opp.clients && (
+                              <span className="text-gray-500 ml-2">
+                                — {opp.clients.raison_sociale || `${opp.clients.prenom} ${opp.clients.nom}`}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-medium text-red-600">{parseFloat(opp.montant).toLocaleString('fr-FR')} EUR</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
 
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (

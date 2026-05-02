@@ -57,7 +57,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
     if (search) {
       const terms = search.trim().split(/\s+/).filter(Boolean);
       for (const term of terms) {
-        query = query.or(`nom.ilike.%${term}%,prenom.ilike.%${term}%,telephone.ilike.%${term}%,email.ilike.%${term}%`);
+        query = query.or(`nom.ilike.%${term}%,prenom.ilike.%${term}%,telephone.ilike.%${term}%,email.ilike.%${term}%,raison_sociale.ilike.%${term}%`);
       }
     }
 

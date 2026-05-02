@@ -17,17 +17,21 @@ export function CreditAlertBanner() {
 
   if (dismissed || !balance) return null;
 
-  const { balance: remaining, monthly_included } = balance;
+  const { monthly_used, monthly_included, overage_enabled } = balance;
 
   // Pas de crédits inclus = Free plan → pas d'alerte
   if (!monthly_included || monthly_included === 0) return null;
 
-  const percentRemaining = (remaining / monthly_included) * 100;
+  // Overage activé = l'IA ne s'arrête pas, pas besoin d'alerter
+  if (overage_enabled) return null;
+
+  const percentUsed = (monthly_used / monthly_included) * 100;
+  const percentRemaining = 100 - percentUsed;
 
   // Ne s'affiche que si < 20% restants
   if (percentRemaining >= 20) return null;
 
-  const isExhausted = remaining <= 0;
+  const isExhausted = percentRemaining <= 0;
 
   return (
     <div className={`px-4 py-2.5 flex items-center justify-between text-sm ${

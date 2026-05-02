@@ -136,6 +136,8 @@ export interface ReservationService {
   membre?: Membre | null;
   heure_debut?: string;
   heure_fin?: string;
+  date_debut?: string;
+  date_fin?: string;
 }
 
 export interface EditLigne {
@@ -149,6 +151,8 @@ export interface EditLigne {
   duree_minutes?: number;
   prix_unitaire?: number;
   prix_total?: number;
+  date_debut?: string;
+  date_fin?: string;
 }
 
 export interface ReservationMembre {
@@ -203,6 +207,11 @@ export interface Reservation {
   // Multi-jours (hotel / security / mission)
   date_fin?: string;
   heure_fin?: string;
+  // Bon de commande
+  numero_commande?: string;
+  // Forfait (contrat recurrent)
+  is_forfait?: boolean;
+  forfait_periode_id?: number;
 }
 
 // === Formulaires ===
@@ -229,6 +238,7 @@ export interface NewRdvForm {
   adresse_facturation_identique: boolean;
   frais_deplacement: number;
   notes: string;
+  numero_commande: string;
   membre_id: number;
   remise_type: string;
   remise_valeur: number;
@@ -307,6 +317,7 @@ export const MODES_PAIEMENT = [
   { value: 'virement', label: 'Virement', icon: '\uD83C\uDFE6' },
   { value: 'cheque', label: 'Ch\u00e8que', icon: '\uD83D\uDCDD' },
   { value: 'prelevement', label: 'Pr\u00e9l\u00e8vement', icon: '\uD83D\uDD04' },
+  { value: 'echeance', label: '\u00C0 l\u2019\u00e9ch\u00e9ance', icon: '\uD83D\uDCC5' },
 ];
 
 // === Helpers ===
@@ -383,6 +394,7 @@ export const DEFAULT_NEW_RDV_FORM: NewRdvForm = {
   adresse_facturation_identique: true,
   frais_deplacement: 0,
   notes: '',
+  numero_commande: '',
   membre_id: 0,
   remise_type: '',
   remise_valeur: 0,

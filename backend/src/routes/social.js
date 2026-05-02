@@ -270,6 +270,9 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
       secteur,
     });
   } catch (error) {
+    if (error.code === 'INSUFFICIENT_CREDITS' || error.code === 'OVERAGE_LIMIT_REACHED') {
+      return res.status(402).json({ success: false, error: 'Utilisation IA insuffisante', code: error.code, required: error.required, available: error.available });
+    }
     console.error('[SOCIAL] Erreur génération post:', error);
     res.status(500).json({
       success: false,

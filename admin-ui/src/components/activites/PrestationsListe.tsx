@@ -201,8 +201,8 @@ export default function PrestationsListe({
       ) : (
         <>
           {/* Vue Desktop - Tableau */}
-          <div className="hidden md:block bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
-            <table className="w-full">
+          <div className="hidden md:block bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg overflow-x-auto">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Heure</th>
@@ -286,7 +286,35 @@ export default function PrestationsListe({
                       <td className="px-4 py-4">
                         {rdv.services && rdv.services.length > 0 ? (
                           <div className="space-y-1.5">
-                            {rdv.services.map((s: ReservationService, idx: number) => (
+                            {rdv.is_forfait ? (() => {
+                              // Forfait: regrouper par service_nom au lieu d'afficher chaque jour
+                              const grouped: Record<string, { nom: string; count: number; heure_debut?: string; heure_fin?: string; membres: string[] }> = {};
+                              for (const s of rdv.services) {
+                                const key = s.service_nom;
+                                if (!grouped[key]) grouped[key] = { nom: key, count: 0, heure_debut: s.heure_debut, heure_fin: s.heure_fin, membres: [] };
+                                grouped[key].count += 1;
+                                const mNom = s.membre ? `${s.membre.prenom} ${s.membre.nom}` : null;
+                                if (mNom && !grouped[key].membres.includes(mNom)) grouped[key].membres.push(mNom);
+                              }
+                              return Object.values(grouped).map((g, i) => (
+                                <div key={i} className="border-l-2 border-cyan-200 dark:border-cyan-800 pl-2">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white">{g.nom}</span>
+                                    <span className="text-xs text-gray-500">{g.count}j</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    {g.heure_debut && g.heure_fin && (
+                                      <span className="text-gray-500">
+                                        {rdv.date ? new Date(rdv.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : ''} → {rdv.date_depart ? new Date(rdv.date_depart + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : ''}, {g.heure_debut}–{g.heure_fin}
+                                      </span>
+                                    )}
+                                    {g.membres.length > 0 && (
+                                      <span className="text-cyan-600">{g.membres.join(', ')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ));
+                            })() : rdv.services.map((s: ReservationService, idx: number) => (
                               <div key={s.id || idx} className="border-l-2 border-cyan-200 dark:border-cyan-800 pl-2">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -311,7 +339,7 @@ export default function PrestationsListe({
                                 </div>
                               </div>
                             ))}
-                            {!isHotel && (
+                            {!isHotel && !rdv.is_forfait && (
                               <div className="text-xs font-medium text-gray-500 pt-0.5">Total : {rdv.duree_totale || rdv.duree || 60} min</div>
                             )}
                           </div>
@@ -416,6 +444,7 @@ export default function PrestationsListe({
                               onChange={(e) => onChangeStatut(rdv.id, e.target.value)}
                               className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded focus:outline-none"
                             >
+                              <option value="demande">Demande</option>
                               <option value="en_attente">En attente</option>
                               <option value="confirme">Confirmé</option>
                               <option value="termine">Terminé</option>
@@ -492,7 +521,27 @@ export default function PrestationsListe({
                     <div className="space-y-1">
                       {rdv.services && rdv.services.length > 0 ? (
                         <>
-                          {rdv.services.map((s: ReservationService, idx: number) => (
+                          {rdv.is_forfait ? (() => {
+                            const grouped: Record<string, { nom: string; count: number; heure_debut?: string; heure_fin?: string; membres: string[] }> = {};
+                            for (const s of rdv.services) {
+                              const key = s.service_nom;
+                              if (!grouped[key]) grouped[key] = { nom: key, count: 0, heure_debut: s.heure_debut, heure_fin: s.heure_fin, membres: [] };
+                              grouped[key].count += 1;
+                              const mNom = s.membre ? `${s.membre.prenom} ${s.membre.nom}` : null;
+                              if (mNom && !grouped[key].membres.includes(mNom)) grouped[key].membres.push(mNom);
+                            }
+                            return Object.values(grouped).map((g, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-gray-700 dark:text-gray-300">{g.nom}</span>
+                                  <span className="text-xs text-gray-400">{g.count}j, {g.heure_debut}–{g.heure_fin}</span>
+                                </div>
+                                {g.membres.length > 0 && (
+                                  <span className="text-xs text-cyan-600">{g.membres.join(', ')}</span>
+                                )}
+                              </div>
+                            ));
+                          })() : rdv.services.map((s: ReservationService, idx: number) => (
                             <div key={s.id || idx} className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-1">
                                 <span className="text-gray-700 dark:text-gray-300">{s.service_nom}</span>
@@ -508,7 +557,7 @@ export default function PrestationsListe({
                           ))}
                           <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
                             {!isHotel ? (
-                              <span className="text-xs text-gray-500">Total : {rdv.duree_totale || rdv.duree || 60} min</span>
+                              <span className="text-xs text-gray-500">{rdv.is_forfait ? `${rdv.date ? new Date(rdv.date+'T12:00:00').toLocaleDateString('fr-FR') : ''} → ${rdv.date_depart ? new Date(rdv.date_depart+'T12:00:00').toLocaleDateString('fr-FR') : ''}` : `Total : ${rdv.duree_totale || rdv.duree || 60} min`}</span>
                             ) : (
                               <span className="text-xs text-gray-500">
                                 {rdv.date_fin ? `${formatDate(rdv.date || '')} → ${formatDate(rdv.date_fin)}` : ''}

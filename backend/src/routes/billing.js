@@ -22,7 +22,7 @@ import { authenticateAdmin } from './adminAuth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import logger from '../config/logger.js';
 import * as billingService from '../services/stripeBillingService.js';
-import creditsService, { CREDIT_PACKS, USAGE_TOPUP, CREDIT_COSTS } from '../services/creditsService.js';
+import creditsService, { CREDIT_PACKS, USAGE_TOPUP, CREDIT_COSTS, OVERAGE_RATE_EUR, OVERAGE_PRESETS } from '../services/creditsService.js';
 
 const router = express.Router();
 
@@ -456,6 +456,9 @@ router.get('/credits/balance', async (req, res) => {
       auto_recharge_enabled: balance.auto_recharge_enabled || false,
       auto_recharge_threshold: balance.auto_recharge_threshold || null,
       auto_recharge_pack: balance.auto_recharge_pack || null,
+      overage_enabled: balance.overage_enabled || false,
+      overage_limit_eur: parseFloat(balance.overage_limit_eur) || 0,
+      overage_used_eur: parseFloat(balance.overage_used_eur) || 0,
     });
   } catch (error) {
     logger.error('Billing Erreur GET credits/balance:', error);
@@ -549,6 +552,46 @@ router.post('/credits/checkout', async (req, res) => {
     });
   } catch (error) {
     logger.error('Billing Erreur POST credits/checkout:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// OVERAGE — Utilisation supplémentaire automatique
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * PATCH /api/billing/credits/overage
+ * Active/désactive l'overage et définit la limite EUR mensuelle.
+ * Body: { enabled: boolean, limit_eur: number }
+ */
+router.patch('/credits/overage', requirePermission('billing', 'write'), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { enabled, limit_eur } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'enabled requis (boolean)' });
+    }
+    if (enabled && (typeof limit_eur !== 'number' || limit_eur < 0 || limit_eur > 10000)) {
+      return res.status(400).json({ success: false, error: 'limit_eur requis (0-10000)' });
+    }
+
+    const balance = await creditsService.updateOverageSettings(tenantId, {
+      enabled,
+      limit_eur: enabled ? limit_eur : 0,
+    });
+
+    res.json({
+      success: true,
+      overage_enabled: balance.overage_enabled,
+      overage_limit_eur: parseFloat(balance.overage_limit_eur) || 0,
+      overage_used_eur: parseFloat(balance.overage_used_eur) || 0,
+      overage_rate_eur: OVERAGE_RATE_EUR,
+      overage_presets: OVERAGE_PRESETS,
+    });
+  } catch (error) {
+    logger.error('Billing Erreur PATCH credits/overage:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

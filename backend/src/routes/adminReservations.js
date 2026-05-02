@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { supabase } from '../config/supabase.js';
 import { authenticateAdmin } from './adminAuth.js';
 import { requireModule } from '../middleware/moduleProtection.js';
-import { checkConflicts } from '../utils/conflictChecker.js';
+import { checkConflicts, checkMemberMultiDayConflicts } from '../utils/conflictChecker.js';
 import { createFactureFromReservation, updateFactureStatutFromReservation, cancelFactureFromReservation, createAvoir, createAvoirPartiel, createFactureComplementaire, genererEcrituresPaiement } from './factures.js';
 import { triggerWorkflows } from '../automation/workflowEngine.js';
 import { onReservationCreated, onReservationConfirmed, onReservationCancelled } from '../services/webhookService.js';
@@ -73,6 +73,7 @@ const createReservationSchema = z.object({
   extras: z.array(z.string()).optional(),
   duree_totale_minutes: z.number().optional(),
   frais_deplacement: z.number().optional(),
+  numero_commande: z.string().max(100).optional().nullable(),
 }).passthrough();
 
 const router = express.Router();
@@ -140,6 +141,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
           membre_id,
           heure_debut,
           heure_fin,
+          date_debut,
+          date_fin,
           membre:rh_membres (
             id,
             nom,
@@ -257,6 +260,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
               membre_id: l.membre_id,
               heure_debut: l.heure_debut || null,
               heure_fin: l.heure_fin || null,
+              date_debut: l.date_debut || null,
+              date_fin: l.date_fin || null,
               membre: l.membre ? {
                 id: l.membre.id,
                 nom: l.membre.nom,
@@ -303,7 +308,12 @@ router.get('/', authenticateAdmin, async (req, res) => {
           prenom: rm.membre?.prenom,
           role: rm.membre?.role,
           assignment_role: rm.role
-        }))
+        })),
+        // Forfait
+        is_forfait: !!r.is_forfait,
+        forfait_periode_id: r.forfait_periode_id || null,
+        date: r.date, // date brute pour forfait grouping
+        date_depart: r.date_depart || null,
       };
     });
 
@@ -375,6 +385,8 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
           membre_id,
           heure_debut,
           heure_fin,
+          date_debut,
+          date_fin,
           membre:rh_membres (
             id,
             nom,
@@ -523,6 +535,222 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// CLOTURER PERIODE (BATCH)
+// ════════════════════════════════════════════════════════════════════
+
+const cloturerPeriodeSchema = z.object({
+  date_debut: z.string().min(10),
+  date_fin: z.string().min(10),
+  dry_run: z.boolean().optional().default(false),
+});
+
+// POST /api/admin/reservations/cloturer-periode
+// Clôturer toutes les prestations d'une période en batch
+router.post('/cloturer-periode', authenticateAdmin, validate(cloturerPeriodeSchema), async (req, res) => {
+  try {
+    const tenantId = req.admin.tenant_id;
+    const { date_debut, date_fin, dry_run } = req.body;
+
+    // 1. Chercher toutes les réservations dans la période (non terminées, non annulées)
+    const { data: reservations, error: fetchErr } = await supabase
+      .from('reservations')
+      .select(`
+        id, date, heure, service_nom, prix_total, statut, membre_id,
+        is_forfait, forfait_periode_id,
+        client:clients(id, nom, prenom, raison_sociale, type_client),
+        reservation_lignes(id, service_nom, prix_total, membre_id)
+      `)
+      .eq('tenant_id', tenantId)
+      .not('statut', 'in', '("termine","annule")')
+      .gte('date', date_debut)
+      .lte('date', date_fin)
+      .order('date', { ascending: true });
+
+    if (fetchErr) throw fetchErr;
+
+    if (!reservations || reservations.length === 0) {
+      return success(res, { count: 0, montant_total: 0, reservations: [], message: 'Aucune prestation a cloturer dans cette periode' });
+    }
+
+    // 2. dry_run → retourner aperçu sans modifier
+    if (dry_run) {
+      const montant_total = reservations.reduce((sum, r) => sum + (r.prix_total || 0), 0);
+      const formatted = reservations.map(r => ({
+        id: r.id,
+        date: r.date,
+        client: r.client?.raison_sociale || (r.client ? `${r.client.prenom} ${r.client.nom}` : 'N/A'),
+        client_id: r.client?.id || null,
+        service_nom: r.service_nom,
+        montant: r.prix_total || 0,
+        is_forfait: !!r.is_forfait,
+        forfait_periode_id: r.forfait_periode_id || null,
+        has_membre: !!(r.membre_id || (r.reservation_lignes || []).some(l => l.membre_id)),
+      }));
+      return success(res, {
+        count: reservations.length,
+        montant_total,
+        reservations: formatted,
+        forfait_count: reservations.filter(r => r.is_forfait).length,
+      });
+    }
+
+    // 3. Exécuter la clôture batch
+    const results = { closed: 0, factures: 0, skipped: 0, errors: [], skipped_details: [] };
+    let montant_total = 0;
+
+    for (const rdv of reservations) {
+      try {
+        // Check si membre assigné (requis pour security/salon/service/service_domicile)
+        const hasMembre = !!(rdv.membre_id || (rdv.reservation_lignes || []).some(l => l.membre_id));
+
+        if (rdv.is_forfait && rdv.forfait_periode_id) {
+          // Forfait: clôturer via endpoint forfait (inline)
+          // Charger la période forfait
+          const { data: periode } = await supabase
+            .from('forfait_periodes')
+            .select('*')
+            .eq('id', rdv.forfait_periode_id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+          if (periode && periode.statut !== 'cloture') {
+            const { data: forfait } = await supabase
+              .from('forfaits')
+              .select('*')
+              .eq('id', periode.forfait_id)
+              .eq('tenant_id', tenantId)
+              .single();
+
+            if (forfait) {
+              // Passer la prestation en terminée
+              await supabase
+                .from('reservations')
+                .update({ statut: 'termine', updated_at: new Date().toISOString() })
+                .eq('id', rdv.id)
+                .eq('tenant_id', tenantId);
+
+              // Charger postes pour détail facture
+              const { data: postes } = await supabase
+                .from('forfait_postes')
+                .select('*')
+                .eq('forfait_id', forfait.id)
+                .eq('tenant_id', tenantId);
+
+              const moisLabel = new Date(periode.date_debut + 'T12:00:00')
+                .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+              const moisLabelCap = moisLabel.charAt(0).toUpperCase() + moisLabel.slice(1);
+
+              const montantHT = forfait.montant_mensuel_ht;
+              const tauxTVA = forfait.taux_tva || 20;
+              const montantTVA = Math.round(montantHT * tauxTVA / 100);
+              const montantTTC = montantHT + montantTVA;
+
+              const lignesFacture = [
+                { nom: `Forfait ${moisLabelCap}`, quantite: 1, prix_unitaire: montantHT, taux_tva: tauxTVA, total: montantHT },
+              ];
+              if (postes && postes.length > 0) {
+                lignesFacture.push({ nom: '  Detail :', quantite: 1, prix_unitaire: 0, taux_tva: tauxTVA, total: 0 });
+                for (const p of postes) {
+                  const joursLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                  const joursActifs = (p.jours || []).map((j, i) => j ? joursLabels[i] : null).filter(Boolean).join('-');
+                  lignesFacture.push({ nom: `  - ${p.effectif} ${p.service_nom} (${joursActifs} ${p.heure_debut}-${p.heure_fin})`, quantite: 1, prix_unitaire: 0, taux_tva: tauxTVA, total: 0 });
+                }
+              }
+
+              const { generateNumeroFacture: genNum } = await import('./factures.js');
+              const numero = await genNum(tenantId);
+              const { data: facture } = await supabase
+                .from('factures')
+                .insert({
+                  tenant_id: tenantId, numero, type: 'facture',
+                  reservation_id: rdv.id,
+                  client_id: forfait.client_id || null,
+                  client_nom: forfait.client_nom || '',
+                  service_nom: `Forfait ${moisLabelCap} - ${forfait.nom}`,
+                  service_description: JSON.stringify(lignesFacture),
+                  date_facture: new Date().toISOString().slice(0, 10),
+                  date_prestation: periode.date_debut,
+                  montant_ht: montantHT, taux_tva: tauxTVA,
+                  montant_tva: montantTVA, montant_ttc: montantTTC,
+                  statut: 'generee',
+                  notes: `Forfait ${forfait.numero} - ${periode.mois}`,
+                })
+                .select()
+                .single();
+
+              await supabase
+                .from('forfait_periodes')
+                .update({ statut: 'cloture', facture_id: facture?.id, montant_reel: montantHT, updated_at: new Date().toISOString() })
+                .eq('id', periode.id)
+                .eq('tenant_id', tenantId);
+
+              results.closed++;
+              results.factures++;
+              montant_total += montantHT;
+              continue;
+            }
+          }
+          // Forfait non trouvé ou déjà cloturé → skip
+          results.skipped++;
+          results.skipped_details.push({ id: rdv.id, raison: 'Periode forfait non trouvee ou deja cloturee' });
+          continue;
+        }
+
+        // Non-forfait : statut → termine + facture auto
+        await supabase
+          .from('reservations')
+          .update({ statut: 'termine', updated_at: new Date().toISOString() })
+          .eq('id', rdv.id)
+          .eq('tenant_id', tenantId);
+
+        const factureResult = await createFactureFromReservation(rdv.id, tenantId, {
+          statut: 'generee',
+          updateIfExists: true,
+        });
+
+        if (factureResult.success) {
+          const today = new Date().toISOString().split('T')[0];
+          const dateEcheance = new Date(today);
+          dateEcheance.setDate(dateEcheance.getDate() + 30);
+          await supabase
+            .from('factures')
+            .update({ date_echeance: dateEcheance.toISOString().split('T')[0] })
+            .eq('id', factureResult.facture.id);
+          results.factures++;
+        }
+
+        results.closed++;
+        montant_total += (rdv.prix_total || 0);
+      } catch (err) {
+        results.errors.push({ id: rdv.id, error: err.message });
+      }
+    }
+
+    // Log action
+    await supabase.from('historique_admin').insert({
+      tenant_id: tenantId,
+      admin_id: req.admin.id,
+      action: 'cloturer_periode',
+      entite: 'reservations',
+      details: { date_debut, date_fin, closed: results.closed, factures: results.factures },
+    });
+
+    success(res, {
+      success: true,
+      count: results.closed,
+      factures_generees: results.factures,
+      montant_total,
+      skipped: results.skipped,
+      skipped_details: results.skipped_details,
+      errors: results.errors,
+    });
+  } catch (err) {
+    console.error('[ADMIN RESERVATIONS] Erreur cloture periode:', err);
+    apiError(res, err.message || 'Erreur cloture periode');
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
 // ACTIONS
 // ════════════════════════════════════════════════════════════════════
 
@@ -564,7 +792,8 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       nb_couverts,
       nb_personnes,
       // Acompte
-      require_deposit
+      require_deposit,
+      numero_commande
     } = req.body;
 
     // Validation
@@ -715,6 +944,53 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
       for (const mid of membre_ids) {
         if (!membreCreneaux[Number(mid)]) {
           membreCreneaux[Number(mid)] = [{ heure: heureEffective, dureeMinutes: dureeConflictCheck }];
+        }
+      }
+    }
+
+    // ============================================
+    // VALIDATION CONFLITS MEMBRES MULTI-JOURS
+    // ============================================
+    // Détecter si des services ont date_debut/date_fin (presta multi-jours type security)
+    if (hasServices && Object.keys(membreCreneaux).length > 0) {
+      for (const svc of services) {
+        const sDateDebut = svc.date_debut || svc.date || date_rdv;
+        const sDateFin = svc.date_fin || date_fin || null;
+
+        // Multi-jours uniquement
+        if (sDateFin && sDateFin > sDateDebut) {
+          // Collecter les membres de ce service
+          const svcMembreIds = [];
+          if (svc.affectations && svc.affectations.length > 0) {
+            for (const aff of svc.affectations) {
+              if (aff.membre_id) svcMembreIds.push({ id: aff.membre_id, hDebut: aff.heure_debut, hFin: aff.heure_fin });
+            }
+          } else if (svc.membre_id) {
+            svcMembreIds.push({ id: svc.membre_id, hDebut: svc.heure_debut || heureEffective, hFin: svc.heure_fin || heure_fin });
+          }
+
+          for (const m of svcMembreIds) {
+            const conflictResult = await checkMemberMultiDayConflicts(
+              supabase, tenantId, m.id, sDateDebut, sDateFin,
+              m.hDebut || heureEffective, m.hFin || heure_fin
+            );
+
+            if (conflictResult.conflict) {
+              const { data: membreInfo } = await supabase
+                .from('rh_membres')
+                .select('nom, prenom')
+                .eq('id', m.id)
+                .eq('tenant_id', tenantId)
+                .single();
+              const membreNom = membreInfo ? `${membreInfo.prenom || ''} ${membreInfo.nom || ''}`.trim() : `Membre #${m.id}`;
+
+              return apiError(
+                res,
+                `Conflit : ${membreNom} est déjà affecté le ${conflictResult.date} (${conflictResult.existingService}, ${conflictResult.existingHeure}).`,
+                'MEMBER_CONFLICT', 409
+              );
+            }
+          }
         }
       }
     }
@@ -957,6 +1233,7 @@ router.post('/', authenticateAdmin, enforceTrialLimit('reservations'), requireRe
     // Toujours stocker la durée totale réelle (pour la détection de conflits)
     updateData.duree_totale_minutes = duree_totale_minutes || dureeConflictCheck;
     if (frais_deplacement !== undefined) updateData.frais_deplacement = frais_deplacement;
+    if (numero_commande !== undefined) updateData.numero_commande = numero_commande || null;
 
     // Restaurant: persister nb_couverts et table assignée (UNIQUEMENT si nb_couverts fourni explicitement)
     // Ne PAS faire fallback nb_couverts = nb_personnes (hotel a son propre champ nb_personnes)
@@ -1237,6 +1514,69 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     }
     if (date_rdv) updates.date = date_rdv;
     if (heure_rdv) updates.heure = heure_rdv;
+
+    // Vérification conflits par membre pour résas multi-jours (date_depart ou lignes multi-jours)
+    if ((date_rdv || heure_rdv || membre_id) && !isHotelReservation) {
+      const hasMultiDay = currentRdv.date_depart && currentRdv.date_depart > currentRdv.date;
+      if (hasMultiDay) {
+        // Récupérer les lignes pour trouver les membres affectés
+        const { data: resaLignes } = await supabase
+          .from('reservation_lignes')
+          .select('membre_id, heure_debut, heure_fin, date_debut, date_fin')
+          .eq('reservation_id', currentRdv.id)
+          .eq('tenant_id', tenantId);
+
+        // Collecter les membres uniques (lignes + résa parente)
+        const membreIdsSet = new Set();
+        if (currentRdv.membre_id) membreIdsSet.add(currentRdv.membre_id);
+        if (membre_id) membreIdsSet.add(membre_id);
+        (resaLignes || []).forEach(l => { if (l.membre_id) membreIdsSet.add(l.membre_id); });
+
+        const effectiveDate = date_rdv || currentRdv.date;
+        const effectiveHeure = heure_rdv || currentRdv.heure;
+        const effectiveHeureFin = currentRdv.heure_fin;
+
+        for (const mid of membreIdsSet) {
+          // Trouver la plage de ce membre (depuis ses lignes ou la résa)
+          const membreLignes = (resaLignes || []).filter(l => l.membre_id === mid);
+          let mDateDebut = effectiveDate;
+          let mDateFin = currentRdv.date_depart;
+          let mHeureDebut = effectiveHeure;
+          let mHeureFin = effectiveHeureFin;
+
+          if (membreLignes.length > 0) {
+            const l = membreLignes[0];
+            if (l.date_debut) mDateDebut = l.date_debut;
+            if (l.date_fin) mDateFin = l.date_fin;
+            if (l.heure_debut) mHeureDebut = l.heure_debut;
+            if (l.heure_fin) mHeureFin = l.heure_fin;
+          }
+
+          if (mDateFin && mDateFin > mDateDebut) {
+            const conflictResult = await checkMemberMultiDayConflicts(
+              supabase, tenantId, mid, mDateDebut, mDateFin,
+              mHeureDebut, mHeureFin, currentRdv.id
+            );
+
+            if (conflictResult.conflict) {
+              const { data: membreInfo } = await supabase
+                .from('rh_membres')
+                .select('nom, prenom')
+                .eq('id', mid)
+                .eq('tenant_id', tenantId)
+                .single();
+              const membreNom = membreInfo ? `${membreInfo.prenom || ''} ${membreInfo.nom || ''}`.trim() : `Membre #${mid}`;
+
+              return apiError(
+                res,
+                `Conflit : ${membreNom} est déjà affecté le ${conflictResult.date} (${conflictResult.existingService}, ${conflictResult.existingHeure}).`,
+                'MEMBER_CONFLICT', 409
+              );
+            }
+          }
+        }
+      }
+    }
 
     // Si changement de service, recalculer le prix (🔒 TENANT ISOLATION)
     if (service && service !== currentRdv.service_nom) {
@@ -1573,6 +1913,14 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           ligneUpdate.heure_fin = ligne.heure_fin ? ligne.heure_fin.slice(0, 5) : null;
         }
 
+        // Mise à jour des dates par ligne (plage multi-jours)
+        if (ligne.date_debut !== undefined) {
+          ligneUpdate.date_debut = ligne.date_debut || null;
+        }
+        if (ligne.date_fin !== undefined) {
+          ligneUpdate.date_fin = ligne.date_fin || null;
+        }
+
         // Recalculer la durée si les deux heures sont fournies
         const heureDebut = ligneUpdate.heure_debut || currentLigne.heure_debut;
         const heureFin = ligneUpdate.heure_fin || currentLigne.heure_fin;
@@ -1750,7 +2098,7 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     // reservation_lignes inclus pour notifications multi-services (hotel extras, etc.)
     const { data: currentRdv, error: fetchError } = await supabase
       .from('reservations')
-      .select('*, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total)')
+      .select('*, clients(nom, prenom, telephone, email), reservation_lignes(id, service_nom, quantite, prix_unitaire, prix_total, membre_id)')
       .eq('id', req.params.id)
       .eq('tenant_id', tenantId)
       .single();
@@ -1778,7 +2126,10 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       const businessProfile = tenantRow?.business_profile || 'salon';
       if (membreRequiredProfiles.includes(businessProfile)) {
         const membreAssigne = membre_id || currentRdv.membre_id;
-        if (!membreAssigne) {
+        // Forfaits multi-agents : les membres sont sur les lignes, pas sur la resa parent
+        const hasLignesMembres = currentRdv.is_forfait &&
+          (currentRdv.reservation_lignes || []).some(l => l.membre_id);
+        if (!membreAssigne && !hasLignesMembres) {
           return apiError(res, 'Affectation du personnel obligatoire pour terminer la prestation', 'MEMBRE_REQUIS', 400);
         }
       }
@@ -2063,22 +2414,37 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
           // Permet a tous les types de business d'enregistrer le paiement au moment de terminer la prestation
           if (facture && mode_paiement && !checkoutModePaiement && facture.statut !== 'payee') {
             try {
-              const datePaiement = new Date().toISOString();
-              await supabase
-                .from('factures')
-                .update({
-                  statut: 'payee',
-                  mode_paiement,
-                  date_paiement: datePaiement,
-                  updated_at: datePaiement
-                })
-                .eq('id', facture.id)
-                .eq('tenant_id', tenantId);
+              if (mode_paiement === 'echeance') {
+                // À l'échéance : facture confirmée mais PAS payée (paiement différé)
+                await supabase
+                  .from('factures')
+                  .update({
+                    statut: 'envoyee',
+                    mode_paiement,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', facture.id)
+                  .eq('tenant_id', tenantId);
 
-              // Generer les ecritures comptables de paiement
-              await genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement);
+                console.log(`[ADMIN RESERVATIONS] Paiement à l'échéance: facture ${facture.numero} en attente de paiement`);
+              } else {
+                const datePaiement = new Date().toISOString();
+                await supabase
+                  .from('factures')
+                  .update({
+                    statut: 'payee',
+                    mode_paiement,
+                    date_paiement: datePaiement,
+                    updated_at: datePaiement
+                  })
+                  .eq('id', facture.id)
+                  .eq('tenant_id', tenantId);
 
-              console.log(`[ADMIN RESERVATIONS] Paiement direct: facture ${facture.numero} payee (${mode_paiement})`);
+                // Generer les ecritures comptables de paiement
+                await genererEcrituresPaiement(tenantId, facture, mode_paiement, datePaiement);
+
+                console.log(`[ADMIN RESERVATIONS] Paiement direct: facture ${facture.numero} payee (${mode_paiement})`);
+              }
             } catch (payErr) {
               console.error('[ADMIN RESERVATIONS] Erreur paiement direct:', payErr.message);
             }

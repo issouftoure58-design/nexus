@@ -17,7 +17,7 @@ import {
   Clock, Shield, Zap, Target, Cpu, Lock, Crown
 } from 'lucide-react';
 import { api, analyticsApi, statsApi } from '../lib/api';
-import type { AnalyticsOverview, RevenueData, DashboardStats } from '../lib/api';
+import type { AnalyticsOverview, DashboardStats } from '../lib/api';
 import { useTenant } from '@/hooks/useTenant';
 
 // ── Types ──
@@ -414,12 +414,12 @@ function ClientsRisque({ churn, isLoading }: ClientsRisqueProps) {
 // ── CA Chart ──
 
 interface CaChartProps {
-  revenueData: RevenueData | undefined;
+  chartData: Array<{ date: string; ca: number }> | undefined;
   isLoading: boolean;
 }
 
-function CaChart({ revenueData, isLoading }: CaChartProps) {
-  const data = (revenueData?.data || []).map(d => ({
+function CaChart({ chartData, isLoading }: CaChartProps) {
+  const data = (chartData || []).map(d => ({
     ...d,
     label: formatDate(d.date),
   }));
@@ -539,12 +539,7 @@ export function Home() {
     refetchInterval: 120000,
   });
 
-  // Fetch revenue 30d
-  const { data: revenue, isLoading: revenueLoading } = useQuery<RevenueData>({
-    queryKey: ['analytics-revenue-30d'],
-    queryFn: () => analyticsApi.getRevenue('30d'),
-    refetchInterval: 300000,
-  });
+  // Revenue 30d — utilise graphiqueCa du dashboard (accessible à tous les plans)
 
   // Fetch dashboard stats (RDV, services populaires)
   const { data: dashboard, isLoading: dashboardLoading } = useQuery<DashboardStats>({
@@ -577,11 +572,11 @@ export function Home() {
           </div>
         </div>
 
-        {/* 4 KPI Cards */}
+        {/* 4 KPI Cards — source: statsApi.getDashboard (fonctionne pour tous les plans/business types) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             title="CA ce mois"
-            value={overviewLoading ? '...' : formatCurrency(overview?.ca_total ?? 0)}
+            value={dashboardLoading ? '...' : formatCurrency(dashboard?.ca?.mois ?? 0)}
             variation={overview?.ca_variation}
             icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
             color="bg-emerald-100 dark:bg-emerald-900/30"
@@ -589,7 +584,7 @@ export function Home() {
           />
           <KpiCard
             title="Réservations"
-            value={overviewLoading ? '...' : `${overview?.nb_rdv ?? 0}`}
+            value={dashboardLoading ? '...' : `${(dashboard?.rdv?.confirmes ?? 0) + (dashboard?.rdv?.en_attente ?? 0) + (dashboard?.rdv?.termines ?? 0)}`}
             variation={overview?.rdv_variation}
             icon={<Calendar className="w-4 h-4 text-blue-600" />}
             color="bg-blue-100 dark:bg-blue-900/30"
@@ -597,7 +592,7 @@ export function Home() {
           />
           <KpiCard
             title="Clients actifs"
-            value={overviewLoading ? '...' : `${overview?.nb_clients ?? 0}`}
+            value={dashboardLoading ? '...' : `${dashboard?.nbClients ?? 0}`}
             variation={overview?.clients_variation}
             icon={<Users className="w-4 h-4 text-violet-600" />}
             color="bg-violet-100 dark:bg-violet-900/30"
@@ -605,7 +600,7 @@ export function Home() {
           />
           <KpiCard
             title="Taux conversion"
-            value={overviewLoading ? '...' : `${Math.round(overview?.taux_conversion ?? 0)}%`}
+            value={dashboardLoading ? '...' : `${dashboard?.rdv ? Math.round(((dashboard.rdv.confirmes + dashboard.rdv.termines) / Math.max(1, dashboard.rdv.confirmes + dashboard.rdv.en_attente + dashboard.rdv.annules + dashboard.rdv.termines)) * 100) : 0}%`}
             icon={<TrendingUp className="w-4 h-4 text-amber-600" />}
             color="bg-amber-100 dark:bg-amber-900/30"
           />
@@ -614,7 +609,7 @@ export function Home() {
         {/* Graphique CA + RDV du jour */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <CaChart revenueData={revenue} isLoading={revenueLoading} />
+            <CaChart chartData={dashboard?.graphiqueCa} isLoading={dashboardLoading} />
           </div>
           <div>
             <TodayRdv dashboard={dashboard} isLoading={dashboardLoading} />

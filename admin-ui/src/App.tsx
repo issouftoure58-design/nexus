@@ -254,7 +254,7 @@ function App() {
             <Route path="/pipeline" element={<ModuleRoute requiredPlan="pro" module="pipeline" moduleTitle="Pipeline Commercial" moduleDescription="Suivi des opportunités"><PipelinePage /></ModuleRoute>} />
             <Route path="/devis" element={<ModuleRoute requiredPlan="pro" module="devis" moduleTitle="Devis" moduleDescription="Gestion des devis clients"><DevisPage /></ModuleRoute>} />
             <Route path="/prestations" element={<ModuleRoute module="reservations" moduleTitle="Prestations" moduleDescription="Suivi des prestations planifiées"><PrestationsPage /></ModuleRoute>} />
-            <Route path="/planning" element={<ModuleRoute module="reservations" moduleTitle="Planning" moduleDescription="Vue planning hebdomadaire par employé"><Planning /></ModuleRoute>} />
+            <Route path="/planning" element={<ModuleRoute requiredPlan="pro" module="planning" moduleTitle="Planning" moduleDescription="Vue planning hebdomadaire par employé"><Planning /></ModuleRoute>} />
             <Route path="/campagnes" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Campagnes" moduleDescription="Campagnes marketing email, SMS et push"><CampagnesPage /></ModuleRoute>} />
             <Route path="/email-templates" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Templates Email" moduleDescription="Modèles email réutilisables"><EmailTemplatesPage /></ModuleRoute>} />
             <Route path="/marketing-analytics" element={<ModuleRoute requiredPlan="pro" module="marketing" moduleTitle="Analytics Marketing" moduleDescription="Performance des campagnes marketing"><MarketingAnalyticsPage /></ModuleRoute>} />

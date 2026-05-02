@@ -99,6 +99,9 @@ export interface DevisLigneDetail {
   duree_minutes: number;
   prix_unitaire: number;
   prix_total: number;
+  // Dates par ligne (pipeline)
+  date_debut?: string;
+  date_fin?: string;
   // Affectation (mode horaire)
   membre_id?: number;
   heure_debut?: string;
@@ -139,3 +142,99 @@ export const METIER_LABELS: Record<string, string> = {
   hotel: 'Hotel',
   services: 'Services'
 };
+
+// ─── Forfaits (contrats recurrents Security) ───
+
+export type StatutForfait = 'brouillon' | 'envoye' | 'accepte' | 'actif' | 'annule';
+export type StatutPeriode = 'planifie' | 'en_cours' | 'cloture';
+
+export const STATUT_FORFAIT_LABELS: Record<StatutForfait, { label: string; color: string; bg: string }> = {
+  brouillon: { label: 'Brouillon', color: 'text-gray-600', bg: 'bg-gray-100' },
+  envoye: { label: 'Envoye', color: 'text-blue-600', bg: 'bg-blue-100' },
+  accepte: { label: 'Accepte', color: 'text-cyan-600', bg: 'bg-cyan-100' },
+  actif: { label: 'Actif', color: 'text-green-600', bg: 'bg-green-100' },
+  annule: { label: 'Annule', color: 'text-red-600', bg: 'bg-red-100' },
+};
+
+export const STATUT_PERIODE_LABELS: Record<StatutPeriode, { label: string; color: string; bg: string }> = {
+  planifie: { label: 'Planifie', color: 'text-gray-600', bg: 'bg-gray-100' },
+  en_cours: { label: 'En cours', color: 'text-blue-600', bg: 'bg-blue-100' },
+  cloture: { label: 'Cloture', color: 'text-green-600', bg: 'bg-green-100' },
+};
+
+export interface ForfaitPoste {
+  id?: number;
+  forfait_id?: number;
+  service_id?: number;
+  service_nom: string;
+  effectif: number;
+  jours: boolean[];
+  heure_debut: string;
+  heure_fin: string;
+  taux_horaire: number; // centimes/heure
+  cout_mensuel_ht?: number; // centimes
+}
+
+export interface ForfaitAffectation {
+  id?: number;
+  forfait_id?: number;
+  periode_id?: number;
+  poste_id: number;
+  membre_id?: number;
+  membre_nom?: string;
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+}
+
+export interface ForfaitPeriode {
+  id: number;
+  forfait_id: number;
+  mois: string;
+  date_debut: string;
+  date_fin: string;
+  statut: StatutPeriode;
+  reservation_id?: number;
+  facture_id?: number;
+  montant_prevu: number;
+  montant_reel?: number;
+  notes?: string;
+  affectations?: ForfaitAffectation[];
+}
+
+export interface Forfait {
+  id: number;
+  numero: string;
+  client_id?: number;
+  client_nom?: string;
+  nom: string;
+  date_debut: string;
+  date_fin: string;
+  montant_mensuel_ht: number; // centimes
+  taux_tva: number;
+  statut: StatutForfait;
+  notes?: string;
+  devis_id?: number;
+  created_at?: string;
+  postes?: ForfaitPoste[];
+  periodes?: ForfaitPeriode[];
+  stats?: {
+    total_periodes: number;
+    periodes_cloturees: number;
+    periodes_planifiees: number;
+  };
+}
+
+export interface ForfaitCreateData {
+  nom: string;
+  client_id?: number;
+  client_nom?: string;
+  date_debut: string;
+  date_fin: string;
+  montant_mensuel_ht: number;
+  taux_tva?: number;
+  notes?: string;
+  numero_commande?: string;
+  devis_id?: number;
+  postes: Omit<ForfaitPoste, 'id' | 'forfait_id'>[];
+}

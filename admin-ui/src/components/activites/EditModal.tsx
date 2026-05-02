@@ -278,15 +278,17 @@ export default function EditModal({
           {/* GENERIQUE (salon, services, etc.): Date + heures salaries */}
           {!isRestaurant && !isHotel && (
             <>
-              {/* Date */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Date</label>
-                <Input
-                  type="date"
-                  value={editForm.date}
-                  onChange={(e) => onEditFormChange({ ...editForm, date: e.target.value })}
-                />
-              </div>
+              {/* Date globale (si pas de dates par ligne) */}
+              {editLignes.length === 0 || !editLignes.some(l => l.date_debut) ? (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Date</label>
+                  <Input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(e) => onEditFormChange({ ...editForm, date: e.target.value })}
+                  />
+                </div>
+              ) : null}
 
               {/* Lignes de service avec heures par salarie */}
               {editLignes.length > 0 ? (
@@ -366,6 +368,37 @@ export default function EditModal({
                           ))}
                         </select>
                       </div>
+                      {/* Dates par ligne (plage multi-jours) */}
+                      {(ligne.date_debut || ligne.date_fin) && (
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <label className="text-xs text-gray-500 mb-1 block">Du</label>
+                            <Input
+                              type="date"
+                              value={ligne.date_debut || ''}
+                              onChange={(e) => {
+                                const newLignes = [...editLignes];
+                                newLignes[idx] = { ...newLignes[idx], date_debut: e.target.value };
+                                onEditLignesChange(newLignes);
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-xs text-gray-500 mb-1 block">Au</label>
+                            <Input
+                              type="date"
+                              value={ligne.date_fin || ''}
+                              onChange={(e) => {
+                                const newLignes = [...editLignes];
+                                newLignes[idx] = { ...newLignes[idx], date_fin: e.target.value };
+                                onEditLignesChange(newLignes);
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
                       <div className="flex gap-3">
                         <div className="flex-1">
                           <label className="text-xs text-gray-500 mb-1 block">Debut</label>
@@ -388,7 +421,19 @@ export default function EditModal({
                             value={ligne.heure_fin}
                             onChange={(e) => {
                               const newLignes = [...editLignes];
-                              newLignes[idx] = { ...newLignes[idx], heure_fin: e.target.value };
+                              const newFin = e.target.value;
+                              // Recalculer prix au prorata de la durée réelle
+                              let updatedLigne = { ...newLignes[idx], heure_fin: newFin };
+                              if (ligne.heure_debut && newFin && ligne.prix_unitaire && ligne.duree_minutes) {
+                                const [sH, sM] = ligne.heure_debut.split(':').map(Number);
+                                const [eH, eM] = newFin.split(':').map(Number);
+                                let actualMins = (eH * 60 + eM) - (sH * 60 + sM);
+                                if (actualMins < 0) actualMins += 24 * 60;
+                                const baseDuree = ligne.duree_minutes;
+                                const qty = ligne.quantite || 1;
+                                updatedLigne.prix_total = Math.round(ligne.prix_unitaire * qty * actualMins / baseDuree);
+                              }
+                              newLignes[idx] = updatedLigne;
                               onEditLignesChange(newLignes);
                             }}
                             className="text-sm"
@@ -468,8 +513,8 @@ export default function EditModal({
             </select>
           </div>
 
-          {/* Employe assigne (pas pour restaurant) */}
-          {!isRestaurant && membres.length > 0 && (
+          {/* Employe assigne (fallback si pas de lignes avec membres par service) */}
+          {!isRestaurant && !isHotel && membres.length > 0 && editLignes.length === 0 && (
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Employe assigne</label>
               <select

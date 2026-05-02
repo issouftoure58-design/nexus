@@ -106,6 +106,9 @@ router.post('/articles/generate', authenticateAdmin, async (req, res) => {
 
     res.json(result);
   } catch (error) {
+    if (error.code === 'INSUFFICIENT_CREDITS' || error.code === 'OVERAGE_LIMIT_REACHED') {
+      return res.status(402).json({ error: 'Utilisation IA insuffisante', code: error.code, required: error.required, available: error.available });
+    }
     console.error('[SEO] Erreur génération article:', error);
     res.status(500).json({ error: 'Erreur génération article', details: error.message });
   }

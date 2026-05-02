@@ -325,4 +325,144 @@ export async function checkAndAlert(tenantId) {
   }
 }
 
-export default { checkAndAlert };
+// ============================================================================
+// OVERAGE ALERTS
+// ============================================================================
+
+const OVERAGE_THRESHOLDS = [
+  { percent: 80, key: 'overage_80', level: 'warning', color: BRAND.warning, subject: 'Votre utilisation supplémentaire atteint 80%' },
+  { percent: 100, key: 'overage_100', level: 'urgent', color: BRAND.danger, subject: 'Limite d\'utilisation supplémentaire atteinte' },
+];
+
+function buildOverageAlertEmail({ adminName, tenantName, overageUsed, overageLimit, percentUsed, threshold }) {
+  const config = OVERAGE_THRESHOLDS.find(t => t.percent === threshold);
+  const barWidth = Math.min(100, percentUsed);
+  const remaining = Math.max(0, overageLimit - overageUsed).toFixed(2);
+
+  const message = threshold === 80
+    ? `<p style="color: #475569; font-size: 16px; line-height: 1.6;">
+        Vous avez consommé <strong>${overageUsed.toFixed(2)}€</strong> sur votre limite de <strong>${overageLimit.toFixed(2)}€</strong> d'utilisation supplémentaire ce mois-ci.
+        Il vous reste <strong>${remaining}€</strong>.
+      </p>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+        Quand la limite sera atteinte, l'IA sera temporairement désactivée.
+        Vous pouvez <strong>augmenter votre limite</strong> à tout moment depuis votre tableau de bord.
+      </p>`
+    : `<p style="color: ${BRAND.danger}; font-size: 18px; font-weight: 600; line-height: 1.6;">
+        Votre limite d'utilisation supplémentaire est atteinte.
+      </p>
+      <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+        Vous avez consommé <strong>${overageUsed.toFixed(2)}€ / ${overageLimit.toFixed(2)}€</strong>.
+        L'IA est désactivée jusqu'à ce que vous augmentiez votre limite ou attendiez le renouvellement mensuel.
+      </p>`;
+
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${config.subject}</title></head>
+<body style="margin: 0; padding: 0; background-color: ${BRAND.light}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: ${BRAND.light};">
+    <tr><td align="center" style="padding: 40px 20px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+        <tr><td align="center" style="padding-bottom: 30px;">
+          <div style="width: 60px; height: 60px; background: linear-gradient(135deg, ${BRAND.primary}, ${BRAND.secondary}); border-radius: 16px; display: inline-block; text-align: center; line-height: 60px;">
+            <span style="color: white; font-size: 28px; font-weight: bold;">N</span>
+          </div>
+          <h1 style="margin: 15px 0 0; color: ${BRAND.dark}; font-size: 24px; font-weight: 700;">${APP_NAME}</h1>
+        </td></tr>
+        <tr><td>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: white; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <tr><td style="padding: 40px;">
+              <h2 style="color: ${BRAND.dark}; font-size: 20px; margin: 0 0 20px;">${config.subject}</h2>
+              <p style="color: #64748b; font-size: 14px; margin: 0 0 20px;">
+                ${adminName ? `Bonjour ${adminName},` : 'Bonjour,'} voici l'état de votre utilisation supplémentaire pour <strong>${tenantName}</strong>.
+              </p>
+              <div style="background: #e2e8f0; border-radius: 8px; height: 12px; margin: 0 0 8px; overflow: hidden;">
+                <div style="background: ${config.color}; height: 100%; width: ${barWidth}%; border-radius: 8px;"></div>
+              </div>
+              <p style="color: #64748b; font-size: 13px; margin: 0 0 24px; text-align: right;">
+                <strong>${overageUsed.toFixed(2)}€</strong> / ${overageLimit.toFixed(2)}€ (${Math.round(percentUsed)}%)
+              </p>
+              ${message}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 30px;">
+                <tr><td align="center">
+                  <a href="${APP_URL}/usage" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, ${BRAND.primary}, ${BRAND.secondary}); color: white; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 8px;">
+                    ${threshold === 80 ? 'Voir ma consommation' : 'Augmenter ma limite'}
+                  </a>
+                </td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding-top: 30px; text-align: center;">
+          <p style="color: #64748b; font-size: 14px; margin: 0 0 10px;">${APP_NAME} — La plateforme tout-en-un pour votre business</p>
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            <a href="${APP_URL}" style="color: ${BRAND.primary}; text-decoration: none;">Mon compte</a>
+            &nbsp;•&nbsp;
+            <a href="mailto:${SUPPORT_EMAIL}" style="color: ${BRAND.primary}; text-decoration: none;">Support</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+}
+
+/**
+ * Vérifie les seuils overage et envoie les alertes si nécessaire.
+ * Appelé depuis consume() quand result.overage === true — fire-and-forget.
+ *
+ * @param {string} tenantId
+ */
+export async function checkOverageAlert(tenantId) {
+  try {
+    const balance = await getBalance(tenantId);
+
+    if (!balance.overage_enabled) return;
+    const limit = parseFloat(balance.overage_limit_eur) || 0;
+    if (limit <= 0) return;
+
+    const used = parseFloat(balance.overage_used_eur) || 0;
+    const percentUsed = (used / limit) * 100;
+
+    for (const threshold of [...OVERAGE_THRESHOLDS].reverse()) {
+      if (percentUsed >= threshold.percent) {
+        const alreadySent = await wasAlertSent(tenantId, threshold.key);
+        if (alreadySent) return;
+
+        const ownerInfo = await getTenantOwner(tenantId);
+        if (!ownerInfo?.admin?.email) return;
+
+        const { tenant, admin } = ownerInfo;
+
+        const html = buildOverageAlertEmail({
+          adminName: admin.nom,
+          tenantName: tenant.name,
+          overageUsed: used,
+          overageLimit: limit,
+          percentUsed,
+          threshold: threshold.percent,
+        });
+
+        const result = await sendEmail({
+          to: admin.email,
+          subject: `${threshold.level === 'urgent' ? '🔴' : '⚠️'} ${threshold.subject}`,
+          html,
+          tags: ['overage-alert', `threshold-${threshold.key}`],
+        });
+
+        if (result.success) {
+          await markAlertSent(tenantId, threshold.key);
+          console.log(`[OVERAGE ALERT] ${threshold.level.toUpperCase()} envoyé à ${admin.email} (tenant: ${tenantId}, seuil: ${threshold.percent}%)`);
+        }
+
+        return;
+      }
+    }
+  } catch (error) {
+    console.error(`[OVERAGE ALERT] Erreur pour tenant ${tenantId}:`, error.message);
+  }
+}
+
+export default { checkAndAlert, checkOverageAlert };

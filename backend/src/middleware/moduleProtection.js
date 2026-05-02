@@ -50,6 +50,9 @@ const MODULE_TYPES = {
   'sentinel': 'plan',
   'whitelabel': 'plan',
 
+  // Planning (Pro+)
+  'planning': 'plan',
+
   // Fonctionnalités toujours disponibles avec un plan
   'reservations': 'always',
   'ecommerce': 'always',

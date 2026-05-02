@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, comptaApi, Devis, DevisCreateData } from '../lib/api';
-import { LayoutTemplate } from 'lucide-react';
+import { LayoutTemplate, FileText, Repeat } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import {
   DevisFormModal,
@@ -10,16 +10,20 @@ import {
   RejectDevisModal,
   DevisDetailModal,
   TemplateSelectModal,
+  ForfaitBuilderModal,
+  ForfaitPeriodesView,
   formatMontant,
   formatDate,
   STATUT_LABELS,
+  STATUT_FORFAIT_LABELS,
   StatutDevis,
 } from '@/components/devis';
-import type { DevisTemplate } from '@/components/devis';
+import type { DevisTemplate, Forfait, ForfaitCreateData, StatutForfait } from '@/components/devis';
 
 export default function DevisPage() {
   const queryClient = useQueryClient();
-  const { t } = useProfile();
+  const { t, isBusinessType } = useProfile();
+  const [activeTab, setActiveTab] = useState<'devis' | 'forfaits'>('devis');
   const [filtreStatut, setFiltreStatut] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
@@ -30,6 +34,11 @@ export default function DevisPage() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [templatePreFill, setTemplatePreFill] = useState<DevisTemplate | null>(null);
+
+  // Forfaits state
+  const [showForfaitBuilder, setShowForfaitBuilder] = useState(false);
+  const [selectedForfaitId, setSelectedForfaitId] = useState<number | null>(null);
+  const showForfaits = isBusinessType('security') || isBusinessType('service_domicile');
 
   // Recuperer les devis
   const { data, isLoading, error } = useQuery({
@@ -141,6 +150,27 @@ export default function DevisPage() {
     },
   });
 
+  // Forfaits query
+  const { data: forfaitsData, isLoading: forfaitsLoading } = useQuery({
+    queryKey: ['forfaits'],
+    queryFn: () => api.get<{ forfaits: Forfait[] }>('/admin/forfaits'),
+    enabled: showForfaits,
+  });
+
+  const forfaitsList = forfaitsData?.forfaits || [];
+
+  const createForfaitMutation = useMutation({
+    mutationFn: (data: ForfaitCreateData) => api.post('/admin/forfaits', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forfaits'] });
+      setShowForfaitBuilder(false);
+      setMutationError(null);
+    },
+    onError: (error: Error) => {
+      setMutationError(error.message || 'Erreur lors de la creation du forfait');
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -157,6 +187,16 @@ export default function DevisPage() {
     );
   }
 
+  // Forfait detail view
+  if (selectedForfaitId) {
+    return (
+      <ForfaitPeriodesView
+        forfaitId={selectedForfaitId}
+        onBack={() => setSelectedForfaitId(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Erreur mutation */}
@@ -167,7 +207,35 @@ export default function DevisPage() {
         </div>
       )}
 
+      {/* Tabs (visible si forfaits disponible) */}
+      {showForfaits && (
+        <div className="flex gap-1 border-b">
+          <button
+            onClick={() => setActiveTab('devis')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === 'devis' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Devis
+          </button>
+          <button
+            onClick={() => setActiveTab('forfaits')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === 'forfaits' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Repeat className="w-4 h-4" />
+            Forfaits
+            {forfaitsList.length > 0 && (
+              <span className="bg-blue-100 text-blue-600 text-xs px-1.5 py-0.5 rounded-full">{forfaitsList.length}</span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
+      {activeTab === 'devis' && (
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Devis</h1>
@@ -197,9 +265,76 @@ export default function DevisPage() {
           </button>
         </div>
       </div>
+      )}
 
-      {/* Stats */}
-      {stats && (
+      {/* ═══ FORFAITS TAB ═══ */}
+      {activeTab === 'forfaits' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Forfaits</h1>
+              <p className="text-sm text-gray-500">Contrats recurrents</p>
+            </div>
+            <button
+              onClick={() => setShowForfaitBuilder(true)}
+              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nouveau forfait
+            </button>
+          </div>
+
+          {forfaitsLoading ? (
+            <div className="text-center py-12 text-gray-500">Chargement...</div>
+          ) : forfaitsList.length === 0 ? (
+            <div className="bg-white rounded-lg border p-12 text-center">
+              <Repeat className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Aucun forfait</p>
+              <p className="text-sm text-gray-400 mt-1">Creez votre premier contrat recurrent</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {forfaitsList.map((f: Forfait) => {
+                const sInfo = STATUT_FORFAIT_LABELS[f.statut as StatutForfait];
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedForfaitId(f.id)}
+                    className="w-full bg-white rounded-lg border p-4 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{f.nom}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${sInfo?.bg} ${sInfo?.color}`}>
+                            {sInfo?.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {f.numero} — {f.client_nom || 'Sans client'} — {formatDate(f.date_debut)} → {formatDate(f.date_fin)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-blue-600">{formatMontant(f.montant_mensuel_ht)}<span className="text-xs text-gray-500 font-normal">/mois</span></div>
+                        {f.stats && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {f.stats.periodes_cloturees}/{f.stats.total_periodes} periodes
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ DEVIS TAB ═══ */}
+      {activeTab === 'devis' && stats && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <div className="bg-white rounded-lg p-4 border">
             <p className="text-sm text-gray-500">Total</p>
@@ -229,7 +364,7 @@ export default function DevisPage() {
       )}
 
       {/* Filtres */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {activeTab === 'devis' && <div className="flex gap-2 overflow-x-auto pb-1">
         <button
           onClick={() => setFiltreStatut('')}
           className={`px-3 py-1.5 rounded-full text-sm ${
@@ -249,9 +384,10 @@ export default function DevisPage() {
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Liste des devis — Desktop */}
+      {activeTab === 'devis' && <>
       <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -447,6 +583,16 @@ export default function DevisPage() {
           })
         )}
       </div>
+      </>}
+
+      {/* Modal Forfait Builder */}
+      {showForfaitBuilder && (
+        <ForfaitBuilderModal
+          onClose={() => setShowForfaitBuilder(false)}
+          onSubmit={(data) => createForfaitMutation.mutate(data)}
+          isLoading={createForfaitMutation.isPending}
+        />
+      )}
 
       {/* Modal Formulaire */}
       {showForm && (

@@ -262,6 +262,112 @@ export function detectMajoration(
   return { type: 'jour', label: 'Jour', pourcentage: 0 };
 }
 
+// ── Totals ──────────────────────────────────────────────────────────────────
+
+export interface HoursTotals {
+  jour: number;
+  nuit: number;
+  dimanche_jour: number;
+  dimanche_nuit: number;
+  ferie_jour: number;
+  ferie_nuit: number;
+  total: number;
+}
+
+export const TOTALS_LABELS: Record<Exclude<keyof HoursTotals, 'total'>, string> = {
+  jour: 'Jour',
+  nuit: 'Nuit',
+  dimanche_jour: 'Dim. jour',
+  dimanche_nuit: 'Dim. nuit',
+  ferie_jour: 'Férié jour',
+  ferie_nuit: 'Férié nuit',
+};
+
+interface ServiceLigneInput {
+  heure_debut: string | null;
+  heure_fin: string | null;
+  duree?: number;
+}
+
+interface PlanningRDVInput {
+  id: number;
+  heure?: string;
+  services?: ServiceLigneInput[];
+  duree?: number;
+  client_id?: number | null;
+}
+
+/**
+ * Calcul des heures par type de majoration pour un ensemble de RDV (découpe précise).
+ * Réutilisable depuis Planning.tsx et PointageModal.tsx.
+ */
+export function computeHoursTotals(
+  planning: Record<string, PlanningRDVInput[]>,
+  clientIdFilter: number | null = null,
+): HoursTotals {
+  const totals: HoursTotals = { jour: 0, nuit: 0, dimanche_jour: 0, dimanche_nuit: 0, ferie_jour: 0, ferie_nuit: 0, total: 0 };
+  const seen = new Set<string>();
+
+  Object.entries(planning).forEach(([dateStr, rdvs]) => {
+    rdvs.forEach(rdv => {
+      if (clientIdFilter !== null && (rdv.client_id || 0) !== clientIdFilter) return;
+
+      const key = `${rdv.id}_${dateStr}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const services = rdv.services || [];
+      if (services.length > 0) {
+        services.forEach(s => {
+          const hDebut = s.heure_debut || (rdv as any).heure;
+          const hFin = s.heure_fin || '';
+          if (hDebut && hFin) {
+            const segments = splitHoursSegments(dateStr, hDebut, hFin);
+            segments.forEach(seg => {
+              totals[seg.type] += seg.hours;
+              totals.total += seg.hours;
+            });
+          } else {
+            const dur = (s.duree || 0) / 60;
+            const maj = detectMajoration(dateStr, hDebut || '12:00', '');
+            totals[maj.type] += dur;
+            totals.total += dur;
+          }
+        });
+      } else {
+        const dur = (rdv.duree || 0) / 60;
+        const maj = detectMajoration(dateStr, (rdv as any).heure || '12:00', '');
+        totals[maj.type] += dur;
+        totals.total += dur;
+      }
+    });
+  });
+
+  return totals;
+}
+
+/**
+ * Calcul des heures totales depuis une liste flat d'entrées de pointage.
+ * Chaque entrée a { date, heure_debut, heure_fin }.
+ */
+export function computeHoursTotalsFromEntries(
+  entries: { date: string; heure_debut: string | null; heure_fin: string | null }[],
+): HoursTotals {
+  const totals: HoursTotals = { jour: 0, nuit: 0, dimanche_jour: 0, dimanche_nuit: 0, ferie_jour: 0, ferie_nuit: 0, total: 0 };
+
+  for (const e of entries) {
+    if (e.heure_debut && e.heure_fin) {
+      const segments = splitHoursSegments(e.date, e.heure_debut, e.heure_fin);
+      segments.forEach(seg => {
+        totals[seg.type] += seg.hours;
+        totals.total += seg.hours;
+      });
+    }
+  }
+
+  return totals;
+}
+
 /** Badge emoji pour une majoration */
 export function majorationBadge(type: MajorationType): string {
   switch (type) {
