@@ -745,7 +745,7 @@ export default function Planning() {
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
             {/* Week nav */}
-            <button onClick={goPrev} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+            <button onClick={goPrev} aria-label="Semaine précédente" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
               <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
             </button>
             <button
@@ -754,7 +754,7 @@ export default function Planning() {
             >
               Aujourd'hui
             </button>
-            <button onClick={goNext} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+            <button onClick={goNext} aria-label="Semaine suivante" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
               <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-300" />
             </button>
 
@@ -781,6 +781,7 @@ export default function Planning() {
                 onClick={() => setPrintDropdownOpen(!printDropdownOpen)}
                 className="ml-1 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1"
                 title="Imprimer"
+                aria-label="Options d'impression"
                 disabled={printLoading}
               >
                 {printLoading
@@ -816,6 +817,7 @@ export default function Planning() {
               onClick={() => setShowPointageModal(true)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
               title="Pointage des heures"
+              aria-label="Pointage des heures"
             >
               <ClipboardList className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300 hidden lg:inline">Pointage</span>
@@ -825,7 +827,8 @@ export default function Planning() {
             <button
               onClick={() => setShowCloturerModal(true)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
-              title="Cloturer une periode"
+              title="Clôturer une période"
+              aria-label="Clôturer une période"
             >
               <CheckCircle className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300 hidden lg:inline">Cloturer</span>

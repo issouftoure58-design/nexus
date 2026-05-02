@@ -5,10 +5,9 @@
  */
 
 import { execFile } from 'child_process';
-import { writeFile, readFile, unlink, access, mkdir, rmdir } from 'fs/promises';
+import { writeFile, readFile, unlink, access, mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
-import { homedir } from 'os';
+import { tmpdir, homedir } from 'os';
 
 // Config
 const DSNVAL_PATH = process.env.DSNVAL_PATH || join(homedir(), 'Downloads', 'autocontrole-dsn-val_linux_2026');
@@ -85,15 +84,13 @@ export async function validateWithDSNVal(contenuDSN) {
 
   if (!(await checkAvailability())) return resultatIndisponible;
 
-  const uuid = randomUUID();
-  const tmpDir = join('/tmp', `dsn-nexus-${uuid}`);
+  // R6: mkdtemp for safer temp directory creation (OS-managed unique names)
+  const tmpDir = await mkdtemp(join(tmpdir(), 'dsn-nexus-'));
   const fichierDSN = join(tmpDir, 'declaration.dsn');
   const fichierXML = join(tmpDir, 'declaration.dsn.xml');
   const scriptPath = join(DSNVAL_PATH, SCRIPT_NAME);
 
   try {
-    await mkdir(tmpDir, { recursive: true });
-
     // Écrire en ISO-8859-1 (encodage DSN officiel)
     const buffer = Buffer.from(contenuDSN, 'latin1');
     await writeFile(fichierDSN, buffer);
@@ -136,14 +133,8 @@ export async function validateWithDSNVal(contenuDSN) {
     console.error('[DSN-Val] Erreur exécution:', err.message);
     return resultatIndisponible;
   } finally {
-    // Nettoyage fichiers temp
-    try {
-      await unlink(fichierDSN).catch(() => {});
-      await unlink(fichierXML).catch(() => {});
-      await rmdir(tmpDir).catch(() => {});
-    } catch {
-      // Nettoyage best-effort
-    }
+    // Nettoyage best-effort du répertoire temp
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

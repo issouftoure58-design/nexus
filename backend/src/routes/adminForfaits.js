@@ -18,6 +18,27 @@ import { checkMemberMultiDayConflicts } from '../utils/conflictChecker.js';
 const router = express.Router();
 router.use(authenticateAdmin, requireModule('devis'));
 
+// B2: Guard — forfaits only for business types that use recurring contracts
+const FORFAIT_BUSINESS_TYPES = ['security', 'service_domicile', 'menage', 'service'];
+router.use(async (req, res, next) => {
+  try {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('business_profile')
+      .eq('id', req.admin.tenant_id)
+      .single();
+
+    const profile = tenant?.business_profile || 'salon';
+    if (!FORFAIT_BUSINESS_TYPES.includes(profile)) {
+      return res.status(403).json({ success: false, error: 'Les forfaits ne sont pas disponibles pour votre type d\'activité' });
+    }
+    req.businessProfile = profile;
+    next();
+  } catch {
+    next();
+  }
+});
+
 // ============================================
 // SCHEMAS
 // ============================================
@@ -991,20 +1012,21 @@ router.post('/:id/periodes/:pid/executer', async (req, res) => {
 
     if (!forfait) return res.status(404).json({ success: false, error: 'Forfait non trouve' });
 
-    const { data: periode } = await supabase
+    // R1: Atomic lock — only one admin can execute a period at a time
+    // UPDATE WHERE statut='planifie' ensures no double execution
+    const { data: periode, error: lockErr } = await supabase
       .from('forfait_periodes')
-      .select('*')
+      .update({ statut: 'en_cours', updated_at: new Date().toISOString() })
       .eq('id', parseInt(pid))
       .eq('forfait_id', parseInt(id))
       .eq('tenant_id', tenantId)
+      .eq('statut', 'planifie')
+      .is('reservation_id', null)
+      .select()
       .single();
 
-    if (!periode) return res.status(404).json({ success: false, error: 'Periode non trouvee' });
-    if (periode.statut === 'cloture') {
-      return res.status(400).json({ success: false, error: 'Periode deja cloturee' });
-    }
-    if (periode.reservation_id) {
-      return res.status(400).json({ success: false, error: 'Periode deja executee' });
+    if (lockErr || !periode) {
+      return res.status(409).json({ success: false, error: 'Période déjà en cours d\'exécution, exécutée, ou cloturée' });
     }
 
     // Charger postes et affectations
@@ -1107,11 +1129,10 @@ router.post('/:id/periodes/:pid/executer', async (req, res) => {
       if (errLignes) throw errLignes;
     }
 
-    // Mettre a jour la periode
+    // Link reservation to the period (statut already set to 'en_cours' by atomic lock above)
     await supabase
       .from('forfait_periodes')
       .update({
-        statut: 'en_cours',
         reservation_id: reservation.id,
         updated_at: new Date().toISOString(),
       })

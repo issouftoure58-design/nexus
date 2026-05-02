@@ -189,24 +189,21 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
   const cost = CREDIT_COSTS[action] * quantity;
   if (cost === 0) return { consumed: 0, balance: null };
 
-  // Lock optimiste : récupérer + débiter en une transaction
-  const balance = await getBalance(tenantId);
+  // R2: Atomic debit via RPC — prevents double-spend race condition
+  // Try atomic debit first (balance >= cost)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('debit_credits', {
+    p_tenant_id: tenantId,
+    p_amount: cost,
+  });
 
-  // Branche 1 : solde suffisant — débit normal
-  if (balance.balance >= cost) {
-    const newBalance = balance.balance - cost;
+  if (rpcError) {
+    logger.error('[CreditsService] RPC debit_credits error', { tenantId, error: rpcError.message });
+    throw rpcError;
+  }
 
-    const { error: updateError } = await supabase
-      .from('ai_credits')
-      .update({
-        balance: newBalance,
-        total_consumed: (balance.total_consumed || 0) + cost,
-        monthly_used: (balance.monthly_used || 0) + cost,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('tenant_id', tenantId);
-
-    if (updateError) throw updateError;
+  // Branche 1 : RPC succeeded — balance was sufficient
+  if (rpcResult && rpcResult.length > 0 && rpcResult[0].success) {
+    const newBalance = rpcResult[0].new_balance;
 
     await supabase.from('ai_credits_transactions').insert({
       tenant_id: tenantId,
@@ -219,19 +216,33 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
       metadata,
     });
 
-    logger.info('[CreditsService] Credits consumed', { tenantId, action, cost, newBalance });
+    logger.info('[CreditsService] Credits consumed (atomic)', { tenantId, action, cost, newBalance });
     return { consumed: cost, balance: newBalance, overage: false };
   }
 
-  // Branche 2 : solde insuffisant + overage activé → split balance + overage
+  // Branche 2 : solde insuffisant — check overage
+  const balance = await getBalance(tenantId);
+
   if (balance.overage_enabled) {
-    const creditsFromBalance = balance.balance; // vider le reste
+    const creditsFromBalance = balance.balance; // drain remaining balance
     const creditsOverage = cost - creditsFromBalance;
     const overageEurCost = +(creditsOverage * OVERAGE_RATE_EUR).toFixed(2);
-    const currentUsed = parseFloat(balance.overage_used_eur) || 0;
-    const limit = parseFloat(balance.overage_limit_eur) || 0;
 
-    if (currentUsed + overageEurCost > limit) {
+    // Atomic overage debit via RPC
+    const { data: ovResult, error: ovError } = await supabase.rpc('debit_credits_overage', {
+      p_tenant_id: tenantId,
+      p_amount: cost,
+      p_overage_eur: overageEurCost,
+    });
+
+    if (ovError) {
+      logger.error('[CreditsService] RPC debit_credits_overage error', { tenantId, error: ovError.message });
+      throw ovError;
+    }
+
+    if (!ovResult || ovResult.length === 0 || !ovResult[0].success) {
+      const currentUsed = parseFloat(balance.overage_used_eur) || 0;
+      const limit = parseFloat(balance.overage_limit_eur) || 0;
       const err = new Error(`OVERAGE_LIMIT_REACHED: ${overageEurCost}€ requis, ${(limit - currentUsed).toFixed(2)}€ restants`);
       err.code = 'OVERAGE_LIMIT_REACHED';
       err.required = cost;
@@ -241,20 +252,7 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
       throw err;
     }
 
-    const newOverageUsed = +(currentUsed + overageEurCost).toFixed(2);
-
-    const { error: updateError } = await supabase
-      .from('ai_credits')
-      .update({
-        balance: 0,
-        total_consumed: (balance.total_consumed || 0) + cost,
-        monthly_used: (balance.monthly_used || 0) + cost,
-        overage_used_eur: newOverageUsed,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('tenant_id', tenantId);
-
-    if (updateError) throw updateError;
+    const newOverageUsed = ovResult[0].new_overage_used;
 
     // Transaction balance (si > 0)
     if (creditsFromBalance > 0) {
@@ -282,7 +280,7 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
       metadata: { ...metadata, overage_eur: overageEurCost, overage_credits: creditsOverage },
     });
 
-    logger.info('[CreditsService] Overage consumed', { tenantId, action, cost, overageEurCost, newOverageUsed });
+    logger.info('[CreditsService] Overage consumed (atomic)', { tenantId, action, cost, overageEurCost, newOverageUsed });
 
     // Fire-and-forget : alertes overage (dynamic import pour éviter circular dep)
     import('./creditAlertService.js').then(m => m.checkOverageAlert(tenantId)).catch(() => {});

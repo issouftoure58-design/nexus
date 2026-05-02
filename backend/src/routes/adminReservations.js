@@ -26,6 +26,7 @@ import { generateInvoicePDF } from '../services/pdfService.js';
 import { success, error as apiError, paginated } from '../utils/response.js';
 import { validateEmployeeConstraints } from '../utils/employeeConstraints.js';
 import { validateSort, validateOrder, validatePagination } from '../utils/queryValidation.js';
+import businessTypes from '../config/businessTypes.js';
 
 const RESERVATIONS_SORT_FIELDS = ['date', 'created_at', 'heure', 'statut', 'prix_total', 'service_nom', 'updated_at'];
 
@@ -696,28 +697,33 @@ router.post('/cloturer-periode', authenticateAdmin, validate(cloturerPeriodeSche
           continue;
         }
 
-        // Non-forfait : statut → termine + facture auto
+        // R3: Non-forfait — create facture FIRST, then update statut
+        // If facture fails, reservation stays untouched (no revenue loss)
+        const factureResult = await createFactureFromReservation(rdv.id, tenantId, {
+          statut: 'generee',
+          updateIfExists: true,
+        });
+
+        if (!factureResult.success) {
+          results.errors.push({ id: rdv.id, error: 'Échec création facture' });
+          continue; // Skip — don't update reservation statut
+        }
+
+        // Facture created successfully → now update statut
         await supabase
           .from('reservations')
           .update({ statut: 'termine', updated_at: new Date().toISOString() })
           .eq('id', rdv.id)
           .eq('tenant_id', tenantId);
 
-        const factureResult = await createFactureFromReservation(rdv.id, tenantId, {
-          statut: 'generee',
-          updateIfExists: true,
-        });
-
-        if (factureResult.success) {
-          const today = new Date().toISOString().split('T')[0];
-          const dateEcheance = new Date(today);
-          dateEcheance.setDate(dateEcheance.getDate() + 30);
-          await supabase
-            .from('factures')
-            .update({ date_echeance: dateEcheance.toISOString().split('T')[0] })
-            .eq('id', factureResult.facture.id);
-          results.factures++;
-        }
+        const today = new Date().toISOString().split('T')[0];
+        const dateEcheance = new Date(today);
+        dateEcheance.setDate(dateEcheance.getDate() + 30);
+        await supabase
+          .from('factures')
+          .update({ date_echeance: dateEcheance.toISOString().split('T')[0] })
+          .eq('id', factureResult.facture.id);
+        results.factures++;
 
         results.closed++;
         montant_total += (rdv.prix_total || 0);
@@ -2107,9 +2113,20 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
       return apiError(res, 'Réservation introuvable', 'NOT_FOUND', 404);
     }
 
-    // Empêcher certaines transitions
-    if (currentRdv.statut === 'termine' && statut === 'en_attente') {
-      return apiError(res, 'Impossible de repasser une réservation terminée en attente', 'BAD_REQUEST', 400);
+    // R4: State machine — only allow valid transitions
+    const VALID_TRANSITIONS = {
+      'demande': ['en_attente', 'en_attente_paiement', 'confirme', 'annule', 'no_show'],
+      'en_attente': ['en_attente_paiement', 'confirme', 'annule', 'no_show'],
+      'en_attente_paiement': ['confirme', 'annule'],
+      'confirme': ['termine', 'annule', 'no_show'],
+      'termine': [],   // terminal state
+      'annule': [],    // terminal state
+      'no_show': [],   // terminal state
+    };
+
+    const allowedNext = VALID_TRANSITIONS[currentRdv.statut] || [];
+    if (!allowedNext.includes(statut)) {
+      return apiError(res, `Transition ${currentRdv.statut} → ${statut} non autorisée`, 'INVALID_TRANSITION', 400);
     }
 
     // ⚠️ VALIDATION: Personnel obligatoire pour terminer une réservation
@@ -2122,9 +2139,11 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
         .select('business_profile')
         .eq('id', tenantId)
         .single();
-      const membreRequiredProfiles = ['salon', 'service_domicile', 'service', 'security'];
+      // B3: Read requireEmployeeAssignment from businessTypes config
       const businessProfile = tenantRow?.business_profile || 'salon';
-      if (membreRequiredProfiles.includes(businessProfile)) {
+      const btConfig = businessTypes[businessProfile];
+      const requireMembre = btConfig?.businessRules?.requireEmployeeAssignment ?? false;
+      if (requireMembre) {
         const membreAssigne = membre_id || currentRdv.membre_id;
         // Forfaits multi-agents : les membres sont sur les lignes, pas sur la resa parent
         const hasLignesMembres = currentRdv.is_forfait &&

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,11 +97,22 @@ const PRIORITE_COLORS: Record<string, string> = {
 
 const FRAIS_DEPLACEMENT_DEFAUT = 2000; // 20€ en centimes
 
+// B4: Business types allowed for Pipeline
+const PIPELINE_BUSINESS_TYPES = ['security', 'service', 'service_domicile'];
+
 export default function PipelinePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { t: _t, hasFeature: _hasFeature } = useProfile();
+  const { t: _t, hasFeature: _hasFeature, isBusinessType } = useProfile();
   const { isServiceDomicile } = useBusinessTypeChecks();
+
+  // B4: Runtime guard — redirect if business type not allowed
+  const isAllowed = PIPELINE_BUSINESS_TYPES.some(bt => isBusinessType(bt as any));
+  useEffect(() => {
+    if (!isAllowed) navigate('/activites', { replace: true });
+  }, [isAllowed, navigate]);
+
+  if (!isAllowed) return null;
   const [draggedItem, setDraggedItem] = useState<Opportunite | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Opportunite | null>(null);

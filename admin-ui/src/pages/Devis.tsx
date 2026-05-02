@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { api, comptaApi, Devis, DevisCreateData } from '../lib/api';
 import { LayoutTemplate, FileText, Repeat } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -20,9 +21,21 @@ import {
 } from '@/components/devis';
 import type { DevisTemplate, Forfait, ForfaitCreateData, StatutForfait } from '@/components/devis';
 
+// B4: Business types allowed for Devis
+const DEVIS_BUSINESS_TYPES = ['security', 'service', 'service_domicile'];
+
 export default function DevisPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { t, isBusinessType } = useProfile();
+
+  // B4: Runtime guard — redirect if business type not allowed
+  const isAllowed = DEVIS_BUSINESS_TYPES.some(bt => isBusinessType(bt as any));
+  useEffect(() => {
+    if (!isAllowed) navigate('/activites', { replace: true });
+  }, [isAllowed, navigate]);
+
+  if (!isAllowed) return null;
   const [activeTab, setActiveTab] = useState<'devis' | 'forfaits'>('devis');
   const [filtreStatut, setFiltreStatut] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
