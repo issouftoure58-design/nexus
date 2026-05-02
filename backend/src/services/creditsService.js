@@ -26,18 +26,18 @@ import logger from '../config/logger.js';
 export const CREDIT_COSTS = {
   email_notification: 1,     // 1 email notification (coût NEXUS: 0,001€)
   whatsapp_notification: 5,  // 1 notification WhatsApp sortante (coût NEXUS: 0,005€)
-  chat_admin_question: 7,    // 1 question chat IA admin
-  whatsapp_message: 7,       // 1 message WhatsApp IA répondu
-  devis_ia: 9,               // 1 devis IA généré
-  antichurn_whatsapp: 9,     // 1 message Anti-Churn WhatsApp
-  email_ia_sent: 9,          // 1 email IA généré + envoi
-  whatsapp_voice_note: 10,   // 1 note vocale WhatsApp (7 msg + 3 Whisper transcription)
-  social_post_generated: 12, // 1 post réseaux généré (Sonnet + image)
-  sms_notification: 15,      // 1 SMS notification sortant FR (coût NEXUS: 0,0725€)
-  web_chat_conversation: 15, // 1 conversation Agent IA Web (~5 messages Sonnet)
+  chat_admin_question: 5,    // 1 question chat IA admin
+  whatsapp_message: 5,       // 1 message WhatsApp IA répondu
+  devis_ia: 6,               // 1 devis IA généré
+  antichurn_whatsapp: 6,     // 1 message Anti-Churn WhatsApp
+  email_ia_sent: 6,          // 1 email IA généré + envoi
+  whatsapp_voice_note: 7,    // 1 note vocale WhatsApp (5 msg + 2 Whisper transcription)
+  social_post_generated: 8,  // 1 post réseaux généré (Sonnet + image)
+  sms_notification: 12,      // 1 SMS notification sortant FR (coût NEXUS: 0,0725€)
+  web_chat_conversation: 12, // 1 conversation Agent IA Web (~5 messages Sonnet)
   phone_minute: 18,          // 1 minute appel Téléphone IA
   antichurn_sms_fr: 25,      // 1 message Anti-Churn SMS FR (IA + envoi)
-  seo_article: 75,           // 1 article SEO complet (1500 mots)
+  seo_article: 70,           // 1 article SEO complet (1500 mots)
   verification_taux: 30,     // 1 vérification mise à jour taux sociaux (fetch + IA)
 };
 

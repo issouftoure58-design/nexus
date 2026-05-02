@@ -12,12 +12,12 @@ import { Calculator, Phone, MessageCircle, Globe, Megaphone, FileText, Sparkles,
 // Couts en credits — internes uniquement (JAMAIS visible client)
 // Source de verite : backend/src/services/creditsService.js CREDIT_COSTS
 const CREDIT_COSTS = {
-  whatsapp: 7,        // 1 message WhatsApp IA = 7 credits
-  webChat: 15,        // 1 conversation chat web = 15 credits (~5 messages)
+  whatsapp: 5,        // 1 message WhatsApp IA = 5 credits
+  webChat: 12,        // 1 conversation chat web = 12 credits (~5 messages)
   phoneMin: 18,       // 1 minute telephone IA = 18 credits
-  socialPost: 12,     // 1 post reseaux sociaux genere = 12 credits
-  email: 9,           // 1 email IA personnalise = 9 credits
-  seoArticle: 75,     // 1 article SEO complet (1500 mots) = 75 credits
+  socialPost: 8,      // 1 post reseaux sociaux genere = 8 credits
+  email: 6,           // 1 email IA personnalise = 6 credits
+  seoArticle: 70,     // 1 article SEO complet (1500 mots) = 70 credits
 }
 
 // Credits inclus par plan — internes (JAMAIS visible client)
@@ -37,19 +37,19 @@ const USAGE_PRESETS = [
     id: 'light',
     label: 'Demarrage',
     description: 'Quelques canaux IA, premiers clients',
-    values: { whatsapp: 150, webChat: 40, phoneMin: 50, socialPost: 4, email: 15, seoArticle: 1 },
+    values: { whatsapp: 250, webChat: 60, phoneMin: 80, socialPost: 6, email: 25, seoArticle: 1 },
   },
   {
     id: 'regular',
     label: 'Usage regulier',
     description: 'Activite stable, IA au quotidien',
-    values: { whatsapp: 800, webChat: 150, phoneMin: 200, socialPost: 20, email: 80, seoArticle: 4 },
+    values: { whatsapp: 1200, webChat: 250, phoneMin: 300, socialPost: 30, email: 120, seoArticle: 6 },
   },
   {
     id: 'intensive',
     label: 'Usage intensif',
     description: 'Multi-canaux, marketing IA, gros volume',
-    values: { whatsapp: 2500, webChat: 500, phoneMin: 600, socialPost: 50, email: 300, seoArticle: 10 },
+    values: { whatsapp: 3500, webChat: 700, phoneMin: 800, socialPost: 80, email: 500, seoArticle: 15 },
   },
 ]
 
