@@ -279,7 +279,7 @@ export default function SEODashboard() {
   return (
     <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Dashboard SEO</h1>
           <p className="text-gray-500">
@@ -287,13 +287,13 @@ export default function SEODashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate('/seo/articles')}>
-            <FileText className="w-4 h-4 mr-2" />
-            Articles SEO
+          <Button onClick={() => navigate('/seo/articles')} size="sm">
+            <FileText className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Articles</span> SEO
           </Button>
-          <Button variant="outline" onClick={fetchDashboardData}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualiser
+          <Button variant="outline" onClick={fetchDashboardData} size="sm">
+            <RefreshCw className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Actualiser</span>
           </Button>
         </div>
       </div>

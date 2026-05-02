@@ -363,7 +363,7 @@ export default function Fidelite() {
             {selectedClient && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
                 <h4 className="font-medium mb-3">Ajustement manuel — Client #{selectedClient}</h4>
-                <div className="flex gap-3 items-end">
+                <div className="flex flex-wrap gap-3 items-end">
                   <div>
                     <label className="text-xs text-gray-500">Points (+/-)</label>
                     <Input

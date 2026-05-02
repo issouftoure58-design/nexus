@@ -1287,7 +1287,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-4 mt-4 pt-4 border-t">
+            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t">
               <Button
                 variant="outline"
                 className="gap-2"
@@ -1377,7 +1377,7 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                   </div>
                 )}
 
-                <div className="flex gap-3 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Button className="gap-2" onClick={handleInviteExpert} disabled={inviteLoading}>
                     <Mail className="h-4 w-4" />
                     Inviter par email

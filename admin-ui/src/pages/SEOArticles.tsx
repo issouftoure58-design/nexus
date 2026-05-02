@@ -168,7 +168,7 @@ export default function SEOArticles() {
   return (
     <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Articles SEO</h1>
           <p className="text-gray-500">
@@ -357,7 +357,7 @@ export default function SEOArticles() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 ml-4">
+                <div className="flex gap-2 ml-4 flex-wrap">
                   {article.statut === 'brouillon' && (
                     <Button
                       size="sm"

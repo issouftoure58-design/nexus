@@ -166,7 +166,7 @@ export default function Clients() {
       </div>
       <div className="space-y-6">
         {/* Header actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
             <div className="relative flex-1" ref={searchRef}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />

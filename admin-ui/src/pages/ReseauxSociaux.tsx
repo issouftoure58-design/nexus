@@ -243,14 +243,14 @@ export default function ReseauxSociaux() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reseaux Sociaux</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Generez du contenu avec l'IA et publiez sur Facebook et Instagram.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={() => { loadPosts(); loadAccounts(); }}
             className="p-2.5 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
             <RefreshCw className="w-4 h-4" />

@@ -540,7 +540,7 @@ export default function PipelinePage() {
 
                 {/* Section Contact */}
                 <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                  <div className="flex items-center gap-4 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className="font-medium text-gray-700">Contact:</span>
                     <div className="flex gap-2">
                       <Button
@@ -798,7 +798,7 @@ export default function PipelinePage() {
 
                 {/* Geste commercial */}
                 <div className="bg-yellow-50 p-4 rounded-lg">
-                  <div className="flex items-center gap-4 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className="font-medium text-gray-700">Geste commercial:</span>
                     <select
                       className="border rounded-lg p-2 text-sm"
