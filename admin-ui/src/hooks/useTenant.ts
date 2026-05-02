@@ -97,6 +97,10 @@ export interface Tenant {
   business_profile?: string;
   onboarding_step?: number;
   profession_id?: string;
+  // Contact info
+  email?: string | null;
+  telephone?: string | null;
+  adresse?: string | null;
 }
 
 interface TenantResponse {

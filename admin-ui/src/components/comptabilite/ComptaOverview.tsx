@@ -73,7 +73,7 @@ export default function ComptaOverview({
         <CardContent>
           {pieData.length > 0 ? (
             <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
                     {pieData.map((_, index) => (

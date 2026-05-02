@@ -131,10 +131,10 @@ function ProfileSubSection() {
   useEffect(() => {
     if (tenant && !initialized) {
       setFormData({
-        businessName: (tenant as any).name || '',
-        email: (tenant as any).email || '',
-        phone: (tenant as any).telephone || '',
-        address: (tenant as any).adresse || '',
+        businessName: tenant.name || '',
+        email: tenant.email || '',
+        phone: tenant.telephone || '',
+        address: tenant.adresse || '',
       });
       setInitialized(true);
     }
