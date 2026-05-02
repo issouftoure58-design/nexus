@@ -35,7 +35,7 @@ export const CREDIT_COSTS = {
   social_post_generated: 12, // 1 post réseaux généré (Sonnet + image)
   sms_notification: 15,      // 1 SMS notification sortant FR (coût NEXUS: 0,0725€)
   web_chat_conversation: 15, // 1 conversation Agent IA Web (~5 messages Sonnet)
-  phone_minute: 22,          // 1 minute appel Téléphone IA
+  phone_minute: 18,          // 1 minute appel Téléphone IA
   antichurn_sms_fr: 25,      // 1 message Anti-Churn SMS FR (IA + envoi)
   seo_article: 75,           // 1 article SEO complet (1500 mots)
   verification_taux: 30,     // 1 vérification mise à jour taux sociaux (fetch + IA)

@@ -10,13 +10,14 @@ import { useState, useMemo } from 'react'
 import { Calculator, Phone, MessageCircle, Globe, Megaphone, FileText, Sparkles, ArrowRight } from 'lucide-react'
 
 // Couts en credits — internes uniquement (JAMAIS visible client)
+// Source de verite : backend/src/services/creditsService.js CREDIT_COSTS
 const CREDIT_COSTS = {
   whatsapp: 7,        // 1 message WhatsApp IA = 7 credits
-  webChat: 12,        // 1 conversation chat web = 12 credits (~5 messages)
+  webChat: 15,        // 1 conversation chat web = 15 credits (~5 messages)
   phoneMin: 18,       // 1 minute telephone IA = 18 credits
   socialPost: 12,     // 1 post reseaux sociaux genere = 12 credits
   email: 9,           // 1 email IA personnalise = 9 credits
-  seoArticle: 69,     // 1 article SEO complet (1500 mots) = 69 credits
+  seoArticle: 75,     // 1 article SEO complet (1500 mots) = 75 credits
 }
 
 // Credits inclus par plan — internes (JAMAIS visible client)
@@ -35,20 +36,20 @@ const USAGE_PRESETS = [
   {
     id: 'light',
     label: 'Demarrage',
-    description: 'Premiers tests, quelques canaux IA',
-    values: { whatsapp: 50, webChat: 10, phoneMin: 15, socialPost: 0, email: 0, seoArticle: 0 },
+    description: 'Quelques canaux IA, premiers clients',
+    values: { whatsapp: 150, webChat: 40, phoneMin: 50, socialPost: 4, email: 15, seoArticle: 1 },
   },
   {
     id: 'regular',
     label: 'Usage regulier',
-    description: 'Activite stable, IA quotidienne',
-    values: { whatsapp: 300, webChat: 60, phoneMin: 80, socialPost: 8, email: 30, seoArticle: 2 },
+    description: 'Activite stable, IA au quotidien',
+    values: { whatsapp: 800, webChat: 150, phoneMin: 200, socialPost: 20, email: 80, seoArticle: 4 },
   },
   {
     id: 'intensive',
     label: 'Usage intensif',
-    description: 'Marketing IA, telephone IA actif',
-    values: { whatsapp: 1500, webChat: 300, phoneMin: 400, socialPost: 30, email: 200, seoArticle: 8 },
+    description: 'Multi-canaux, marketing IA, gros volume',
+    values: { whatsapp: 2500, webChat: 500, phoneMin: 600, socialPost: 50, email: 300, seoArticle: 10 },
   },
 ]
 
