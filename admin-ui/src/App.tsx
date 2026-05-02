@@ -225,7 +225,7 @@ function App() {
             <Route path="/subscription" element={<ModuleRoute><Subscription /></ModuleRoute>} />
 
             {/* Agenda - RDV business de l'entrepreneur */}
-            <Route path="/agenda" element={<ModuleRoute moduleTitle="Agenda" moduleDescription="Gérez vos réservations"><Agenda /></ModuleRoute>} />
+            <Route path="/agenda" element={<ModuleRoute moduleTitle="Agenda" moduleDescription="Gérez vos rendez-vous"><Agenda /></ModuleRoute>} />
 
             {/* Activités (ex-Réservations) - module requis */}
             <Route path="/activites" element={<ModuleRoute module="reservations" moduleTitle="Activités" moduleDescription="Gérez vos activités et prestations"><Activites /></ModuleRoute>} />

@@ -695,9 +695,9 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-white dark:bg-gray-900 p-1 rounded-lg border">
                   {[
                     { id: 'grand-livre', label: 'Grand Livre', icon: FileText },
-                    { id: 'balance', label: 'Balance', icon: Scale },
+                    { id: 'balance', label: 'Balance Gén.', icon: Scale },
                     { id: 'journaux', label: 'Journaux', icon: Calculator },
-                    { id: 'balance-agee', label: 'Balance Âgée', icon: Clock },
+                    { id: 'balance-agee', label: 'Bal. Âgée', icon: Clock },
                   ].map((doc) => (
                     <button
                       key={doc.id}
@@ -878,11 +878,17 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                         )}
                       </div>
                     ))}
-                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 sticky bottom-0">
-                      <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} — {grandLivreData.nb_comptes} compte(s)</p>
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                        <span className="text-green-600">Débit: {formatCurrency(grandLivreData.totaux?.debit || 0)}</span>
-                        <span className="text-red-600">Crédit: {formatCurrency(grandLivreData.totaux?.credit || 0)}</span>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 sticky bottom-0 space-y-2">
+                      <div className="font-medium text-purple-700 dark:text-purple-300 text-sm">Totaux Grand Livre {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} — {grandLivreData.nb_comptes} compte(s)</div>
+                      <div className="grid grid-cols-2 gap-2 text-sm font-medium">
+                        <div className="bg-green-50 dark:bg-green-900/30 rounded-lg px-3 py-2">
+                          <div className="text-xs text-green-600 dark:text-green-400">Débit</div>
+                          <div className="text-green-700 dark:text-green-300">{formatCurrency(grandLivreData.totaux?.debit || 0)}</div>
+                        </div>
+                        <div className="bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">
+                          <div className="text-xs text-red-600 dark:text-red-400">Crédit</div>
+                          <div className="text-red-700 dark:text-red-300">{formatCurrency(grandLivreData.totaux?.credit || 0)}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -947,13 +953,25 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                         </tbody>
                       </table>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-3 flex justify-between items-center mt-2">
-                      <span className="font-bold text-green-700">TOTAUX {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} - {balanceGeneraleData.nb_comptes} compte(s)</span>
-                      <div className="font-bold">
-                        <span className="text-green-700 mr-4">D: {formatCurrency(balanceGeneraleData.totaux?.debit || 0)}</span>
-                        <span className="text-red-700 mr-4">C: {formatCurrency(balanceGeneraleData.totaux?.credit || 0)}</span>
-                        <span className="text-blue-700 mr-4">SD: {formatCurrency(balanceGeneraleData.totaux?.solde_debiteur || 0)}</span>
-                        <span className="text-orange-700">SC: {formatCurrency(balanceGeneraleData.totaux?.solde_crediteur || 0)}</span>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 mt-2 space-y-2">
+                      <div className="font-bold text-green-700 dark:text-green-300 text-sm">TOTAUX {compteFilterApplied ? `(${compteFilterApplied}*)` : ''} — {balanceGeneraleData.nb_comptes} compte(s)</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm font-bold">
+                        <div className="bg-green-100 dark:bg-green-900/40 rounded-lg px-3 py-2">
+                          <div className="text-xs text-green-600 dark:text-green-400 font-medium">Débit</div>
+                          <div className="text-green-700 dark:text-green-300">{formatCurrency(balanceGeneraleData.totaux?.debit || 0)}</div>
+                        </div>
+                        <div className="bg-red-100 dark:bg-red-900/40 rounded-lg px-3 py-2">
+                          <div className="text-xs text-red-600 dark:text-red-400 font-medium">Crédit</div>
+                          <div className="text-red-700 dark:text-red-300">{formatCurrency(balanceGeneraleData.totaux?.credit || 0)}</div>
+                        </div>
+                        <div className="bg-blue-100 dark:bg-blue-900/40 rounded-lg px-3 py-2">
+                          <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Solde Débit.</div>
+                          <div className="text-blue-700 dark:text-blue-300">{formatCurrency(balanceGeneraleData.totaux?.solde_debiteur || 0)}</div>
+                        </div>
+                        <div className="bg-orange-100 dark:bg-orange-900/40 rounded-lg px-3 py-2">
+                          <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">Solde Crédit.</div>
+                          <div className="text-orange-700 dark:text-orange-300">{formatCurrency(balanceGeneraleData.totaux?.solde_crediteur || 0)}</div>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -1057,26 +1075,34 @@ export default function ExpertComptable({ embedded }: { embedded?: boolean } = {
                             </tbody>
                           </table>
                         </div>
-                        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Totaux Journal {selectedJournal}</span>
-                          <div className="font-medium flex flex-wrap items-center gap-3">
-                            <span className="text-green-700">Débit: {formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}</span>
-                            <span className="text-red-700">Crédit: {formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}</span>
+                        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+                          <div className="font-medium text-gray-700 dark:text-gray-300 text-sm">Totaux Journal {selectedJournal}</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm font-medium">
+                            <div className="bg-green-50 dark:bg-green-900/30 rounded-lg px-3 py-2">
+                              <div className="text-xs text-green-600 dark:text-green-400">Débit</div>
+                              <div className="text-green-700 dark:text-green-300">{formatCurrency((ecrituresJournalData.totaux?.debit || 0) / 100)}</div>
+                            </div>
+                            <div className="bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">
+                              <div className="text-xs text-red-600 dark:text-red-400">Crédit</div>
+                              <div className="text-red-700 dark:text-red-300">{formatCurrency((ecrituresJournalData.totaux?.credit || 0) / 100)}</div>
+                            </div>
                             {selectedJournal === 'BQ' && ecrituresJournalData.totaux?.solde_banque !== undefined && (
-                              <span className={cn(
-                                "px-3 py-1 rounded-lg",
-                                ecrituresJournalData.totaux.solde_banque >= 0 ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                              <div className={cn(
+                                "rounded-lg px-3 py-2 col-span-2 sm:col-span-1",
+                                ecrituresJournalData.totaux.solde_banque >= 0 ? "bg-blue-50 dark:bg-blue-900/30" : "bg-orange-50 dark:bg-orange-900/30"
                               )}>
-                                Solde Banque: {formatCurrency(ecrituresJournalData.totaux.solde_banque)}
-                              </span>
+                                <div className={cn("text-xs", ecrituresJournalData.totaux.solde_banque >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400")}>Solde Banque</div>
+                                <div className={cn(ecrituresJournalData.totaux.solde_banque >= 0 ? "text-blue-700 dark:text-blue-300" : "text-orange-700 dark:text-orange-300")}>{formatCurrency(ecrituresJournalData.totaux.solde_banque)}</div>
+                              </div>
                             )}
                             {selectedJournal === 'CA' && ecrituresJournalData.totaux?.solde_caisse !== undefined && (
-                              <span className={cn(
-                                "px-3 py-1 rounded-lg",
-                                ecrituresJournalData.totaux.solde_caisse >= 0 ? "bg-amber-100 text-amber-700" : "bg-orange-100 text-orange-700"
+                              <div className={cn(
+                                "rounded-lg px-3 py-2 col-span-2 sm:col-span-1",
+                                ecrituresJournalData.totaux.solde_caisse >= 0 ? "bg-amber-50 dark:bg-amber-900/30" : "bg-orange-50 dark:bg-orange-900/30"
                               )}>
-                                Solde Caisse: {formatCurrency(ecrituresJournalData.totaux.solde_caisse)}
-                              </span>
+                                <div className={cn("text-xs", ecrituresJournalData.totaux.solde_caisse >= 0 ? "text-amber-600 dark:text-amber-400" : "text-orange-600 dark:text-orange-400")}>Solde Caisse</div>
+                                <div className={cn(ecrituresJournalData.totaux.solde_caisse >= 0 ? "text-amber-700 dark:text-amber-300" : "text-orange-700 dark:text-orange-300")}>{formatCurrency(ecrituresJournalData.totaux.solde_caisse)}</div>
+                              </div>
                             )}
                           </div>
                         </div>

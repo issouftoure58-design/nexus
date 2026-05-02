@@ -168,11 +168,11 @@ export default function Agenda() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Agenda</h1>
-          <p className="text-gray-600 dark:text-gray-400">Gérez vos réservations</p>
+          <p className="text-gray-600 dark:text-gray-400">Gérez vos rendez-vous</p>
         </div>
         <Button onClick={() => handleAddEvent()}>
           <Plus className="w-4 h-4 mr-2" />
-          Nouvelle réservation
+          Nouveau rendez-vous
         </Button>
       </div>
 
@@ -220,16 +220,17 @@ export default function Agenda() {
 
       {/* Calendar Grid - Week View */}
       {view === 'week' && (
-        <Card className="overflow-x-auto">
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           {/* Days Header */}
-          <div className="grid grid-cols-8 min-w-[600px] border-b border-gray-200 dark:border-gray-700">
-            <div className="p-3 text-center text-xs text-gray-500 border-r border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-8 min-w-[600px] border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-white dark:bg-gray-900">
+            <div className="p-2 sm:p-3 text-center text-xs text-gray-500 border-r border-gray-200 dark:border-gray-700">
               {/* Empty corner */}
             </div>
             {weekDays.map((day, i) => (
               <div
                 key={i}
-                className={`p-3 text-center border-r border-gray-200 dark:border-gray-700 last:border-r-0 ${
+                className={`p-2 sm:p-3 text-center border-r border-gray-200 dark:border-gray-700 last:border-r-0 ${
                   isToday(day) ? 'bg-cyan-50 dark:bg-cyan-900/20' : ''
                 }`}
               >
@@ -284,6 +285,7 @@ export default function Agenda() {
                 })}
               </div>
             ))}
+          </div>
           </div>
         </Card>
       )}
@@ -444,7 +446,7 @@ function EventModal({
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold">
-            {event ? 'Modifier la' : 'Nouvelle'} réservation
+            {event ? 'Modifier le' : 'Nouveau'} rendez-vous
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
             <X className="w-5 h-5" />
