@@ -20,10 +20,6 @@ export function getAuthUrl(tenantId) {
     'pages_manage_posts',
     'pages_read_engagement',
     'pages_show_list',
-    'instagram_business_basic',
-    'instagram_business_content_publish',
-    'instagram_business_manage_comments',
-    'instagram_business_manage_messages',
   ].join(',');
 
   const state = Buffer.from(JSON.stringify({ tenantId })).toString('base64url');
