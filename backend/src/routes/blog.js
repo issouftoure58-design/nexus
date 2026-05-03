@@ -358,6 +358,25 @@ router.get('/:slug', async (req, res) => {
       }
     };
 
+    // Extraire FAQ du contenu pour Schema FAQPage (featured snippets Google)
+    let faqJsonLd = null;
+    const faqSection = (article.contenu || '').split(/## Questions fréquentes/i)[1];
+    if (faqSection) {
+      const faqItems = [];
+      const faqRegex = /### (.+?)\n\n([\s\S]*?)(?=###|$)/g;
+      let match;
+      while ((match = faqRegex.exec(faqSection)) !== null) {
+        const question = match[1].trim();
+        const answer = match[2].trim();
+        if (question && answer) {
+          faqItems.push({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: answer } });
+        }
+      }
+      if (faqItems.length > 0) {
+        faqJsonLd = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqItems };
+      }
+    }
+
     const relatedHTML = related.length > 0 ? `
     <section style="margin-top:3rem;padding-top:2rem;border-top:1px solid #e5e7eb">
       <h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin-bottom:1rem">Articles similaires</h2>
@@ -398,6 +417,7 @@ router.get('/:slug', async (req, res) => {
 
   <!-- JSON-LD -->
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+  ${faqJsonLd ? `<script type="application/ld+json">${JSON.stringify(faqJsonLd)}</script>` : ''}
 </head>
 <body style="margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f9fafb;color:#111827">
   <!-- Header -->

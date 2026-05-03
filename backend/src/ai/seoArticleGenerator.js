@@ -27,7 +27,7 @@ async function callWithRetry(params, maxRetries = 3) {
 }
 
 /**
- * Génère un article de blog SEO-optimisé
+ * Génère un article de blog SEO-optimisé (niveau agence pro)
  */
 export async function generateArticle({
   tenant_id,
@@ -36,7 +36,13 @@ export async function generateArticle({
   businessName = '',
   mot_cle_principal,
   mots_cles_secondaires = [],
-  longueur = 'moyen'
+  longueur = 'moyen',
+  // Nouveaux champs pour brief métier précis
+  services_proposes = [],
+  services_exclus = [],
+  valeurs = '',
+  zone_geographique = '',
+  public_cible = '',
 }) {
   // Validate tenant_id before any operation
   if (!tenant_id) {
@@ -45,45 +51,60 @@ export async function generateArticle({
 
   try {
     const longueurs = {
-      court: 500,
-      moyen: 1000,
-      long: 2000
+      court: 800,
+      moyen: 1500,
+      long: 2500
     };
 
-    const targetWords = longueurs[longueur] || 1000;
+    const targetWords = longueurs[longueur] || 1500;
 
     const contextLines = [`- Secteur d'activité: ${secteur}`];
     if (description) contextLines.push(`- Spécialité: ${description}`);
     if (businessName) contextLines.push(`- Nom de l'entreprise: ${businessName}`);
+    if (zone_geographique) contextLines.push(`- Zone géographique: ${zone_geographique}`);
+    if (public_cible) contextLines.push(`- Public cible: ${public_cible}`);
+    if (valeurs) contextLines.push(`- Valeurs/Positionnement: ${valeurs}`);
+    if (services_proposes.length > 0) contextLines.push(`- Services proposés: ${services_proposes.join(', ')}`);
+    if (services_exclus.length > 0) contextLines.push(`- ⚠️ Services NON proposés (NE JAMAIS mentionner): ${services_exclus.join(', ')}`);
 
-    const prompt = `Tu es un rédacteur SEO expert. Génère un article de blog optimisé pour le référencement.
+    const prompt = `Tu es un rédacteur SEO senior avec 10 ans d'expérience en référencement naturel français. Tu produis des articles de qualité agence (Semrush, 1ère Position).
 
-CONTEXTE:
+CONTEXTE ENTREPRISE:
 ${contextLines.join('\n')}
 - Mot-clé principal: "${mot_cle_principal}"
 - Mots-clés secondaires: ${mots_cles_secondaires.length > 0 ? mots_cles_secondaires.join(', ') : 'aucun'}
-- Longueur cible: ${targetWords} mots
+- Longueur cible: ${targetWords} mots MINIMUM
+- Marché: France
 
-CONSIGNES:
-1. Titre accrocheur avec mot-clé principal (60-70 caractères max)
-2. Introduction captivante (100 mots)
-3. 3-5 sections H2 avec sous-titres H3 si nécessaire
-4. Intégrer naturellement les mots-clés (densité 1-2%)
-5. Meta description optimisée (150-160 caractères)
-6. Inclure CTA en conclusion
-7. Ton professionnel mais accessible
-8. Utiliser des listes à puces quand pertinent
+BRIEF STRICT:
+${services_exclus.length > 0 ? `⚠️ NE JAMAIS mentionner ces services/sujets dans l'article: ${services_exclus.join(', ')}. L'entreprise est CONTRE ces pratiques.` : ''}
+${services_proposes.length > 0 ? `✅ Concentre-toi UNIQUEMENT sur ces services: ${services_proposes.join(', ')}` : ''}
 
-Format de réponse (JSON UNIQUEMENT, sans texte avant ou après):
+CONSIGNES SEO PRO:
+1. Titre accrocheur avec mot-clé principal (55-65 caractères)
+2. Introduction captivante avec le mot-clé dans les 100 premiers mots + promesse de valeur
+3. 5-7 sections H2 développées avec sous-titres H3
+4. Intégrer naturellement les mots-clés (densité 1-2%) + variantes sémantiques (LSI)
+5. Meta description avec mot-clé + bénéfice + CTA (150-155 caractères)
+6. Section FAQ (3-5 questions/réponses) pour featured snippets — questions que les internautes posent réellement
+7. CTA en conclusion avec proposition de valeur claire
+8. Ton expert mais accessible — démontrer l'EXPERTISE (E-E-A-T)
+9. Listes à puces, tableaux comparatifs, chiffres concrets quand pertinent
+10. SEO local: mentionner la zone géographique naturellement (${zone_geographique || 'France'})
+11. Chaque section doit apporter de la VALEUR (pas de remplissage)
+12. Utiliser des transitions fluides entre sections
+
+FORMAT JSON (UNIQUEMENT, sans texte avant ou après):
 {
   "titre": "...",
   "slug": "...",
   "meta_description": "...",
-  "contenu": "...",
-  "images_suggestions": ["description image 1", "description image 2"]
+  "contenu": "... (Markdown avec ## et ###)",
+  "faq": [{"question": "...", "answer": "..."}, ...],
+  "images_suggestions": ["description image 1", "description image 2", "description image 3"]
 }
 
-Le contenu doit être en Markdown avec headers ## et ###.`;
+Le contenu DOIT être en Markdown. La section FAQ dans "faq" est séparée pour le Schema FAQ JSON-LD.`;
 
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
@@ -107,6 +128,15 @@ Le contenu doit être en Markdown avec headers ## et ###.`;
     // Générer slug si manquant
     const finalSlug = article.slug || slugify(article.titre);
 
+    // Ajouter FAQ au contenu Markdown si présent
+    let fullContent = article.contenu || '';
+    if (article.faq && article.faq.length > 0) {
+      fullContent += '\n\n## Questions fréquentes\n\n';
+      for (const item of article.faq) {
+        fullContent += `### ${item.question}\n\n${item.answer}\n\n`;
+      }
+    }
+
     // Enregistrer en BDD (schéma existant utilise mots_cles_cibles array)
     const { data, error } = await supabase
       .from('seo_articles')
@@ -115,7 +145,7 @@ Le contenu doit être en Markdown avec headers ## et ###.`;
         titre: article.titre,
         slug: finalSlug,
         meta_description: article.meta_description,
-        contenu: article.contenu,
+        contenu: fullContent,
         mots_cles_cibles: [mot_cle_principal, ...mots_cles_secondaires].filter(Boolean),
         auteur: 'IA',
         statut: 'brouillon'
@@ -128,6 +158,7 @@ Le contenu doit être en Markdown avec headers ## et ###.`;
     return {
       success: true,
       article: data,
+      faq: article.faq || [],
       images_suggestions: article.images_suggestions || []
     };
   } catch (error) {

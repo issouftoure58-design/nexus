@@ -64,8 +64,14 @@ export default function SEOArticles() {
   const [formData, setFormData] = useState({
     mot_cle_principal: '',
     mots_cles_secondaires: '',
-    longueur: 'moyen'
+    longueur: 'moyen',
+    services_proposes: '',
+    services_exclus: '',
+    valeurs: '',
+    zone_geographique: '',
+    public_cible: '',
   });
+  const [showBrief, setShowBrief] = useState(false);
 
   const [generating, setGenerating] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
@@ -115,13 +121,18 @@ export default function SEOArticles() {
           .split(',')
           .map(k => k.trim())
           .filter(Boolean),
-        longueur: formData.longueur
+        longueur: formData.longueur,
+        services_proposes: formData.services_proposes ? formData.services_proposes.split(',').map(s => s.trim()).filter(Boolean) : [],
+        services_exclus: formData.services_exclus ? formData.services_exclus.split(',').map(s => s.trim()).filter(Boolean) : [],
+        valeurs: formData.valeurs,
+        zone_geographique: formData.zone_geographique,
+        public_cible: formData.public_cible,
       });
 
       if (result.success) {
         setFeedbackMessage({ type: 'success', text: 'Article genere avec succes !' });
         setShowGenerator(false);
-        setFormData({ mot_cle_principal: '', mots_cles_secondaires: '', longueur: 'moyen' });
+        setFormData({ mot_cle_principal: '', mots_cles_secondaires: '', longueur: 'moyen', services_proposes: '', services_exclus: '', valeurs: '', zone_geographique: '', public_cible: '' });
         setIdeas([]);
         fetchArticles();
       } else {
@@ -288,10 +299,66 @@ export default function SEOArticles() {
                 value={formData.longueur}
                 onChange={(e) => setFormData({ ...formData, longueur: e.target.value })}
               >
-                <option value="court">Court (~500 mots)</option>
-                <option value="moyen">Moyen (~1000 mots)</option>
-                <option value="long">Long (~2000 mots)</option>
+                <option value="court">Court (~800 mots)</option>
+                <option value="moyen">Moyen (~1500 mots)</option>
+                <option value="long">Long (~2500 mots, recommande SEO)</option>
               </select>
+            </div>
+
+            {/* Brief métier (optionnel mais recommandé) */}
+            <div className="border-t pt-3 mt-3">
+              <button
+                type="button"
+                onClick={() => setShowBrief(!showBrief)}
+                className="text-sm font-medium text-cyan-600 hover:text-cyan-700 flex items-center gap-1"
+              >
+                {showBrief ? '▾' : '▸'} Brief metier (recommande)
+              </button>
+              {showBrief && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500">Services proposes (virgules)</label>
+                    <Input
+                      placeholder="Ex: tresses, locks, soins naturels, coupe afro"
+                      value={formData.services_proposes}
+                      onChange={(e) => setFormData({ ...formData, services_proposes: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-red-500 font-medium">Services a NE PAS mentionner (virgules)</label>
+                    <Input
+                      placeholder="Ex: tissage, defrisage, produits chimiques"
+                      value={formData.services_exclus}
+                      onChange={(e) => setFormData({ ...formData, services_exclus: e.target.value })}
+                      className="border-red-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Zone geographique</label>
+                    <Input
+                      placeholder="Ex: Paris, Ile-de-France, Val-de-Marne"
+                      value={formData.zone_geographique}
+                      onChange={(e) => setFormData({ ...formData, zone_geographique: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Valeurs / Positionnement</label>
+                    <Input
+                      placeholder="Ex: naturel, respect du cheveu, expertise afro"
+                      value={formData.valeurs}
+                      onChange={(e) => setFormData({ ...formData, valeurs: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Public cible</label>
+                    <Input
+                      placeholder="Ex: femmes afro 25-45 ans, meres de famille"
+                      value={formData.public_cible}
+                      onChange={(e) => setFormData({ ...formData, public_cible: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

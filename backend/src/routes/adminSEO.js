@@ -70,7 +70,17 @@ router.use(authenticateAdmin, requireModule('seo'));
 router.post('/articles/generate', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.admin.tenant_id;
-    const { mot_cle_principal, mots_cles_secondaires, longueur } = req.body;
+    const {
+      mot_cle_principal,
+      mots_cles_secondaires,
+      longueur,
+      // Brief métier optionnel (override le contexte auto)
+      services_proposes,
+      services_exclus,
+      valeurs,
+      zone_geographique,
+      public_cible,
+    } = req.body;
 
     if (!mot_cle_principal) {
       return res.status(400).json({ error: 'Mot-clé principal requis' });
@@ -96,7 +106,12 @@ router.post('/articles/generate', authenticateAdmin, async (req, res) => {
       businessName: seoContext.businessName,
       mot_cle_principal,
       mots_cles_secondaires: mots_cles_secondaires || [],
-      longueur: longueur || 'moyen'
+      longueur: longueur || 'moyen',
+      services_proposes: services_proposes || [],
+      services_exclus: services_exclus || [],
+      valeurs: valeurs || '',
+      zone_geographique: zone_geographique || '',
+      public_cible: public_cible || '',
     });
 
     // Déduire crédits après génération réussie
