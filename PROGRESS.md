@@ -1,12 +1,12 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-05-02 UTC
+> Derniere mise a jour: 2026-05-03 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
 **Version: 3.26.0**
-**Phase en cours: Commercialisation — 6 types de business**
+**Phase en cours: PRET POUR COMMERCIALISATION — 7 types de business**
 **Roadmap detaillee: ROADMAP_SENTINEL.md**
 
 ---
@@ -1830,4 +1830,50 @@ Documentation complete enregistree dans `.claude/projects/-Users-hobb/memory/bet
 ### Commit
 - `f8dfed8` — "feat: business type adaptation + SEO context + API normalization (Session 32)"
 - **COMMITE ET POUSSE**
-- [ ] Commit a faire apres validation complete
+- [x] Validation pre-commercialisation 4 blocs (3 mai 2026)
+
+---
+
+## VALIDATION PRE-COMMERCIALISATION (3 mai 2026)
+
+Tests effectues en local (backend :5000, admin-ui :3001) + production (app.nexus-ai-saas.com).
+
+### BLOC 3 — Isolation Multi-Tenant : PASSE
+- `lint:tenant` 0 violation, `lint:syntax` 454 fichiers OK
+- API sans JWT → 401, body tenant mismatch → 403 TENANT_MISMATCH
+- Header X-Tenant-Shield: active sur toutes reponses protegees
+- RLS Supabase: 31 tables, 32 policies, tables critiques couvertes
+- 3 test suites PASS: tenantIsolation, tenantShield, plan-isolation
+
+### BLOC 1 — Parcours Signup : PASSE
+- Flow complet: SMS send → verify → signup (salon-coiffure, free) → login → dashboard
+- Tenant cree avec 3 services, 7 horaires, agent config, IA config
+- Validations: champs requis, mot de passe faible (5 criteres), EMAIL_EXISTS, SIRET Luhn
+- Bug mineur: PHONE_EXISTS cherche admin_users.telephone (null) au lieu de tenants.telephone
+
+### BLOC 2 — Paiements Stripe : PASSE
+- stripe_configured: true (mode test)
+- Checkout Stripe: session valide creee (nexus_starter_monthly)
+- Webhook sans signature → 400 (rejet correct)
+- Table stripe_processed_events (idempotence) existe
+- Prix coherents: frontend (planPricing.ts) = backend (pricing.js) = Stripe = 0/69/199/499/899 EUR
+
+### BLOC 3 — Responsive Mobile : PASSE
+Tests visuels browser a 513px (production app.nexus-ai-saas.com):
+- Landing: hamburger, CTA, robot OK
+- Signup: wizard 4 etapes completable
+- Login: formulaire centre
+- Dashboard: KPI 1 colonne, hamburger, sidebar cachee
+- GlobalMenu: slide-in 310px, items touchables
+- Clients: mode card mobile (pas tableau)
+- Subscription: plans en colonne, boutons accessibles
+
+### Verdict
+**4/4 BLOCS VALIDES — NEXUS EST PRET POUR COMMERCIALISATION**
+
+Issues non-bloquantes:
+1. Bug PHONE_EXISTS (anti-doublon telephone inefficace)
+2. GlobalMenu w-80 fixe (risque < 375px)
+3. Touch targets header 36px (sous le min 44px)
+
+Details complets: `memory/tests-validation.md`

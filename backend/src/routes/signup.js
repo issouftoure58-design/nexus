@@ -223,7 +223,7 @@ router.post('/sms/send', signupLimiter, async (req, res) => {
   // Verifie unicite avant d'envoyer un SMS
   const normalizedPhone = String(phone).replace(/[\s\-.()]/g, '');
   const { data: existingPhone } = await supabase
-    .from('admin_users')
+    .from('tenants')
     .select('id')
     .eq('telephone', normalizedPhone)
     .limit(1)
@@ -399,7 +399,7 @@ router.post('/', signupLimiter, async (req, res) => {
     {
       const normalizedPhone = telephone.replace(/[\s\-.()]/g, '');
       const { data: existingPhone } = await supabase
-        .from('admin_users')
+        .from('tenants')
         .select('id')
         .eq('telephone', normalizedPhone)
         .limit(1)
