@@ -6,8 +6,23 @@
 import { supabase } from '../../config/supabase.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { MODEL_FAST } from '../../services/modelRouter.js';
+import { cachedSystem } from '../../services/promptCacheHelper.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const SOCIAL_MEDIA_SYSTEM = `Tu es un expert en social media marketing pour les petites entreprises françaises.
+
+EXPERTISE:
+- Création de contenu engageant pour Facebook, Instagram, LinkedIn, X, TikTok
+- Stratégies de hashtags et timing optimal
+- Community management et réponses professionnelles
+- Analyse de sentiment et tendances
+
+RÈGLES:
+- Ton professionnel mais accessible
+- Emojis appropriés au contexte
+- Contenu adapté à chaque plateforme
+- Réponds UNIQUEMENT en JSON valide, sans texte avant ou après`;
 
 // ============ HELPERS ============
 
@@ -60,9 +75,7 @@ export async function generatePostIdeas(tenantId, options = {}) {
   try {
     const context = await getTenantContext(tenantId);
 
-    const prompt = `Tu es un expert en social media marketing pour les petites entreprises.
-
-CONTEXTE BUSINESS:
+    const prompt = `CONTEXTE BUSINESS:
 - Type: ${businessType}
 - ${context.productsInfo || 'Pas de produits spécifiques'}
 - ${context.servicesInfo || ''}
@@ -96,6 +109,7 @@ Réponds en JSON valide avec cette structure:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 2000,
+      system: cachedSystem(SOCIAL_MEDIA_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -151,6 +165,7 @@ Réponds en JSON:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 1500,
+      system: cachedSystem(SOCIAL_MEDIA_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -200,6 +215,7 @@ Réponds en JSON:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 1000,
+      system: cachedSystem(SOCIAL_MEDIA_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -302,7 +318,7 @@ export async function generateCommentReply(tenantId, commentData) {
   const { comment, postContent, sentiment = 'neutral', authorName } = commentData;
 
   try {
-    const prompt = `Tu es le community manager d'un commerce. Génère une réponse professionnelle et chaleureuse à ce commentaire.
+    const prompt = `Génère une réponse professionnelle et chaleureuse à ce commentaire.
 
 CONTEXTE DU POST: "${postContent || 'Post promotionnel'}"
 
@@ -330,6 +346,7 @@ Réponds en JSON:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 500,
+      system: cachedSystem(SOCIAL_MEDIA_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -360,6 +377,7 @@ TEXTE: "${text}"
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 200,
+      system: cachedSystem(SOCIAL_MEDIA_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 

@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import multer from 'multer';
 import crypto from 'crypto';
 import modelRouter, { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { cachedSystem } from '../services/promptCacheHelper.js';
 import { publicChatLimiter, publicReviewLimiter } from '../middleware/rateLimiter.js';
 import { supabase } from '../config/supabase.js';
 import { containsProfanity } from '../services/profanityFilter.js';
@@ -314,7 +315,7 @@ router.post('/chat', publicChatLimiter, async (req, res) => {
       const streamResponse = await client.messages.create({
         model: routing.model,
         max_tokens: 500,
-        system: NEXUS_COMMERCIAL_PROMPT,
+        system: cachedSystem(NEXUS_COMMERCIAL_PROMPT),
         messages: validMessages,
         stream: true
       });
@@ -333,7 +334,7 @@ router.post('/chat', publicChatLimiter, async (req, res) => {
       const response = await client.messages.create({
         model: routing.model,
         max_tokens: 500,
-        system: NEXUS_COMMERCIAL_PROMPT,
+        system: cachedSystem(NEXUS_COMMERCIAL_PROMPT),
         messages: validMessages
       });
 

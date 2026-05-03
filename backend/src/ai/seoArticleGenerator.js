@@ -6,8 +6,27 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { cachedSystem } from '../services/promptCacheHelper.js';
 
 const anthropic = new Anthropic();
+
+const SEO_SYSTEM_PROMPT = `Tu es un rédacteur SEO senior avec 10 ans d'expérience en référencement naturel français. Tu produis des articles de qualité agence (Semrush, 1ère Position).
+
+CONSIGNES SEO PRO:
+1. Titre accrocheur avec mot-clé principal (55-65 caractères)
+2. Introduction captivante avec le mot-clé dans les 100 premiers mots + promesse de valeur
+3. 5-7 sections H2 développées avec sous-titres H3
+4. Intégrer naturellement les mots-clés (densité 1-2%) + variantes sémantiques (LSI)
+5. Meta description avec mot-clé + bénéfice + CTA (150-155 caractères)
+6. Section FAQ (3-5 questions/réponses) pour featured snippets — questions que les internautes posent réellement
+7. CTA en conclusion avec proposition de valeur claire
+8. Ton expert mais accessible — démontrer l'EXPERTISE (E-E-A-T)
+9. Listes à puces, tableaux comparatifs, chiffres concrets quand pertinent
+10. Chaque section doit apporter de la VALEUR (pas de remplissage)
+11. Utiliser des transitions fluides entre sections
+12. Marché cible: France
+
+Toujours répondre au format JSON strict (sans texte avant ou après).`;
 
 /**
  * Appel Anthropic avec retry automatique (gère erreurs 529 surcharge)
@@ -67,34 +86,18 @@ export async function generateArticle({
     if (services_proposes.length > 0) contextLines.push(`- Services proposés: ${services_proposes.join(', ')}`);
     if (services_exclus.length > 0) contextLines.push(`- ⚠️ Services NON proposés (NE JAMAIS mentionner): ${services_exclus.join(', ')}`);
 
-    const prompt = `Tu es un rédacteur SEO senior avec 10 ans d'expérience en référencement naturel français. Tu produis des articles de qualité agence (Semrush, 1ère Position).
-
-CONTEXTE ENTREPRISE:
+    const prompt = `CONTEXTE ENTREPRISE:
 ${contextLines.join('\n')}
 - Mot-clé principal: "${mot_cle_principal}"
 - Mots-clés secondaires: ${mots_cles_secondaires.length > 0 ? mots_cles_secondaires.join(', ') : 'aucun'}
 - Longueur cible: ${targetWords} mots MINIMUM
-- Marché: France
+${zone_geographique ? `- SEO local: mentionner la zone géographique naturellement (${zone_geographique})` : ''}
 
 BRIEF STRICT:
 ${services_exclus.length > 0 ? `⚠️ NE JAMAIS mentionner ces services/sujets dans l'article: ${services_exclus.join(', ')}. L'entreprise est CONTRE ces pratiques.` : ''}
 ${services_proposes.length > 0 ? `✅ Concentre-toi UNIQUEMENT sur ces services: ${services_proposes.join(', ')}` : ''}
 
-CONSIGNES SEO PRO:
-1. Titre accrocheur avec mot-clé principal (55-65 caractères)
-2. Introduction captivante avec le mot-clé dans les 100 premiers mots + promesse de valeur
-3. 5-7 sections H2 développées avec sous-titres H3
-4. Intégrer naturellement les mots-clés (densité 1-2%) + variantes sémantiques (LSI)
-5. Meta description avec mot-clé + bénéfice + CTA (150-155 caractères)
-6. Section FAQ (3-5 questions/réponses) pour featured snippets — questions que les internautes posent réellement
-7. CTA en conclusion avec proposition de valeur claire
-8. Ton expert mais accessible — démontrer l'EXPERTISE (E-E-A-T)
-9. Listes à puces, tableaux comparatifs, chiffres concrets quand pertinent
-10. SEO local: mentionner la zone géographique naturellement (${zone_geographique || 'France'})
-11. Chaque section doit apporter de la VALEUR (pas de remplissage)
-12. Utiliser des transitions fluides entre sections
-
-FORMAT JSON (UNIQUEMENT, sans texte avant ou après):
+FORMAT JSON attendu:
 {
   "titre": "...",
   "slug": "...",
@@ -112,6 +115,7 @@ Le contenu DOIT être en Markdown. La section FAQ dans "faq" est séparée pour 
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: maxTokens,
+      system: cachedSystem(SEO_SYSTEM_PROMPT),
       messages: [{
         role: 'user',
         content: prompt
@@ -189,11 +193,10 @@ export async function generateArticleIdeas(contextOrSecteur, nb = 5) {
     if (category) contextLines.push(`- Catégorie: ${category}`);
     if (businessName) contextLines.push(`- Nom: ${businessName}`);
 
-    const prompt = `Tu es un expert SEO français. Propose ${nb} idées d'articles de blog spécifiquement adaptées à ce type d'entreprise.
+    const prompt = `Propose ${nb} idées d'articles de blog spécifiquement adaptées à ce type d'entreprise.
 
 ENTREPRISE:
 ${contextLines.join('\n')}
-- Marché: France
 
 IMPORTANT: Les idées doivent être très spécifiques au métier "${secteur}". Pas d'idées génériques.
 
@@ -209,6 +212,7 @@ Format: JSON array UNIQUEMENT, sans texte avant ou après
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: 2048,
+      system: cachedSystem(SEO_SYSTEM_PROMPT),
       messages: [{
         role: 'user',
         content: prompt
@@ -300,7 +304,7 @@ export async function improveArticle(articleId, tenant_id, instructions) {
       throw new Error('Article non trouvé');
     }
 
-    const prompt = `Tu es un rédacteur SEO expert. Améliore cet article existant.
+    const prompt = `Améliore cet article existant.
 
 ARTICLE ACTUEL:
 Titre: ${article.titre}
@@ -321,6 +325,7 @@ Retourne l'article amélioré au format JSON:
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
       max_tokens: 8192,
+      system: cachedSystem(SEO_SYSTEM_PROMPT),
       messages: [{
         role: 'user',
         content: prompt

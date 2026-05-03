@@ -13,6 +13,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import bookingService from './bookingService.js';
+import { cachedSystem } from './promptCacheHelper.js';
 // NEXUS CORE UNIFIÉ - Source unique de logique métier
 import nexusCore from '../core/unified/nexusCore.js';
 // 🔒 TENANT ISOLATION: Résolution du tenant depuis le numéro appelé
@@ -689,7 +690,7 @@ async function generateAIResponse(conv, msg) {
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 80,
-      system: PERSONNALITE + context + '\n\nRÈGLE ABSOLUE: Tu VOUVOIES toujours le client.',
+      system: cachedSystem(PERSONNALITE + context + '\n\nRÈGLE ABSOLUE: Tu VOUVOIES toujours le client.'),
       messages: conv.history.slice(-6)
     });
 

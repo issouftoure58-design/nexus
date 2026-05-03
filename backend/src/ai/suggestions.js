@@ -6,8 +6,15 @@
 import { supabase } from '../config/supabase.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { cachedSystem } from '../services/promptCacheHelper.js';
 
 const anthropic = new Anthropic();
+
+const BUSINESS_CONSULTANT_SYSTEM = `Tu es un consultant business qui analyse les donnees d'une entreprise de services (salon de coiffure, beaute, restaurant, hotel, commerce, etc.).
+
+Tu generes des actions concretes et actionnables pour ameliorer la situation.
+Reponds UNIQUEMENT avec un JSON valide, sans texte avant ou apres.
+Format: [{"action": "...", "description": "...", "priority": "high|medium|low", "impact": "..."}]`;
 
 /**
  * Genere suggestions IA basees sur contexte
@@ -17,9 +24,7 @@ export async function generateSuggestions(tenant_id, context) {
     const { anomalies, metrics, predictions } = context;
 
     // Construire prompt pour Claude
-    const prompt = `Tu es un consultant business qui analyse les donnees d'une entreprise de services (salon de coiffure, beaute, etc.).
-
-METRIQUES ACTUELLES:
+    const prompt = `METRIQUES ACTUELLES:
 - CA quotidien : ${metrics.ca_daily?.value || 0}EUR (${metrics.ca_daily?.variation >= 0 ? '+' : ''}${metrics.ca_daily?.variation || 0}% vs J-7)
 - Taux remplissage agenda : ${metrics.taux_remplissage?.value || 0}%
 - Taux annulation : ${metrics.taux_annulation?.value || 0}%
@@ -31,13 +36,12 @@ ${anomalies && anomalies.length > 0 ? anomalies.map(a => `- ${a.message}`).join(
 PREDICTIONS:
 - CA mois prochain : ${predictions?.ca_next_month || 'N/A'}EUR (tendance ${predictions?.trend || 'stable'})
 
-Genere exactement 3 actions concretes et actionnables pour ameliorer la situation.
-Reponds UNIQUEMENT avec un JSON valide, sans texte avant ou apres.
-Format: [{"action": "...", "description": "...", "priority": "high|medium|low", "impact": "..."}]`;
+Genere exactement 3 actions concretes et actionnables pour ameliorer la situation.`;
 
     const message = await anthropic.messages.create({
       model: MODEL_DEFAULT,
       max_tokens: 1024,
+      system: cachedSystem(BUSINESS_CONSULTANT_SYSTEM),
       messages: [{
         role: 'user',
         content: prompt

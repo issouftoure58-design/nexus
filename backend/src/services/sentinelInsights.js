@@ -13,6 +13,22 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { MODEL_FAST } from './modelRouter.js';
+import { cachedSystem } from './promptCacheHelper.js';
+
+const SENTINEL_SYSTEM_PROMPT = `Tu es un consultant business expert en analytics pour entreprises de services (coiffure, beaute, bien-etre, restaurant, hotel, commerce).
+
+EXPERTISE:
+- Analyse de tendances chiffre d'affaires, reservations, clients
+- Optimisation operationnelle et reduction no-shows
+- Strategies acquisition et retention clients
+- Gestion des couts et ROI
+
+REGLES:
+- Sois concret et specifique, pas generique
+- Donne des chiffres quand possible
+- Propose des actions realisables immediatement
+- Priorise les opportunites de revenus
+- Reponds UNIQUEMENT en JSON valide, sans texte avant ou apres`;
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -213,9 +229,7 @@ class SentinelInsights {
       const costTrends = this.calculateCostTrends(costs);
 
       // 3. Construire prompt
-      const prompt = `Tu es un consultant business expert en analytics pour entreprises de services (coiffure, beaute, bien-etre).
-
-DONNEES CLIENT SUR 30 JOURS :
+      const prompt = `DONNEES CLIENT SUR 30 JOURS :
 - Chiffre d'affaires total : ${trends.total_revenue}€
 - CA moyen/jour : ${trends.avg_daily_revenue}€
 - Reservations totales : ${trends.total_reservations}
@@ -243,13 +257,7 @@ OBJECTIFS CLIENT :
 
 Genere 3 a 5 insights actionnables et pertinents.
 
-IMPORTANT :
-- Sois concret et specifique, pas generique
-- Donne des chiffres quand possible
-- Propose des actions realisables immediatement
-- Priorise les opportunites de revenus
-
-Format JSON strict (pas de texte avant ou apres) :
+Format JSON strict :
 [{
   "type": "opportunity|warning|tip|trend|achievement",
   "category": "revenue|clients|marketing|operations|costs|performance",
@@ -265,10 +273,11 @@ Format JSON strict (pas de texte avant ou apres) :
   "priority": 8
 }]`;
 
-      // 4. Appeler Claude
+      // 4. Appeler Claude (prompt caching sur system)
       const response = await anthropic.messages.create({
         model: MODEL_FAST,
         max_tokens: 3000,
+        system: cachedSystem(SENTINEL_SYSTEM_PROMPT),
         messages: [{ role: 'user', content: prompt }]
       });
 
@@ -347,9 +356,7 @@ Format JSON strict (pas de texte avant ou apres) :
       retention: `Comment fideliser mes clients?`,
     };
 
-    const prompt = `Tu es un consultant business expert. Reponds a cette question specifique pour une entreprise de services:
-
-${topicPrompts[topic]}
+    const prompt = `${topicPrompts[topic]}
 
 Contexte:
 - CA 30j: ${trends.total_revenue}€
@@ -367,6 +374,7 @@ Donne 3 conseils ultra-concrets et actionnables. Format JSON:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 1000,
+      system: cachedSystem(SENTINEL_SYSTEM_PROMPT),
       messages: [{ role: 'user', content: prompt }]
     });
 

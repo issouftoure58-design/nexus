@@ -36,6 +36,7 @@ import logger from '../config/logger.js';
 import { getBusinessInfo, getBusinessInfoSync } from '../services/tenantBusinessService.js';
 import { getBusinessHoursForTenant } from '../services/tenantBusinessRules.js';
 import { getTenantConfig } from '../config/tenants/index.js';
+import { cachedSystem, cachedTools } from '../services/promptCacheHelper.js';
 
 // ============================================
 // CONFIGURATION
@@ -869,12 +870,13 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
     const selectedModel = routing.model;
     logger.info(`[HALIMAH AI] [ROUTER] ${selectedModel.includes('haiku') ? '⚡ HAIKU' : '🧠 SONNET'} — ${routing.reason}`);
 
-    // Appel à Claude avec les outils
+    // Appel à Claude avec les outils (prompt caching = -90% input tokens)
+    const cachedToolsDef = cachedTools(tools);
     let response = await anthropic.messages.create({
       model: selectedModel,
       max_tokens: 1024,
-      system: systemPrompt,
-      tools: tools,
+      system: cachedSystem(systemPrompt),
+      tools: cachedToolsDef,
       messages: messages
     });
 
@@ -902,12 +904,12 @@ export async function chat(sessionId, userMessage, canal = 'chat', tenantId) {
       // Ajouter tous les résultats d'outils en une seule fois
       messages.push({ role: 'user', content: toolResults });
 
-      // Continuer la conversation
+      // Continuer la conversation (cache hit sur system + tools)
       response = await anthropic.messages.create({
         model: MODEL_DEFAULT,
         max_tokens: 1024,
-        system: systemPrompt,
-        tools: tools,
+        system: cachedSystem(systemPrompt),
+        tools: cachedToolsDef,
         messages: messages
       });
     }

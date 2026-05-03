@@ -6,8 +6,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config/supabase.js';
 import { MODEL_DEFAULT } from '../services/modelRouter.js';
+import { cachedSystem } from '../services/promptCacheHelper.js';
 
 const anthropic = new Anthropic();
+
+const SEO_EXPERT_SYSTEM = `Tu es un expert SEO français avec 10 ans d'expérience en référencement naturel.
+Spécialités: analyse de mots-clés, audit SEO, stratégie de contenu, référencement local.
+Marché cible: France.
+Reponds UNIQUEMENT en JSON valide, sans texte avant ou apres.`;
 
 /**
  * Analyse mots-clés pour un secteur
@@ -27,11 +33,10 @@ export async function analyzeKeywords(contextOrSecteur, niche = '') {
     if (description) contextLines.push(`- Spécialité: ${description}`);
     if (niche) contextLines.push(`- Niche: ${niche}`);
 
-    const prompt = `Tu es un expert SEO français. Analyse les mots-clés pertinents pour une entreprise.
+    const prompt = `Analyse les mots-clés pertinents pour une entreprise.
 
 CONTEXTE:
 ${contextLines.join('\n')}
-- Marché: France
 
 IMPORTANT: Les mots-clés doivent être spécifiques au métier "${secteur}". Inclus des termes locaux (ville, près de moi) et des longues traînes.
 
@@ -42,12 +47,13 @@ Fournis 10 mots-clés pertinents avec:
 - intention: informationnelle/commerciale/transactionnelle/navigationnelle
 - suggestions: 2-3 variations longue traîne du mot-clé
 
-Format: JSON array UNIQUEMENT, sans texte avant ou après
+Format: JSON array
 [{"mot_cle": "...", "volume": "...", "difficulte": 50, "intention": "...", "suggestions": ["...", "..."]}]`;
 
     const message = await anthropic.messages.create({
       model: MODEL_DEFAULT,
       max_tokens: 2048,
+      system: cachedSystem(SEO_EXPERT_SYSTEM),
       messages: [{
         role: 'user',
         content: prompt
@@ -245,7 +251,7 @@ export async function generateSEORecommendations(tenant_id, data) {
  */
 export async function analyzeCompetition(mot_cle, secteur) {
   try {
-    const prompt = `Tu es un expert SEO. Analyse la concurrence pour le mot-clé "${mot_cle}" dans le secteur "${secteur}" en France.
+    const prompt = `Analyse la concurrence pour le mot-clé "${mot_cle}" dans le secteur "${secteur}" en France.
 
 Fournis:
 - niveau_concurrence: faible/moyen/élevé
@@ -253,7 +259,7 @@ Fournis:
 - opportunites: 2-3 angles pour se différencier
 - strategie_recommandee: approche pour ranker sur ce mot-clé
 
-Format JSON uniquement:
+Format JSON:
 {
   "niveau_concurrence": "...",
   "top_concurrents": ["...", "...", "..."],
@@ -264,6 +270,7 @@ Format JSON uniquement:
     const message = await anthropic.messages.create({
       model: MODEL_DEFAULT,
       max_tokens: 1024,
+      system: cachedSystem(SEO_EXPERT_SYSTEM),
       messages: [{
         role: 'user',
         content: prompt

@@ -27,6 +27,11 @@ import { MODEL_DEFAULT, MODEL_FAST } from '../services/modelRouter.js';
 import { paginate } from '../middleware/paginate.js';
 import { paginated } from '../utils/response.js';
 import { BUSINESS_TEMPLATES, PROFESSIONS } from '../data/businessTemplates.js';
+import { cachedSystem } from '../services/promptCacheHelper.js';
+
+const SOCIAL_ROUTE_SYSTEM = `Tu es un expert en social media marketing et community management pour les entreprises françaises.
+Spécialités: création de contenu, stratégie réseaux sociaux, copywriting.
+Réponds UNIQUEMENT en JSON valide ou en texte brut selon la demande, jamais les deux.`;
 
 // Map business_profile → PROMPTS_SECTEUR key
 const PROFILE_TO_SECTEUR = {
@@ -245,6 +250,7 @@ router.post('/generate-post', requirePostsQuota, async (req, res) => {
     const message = await anthropic.messages.create({
       model: MODEL_DEFAULT,
       max_tokens: 1024,
+      system: cachedSystem(SOCIAL_ROUTE_SYSTEM),
       messages: [
         {
           role: 'user',
@@ -321,6 +327,7 @@ Réponds en JSON:
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 1500,
+      system: cachedSystem(SOCIAL_ROUTE_SYSTEM),
       messages: [{ role: 'user', content: prompt }],
     });
 

@@ -21,6 +21,7 @@ import {
 } from './optimization/cacheService.js';
 import logger from '../config/logger.js';
 import { isDegraded } from '../sentinel/index.js';
+import { cachedSystem, cachedTools } from './promptCacheHelper.js';
 
 // Client Anthropic (singleton)
 let anthropicClient = null;
@@ -352,13 +353,13 @@ export async function chatStream(tenantId, messages, res, conversationId, adminI
     while (iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
-      // Vrai streaming via SDK Anthropic
+      // Vrai streaming via SDK Anthropic (prompt caching = -90% input tokens)
       const stream = client.messages.stream({
         model: MODEL_DEFAULT,
         max_tokens: isDegraded() ? MAX_TOKENS_DEGRADED : MAX_TOKENS_NORMAL,
-        system: buildSystemPrompt(tenant),
+        system: cachedSystem(buildSystemPrompt(tenant)),
         messages: conversationMessages,
-        tools: availableTools,
+        tools: cachedTools(availableTools),
       });
 
       // Forwarding temps reel du texte vers le client SSE
@@ -460,9 +461,9 @@ export async function chat(tenantId, messages, adminId = null, options = {}) {
       const response = await client.messages.create({
         model: MODEL_DEFAULT,
         max_tokens: isDegraded() ? MAX_TOKENS_DEGRADED : MAX_TOKENS_NORMAL,
-        system: systemPrompt,
+        system: cachedSystem(systemPrompt),
         messages: conversationMessages,
-        tools: availableTools,
+        tools: cachedTools(availableTools),
       });
 
       // Extraire le texte
