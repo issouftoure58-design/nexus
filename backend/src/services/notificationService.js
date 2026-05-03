@@ -9,6 +9,7 @@ import { Resend } from 'resend';
 import { sendWhatsAppNotification } from './whatsappService.js';
 import { sendSMS } from './smsService.js';
 import { consume as consumeCredits } from './creditsService.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 import {
   confirmationReservation,
@@ -200,6 +201,40 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
       const introText = `Votre ${labels.sejour} ${labels.lieu} ${t.salonName} est confirme :`;
       const avisText = `Laissez un avis apres votre ${labels.sejour}`;
 
+      // Bloc instructions sejour pour hotels (reglement interieur, animaux, check-in)
+      let hotelInstructionsHtml = '';
+      if (t.businessProfile === 'hotel') {
+        // Charger les instructions personnalisees depuis profile_config
+        let customInstructions = null;
+        try {
+          const { data: tenantRow } = await supabase
+            .from('tenants')
+            .select('profile_config')
+            .eq('id', tenantId)
+            .single();
+          customInstructions = tenantRow?.profile_config?.hotel_instructions || null;
+        } catch (e) { /* optionnel */ }
+
+        const checkinHour = customInstructions?.checkin_hour || '14:00';
+        const checkoutHour = customInstructions?.checkout_hour || '11:00';
+        const petPolicy = customInstructions?.pet_policy || 'Les animaux ne sont pas admis dans l\'etablissement, sauf indication contraire.';
+        const extraRules = customInstructions?.rules || '';
+        const parkingInfo = customInstructions?.parking || '';
+
+        hotelInstructionsHtml = `
+        <div style="margin-top: 20px; padding: 16px; background: #EFF6FF; border-radius: 8px; border-left: 4px solid #3B82F6;">
+          <h3 style="margin: 0 0 12px; color: #1E40AF; font-size: 16px;">Informations pratiques pour votre sejour</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #1E3A5F;">
+            <li><strong>Check-in :</strong> a partir de ${checkinHour}</li>
+            <li><strong>Check-out :</strong> avant ${checkoutHour}</li>
+            <li><strong>Documents requis :</strong> piece d'identite en cours de validite</li>
+            ${parkingInfo ? `<li><strong>Parking :</strong> ${parkingInfo}</li>` : ''}
+          </ul>
+          ${extraRules ? `<p style="margin: 12px 0 0; font-size: 13px; color: #374151;">${extraRules}</p>` : ''}
+          <p style="margin: 12px 0 0; font-size: 13px; color: #6B7280;"><em>🐾 ${petPolicy}</em></p>
+        </div>`;
+      }
+
       const emailHtml = `
         <h2>${titre}</h2>
         <p>Bonjour ${clientNom},</p>
@@ -209,6 +244,7 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
           <li><strong>Total :</strong> ${total}€</li>
           ${acompteHtml}
         </ul>
+        ${hotelInstructionsHtml}
         <p style="margin-top: 20px;">
           <a href="https://${t.domain}/compte" style="color: #8B5CF6; text-decoration: none;">Creer votre compte client</a><br>
           <a href="https://${t.domain}/avis" style="color: #8B5CF6; text-decoration: none;">${avisText}</a>
@@ -256,7 +292,13 @@ export async function sendConfirmation(rdv, acompte = 0, tenantId = null) {
     try {
       const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
       const lieuText = rdv.adresse_client || t.adresse;
-      const smsMessage = `${t.salonName}\nVotre RDV est confirmé !\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.signataire} - ${t.telephone}`;
+      const smsLabels = getBusinessLabels(t.businessProfile);
+      const isHotelSms = t.businessProfile === 'hotel';
+      const smsDateLine = isHotelSms && rdv.date_depart
+        ? `Du ${rdv.date_arrivee || rdv.date} au ${rdv.date_depart}`
+        : `${rdv.date} à ${rdv.heure}`;
+      const smsConfirmText = isHotelSms ? 'Votre séjour est confirmé !' : `Votre ${smsLabels.rdv} est confirmé(e) !`;
+      const smsMessage = `${t.salonName}\n${smsConfirmText}\n\n${smsDateLine}\n${rdv.service_nom}\n${total}€\n\n${lieuText}\n\nÀ bientôt !\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
       if (results.sms.success) {
@@ -319,9 +361,12 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
         <p>A demain !<br>${t.signataire} - ${t.salonName}</p>
       `;
 
+      const emailSubject = isHotel
+        ? `Rappel : votre arrivee demain - ${t.salonName}`
+        : `Rappel : votre ${labels.rdv} demain - ${t.salonName}`;
       results.email = await sendEmail(
         clientEmail,
-        `Rappel : votre RDV demain - ${t.salonName}`,
+        emailSubject,
         emailHtml
       );
 
@@ -358,7 +403,10 @@ export async function sendRappelJ1(rdv, acompte = 10, tenantId = null) {
   if (clientPhone) {
     try {
       const lieuText = rdv.adresse_client || rdv.adresse_formatee || t.adresse;
-      const smsMessage = `${t.salonName}\nRappel: RDV demain!\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.signataire} - ${t.telephone}`;
+      const rappelLabels = getBusinessLabels(t.businessProfile);
+      const isHotelRappel = t.businessProfile === 'hotel';
+      const smsRappelText = isHotelRappel ? 'Rappel: arrivée demain!' : `Rappel: ${rappelLabels.rdv} demain!`;
+      const smsMessage = `${t.salonName}\n${smsRappelText}\n\n${rdv.date} à ${rdv.heure}\n${rdv.service_nom}\nReste à payer: ${reste}€\n\n${lieuText}\n\nÀ demain!\n${t.signataire} - ${t.telephone}`;
 
       results.sms = await sendSMS(clientPhone, smsMessage, tenantId, { essential: true });
       if (results.sms.success) {
@@ -447,7 +495,7 @@ export async function sendAnnulation(rdv, montantRembourse = 0, tenantId = null)
   // 2. Envoyer WhatsApp (simultané)
   if (clientPhone) {
     try {
-      const whatsappMessage = annulation(rdv, montantRembourse);
+      const whatsappMessage = annulation(rdv, montantRembourse, tenantId);
       results.whatsapp = await sendWhatsAppNotification(clientPhone, whatsappMessage, tenantId);
       if (results.whatsapp.success) {
         consumeCredits(tenantId, 'whatsapp_notification', {

@@ -2,7 +2,8 @@
  * Templates de messages WhatsApp - Multi-tenant
  * Messages concis, chaleureux et professionnels
  *
- * V2: Support multi-tenant avec signatures dynamiques
+ * V3: Support multi-business (hotel, restaurant, salon, commerce, security)
+ *     Terminologie adaptee : "sejour" pour hotel, "reservation" pour restaurant, etc.
  */
 
 import { getBusinessInfoSync } from '../services/tenantBusinessService.js';
@@ -34,6 +35,19 @@ function getTenantInfo(tenantId) {
       urlAvis: '',
     };
   }
+}
+
+/**
+ * Termes adaptes au type de business
+ */
+function getTerms(businessProfile) {
+  const terms = {
+    hotel:     { rdv: 'séjour', action: 'réserver à nouveau', emoji: '🏨', confirmed: 'Séjour confirmé' },
+    restaurant:{ rdv: 'réservation', action: 'réserver à nouveau', emoji: '🍽️', confirmed: 'Réservation confirmée' },
+    commerce:  { rdv: 'commande', action: 'commander à nouveau', emoji: '📦', confirmed: 'Commande confirmée' },
+    security:  { rdv: 'mission', action: 'planifier une mission', emoji: '🛡️', confirmed: 'Mission confirmée' },
+  };
+  return terms[businessProfile] || { rdv: 'rendez-vous', action: 'reprendre RDV', emoji: '💇‍♀️', confirmed: 'Réservation confirmée' };
 }
 
 /**
@@ -69,41 +83,66 @@ function getPrenom(rdv) {
 
 /**
  * Message de confirmation de réservation
- * Envoyé après paiement de l'acompte
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {number} acompte - Montant de l'acompte payé
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
+ * Adapte par business type (hotel: check-in/out, sejour ; salon: RDV ; etc.)
  */
 export function confirmationReservation(rdv, acompte = 0, tenantId = null) {
-  const dateFr = formatDateFr(rdv.date);
-  const duree = formatDuree(rdv.duree_minutes);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
+  const isHotel = tenant.businessProfile === 'hotel';
 
-  let message = `✅ Réservation confirmée !
+  let message;
+
+  if (isHotel) {
+    // Hotel : check-in / check-out / nuits / chambre
+    const checkinDate = formatDateFr(rdv.date_arrivee || rdv.date);
+    const checkinHour = rdv.heure || rdv.heure_arrivee || '14:00';
+    const checkoutDate = rdv.date_depart ? formatDateFr(rdv.date_depart) : '';
+    const checkoutHour = rdv.heure_fin || '11:00';
+    const nuits = rdv.nb_nuitees ? `${rdv.nb_nuitees} nuit${rdv.nb_nuitees > 1 ? 's' : ''}` : '';
+
+    message = `✅ ${terms.confirmed} !
+
+🏨 ${tenant.nom}
+📅 Check-in : ${checkinDate} à ${checkinHour}`;
+    if (checkoutDate) {
+      message += `\n📅 Check-out : ${checkoutDate} à ${checkoutHour}`;
+    }
+    if (nuits) {
+      message += `\n🌙 Durée : ${nuits}`;
+    }
+    if (rdv.nb_personnes) {
+      message += `\n👥 ${rdv.nb_personnes} personne${rdv.nb_personnes > 1 ? 's' : ''}`;
+    }
+    if (rdv.service_nom) {
+      message += `\n🛏️ ${rdv.service_nom}`;
+    }
+    message += `\n💰 Total : ${total}€`;
+  } else {
+    // Salon, restaurant, commerce, security, etc.
+    const dateFr = formatDateFr(rdv.date);
+    const duree = rdv.duree_minutes ? formatDuree(rdv.duree_minutes) : '';
+
+    message = `✅ ${terms.confirmed} !
 
 📅 ${dateFr} à ${rdv.heure}
-📍 ${rdv.adresse_client || rdv.adresse_formatee}
-💇‍♀️ ${rdv.service_nom} (${duree})
+📍 ${rdv.adresse_client || rdv.adresse_formatee || ''}
+${terms.emoji} ${rdv.service_nom}${duree ? ` (${duree})` : ''}
 💰 Total : ${total}€`;
+  }
 
   if (acompte > 0) {
     const reste = total - acompte;
-    message += `
-
-Acompte réglé : ${acompte}€`;
+    message += `\n\nAcompte réglé : ${acompte}€`;
     if (reste > 0) {
-      message += `
-Reste à payer : ${reste}€ (espèces/virement/PayPal)`;
+      message += `\nReste à payer : ${reste}€ (espèces/virement/PayPal)`;
     }
   }
 
   message += `
 
 🔗 Créez votre compte : ${tenant.urlCompte}
-⭐ Laissez un avis après votre RDV : ${tenant.urlAvis}
+⭐ Laissez un avis après votre ${terms.rdv} : ${tenant.urlAvis}
 
 À bientôt ! ✨
 ${tenant.gerant}`;
@@ -112,34 +151,61 @@ ${tenant.gerant}`;
 }
 
 /**
- * Rappel J-1 (la veille du RDV)
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {number} acompte - Montant de l'acompte déjà payé
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
+ * Rappel J-1 (la veille)
+ * Hotel : rappel check-in + documents / Salon : cheveux propres
  */
 export function rappelJ1(rdv, acompte = 0, tenantId = null) {
   const prenom = getPrenom(rdv);
   const dateFr = formatDateFr(rdv.date);
-  const duree = formatDuree(rdv.duree_minutes);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
+  const isHotel = tenant.businessProfile === 'hotel';
 
   const prixLine = acompte > 0
     ? `💰 Reste : ${total - acompte}€`
     : `💰 Total : ${total}€`;
 
+  if (isHotel) {
+    const checkinHour = rdv.heure || rdv.heure_arrivee || '14:00';
+    return `Bonjour ${prenom} ! 👋
+
+Rappel : votre arrivée est demain !
+
+🏨 ${tenant.nom}
+📅 Check-in : ${dateFr} à ${checkinHour}
+${prixLine}
+
+N'oubliez pas :
+• Pièce d'identité en cours de validité
+• Confirmation de réservation
+${rdv.nb_personnes ? `• ${rdv.nb_personnes} personne${rdv.nb_personnes > 1 ? 's' : ''} attendue${rdv.nb_personnes > 1 ? 's' : ''}` : ''}
+
+Si besoin de modifier votre séjour, contactez-nous vite !
+
+À demain ! ✨
+${tenant.gerant}`;
+  }
+
+  const duree = rdv.duree_minutes ? formatDuree(rdv.duree_minutes) : '';
+
+  // Conseils adaptes par business type
+  const conseilsMap = {
+    restaurant: `• Merci de prévenir en cas de retard\n• Allergies ? Signalez-les à l'avance`,
+    commerce: `• Préparez votre moyen de paiement\n• Vérifiez l'adresse de retrait`,
+    security: `• Documents de mission à préparer\n• Tenue réglementaire obligatoire`,
+  };
+  const defaultConseils = `• Cheveux propres et démêlés si possible\n• Prévoir environ ${duree}`;
+
   return `Bonjour ${prenom} ! 👋
 
 Petit rappel pour demain :
 📅 ${dateFr} à ${rdv.heure}
-📍 ${rdv.adresse_client || rdv.adresse_formatee}
+📍 ${rdv.adresse_client || rdv.adresse_formatee || ''}
 ${prixLine}
 
 N'oubliez pas :
-• Cheveux propres et démêlés si possible
-• Prévoir environ ${duree}
+${conseilsMap[tenant.businessProfile] || defaultConseils}
 
 Si besoin d'annuler, prévenez-moi vite !
 
@@ -149,20 +215,21 @@ ${tenant.gerant}`;
 
 /**
  * Message d'annulation
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {number} montantRembourse - Montant remboursé (0 si acompte retenu)
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
  */
 export function annulation(rdv, montantRembourse = 0, tenantId = null) {
   const prenom = getPrenom(rdv);
   const dateFr = formatDateFr(rdv.date);
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
+  const isHotel = tenant.businessProfile === 'hotel';
+
+  const dateLabel = isHotel && rdv.date_depart
+    ? `du ${dateFr} au ${formatDateFr(rdv.date_depart)}`
+    : `du ${dateFr} à ${rdv.heure}`;
 
   let message = `Bonjour ${prenom},
 
-Votre RDV du ${dateFr} à ${rdv.heure} a été annulé.
+Votre ${terms.rdv} ${dateLabel} a été annulé(e).
 `;
 
   if (montantRembourse > 0) {
@@ -177,18 +244,14 @@ Acompte retenu : 10€
 
   message += `
 
-N'hésitez pas à reprendre RDV ! 😊
+N'hésitez pas à ${terms.action} ! 😊
 ${tenant.gerant}`;
 
   return message;
 }
 
 /**
- * Message de modification de RDV
- *
- * @param {Object} ancienRdv - Ancien rendez-vous
- * @param {Object} nouveauRdv - Nouveau rendez-vous
- * @returns {string} Message formaté
+ * Message de modification
  */
 export function modificationRdv(ancienRdv, nouveauRdv, tenantId = null) {
   const prenom = getPrenom(nouveauRdv);
@@ -196,15 +259,34 @@ export function modificationRdv(ancienRdv, nouveauRdv, tenantId = null) {
   const nouvelleDateFr = formatDateFr(nouveauRdv.date);
   const total = nouveauRdv.total || (nouveauRdv.prix_service + (nouveauRdv.frais_deplacement || 0));
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
+  const isHotel = tenant.businessProfile === 'hotel';
+
+  if (isHotel) {
+    const oldCheckout = ancienRdv.date_depart ? ` → ${formatDateFr(ancienRdv.date_depart)}` : '';
+    const newCheckout = nouveauRdv.date_depart ? ` → ${formatDateFr(nouveauRdv.date_depart)}` : '';
+    return `Bonjour ${prenom} ! 📅
+
+Votre séjour a été modifié :
+
+❌ Ancien : ${ancienneDateFr}${oldCheckout}
+✅ Nouveau : ${nouvelleDateFr}${newCheckout}
+
+🏨 ${tenant.nom}
+💰 Total : ${total}€
+
+À bientôt ! ✨
+${tenant.gerant}`;
+  }
 
   return `Bonjour ${prenom} ! 📅
 
-Votre RDV a été modifié :
+Votre ${terms.rdv} a été modifié(e) :
 
 ❌ Ancien : ${ancienneDateFr} à ${ancienRdv.heure}
 ✅ Nouveau : ${nouvelleDateFr} à ${nouveauRdv.heure}
 
-📍 ${nouveauRdv.adresse_client || nouveauRdv.adresse_formatee}
+📍 ${nouveauRdv.adresse_client || nouveauRdv.adresse_formatee || ''}
 💰 Total : ${total}€
 
 À bientôt ! ✨
@@ -213,17 +295,11 @@ ${tenant.gerant}`;
 
 /**
  * Message de remerciement après prestation
- * Envoyé quelques heures après le RDV
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
  */
 export function remerciement(rdv, tenantId = null) {
   const prenom = getPrenom(rdv);
   const tenant = getTenantInfo(tenantId);
 
-  // Adapter les actions selon le type de business
   const bp = tenant.businessProfile || 'beauty';
   const actionsMap = {
     restaurant: '• Réserver à nouveau 📅\n• Laisser un avis en ligne ⭐\n• Recommander à vos proches 💕',
@@ -248,21 +324,16 @@ ${tenant.gerant}`;
 
 /**
  * Demande d'avis après prestation
- * Envoyé 1-2 jours après le RDV
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {string} lienAvis - URL du formulaire d'avis (optionnel)
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
  */
 export function demandeAvis(rdv, lienAvis = null, tenantId = null) {
   const prenom = getPrenom(rdv);
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
   const urlAvis = lienAvis || tenant.urlAvis;
 
   return `Bonjour ${prenom} ! 🌟
 
-Comment s'est passé votre RDV ?
+Comment s'est passé votre ${terms.rdv} ?
 
 Votre avis compte beaucoup !
 Notez votre expérience :
@@ -275,20 +346,14 @@ ${tenant.gerant}`;
 
 /**
  * Message de rappel de paiement
- * Envoyé si le paiement n'est pas effectué dans les temps
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {string} paymentUrl - URL de paiement
- * @param {number} minutesRestantes - Minutes avant expiration
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
  */
 export function rappelPaiement(rdv, paymentUrl, minutesRestantes = 15, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const total = rdv.total || (rdv.prix_service + (rdv.frais_deplacement || 0));
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
 
-  return `⏰ Rappel : votre RDV n'est pas encore confirmé !
+  return `⏰ Rappel : votre ${terms.rdv} n'est pas encore confirmé(e) !
 
 📅 ${dateFr} à ${rdv.heure}
 💰 Total : ${total}€
@@ -302,20 +367,17 @@ ${tenant.gerant}`;
 
 /**
  * Message d'expiration du lien de paiement
- *
- * @param {Object} rdv - Données du rendez-vous
- * @param {string} tenantId - ID du tenant (V2)
- * @returns {string} Message formaté
  */
 export function expirationPaiement(rdv, tenantId = null) {
   const dateFr = formatDateFr(rdv.date);
   const tenant = getTenantInfo(tenantId);
+  const terms = getTerms(tenant.businessProfile);
 
   return `⏰ Votre lien de paiement a expiré.
 
 Le créneau ${dateFr} à ${rdv.heure} n'est plus réservé.
 
-Pour reprendre RDV, envoyez "Bonjour" ! 😊
+Pour ${terms.action}, envoyez "Bonjour" ! 😊
 ${tenant.gerant}`;
 }
 

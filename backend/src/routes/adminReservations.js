@@ -1698,8 +1698,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
       if ((becameConfirme || detailsChanged) && (telephone || email)) {
         try {
-          if (becameConfirme) {
+          if (becameConfirme && !currentRdv.confirmation_envoyee) {
             // Statut → confirme : envoyer confirmation (cascade Email→WA→SMS)
+            // Guard idempotent : ne pas re-envoyer si deja envoyee (migration 136)
             const { sendConfirmation } = await import('../services/notificationService.js');
             await sendConfirmation({
               client_telephone: telephone,
@@ -1728,6 +1729,8 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
               frais_deplacement: (currentRdv.frais_deplacement || 0) / 100,
               adresse_client: currentRdv.adresse_client,
             }, 0, tenantId);
+            // Marquer confirmation_envoyee pour eviter doublons (migration 136)
+            await supabase.from('reservations').update({ confirmation_envoyee: true }).eq('id', req.params.id).eq('tenant_id', tenantId);
             console.log(`[ADMIN EDIT] Confirmation envoyée au client (cascade Email→WA→SMS)`);
           } else if (detailsChanged) {
             // Modification date/heure/service : envoyer modification
@@ -2221,7 +2224,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
     if (statut === 'annule') onReservationCancelled(tenantId, reservation, req.body.motif_annulation).catch(() => {});
 
     // 📩 Notification client sur changement de statut → confirme
-    if (statut === 'confirme' && currentRdv.statut !== 'confirme') {
+    // Guard idempotent : ne pas re-envoyer si deja envoyee (migration 136)
+    if (statut === 'confirme' && currentRdv.statut !== 'confirme' && !currentRdv.confirmation_envoyee) {
       try {
         // Fallback chain: clients join peut etre null (client supprime, FK manquant)
         const clientPhone = currentRdv.clients?.telephone || currentRdv.telephone;
@@ -2261,6 +2265,8 @@ router.patch('/:id/statut', authenticateAdmin, async (req, res) => {
                 }))
               : null,
           }, 0, tenantId);
+          // Marquer confirmation_envoyee pour eviter doublons (migration 136)
+          await supabase.from('reservations').update({ confirmation_envoyee: true }).eq('id', reservation.id).eq('tenant_id', tenantId);
           console.log(`[ADMIN STATUT] Confirmation envoyée au client (cascade Email→WA→SMS, total=${(totalCentimes/100).toFixed(2)}€, services=${lignes.length})`);
         } else {
           console.warn(`[ADMIN STATUT] Aucun contact client trouvé pour RDV ${req.params.id} — notification impossible`);

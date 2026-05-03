@@ -441,10 +441,10 @@ export default function NewReservationModal({
 
           {/* HOTEL: Sélection chambre + dates séjour + extras */}
           {isBusinessType('hotel') && (() => {
-            // Chambres = services avec type_chambre non null (meme critere que IA et /admin/hotel/chambres)
-            const chambres = services.filter(s => s.actif !== false && !!s.type_chambre);
-            // Annexes = services actifs SANS type_chambre (petit-dej, parking, lit bebe, etc.)
-            const annexes = services.filter(s => s.actif !== false && !s.type_chambre);
+            // Chambres = services avec type_chambre non null OU categorie chambre/suite (meme critere que /admin/hotel/chambres)
+            const chambres = services.filter(s => s.actif !== false && (!!s.type_chambre || ['chambre', 'suite'].includes(s.categorie || '')));
+            // Annexes = services actifs qui ne sont PAS des chambres
+            const annexes = services.filter(s => s.actif !== false && !s.type_chambre && !['chambre', 'suite'].includes(s.categorie || ''));
             const selectedChambre = chambres.find(c => c.id === newRdvForm.chambre_id);
             const maxPersonnes = selectedChambre?.capacite_max || 10;
             const nbNuits = calculateNights(newRdvForm.date_rdv, newRdvForm.date_checkout);

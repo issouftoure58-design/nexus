@@ -66,8 +66,8 @@ export async function ensurePlteTenantsReady() {
 async function ensureTenantReady(tenantId, config) {
   const { profile, template, name } = config;
 
-  // 1. Verifier/creer le tenant
-  await ensureTenantExists(tenantId, name, template);
+  // 1. Verifier/creer le tenant (avec business_profile pour le filtrage menu)
+  await ensureTenantExists(tenantId, name, template, profile);
 
   // 2. Verifier/creer un admin
   await ensureAdminExists(tenantId);
@@ -119,23 +119,32 @@ async function ensureTenantReady(tenantId, config) {
 // TENANT & ADMIN
 // ============================================
 
-async function ensureTenantExists(tenantId, name, template) {
+async function ensureTenantExists(tenantId, name, template, profile) {
   const { data: existing } = await supabase
     .from('tenants')
-    .select('id, status')
+    .select('id, status, business_profile')
     .eq('id', tenantId)
     .single();
 
   if (existing) {
     // S'assurer que le status est 'active' (fix pour tenants crees avant le correctif)
+    const updates = {};
     if (existing.status !== 'active') {
-      await supabase.from('tenants').update({ status: 'active', statut: 'actif' }).eq('id', tenantId);
-      console.log(`[PLTE Bootstrap] Tenant ${tenantId} status corrige → active`);
+      updates.status = 'active';
+      updates.statut = 'actif';
+    }
+    // S'assurer que business_profile correspond au profil PLTE
+    if (profile && existing.business_profile !== profile) {
+      updates.business_profile = profile;
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('tenants').update(updates).eq('id', tenantId);
+      console.log(`[PLTE Bootstrap] Tenant ${tenantId} corrige:`, Object.keys(updates).join(', '));
     }
     return;
   }
 
-  // Creer le tenant
+  // Creer le tenant avec business_profile
   const { error } = await supabase.from('tenants').insert({
     id: tenantId,
     name,
@@ -143,6 +152,7 @@ async function ensureTenantExists(tenantId, name, template) {
     status: 'active',
     statut: 'actif',
     structure_juridique: 'company',
+    business_profile: profile || 'salon',
     modules_actifs: ['reservations', 'whatsapp', 'marketing', 'seo', 'comptabilite', 'fidelite', 'rh', 'stock'],
     created_at: new Date().toISOString(),
   });
