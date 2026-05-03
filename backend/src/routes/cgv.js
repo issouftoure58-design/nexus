@@ -75,4 +75,49 @@ router.get('/', (req, res) => {
   res.json(CGV_CONTENT);
 });
 
+// Helper: génère une page HTML légale
+function legalPage(title, sections) {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title} — NEXUS AI</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1a1a1a;line-height:1.6}h1{color:#6366f1}h2{color:#4f46e5;margin-top:2rem}p{margin:0.5rem 0}footer{margin-top:3rem;padding-top:1rem;border-top:1px solid #e5e7eb;color:#6b7280;font-size:0.875rem}</style>
+</head><body><h1>${title}</h1><p><em>Dernière mise à jour : ${CGV_CONTENT.updated_at}</em></p>${sections}<footer><p>NEXUS AI — SASU au capital de 1€ — SIRET 947 570 362 00022</p><p>8 Rue des Monts Rouges, 95130 Franconville — contact@nexus-ai-saas.com</p></footer></body></html>`;
+}
+
+// GET /api/cgv/confidentialite — Page HTML politique de confidentialité
+router.get('/confidentialite', (req, res) => {
+  const article = CGV_CONTENT.articles.find(a => a.numero === 5);
+  const sections = `
+    <h2>Article 5 — ${article.titre}</h2><p>${article.contenu}</p>
+    <h2>Responsable du traitement</h2><p>NEXUS AI, SASU — SIRET 947 570 362 00022. DPO : contact@nexus-ai-saas.com</p>
+    <h2>Données collectées</h2><p>Nom, prénom, email, téléphone, adresse professionnelle. Ces données sont nécessaires à la fourniture du service.</p>
+    <h2>Finalités</h2><p>Gestion du compte utilisateur, fourniture des services SaaS, communication commerciale (avec consentement), amélioration du service.</p>
+    <h2>Durée de conservation</h2><p>Données actives : durée de l'abonnement + 30 jours. Données de facturation : 10 ans (obligation légale).</p>
+    <h2>Droits des utilisateurs</h2><p>Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, de suppression, de portabilité et d'opposition. Contactez-nous à contact@nexus-ai-saas.com.</p>
+    <h2>Cookies</h2><p>NEXUS utilise des cookies strictement nécessaires au fonctionnement de la plateforme. Aucun cookie publicitaire n'est utilisé.</p>`;
+  res.type('html').send(legalPage('Politique de Confidentialité', sections));
+});
+
+// GET /api/cgv/cgu — Page HTML conditions d'utilisation
+router.get('/cgu', (req, res) => {
+  const sections = CGV_CONTENT.articles.map(a =>
+    `<h2>Article ${a.numero} — ${a.titre}</h2><p>${a.contenu}</p>`
+  ).join('');
+  res.type('html').send(legalPage('Conditions Générales d\'Utilisation', sections));
+});
+
+// GET /api/cgv/suppression-donnees — Page HTML suppression de données
+router.get('/suppression-donnees', (req, res) => {
+  const sections = `
+    <h2>Suppression de vos données</h2><p>Conformément au RGPD, vous pouvez demander la suppression de vos données personnelles à tout moment.</p>
+    <h2>Comment procéder</h2>
+    <p>1. Connectez-vous à votre espace NEXUS</p>
+    <p>2. Accédez à Paramètres > RGPD > Supprimer mes données</p>
+    <p>3. Confirmez votre demande</p>
+    <p>Ou envoyez un email à <strong>contact@nexus-ai-saas.com</strong> avec l'objet "Suppression de données".</p>
+    <h2>Délai de traitement</h2><p>Votre demande sera traitée sous 30 jours maximum conformément au RGPD.</p>
+    <h2>Données concernées</h2><p>Toutes vos données personnelles seront supprimées, à l'exception des données de facturation conservées 10 ans (obligation légale).</p>`;
+  res.type('html').send(legalPage('Suppression des Données', sections));
+});
+
 export default router;
