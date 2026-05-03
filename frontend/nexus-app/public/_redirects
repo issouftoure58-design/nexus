@@ -1,1 +1,3 @@
+/sitemap.xml https://nexus-backend-dev.onrender.com/sitemap.xml 200!
+/blog/* https://nexus-backend-dev.onrender.com/blog/:splat 200!
 /* /index.html 200!

@@ -39,6 +39,7 @@ import useSpaceAmbient from './hooks/useSpaceAmbient'
 // Utils
 import cleanTextForTTS from './utils/cleanTextForTTS'
 import { MESSAGES_CONFIG } from './utils/messages'
+import { initGA, trackEvent } from './utils/analytics'
 
 function App() {
   const [robotState, setRobotState] = useState('entering')
@@ -58,6 +59,26 @@ function App() {
     startListening,
     stopListening
   } = useSpeechRecognition()
+
+  // Initialiser Google Analytics 4
+  useEffect(() => {
+    initGA(import.meta.env.VITE_GA_MEASUREMENT_ID)
+  }, [])
+
+  // Tracker le scroll vers la section tarifs
+  useEffect(() => {
+    const pricingSection = document.getElementById('pricing')
+    if (!pricingSection) return
+    let tracked = false
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !tracked) {
+        tracked = true
+        trackEvent('pricing_view', 'engagement', 'scroll_to_pricing')
+      }
+    }, { threshold: 0.3 })
+    observer.observe(pricingSection)
+    return () => observer.disconnect()
+  }, [])
 
   // Activer l'ambiance spatiale quand le son est activé
   useSpaceAmbient(audioEnabled && hasStarted)
@@ -127,6 +148,11 @@ function App() {
   const handleSend = async (text) => {
     stopAudio()
     stopTTS()
+
+    // Tracker la première interaction chat
+    if (messages.filter(m => m.role === 'user').length === 0) {
+      trackEvent('chat_started', 'engagement', 'nexus_agent')
+    }
 
     setMessages(prev => [...prev, { role: 'user', content: text }])
 
@@ -302,6 +328,7 @@ function App() {
               <a
                 href="https://app.nexus-ai-saas.com/signup"
                 className="bg-gradient-to-r from-neon-cyan to-primary-500 text-white font-semibold py-2 px-5 rounded-xl hover:opacity-90 transition-opacity"
+                onClick={() => trackEvent('signup_click', 'cta', 'header_cta')}
               >
                 Essai gratuit
               </a>
@@ -549,6 +576,7 @@ function App() {
               <a
                 href="https://app.nexus-ai-saas.com/signup"
                 className="inline-flex items-center gap-2 bg-white text-dark-900 font-semibold py-4 px-10 rounded-xl hover:bg-gray-100 transition-colors"
+                onClick={() => trackEvent('signup_click', 'cta', 'footer_cta')}
               >
                 Demarrer l'essai gratuit
                 <ChevronRight className="w-5 h-5" />
@@ -558,6 +586,7 @@ function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 border border-neon-cyan/50 text-neon-cyan font-semibold py-4 px-10 rounded-xl hover:bg-neon-cyan/10 transition-colors"
+                onClick={() => trackEvent('demo_click', 'cta', 'footer_cta')}
               >
                 <Calendar className="w-5 h-5" />
                 Reserver une demo

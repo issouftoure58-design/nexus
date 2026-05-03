@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { initGA } from "./lib/analytics";
+
+// Initialiser Google Analytics 4 (si consentement cookies et ID configuré)
+initGA(import.meta.env.VITE_GA_MEASUREMENT_ID);
 
 // Intercepteur fetch pour router les appels API vers le backend en production
 // VITE_API_URL contient déjà /api (ex: https://backend.onrender.com/api)

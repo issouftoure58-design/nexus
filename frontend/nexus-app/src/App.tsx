@@ -8,6 +8,7 @@ import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { CartProvider } from "@/contexts/CartContext";
 import { TenantProvider, useTenant } from "@/contexts/TenantContext";
 import HalimahWidget from "@/components/HalimahWidget";
+import { trackPageView } from "@/lib/analytics";
 
 // Composant de chargement pour Suspense
 const PageLoader = () => (
@@ -92,12 +93,13 @@ import ClientProtectedRoute from "@/components/client/ClientProtectedRoute";
 import NotFound from "@/pages/not-found";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
-// Composant pour reinitialiser le scroll en haut de page a chaque changement de route
+// Composant pour reinitialiser le scroll et tracker les page views GA4
 function ScrollToTop() {
   const [location] = useLocation();
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    trackPageView(location);
   }, [location]);
 
   return null;

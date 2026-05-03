@@ -300,6 +300,10 @@ app.use(express.static(path.join(__dirname, '../public'), {
   }
 }));
 
+// ============= SITEMAP DYNAMIQUE (SEO) =============
+import sitemapRoutes from './routes/sitemap.js';
+app.use('/sitemap.xml', sitemapRoutes);
+
 // ============= BLOG SSR (SEO) =============
 import blogSSRRoutes from './routes/blog.js';
 app.use('/blog', blogSSRRoutes);

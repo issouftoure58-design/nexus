@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Shield, X } from 'lucide-react'
+import { initGA } from '../utils/analytics'
 
 const COOKIE_CONSENT_KEY = 'nexus_cookie_consent'
 const CONSENT_EXPIRY_DAYS = 365
@@ -40,6 +41,7 @@ export default function CookieBanner() {
 
   const acceptAll = () => {
     storeConsent({ essential: true, analytics: true })
+    initGA(import.meta.env.VITE_GA_MEASUREMENT_ID)
     setVisible(false)
   }
 
@@ -50,6 +52,9 @@ export default function CookieBanner() {
 
   const saveCustom = () => {
     storeConsent({ essential: true, analytics })
+    if (analytics) {
+      initGA(import.meta.env.VITE_GA_MEASUREMENT_ID)
+    }
     setVisible(false)
   }
 
