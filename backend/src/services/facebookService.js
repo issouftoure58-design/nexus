@@ -7,24 +7,19 @@ const FB_APP_ID = process.env.FACEBOOK_APP_ID;
 const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 const REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI || 'https://nexus-backend-dev.onrender.com/api/social/auth/facebook/callback';
 const GRAPH_VERSION = 'v21.0';
+const FB_LOGIN_CONFIG_ID = process.env.FACEBOOK_LOGIN_CONFIG_ID || '3329116603924808';
 
 /**
  * Obtenir URL OAuth Facebook avec state (tenantId encodé)
+ * Utilise config_id (Facebook Login for Business) qui définit les permissions côté Meta
  */
 export function getAuthUrl(tenantId) {
   if (!tenantId) throw new Error('tenant_id requis');
   if (!FB_APP_ID) throw new Error('FACEBOOK_APP_ID non configuré');
 
-  const scopes = [
-    'public_profile',
-    'pages_manage_posts',
-    'pages_read_engagement',
-    'pages_show_list',
-  ].join(',');
-
   const state = Buffer.from(JSON.stringify({ tenantId })).toString('base64url');
 
-  return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${scopes}&response_type=code&state=${state}`;
+  return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&config_id=${FB_LOGIN_CONFIG_ID}&response_type=code&state=${state}`;
 }
 
 /**
