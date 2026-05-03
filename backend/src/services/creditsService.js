@@ -61,14 +61,15 @@ export const CREDIT_PACKS = {
 export const OVERAGE_RATE_EUR = 0.015;
 export const OVERAGE_PRESETS = [10, 25, 50, 100];
 
-// Crédits inclus mensuels par plan
+// Crédits inclus mensuels par plan (source: pricing.js révisé 27 avril 2026)
 export const MONTHLY_INCLUDED = {
-  free: 200,
-  starter: 1000,
-  pro: 5000,
-  business: 20000,
+  free: 500,
+  starter: 4000,
+  pro: 20000,
+  business: 50000,
+  enterprise: 100000,
   // Legacy aliases
-  basic: 1000,
+  basic: 4000,
 };
 
 // ════════════════════════════════════════════════════════════════════
