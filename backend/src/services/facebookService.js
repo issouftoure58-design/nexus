@@ -16,13 +16,14 @@ export function getAuthUrl(tenantId) {
   if (!FB_APP_ID) throw new Error('FACEBOOK_APP_ID non configuré');
 
   const scopes = [
-    'email',
     'public_profile',
     'pages_manage_posts',
     'pages_read_engagement',
     'pages_show_list',
-    'instagram_basic',
-    'instagram_content_publish',
+    'instagram_business_basic',
+    'instagram_business_content_publish',
+    'instagram_business_manage_comments',
+    'instagram_business_manage_messages',
   ].join(',');
 
   const state = Buffer.from(JSON.stringify({ tenantId })).toString('base64url');
