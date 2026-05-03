@@ -19,6 +19,9 @@
 import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 
+// UUID v4 format check — RPCs expect UUID; slug tenant_ids need fallback
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ════════════════════════════════════════════════════════════════════
 // CONSTANTES — Taux de consommation par action IA (en crédits)
 // ════════════════════════════════════════════════════════════════════
@@ -175,6 +178,48 @@ export async function hasCredits(tenantId, action, quantity = 1) {
 }
 
 /**
+ * Fallback atomic debit for non-UUID tenant IDs (slug-based legacy tenants).
+ * Uses UPDATE with gte() guard instead of RPC.
+ */
+async function _debitFallback(tenantId, cost) {
+  const current = await getBalance(tenantId);
+  if (current.balance < cost) return [{ success: false }];
+
+  const newBal = current.balance - cost;
+  const { error } = await supabase
+    .from('ai_credits')
+    .update({ balance: newBal })
+    .eq('tenant_id', tenantId)
+    .gte('balance', cost); // atomic guard
+
+  if (error) {
+    logger.error('[CreditsService] Fallback debit error', { tenantId, error: error.message });
+    throw error;
+  }
+  return [{ success: true, new_balance: newBal }];
+}
+
+/**
+ * Fallback overage debit for non-UUID tenant IDs.
+ */
+async function _overageFallback(tenantId, balance, overageEurCost) {
+  const newOverageUsed = +(parseFloat(balance.overage_used_eur || 0) + overageEurCost).toFixed(2);
+  const limit = parseFloat(balance.overage_limit_eur) || 0;
+  if (newOverageUsed > limit) return [{ success: false }];
+
+  const { error } = await supabase
+    .from('ai_credits')
+    .update({ balance: 0, overage_used_eur: newOverageUsed })
+    .eq('tenant_id', tenantId);
+
+  if (error) {
+    logger.error('[CreditsService] Fallback overage error', { tenantId, error: error.message });
+    throw error;
+  }
+  return [{ success: true, new_overage_used: newOverageUsed }];
+}
+
+/**
  * Consomme des crédits pour une action donnée.
  * Lève une erreur si solde insuffisant.
  *
@@ -189,21 +234,30 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
   const cost = CREDIT_COSTS[action] * quantity;
   if (cost === 0) return { consumed: 0, balance: null };
 
-  // R2: Atomic debit via RPC — prevents double-spend race condition
-  // Try atomic debit first (balance >= cost)
-  const { data: rpcResult, error: rpcError } = await supabase.rpc('debit_credits', {
-    p_tenant_id: tenantId,
-    p_amount: cost,
-  });
+  // R2: Atomic debit — prevents double-spend race condition
+  // RPCs expect UUID p_tenant_id; slug-based tenants use fallback UPDATE
+  const isUuid = UUID_RE.test(tenantId);
 
-  if (rpcError) {
-    logger.error('[CreditsService] RPC debit_credits error', { tenantId, error: rpcError.message });
-    throw rpcError;
+  let debitResult = null;
+
+  if (isUuid) {
+    const { data, error } = await supabase.rpc('debit_credits', {
+      p_tenant_id: tenantId,
+      p_amount: cost,
+    });
+    if (error) {
+      logger.error('[CreditsService] RPC debit_credits error', { tenantId, error: error.message });
+      throw error;
+    }
+    debitResult = data;
+  } else {
+    // Fallback for non-UUID tenant IDs (slug-based legacy tenants)
+    debitResult = await _debitFallback(tenantId, cost);
   }
 
-  // Branche 1 : RPC succeeded — balance was sufficient
-  if (rpcResult && rpcResult.length > 0 && rpcResult[0].success) {
-    const newBalance = rpcResult[0].new_balance;
+  // Branche 1 : debit succeeded — balance was sufficient
+  if (debitResult && debitResult.length > 0 && debitResult[0].success) {
+    const newBalance = debitResult[0].new_balance;
 
     await supabase.from('ai_credits_transactions').insert({
       tenant_id: tenantId,
@@ -228,16 +282,23 @@ export async function consume(tenantId, action, { quantity = 1, refId = null, de
     const creditsOverage = cost - creditsFromBalance;
     const overageEurCost = +(creditsOverage * OVERAGE_RATE_EUR).toFixed(2);
 
-    // Atomic overage debit via RPC
-    const { data: ovResult, error: ovError } = await supabase.rpc('debit_credits_overage', {
-      p_tenant_id: tenantId,
-      p_amount: cost,
-      p_overage_eur: overageEurCost,
-    });
+    let ovResult = null;
 
-    if (ovError) {
-      logger.error('[CreditsService] RPC debit_credits_overage error', { tenantId, error: ovError.message });
-      throw ovError;
+    if (isUuid) {
+      // Atomic overage debit via RPC
+      const { data, error: ovError } = await supabase.rpc('debit_credits_overage', {
+        p_tenant_id: tenantId,
+        p_amount: cost,
+        p_overage_eur: overageEurCost,
+      });
+      if (ovError) {
+        logger.error('[CreditsService] RPC debit_credits_overage error', { tenantId, error: ovError.message });
+        throw ovError;
+      }
+      ovResult = data;
+    } else {
+      // Fallback: manual overage for non-UUID tenants
+      ovResult = await _overageFallback(tenantId, balance, overageEurCost);
     }
 
     if (!ovResult || ovResult.length === 0 || !ovResult[0].success) {
