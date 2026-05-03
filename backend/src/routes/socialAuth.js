@@ -66,6 +66,11 @@ router.get('/facebook/callback', async (req, res) => {
 
     const expiresAt = new Date(Date.now() + (expires_in || 5184000) * 1000).toISOString();
 
+    // Debug: vérifier les permissions du token
+    const debugRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${longToken}`);
+    const debugData = await debugRes.json();
+    console.log('[SOCIAL AUTH] Token permissions:', JSON.stringify(debugData));
+
     // Lister les pages FB + comptes IG liés
     const pages = await getPages(longToken);
 
