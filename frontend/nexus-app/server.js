@@ -30,6 +30,20 @@ app.use(createProxyMiddleware({
   logLevel: 'warn',
 }));
 
+// Sitemap dynamique — proxy vers le backend avec host original pour tenant resolution
+app.use(createProxyMiddleware({
+  target: API_BACKEND,
+  changeOrigin: true,
+  pathFilter: '/sitemap.xml',
+  logLevel: 'warn',
+  on: {
+    proxyReq: (proxyReq, req) => {
+      const originalHost = req.headers.host || '';
+      proxyReq.setHeader('X-Forwarded-Host', originalHost);
+    }
+  }
+}));
+
 // Blog SSR proxy — forward original host for tenant resolution
 // Utilise pathFilter (pas mount path) pour preserver /blog dans l'URL
 app.use(createProxyMiddleware({
