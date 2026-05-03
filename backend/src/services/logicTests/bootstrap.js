@@ -7,10 +7,12 @@
  * Verification/seed des donnees minimales pour chaque profil metier
  */
 
+import bcrypt from 'bcryptjs';
 import { supabase } from '../../config/supabase.js';
 import { BUSINESS_TEMPLATES } from '../../data/businessTemplates.js';
 
 const TEST_PREFIX = '_PLTE_TEST_';
+const PLTE_DEFAULT_PASSWORD = 'test1234';
 
 // Les 8 tenants PLTE avec leur profil metier
 export const PLTE_TENANTS = {
@@ -154,18 +156,37 @@ async function ensureTenantExists(tenantId, name, template) {
 async function ensureAdminExists(tenantId) {
   const { data: existing } = await supabase
     .from('admin_users')
-    .select('id')
+    .select('id, email, password_hash')
     .eq('tenant_id', tenantId)
     .limit(1);
 
-  if (existing?.length) return;
+  const passwordHash = await bcrypt.hash(PLTE_DEFAULT_PASSWORD, 12);
+
+  if (existing?.length) {
+    // Ensure password_hash + standard email are set (fix for PLTE admins)
+    const updates = {};
+    if (!existing[0].password_hash) {
+      updates.password_hash = passwordHash;
+      updates.password_changed_at = new Date().toISOString();
+    }
+    if (existing[0].email !== `admin@${tenantId}.test`) {
+      updates.email = `admin@${tenantId}.test`;
+    }
+    if (Object.keys(updates).length) {
+      await supabase.from('admin_users').update(updates).eq('id', existing[0].id);
+      console.log(`[PLTE Bootstrap] Admin ${tenantId}: updated (${Object.keys(updates).join(', ')})`);
+    }
+    return;
+  }
 
   await supabase.from('admin_users').insert({
     tenant_id: tenantId,
-    email: `${tenantId}@nexus.internal`,
+    email: `admin@${tenantId}.test`,
+    password_hash: passwordHash,
     nom: 'PLTE Admin',
     role: 'owner',
     created_at: new Date().toISOString(),
+    password_changed_at: new Date().toISOString(),
   });
 }
 
