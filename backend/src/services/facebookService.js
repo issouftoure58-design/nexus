@@ -97,6 +97,51 @@ export async function getPages(accessToken) {
 }
 
 /**
+ * Fallback: Lister les pages via Business Manager
+ * Utilisé quand me/accounts retourne vide (pages gérées via Business Manager)
+ */
+export async function getBusinessPages(accessToken) {
+  // 1. Récupérer les businesses de l'utilisateur
+  const bizUrl = `https://graph.facebook.com/${GRAPH_VERSION}/me/businesses?fields=id,name&access_token=${accessToken}`;
+  const bizRes = await fetch(bizUrl);
+  const bizData = await bizRes.json();
+
+  console.log('[FACEBOOK] me/businesses response:', JSON.stringify(bizData).substring(0, 500));
+
+  if (bizData.error || !bizData.data?.length) {
+    return [];
+  }
+
+  const allPages = [];
+
+  // 2. Pour chaque business, récupérer les pages
+  for (const biz of bizData.data) {
+    const pagesUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${biz.id}/owned_pages?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url}&access_token=${accessToken}`;
+    const pagesRes = await fetch(pagesUrl);
+    const pagesData = await pagesRes.json();
+
+    console.log(`[FACEBOOK] Business ${biz.name} (${biz.id}) owned_pages:`, JSON.stringify(pagesData).substring(0, 500));
+
+    if (pagesData.data) {
+      for (const page of pagesData.data) {
+        allPages.push({
+          pageId: page.id,
+          pageName: page.name,
+          pageAccessToken: page.access_token,
+          igAccount: page.instagram_business_account ? {
+            id: page.instagram_business_account.id,
+            username: page.instagram_business_account.username,
+            profilePic: page.instagram_business_account.profile_picture_url,
+          } : null,
+        });
+      }
+    }
+  }
+
+  return allPages;
+}
+
+/**
  * Obtenir l'ID du compte Instagram Business lié à une page
  */
 export async function getInstagramAccountId(pageId, accessToken) {

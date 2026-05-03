@@ -12,6 +12,7 @@ import {
   exchangeCodeForToken,
   getLongLivedToken,
   getPages,
+  getBusinessPages,
 } from '../services/facebookService.js';
 
 const router = express.Router();
@@ -61,37 +62,19 @@ router.get('/facebook/callback', async (req, res) => {
     // Échanger le code contre un token court
     const shortToken = await exchangeCodeForToken(code);
 
-    // Debug: vérifier les permissions du short token
-    const debugRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${shortToken}`);
-    const debugData = await debugRes.json();
-    console.log('[SOCIAL AUTH] Short token permissions:', JSON.stringify(debugData));
-
     // Obtenir un long-lived token (60 jours)
     const { access_token: longToken, expires_in } = await getLongLivedToken(shortToken);
     const expiresAt = new Date(Date.now() + (expires_in || 5184000) * 1000).toISOString();
 
-    // Debug: vérifier l'identité du token
-    const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${shortToken}`);
-    const meData = await meRes.json();
-    console.log('[SOCIAL AUTH] Token identity (me):', JSON.stringify(meData));
+    // 1. Tenter me/accounts (pages avec rôle direct)
+    let pages = await getPages(longToken);
+    console.log(`[SOCIAL AUTH] me/accounts: ${pages.length} pages found`);
 
-    // Tenter getPages avec les DEUX tokens (short puis long)
-    console.log('[SOCIAL AUTH] Trying getPages with SHORT token...');
-    let pages = await getPages(shortToken);
-    console.log(`[SOCIAL AUTH] Short token: ${pages.length} pages found`);
-
+    // 2. Fallback: pages via Business Manager (New Pages Experience)
     if (!pages || pages.length === 0) {
-      console.log('[SOCIAL AUTH] Trying getPages with LONG token...');
-      pages = await getPages(longToken);
-      console.log(`[SOCIAL AUTH] Long token: ${pages.length} pages found`);
-    }
-
-    // Si toujours vide, essayer endpoint alternatif (pages liked/managed)
-    if (!pages || pages.length === 0) {
-      console.log('[SOCIAL AUTH] Both tokens returned 0 pages. Trying /me/accounts with minimal fields...');
-      const minRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${shortToken}`);
-      const minData = await minRes.json();
-      console.log('[SOCIAL AUTH] Minimal /me/accounts response:', JSON.stringify(minData).substring(0, 1000));
+      console.log('[SOCIAL AUTH] Fallback: trying Business Manager owned_pages...');
+      pages = await getBusinessPages(longToken);
+      console.log(`[SOCIAL AUTH] Business Manager: ${pages.length} pages found`);
     }
 
     if (!pages || pages.length === 0) {
