@@ -80,8 +80,10 @@ export async function getLongLivedToken(shortToken) {
 export async function getPages(accessToken) {
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url}&access_token=${accessToken}`;
 
+  console.log('[FACEBOOK] getPages URL:', url.replace(accessToken, '***'));
   const response = await fetch(url);
   const data = await response.json();
+  console.log('[FACEBOOK] getPages response:', JSON.stringify(data).substring(0, 500));
 
   if (data.error) {
     throw new Error(data.error.message);
