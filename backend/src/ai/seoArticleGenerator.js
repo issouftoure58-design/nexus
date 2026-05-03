@@ -106,9 +106,12 @@ FORMAT JSON (UNIQUEMENT, sans texte avant ou après):
 
 Le contenu DOIT être en Markdown. La section FAQ dans "faq" est séparée pour le Schema FAQ JSON-LD.`;
 
+    // max_tokens adapté à la longueur cible (1 mot ≈ 2.5 tokens + overhead JSON/markdown)
+    const maxTokens = Math.max(6000, Math.round(targetWords * 3));
+
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       messages: [{
         role: 'user',
         content: prompt
@@ -317,7 +320,7 @@ Retourne l'article amélioré au format JSON:
 
     const message = await callWithRetry({
       model: MODEL_DEFAULT,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{
         role: 'user',
         content: prompt
