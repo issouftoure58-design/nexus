@@ -279,8 +279,9 @@ export default function ReseauxSociaux() {
                   <span className="font-medium text-gray-900 dark:text-white">Facebook</span>
                 </div>
                 {fbAccount && (
-                  <button onClick={() => disconnectAccount(fbAccount.id)} className="text-gray-400 hover:text-red-500" title="Deconnecter">
-                    <Unlink className="w-4 h-4" />
+                  <button onClick={() => disconnectAccount(fbAccount.id)} className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Deconnecter">
+                    <Unlink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Deconnecter</span>
                   </button>
                 )}
               </div>
@@ -303,9 +304,17 @@ export default function ReseauxSociaux() {
             </div>
             {/* Instagram */}
             <div className={`p-4 rounded-lg border ${igAccount ? 'border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-900/10' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Instagram className="w-5 h-5 text-pink-600" />
-                <span className="font-medium text-gray-900 dark:text-white">Instagram</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Instagram className="w-5 h-5 text-pink-600" />
+                  <span className="font-medium text-gray-900 dark:text-white">Instagram</span>
+                </div>
+                {igAccount && (
+                  <button onClick={() => disconnectAccount(igAccount.id)} className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Deconnecter">
+                    <Unlink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Deconnecter</span>
+                  </button>
+                )}
               </div>
               {igAccount ? (
                 <p className="text-sm text-gray-600 dark:text-gray-300">@{igAccount.account_name}</p>
