@@ -1,7 +1,7 @@
 # NEXUS — SUIVI D'AVANCEMENT
 
 > Ce fichier est la source de verite unique. Mis a jour a chaque action.
-> Derniere mise a jour: 2026-05-03 UTC
+> Derniere mise a jour: 2026-05-04 UTC
 
 **Score technique: 100/100**
 **Score performance global: ~9.0/10 vs leaders mondiaux (avant: 8.4, initial: 7.4)**
@@ -400,6 +400,34 @@ NEXUS est techniquement avance (IA, modules, monitoring). Les lacunes sont sur l
 - 134 — email_verification
 
 **Version:** 3.26.0
+
+---
+
+## Validation Pre-Commercialisation (3-4 mai 2026)
+
+### Session 55-56 : Tests E2E + Fixes + DMARC
+
+**10 verifications, 2 bugs fixes, 1 correction DNS. Statut: PRET POUR COMMERCIALISATION.**
+
+#### Blocs critiques (4/4 PASS)
+- **Isolation multi-tenant** : tenantShield 403, RLS Supabase, lint:tenant 0 violations
+- **Signup E2E** : wizard 4 etapes, SMS, creation tenant + services + horaires + agent config
+- **Stripe** : 5 plans affiches, checkout session, webhook signature rejet, verify-checkout
+- **Responsive mobile** : 7 pages a 375px/513px, hamburger, GlobalMenu, formulaires completables
+
+#### Tests importants (4/4 PASS)
+- **Tunnel conversion** : 8 CTAs landing → /signup?plan=X tous corrects
+- **GA4** : analytics.js consent-based, G-S8L7KRTSQR actif apres redeploy Render
+- **RGPD/CGV** : CGV v1.2, confidentialite 7 sections, cookie banner opt-in, CGV signup obligatoire
+- **Email** : Resend/SES, SPF+DKIM+DMARC, List-Unsubscribe RFC 8058
+
+#### Tests mineurs (4/4 PASS)
+- Backend /health, Schema.org (3 types), Meta tags/OG/canonical, Lints (tenant+syntax)
+
+#### Bugs fixes
+- **PHONE_EXISTS** : anti-doublon telephone interrogeait `admin_users` au lieu de `tenants` → corrige (commit 97c0bd7)
+- **GA4 production** : build Render stale → Clear build cache & deploy → GA4 charge correctement
+- **DMARC** : `p=none` → `p=quarantine; rua=mailto:dmarc@nexus-ai-saas.com;` (OVH DNS, propagation confirmee)
 
 ---
 

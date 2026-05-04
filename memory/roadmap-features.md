@@ -47,6 +47,10 @@
 - [ ] Voix personnalisee par tenant (choix de voix OpenAI)
 - [ ] Historique conversations voix consultable dans admin
 
+### SEO & Contenu
+- [ ] **Refonte articles blog IA** — rendu HTML riche (plus de markdown brut), images hero, tableaux stylises, encadres couleur, CTA, typographie soignee, sidebar articles lies. Objectif : articles visuellement premium pour maximiser temps sur page et SEO
+- [ ] SEO intensif NEXUS — blog, pages metier, mots-cles longue traine
+
 ### Business
 - [ ] Module Comptabilite avancee (rapprochement bancaire)
 - [ ] Module Fidelite (points, rewards)
